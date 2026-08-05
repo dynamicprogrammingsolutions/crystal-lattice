@@ -5,6 +5,12 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 - `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirement IDs:
+`DOCREP-003`, `DOCMIG-003`, `DOCPUB-006`
+
 # Cross-Package and Reference Documentation Triage
 
 Inspect the cross-package architecture, endpoint parity plan, tool-host

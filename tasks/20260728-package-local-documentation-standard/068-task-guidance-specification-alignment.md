@@ -9,6 +9,12 @@ Related Existing Task:
 
 - `tasks/20260721-task-guidance-evaluation-workflow.md`
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirement IDs:
+`DOCFLOW-002`–`DOCFLOW-004`, `DOCVAL-001`
+
 # Task Guidance and Specification Alignment
 
 Align `TASKS-v7` with the package-local specification and contributor workflow,
@@ -27,12 +33,21 @@ full contributor guide in every task-related developer message.
 - [ ] Task guidance explains how durable specifications, requirement IDs, task
   requirements, execution plans, verification evidence, and completion notes
   relate.
+- [ ] Task guidance states that specifications describe the target while
+  requirements track live implementation, verification, documentation, and
+  evidence.
 - [ ] When a durable specification exists, task files link to it, preserve its
   identifiers, and avoid conflicting requirement paraphrases or duplicated
   plan content.
-- [ ] Task guidance explains that living specifications and task plans must
+- [ ] Task guidance makes task files the default approval record for
+  specification/requirement changes and explains that specs need no mandatory
+  approval status.
+- [ ] Task guidance explains that target specifications and task plans must
   both be updated when material implementation discoveries change accepted
   design or scope.
+- [ ] Task guidance distinguishes target specs from current public and
+  implementation documentation, which must stay consistent with committed
+  code.
 - [ ] The guide remains concise because it is appended to developer messages
   whenever task-file guidance is active.
 - [ ] The guide points agents to root `CONTRIBUTING.md` for the broader
@@ -43,6 +58,9 @@ full contributor guide in every task-related developer message.
   updated for changed semantics.
 - [ ] Evaluation scenarios exercise concise prompts that rely on the injected
   guidance rather than restating task rules.
+- [ ] Task-guidance evaluation code, fixtures, documentation, and review
+  tooling move from root `test/` locations into a coherent
+  `maintainer/`-owned layout, with commands, imports, and consumers updated.
 - [ ] Human review remains part of interpreting real-model evaluation
   artifacts; an AI-produced review is not the sole acceptance evidence.
 
@@ -101,20 +119,36 @@ It should not contain:
 
 When a durable specification exists:
 
-- the specification is the durable source for product behavior, technical
-  design, and normalized requirement IDs;
+- the specification is the durable target for product behavior and technical
+  design;
+- the requirements record tracks live implementation, verification,
+  documentation, and evidence;
 - the task links to the specification and records execution scope,
-  dependencies, plan, findings, and completion state;
+  approval, dependencies, plan, findings, and completion state;
 - task requirements map to specification requirements rather than silently
   rewording them into a second contract;
 - requirement evidence links tests, documentation, task files, and delivery
   references;
-- implementation discoveries update the task plan and the living specification
+- implementation discoveries update the task plan and target specification
   when they change accepted behavior or design;
 - requirement changes still require approval.
 
 Small changes without durable specifications continue to use task-local
 requirements as the completed-state contract.
+
+Task guidance should keep the workflow simple:
+
+- update a specification before implementation;
+- normally commit a simple spec change with the code or in the immediately
+  preceding commit;
+- create a new spec and requirements before implementing a new capability;
+- use separate target versions only when a major multi-commit change would be
+  clearer that way;
+- use temporary progress tracking only when work spans multiple commits, link
+  it to the task/requirements, and remove it after verification.
+
+Public user documentation and implementation/maintainer documentation describe
+current behavior and are committed with the code that makes new claims true.
 
 ### Existing evaluation workflow
 
@@ -141,18 +175,21 @@ Status: Draft
 
 1. Compare canonical and bundled v7 files and the config paths that load them.
 2. Confirm or refine the canonical-source decision.
-3. Add the concise specification/task relationship and contributor-guide
-   routing to the canonical guidance.
+3. Add the concise target-spec/requirements/task/current-doc relationship and
+   contributor-guide routing to the canonical guidance.
 4. Remove or avoid duplicated broad workflow text.
 5. Add a synchronization command, packaging step, or exact-equality test for
    the bundled copy.
 6. Update the bundled file from the canonical source.
-7. Update deterministic fixtures/assertions for the changed guidance.
-8. Add or update concise-prompt evaluation cases.
-9. Run deterministic evaluation tests.
-10. Run a representative real-model evaluation when practical and explicitly
+7. Move the task-guidance evaluation harness, fixtures, README, and review
+   tooling into a coherent `maintainer/`-owned layout and update all commands,
+   imports, and consumers.
+8. Update deterministic fixtures/assertions for the changed guidance.
+9. Add or update concise-prompt evaluation cases.
+10. Run deterministic evaluation tests.
+11. Run a representative real-model evaluation when practical and explicitly
     enabled, then prepare artifacts for human inspection.
-11. Document any intentionally deferred empirical evaluation.
+12. Document any intentionally deferred empirical evaluation.
 
 ### Implementation decisions and open questions
 
@@ -173,6 +210,7 @@ Status: Draft
 - Bundled `application/python/agent_terminal_app/default_config/TASKS_v7.md`
 - `CONTRIBUTING.md` routing
 - Task-guidance evaluation README/fixtures where behavior changes
+- Maintainer-owned task-guidance evaluation code, fixtures, and documentation
 - Any synchronization command documentation
 
 ### Task checklist
@@ -182,6 +220,7 @@ Status: Draft
 - [ ] Add concise contributor-workflow routing.
 - [ ] Add canonical/bundled synchronization or parity enforcement.
 - [ ] Update bundled guidance.
+- [ ] Move task-guidance evaluation infrastructure under `maintainer/`.
 - [ ] Update deterministic evaluation fixtures/assertions.
 - [ ] Add concise-prompt evaluation coverage.
 - [ ] Run deterministic tests.
@@ -193,9 +232,10 @@ Status: Draft
 | Requirement group | Acceptance evidence |
 |---|---|
 | Canonical source and parity | A documented canonical path exists; automated check or sync command demonstrates canonical and bundled files match. |
-| Specification/task semantics | Guidance inspection and deterministic fixtures show agents link durable specs, preserve IDs, and avoid duplicate/conflicting contracts. |
+| Specification/task semantics | Guidance inspection and deterministic fixtures show agents treat specs as targets, requirements as live tracking, tasks as approval/execution records, preserve IDs, and avoid duplicate/conflicting contracts. |
 | Concision | Diff and rendered developer-message inspection confirm the guide routes to `CONTRIBUTING.md` instead of embedding the six-step workflow and prompt library. |
 | Short prompts | Evaluation cases use concise stage-specific prompts while the compiled developer message contains the standing task guidance. |
+| Maintainer ownership | Task-guidance evaluation code, fixtures, documentation, imports, and commands operate from the approved `maintainer/` layout; old root test locations are removed or intentionally covered by compatibility behavior. |
 | Evaluation | Deterministic evaluation tests pass; any real-model run is recorded with exact guidance hash and human-readable artifacts, or is explicitly reported as not run. |
 | Human responsibility | Evaluation and guide text do not treat empirical AI review as final acceptance or manual verification. |
 

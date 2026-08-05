@@ -1,5 +1,12 @@
 Parent Task: tasks/20260728-package-local-documentation-standard/000-main.md
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirement IDs:
+`DOCMETA-001`–`DOCMETA-003`, `DOCGEN-001`–`DOCGEN-005`,
+`DOCREP-001`–`DOCREP-005`
+
 # Documentation Standard and Agent Guidance
 
 Create the canonical repository documentation and specification standards,
@@ -8,22 +15,23 @@ boilerplate or reconstructed documentation to every package.
 
 ## Requirements checklist
 
+- [x] The unified maintainer meta-specification defines the target and its
+  requirements track both reusable and repository-specific output artifacts.
 - [ ] `docs/development/index.md` provides a concise map to repository-wide
   development documentation.
-- [ ] `docs/development/documentation-structure.md` documents package profiles,
-  artifact roles, ownership, source-of-truth rules, incremental adoption, and
-  generated-site boundaries.
-- [ ] `docs/development/specification-driven-development.md` documents product
-  specifications, technical specifications, requirements traceability,
-  architecture decisions, lifecycle, testing relationships, and task-file
-  relationships.
+- [ ] `docs/development/standards/` contains reusable package-neutral
+  documentation and specification standards.
+- [ ] `docs/development/repository/` maps the generic standards to Crystal
+  Lattice paths, package profiles, plugin documentation, tasks, agent guidance,
+  publication, and validation without duplicating the generic explanations.
 - [ ] Root `AGENTS.md` contains concise routing and update guidance and points to
-  the full standard.
+  the effective repository policy, generic standards, and maintainer
+  specification only when an agent is changing the standards themselves.
 - [ ] The standard does not require placeholder pages, duplicated boilerplate,
   or broad reverse engineering of undocumented packages.
-- [ ] Initial major package roots receive or refine `AGENTS.md`,
-  `docs/index.md`, and `docs/quickstart.md` only where the approved package
-  profile requires them and existing verified material can support them.
+- [ ] Initial major package roots are classified under the approved profiles,
+  and package entry-point creation is assigned to the owning migration
+  subtasks.
 - [ ] The approved decision register in the parent task remains reflected in
   the authored standard and remains reviewable.
 
@@ -80,8 +88,8 @@ Documentation is authored next to the package or subsystem that owns it.
 
 See:
 
-- `docs/development/documentation-structure.md`
-- `docs/development/specification-driven-development.md`
+- `docs/development/repository/index.md`
+- `docs/development/standards/index.md`
 ```
 
 ### Package entry-point principle
@@ -94,9 +102,25 @@ For a major package that lacks the full structure, use existing README and
 verified documentation to create concise routing pages. Do not fabricate
 long-form content merely to complete the shape.
 
+## Implementation Notes
+
+- August 5, 2026: Created the approval package before execution-plan approval:
+  - `maintainer/README.md`;
+  - the unified documentation/specification meta-specification;
+  - its live requirements covering generic and repository-specific outputs;
+  - parent/subtask mappings to the new requirement IDs.
+- The user approved the meta-specification and bootstrap requirements on
+  August 5, 2026. `DOCMETA-001`–`DOCMETA-003` are human verified.
+- The user approved execution of subtask 010 on August 5, 2026, including the
+  package-entry-point ownership correction assigning Core/application entry
+  points to subtasks 030/040.
+- No generic standards, repository-policy pages, AGENTS updates, docs-site
+  changes, migrations, or maintainer-tool relocations have been implemented.
+- The execution plan remains `Draft`.
+
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 Subtask 010 establishes the vocabulary, ownership rules, and root routing that
 later assembly, migration, contributor-workflow, and task-guidance subtasks
@@ -141,8 +165,8 @@ The page should remain short and contain:
 1. A brief explanation that root development docs own repository-wide
    standards and genuinely cross-package contracts.
 2. A **Standards** section linking to:
-   - `documentation-structure.md`;
-   - `specification-driven-development.md`.
+   - `standards/index.md`;
+   - `repository/index.md`.
 3. A **Cross-package specifications** section preserving the current
    notifications, action-display, runtime-reload, and Sessions-action links.
 4. A short pointer explaining that implementation-specific details live under
@@ -150,12 +174,20 @@ The page should remain short and contain:
 5. No manually maintained inventory of every package document; package/site
    discovery belongs to later assembly and navigation work.
 
-### 3. Write the package-local documentation standard
+### 3. Write the reusable documentation standard and repository policy
 
-Create `docs/development/documentation-structure.md` for agents and human
-contributors.
+Create:
 
-Organize it for quick use:
+- `docs/development/standards/index.md`;
+- `docs/development/standards/documentation.md`;
+- `docs/development/repository/index.md`;
+- `docs/development/repository/documentation.md`.
+
+The generic documentation page is package-neutral and reusable. The repository
+page maps it to Crystal Lattice package profiles, paths, shared plugin docs,
+agent guidance, site assembly, and migration behavior.
+
+Together they should cover:
 
 1. **Purpose and core rules**
    - author docs beside the owning package;
@@ -205,7 +237,7 @@ Organize it for quick use:
    - existing packages remain valid while migration is incomplete;
    - no mass placeholder creation;
    - no requirement to retrofit every historical document in this subtask.
-10. **Initial repository classification**
+10. **Initial repository classification in the repository policy**
     - identify Core and application as public package profiles;
     - identify shared frontend packages and mobile/desktop/bridge/cloud as
       public package/application profiles;
@@ -217,11 +249,18 @@ Organize it for quick use:
 Use tables and compact examples where they improve scanning, but do not turn
 the page into an exhaustive package inventory.
 
-### 4. Write the specification-driven development standard
+### 4. Write the reusable specification standard and repository policy
 
-Create `docs/development/specification-driven-development.md`.
+Create:
 
-The page should document:
+- `docs/development/standards/specifications.md`;
+- `docs/development/repository/specifications.md`.
+
+The generic page defines the reusable target-spec/live-requirements model. The
+repository page maps it to package-local paths, `tasks/`, `AGENTS.md`,
+`TASKS-v7`, requirement evidence, and validation.
+
+Together they should document:
 
 1. **When durable specifications are needed**
    - substantive, durable, cross-package, compatibility-sensitive,
@@ -233,7 +272,7 @@ The page should document:
    - root `docs/development/specifications/<feature-slug>/` only for genuinely
      cross-package portable behavior without an honest single-package owner.
 3. **Artifact roles**
-   - `index.md`: scope, status, links, ownership, related tasks/specs;
+   - `index.md`: scope, links, ownership, and related tasks/specs;
    - `product-spec.md`: problem, users, user-visible behavior, goals,
      non-goals, acceptance examples;
    - `technical-spec.md`: architecture, contracts, data, compatibility,
@@ -244,25 +283,47 @@ The page should document:
    - the full set is not mandatory for every change;
    - omitted artifacts should be obviously unnecessary from the index/scope,
      not represented by empty placeholders.
-5. **Lifecycle**
-   - Draft;
-   - Accepted;
-   - Implementing;
-   - Implemented;
-   - Verified;
-   - Superseded.
-6. **Requirement IDs and traceability**
+5. **Target versus live state**
+   - the specification describes the intended target;
+   - the specification may temporarily differ from implementation;
+   - requirements track live implementation, verification, documentation, and
+     evidence;
+   - the specification is not evidence that behavior is currently available.
+6. **Simple spec-first workflow**
+   - small changes update the spec first and normally commit it with the code
+     or in the immediately preceding commit;
+   - new capabilities create the spec and requirements before implementation;
+   - major changes use the same workflow unless a separate target version or
+     change spec materially improves clarity;
+   - no one version-directory format is mandatory.
+7. **Approval and progress**
+   - task files track approval by default;
+   - specs do not require a lifecycle/status field;
+   - domain-specific specs may define custom approval/tracking rules;
+   - temporary progress blocks are used only when implementation will span
+     more than one commit and target/current divergence is confusing;
+   - temporary progress links the task and requirement IDs and is removed when
+     all relevant requirements are verified.
+8. **Requirement IDs and traceability**
    - stable feature prefix plus sequence;
    - do not recycle accepted IDs;
    - implementation, verification, and documentation states remain separate;
    - evidence may include tests, docs, tasks, PRs, and commits;
    - commit evidence is added when it exists, not predicted.
-7. **Relationship to task files**
-   - specifications own durable behavior/design;
-   - requirements own durable outcome/evidence tracking;
-   - tasks own execution scope, plans, dependencies, findings, and completion;
+9. **Relationship to task files**
+   - specifications own target behavior/design;
+   - requirements own live outcome/evidence tracking;
+   - tasks own approval, execution scope, plans, dependencies, findings, and
+     completion;
    - avoid divergent requirement paraphrases and duplicated plans.
-8. **Relationship to verification**
+10. **Relationship to current documentation**
+    - public user docs describe current supported behavior;
+    - implementation/maintainer docs describe current implementation;
+    - either may be edited first in the working tree, but new claims are
+      committed with the code that makes them true;
+    - future or target-only behavior remains in specifications and
+      requirements, not current guides.
+11. **Relationship to verification**
    - acceptance/contract tests may reference requirement IDs;
    - ordinary low-level tests need not;
    - machine-readable contracts and examples should be tested directly where
@@ -270,12 +331,15 @@ The page should document:
    - manual verification is recorded only when a human performs or confirms
      it;
    - Gherkin remains optional.
-9. **Living changes and supersession**
-   - update specs when implementation discoveries change accepted design;
+12. **Living target changes**
+   - update specs when implementation discoveries change the accepted target;
    - requirement changes still require approval;
    - use decision records for material design changes;
-   - link superseding specs instead of erasing historical rationale.
-10. **Compact examples**
+   - use Git history as the default record for ordinary spec evolution;
+   - use explicit target versions only when a major change would otherwise be
+     confusing;
+   - link superseding versions/specs instead of erasing historical rationale.
+13. **Compact examples**
     - include short skeletons for a specification index, requirements table,
       and ADR;
     - use the current root specification set as evidence for terminology, but
@@ -301,7 +365,7 @@ Update `AGENTS.md` so it stays concise while the new pages carry explanation.
    - stable requirement IDs and task/spec separation;
    - update docs/specs/evidence with behavior;
    - do not invent baselines through broad reconstruction.
-3. Link to the two new standards pages.
+3. Link to the repository-policy and generic-standard indexes.
 4. Replace explanatory or obsolete documentation-maintenance detail with links
    to the standards, while preserving architecture, package ownership, and
    test commands still needed directly by agents.
@@ -321,8 +385,8 @@ Update `AGENTS.md` so it stays concise while the new pages carry explanation.
    feature specifications.
 2. Update the root README documentation section to link:
    - the development hub;
-   - documentation structure;
-   - specification-driven development.
+   - reusable standards;
+   - repository policy.
 3. Correct the README's docs build commands to use
    `docs_site/requirements.txt`, the preparation script, and the
    `docs_site/` MkDocs configuration.
@@ -371,7 +435,7 @@ Documentation-only verification:
    - references to future files not created by 010.
 3. Validate relative links in:
    - `docs/development/index.md`;
-   - both new standard pages;
+   - generic standard and repository-policy indexes/pages;
    - `docs/index.md`;
    - root README;
    - root AGENTS.
@@ -399,9 +463,9 @@ Documentation-only verification:
 ### Implementation decisions and open questions
 
 - **Approved parent decisions applied:** package profiles, README/docs-index
-  precedence, non-public AGENTS, proportional specifications, living specs,
-  traceability granularity, generated-output boundaries, and adoption without
-  filler.
+  precedence, non-public AGENTS, proportional target specifications,
+  requirements-owned live tracking, task-owned approval, traceability
+  granularity, generated-output boundaries, and adoption without filler.
 - **Recommended ownership decision requiring plan approval:** 010 defines and
   classifies package entry points, while 030/040 create the Core/application
   files. This removes an overlap without changing the parent-task outcome.
@@ -424,14 +488,23 @@ Documentation-only verification:
 ### Documentation
 
 - `docs/development/index.md`
-- `docs/development/documentation-structure.md`
-- `docs/development/specification-driven-development.md`
+- `docs/development/standards/index.md`
+- `docs/development/standards/documentation.md`
+- `docs/development/standards/specifications.md`
+- `docs/development/repository/index.md`
+- `docs/development/repository/documentation.md`
+- `docs/development/repository/specifications.md`
+- `maintainer/README.md`
+- `maintainer/specifications/documentation-and-specification-standard/*`
 - root `AGENTS.md`
 - `docs/index.md`
 - root `README.md`
 
 ### Task checklist
 
+- [x] Create the simplified maintainer boundary and unified meta-specification.
+- [x] Create live requirements for generic and repository-specific outputs.
+- [x] Map the parent task and subtasks to meta-specification requirement IDs.
 - [ ] Preserve existing cross-package specifications and package implementation docs.
 - [ ] Expand the root development index into a standards/specifications hub.
 - [ ] Write the documentation structure standard.
@@ -446,9 +519,9 @@ Documentation-only verification:
 
 | Requirement group | Acceptance evidence |
 |---|---|
-| Development hub | `docs/development/index.md` preserves all active cross-package specification links and exposes the two standards with a concise root/package ownership explanation. |
-| Documentation structure | Human inspection confirms artifact roles, package profiles, owner decision rules, source-of-truth, root-doc exception, generated-output rule, migration behavior, and incremental adoption are explicit. |
-| Specification workflow | Human inspection confirms artifact thresholds and roles, lifecycle, stable IDs, separate status dimensions, evidence, ADRs, task relationships, testing/manual verification, living updates, and supersession. |
+| Development hub | `docs/development/index.md` preserves all active cross-package specification links and exposes reusable standards and repository policy with a concise ownership explanation. |
+| Documentation structure | Human inspection confirms the generic page is package-neutral, the repository overlay contains local mappings/exceptions without generic duplication, and artifact roles, package profiles, ownership, generated-output, migration, and incremental-adoption rules are explicit. |
+| Specification workflow | Human inspection confirms target-state specification semantics, requirements-owned live tracking, task-owned approval, simple spec-first commits, optional major-version separation, stable IDs, evidence, ADRs, current-doc coupling, and temporary multi-commit progress rules. |
 | Existing specifications | Diff inspection confirms current feature specifications were preserved and no mass conformance rewrite or unsupported claims were introduced. |
 | Agent guidance | Root `AGENTS.md` routes agents to package docs and full standards without reproducing the long explanations or preempting `CONTRIBUTING.md`/`TASKS-v7` work. |
 | Package profiles | The structure standard classifies initial package categories and assigns Core/application entry-point creation to 030/040 after the ownership correction is approved. |

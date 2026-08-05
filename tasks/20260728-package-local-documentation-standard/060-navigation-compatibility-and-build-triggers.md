@@ -6,6 +6,12 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
 - `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirement IDs:
+`DOCPUB-004`–`DOCPUB-006`, `DOCVAL-003`
+
 # Navigation, Compatibility, and Build Triggers
 
 Update documentation navigation, LLM indexes, repository links, compatibility

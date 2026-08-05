@@ -5,6 +5,12 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 - `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirement IDs:
+`DOCREP-004`, `DOCMIG-001`, `DOCPUB-006`
+
 # Core Python Documentation Migration
 
 Create the Core Python package documentation entry points and migrate

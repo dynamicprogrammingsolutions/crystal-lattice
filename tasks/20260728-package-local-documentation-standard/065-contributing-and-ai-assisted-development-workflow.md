@@ -4,6 +4,12 @@ Depends On:
 
 - `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirement IDs:
+`DOCFLOW-001`, `DOCFLOW-004`
+
 # Contributing and AI-Assisted Development Workflow
 
 Create an easy-to-follow root `CONTRIBUTING.md` that explains a practical,

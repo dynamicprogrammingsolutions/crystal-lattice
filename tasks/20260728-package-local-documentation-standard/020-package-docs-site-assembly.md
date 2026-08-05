@@ -4,6 +4,12 @@ Depends On:
 
 - `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirement IDs:
+`DOCPUB-001`–`DOCPUB-003`, `DOCVAL-001`
+
 # Package Documentation Site Assembly
 
 Extend the existing MkDocs preparation pipeline so explicitly registered

@@ -11,6 +11,12 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
 - `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirement IDs:
+`DOCMIG-004`, `DOCFLOW-004`, `DOCVAL-001`–`DOCVAL-004`
+
 # Verification and Deferred Migration Inventory
 
 Perform final documentation-system verification, map evidence back to the

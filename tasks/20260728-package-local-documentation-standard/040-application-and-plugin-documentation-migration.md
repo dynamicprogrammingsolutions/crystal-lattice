@@ -5,6 +5,12 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 - `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirement IDs:
+`DOCREP-002`, `DOCREP-004`, `DOCMIG-002`, `DOCPUB-006`
+
 # Application and Plugin Documentation Migration
 
 Create application package documentation entry points and relocate

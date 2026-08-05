@@ -5,8 +5,20 @@ existing documentation-site assembly pipeline, and migrate a bounded set of
 ownership-clear documentation without turning the work into a project-wide
 documentation rewrite or code archaeology exercise.
 
+Specification:
+`maintainer/specifications/documentation-and-specification-standard/index.md`
+
+Requirements:
+`maintainer/specifications/documentation-and-specification-standard/requirements.md`
+
 ## Requirements checklist
 
+- [ ] User-facing documentation and specification guidance is split into
+  reusable package-neutral standards and a concise Crystal Lattice repository
+  policy that maps local paths, profiles, exceptions, and tooling.
+- [ ] `maintainer/` provides a clear non-public home for specifications,
+  evaluation tooling, and implementation material used to maintain standards
+  and agent workflows.
 - [ ] The repository defines a canonical package-local documentation structure
   and minimum documentation profiles for public packages, applications/services,
   small plugins, and internal packages.
@@ -23,14 +35,20 @@ documentation rewrite or code archaeology exercise.
   reconstructed long-form documentation.
 - [ ] Small or implementation-only packages can use a reduced documentation
   profile, avoiding empty placeholder files and duplicated boilerplate.
-- [ ] The standard defines distinct purposes, names, and lifecycles for product
+- [ ] The standard defines distinct purposes and names for product
   specifications, technical specifications, requirements traceability, and
   architecture decision records.
-- [ ] Substantive feature work can create or update a living specification
-  before implementation and keep it current as behavior changes.
+- [ ] Specifications describe the intended target and may temporarily differ
+  from implementation, while requirements track the live implementation,
+  verification, and documentation state.
+- [ ] Substantive feature work creates or updates its specification before
+  implementation, with simple changes normally committed with the code or in
+  the immediately preceding commit.
 - [ ] Requirements use stable identifiers and can record implementation,
   verification, documentation, task, and delivery evidence without duplicating
   execution plans from `tasks/`.
+- [ ] Public user documentation and implementation/maintainer documentation
+  describe current behavior and do not become inconsistent with committed code.
 - [ ] Important acceptance and contract tests can reference requirement
   identifiers, while ordinary low-level tests are not required to carry them.
 - [ ] Root `CONTRIBUTING.md` provides an easy-to-follow, risk-scaled
@@ -42,6 +60,9 @@ documentation rewrite or code archaeology exercise.
 - [ ] Canonical and bundled `TASKS-v7` guidance is synchronized and explains
   how specifications, requirement IDs, task requirements, execution plans, and
   evidence relate without embedding the full contributor workflow.
+- [ ] Task-guidance evaluation code, fixtures, documentation, and review
+  tooling move from root shared-test locations into a coherent
+  `maintainer/`-owned layout.
 - [ ] The existing docs-site preparation pipeline supports explicitly
   registered package-local README and `docs/` sources.
 - [ ] Package-local documentation changes trigger the documentation build
@@ -59,6 +80,21 @@ documentation rewrite or code archaeology exercise.
   migration inventory with likely ownership and rationale, without creating
   placeholder documentation.
 
+## Specification and requirement mapping
+
+The meta-specification defines the target. Its requirements track live
+implementation and verification across this main task and the subtasks:
+
+| Workstream | Requirement IDs |
+|---|---|
+| Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
+| Generic reusable standards | `DOCGEN-001`–`DOCGEN-005` |
+| Crystal Lattice repository policy and package profiles | `DOCREP-001`–`DOCREP-005` |
+| Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
+| Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
+| Contributor workflow, task guidance, and maintainer-owned evaluation | `DOCFLOW-001`–`DOCFLOW-004` |
+| Build, links, evidence, and final verification | `DOCVAL-001`–`DOCVAL-004` |
+
 ## Scope
 
 This task establishes the structure and workflow first, migrates deliberately
@@ -70,8 +106,9 @@ The work includes:
 1. A documented package-local documentation standard.
 2. A concise documentation section in root `AGENTS.md`.
 3. A root developer-documentation hub.
-4. Naming and lifecycle conventions for product specifications, technical
-   specifications, requirements, and architecture decisions.
+4. Target-state conventions for product specifications and technical
+   specifications, live-state requirements tracking, and architecture
+   decisions.
 5. A practical root contributor guide for the recommended AI-assisted
    brainstorm-to-delivery workflow.
 6. Aligned task-file guidance that keeps recurring developer-message content
@@ -296,7 +333,8 @@ constraints.
 ### Requirements traceability
 
 `requirements.md` provides normalized, traceable outcomes instead of repeating
-the product and technical narratives.
+the product and technical narratives. Unlike the specification, it tracks the
+live state of implementation, verification, and documentation.
 
 Recommended shape:
 
@@ -313,7 +351,7 @@ Feature prefix: `EVT`
 
 Recommended implementation values:
 
-- `Proposed`
+- `Not started`
 - `In progress`
 - `Implemented`
 - `Deferred`
@@ -338,10 +376,13 @@ development.
 
 ### Relationship to task files
 
-- Specifications describe durable intended behavior and design.
-- `requirements.md` records durable completion and evidence.
+- Specifications describe the intended target behavior and design. They are not
+  evidence that the implementation currently behaves that way.
+- `requirements.md` records the live implementation, verification,
+  documentation, and evidence state relative to that target.
 - `tasks/` records execution planning, sequencing, dependencies, findings, and
-  completion notes.
+  completion notes. Task files are the default location for approval of
+  specification and requirement changes.
 - A task links to relevant requirement identifiers.
 - Requirements link to the implementing task and final delivery reference.
 - Implementation steps are not copied into both artifacts.
@@ -358,20 +399,48 @@ development.
 - Gherkin is optional for genuinely business-readable end-to-end behavior and
   is not mandatory for ordinary library code.
 
-### Specification lifecycle
+### Target and current-state model
 
-1. `Draft`: may contain open questions and is not yet an implementation
-   contract.
-2. `Accepted`: scope and material behavior are agreed.
-3. `Implementing`: implementation and tests are in progress.
-4. `Implemented`: code exists, but verification or documentation may remain.
-5. `Verified`: required verification and documentation evidence is recorded.
-6. `Superseded`: replaced by another specification.
+The specification is the intended target. It may differ from current
+implementation while work is in progress. The requirements record is the
+authoritative tracking view for what is implemented, verified, and documented.
 
-A specification may begin as an uncommitted working-tree document, but should
-be committed no later than the first implementation change that depends on it.
-Specifications remain living documents; material requirement changes still
-require approval and remain inspectable through history.
+The default workflow is:
+
+- **Small change:** update the specification first, then implement. Commit the
+  specification with the code or in the immediately preceding commit so the
+  target/current deviation is short and transparent.
+- **New capability:** create the specification and requirements first. The
+  requirements begin as not implemented and are updated as work completes.
+- **Major change:** use the same simple workflow when it remains clear. Introduce
+  an explicitly separate target version or change specification only when that
+  materially improves readability.
+
+Approval is tracked by the task file by default, not by a mandatory status
+inside the specification. A particular specification may define additional
+approval or status conventions when its domain needs them.
+
+Public user documentation and implementation/maintainer documentation describe
+current supported behavior. They may be edited first in the working tree, but
+must be committed with the code change that makes their claims true.
+
+Git history is the default explanation of ordinary specification evolution.
+Avoid maintaining a second change log or elaborate status history for simple
+changes.
+
+Temporary progress tracking inside a specification or its index is optional.
+Use it only when implementation is expected to span more than one commit and
+the target/current difference would otherwise be confusing. The progress block
+must link the active task and relevant requirement IDs, and should be removed
+when all relevant requirements are verified.
+
+For a major target that needs separate versions, use any clean structure that:
+
+- identifies the active target;
+- links the applicable requirements;
+- prevents public/current documentation from presenting future behavior as
+  available;
+- preserves previous targets through Git history or explicit version links.
 
 ## Approved decision register
 
@@ -389,7 +458,7 @@ without silently rewriting the task's requirements or rationale.
 | DOC-DEC-006 | Require the full product/technical/requirements specification set only for substantive, durable, or cross-package changes. | Approved | Keeps the process proportional and avoids unnecessary ceremony for small changes. | Small changes repeatedly expose missing durable design context. |
 | DOC-DEC-007 | Normally attach requirement IDs to acceptance and contract tests, not every low-level test. | Approved | Preserves useful traceability without overwhelming implementation tests. | Regulatory, contractual, or safety requirements demand full traceability. |
 | DOC-DEC-008 | Record a PR or completion commit for the feature; use per-requirement commit SHAs only when they add meaningful evidence. | Approved | File and test references are usually more stable and useful than manually maintained per-requirement commit lists. | Delivery or audit workflows require exact commit-level traceability. |
-| DOC-DEC-009 | Specifications remain living documents after acceptance. Material requirement changes require approval and visible history. | Approved | Implementation discoveries should update the intended design rather than leave an obsolete frozen specification. | A future process introduces formally baselined, immutable specifications. |
+| DOC-DEC-009 | Specifications are living target-state documents. Material target or requirement changes require approval through the task workflow and remain visible in Git history. | Approved | The target should evolve with accepted design discoveries without being mistaken for evidence of current implementation. | A domain introduces separately baselined or externally approved specifications. |
 | DOC-DEC-010 | Preserve moved public documentation URLs through compatibility pages or redirects for the initial migration. | Approved | Avoids breaking existing links while package-local ownership changes. | Redirect maintenance becomes permanent debt and a versioned URL-break policy is approved. |
 | DOC-DEC-011 | Prefer generated site reference output with package-local mkdocstrings/JSDoc source directives; separately decide whether committed generated snapshots still provide value. | Approved | Separates authored inputs from generated output and reduces duplicate sources. | Offline snapshot use or release packaging requires committed generated Markdown. |
 | DOC-DEC-012 | Require a successful normal docs build and no new warnings; global MkDocs strict-mode cleanup is separate unless migration fixes make strict mode practical. | Approved | Existing strict-mode warnings should not silently expand this migration into an unrelated cleanup project. | Strict mode already passes or remaining warnings are small and directly in scope. |
@@ -399,6 +468,14 @@ without silently rewriting the task's requirements or rationale.
 | DOC-DEC-016 | Manual verification requires human performance or direct human confirmation; AI may prepare the checklist but cannot mark it complete. | Approved | Preserves the meaning of human acceptance evidence. | A separately approved trusted automation policy defines an equivalent non-human acceptance mechanism. |
 | DOC-DEC-017 | AI review is advisory; final acceptance and delivery authorization remain human responsibilities. | Approved | AI review can supplement but not replace accountable human review. | Repository governance explicitly delegates approval to an automated policy. |
 | DOC-DEC-018 | Keep `TASKS-v7` concise, establish a canonical authored source, and mechanically synchronize or verify the bundled developer-message copy. | Approved | The current repository and bundled copies differ, while the bundled copy is the runtime input. | Runtime loading changes to consume one canonical file directly. |
+| DOC-DEC-019 | Treat the specification as the intended target, not as evidence of current implementation. Requirements track live implementation, verification, and documentation state. | Approved | Allows spec-first work without obscuring the current state. | A specific specification defines a stricter domain-specific tracking model. |
+| DOC-DEC-020 | Track specification approval in task files by default rather than requiring lifecycle status inside every specification. | Approved | Approval already belongs to the planned and reviewable execution workflow; duplicate status adds maintenance burden. | A specification has external governance or an independently reviewed approval process. |
+| DOC-DEC-021 | Keep simple specification evolution simple: update the spec first and normally commit it with the code or in the immediately preceding commit. | Approved | Git history makes target changes transparent without extra version/status machinery. | A major change spans enough commits that one target document becomes confusing. |
+| DOC-DEC-022 | Public user docs and implementation/maintainer docs describe current behavior and must be committed together with the code that makes new claims true. | Approved | Readers and maintainers need reliable current-state documentation even while specifications describe a future target. | Versioned product documentation intentionally documents multiple released versions. |
+| DOC-DEC-023 | Add temporary target-progress status only when work is expected to span multiple commits; link it to tasks and requirement IDs and remove it after all relevant requirements are verified. | Approved | Preserves clarity for long changes without turning every specification into a status dashboard. | Repeated long-running work needs a durable standardized roadmap format. |
+| DOC-DEC-024 | Publish reusable package-neutral standards separately from Crystal Lattice repository policy. The repository layer extends and maps the generic rules without duplicating them. | Approved | Makes the core model reusable while keeping plugin, path, task-guidance, and docs-site rules explicit and easy to find. | The generic standard becomes an independently versioned product or the overlay no longer shares ownership and delivery. |
+| DOC-DEC-025 | Use one meta-specification and requirements ledger for both output layers. | Approved | Generic and repository-specific outputs share one owner, approval path, delivery, and validation system. | The generic standard gains independent owners, releases, or multiple repository consumers. |
+| DOC-DEC-026 | Use the simplified `maintainer/specifications/` path because the entire `maintainer/` domain is development-only; move standards-maintenance tooling such as task-guidance evaluation under the same domain through its owning subtask. | Approved | Avoids empty `maintainer/docs/development/` parent indexes while preserving a clear non-public maintenance boundary. | Maintainer content later needs a distinct user-documentation layer or publication profile. |
 
 ## Open requirement questions
 
@@ -478,8 +555,16 @@ It does not generally watch package-local README or `docs/` paths such as
 │   ├── index.md
 │   ├── development/
 │   │   ├── index.md
-│   │   ├── documentation-structure.md
-│   │   ├── specification-driven-development.md
+│   │   ├── standards/
+│   │   │   ├── index.md
+│   │   │   ├── documentation.md
+│   │   │   └── specifications.md
+│   │   ├── repository/
+│   │   │   ├── index.md
+│   │   │   ├── documentation.md
+│   │   │   └── specifications.md
+│   │   ├── specifications/
+│   │   │   └── ...                         # cross-package targets only
 │   │   └── architecture.md
 │   └── reference/
 │       └── ...                              # cross-package contracts only
@@ -530,6 +615,16 @@ It does not generally watch package-local README or `docs/` paths such as
 │       ├── README.md
 │       ├── AGENTS.md                        # only when package-specific
 │       └── docs/                            # when README is insufficient
+│
+├── maintainer/
+│   ├── README.md
+│   ├── specifications/
+│   │   └── documentation-and-specification-standard/
+│   │       ├── index.md
+│   │       ├── product-spec.md
+│   │       ├── technical-spec.md
+│   │       └── requirements.md
+│   └── ...                                  # standards-maintenance tooling
 │
 └── docs_site/
     ├── README.md
@@ -643,8 +738,14 @@ may be resolved during execution and recorded in `## Implementation Notes`.
 Required new or updated documentation includes:
 
 - `docs/development/index.md`
-- `docs/development/documentation-structure.md`
-- `docs/development/specification-driven-development.md`
+- `docs/development/standards/index.md`
+- `docs/development/standards/documentation.md`
+- `docs/development/standards/specifications.md`
+- `docs/development/repository/index.md`
+- `docs/development/repository/documentation.md`
+- `docs/development/repository/specifications.md`
+- `maintainer/README.md`
+- `maintainer/specifications/documentation-and-specification-standard/*`
 - root `CONTRIBUTING.md`
 - root `AGENTS.md`
 - canonical and bundled `TASKS-v7` guidance plus synchronization/verification
@@ -674,7 +775,7 @@ Required new or updated documentation includes:
 |---|---|
 | Canonical documentation structure and profiles | Root development documentation describes each artifact, package profile, ownership rule, and incremental adoption rule; initial package entry points conform without filler. |
 | Agent routing and update behavior | Root `AGENTS.md` points to the full standard and clearly distinguishes README, user docs, development docs, specifications, root cross-package docs, and generated site output. |
-| Specification and requirement conventions | Published standard defines product/technical/requirements artifacts, lifecycle, stable IDs, evidence fields, task relationship, and proportional use. |
+| Specification and requirement conventions | Generic standard and repository policy define target product/technical specifications, live requirements, stable IDs, evidence fields, task-owned approval, current-doc behavior, package refinements, and proportional use. |
 | AI-assisted contributor workflow | Root `CONTRIBUTING.md` presents the approved six-step, risk-scaled workflow; clearly separates human ownership, implementing-agent work, reviewing-agent work, manual verification, AI review, and delivery authorization; and includes concise example prompts. |
 | Prompt/developer-message boundary | Contributor and agent guidance explains what belongs in standing developer-message inputs versus task prompts; prompt examples do not repeat generic repository rules. |
 | Task-guidance alignment | Canonical and bundled v7 guidance match mechanically and describe specification/task relationships without duplicating the full contributor workflow. |
