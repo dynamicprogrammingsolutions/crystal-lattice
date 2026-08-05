@@ -1,5 +1,5 @@
 seo:
-  title: "Crystal Lattice Control: Continue agent work from your phone"
+  title: "Crystal Lattice: Continue agent work from your phone"
   description: >-
     The Crystal Lattice mobile client connects to the Crystal Lattice runtime
     on your computer so you can browse sessions, send messages, watch responses
@@ -7,10 +7,10 @@ seo:
 
 sections:
   - type: mobileHero
-    label: "Crystal Lattice Control"
+    label: "Crystal Lattice"
     titleHtml: "Continue agent work,<br />from your phone."
     subtitle: >-
-      Crystal Lattice Control is a mobile UI for the Crystal Lattice runtime
+      Crystal Lattice is a mobile UI for the Crystal Lattice runtime
       running on your computer. Browse sessions, send messages, watch responses
       stream, and use plugin-driven actions without staying at the keyboard.
     platforms:
@@ -39,7 +39,7 @@ sections:
     note: "Requires Crystal Lattice running on your computer"
     image:
       src: "/cl-mobile-frame.png"
-      alt: "Crystal Lattice Control mobile app"
+      alt: "Crystal Lattice mobile app"
 
   - type: mobileFeatures
     id: features

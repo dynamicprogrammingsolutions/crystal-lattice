@@ -1,0 +1,7 @@
+seo:
+  title: "Support — Crystal Lattice"
+  description: "Support and troubleshooting information for the Crystal Lattice mobile app and self-hosted environments."
+
+sections:
+  - type: legalContent
+    source: "../markdown/support.md"

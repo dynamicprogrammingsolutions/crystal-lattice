@@ -91,6 +91,14 @@ const EVENTS_TIMEOUT_MS = 10_000;
 const BRIDGE_CONNECT_TIMEOUT_MS = 10_000;
 const BRIDGE_HEARTBEAT_INTERVAL_MS = 15_000;
 const BRIDGE_HEARTBEAT_TIMEOUT_MS = 5_000;
+const PRIVACY_POLICY_URL = 'https://crystallattice.dev/privacy';
+const SUPPORT_URL = 'https://crystallattice.dev/support';
+
+function openExternalUrl(url: string): void {
+  void Linking.openURL(url).catch(() => {
+    Alert.alert('Unable to Open Link', `Please open ${url} in your browser.`);
+  });
+}
 
 const TRANSPORT_TIMEOUT_RULES: TransportTimeoutRule[] = [
   { method: 'GET', pathPrefix: '/events', timeoutMs: EVENTS_TIMEOUT_MS },
@@ -1028,6 +1036,22 @@ function App(): React.JSX.Element {
         onPress={cancelConnectionWizard}>
         <Text style={styles.buttonTextSecondary}>Cancel</Text>
       </TouchableOpacity>
+
+      <View style={styles.legalLinks}>
+        <TouchableOpacity
+          accessibilityRole="link"
+          testID="privacy-policy-link"
+          onPress={() => openExternalUrl(PRIVACY_POLICY_URL)}>
+          <Text style={styles.legalLinkText}>Privacy Policy</Text>
+        </TouchableOpacity>
+        <Text style={styles.legalLinkSeparator}>·</Text>
+        <TouchableOpacity
+          accessibilityRole="link"
+          testID="support-link"
+          onPress={() => openExternalUrl(SUPPORT_URL)}>
+          <Text style={styles.legalLinkText}>Support</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -1520,6 +1544,22 @@ const createStyles = (theme: Theme) =>
       fontSize: 12,
       marginTop: 4,
       opacity: 0.8,
+    },
+    legalLinks: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      marginTop: 8,
+    },
+    legalLinkText: {
+      color: theme.primary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    legalLinkSeparator: {
+      color: theme.textSecondary,
+      fontSize: 14,
     },
     input: {
       backgroundColor: theme.surface,

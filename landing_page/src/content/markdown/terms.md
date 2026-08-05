@@ -1,7 +1,7 @@
 ---
 label: Legal
 title: Terms of Use
-meta: "Effective date: May 2025"
+meta: "Effective date: August 5, 2026"
 ---
 
 ## Open source software
@@ -52,8 +52,10 @@ is governed by their respective terms of service and privacy policies, not by
 these terms. We are not affiliated with, endorsed by, or responsible for any
 third-party provider.
 
-The bridge service is an optional component. Use of the bridge service is
-subject to its own infrastructure terms where applicable.
+The bridge and cloud-orchestrator services are optional self-hosted components.
+Dynamic Programming Solutions Kft. does not operate a public production bridge
+or cloud-agent service. The operator of each deployment is responsible for its
+infrastructure, access, security, and applicable terms.
 
 ## Intellectual property
 
@@ -77,5 +79,6 @@ constitutes acceptance of the updated terms.
 
 ## Contact
 
-Questions about these terms can be directed to the project via GitHub Issues or
-the contact information in the repository.
+Questions about these terms can be sent to
+[support@dynamicprogrammingsolutions.com](mailto:support@dynamicprogrammingsolutions.com).
+General product help is available on the [support page](/support).
