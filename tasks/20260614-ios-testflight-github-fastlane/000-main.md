@@ -10,7 +10,7 @@ Prepare the Crystal Lattice Control React Native iOS app for TestFlight registra
   - COMPLETED VIA current checkout on 2026-07-05: `npm run tsc` and `npm test -- --runInBand` pass; `npm run lint` remains not applicable until ESLint config is added.
 - [x] `tasks/20260614-ios-testflight-github-fastlane/030-ios-branding-assets.md`
 - [x] `tasks/20260614-ios-testflight-github-fastlane/040-ios-identity-metadata.md`
-- [ ] `tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-page-compliance.md`
+- [x] `tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-page-compliance.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/060-app-store-connect-registration-package.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/070-fastlane-ios-testflight.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/080-github-actions-ios-cd.md`

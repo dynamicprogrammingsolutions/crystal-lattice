@@ -58,11 +58,10 @@ Previously observed manifest entries:
 - Terms: `https://crystallattice.dev/terms`
 - Support source route added by this task: `https://crystallattice.dev/support`
 
-On 2026-08-05 the four pre-existing production routes returned HTTP 200 over
-HTTPS. The support route did not yet exist in production. The landing source now
-adds the support route and updates the privacy, terms, footer, and mobile
-branding. The updated site must be deployed before the support URL is entered in
-App Store Connect.
+On 2026-08-05 the landing changes were deployed from `main` by GitHub Actions
+run `31000951408`. The production landing, mobile, privacy, support, and terms
+routes all returned HTTP 200 after the CloudFront invalidation. The support URL
+and revised privacy content are ready for App Store Connect.
 
 ## Confirmed Operating Model
 
@@ -149,11 +148,8 @@ reporting, or other developer-operated data flow is introduced.
 
 ## Completion Notes
 
-Completed the source, app-flow, permission, privacy-manifest, and App Store
-privacy-answer audit on 2026-08-05. The updated landing pages build locally. The
-remaining operational gate is deploying the landing changes and confirming that
-`/support` and the revised `/privacy` content are public before entering the
-URLs in App Store Connect.
+Completed the source, app-flow, permission, privacy-manifest, App Store privacy
+answer, deployment, and public-route verification on 2026-08-05.
 
 Verification completed on 2026-08-05:
 
@@ -165,3 +161,7 @@ Verification completed on 2026-08-05:
 - Built app inspection confirmed `ITSAppUsesNonExemptEncryption = false`, the
   app privacy manifest, and React Native/dependency privacy bundles.
 - `git diff --check` for the scoped changes: passed.
+- GitHub Actions `Deploy Static Sites` run `31000951408`: passed in 2m53s.
+- Production `/`, `/mobile`, `/privacy`, `/support`, and `/terms`: HTTP 200.
+- Production privacy page: effective date and support contact verified.
+- Production mobile page: `Crystal Lattice` title and image alt text verified.
