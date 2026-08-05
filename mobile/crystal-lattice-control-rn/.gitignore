@@ -1,2 +1,3 @@
 artifacts/detox/
 artifacts/notification-visual/
+ios/.xcode.env.local

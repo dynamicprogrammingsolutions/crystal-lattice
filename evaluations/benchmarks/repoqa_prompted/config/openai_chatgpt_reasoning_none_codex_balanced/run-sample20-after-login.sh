@@ -1,7 +1,8 @@
 #!/bin/zsh
 set -euo pipefail
 
-REPO_ROOT="/Users/ferenci84/Dev/Mine/ai-agent-platform"
+SCRIPT_DIR="${0:A:h}"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 CONFIG_DIR="$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/config/openai_chatgpt_reasoning_none_codex_balanced"
 PROFILE="repoqa-prompted-gpt54mini-balanced-sample-chatgpt-docker"
 MANIFEST_PATH="$CONFIG_DIR/manifests/repoqa-prompted-balanced-all-limit20-seed1.json"

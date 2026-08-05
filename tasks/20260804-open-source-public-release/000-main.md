@@ -7,7 +7,7 @@ known developers and early adopters.
 ## Requirements checklist
 
 - [ ] The repository is not made public until every mandatory pre-publication subtask passes its release gate.
-- [ ] The current tree and reachable Git history contain no known active secrets, private user data, or unintentionally published runtime sessions.
+- [ ] The publication candidate contains no known active credentials or unapproved private data in its current tree, and any historical findings are documented, revoked where applicable, and explicitly accepted without rewriting Git history.
 - [ ] Claude Tools and its normalized fixtures are consistently licensed under Apache-2.0 with accurate public-behavior provenance and no claim that Anthropic's license applies merely because Claude Code was observed.
 - [ ] A new contributor can understand the project, report a security issue privately, request support, and open a useful issue without internal guidance.
 - [ ] Public pull requests cannot access deployment credentials, and repository automation uses least-privilege permissions suitable for untrusted contributors.
@@ -57,15 +57,11 @@ cloud cost, or a major obstacle to understanding the repository.
   contributions are approved for publication.
 - Decision: Large governance and repository-organization changes should follow
   early-adopter feedback instead of blocking the initial public release.
-
-## Requirement question
-
-- What is the intended disposition of
-  `core/python/.crystal/sessions/18a6a2c7-7c00-4c1d-83fd-829ac223af11.json`?
-  It must be reviewed before publication. If it is an intentional reusable test
-  fixture, it should be sanitized, renamed, and moved to a fixture directory.
-  Otherwise it should be removed, with history rewriting only if private or
-  secret material is discovered.
+- Decision: Git history will not be rewritten during public-release
+  preparation. Historical credentials are reported and revoked rather than
+  purged.
+- Decision: The tracked `.crystal` runtime session will be removed from the
+  current tree without removing its historical commits.
 
 ## Supporting findings
 
@@ -88,7 +84,8 @@ cloud cost, or a major obstacle to understanding the repository.
 
 ### Mandatory release path
 
-- [ ] `tasks/20260804-open-source-public-release/010-sensitive-data-and-history-release-gate.md`
+- [x] `tasks/20260804-open-source-public-release/010-sensitive-data-and-history-release-gate.md`
+  - COMPLETED on 2026-08-04: full-history and current-tree scans found no verified active credential; the historical ChatGPT session was revoked and retained findings were explicitly accepted.
 - [ ] `tasks/20260804-open-source-public-release/020-claude-tools-license-and-provenance-restoration.md`
 - [ ] `tasks/20260804-open-source-public-release/030-minimum-public-documentation-and-support.md`
 - [ ] `tasks/20260804-open-source-public-release/040-minimum-ci-and-automation-hardening.md`
@@ -123,9 +120,9 @@ operational cost over speculative polish.
 - Use `archive/conversations/` for the AGI export.
 - Use an `archive/README.md` index if the archive is created.
 - Do not move `agents/` or `test_dir/`.
-- History rewriting is conditional on finding actual secrets, private data, or
-  material that the company does not intend to publish.
-- Resolve the tracked `.crystal` session disposition during task `010`.
+- Git history will not be rewritten. Historical credential findings are
+  reported and revoked.
+- Remove the tracked `.crystal` session from the current tree during task `010`.
 
 ### Documentation
 

@@ -165,6 +165,7 @@ pids
 *.pid
 *.seed
 *.pid.lock
+**/.crystal/sessions/*.json
 
 # Directory for instrumented libs
 lib-cov
