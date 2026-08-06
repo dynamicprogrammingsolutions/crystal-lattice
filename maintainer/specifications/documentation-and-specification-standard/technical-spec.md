@@ -201,10 +201,11 @@ Indexes remain concise but complete:
   the rules rather than ordinary package users.
 
 Existing task-guidance evaluation under `test/task_guidance/` and its dedicated
-fixtures are targeted for relocation under a coherent `maintainer/`-owned
-layout. The task-guidance alignment subtask decides the exact internal layout,
-updates commands and references, and verifies an existing consumer after the
-move.
+fixtures are targeted for relocation under the reusable agent-evaluation
+framework's `maintainer/`-owned domain. Subtask 015 creates the framework and
+documentation-standard consumers. The task-guidance alignment subtask then
+moves and adapts the existing task-guidance consumer, updates commands and
+references, and verifies equivalent behavior.
 
 Production/package tests remain with their owning packages. `maintainer/` is
 not a replacement for ordinary shared test infrastructure.
@@ -265,6 +266,17 @@ Deterministic validation should cover, in stages:
 - moved maintainer-tool commands and fixtures;
 - public docs and navigation paths;
 - normal MkDocs build and newly introduced warnings.
+
+Behavioral instruction validation should additionally exercise whether
+representative supported agents can apply `DOCGEN-*` and `DOCREP-*` rules
+through the programmatic framework specified in
+`maintainer/specifications/agent-evaluation-framework/`.
+
+Behavioral model results supplement rather than replace:
+
+- static checks of the authored pages;
+- deterministic repository assertions;
+- explicit human review.
 
 Acceptance and contract tests may reference requirement IDs. Ordinary
 low-level tests do not need them. Manual verification is recorded only when a

@@ -8,6 +8,9 @@ documentation rewrite or code archaeology exercise.
 Specification:
 `maintainer/specifications/documentation-and-specification-standard/index.md`
 
+Related Specification:
+`maintainer/specifications/agent-evaluation-framework/index.md`
+
 Requirements:
 `maintainer/specifications/documentation-and-specification-standard/requirements.md`
 
@@ -51,6 +54,13 @@ Requirements:
   describe current behavior and do not become inconsistent with committed code.
 - [ ] Important acceptance and contract tests can reference requirement
   identifiers, while ordinary low-level tests are not required to carry them.
+- [ ] A maintainer-owned programmatic agent-evaluation library supports
+  arbitrary Crystal Lattice execution callbacks, cached conversation reuse,
+  clean continuations, and concise/raw artifacts without hardcoding evaluation
+  semantics.
+- [ ] The documentation-standard instructions have behavioral pytest consumers
+  covering every `DOCGEN-*` and `DOCREP-*` requirement while preserving static
+  and human verification as distinct evidence.
 - [ ] Root `CONTRIBUTING.md` provides an easy-to-follow, risk-scaled
   AI-assisted development workflow with a clear distinction between human
   ownership, implementing-agent work, reviewing-agent work, and human approval.
@@ -82,18 +92,21 @@ Requirements:
 
 ## Specification and requirement mapping
 
-The meta-specification defines the target. Its requirements track live
-implementation and verification across this main task and the subtasks:
+The documentation meta-specification defines the documentation-system target.
+The separate agent-evaluation specification defines its reusable framework.
+Their requirements track live implementation and verification across this main
+task and the subtasks:
 
 | Workstream | Requirement IDs |
 |---|---|
 | Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
 | Generic reusable standards | `DOCGEN-001`–`DOCGEN-005` |
 | Crystal Lattice repository policy and package profiles | `DOCREP-001`–`DOCREP-005` |
+| Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-017` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
 | Contributor workflow, task guidance, and maintainer-owned evaluation | `DOCFLOW-001`–`DOCFLOW-004` |
-| Build, links, evidence, and final verification | `DOCVAL-001`–`DOCVAL-004` |
+| Build, links, evidence, and final verification | `DOCVAL-001`–`DOCVAL-005` |
 
 ## Scope
 
@@ -120,6 +133,8 @@ The work includes:
 9. A bounded first migration of existing documentation.
 10. Verification for assembly behavior, links, navigation, and migrated claims.
 11. A migration inventory for documentation deliberately left for future work.
+12. A minimal programmatic agent-evaluation library whose first consumers
+    verify the documentation-standard instructions.
 
 ## Non-goals
 
@@ -139,6 +154,8 @@ The work includes:
   they are caused by the migration.
 - Changing product behavior or public APIs.
 - Reconstructing missing quickstarts for every plugin.
+- Building a declarative evaluation language, benchmark service, leaderboard,
+  or framework-owned reviewer/scoring model.
 
 ## Research and rationale
 
@@ -476,6 +493,12 @@ without silently rewriting the task's requirements or rationale.
 | DOC-DEC-024 | Publish reusable package-neutral standards separately from Crystal Lattice repository policy. The repository layer extends and maps the generic rules without duplicating them. | Approved | Makes the core model reusable while keeping plugin, path, task-guidance, and docs-site rules explicit and easy to find. | The generic standard becomes an independently versioned product or the overlay no longer shares ownership and delivery. |
 | DOC-DEC-025 | Use one meta-specification and requirements ledger for both output layers. | Approved | Generic and repository-specific outputs share one owner, approval path, delivery, and validation system. | The generic standard gains independent owners, releases, or multiple repository consumers. |
 | DOC-DEC-026 | Use the simplified `maintainer/specifications/` path because the entire `maintainer/` domain is development-only; move standards-maintenance tooling such as task-guidance evaluation under the same domain through its owning subtask. | Approved | Avoids empty `maintainer/docs/development/` parent indexes while preserving a clear non-public maintenance boundary. | Maintainer content later needs a distinct user-documentation layer or publication profile. |
+| DOC-DEC-027 | Build agent evaluation as a programmatic Python library rather than a declarative scenario language. | Approved | Ordinary Python and pytest keep tests flexible and readable while Crystal Lattice configuration/plugins own runtime behavior. | Repeated consumers demonstrate a stable declarative subset with clear value. |
+| DOC-DEC-028 | Keep `AgentEval.run()` minimal: name, arbitrary execution callback, and optional runtime adapter, parent run, workspace, and cache key. | Approved | Prevents prompt, guidance, reviewer, scoring, and policy concepts from becoming mandatory framework semantics. | A missing input recurs across independent consumers and cannot remain ordinary callback/configuration logic. |
+| DOC-DEC-029 | Use one runtime-adapter strategy as the only required initial abstraction. | Approved | Separates generic lifecycle/cache/artifacts from Crystal Lattice runtime state without creating speculative layers. | Multiple runtime implementations expose another genuinely stable boundary. |
+| DOC-DEC-030 | Use pytest modules as the initial suites and runner, with real-model tests explicitly marked and excluded from normal defaults. | Approved | Reuses fixtures, parametrization, assertions, selection, and reporting without a second test language. | Saved-run operations, large resumable matrices, or non-test users justify a thin CLI. |
+| DOC-DEC-031 | Use documentation-standard instruction tests as the first framework consumers; task-guidance migration remains owned by subtask 068. | Approved | Provides immediate requirement evidence while preserving the approved task-guidance scope and existing working evaluator. | Another consumer becomes a safer bootstrap or task-guidance dependencies require resequencing. |
+| DOC-DEC-032 | Generate concise canonical artifacts for routine human/AI review and retain complete raw evidence separately. | Approved | Reviewers need useful outputs without multi-megabyte sessions and event streams, while diagnosis still needs provenance. | Storage, privacy, or external audit requirements demand a different retention model. |
 
 ## Open requirement questions
 
@@ -618,7 +641,14 @@ It does not generally watch package-local README or `docs/` paths such as
 │
 ├── maintainer/
 │   ├── README.md
+│   ├── agent-evaluation/
+│   │   ├── README.md
+│   │   ├── pyproject.toml
+│   │   ├── src/agent_eval/
+│   │   ├── suites/
+│   │   └── tests/
 │   ├── specifications/
+│   │   ├── agent-evaluation-framework/
 │   │   └── documentation-and-specification-standard/
 │   │       ├── index.md
 │   │       ├── product-spec.md
@@ -680,6 +710,7 @@ It does not generally watch package-local README or `docs/` paths such as
 ## Subtasks
 
 - [ ] `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
@@ -701,19 +732,23 @@ The work is organized standards-first:
 
 1. Subtask 010 creates the canonical documentation and specification standard
    plus agent routing.
-2. Subtask 020 extends the existing site assembler and establishes package
+2. Subtask 015 creates the minimal programmatic agent-evaluation library and
+   uses the documentation-standard instructions as its first behavioral
+   consumers. It can proceed in parallel with site assembly after 010.
+3. Subtask 020 extends the existing site assembler and establishes package
    registration and focused tests.
-3. Subtasks 030, 040, and 050 migrate or classify bounded documentation areas
+4. Subtasks 030, 040, and 050 migrate or classify bounded documentation areas
    using the standard and assembly pipeline. They can proceed in parallel after
    010 and 020.
-4. Subtask 060 updates navigation, compatibility paths, inbound links, and CI
+5. Subtask 060 updates navigation, compatibility paths, inbound links, and CI
    triggers after migration destinations are known.
-5. Subtask 065 creates the concise contributor workflow after the terminology
+6. Subtask 065 creates the concise contributor workflow after the terminology
    and artifact roles from 010 are established. It can proceed in parallel with
    most migration work.
-6. Subtask 068 aligns and synchronizes `TASKS-v7` after both the documentation
-   standard and contributor workflow are defined.
-7. Subtask 070 performs final verification after migration, contributor
+7. Subtask 068 aligns and synchronizes `TASKS-v7` after the documentation
+   standard, agent-evaluation framework, and contributor workflow are defined.
+   It adopts the framework while moving the existing task-guidance evaluator.
+8. Subtask 070 performs final verification after migration, contributor
    workflow, and task-guidance alignment are complete.
 
 Existing content should be moved with minimal editorial changes. Verification
@@ -746,6 +781,8 @@ Required new or updated documentation includes:
 - `docs/development/repository/specifications.md`
 - `maintainer/README.md`
 - `maintainer/specifications/documentation-and-specification-standard/*`
+- `maintainer/specifications/agent-evaluation-framework/*`
+- `maintainer/agent-evaluation/README.md`
 - root `CONTRIBUTING.md`
 - root `AGENTS.md`
 - canonical and bundled `TASKS-v7` guidance plus synchronization/verification
@@ -760,6 +797,7 @@ Required new or updated documentation includes:
 ### Task checklist
 
 - [ ] 010: Establish documentation/specification standard and agent guidance.
+- [ ] 015: Create the programmatic agent-evaluation library and documentation-standard consumers.
 - [ ] 020: Extend package docs-site assembly and add focused tests.
 - [ ] 030: Migrate and lightly verify Core Python documentation.
 - [ ] 040: Migrate and lightly verify application and shared plugin documentation.
@@ -776,6 +814,8 @@ Required new or updated documentation includes:
 | Canonical documentation structure and profiles | Root development documentation describes each artifact, package profile, ownership rule, and incremental adoption rule; initial package entry points conform without filler. |
 | Agent routing and update behavior | Root `AGENTS.md` points to the full standard and clearly distinguishes README, user docs, development docs, specifications, root cross-package docs, and generated site output. |
 | Specification and requirement conventions | Generic standard and repository policy define target product/technical specifications, live requirements, stable IDs, evidence fields, task-owned approval, current-doc behavior, package refinements, and proportional use. |
+| Agent-evaluation framework | Deterministic package tests verify the minimal callback/adapter/run API, continuation, caching, workspace isolation, canonical/raw artifacts, and failure preservation without required evaluation-specific abstractions. |
+| Documentation-standard behavioral evidence | Gated pytest consumers map every `DOCGEN-*` and `DOCREP-*` requirement to a neutral-seed continuation and preserve exact artifacts for separate human review. |
 | AI-assisted contributor workflow | Root `CONTRIBUTING.md` presents the approved six-step, risk-scaled workflow; clearly separates human ownership, implementing-agent work, reviewing-agent work, manual verification, AI review, and delivery authorization; and includes concise example prompts. |
 | Prompt/developer-message boundary | Contributor and agent guidance explains what belongs in standing developer-message inputs versus task prompts; prompt examples do not repeat generic repository rules. |
 | Task-guidance alignment | Canonical and bundled v7 guidance match mechanically and describe specification/task relationships without duplicating the full contributor workflow. |
@@ -800,6 +840,8 @@ Required new or updated documentation includes:
 - Run focused event/config/reference tests only where a migrated page's claims
   require them; do not expand into unrelated full-suite verification.
 - Run deterministic task-guidance evaluation tests affected by the v7 changes.
+- Run deterministic agent-evaluation package tests and the explicitly gated
+  documentation-standard behavioral suite when enabled.
 - Use the existing real-model task-guidance evaluation workflow for a
   representative review when practical, recording human inspection separately
   from deterministic acceptance evidence.

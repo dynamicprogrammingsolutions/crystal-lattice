@@ -28,6 +28,12 @@ Approval and execution are tracked by:
 
 - [Package-local documentation standard task](../../../tasks/20260728-package-local-documentation-standard/000-main.md)
 
+Related maintainer specification:
+
+- [Agent evaluation framework](../agent-evaluation-framework/index.md), whose
+  first consumers provide behavioral evidence for the generic and
+  repository-specific instructions governed here.
+
 The generic and repository-specific rules share one meta-specification because
 they have one approval path, owner, delivery, and validation system. If the
 generic standard later gains independent owners, releases, or multiple

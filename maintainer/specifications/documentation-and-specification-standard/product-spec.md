@@ -77,6 +77,9 @@ for major changes when they materially improve clarity.
 - Use requirements as the live traceability record.
 - Keep the process proportional and avoid placeholder documentation.
 - Make ordinary changes understandable primarily through Git history.
+- Verify that representative agents can apply the authored instructions
+  through reusable maintainer-owned behavioral evaluation while keeping model
+  judgment separate from static and human evidence.
 
 ## Non-goals
 
@@ -92,6 +95,8 @@ for major changes when they materially improve clarity.
   target directory shape.
 - Selecting one mandatory versioning format for major specification changes.
 - Moving all maintainer tooling as part of creating this approval package.
+- Treating one model response or reviewer score as sole evidence that the
+  standards are correct or human verified.
 
 ## Acceptance examples
 
