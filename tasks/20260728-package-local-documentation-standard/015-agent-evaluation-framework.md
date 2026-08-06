@@ -254,6 +254,15 @@ presentation mechanism.
     `tmp/agent-evaluation-checkpoint2/` produced a 2.5 KB canonical Markdown
     result, a 342-byte manual-review projection, and separate raw session and
     event evidence.
+- Checkpoint 2 review follow-up: the user found that the package documentation
+  described APIs before establishing the basic mental model. The docs home now
+  explains the purpose, lifecycle, main concepts, and their relationships.
+  Focused pages now define environment/context, request/outcome,
+  snapshot/continuation/cache, evidence/projection/artifact/evaluation, and
+  presentation before using those terms.
+- The same review found that `internal` evidence was still written into
+  `raw/evidence.json`. The artifact renderer now omits internal evidence, with a
+  regression test, matching the documented visibility contract.
 
 ## Execution plan
 

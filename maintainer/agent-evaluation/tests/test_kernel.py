@@ -12,7 +12,12 @@ from typing import Iterator, cast
 
 import pytest
 
-from agent_eval import AgentEval, RunFailedError, RunServices
+from agent_eval import (
+    AgentEval,
+    EvidenceVisibility,
+    RunFailedError,
+    RunServices,
+)
 
 from replay import ReplayContext, ReplayEnvironment
 
@@ -285,6 +290,33 @@ def test_unpicklable_value_uses_raw_text_fallback(
     assert run.error is None
     assert run.value is lock
     assert run.artifact_dir.joinpath("raw/environment/value.txt").is_file()
+
+
+def test_internal_evidence_is_not_persisted(
+    tmp_path: Path,
+) -> None:
+    environment = ReplayEnvironment(["answer"])
+    with evaluator(tmp_path, environment) as evaluation:
+        def program(context):
+            context.services.record(
+                "visible.raw",
+                "retained",
+                visibility=EvidenceVisibility.RAW,
+            )
+            context.services.record(
+                "private.internal",
+                "run-local",
+                visibility=EvidenceVisibility.INTERNAL,
+            )
+            return context.next_response("question")
+
+        run = evaluation.run("evidence-visibility", program)
+
+    raw_evidence = run.artifact_dir.joinpath("raw/evidence.json").read_text(
+        encoding="utf-8"
+    )
+    assert "visible.raw" in raw_evidence
+    assert "private.internal" not in raw_evidence
 
 
 def test_environment_open_failure_is_preserved(tmp_path: Path) -> None:

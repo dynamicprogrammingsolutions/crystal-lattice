@@ -1,5 +1,21 @@
 # Environments and Customization
 
+## What an environment does
+
+The generic kernel can prepare workspaces, call a Python function, save
+artifacts, and reuse opaque state. It deliberately does not know how to create
+an agent, send a message, execute a tool loop, or restore a conversation.
+
+An environment supplies those execution-specific operations. It has two
+roles:
+
+1. Create the context that the evaluation program uses while it is running.
+2. Translate environment-specific state into a reusable snapshot and a concise
+   final observation.
+
+The context is the live working object. The snapshot is state for a future
+run. The final observation is a compact description of what this run did.
+
 ## Generic environment contract
 
 `AgentEval` delegates execution-specific behavior to one `RunEnvironment`:
@@ -117,6 +133,11 @@ error lifecycle without importing Crystal Lattice.
 
 ## Crystal Lattice environment
 
+`CrystalLatticeEnvironment` adapts the generic lifecycle to the repository's
+production Core/Application architecture. It is appropriate when a test should
+exercise the same configuration, plugins, immutable sessions, request
+preparation, providers, and tool loop used by Crystal Lattice applications.
+
 ```python
 environment = CrystalLatticeEnvironment.from_config(
     config_path,
@@ -139,6 +160,10 @@ Environment and configuration values are represented by hashes in the
 fingerprint. Secret values are not written into the fingerprint artifact.
 
 ## Context access
+
+`CrystalLatticeContext` is the program's live handle. It holds the current
+immutable session and the Core/Application objects needed to produce the next
+session.
 
 After `context.start(agent_id)`, these properties expose the live production
 objects:
@@ -173,6 +198,10 @@ For lower-level work, use the application/core objects directly and call
 
 ## Messages and requests
 
+A message changes the current conversation state. A request asks the configured
+provider to respond and lets the application continue through any tool calls
+until completion, cancellation, an error, or a caller-defined stop.
+
 ```python
 context.start("agent-id")
 context.add_message("system", "Additional test instruction")
@@ -193,7 +222,16 @@ outcome = context.request(
 - stop reason and duration;
 - `final_response`.
 
+The outcome describes one request. The enclosing `Run` describes the complete
+evaluation callback, which may contain several requests plus arbitrary file or
+assessment work.
+
 ## Observers, mutation classification, and stopping
+
+An observer receives events without changing request execution. A mutation
+classifier is caller logic that identifies which events represent a meaningful
+mutation for that particular test. A stop condition examines accumulated
+progress and decides whether the driver should stop early.
 
 ```python
 def observe(event):
@@ -226,6 +264,11 @@ when later code needs the corresponding session state.
 entirely different stopping semantics.
 
 ## Custom request drivers
+
+A request driver defines how one request is executed. The default driver wraps
+the production application request iterator. Replacing it is useful for
+deterministic tests, unusual tool-loop control, remote execution, or additional
+instrumentation.
 
 A driver receives one `CrystalRequest` and returns one
 `CrystalRequestOutcome`:
@@ -269,6 +312,10 @@ The callback can also bypass `context.request()` and operate on
 
 ## Snapshots
 
+Snapshots are environment-owned continuation state, not reports. The generic
+kernel stores them opaquely and gives them back to a compatible environment
+when a child run starts.
+
 The environment's continuation snapshot contains:
 
 - the immutable session;
@@ -298,6 +345,10 @@ continuation snapshot remains a `CrystalLatticeSnapshot`.
 
 ## Evaluation and presentation
 
+Here, “evaluation” means applying caller-supplied judgment logic to a selected
+value. It is not the complete `AgentEval` run and it is not required to produce
+pass/fail. For example, it may ask another model for a structured score.
+
 Evaluation is an arbitrary callable:
 
 ```python
@@ -311,6 +362,9 @@ score = context.evaluate(
 It may call another model and return booleans, scores, rankings, findings, or a
 test-owned structured type. The framework records input and result but does not
 interpret the verdict.
+
+Presentation means turning a value or evidence selection into an artifact for
+a particular audience. It does not change the run result.
 
 Presentation is also caller-owned:
 

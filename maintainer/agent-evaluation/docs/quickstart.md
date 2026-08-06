@@ -1,5 +1,8 @@
 # Quickstart
 
+This page builds one small evaluation and explains the objects involved. For
+the overall mental model, start with the [documentation home](index.md).
+
 ## Install the package
 
 From the repository root:
@@ -13,6 +16,10 @@ python -m pip install -e "maintainer/agent-evaluation[crystal-lattice,dev]"
 Use an ordinary Crystal Lattice configuration containing the provider,
 plugins, and agent you want to exercise. The evaluation library does not have
 a separate prompt, model, skill, or tool configuration format.
+
+The configuration answers “what agent runtime should exist?” The Python
+evaluation program answers “what should this test ask that runtime to do, and
+what result should the test inspect?”
 
 ## Run an evaluation
 
@@ -59,6 +66,24 @@ with AgentEval(
     print(run.canonical_text())
 ```
 
+The example creates four important objects:
+
+- `CrystalLatticeEnvironment` describes how to construct and restore the
+  Crystal Lattice runtime.
+- `AgentEval` manages the generic lifecycle around that runtime.
+- `CrystalLatticeContext` is the live application/session handle passed to
+  `exercise`.
+- `Run` is the durable result returned after the callback and environment have
+  finished.
+
+Inside the callback:
+
+1. `start()` creates the agent session.
+2. `add_message()` immutably adds and persists a user message.
+3. `request()` executes the production application request and tool loop.
+4. The callback returns a small test-owned value instead of the complete
+   runtime transcript.
+
 The callback may perform multiple requests and return any Python value. The
 framework does not convert that value into pass/fail.
 
@@ -83,6 +108,10 @@ def test_package_ownership(evaluation: AgentEval) -> None:
 
 Pytest owns assertions and parametrization. A program can instead return a
 score, issue list, ranking, or structured model response.
+
+`run.raise_for_error()` reports failures that happened inside the environment
+or callback. A later failed pytest assertion is separate: the run itself may
+have completed correctly even though its behavior did not satisfy the test.
 
 ## Cache an expensive investigation
 
@@ -121,6 +150,9 @@ continuation.raise_for_error()
 A reusable workspace factory creates a fresh compatible workspace. The
 Crystal Lattice environment restores the session and rebases occurrences of
 the previous workspace root in stored session data.
+
+This is a continuation, not a cache hit: `apply_rules` executes. The snapshot
+only supplies its starting state.
 
 ## Inspect the result
 

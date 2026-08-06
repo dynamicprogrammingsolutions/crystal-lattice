@@ -39,6 +39,11 @@ def write_run_artifacts(
         for item in evidence
         if item.visibility is EvidenceVisibility.CANONICAL
     ]
+    persisted_evidence = [
+        item
+        for item in evidence
+        if item.visibility is not EvidenceVisibility.INTERNAL
+    ]
     payload = {
         "run_id": run_id,
         "name": name,
@@ -57,7 +62,7 @@ def write_run_artifacts(
     }
     writer.write_json("result.json", payload)
     writer.write_text("result.md", _render_markdown(payload))
-    writer.write_json("raw/evidence.json", evidence)
+    writer.write_json("raw/evidence.json", persisted_evidence)
     writer.write_text(
         "raw/workspace/git-status.txt",
         workspace_observation.git_status,
