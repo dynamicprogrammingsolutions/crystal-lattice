@@ -35,10 +35,10 @@ behavioral consumers.
 - [x] One `RunEnvironment` contract is the broad replacement seam for context
   creation, compatibility, restoration, snapshotting, and finalized
   observations.
-- [ ] `CrystalLatticeEnvironment` is the first complete environment and
+- [x] `CrystalLatticeEnvironment` is the first complete environment and
   preserves direct access to application, core, session, configuration,
   workspace, and generic run services.
-- [ ] Crystal Lattice request/tool-loop execution, stopping, configuration
+- [x] Crystal Lattice request/tool-loop execution, stopping, configuration
   changes, snapshots, observation, projections, evaluation, and presentation
   are replaceable at their point of use.
 - [x] Alternate environments can bypass the Crystal Lattice lower-layer model
@@ -52,7 +52,7 @@ behavioral consumers.
   evidence.
 - [x] Complete raw evidence remains available separately and does not retain
   credentials or authentication state.
-- [ ] Deterministic package tests cover the generic kernel, environment
+- [x] Deterministic package tests cover the generic kernel, environment
   substitution, Crystal Lattice customization, and failure behavior.
 - [ ] Pytest is the initial suite runner, with explicit real-model markers and
   hosted-execution gates outside normal default tests.
@@ -223,6 +223,37 @@ presentation mechanism.
     files and required no environment execution for the cache hit.
 - `pyright` was not installed in the current environment; mypy provided the
   checkpoint static type verification.
+- Checkpoint 2 implemented `CrystalLatticeEnvironment` and
+  `CrystalLatticeContext` over production `AgentApplication`/`AgentCore`
+  boundaries, including ordinary configuration and plugin loading, default
+  request/tool-loop execution, streaming, custom drivers, observers, stopping,
+  mutation classification, JSON continuation snapshots, workspace rebasing,
+  named snapshots, evidence projection, arbitrary evaluation, presentation,
+  cache reuse, and application cleanup.
+- Checkpoint 2 documentation followed the approved adjustment:
+  - `README.md` is now a concise package entry point;
+  - `AGENTS.md` contains development boundaries and pointers;
+  - `docs/index.md` routes users to focused current-behavior pages;
+  - quickstart, environment/customization, continuation/cache,
+    artifact/evidence, and development pages contain the detailed guidance;
+  - no placeholder pages were added.
+- The proposed `application_tool_loop(...)` helper name was not implemented.
+  Equivalent controls are direct `context.request(...)` inputs
+  (`observers`, `stop_when`, `mutation_classifier`, `max_events`) or a complete
+  custom `RequestDriver`; this keeps each abstraction optional.
+- Checkpoint 2 verification:
+  - 34 deterministic tests passed;
+  - tests crossed real Core/Application construction, dotted plugin loading,
+    streaming, and application tool-loop boundaries;
+  - Ruff passed;
+  - mypy passed for all 22 source/test files;
+  - Python compilation passed;
+  - all package Markdown links resolved;
+  - all documented Python blocks parsed;
+  - a persistent production tool-loop sample under
+    `tmp/agent-evaluation-checkpoint2/` produced a 2.5 KB canonical Markdown
+    result, a 342-byte manual-review projection, and separate raw session and
+    event evidence.
 
 ## Execution plan
 
@@ -512,14 +543,14 @@ confirmation.
 - [x] Implement compatible caching and locking.
 - [x] Implement generic canonical and raw artifacts.
 - [x] Add the deterministic alternate environment.
-- [ ] Implement the Crystal Lattice environment and context.
-- [ ] Implement customizable request drivers and snapshots.
-- [ ] Implement evidence projection, evaluation, and presentation helpers.
+- [x] Implement the Crystal Lattice environment and context.
+- [x] Implement customizable request drivers and snapshots.
+- [x] Implement evidence projection, evaluation, and presentation helpers.
 - [x] Add deterministic kernel and alternate-environment tests.
-- [ ] Add deterministic Crystal Lattice environment tests.
-- [ ] Register the gated pytest real-model marker.
+- [x] Add deterministic Crystal Lattice environment tests.
+- [x] Register the gated pytest real-model marker.
 - [ ] Add documentation-standard behavioral consumers.
-- [ ] Run deterministic tests.
+- [x] Run deterministic tests.
 - [ ] Run or explicitly report the gated real-model suite as not run.
 - [ ] Update `AEVAL-*` and `DOCVAL-005` evidence.
 - [ ] Present canonical behavioral artifacts for human review.

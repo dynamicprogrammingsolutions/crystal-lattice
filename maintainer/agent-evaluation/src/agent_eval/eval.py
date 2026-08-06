@@ -17,6 +17,7 @@ from .result import Run, RunError
 from .services import (
     ArtifactWriter,
     EvidenceJournal,
+    EvidenceVisibility,
     RunServices,
 )
 from .workspace import (
@@ -468,18 +469,18 @@ class AgentEval(Generic[ContextT]):
                         exc,
                     )
 
-        try:
-            writer.write_bytes(
-                "raw/environment/value.pkl",
-                pickle_bytes(value),
-            )
-            writer.write_bytes(
-                "raw/environment/observation.pkl",
-                pickle_bytes(environment_observation),
-            )
-        except BaseException as exc:
-            if error is None:
-                error = _capture_error(writer, "artifact.serialize", exc)
+        _write_optional_pickle(
+            writer,
+            evidence,
+            name="value",
+            value=value,
+        )
+        _write_optional_pickle(
+            writer,
+            evidence,
+            name="observation",
+            value=environment_observation,
+        )
 
         observation = observe_workspace(prepared_workspace)
         evidence.emit(
@@ -740,3 +741,32 @@ def _copy_directory_contents(
         elif item.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(item, target)
+
+
+def _write_optional_pickle(
+    writer: ArtifactWriter,
+    evidence: EvidenceJournal,
+    *,
+    name: str,
+    value: object,
+) -> None:
+    try:
+        writer.write_bytes(
+            f"raw/environment/{name}.pkl",
+            pickle_bytes(value),
+        )
+    except BaseException as exc:
+        writer.write_text(
+            f"raw/environment/{name}.txt",
+            repr(value) + "\n",
+        )
+        evidence.emit(
+            "artifact.serialization_fallback",
+            {
+                "name": name,
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+            source="kernel",
+            visibility=EvidenceVisibility.RAW,
+        )

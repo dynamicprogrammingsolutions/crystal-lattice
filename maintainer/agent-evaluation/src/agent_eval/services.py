@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import threading
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -23,8 +23,6 @@ _SENSITIVE_KEY = re.compile(
 def jsonable(value: Any) -> Any:
     """Convert common values to deterministic JSON-compatible data."""
 
-    if is_dataclass(value) and not isinstance(value, type):
-        return jsonable(asdict(value))
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, Mapping):
@@ -45,6 +43,11 @@ def jsonable(value: Any) -> Any:
             return jsonable(value.to_dict())
         except Exception:
             pass
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            field.name: jsonable(getattr(value, field.name))
+            for field in fields(value)
+        }
     return repr(value)
 
 

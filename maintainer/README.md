@@ -28,8 +28,8 @@ and contributors using the rules. They do not need to link back to the
 maintainer specification.
 
 The agent-evaluation specification defines the reusable generic kernel and its
-first Crystal Lattice environment. The generic kernel is implemented; the
-Crystal Lattice environment and documentation-standard consumers remain in
+first Crystal Lattice environment. The generic kernel and Crystal Lattice
+environment are implemented; documentation-standard consumers remain in
 progress. Task-guidance evaluation and similar standards-maintenance tooling
 currently living elsewhere in the repository will move under `maintainer/`
 through their own approved implementation work.

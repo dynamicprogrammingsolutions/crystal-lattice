@@ -15,7 +15,11 @@ authors = [
 dependencies = []
 
 [project.optional-dependencies]
+crystal-lattice = [
+  "agent-core>=0.3.0",
+]
 dev = [
+  "agent-core>=0.3.0",
   "pytest>=7.0.0",
   "ruff>=0.1.0",
 ]

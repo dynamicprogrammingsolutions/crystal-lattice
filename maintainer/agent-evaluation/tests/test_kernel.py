@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import inspect
+import os
+import subprocess
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -250,8 +252,39 @@ def test_program_failure_preserves_environment_and_traceback(
 
 
 def test_generic_import_does_not_load_crystal_lattice_packages() -> None:
-    assert "agent_app" not in sys.modules
-    assert "agent_core" not in sys.modules
+    source_root = Path(__file__).resolve().parents[1] / "src"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; import agent_eval; "
+                "assert 'agent_app' not in sys.modules; "
+                "assert 'agent_core' not in sys.modules"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(source_root),
+        },
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_unpicklable_value_uses_raw_text_fallback(
+    tmp_path: Path,
+) -> None:
+    environment = ReplayEnvironment(["unused"])
+    lock = __import__("threading").RLock()
+    with evaluator(tmp_path, environment) as evaluation:
+        run = evaluation.run("unpicklable", lambda context: lock)
+
+    assert run.error is None
+    assert run.value is lock
+    assert run.artifact_dir.joinpath("raw/environment/value.txt").is_file()
 
 
 def test_environment_open_failure_is_preserved(tmp_path: Path) -> None:
