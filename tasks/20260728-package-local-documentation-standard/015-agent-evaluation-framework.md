@@ -26,13 +26,13 @@ behavioral consumers.
 
 ## Requirements checklist
 
-- [ ] A package under `maintainer/agent-evaluation/` exposes the approved
+- [x] A package under `maintainer/agent-evaluation/` exposes the approved
   generic `agent_eval` kernel.
-- [ ] `AgentEval.run()` accepts only a name, arbitrary program callback, and
+- [x] `AgentEval.run()` accepts only a name, arbitrary program callback, and
   optional environment, parent run, workspace, and cache key.
-- [ ] The kernel owns run/workspace/cache/artifact/error lifecycle without
+- [x] The kernel owns run/workspace/cache/artifact/error lifecycle without
   hardcoding agent or evaluation semantics.
-- [ ] One `RunEnvironment` contract is the broad replacement seam for context
+- [x] One `RunEnvironment` contract is the broad replacement seam for context
   creation, compatibility, restoration, snapshotting, and finalized
   observations.
 - [ ] `CrystalLatticeEnvironment` is the first complete environment and
@@ -41,16 +41,16 @@ behavioral consumers.
 - [ ] Crystal Lattice request/tool-loop execution, stopping, configuration
   changes, snapshots, observation, projections, evaluation, and presentation
   are replaceable at their point of use.
-- [ ] Alternate environments can bypass the Crystal Lattice lower-layer model
+- [x] Alternate environments can bypass the Crystal Lattice lower-layer model
   while reusing the generic kernel.
-- [ ] Programs can perform one or several environment operations and return any
+- [x] Programs can perform one or several environment operations and return any
   Python value.
-- [ ] Runs can be cached and continued in compatible clean workspaces with
+- [x] Runs can be cached and continued in compatible clean workspaces with
   exact environment, snapshot, repository, and parent provenance.
-- [ ] Canonical artifacts show useful program/environment results, changed
+- [x] Canonical artifacts show useful program/environment results, changed
   paths, errors, and provenance without requiring routine inspection of raw
   evidence.
-- [ ] Complete raw evidence remains available separately and does not retain
+- [x] Complete raw evidence remains available separately and does not retain
   credentials or authentication state.
 - [ ] Deterministic package tests cover the generic kernel, environment
   substitution, Crystal Lattice customization, and failure behavior.
@@ -194,6 +194,35 @@ Tests may vary user messages, configuration, plugins, skills, request drivers,
 snapshots, evidence projections, evaluators, presentations, or models. They
 should not require a particular instruction-injection, assertion, or
 presentation mechanism.
+
+## Implementation Notes
+
+- August 6, 2026: The user approved the generic-kernel architecture and
+  execution plan. The plan is `Approved`.
+- August 6, 2026: Four mandatory review checkpoints were defined before
+  implementation. Work started with Checkpoint 1 only.
+- The existing root `evaluations/` package is a benchmark/CLI/scheduler system.
+  It remains a separate owner and is not used as the implementation location
+  for this small programmatic maintainer library.
+- The existing `test/task_guidance` evaluator remains read-only reference
+  material during Checkpoint 1.
+- Checkpoint 1 implemented the generic package, exact kernel API,
+  `RunEnvironment`, `RunServices`, arbitrary program values, immutable parent
+  continuation, optional environment snapshot codecs, reusable Git workspaces,
+  atomic locked cache, cached workspace/evidence restoration, canonical/raw
+  artifacts, redaction, and inspectable failures.
+- Checkpoint 1 verification:
+  - 21 deterministic tests passed;
+  - Ruff passed;
+  - mypy passed for all 14 source/test files;
+  - Python compilation passed;
+  - wheel build passed;
+  - `git diff --check` passed;
+  - a persistent fresh/cache-hit/continuation sample under
+    `tmp/agent-evaluation-checkpoint1/` produced 1.4–1.7 KB canonical Markdown
+    files and required no environment execution for the cache hit.
+- `pyright` was not installed in the current environment; mypy provided the
+  checkpoint static type verification.
 
 ## Execution plan
 
@@ -475,18 +504,19 @@ confirmation.
 
 ### Task checklist
 
-- [ ] Create the maintainer package and generic kernel exports.
-- [ ] Implement `AgentEval.run()`, `Run`, and `RunServices`.
-- [ ] Implement `RunEnvironment` lifecycle and compatibility.
-- [ ] Implement workspace factories and optional Git helper.
-- [ ] Implement parent snapshot continuation.
-- [ ] Implement compatible caching and locking.
-- [ ] Implement generic canonical and raw artifacts.
-- [ ] Add the deterministic alternate environment.
+- [x] Create the maintainer package and generic kernel exports.
+- [x] Implement `AgentEval.run()`, `Run`, and `RunServices`.
+- [x] Implement `RunEnvironment` lifecycle and compatibility.
+- [x] Implement workspace factories and optional Git helper.
+- [x] Implement parent snapshot continuation.
+- [x] Implement compatible caching and locking.
+- [x] Implement generic canonical and raw artifacts.
+- [x] Add the deterministic alternate environment.
 - [ ] Implement the Crystal Lattice environment and context.
 - [ ] Implement customizable request drivers and snapshots.
 - [ ] Implement evidence projection, evaluation, and presentation helpers.
-- [ ] Add deterministic kernel and environment tests.
+- [x] Add deterministic kernel and alternate-environment tests.
+- [ ] Add deterministic Crystal Lattice environment tests.
 - [ ] Register the gated pytest real-model marker.
 - [ ] Add documentation-standard behavioral consumers.
 - [ ] Run deterministic tests.
