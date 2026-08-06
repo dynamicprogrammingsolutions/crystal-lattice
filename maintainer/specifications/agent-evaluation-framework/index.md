@@ -1,12 +1,17 @@
 # Agent evaluation framework
 
-This specification defines a small programmatic library for exercising Crystal
-Lattice agent applications, reusing expensive conversation state, observing
-results, and preserving compact and raw evaluation artifacts.
+This specification defines a small generic programmatic kernel for running
+evaluation programs, reusing compatible state, observing results, and
+preserving compact and raw artifacts.
 
-The library is intentionally neutral about what an evaluation does. Prompts,
+One broad `RunEnvironment` contract supplies execution-specific context,
+snapshot, compatibility, and observation behavior. Crystal Lattice is the
+first complete environment and supplies optional lower-layer customization for
+tool loops, configuration, snapshots, evidence, evaluation, and presentation.
+
+The kernel is intentionally neutral about what an evaluation does. Prompts,
 message roles, models, skills, plugins, request overrides, scoring, review, and
-assertions remain ordinary Crystal Lattice configuration and Python test code.
+assertions remain environment configuration and ordinary Python test code.
 
 The first consumers verify that supported agents can understand and apply the
 documentation and specification standards defined by:

@@ -190,8 +190,9 @@ Status: Draft
 6. Update the bundled file from the canonical source.
 7. Move the task-guidance evaluation suite, fixtures, README, and
    task-specific review/assertion tooling into the `maintainer/`-owned
-   agent-evaluation layout; adapt it to the shared library where equivalent
-   behavior is verified and update all commands, imports, and consumers.
+   agent-evaluation layout; adapt it to the generic kernel and Crystal Lattice
+   environment where equivalent behavior is verified and update all commands,
+   imports, and consumers.
 8. Update deterministic fixtures/assertions for the changed guidance.
 9. Add or update concise-prompt evaluation cases.
 10. Run deterministic evaluation tests.
@@ -210,9 +211,9 @@ Status: Draft
 - Real-model evaluation is recommended because the guide affects model
   behavior, but hosted/provider-dependent execution must remain explicitly
   enabled and separately reported from deterministic acceptance.
-- The shared library contract and documentation-standard first consumers are
-  owned by subtask 015; this task owns task-guidance-specific adoption and
-  migration.
+- The generic kernel, Crystal Lattice environment, and
+  documentation-standard first consumers are owned by subtask 015; this task
+  owns task-guidance-specific adoption and migration.
 - No requirement questions are open.
 
 ### Documentation

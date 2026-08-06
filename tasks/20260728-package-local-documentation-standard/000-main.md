@@ -54,10 +54,10 @@ Requirements:
   describe current behavior and do not become inconsistent with committed code.
 - [ ] Important acceptance and contract tests can reference requirement
   identifiers, while ordinary low-level tests are not required to carry them.
-- [ ] A maintainer-owned programmatic agent-evaluation library supports
-  arbitrary Crystal Lattice execution callbacks, cached conversation reuse,
-  clean continuations, and concise/raw artifacts without hardcoding evaluation
-  semantics.
+- [ ] A maintainer-owned generic agent-evaluation kernel supports arbitrary
+  programs, replaceable run environments, compatible state reuse, clean
+  continuations, and concise/raw artifacts without hardcoding agent or
+  evaluation semantics.
 - [ ] The documentation-standard instructions have behavioral pytest consumers
   covering every `DOCGEN-*` and `DOCREP-*` requirement while preserving static
   and human verification as distinct evidence.
@@ -102,7 +102,7 @@ task and the subtasks:
 | Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
 | Generic reusable standards | `DOCGEN-001`–`DOCGEN-005` |
 | Crystal Lattice repository policy and package profiles | `DOCREP-001`–`DOCREP-005` |
-| Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-017` |
+| Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-018` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
 | Contributor workflow, task guidance, and maintainer-owned evaluation | `DOCFLOW-001`–`DOCFLOW-004` |
@@ -493,9 +493,9 @@ without silently rewriting the task's requirements or rationale.
 | DOC-DEC-024 | Publish reusable package-neutral standards separately from Crystal Lattice repository policy. The repository layer extends and maps the generic rules without duplicating them. | Approved | Makes the core model reusable while keeping plugin, path, task-guidance, and docs-site rules explicit and easy to find. | The generic standard becomes an independently versioned product or the overlay no longer shares ownership and delivery. |
 | DOC-DEC-025 | Use one meta-specification and requirements ledger for both output layers. | Approved | Generic and repository-specific outputs share one owner, approval path, delivery, and validation system. | The generic standard gains independent owners, releases, or multiple repository consumers. |
 | DOC-DEC-026 | Use the simplified `maintainer/specifications/` path because the entire `maintainer/` domain is development-only; move standards-maintenance tooling such as task-guidance evaluation under the same domain through its owning subtask. | Approved | Avoids empty `maintainer/docs/development/` parent indexes while preserving a clear non-public maintenance boundary. | Maintainer content later needs a distinct user-documentation layer or publication profile. |
-| DOC-DEC-027 | Build agent evaluation as a programmatic Python library rather than a declarative scenario language. | Approved | Ordinary Python and pytest keep tests flexible and readable while Crystal Lattice configuration/plugins own runtime behavior. | Repeated consumers demonstrate a stable declarative subset with clear value. |
-| DOC-DEC-028 | Keep `AgentEval.run()` minimal: name, arbitrary execution callback, and optional runtime adapter, parent run, workspace, and cache key. | Approved | Prevents prompt, guidance, reviewer, scoring, and policy concepts from becoming mandatory framework semantics. | A missing input recurs across independent consumers and cannot remain ordinary callback/configuration logic. |
-| DOC-DEC-029 | Use one runtime-adapter strategy as the only required initial abstraction. | Approved | Separates generic lifecycle/cache/artifacts from Crystal Lattice runtime state without creating speculative layers. | Multiple runtime implementations expose another genuinely stable boundary. |
+| DOC-DEC-027 | Build agent evaluation as a programmatic Python library rather than a declarative scenario language. | Approved | Ordinary Python and pytest keep programs flexible and readable while each run environment owns its runtime behavior. | Repeated consumers demonstrate a stable declarative subset with clear value. |
+| DOC-DEC-028 | Keep `AgentEval.run()` minimal: name, arbitrary program callback, and optional run environment, parent run, workspace, and cache key. | Approved | Prevents prompt, guidance, tool-loop, reviewer, scoring, and presentation concepts from becoming mandatory kernel semantics. | A missing input recurs across independent consumers and cannot remain ordinary program/environment logic. |
+| DOC-DEC-029 | Use a generic kernel with one broad `RunEnvironment` replacement seam; implement Crystal Lattice as the first rich environment with optional lower-level strategies. | Approved | Allows complete environment substitution while keeping tool-loop, snapshot, evidence, evaluation, and presentation customization close to the Crystal Lattice operations that use it. | Generic lifecycle and environment behavior no longer share a stable contract or several independent environment seams become necessary. |
 | DOC-DEC-030 | Use pytest modules as the initial suites and runner, with real-model tests explicitly marked and excluded from normal defaults. | Approved | Reuses fixtures, parametrization, assertions, selection, and reporting without a second test language. | Saved-run operations, large resumable matrices, or non-test users justify a thin CLI. |
 | DOC-DEC-031 | Use documentation-standard instruction tests as the first framework consumers; task-guidance migration remains owned by subtask 068. | Approved | Provides immediate requirement evidence while preserving the approved task-guidance scope and existing working evaluator. | Another consumer becomes a safer bootstrap or task-guidance dependencies require resequencing. |
 | DOC-DEC-032 | Generate concise canonical artifacts for routine human/AI review and retain complete raw evidence separately. | Approved | Reviewers need useful outputs without multi-megabyte sessions and event streams, while diagnosis still needs provenance. | Storage, privacy, or external audit requirements demand a different retention model. |
@@ -814,7 +814,7 @@ Required new or updated documentation includes:
 | Canonical documentation structure and profiles | Root development documentation describes each artifact, package profile, ownership rule, and incremental adoption rule; initial package entry points conform without filler. |
 | Agent routing and update behavior | Root `AGENTS.md` points to the full standard and clearly distinguishes README, user docs, development docs, specifications, root cross-package docs, and generated site output. |
 | Specification and requirement conventions | Generic standard and repository policy define target product/technical specifications, live requirements, stable IDs, evidence fields, task-owned approval, current-doc behavior, package refinements, and proportional use. |
-| Agent-evaluation framework | Deterministic package tests verify the minimal callback/adapter/run API, continuation, caching, workspace isolation, canonical/raw artifacts, and failure preservation without required evaluation-specific abstractions. |
+| Agent-evaluation framework | Deterministic package tests verify the minimal program/environment/run API, complete environment substitution, Crystal Lattice lower-layer customization, continuation, caching, workspace isolation, canonical/raw artifacts, and failure preservation without required evaluation-specific abstractions. |
 | Documentation-standard behavioral evidence | Gated pytest consumers map every `DOCGEN-*` and `DOCREP-*` requirement to a neutral-seed continuation and preserve exact artifacts for separate human review. |
 | AI-assisted contributor workflow | Root `CONTRIBUTING.md` presents the approved six-step, risk-scaled workflow; clearly separates human ownership, implementing-agent work, reviewing-agent work, manual verification, AI review, and delivery authorization; and includes concise example prompts. |
 | Prompt/developer-message boundary | Contributor and agent guidance explains what belongs in standing developer-message inputs versus task prompts; prompt examples do not repeat generic repository rules. |

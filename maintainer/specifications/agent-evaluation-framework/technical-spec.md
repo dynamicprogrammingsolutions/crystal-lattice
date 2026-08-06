@@ -2,24 +2,34 @@
 
 ## Architecture
 
-The first version has one generic framework, one runtime strategy boundary,
-and ordinary Python tests:
+The target has four layers:
 
 ```text
-pytest test
-  -> AgentEval.run(name, execute, ...)
-    -> workspace preparation and cache lookup
-    -> RuntimeAdapter opens fresh or restored runtime
-    -> arbitrary execute(context) Python
-    -> adapter snapshot and observation
-    -> workspace observation
-    -> canonical and raw artifacts
-    -> Run[T]
-  -> ordinary pytest assertions
+Layer 1: generic evaluation kernel
+  AgentEval, Run, RunServices
+  run identity, workspace, cache, parent linkage, artifacts, errors
+
+Layer 2: replaceable run environment
+  RunEnvironment[Context]
+  fingerprint, open/restore, snapshot, finalize
+
+Layer 3: environment-specific context
+  CrystalLatticeEnvironment -> CrystalLatticeContext
+  or an alternate environment and context
+
+Layer 4: optional environment-specific operations
+  request drivers, stop conditions, snapshotters, observers,
+  projections, evaluations, presenters, and later recipes
 ```
 
-The framework owns evaluation lifecycle. The runtime adapter owns Crystal
-Lattice execution. The callback owns evaluation behavior.
+The generic kernel never needs to understand an agent session or tool loop.
+The Crystal Lattice environment provides those capabilities as its first
+complete implementation.
+
+Replacing the run environment may bypass all Crystal Lattice-specific
+lower-layer operations. This permits a deterministic replay environment or
+another agent framework to reuse the generic run, workspace, cache, artifact,
+and error lifecycle without conforming to Crystal Lattice semantics.
 
 ## Target source structure
 
@@ -33,9 +43,17 @@ maintainer/
 │   │       ├── __init__.py
 │   │       ├── eval.py
 │   │       ├── result.py
-│   │       ├── repository.py
+│   │       ├── environment.py
+│   │       ├── services.py
+│   │       ├── evidence.py
+│   │       ├── workspace.py
 │   │       ├── artifacts.py
-│   │       └── crystal_lattice.py
+│   │       └── crystal_lattice/
+│   │           ├── environment.py
+│   │           ├── context.py
+│   │           ├── requests.py
+│   │           ├── snapshots.py
+│   │           └── presentation.py
 │   ├── suites/
 │   │   └── test_documentation_standard.py
 │   └── tests/
@@ -43,8 +61,8 @@ maintainer/
     └── agent-evaluation-framework/
 ```
 
-The exact internal module split is reversible. The public contract is more
-important than matching this illustrative inventory.
+The exact internal module split is reversible. The public contracts and
+extension boundaries are authoritative.
 
 The distribution and import name are:
 
@@ -53,11 +71,11 @@ distribution directory: maintainer/agent-evaluation
 Python import: agent_eval
 ```
 
-The package depends on the repository's Crystal Lattice Core and Application
-packages. It does not depend on the terminal UI or HTTP server merely to run
-application-layer evaluations.
+The Crystal Lattice environment depends on the repository's Core and
+Application packages. The generic kernel should not import
+`AgentApplication`, `AgentCore`, or provider-specific types.
 
-## Minimal public API
+## Generic kernel API
 
 The first stable execution contract is:
 
@@ -66,9 +84,9 @@ class AgentEval:
     def run(
         self,
         name: str,
-        execute: Callable[[C], T],
+        program: Callable[[C], T],
         *,
-        adapter: RuntimeAdapter[C] | None = None,
+        environment: RunEnvironment[C] | None = None,
         continue_from: Run[object] | None = None,
         workspace: Path | WorkspaceFactory | None = None,
         cache_key: str | None = None,
@@ -78,94 +96,337 @@ class AgentEval:
 
 The constructor supplies:
 
-- a default runtime adapter;
+- a default run environment;
 - artifact root;
 - optional cache root;
-- framework-wide local infrastructure such as locks or clocks.
+- framework-wide local infrastructure such as locks, clocks, and
+  serialization helpers.
 
-The run inputs are deliberately limited:
+The inputs are deliberately limited:
 
 | Input | Justification |
 |---|---|
 | `name` | Stable human-readable and filesystem-safe run identity |
-| `execute` | Arbitrary test-owned behavior |
-| `adapter` | Optional runtime/configuration variation; otherwise use the default |
-| `continue_from` | Restore and fork a previous conversation |
+| `program` | Arbitrary test-owned behavior |
+| `environment` | Optional complete execution-environment replacement |
+| `continue_from` | Restore compatible state from a previous run |
 | `workspace` | Optional isolated filesystem/repository context |
 | `cache_key` | Explicit opt-in to expensive run reuse |
 
 The API does not contain prompt, agent, model, system/developer message,
-guidance, skills, tools, reviewer, parser, mutation limit, or assertion inputs.
+guidance, skills, tools, reviewer, parser, tool-loop limit, mutation limit,
+assertion, score, or presentation inputs.
 
-## Execution callback
+## Run services
 
-`execute` is ordinary Python:
+The kernel provides environment-independent services:
 
 ```python
-def execute(context: CrystalLatticeContext) -> ResultType:
-    ...
+class RunServices:
+    run_id: str
+    name: str
+    artifact_dir: Path
+    workspace: Path | None
+    parent: Run[object] | None
+    evidence: EvidenceJournal
+    artifacts: ArtifactWriter
+
+    def record(
+        self,
+        kind: str,
+        value: object,
+        *,
+        metadata: Mapping[str, object] | None = None,
+        visibility: EvidenceVisibility = EvidenceVisibility.CANONICAL,
+    ) -> EvidenceReference:
+        ...
 ```
 
-It may:
+`RunServices` does not expose agent methods. A run environment may use all,
+some, or none of its evidence facilities, but it always receives the
+environment-independent artifact and parent context.
 
-- start or select an agent;
-- add any supported message role and content;
-- send one or several requests;
-- call application actions;
-- use custom plugins, tools, skills, or features;
-- read or mutate the workspace;
-- parse responses into any type;
-- record custom artifacts;
-- return any Python value.
+## Run environment
 
-The framework does not inspect callback meaning. It records execution through
-the adapter and workspace observers.
-
-## Runtime adapter
-
-The only required strategy abstraction is:
+The one broad replacement seam is:
 
 ```python
-class RuntimeAdapter(Protocol, Generic[C]):
+class RunEnvironment(Protocol, Generic[C]):
     def fingerprint(self) -> object:
         ...
 
     def open(
         self,
         *,
+        services: RunServices,
         workspace: Path | None,
-        artifact_dir: Path,
-        snapshot: object | None,
+        parent_snapshot: object | None,
     ) -> AbstractContextManager[C]:
         ...
 
-    def snapshot(self, context: C) -> object:
+    def snapshot(self, context: C) -> object | None:
         ...
 
-    def observation(self, context: C) -> object:
+    def finalize(self, context: C) -> object:
         ...
 ```
 
-This boundary is justified because:
+### `fingerprint`
 
-- generic caching and artifacts should not know provider/application details;
-- Crystal Lattice configuration and plugins should remain authoritative;
-- restored conversation state is runtime-specific;
-- another runtime can be supported later without changing test lifecycle.
+Returns deterministic serializable data describing compatibility-relevant
+environment behavior, such as:
 
-No additional public strategy types are required initially. Workspace helpers
-may be callables. Scoring and review remain callbacks.
+- environment type and schema;
+- application configuration;
+- plugin and provider identity;
+- model/request defaults when relevant to restored state;
+- snapshot format compatibility.
 
-## Crystal Lattice application adapter
+Credentials and transient runtime values are excluded.
 
-The initial adapter wraps `AgentApplication`, `AgentCore`, sessions, request
-events, effective configuration, and cleanup.
+### `open`
+
+Creates a fresh context or restores `parent_snapshot`. It receives:
+
+- generic run services;
+- prepared workspace;
+- parent environment snapshot, when supplied.
+
+It owns environment startup and cleanup.
+
+### `snapshot`
+
+Returns reusable environment state or `None`.
+
+An environment returning `None` supports ordinary runs but cannot be used as a
+continuation parent. The snapshot remains opaque to the kernel except for
+serialization, hashing, and storage through the environment's supported
+codec.
+
+If an environment requires a separate codec, it may encapsulate version and
+serialization behavior in the snapshot object or an internal environment
+service. A second public snapshot protocol is not required initially.
+
+### `finalize`
+
+Returns the environment-specific normalized observation used in `Run`.
+
+It may also write raw artifacts through `RunServices.artifacts`.
+
+The generic kernel does not interpret the returned observation.
+
+## Program callback
+
+`program` is ordinary Python:
+
+```python
+def program(context: C) -> T:
+    ...
+```
+
+It may:
+
+- perform zero, one, or many environment operations;
+- access environment-specific objects;
+- read or mutate the workspace;
+- parse responses;
+- invoke another evaluation;
+- record custom evidence or artifacts;
+- return any Python value.
+
+The kernel does not inspect callback meaning or source. It records errors and
+the final value when safely serializable.
+
+## Run result
+
+The generic result is:
+
+```python
+@dataclass(frozen=True)
+class Run(Generic[T]):
+    name: str
+    value: T
+    snapshot: object | None
+    environment: object
+    environment_fingerprint: object
+    workspace: Path | None
+    changed_paths: tuple[str, ...]
+    artifact_dir: Path
+    error: RunError | None
+
+    def raise_for_error(self) -> None:
+        ...
+
+    def canonical_text(self) -> str:
+        ...
+
+    def record(self, name: str, value: object) -> Path:
+        ...
+```
+
+`value` is exactly the program return value. The kernel does not convert it
+into a verdict.
+
+`environment` is the result of `RunEnvironment.finalize()`.
+
+`snapshot` is opaque reusable environment state. It may be `None`.
+
+## Generic lifecycle
+
+For every uncached run:
+
+1. Validate the run name and allocate an artifact directory.
+2. Prepare or restore the workspace.
+3. Select the default or per-run environment.
+4. Validate the environment fingerprint against the parent run.
+5. Create `RunServices`.
+6. Open the environment with the parent snapshot.
+7. Execute the program.
+8. Preserve program exceptions and continue safe evidence collection.
+9. Ask the environment for its snapshot and finalized observation.
+10. Capture changed paths and Git diff/status when applicable.
+11. Write canonical and raw run artifacts.
+12. Close environment and workspace resources.
+13. Publish a complete cache entry when requested.
+14. Return `Run[T]`.
+
+Runtime, provider, tool, program, parsing, snapshot, finalize, and artifact
+failures are recorded with a phase, type, and message.
+
+When a result can be returned safely, `Run.error` is populated and
+`raise_for_error()` raises an exception carrying the run. Failures before a
+`Run` can be constructed still leave a failure artifact directory.
+
+Pytest assertion failures occur after `run()` returns. The canonical runtime
+artifact therefore already exists.
+
+## Generic cache and continuation
+
+Caching is explicit through `cache_key`.
+
+The effective cache identity combines:
+
+- caller-provided cache key;
+- environment fingerprint;
+- workspace/repository fingerprint;
+- parent snapshot hash, when applicable;
+- framework cache schema version.
+
+The kernel does not hash or introspect program source. Callers version their
+cache key when program semantics change.
+
+Cache entries contain:
+
+- environment fingerprint;
+- snapshot hash and serialized snapshot when present;
+- workspace fingerprint;
+- parent identity;
+- generic run metadata;
+- canonical and raw artifact references;
+- completion marker.
+
+Cache publication uses safe atomic writes and locking. Partial entries are
+never returned as hits.
+
+`continue_from` requires:
+
+- a non-null parent snapshot;
+- compatible environment fingerprints;
+- supported snapshot serialization;
+- a compatible workspace baseline when the environment requires one.
+
+Cross-environment continuation is rejected unless the target environment
+explicitly recognizes the source snapshot and fingerprint.
+
+## Workspace
+
+`workspace` accepts:
+
+- an existing `Path`; or
+- a callable receiving a run-owned staging directory and returning a `Path`.
+
+A `git_workspace()` helper may:
+
+- clone or reuse a repository cache;
+- prepare a detached clean worktree at a pinned revision;
+- apply a caller-owned fixture hook;
+- provide a reproducible fingerprint;
+- record baseline revision, status, changed paths, and diff.
+
+The helper is optional. Custom workspace fixtures remain ordinary callables.
+
+Worktrees may be removed after artifacts are finalized. The revision, fixture
+evidence, and diff must be sufficient to reconstruct the result.
+
+## Evidence journal
+
+The generic kernel provides an optional append-only journal:
+
+```python
+@dataclass(frozen=True)
+class Evidence:
+    kind: str
+    source: str
+    value: object
+    metadata: Mapping[str, object]
+    timestamp: datetime
+    visibility: EvidenceVisibility
+```
+
+```python
+class EvidenceJournal:
+    def emit(
+        self,
+        *args: object,
+        **kwargs: object,
+    ) -> EvidenceReference:
+        ...
+
+    def select(
+        self,
+        predicate: Callable[[Evidence], bool],
+    ) -> tuple[Evidence, ...]:
+        ...
+
+    def project(
+        self,
+        name: str,
+        *,
+        using: Callable[["EvidenceJournal"], T],
+    ) -> T:
+        ...
+```
+
+The journal is a shared observability spine, not a mandatory agent event
+schema. Environments and programs choose their own `kind` values and
+projections.
+
+Alternate environments may use only generic `record()` calls and ignore
+Crystal Lattice evidence helpers.
+
+## Crystal Lattice environment
+
+`CrystalLatticeEnvironment` is the first complete `RunEnvironment`.
+
+It wraps:
+
+- `AgentApplication`;
+- `AgentCore`;
+- immutable sessions;
+- effective configuration;
+- application request and tool-loop events;
+- provider/plugin preparation;
+- runtime environment cleanup.
 
 Construction accepts normal Crystal Lattice configuration inputs, including a
-config path or caller-owned config factory and environment overrides. It does
-not expose evaluation-specific configuration keys.
+config path or caller-owned config factory and environment overrides.
 
-The callback context provides:
+It does not expose evaluation-specific prompt, guidance, skill, or scoring
+configuration.
+
+## Crystal Lattice context
+
+The context preserves high-level convenience and low-level access:
 
 ```python
 class CrystalLatticeContext:
@@ -174,6 +435,8 @@ class CrystalLatticeContext:
     session: Session
     config: dict[str, object]
     workspace: Path | None
+    services: RunServices
+    evidence: EvidenceJournal
 
     def start(self, agent_id: str) -> None:
         ...
@@ -190,152 +453,218 @@ class CrystalLatticeContext:
     def request(
         self,
         *,
+        messages: object | None = None,
         overrides: dict[str, object] | None = None,
-    ) -> list[dict[str, object]]:
+        driver: RequestDriver | None = None,
+        observers: tuple[RequestObserver, ...] = (),
+    ) -> CrystalRequestOutcome:
+        ...
+
+    def create_snapshot(
+        self,
+        name: str,
+        *,
+        using: CrystalSnapshotter | None = None,
+    ) -> object:
+        ...
+
+    def evaluate(
+        self,
+        name: str,
+        value: object,
+        *,
+        using: Callable[[object], T],
+    ) -> T:
+        ...
+
+    def present(
+        self,
+        name: str,
+        value: object,
+        *,
+        using: Callable[[object, ArtifactWriter], None],
+    ) -> None:
         ...
 
     def final_response(self) -> str:
         ...
-
-    def record(self, name: str, value: object) -> Path:
-        ...
 ```
 
-Convenience methods update the current immutable session and capture request
-events. Direct properties remain available as an escape hatch.
+These operations are conveniences. Direct properties remain the escape hatch.
 
-The context does not introduce separate methods for system guidance, task
-guidance, skills, scoring, or review. Tests use normal messages,
+The context does not introduce special methods for system guidance, task
+guidance, skills, or reviewer prompts. Tests use normal messages,
 configuration, plugins, actions, and request overrides.
 
-## Run result
+## Crystal Lattice application lifecycle
 
-The generic result is:
+Configuration must be customizable at all relevant phases:
+
+- before application creation through a config factory;
+- during creation through environment and plugin configuration;
+- after application creation through context/application access;
+- before each request through request overrides or request transforms;
+- during execution through a custom request driver and observers;
+- after each request through program logic and evidence records;
+- before close through environment-owned cleanup/finalization.
+
+Simple tests use environment defaults. Advanced tests may supply explicit
+configuration or use lower-level application/core calls directly.
+
+No universal `ConfigurationStrategy` is required initially.
+
+## Request driver and tool-loop control
+
+Crystal Lattice request execution is replaceable per request:
 
 ```python
-@dataclass(frozen=True)
-class Run(Generic[T]):
-    name: str
-    value: T
-    snapshot: object
-    runtime: object
-    workspace: Path | None
-    changed_paths: tuple[str, ...]
-    artifact_dir: Path
-    error: RunError | None
-
-    def raise_for_error(self) -> None:
-        ...
-
-    def canonical_text(self) -> str:
-        ...
-
-    def record(self, name: str, value: object) -> Path:
-        ...
+RequestDriver = Callable[
+    [CrystalRequestContext, EvidenceSink],
+    CrystalRequestOutcome,
+]
 ```
 
-`value` is exactly the callback return value. The framework does not convert
-it into a verdict.
+The default driver wraps the production `AgentApplication` request/tool-loop
+path.
 
-`runtime` is the adapter-specific normalized observation. The Crystal Lattice
-observation includes, when available:
+A custom driver may control:
+
+- request preparation;
+- streaming versus buffered execution;
+- tool-call dispatch;
+- mutation gates;
+- retry behavior;
+- maximum loops;
+- stop conditions;
+- cancellation;
+- event observation;
+- partial-result handling.
+
+Stop conditions may be helper callables used by the default driver or may be
+implemented entirely inside a custom driver. A separate required stop-policy
+abstraction is not necessary.
+
+## Crystal Lattice snapshots
+
+The environment supplies a default session snapshotter compatible with its
+restore behavior.
+
+Per-run programs may create named custom snapshots:
+
+```python
+snapshot = context.create_snapshot(
+    "neutral-investigation",
+    using=custom_snapshotter,
+)
+```
+
+A snapshotter may preserve:
+
+- complete session;
+- normalized workspace references;
+- selected application metadata;
+- multiple sessions;
+- a portable knowledge capsule;
+- custom continuation state.
+
+The environment's final `snapshot()` decides which state becomes
+`Run.snapshot`. A program-created named snapshot may be selected explicitly or
+recorded only as an artifact.
+
+## Crystal Lattice observation and projections
+
+The environment records, when available:
 
 - visible messages;
-- request boundaries;
-- final assistant responses;
+- request boundaries and effective configuration hashes;
+- compiled request provenance;
 - tool calls and mutation classification;
 - runtime errors and cancellations;
 - timing;
 - token/usage information exposed by the provider;
-- hashes and references for raw request/session evidence.
+- workspace changes;
+- named snapshots;
+- custom program records.
 
-## Lifecycle and errors
+A projection explicitly selects evidence for one consumer:
 
-For every uncached run:
+```python
+ai_input = context.evidence.project(
+    "ai-input",
+    using=select_ai_material,
+)
+```
 
-1. Allocate a run artifact directory.
-2. Prepare or restore the workspace.
-3. Validate a parent snapshot when `continue_from` is supplied.
-4. Open the selected runtime adapter.
-5. Execute the callback.
-6. Capture callback exceptions without losing runtime/workspace evidence.
-7. Ask the adapter for a reusable snapshot and normalized observation.
-8. Capture changed paths and Git diff/status when applicable.
-9. Write canonical and raw artifacts.
-10. Close the adapter and workspace resources.
-11. Return `Run[T]`.
+Different projections may feed:
 
-Runtime, provider, tool, callback, parsing, and artifact failures are recorded
-with a phase, type, and message. When a result can be returned safely,
-`Run.error` is populated and `raise_for_error()` raises an exception carrying
-the run. Failures before a `Run` can be created still leave a failure artifact
-directory.
+- deterministic assertions;
+- AI scoring;
+- pairwise comparison;
+- human review;
+- failure diagnosis;
+- canonical summary.
 
-Pytest assertion failures occur after `run()` returns. The canonical runtime
-artifact therefore already exists.
+The complete journal is never implicitly sent to an AI evaluator.
 
-## Conversation continuation
+## Evaluation and scoring
 
-`continue_from` restores the parent adapter snapshot into a new runtime.
+`context.evaluate()` records an explicit input, operation identity, output, and
+failure state. The supplied callable may:
 
-For repository-backed runs, the default behavior is a fresh workspace at the
-same baseline revision. The adapter or framework rebases absolute workspace
-references in the restored state when required by the runtime.
+- use no model;
+- invoke another `AgentEval` run;
+- call a Crystal Lattice model;
+- return `bool`;
+- return pass/fail plus reasons;
+- return numerical scores;
+- return ranked alternatives;
+- return issue lists;
+- return arbitrary structured data.
 
-The parent snapshot remains immutable and hash-verified. A continuation records:
+The framework does not interpret the returned value. Pytest or human review
+does.
 
-- parent run identity;
-- parent snapshot hash;
-- runtime snapshot format version;
-- source and target workspace fingerprints;
-- any workspace reference rebuilding or rebasing performed.
+## Presentation
 
-Cross-runtime or cross-model restoration is rejected unless the adapter
-explicitly declares compatibility.
+`context.present()` writes audience-specific artifacts without assigning a
+verdict.
 
-## Cache
+Presenters may produce:
 
-Caching is explicit through `cache_key`.
+- compact Markdown;
+- JSON;
+- HTML;
+- comparison tables;
+- a directory of primary files;
+- terminal summaries;
+- score reports;
+- manual-review checklists.
 
-The effective cache identity combines:
+The generic kernel always produces a minimal canonical run artifact. The
+environment and program may add richer presentations.
 
-- caller-provided cache key;
-- adapter fingerprint;
-- workspace/repository fingerprint;
-- parent snapshot hash, when applicable;
-- framework cache schema version.
+## Optional recipes
 
-The framework does not hash or introspect callback source. Callers version
-their cache key when callback semantics change.
+Repeated Crystal Lattice components may later be bundled:
 
-Cached runs preserve the same `Run` contract and provenance. Cache lookup uses
-a lock so parallel processes cannot create a partially written entry. Initial
-real-model suites run without pytest process parallelism until locking and
-provider behavior are verified.
+```python
+recipe = CrystalLatticeRecipe(
+    request_driver=...,
+    snapshotter=...,
+    observers=(...),
+    canonical_projection=...,
+    presenters=(...),
+)
+```
 
-## Workspace
+A recipe is only shorthand over lower operations. Every component remains
+overridable or bypassable.
 
-`workspace` accepts:
+Do not stabilize a required recipe abstraction in the first implementation
+unless the first consumers already demonstrate substantial repetition and the
+helper remains optional.
 
-- an existing `Path`; or
-- a callable receiving a run-owned staging directory and returning a `Path`.
-
-A `git_workspace()` helper may clone/cache a repository, create a detached
-worktree at a pinned revision, and provide a reproducible fingerprint. The
-helper is optional; custom fixtures remain ordinary callables.
-
-For Git workspaces, the framework records:
-
-- baseline revision;
-- status;
-- changed paths;
-- diff;
-- optional fixture/setup commit.
-
-Worktrees may be removed after artifacts are finalized. The revision and diff
-must be sufficient to reconstruct the result.
-
-## Artifacts and observability
+## Artifacts
 
 Every run produces:
 
@@ -345,30 +674,31 @@ Every run produces:
 ├── result.json
 ├── records/
 └── raw/
-    ├── runtime/
+    ├── environment/
     ├── workspace/
     └── error.txt
 ```
 
-`result.md` and `result.json` are deterministic canonical artifacts intended
-for routine human and AI inspection. They contain:
+`result.md` and `result.json` are deterministic generic artifacts containing:
 
-- run, parent, cache, adapter, and workspace identity;
-- callback return value when safely renderable;
-- adapter-provided concise observations;
+- run, parent, cache, environment, and workspace identity;
+- program return value when safely renderable;
+- environment-finalized concise observation;
 - changed paths and primary workspace summary;
 - error phase and message;
-- links and hashes for raw evidence.
+- links and hashes for raw evidence;
+- named projections, evaluations, and presentations where recorded.
 
-Raw artifacts preserve complete sessions, events, compiled requests, tool
-payloads, Git evidence, and adapter-specific diagnostics when configured.
-Routine reviewer prompts use canonical artifacts rather than raw context.
+Raw artifacts preserve complete environment state, events, compiled requests,
+tool payloads, Git evidence, and diagnostics when configured.
 
-Artifact roots are ignored local outputs by default. Adapters must not copy
-credentials or authentication state into artifacts. Tests using sensitive
-repository data configure additional redaction or retention through the
-runtime and artifact environment rather than through prompt-specific
-framework parameters.
+Routine AI and human review uses explicit canonical or audience-specific
+projections rather than raw context.
+
+Artifact roots are ignored local outputs by default. Environments must not copy
+credentials or authentication state. Sensitive evaluations configure
+additional redaction or retention through the environment and artifact
+services.
 
 ## Pytest suites
 
@@ -376,35 +706,36 @@ Pytest is the initial runner:
 
 - a test module is a suite;
 - fixtures provide shared cached investigations;
-- parametrization varies prompts, application configurations, plugins, models,
-  or repetitions;
+- parametrization varies programs, environments, configuration, plugins,
+  models, or repetitions;
 - ordinary assertions define acceptance;
-- custom return values support arbitrary structured scoring;
+- arbitrary return values support structured scoring;
 - markers map important tests to requirement IDs.
 
 Real-model tests use a registered `agent_eval` marker and are excluded from
 default test commands. Hosted or paid execution requires an explicit gate.
 Skipped gated tests are reported as not run.
 
-Initial real-model execution does not use pytest-xdist. Deterministic framework
-tests remain part of the package's normal fast test suite.
+Initial real-model execution does not use pytest-xdist. Deterministic kernel
+and environment tests remain part of the package's normal fast test suite.
 
 A separate CLI is not required initially. A later thin CLI may inspect,
-compare, score, or bundle saved runs through the library without defining a
-second scenario language.
+compare, rescore, or bundle saved runs through the same library without
+defining a second scenario language.
 
 ## First consumer: documentation-standard instructions
 
 The first real consumers are pytest tests under the framework package. They
-verify agent application of:
+verify application of:
 
 - `DOCGEN-001`–`DOCGEN-005`;
 - `DOCREP-001`–`DOCREP-005`;
 - `DOCVAL-005`.
 
-The suite uses a pinned repository baseline that does not expose the candidate
-instruction through the warm-up context. One guidance-neutral investigation
-may feed multiple clean continuations.
+The initial suite uses `CrystalLatticeEnvironment` and a pinned repository
+baseline that does not expose the candidate instruction through the warm-up
+context. One guidance-neutral investigation may feed multiple clean
+continuations.
 
 Coverage includes:
 
@@ -420,7 +751,7 @@ Coverage includes:
 8. Distinguishing applying standards from maintaining them.
 
 Tests may exercise the same rules through user-message text, application
-configuration, or plugins. The framework does not privilege one injection
+configuration, plugins, or skills. The kernel does not privilege one injection
 method.
 
 Deterministic assertions inspect changed paths, generated files, responses, and
@@ -428,8 +759,9 @@ provenance. Optional model calls may return structured scorecards or semantic
 findings. Model judgment is supporting behavioral evidence, not the sole proof
 of static documentation requirements or human verification.
 
-Every real-model artifact records exact model/configuration identity, candidate
-instruction hash, prompt, seed, response, tool summary, and failure state.
+Every real-model artifact records exact environment/configuration identity,
+model, candidate instruction hash, prompt, seed, response, tool summary,
+projections, evaluations, presentations, and failure state.
 
 ## Existing task-guidance evaluator
 
@@ -440,8 +772,9 @@ library.
 Subtask 068 later:
 
 - moves task-guidance evaluation into the maintainer domain;
-- adopts the library where it reduces duplicated infrastructure;
-- preserves its deterministic assertions and review behavior;
+- adopts the generic kernel and Crystal Lattice environment where they reduce
+  duplicated infrastructure;
+- preserves task-specific deterministic assertions and review behavior;
 - updates existing commands and consumers;
 - removes obsolete specialized framework code only after equivalent behavior
   is verified.

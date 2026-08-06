@@ -13,40 +13,47 @@ Specification:
 `maintainer/specifications/agent-evaluation-framework/index.md`
 
 Requirement IDs:
-`AEVAL-001`–`AEVAL-017`, `DOCGEN-001`–`DOCGEN-005`,
+`AEVAL-001`–`AEVAL-018`, `DOCGEN-001`–`DOCGEN-005`,
 `DOCREP-001`–`DOCREP-005`, `DOCVAL-005`
 
 # Programmatic Agent Evaluation Framework
 
-Create a small maintainer-owned Python library that makes Crystal Lattice agent
-programs easy to exercise, cache, fork, observe, and inspect from ordinary
-pytest tests. Use the documentation-standard instructions as the first
-behavioral consumers without hardcoding evaluation semantics into the
-framework.
+Create a small generic evaluation kernel with one replaceable run-environment
+boundary. Implement Crystal Lattice as the first rich environment, keeping its
+tool-loop, configuration, snapshot, evidence, evaluation, and presentation
+details customizable. Use the documentation-standard instructions as the first
+behavioral consumers.
 
 ## Requirements checklist
 
 - [ ] A package under `maintainer/agent-evaluation/` exposes the approved
-  minimal `agent_eval` public contract.
-- [ ] `AgentEval.run()` accepts only a name, arbitrary execution callback, and
-  optional adapter, parent run, workspace, and cache key.
-- [ ] Evaluation-specific behavior remains in ordinary Python, Crystal Lattice
-  configuration, and plugins rather than framework inputs or required
-  abstractions.
-- [ ] A single runtime-adapter boundary supports the Crystal Lattice
-  Core/Application implementation while preserving a direct escape hatch to
-  the underlying application, core, session, and configuration.
-- [ ] Execution callbacks can perform one or several requests and return any
+  generic `agent_eval` kernel.
+- [ ] `AgentEval.run()` accepts only a name, arbitrary program callback, and
+  optional environment, parent run, workspace, and cache key.
+- [ ] The kernel owns run/workspace/cache/artifact/error lifecycle without
+  hardcoding agent or evaluation semantics.
+- [ ] One `RunEnvironment` contract is the broad replacement seam for context
+  creation, compatibility, restoration, snapshotting, and finalized
+  observations.
+- [ ] `CrystalLatticeEnvironment` is the first complete environment and
+  preserves direct access to application, core, session, configuration,
+  workspace, and generic run services.
+- [ ] Crystal Lattice request/tool-loop execution, stopping, configuration
+  changes, snapshots, observation, projections, evaluation, and presentation
+  are replaceable at their point of use.
+- [ ] Alternate environments can bypass the Crystal Lattice lower-layer model
+  while reusing the generic kernel.
+- [ ] Programs can perform one or several environment operations and return any
   Python value.
-- [ ] Runs can be cached and forked into clean compatible workspaces with exact
-  snapshot, configuration, repository, and parent provenance.
-- [ ] Canonical artifacts show useful messages/results, tool activity, changed
+- [ ] Runs can be cached and continued in compatible clean workspaces with
+  exact environment, snapshot, repository, and parent provenance.
+- [ ] Canonical artifacts show useful program/environment results, changed
   paths, errors, and provenance without requiring routine inspection of raw
-  sessions or event streams.
+  evidence.
 - [ ] Complete raw evidence remains available separately and does not retain
   credentials or authentication state.
-- [ ] Deterministic package tests cover the framework lifecycle and failure
-  behavior.
+- [ ] Deterministic package tests cover the generic kernel, environment
+  substitution, Crystal Lattice customization, and failure behavior.
 - [ ] Pytest is the initial suite runner, with explicit real-model markers and
   hosted-execution gates outside normal default tests.
 - [ ] First-consumer tests exercise every `DOCGEN-*` and `DOCREP-*`
@@ -59,35 +66,65 @@ framework.
 
 ## Supporting details
 
-### Approved design
+### Approved architecture
 
-The user approved a deliberately small public model:
+The user approved a four-layer model:
+
+```text
+generic AgentEval kernel
+    -> replaceable RunEnvironment
+        -> environment-specific context
+            -> optional lower-level operations and helpers
+```
+
+The proposed kernel call is:
 
 ```python
 run = evaluation.run(
     "run-name",
-    execute,
-    adapter=runtime,
+    program,
+    environment=environment,
     continue_from=previous_run,
     workspace=workspace_factory,
     cache_key="optional-cache-key",
 )
 ```
 
-The only initial central types are:
+The generic kernel owns:
 
-- `AgentEval`, which owns lifecycle, caching, workspace handling, and
-  artifacts;
-- `Run[T]`, which returns the callback value, reusable runtime snapshot,
-  observations, workspace evidence, artifacts, and errors;
-- one `RuntimeAdapter` strategy boundary;
-- the Crystal Lattice adapter/context implementation;
-- an optional Git workspace helper.
+- run identity;
+- workspace preparation and cleanup;
+- cache lookup/publication;
+- parent-run linkage;
+- generic artifacts;
+- error preservation;
+- returning `Run[T]`.
+
+`RunEnvironment` owns:
+
+- compatibility fingerprint;
+- context construction and cleanup;
+- restoration of a parent snapshot;
+- final reusable snapshot;
+- environment-specific normalized observation and raw evidence.
+
+The first `CrystalLatticeEnvironment` owns:
+
+- `AgentApplication` and `AgentCore` integration;
+- session and request behavior;
+- application configuration and plugins;
+- default and custom request/tool-loop drivers;
+- stop conditions and observers;
+- default and custom snapshots;
+- evidence projections;
+- arbitrary evaluations/scoring;
+- audience-specific presentation.
+
+An alternate environment may ignore all Crystal Lattice lower-layer concepts.
 
 Do not add required `Case`, `Suite`, `Check`, `Reviewer`, `Score`,
-`InstructionLayer`, or `RunPolicy` types. If repeated consumer code later
-justifies conveniences, implement them as optional helpers over the minimal
-contract.
+`InstructionLayer`, `RunPolicy`, or `Recipe` abstractions. If repeated consumer
+code later justifies conveniences, implement them as optional layers.
 
 ### Existing validated prototype
 
@@ -115,26 +152,26 @@ Relevant sources:
 The specialized evaluator is a source of verified behavior, not the target
 public API. A representative case stores tens of megabytes of workspace,
 events, sessions, and compiled prompt while the useful response/assertion
-material is only a small fraction. The new library should produce a canonical
-result by default and preserve raw evidence separately.
+material is only a small fraction.
 
 ### Boundary with subtask 068
 
-This subtask creates the library and documentation-standard consumers.
+This subtask creates:
+
+- the generic kernel;
+- the first Crystal Lattice environment;
+- documentation-standard behavioral consumers.
 
 Subtask 068 remains responsible for:
 
 - moving task-guidance evaluation code, fixtures, and documentation under
   `maintainer/`;
-- adopting the new library where appropriate;
+- adopting the kernel and Crystal Lattice environment where appropriate;
 - updating existing commands and consumers;
 - preserving task-guidance-specific deterministic assertions and empirical
   review behavior;
 - removing obsolete specialized infrastructure only after equivalent behavior
   is verified.
-
-This subtask must not make task-guidance migration a hidden prerequisite for
-the first library version.
 
 ### First-consumer intent
 
@@ -153,98 +190,123 @@ The suite covers:
 - proportional package profiles without filler;
 - applying versus maintaining the standards.
 
-Tests may vary the user message, configuration, plugins, skills, or models.
-They should not require a particular instruction-injection mechanism.
-
-Deterministic assertions should inspect paths, files, links, responses, and
-provenance where possible. Structured model scoring is allowed as ordinary
-test code and recorded as supporting evidence.
+Tests may vary user messages, configuration, plugins, skills, request drivers,
+snapshots, evidence projections, evaluators, presentations, or models. They
+should not require a particular instruction-injection, assertion, or
+presentation mechanism.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-The implementation should establish the smallest useful library first, verify
-it deterministically, and only then add real-model documentation-standard
-consumers. The existing task-guidance evaluator remains unchanged except for
-read-only comparison and possible reuse of clearly generic implementation
-ideas.
+The implementation should establish the generic kernel first, prove the
+environment boundary with both a deterministic alternate environment and
+Crystal Lattice, and then add the documentation-standard real-model consumers.
+The existing task-guidance evaluator remains unchanged except for read-only
+comparison and possible reuse of clearly generic implementation ideas.
 
-### 1. Establish the package and public contract
+### 1. Establish the package and generic kernel contract
 
 1. Create the maintainer-owned Python package with an independently testable
    `pyproject.toml`, concise README, `src/agent_eval/`, package tests, and
    real-model suite directory.
-2. Export only the approved initial contract:
+2. Export only the approved initial kernel contract:
    - `AgentEval`;
    - `Run`;
-   - `RuntimeAdapter`;
-   - Crystal Lattice application adapter/context/observation;
-   - optional `git_workspace()` helper.
-3. Implement `AgentEval.run(name, execute, *, adapter=None,
+   - `RunServices`;
+   - `RunEnvironment`;
+   - workspace factory type and optional `git_workspace()` helper.
+3. Implement `AgentEval.run(name, program, *, environment=None,
    continue_from=None, workspace=None, cache_key=None)`.
-4. Keep internal lifecycle, serialization, artifact, lock, and workspace
-   helpers private until a repeated public use is demonstrated.
+4. Keep serialization, artifact, lock, cache, and workspace implementation
+   details private.
 
-### 2. Implement the Crystal Lattice adapter
+### 2. Implement the run-environment lifecycle
+
+1. Define the environment operations:
+   - compatibility fingerprint;
+   - open/restore context;
+   - final snapshot;
+   - finalized observation.
+2. Make snapshots opaque to the kernel except for environment-supported
+   serialization, hashing, and storage.
+3. Permit environments without snapshots; those runs cannot be continuation
+   parents.
+4. Return program values and finalized observations without assigning a
+   framework-owned verdict.
+5. Preserve run/environment failures by phase.
+
+### 3. Implement generic workspaces, continuation, cache, and artifacts
+
+1. Accept existing paths and arbitrary workspace factories.
+2. Add an optional Git helper using pinned revisions, reusable repository
+   cache, detached clean workspaces, status, changed paths, and diff capture.
+3. Restore parent snapshots only when environment and workspace compatibility
+   checks pass.
+4. Preserve immutable parent hashes and restore/rebase provenance.
+5. Implement explicit versioned cache keys combined with environment,
+   workspace, parent, and framework-schema fingerprints.
+6. Use safe atomic cache writes and locking; reject incompatible, corrupt, or
+   partial entries.
+7. Write generic canonical Markdown/JSON and separate raw evidence for every
+   success or failure.
+8. Ensure generic and environment artifacts do not copy credentials or
+   authentication state.
+
+### 4. Prove environment substitution
+
+1. Add a small deterministic replay or in-memory environment.
+2. Verify fresh execution, arbitrary context API, custom return values,
+   snapshots, continuation, finalized observation, cache reuse, and artifacts.
+3. Confirm it does not implement or import Crystal Lattice request/tool-loop,
+   evidence-projection, or presentation helpers.
+4. Use this environment for fast kernel tests without pretending it replaces
+   the real Crystal Lattice integration tests.
+
+### 5. Implement the Crystal Lattice environment
 
 1. Build on `AgentApplication` and `AgentCore` rather than reproducing provider
-   or tool-loop behavior.
+   behavior.
 2. Support caller-owned application configuration, environment, and plugins.
 3. Provide context conveniences for:
    - starting/selecting an agent;
    - adding arbitrary supported message roles/content;
    - issuing requests with ordinary Crystal Lattice overrides;
    - obtaining final assistant responses;
-   - recording custom artifacts.
+   - recording evidence and custom artifacts.
 4. Preserve direct access to application, core, current immutable session, base
-   configuration, and workspace.
-5. Capture normalized visible messages, requests, tool calls, errors, timing,
-   usage when available, and raw runtime artifacts.
+   configuration, workspace, and run services.
+5. Supply a default request driver wrapping the production application
+   tool-loop path.
+6. Permit per-request custom drivers, stop conditions, and observers.
+7. Supply a default restorable application/session snapshot while permitting
+   custom named snapshotters.
+8. Provide the evidence journal, projection, arbitrary evaluation, and
+   presentation conveniences described by the specification.
+9. Keep all these lower-layer operations optional and bypassable through direct
+   application/core access.
 
-### 3. Implement runs, continuation, workspaces, and cache
-
-1. Return the callback value unchanged through `Run.value`.
-2. Preserve adapter snapshot and observation without assigning pass/fail.
-3. Accept existing paths and arbitrary workspace factories.
-4. Add the optional Git helper using pinned revisions, reusable repository
-   cache, detached clean workspaces, status, changed paths, and diff capture.
-5. Restore parent snapshots into fresh workspaces and preserve immutable parent
-   hashes and rebase/rebuild provenance.
-6. Implement explicit versioned cache keys combined with adapter, workspace,
-   parent, and framework-schema fingerprints.
-7. Use safe atomic cache writes and locking; reject incompatible, corrupt, or
-   partial entries.
-
-### 4. Implement canonical and raw artifacts
-
-1. Write canonical Markdown and JSON for every completed or failed run.
-2. Include callback value when safely renderable, adapter canonical
-   observation, changed paths, cache/parent/workspace provenance, and concise
-   failure information.
-3. Keep full sessions, events, compiled requests, tool payloads, Git evidence,
-   and diagnostics under a separate raw area.
-4. Ensure artifacts do not copy credentials or authentication state.
-5. Provide `canonical_text()` and custom `record()` without defining reviewer
-   or score semantics.
-
-### 5. Add deterministic framework tests
+### 6. Add deterministic framework tests
 
 Cover:
 
-1. Arbitrary callback execution and return values.
-2. Default and per-run adapter selection.
-3. Multi-request execution through a deterministic fake or local adapter.
+1. Arbitrary program execution and return values.
+2. Default and per-run environment selection.
+3. Alternate environment substitution with no Crystal Lattice dependency.
 4. Parent snapshot restoration and immutability.
 5. Workspace creation, Git changes, cleanup, and reconstruction evidence.
 6. Cache hit, miss, incompatibility, corruption, locking, and atomic writes.
 7. Canonical/raw artifact shape.
-8. Runtime and callback failure preservation.
+8. Environment and program failure preservation.
 9. Credential/auth-state exclusion.
-10. An existing real Crystal Lattice consumer at the lowest practical
-    non-provider boundary so adapter tests do not only exercise mocks.
+10. Crystal Lattice application lifecycle and direct escape-hatch access.
+11. Default and custom request driver behavior.
+12. Default and custom snapshots.
+13. Evidence projections, arbitrary evaluation results, and presentations.
+14. At least one real Crystal Lattice consumer at the lowest practical
+    non-provider boundary so integration does not only exercise mocks.
 
-### 6. Add pytest documentation-standard consumers
+### 7. Add pytest documentation-standard consumers
 
 1. Register an `agent_eval` marker and exclude real-model suites from normal
    package tests.
@@ -253,73 +315,178 @@ Cover:
 3. Fork clean continuations covering all `DOCGEN-*` and `DOCREP-*`
    requirements.
 4. Exercise at least one ordinary user-message instruction path and leave room
-   for configuration/plugin/skill variants without framework changes.
+   for configuration/plugin/skill variants without kernel changes.
 5. Use normal pytest assertions for objective path, content, mutation, and
    provenance outcomes.
-6. Where semantic interpretation adds value, request test-owned structured
-   scores or findings and validate them in ordinary Python.
-7. Record exact model/configuration, instruction hash, prompt, seed, tool,
-   output, and error evidence.
-8. Keep human-review requirements unverified until the user reviews the
+6. Where semantic interpretation adds value, create explicit evidence
+   projections and request test-owned structured scores or findings.
+7. Create a separate compact human-review presentation rather than reusing the
+   full raw or AI-assessment input.
+8. Record exact environment/configuration, model, instruction hash, prompt,
+   seed, tool, projection, evaluation, presentation, output, and error
+   evidence.
+9. Keep human-review requirements unverified until the user reviews the
    canonical artifacts.
 
-### 7. Verify and document
+### 8. Verify and document
 
 1. Run package deterministic tests in the normal fast path.
 2. Run the documentation-standard real-model tests only with their explicit
    gate enabled.
 3. Report skipped provider/model cases as not run.
-4. Inspect canonical artifacts for concision and raw artifact links for
-   diagnostic sufficiency.
+4. Inspect canonical, AI-assessment, manual-review, and raw artifact
+   boundaries.
 5. Update `AEVAL-*` and `DOCVAL-005` evidence.
 6. Present the behavioral results for human review of `DOCGEN-*` and
    `DOCREP-*`.
 
+### Execution checkpoints
+
+Implementation stops at each checkpoint for a progress report. A checkpoint
+must leave its listed boundary complete, tested, documented where applicable,
+and independently reviewable. Later checkpoints may build on it but should not
+be required to understand whether the checkpoint succeeded.
+
+#### Checkpoint 1: generic kernel and alternate environment
+
+Complete plan sections 1–4 and the generic portions of section 6:
+
+- package and public kernel contract;
+- `RunEnvironment`, `RunServices`, and `Run`;
+- workspace factories and Git helper;
+- parent snapshots and continuation;
+- compatible cache, atomic publication, and locking;
+- generic canonical/raw artifacts and error preservation;
+- deterministic alternate environment;
+- deterministic kernel, cache, workspace, continuation, artifact, and failure
+  tests;
+- kernel and alternate-environment README/API examples.
+
+Stop and report:
+
+- exported API;
+- implementation and test files;
+- deterministic test results;
+- representative canonical and raw artifacts;
+- any deviations from the approved contract;
+- remaining Crystal Lattice integration risks.
+
+#### Checkpoint 2: Crystal Lattice environment
+
+Complete plan section 5 and the Crystal Lattice portions of section 6:
+
+- Core/Application lifecycle;
+- direct application/core/session/configuration access;
+- default production request driver;
+- custom request drivers, stop conditions, and observers;
+- default and custom snapshots;
+- evidence journal integration and projections;
+- arbitrary evaluation/scoring;
+- audience-specific presentation;
+- deterministic and lowest-practical real Crystal Lattice integration tests;
+- Crystal Lattice usage and customization documentation.
+
+Stop and report:
+
+- concrete context API;
+- production boundaries crossed by tests;
+- test results;
+- representative simple and customized artifacts;
+- any behavior intentionally deferred to task-guidance adoption.
+
+#### Checkpoint 3: documentation-standard consumer suite
+
+Complete the implementation portion of plan section 7 without requiring a
+hosted/provider call:
+
+- marker and explicit gates;
+- neutral pinned repository investigation;
+- clean continuation fixtures;
+- requirement-to-test mapping for every `DOCGEN-*` and `DOCREP-*` ID;
+- objective assertions;
+- structured semantic-evaluation path;
+- separate human-review presentation;
+- deterministic collection/configuration tests;
+- commands and prerequisites.
+
+Stop and report:
+
+- test matrix and requirement coverage;
+- prompt/configuration variants;
+- selected AI and human evidence projections;
+- deterministic test/collection results;
+- exact command proposed for the first real-model run.
+
+#### Checkpoint 4: behavioral execution and evidence handoff
+
+Complete plan section 8:
+
+- run at least one explicitly enabled supported real-model path;
+- preserve exact environment, model, instruction, prompt, seed, tool,
+  projection, evaluation, presentation, output, and error provenance;
+- inspect canonical/raw boundary and artifact size;
+- update `AEVAL-*` and `DOCVAL-005` evidence;
+- prepare the `DOCGEN-*` and `DOCREP-*` human-review handoff;
+- record any provider/model cases not run.
+
+Stop and report the final implementation outcome and request the required human
+review. Do not mark `DOCGEN-*` or `DOCREP-*` human verified without that
+confirmation.
+
 ### Implementation decisions and open questions
 
-- Approved: the library is programmatic rather than declarative.
-- Approved: arbitrary execution callbacks own all evaluation-specific
-  behavior.
-- Approved: one runtime-adapter strategy is the only required initial
-  abstraction.
+- Approved: use a generic kernel rather than making `AgentEval` specific to
+  Crystal Lattice.
+- Approved: `RunEnvironment` is the one broad replacement seam.
+- Approved: Crystal Lattice is the first complete environment and contains the
+  finer-grained Option 3-style customization.
+- Approved: alternate environments may bypass the complete Crystal Lattice
+  lower-layer pattern.
+- Approved: arbitrary program callbacks own all evaluation-specific behavior.
 - Approved: pytest modules are the initial suites and runner.
 - Approved: the first consumers verify documentation-standard instructions.
 - Approved: task-guidance migration remains in subtask 068.
-- Recommendation for plan approval: use `maintainer/agent-evaluation/` as the
-  distribution directory and `agent_eval` as the Python import.
-- Recommendation for plan approval: require all `DOCGEN-*` and `DOCREP-*`
-  requirements to have at least one behavioral consumer, but allow one test to
-  cover a coherent group.
-- Recommendation for plan approval: require one explicitly enabled supported
-  real-model path for initial behavioral evidence; additional model families
-  and repeated statistical thresholds remain optional until actual variance
-  justifies them.
-- Local reversible choices include internal module decomposition, JSON
-  serialization library, file-lock implementation, and canonical Markdown
+- Approved: use `maintainer/agent-evaluation/` as the distribution directory
+  and `agent_eval` as the Python import.
+- Approved: every `DOCGEN-*` and `DOCREP-*` requirement has at least one
+  behavioral consumer, while one test may cover a coherent group.
+- Approved: initial behavioral evidence requires one explicitly enabled
+  supported real-model path; additional model families and repeated
+  statistical thresholds remain optional until actual variance justifies
+  them.
+- Local reversible choices include internal module decomposition, snapshot
+  codec implementation, JSON serialization, file locking, and canonical
   rendering details.
 - No unresolved requirement question changes the required outcome.
 
 ### Documentation
 
 - `maintainer/agent-evaluation/README.md`
-- Public API docstrings and typing for the exported contract
+- Public API docstrings and typing for the generic kernel and environment
+  contract
+- Crystal Lattice environment and customization documentation
 - Pytest marker and real-model execution instructions
 - Cache and artifact-layout guidance
-- A concrete documentation-standard test example
+- Complete simple, customized Crystal Lattice, and alternate-environment
+  examples
 - `maintainer/README.md` routing
 - `maintainer/specifications/agent-evaluation-framework/*`
 - Updated evidence in both framework and documentation-standard requirements
 
 ### Task checklist
 
-- [ ] Create the maintainer package and minimal public exports.
-- [ ] Implement `AgentEval.run()` and `Run`.
-- [ ] Implement the Crystal Lattice runtime adapter and context.
-- [ ] Implement parent snapshot continuation.
+- [ ] Create the maintainer package and generic kernel exports.
+- [ ] Implement `AgentEval.run()`, `Run`, and `RunServices`.
+- [ ] Implement `RunEnvironment` lifecycle and compatibility.
 - [ ] Implement workspace factories and optional Git helper.
-- [ ] Implement explicit compatible caching and locking.
-- [ ] Implement canonical and raw artifacts.
-- [ ] Add deterministic framework and adapter tests.
+- [ ] Implement parent snapshot continuation.
+- [ ] Implement compatible caching and locking.
+- [ ] Implement generic canonical and raw artifacts.
+- [ ] Add the deterministic alternate environment.
+- [ ] Implement the Crystal Lattice environment and context.
+- [ ] Implement customizable request drivers and snapshots.
+- [ ] Implement evidence projection, evaluation, and presentation helpers.
+- [ ] Add deterministic kernel and environment tests.
 - [ ] Register the gated pytest real-model marker.
 - [ ] Add documentation-standard behavioral consumers.
 - [ ] Run deterministic tests.
@@ -331,22 +498,26 @@ Cover:
 
 | Requirement group | Acceptance evidence |
 |---|---|
-| Minimal public contract (`AEVAL-001`–`AEVAL-007`) | Package import and API tests exercise the exact `AgentEval.run()` signature, arbitrary callbacks/return values, default and overridden adapters, Crystal Lattice context access, and `Run` fields without required evaluation-specific abstractions. |
-| Continuation, cache, and workspace (`AEVAL-008`–`AEVAL-010`) | Deterministic tests show immutable parent restoration, clean fork workspaces, path rebasing/rebuilding, pinned Git evidence, compatible cache reuse, and rejection of incompatible/corrupt entries. |
-| Artifacts and safety (`AEVAL-011`–`AEVAL-012`) | Failure and success fixtures produce concise canonical Markdown/JSON and separate raw evidence; tests confirm credential/auth files are not copied. |
-| Deterministic quality (`AEVAL-013`) | Normal package test command collects and passes callback, adapter, continuation, cache, workspace, artifact, and failure tests, including one real Crystal Lattice boundary consumer. |
-| Pytest operation (`AEVAL-014`) | Marker registration and default test configuration exclude real-model calls; explicitly gated invocation collects the intended tests; disabled hosted cases are reported as not run. |
-| Documentation-standard consumers (`AEVAL-015`, `DOCVAL-005`) | Requirement-to-test mapping covers every `DOCGEN-*` and `DOCREP-*` ID; gated runs use a neutral cached seed and clean continuations and preserve exact canonical artifacts. |
-| Provenance and interpretation (`AEVAL-016`) | Artifacts identify instructions, prompts, model/config, seed, requests, tools, errors, and outputs; AI-produced scores are labeled supporting evidence and human verification remains incomplete pending review. |
-| Maintainer documentation (`AEVAL-017`) | README and examples let a new evaluation author create a cached investigation, continuation, custom configuration/plugin run, structured score, and pytest assertion without reading framework internals. |
+| Generic kernel (`AEVAL-001`–`AEVAL-003`, `AEVAL-007`–`AEVAL-008`) | Package import and API tests exercise the exact `AgentEval.run()` signature, arbitrary programs/return values, generic `RunServices`, `Run` fields, artifacts, and errors without agent-specific assumptions or a framework-owned verdict. |
+| Environment replacement (`AEVAL-004`) | A deterministic alternate environment provides its own context, snapshot, and observation, supports continuation/cache, and imports no Crystal Lattice environment helpers. |
+| Crystal Lattice environment (`AEVAL-005`–`AEVAL-006`) | Integration tests exercise Core/Application configuration, plugins, direct context access, default/custom request drivers, stop behavior, snapshots, evidence projections, arbitrary evaluation results, and presentations. |
+| Continuation, cache, and workspace (`AEVAL-009`–`AEVAL-011`) | Deterministic tests show immutable parent restoration, compatible environment checks, clean fork workspaces, pinned Git evidence, cache reuse, and rejection of incompatible/corrupt entries. |
+| Artifacts and safety (`AEVAL-012`–`AEVAL-013`) | Success/failure fixtures produce concise canonical output and separate raw evidence; tests confirm credential/auth files are not copied and custom projections/presentations use only selected inputs. |
+| Deterministic quality (`AEVAL-014`) | Normal package tests pass kernel, alternate-environment, Crystal Lattice customization, continuation, cache, workspace, artifact, and failure coverage. |
+| Pytest operation (`AEVAL-015`) | Marker registration and default configuration exclude real-model calls; explicitly gated invocation collects intended tests; disabled hosted cases are reported as not run. |
+| Documentation-standard consumers (`AEVAL-016`, `DOCVAL-005`) | Requirement-to-test mapping covers every `DOCGEN-*` and `DOCREP-*` ID; gated runs use a neutral cached seed and clean continuations and preserve exact canonical artifacts. |
+| Provenance and interpretation (`AEVAL-017`) | Artifacts identify environment/configuration, instructions, prompts, model, seed, requests, tools, projections, evaluations, presentations, errors, and outputs; AI scores remain supporting evidence and human verification remains pending review. |
+| Maintainer documentation (`AEVAL-018`) | README and complete examples let a new author run a simple Crystal Lattice assertion, customize drivers/snapshots/evidence/scoring/presentation, and substitute an alternate environment without reading internals. |
 
 ### Additional implementation verification
 
 - Compare canonical artifact size and review usefulness with a representative
   current `test/task_guidance` case.
-- Verify a cache hit makes no model request.
+- Verify a cache hit makes no environment execution.
 - Verify a continuation never mutates the parent artifact or source snapshot.
-- Verify custom Crystal Lattice plugins/configuration can vary instruction
-  behavior without changing `AgentEval`.
+- Verify custom Crystal Lattice plugins/configuration can vary instructions
+  without changing the kernel.
+- Verify an alternate environment can omit Crystal Lattice-specific lower
+  operations.
 - Run `git diff --check`, package lint/type checks, and package-local tests.
 - If real-model tests run, record provider/model and exact gate used.

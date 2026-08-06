@@ -23,7 +23,7 @@ policy under `docs/development/`. Those output pages are artifacts for agents
 and contributors using the rules. They do not need to link back to the
 maintainer specification.
 
-The agent-evaluation specification defines the reusable programmatic library
-target. Task-guidance evaluation and similar standards-maintenance tooling
-currently living elsewhere in the repository will move under `maintainer/`
-through their own approved implementation work.
+The agent-evaluation specification defines the reusable generic kernel and its
+first Crystal Lattice environment. Task-guidance evaluation and similar
+standards-maintenance tooling currently living elsewhere in the repository
+will move under `maintainer/` through their own approved implementation work.
