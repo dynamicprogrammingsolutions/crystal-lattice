@@ -732,6 +732,11 @@ verify application of:
 - `DOCREP-001`–`DOCREP-005`;
 - `DOCVAL-005`.
 
+The documentation-standard specification owns the detailed
+[agent-behavior verification scenarios](../documentation-and-specification-standard/agent-behavior-verification/index.md).
+The framework specification owns their execution, continuation, evidence, and
+artifact mechanics.
+
 The initial suite uses `CrystalLatticeEnvironment` and a pinned repository
 baseline that does not expose the candidate instruction through the warm-up
 context. One guidance-neutral investigation may feed multiple clean
@@ -739,8 +744,9 @@ continuations.
 
 Coverage includes:
 
-1. Applying generic package-neutral rules without leaking Crystal Lattice
-   terms.
+1. Applying proportional package profiles, ownership, source-of-truth,
+   incremental-adoption, and generated-output rules to ordinary documentation
+   tasks.
 2. Distinguishing target specifications, live requirements, task approval, and
    current documentation.
 3. Assigning package-owned and package-specific refinement specifications.
@@ -753,6 +759,10 @@ Coverage includes:
 Tests may exercise the same rules through user-message text, application
 configuration, plugins, or skills. The kernel does not privilege one injection
 method.
+
+The candidate guidance is supplied through the normal AGENTS and routed-file
+mechanism. User prompts describe ordinary work and do not repeat the rules
+being evaluated.
 
 Deterministic assertions inspect changed paths, generated files, responses, and
 provenance. Optional model calls may return structured scorecards or semantic

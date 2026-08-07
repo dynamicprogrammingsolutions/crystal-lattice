@@ -18,6 +18,7 @@ documentation and specification standards defined by:
 
 - [Documentation and specification standard](../documentation-and-specification-standard/index.md)
 - [Its live requirements](../documentation-and-specification-standard/requirements.md)
+- [Its agent-behavior verification scenarios](../documentation-and-specification-standard/agent-behavior-verification/index.md)
 
 Artifacts:
 

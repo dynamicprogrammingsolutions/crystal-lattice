@@ -23,6 +23,7 @@ Artifacts:
 - [Product specification](product-spec.md)
 - [Technical specification](technical-spec.md)
 - [Requirements and evidence](requirements.md)
+- [Agent-behavior verification](agent-behavior-verification/index.md)
 
 Approval and execution are tracked by:
 

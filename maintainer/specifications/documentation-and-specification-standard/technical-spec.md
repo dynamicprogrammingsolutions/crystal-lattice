@@ -35,6 +35,7 @@ maintainer/
 ├── README.md
 ├── specifications/
 │   └── documentation-and-specification-standard/
+│       └── agent-behavior-verification/
 └── <standards-maintenance tooling and tests>
 ```
 
@@ -271,6 +272,13 @@ Behavioral instruction validation should additionally exercise whether
 representative supported agents can apply `DOCGEN-*` and `DOCREP-*` rules
 through the programmatic framework specified in
 `maintainer/specifications/agent-evaluation-framework/`.
+
+Detailed consumer scenarios are owned by
+[agent-behavior verification](agent-behavior-verification/index.md). They
+deliver the exact candidate AGENTS/routed files through normal agent
+mechanisms, use short human-style task prompts, and assert on generated files,
+mutations, provenance, and responses. They do not ask agents to author or
+summarize the standards being tested.
 
 Behavioral model results supplement rather than replace:
 

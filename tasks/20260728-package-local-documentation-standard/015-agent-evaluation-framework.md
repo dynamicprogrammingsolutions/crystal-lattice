@@ -263,6 +263,18 @@ presentation mechanism.
 - The same review found that `internal` evidence was still written into
   `raw/evidence.json`. The artifact renderer now omits internal evidence, with a
   regression test, matching the documented visibility contract.
+- August 7, 2026: The user approved a standard-owned
+  `agent-behavior-verification/` specification with one page per consumer test.
+  The first six pages define `DOCGEN-*` behavior through ordinary repository
+  tasks, exact AGENTS/routed guidance delivery, short human-style prompts,
+  mechanical assertions, semantic projections, and human-review questions.
+- The consumer-test design explicitly does not ask agents to author or
+  summarize the standards. `DOCGEN-001` uses separate small-package and
+  generated-output scenarios because those behaviors have different realistic
+  tasks and assertions.
+- The former Checkpoints 3 and 4 were merged. Test authoring, deterministic
+  verification, real-model execution, artifact inspection, evidence updates,
+  and human-review handoff now form one final checkpoint.
 
 ## Execution plan
 
@@ -377,24 +389,29 @@ Cover:
 
 ### 7. Add pytest documentation-standard consumers
 
-1. Register an `agent_eval` marker and exclude real-model suites from normal
+1. Implement and maintain the standard-owned scenario contracts under
+   `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/`.
+2. Register an `agent_eval` marker and exclude real-model suites from normal
    package tests.
-2. Create a session-scoped neutral repository investigation using a pinned
+3. Create a session-scoped neutral repository investigation using a pinned
    baseline that does not contain the candidate instructions.
-3. Fork clean continuations covering all `DOCGEN-*` and `DOCREP-*`
+4. Fork clean continuations covering all `DOCGEN-*` and `DOCREP-*`
    requirements.
-4. Exercise at least one ordinary user-message instruction path and leave room
-   for configuration/plugin/skill variants without kernel changes.
-5. Use normal pytest assertions for objective path, content, mutation, and
+5. Deliver the exact candidate AGENTS files and routed documentation through
+   the normal agent mechanism. Keep scenario user prompts short and free of the
+   rules being evaluated.
+6. Leave room for configuration/plugin/skill instruction variants without
+   kernel changes.
+7. Use normal pytest assertions for objective path, content, mutation, and
    provenance outcomes.
-6. Where semantic interpretation adds value, create explicit evidence
+8. Where semantic interpretation adds value, create explicit evidence
    projections and request test-owned structured scores or findings.
-7. Create a separate compact human-review presentation rather than reusing the
+9. Create a separate compact human-review presentation rather than reusing the
    full raw or AI-assessment input.
-8. Record exact environment/configuration, model, instruction hash, prompt,
+10. Record exact environment/configuration, model, instruction hash, prompt,
    seed, tool, projection, evaluation, presentation, output, and error
    evidence.
-9. Keep human-review requirements unverified until the user reviews the
+11. Keep human-review requirements unverified until the user reviews the
    canonical artifacts.
 
 ### 8. Verify and document
@@ -463,43 +480,40 @@ Stop and report:
 - representative simple and customized artifacts;
 - any behavior intentionally deferred to task-guidance adoption.
 
-#### Checkpoint 3: documentation-standard consumer suite
+#### Checkpoint 3: documentation-standard behavioral verification and evidence handoff
 
-Complete the implementation portion of plan section 7 without requiring a
-hosted/provider call:
+Complete plan sections 7 and 8 as one reviewable outcome:
 
-- marker and explicit gates;
+- complete standard-owned scenario contracts for every `DOCGEN-*` and
+  `DOCREP-*` requirement;
+- marker and explicit local/hosted gates;
 - neutral pinned repository investigation;
+- exact candidate AGENTS/routed-file overlay and provenance;
 - clean continuation fixtures;
-- requirement-to-test mapping for every `DOCGEN-*` and `DOCREP-*` ID;
-- objective assertions;
-- structured semantic-evaluation path;
-- separate human-review presentation;
-- deterministic collection/configuration tests;
-- commands and prerequisites.
+- ordinary short task prompts that do not restate the rules;
+- objective path, content, mutation, and provenance assertions;
+- structured semantic-evaluation paths;
+- separate human-review presentations;
+- deterministic helper, collection, and gate tests;
+- documented commands and prerequisites;
+- at least one explicitly enabled supported real-model path across the full
+  requirement matrix;
+- canonical/raw artifact and size inspection;
+- `AEVAL-*` and `DOCVAL-005` evidence updates;
+- `DOCGEN-*` and `DOCREP-*` human-review handoff;
+- explicit reporting of provider/model cases not run.
 
 Stop and report:
 
-- test matrix and requirement coverage;
-- prompt/configuration variants;
-- selected AI and human evidence projections;
-- deterministic test/collection results;
-- exact command proposed for the first real-model run.
+- scenario matrix and requirement coverage;
+- exact prompts and candidate guidance provenance;
+- deterministic and real-model results;
+- selected assertion, AI-assessment, and human-review projections;
+- representative canonical and raw artifacts;
+- provider/model paths run or not run;
+- final implementation outcome and unresolved findings.
 
-#### Checkpoint 4: behavioral execution and evidence handoff
-
-Complete plan section 8:
-
-- run at least one explicitly enabled supported real-model path;
-- preserve exact environment, model, instruction, prompt, seed, tool,
-  projection, evaluation, presentation, output, and error provenance;
-- inspect canonical/raw boundary and artifact size;
-- update `AEVAL-*` and `DOCVAL-005` evidence;
-- prepare the `DOCGEN-*` and `DOCREP-*` human-review handoff;
-- record any provider/model cases not run.
-
-Stop and report the final implementation outcome and request the required human
-review. Do not mark `DOCGEN-*` or `DOCREP-*` human verified without that
+Do not mark `DOCGEN-*` or `DOCREP-*` human verified without explicit human
 confirmation.
 
 ### Implementation decisions and open questions
@@ -523,6 +537,14 @@ confirmation.
   supported real-model path; additional model families and repeated
   statistical thresholds remain optional until actual variance justifies
   them.
+- Approved: documentation-standard behavior and scenario contracts are owned
+  by the documentation-standard specification, while the framework
+  specification owns execution mechanics.
+- Approved: behavioral tests deliver exact AGENTS/routed files through normal
+  agent mechanisms and use ordinary short task prompts rather than restating
+  the rules under test.
+- Approved: the final consumer-test implementation and real-model execution use
+  one combined checkpoint.
 - Local reversible choices include internal module decomposition, snapshot
   codec implementation, JSON serialization, file locking, and canonical
   rendering details.
@@ -540,6 +562,7 @@ confirmation.
   examples
 - `maintainer/README.md` routing
 - `maintainer/specifications/agent-evaluation-framework/*`
+- `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/*`
 - Updated evidence in both framework and documentation-standard requirements
 
 ### Task checklist
@@ -558,6 +581,8 @@ confirmation.
 - [x] Add deterministic kernel and alternate-environment tests.
 - [x] Add deterministic Crystal Lattice environment tests.
 - [x] Register the gated pytest real-model marker.
+- [x] Specify the `DOCGEN-*` behavioral consumer scenarios.
+- [ ] Specify the `DOCREP-*` behavioral consumer scenarios.
 - [ ] Add documentation-standard behavioral consumers.
 - [x] Run deterministic tests.
 - [ ] Run or explicitly report the gated real-model suite as not run.
