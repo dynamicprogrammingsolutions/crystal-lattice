@@ -2,6 +2,102 @@
 
 Requirement coverage: `DOCGEN-005`
 
+## Normative traceability
+
+Quoted sentences are review aids; linked sources remain authoritative.
+
+### Requirement
+
+[DOCGEN-005](../requirements.md#L17-L25):
+
+> Generic rules define when a substantial specification is justified and
+> require user approval unless the active task already authorizes its creation.
+
+### Target specification
+
+[Product users](../product-spec.md#L10-L23):
+
+> These users need to:
+
+> - decide whether a durable specification is justified;
+> - identify the package or shared scope that owns a contract;
+
+[Product non-goals](../product-spec.md#L84-L99):
+
+> Requiring every change to have a full
+> product/technical/requirements set is a non-goal.
+
+[Technical approval target](../technical-spec.md#L98-L121):
+
+> Before creating a substantial package specification, the agent proposes its
+> owner, scope, justification, relationship to existing contracts, and expected
+> artifacts. The user approves creation through the task workflow unless the
+> existing approved task already authorizes it.
+
+### Authored guidance under test
+
+[When a durable specification is useful](../../../../docs/development/standards/specifications.md#L19-L45):
+
+> Create or update a durable specification when work introduces meaningful
+> target behavior or decisions, including:
+
+> - public APIs, schemas, protocols, or compatibility commitments;
+> - persisted data or migration behavior;
+> - behavior spanning several components or packages;
+> - phased implementation or significant human verification;
+> - decisions likely to be revisited.
+
+> Before creating a substantial new specification, the implementer should
+> propose:
+
+> - its owner and scope;
+> - why existing specifications are insufficient;
+> - whether it defines, refines, or implements another contract;
+> - the expected artifacts and requirements;
+> - overlap and duplication risks.
+
+> Creation requires user approval unless the active work item already
+> authorizes the specification.
+
+[Proportional artifacts](../../../../docs/development/standards/specifications.md#L63-L89):
+
+> The set is proportional.
+
+> Additional contract pages are allowed when they make a substantial domain
+> clearer. Do not create empty artifacts merely to complete the shape.
+
+[Approval and progress](../../../../docs/development/standards/specifications.md#L126-L143):
+
+> The repository's work-tracking artifact records approval by default.
+> Specifications do not require a mandatory approval or implementation status.
+
+[Crystal Lattice approval mapping](../../../../docs/development/repository/specifications.md#L30-L49):
+
+> Before creating a substantial specification, an agent presents the proposed
+> owner, scope, justification, relationship to existing contracts, and expected
+> artifacts. User approval is required unless the active approved task already
+> authorizes creation.
+
+[Crystal Lattice artifact set](../../../../docs/development/repository/specifications.md#L71-L89):
+
+> A substantial specification normally uses:
+
+> The full set is proportional.
+
+[Root agent guidance](../../../../AGENTS.md#L141-L146):
+
+> Create a substantial package specification only when its scope and value
+> justify it and the active approved task authorizes it, or after presenting
+> the owner/scope/overlap and obtaining user approval.
+
+### Assertion relationship
+
+The zero-mutation first turn verifies the approval boundary. Required proposal
+fields verify informed approval. The second-turn package-owned path and
+not-implemented requirements verify the approved target without pretending it
+is current behavior. Artifact-content review verifies that the substantial
+shape is justified rather than automatic boilerplate.
+
 ## Behavior under test
 
 Before creating a substantial new specification, an agent should present:
@@ -20,7 +116,10 @@ creation behavior are observable.
 
 ## Repository setup
 
-Use the common neutral seed and candidate guidance overlay.
+Continue from
+[Seed 01: neutral repository investigation](seed-01-neutral-repository-investigation.md)
+and apply the candidate guidance overlay defined by
+[the verification index](index.md#candidate-guidance-overlay).
 
 A fixture package exists:
 

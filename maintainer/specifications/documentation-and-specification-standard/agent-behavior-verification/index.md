@@ -40,22 +40,38 @@ Behavioral verification checks whether an agent applies those rules to a real
 task. A model is not asked to generate package-neutral guidance merely to prove
 that the guidance itself is package-neutral.
 
+## Traceability convention
+
+Each test page shows:
+
+```text
+requirement
+  -> target meta-specification
+    -> authored guidance artifact
+      -> behavioral assertion
+```
+
+Links use source line ranges for quick review. Relevant source sentences are
+also copied beside the links so a reviewer can understand the test without
+opening every file. Those excerpts are non-normative review aids; the linked
+source remains authoritative and must be consulted when wording changes.
+Changes to a linked requirement, specification, or guidance passage must update
+the affected line range, copied excerpt, and behavioral assertion in the same
+work.
+
+Seed pages use the `seed-<number>-<name>.md` convention. Test pages use
+two-digit numbers such as `01-<name>.md`. These names distinguish reusable
+conversation/setup state from behavioral assertions without adopting the
+three-digit task-file convention.
+
 ## Common setup
 
 ### Neutral seed
 
-The default repository baseline is:
-
-```text
-c00d14954a503b96a6e2bbdb90a4c31c8af785e1
-```
-
-This commit predates the documentation-standard task and meta-specification.
-
-A cached seed turn investigates package boundaries and existing documentation
-facts without candidate guidance, task files, maintainer specifications, or
-repository mutation. Every behavioral test continues from its immutable
-snapshot in a fresh workspace.
+All current tests continue from
+[Seed 01: neutral repository investigation](seed-01-neutral-repository-investigation.md).
+That page owns the exact baseline, prompt, request profile, cache identity,
+assertions, provenance, and clean-continuation contract.
 
 ### Candidate guidance overlay
 
@@ -127,12 +143,12 @@ AI assessment is supporting evidence and does not satisfy human verification.
 
 | Test | Ordinary task | Primary coverage |
 |---|---|---|
-| [Small-package documentation](010-small-package-documentation.md) | Improve first-use documentation for a small existing plugin | `DOCGEN-001`: profiles, artifact roles, ownership, source of truth, incremental adoption |
-| [Generated-output correction](020-generated-output-correction.md) | Fix an error reported in prepared documentation | `DOCGEN-001`: authored/generated boundary |
-| [Target specification workflow](030-target-specification-workflow.md) | Implement an approved small capability with an existing specification and requirements | `DOCGEN-002` |
-| [Package-owned refinement](040-package-owned-refinement.md) | Specify an approved mobile-only refinement of a portable contract | `DOCGEN-003` |
-| [Normative owner and discoverability](050-normative-owner-and-discoverability.md) | Make existing behavior easy for package users to find and understand | `DOCGEN-004` |
-| [Substantial specification approval](060-substantial-specification-approval.md) | Design a substantial new protocol without prior specification authorization | `DOCGEN-005` |
+| [Small-package documentation](01-small-package-documentation.md) | Improve first-use documentation for a small existing plugin | `DOCGEN-001`: profiles, artifact roles, ownership, source of truth, incremental adoption |
+| [Generated-output correction](02-generated-output-correction.md) | Fix an error reported in prepared documentation | `DOCGEN-001`: authored/generated boundary |
+| [Target specification workflow](03-target-specification-workflow.md) | Implement an approved small capability with an existing specification and requirements | `DOCGEN-002` |
+| [Package-owned refinement](04-package-owned-refinement.md) | Specify an approved mobile-only refinement of a portable contract | `DOCGEN-003` |
+| [Normative owner and discoverability](05-normative-owner-and-discoverability.md) | Make existing behavior easy for package users to find and understand | `DOCGEN-004` |
+| [Substantial specification approval](06-substantial-specification-approval.md) | Design a substantial new protocol without prior specification authorization | `DOCGEN-005` |
 
 `DOCGEN-001` intentionally has two behavioral tests because a proportional
 small-package profile and the generated-output boundary are independent

@@ -275,6 +275,11 @@ presentation mechanism.
 - The former Checkpoints 3 and 4 were merged. Test authoring, deterministic
   verification, real-model execution, artifact inspection, evidence updates,
   and human-review handoff now form one final checkpoint.
+- August 7, 2026: Consumer-test specification naming was refined to
+  two-digit test files and `seed-<number>-...` reusable setup files. The neutral
+  cached investigation now has its own seed specification and every `DOCGEN-*`
+  test records line-linked requirement, target-specification, authored-guidance,
+  and assertion traceability with copied review excerpts.
 
 ## Execution plan
 
@@ -389,7 +394,7 @@ Cover:
 
 ### 7. Add pytest documentation-standard consumers
 
-1. Implement and maintain the standard-owned scenario contracts under
+1. Implement and maintain the standard-owned seed and scenario contracts under
    `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/`.
 2. Register an `agent_eval` marker and exclude real-model suites from normal
    package tests.
@@ -545,6 +550,12 @@ confirmation.
   the rules under test.
 - Approved: the final consumer-test implementation and real-model execution use
   one combined checkpoint.
+- Approved: reusable cached/setup conversations have separate
+  `seed-<number>-...` specifications, while behavioral tests use two-digit
+  filenames.
+- Approved: every behavior-test specification links line ranges for its
+  requirement, target meta-specification, and authored guidance and copies the
+  relevant source sentences as non-normative review aids.
 - Local reversible choices include internal module decomposition, snapshot
   codec implementation, JSON serialization, file locking, and canonical
   rendering details.
@@ -582,6 +593,7 @@ confirmation.
 - [x] Add deterministic Crystal Lattice environment tests.
 - [x] Register the gated pytest real-model marker.
 - [x] Specify the `DOCGEN-*` behavioral consumer scenarios.
+- [x] Specify the common neutral repository-investigation seed.
 - [ ] Specify the `DOCREP-*` behavioral consumer scenarios.
 - [ ] Add documentation-standard behavioral consumers.
 - [x] Run deterministic tests.

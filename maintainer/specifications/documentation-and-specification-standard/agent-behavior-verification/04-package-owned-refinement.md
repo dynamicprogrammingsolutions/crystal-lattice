@@ -2,6 +2,94 @@
 
 Requirement coverage: `DOCGEN-003`
 
+## Normative traceability
+
+Quoted sentences are review aids; linked sources remain authoritative.
+
+### Requirement
+
+[DOCGEN-003](../requirements.md#L17-L23):
+
+> Generic ownership rules allow every package to define specifications for
+> behavior it owns and define approved package-specific refinements of broader
+> contracts.
+
+### Target specification
+
+[Product goal](../product-spec.md#L64-L78):
+
+> Allow any package to own specifications for behavior it defines, including
+> package-specific refinements of broader contracts.
+
+[Package-specific UX acceptance example](../product-spec.md#L101-L108):
+
+> A frontend package may define a substantial platform-specific UX
+> specification that refines a broader portable behavior contract. The package
+> specification links the broader contract, adds package-owned requirements,
+> and does not silently weaken shared semantics.
+
+[Technical generalized ownership](../technical-spec.md#L98-L121):
+
+> Every package may define specifications for behavior it owns. A package is
+> not limited to documenting implementation merely because it also implements
+> a broader contract.
+
+> A package-specific refinement is specified with that package and links the
+> broader contract.
+
+> It must not silently weaken or contradict a broader contract.
+
+### Authored guidance under test
+
+[Specification ownership](../../../../docs/development/standards/specifications.md#L47-L61):
+
+> Any package may define specifications for behavior it owns.
+
+> A package-specific refinement is specified with that package and links its
+> broader contract.
+
+> A refinement may add or strengthen requirements, define platform behavior,
+> and select an allowed fallback. It must not silently weaken or contradict the
+> broader contract.
+
+[Proportional specification artifacts](../../../../docs/development/standards/specifications.md#L63-L89):
+
+> A substantial capability commonly uses:
+
+> Additional contract pages are allowed when they make a substantial domain
+> clearer. Do not create empty artifacts merely to complete the shape.
+
+[Crystal Lattice locations](../../../../docs/development/repository/specifications.md#L7-L28):
+
+> Package-owned targets:
+> `<package>/docs/development/specifications/<capability>/`.
+
+[Crystal Lattice ownership and refinements](../../../../docs/development/repository/specifications.md#L30-L49):
+
+> A package may define a substantial platform- or package-specific refinement
+> of a broader portable contract.
+
+> A package refinement links the broader contract and relevant requirement
+> IDs. It may add or strengthen package requirements but may not silently
+> weaken or contradict the broader target.
+
+[Root agent guidance](../../../../AGENTS.md#L126-L143):
+
+> Put current package internals, contributor guidance, architecture, testing,
+> and specifications under `<package>/docs/development/`.
+
+> Create a substantial package specification only when its scope and value
+> justify it and the active approved task authorizes it, or after presenting
+> the owner/scope/overlap and obtaining user approval.
+
+### Assertion relationship
+
+The allowed path verifies package ownership. Links to the portable contract and
+non-responsibility statements verify refinement rather than duplication.
+Content and requirement assertions verify package-specific strengthening.
+Prohibited root/shared changes and semantic contradiction review protect the
+broader normative contract.
+
 ## Behavior under test
 
 An agent should place a package-specific refinement with the package that owns
@@ -13,7 +101,10 @@ link and remain compatible with the broader normative contract.
 
 ## Repository setup
 
-Use the common neutral seed and candidate guidance overlay.
+Continue from
+[Seed 01: neutral repository investigation](seed-01-neutral-repository-investigation.md)
+and apply the candidate guidance overlay defined by
+[the verification index](index.md#candidate-guidance-overlay).
 
 The scenario fixture contains:
 
