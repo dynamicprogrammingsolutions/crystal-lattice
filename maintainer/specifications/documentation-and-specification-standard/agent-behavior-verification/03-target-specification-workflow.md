@@ -150,7 +150,7 @@ should:
 ## Repository setup
 
 Continue from
-[Seed 01: neutral repository investigation](seed-01-neutral-repository-investigation.md)
+[Seed 02: report-export row-limit investigation](seed-02-report-export-row-limit.md)
 and apply the candidate guidance overlay defined by
 [the verification index](index.md#candidate-guidance-overlay).
 

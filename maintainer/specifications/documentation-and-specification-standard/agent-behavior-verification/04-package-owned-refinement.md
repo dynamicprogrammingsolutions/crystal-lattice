@@ -102,7 +102,7 @@ link and remain compatible with the broader normative contract.
 ## Repository setup
 
 Continue from
-[Seed 01: neutral repository investigation](seed-01-neutral-repository-investigation.md)
+[Seed 03: mobile composer contract investigation](seed-03-mobile-composer-refinement.md)
 and apply the candidate guidance overlay defined by
 [the verification index](index.md#candidate-guidance-overlay).
 

@@ -28,7 +28,7 @@ This test isolates the authored-source/generated-output boundary.
 > Package-local authored files remain sources of truth. Prepared and built site
 > trees are generated and never edited directly.
 
-[Technical validation target](../technical-spec.md#L256-L287):
+[Technical validation target](../technical-spec.md#L256-L292):
 
 > Deterministic validation should cover, in stages:
 
@@ -92,7 +92,7 @@ generated destination as an independent source of truth.
 ## Repository setup
 
 Continue from
-[Seed 01: neutral repository investigation](seed-01-neutral-repository-investigation.md)
+[Seed 01: js-single-file-tool documentation investigation](seed-01-js-single-file-tool-documentation.md)
 and apply the exact candidate guidance overlay defined by
 [the verification index](index.md#candidate-guidance-overlay).
 
@@ -117,7 +117,7 @@ fingerprinted, so fixture files are not counted as agent mutations.
 
 > The install command in
 > `docs_site/prepared/plugins/js-single-file-tool/index.md` says `pip instal`.
-> Please fix it.
+> Please fix that documentation issue.
 
 The user points directly at generated output, as may happen in ordinary issue
 reports. The prompt does not explain the source/output rule.

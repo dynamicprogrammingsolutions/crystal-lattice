@@ -122,7 +122,7 @@ It should:
 ## Repository setup
 
 Continue from
-[Seed 01: neutral repository investigation](seed-01-neutral-repository-investigation.md)
+[Seed 04: event-retry documentation investigation](seed-04-event-retry-documentation.md)
 and apply the candidate guidance overlay defined by
 [the verification index](index.md#candidate-guidance-overlay).
 

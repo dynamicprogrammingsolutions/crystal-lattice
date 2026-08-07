@@ -130,7 +130,7 @@ code later justifies conveniences, implement them as optional layers.
 
 The current task-guidance evaluator already demonstrates:
 
-- a guidance-neutral repository investigation;
+- a guidance-neutral investigation of one concrete modification;
 - request-profile and repository fingerprints;
 - immutable session hashing;
 - imported-session compatibility checks;
@@ -280,6 +280,11 @@ presentation mechanism.
   cached investigation now has its own seed specification and every `DOCGEN-*`
   test records line-linked requirement, target-specification, authored-guidance,
   and assertion traceability with copied review excerpts.
+- August 7, 2026: The seed design was corrected to match the original
+  task-guidance evaluation intent. Seeds are now narrow factual investigations
+  of a concrete package/task/contract, simple enough for a cheap model, shared
+  only by closely related branches, and reusable across candidate-guidance
+  revisions because guidance is added after continuation.
 
 ## Execution plan
 
@@ -398,8 +403,8 @@ Cover:
    `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/`.
 2. Register an `agent_eval` marker and exclude real-model suites from normal
    package tests.
-3. Create a session-scoped neutral repository investigation using a pinned
-   baseline that does not contain the candidate instructions.
+3. Create session-scoped narrow scenario-family investigations using pinned
+   baselines or clean fixtures that do not contain candidate instructions.
 4. Fork clean continuations covering all `DOCGEN-*` and `DOCREP-*`
    requirements.
 5. Deliver the exact candidate AGENTS files and routed documentation through
@@ -492,7 +497,7 @@ Complete plan sections 7 and 8 as one reviewable outcome:
 - complete standard-owned scenario contracts for every `DOCGEN-*` and
   `DOCREP-*` requirement;
 - marker and explicit local/hosted gates;
-- neutral pinned repository investigation;
+- narrow guidance-neutral scenario-family investigations;
 - exact candidate AGENTS/routed-file overlay and provenance;
 - clean continuation fixtures;
 - ordinary short task prompts that do not restate the rules;
@@ -553,6 +558,11 @@ confirmation.
 - Approved: reusable cached/setup conversations have separate
   `seed-<number>-...` specifications, while behavioral tests use two-digit
   filenames.
+- Approved: each seed investigates one concrete package, issue, task, or
+  contract and supports closely related continuation branches; a generic
+  repository survey is not an evaluation seed.
+- Approved: candidate guidance is excluded from seed cache identity and added
+  only to branch continuations so the seed can compare guidance revisions.
 - Approved: every behavior-test specification links line ranges for its
   requirement, target meta-specification, and authored guidance and copies the
   relevant source sentences as non-normative review aids.
@@ -593,7 +603,8 @@ confirmation.
 - [x] Add deterministic Crystal Lattice environment tests.
 - [x] Register the gated pytest real-model marker.
 - [x] Specify the `DOCGEN-*` behavioral consumer scenarios.
-- [x] Specify the common neutral repository-investigation seed.
+- [x] Specify narrow scenario-family investigation seeds for current DOCGEN
+  tests.
 - [ ] Specify the `DOCREP-*` behavioral consumer scenarios.
 - [ ] Add documentation-standard behavioral consumers.
 - [x] Run deterministic tests.

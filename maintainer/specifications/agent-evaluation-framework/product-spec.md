@@ -221,11 +221,11 @@ def test_agent_explains_specification_target(
     assert "verification" in answer
 ```
 
-### Example 2: cached repository investigation with customized Crystal Lattice execution
+### Example 2: cached task-specific investigation with customized Crystal Lattice execution
 
 This example uses:
 
-- a cached neutral repository investigation;
+- a cached narrow investigation of one concrete task;
 - a fresh continuation workspace;
 - instructions placed in a user message;
 - a custom request driver and stop condition;

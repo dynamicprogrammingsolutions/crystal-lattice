@@ -117,7 +117,7 @@ creation behavior are observable.
 ## Repository setup
 
 Continue from
-[Seed 01: neutral repository investigation](seed-01-neutral-repository-investigation.md)
+[Seed 05: batch synchronization design investigation](seed-05-batch-sync-design.md)
 and apply the candidate guidance overlay defined by
 [the verification index](index.md#candidate-guidance-overlay).
 

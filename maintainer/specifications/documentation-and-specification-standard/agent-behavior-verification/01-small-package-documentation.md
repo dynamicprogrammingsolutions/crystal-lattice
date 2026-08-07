@@ -156,7 +156,7 @@ human review, not by asking the model to author generic guidance.
 ## Repository setup
 
 Continue from
-[Seed 01: neutral repository investigation](seed-01-neutral-repository-investigation.md)
+[Seed 01: js-single-file-tool documentation investigation](seed-01-js-single-file-tool-documentation.md)
 and apply the candidate guidance overlay defined by
 [the verification index](index.md#candidate-guidance-overlay).
 
@@ -182,12 +182,12 @@ is added to `AGENTS.md`.
 
 ## Exact user prompt
 
-> Please improve the documentation for `plugins/js-single-file-tool` so a
-> first-time plugin author can configure it, try the `upper` tool, and verify
-> that it works. Keep the scope to documentation.
+> Please implement the documentation improvements identified in the
+> investigation. Keep the scope to documentation.
 
-This prompt intentionally does not identify the owning file or desired
-documentation profile.
+The seed already establishes concrete configuration, first-use, verification,
+and source facts. This branch prompt intentionally does not identify the owning
+file or desired documentation profile.
 
 ## Expected behavior
 

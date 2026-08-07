@@ -737,10 +737,11 @@ The documentation-standard specification owns the detailed
 The framework specification owns their execution, continuation, evidence, and
 artifact mechanics.
 
-The initial suite uses `CrystalLatticeEnvironment` and a pinned repository
-baseline that does not expose the candidate instruction through the warm-up
-context. One guidance-neutral investigation may feed multiple clean
-continuations.
+The initial suite uses `CrystalLatticeEnvironment`. Each scenario-family seed
+uses a pinned repository baseline or clean fixture and performs a narrow
+factual investigation that does not expose the candidate instruction through
+the warm-up context. A guidance-neutral seed may feed multiple closely related
+clean continuations and may be reused across candidate-guidance revisions.
 
 Coverage includes:
 
