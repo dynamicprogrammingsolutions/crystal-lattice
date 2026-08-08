@@ -403,6 +403,151 @@ presentation mechanism.
   recommend suite/specification changes, but none may be applied without user
   approval.
 
+### Post-run calibration proposal
+
+Status: Pending user approval
+
+The representative sample covers every seed family and includes both models,
+successful behavior, genuine guidance-consumer failures, one likely
+deterministic-assertion false negative, and one corrected fixture defect. This
+is sufficient to propose the first suite calibration without treating a single
+model outcome as conclusive proof.
+
+#### Keep and enforce
+
+Keep the following scenario requirements and assertions unchanged:
+
+- Test 01 concrete first-use input/output. GLM's plausible but incomplete
+  README demonstrates that this assertion distinguishes a usable quickstart
+  from a descriptive one.
+- Test 02 authored/generated boundary. The absence of a local generator does
+  not authorize direct edits to prepared output; the agent should change the
+  source and report blocked regeneration.
+- Test 06 explicit approval request before a substantial unapproved
+  specification. A detailed design in chat is not a substitute for stopping at
+  an owner/scope/overlap/artifact proposal and asking for approval.
+- Test 07 exact requirements status vocabulary. `Pending` accurately conveyed
+  future work but did not satisfy the standard's separate `Unverified`
+  verification state. Keep this strict because deterministic live-state
+  dimensions are intentional.
+- Test 13 exclusion of target-only behavior from current public documentation.
+  Requirements and temporary progress may describe Phase 3; the package README
+  may describe only delivered behavior.
+
+Keep all nine seeds and all fourteen scenario specifications. Each seed now
+owns a distinct setup family, and the multi-branch seeds amortize their
+investigation:
+
+- Seed 02 distinguishes same-run implementation, specification-only
+  preparation, and implementation from a prepared target.
+- Seed 03 distinguishes package refinement from portable-contract ownership.
+- Seed 05 distinguishes an unapproved substantial specification from one
+  already authorized by a task.
+- Seed 08 uniquely verifies a documentation/tracking follow-up after completed
+  code and tests.
+
+No seed or scenario should be deleted based on the current sample.
+
+#### Replace one brittle assertion
+
+Replace Test 05's exact substring assertion with a deterministic
+discoverability assertion that accepts normal retry morphology:
+
+- README contains `retry`, `retries`, `retried`, or `retrying`, or directly
+  links the retry lifecycle page.
+- The package docs index names retry behavior and links the current user page.
+- The current user page still contains the `retrying` and `failed` states.
+- Target-only replay behavior remains excluded.
+
+This changes only how the approved discoverability behavior is detected. It
+does not relax the requirement that users can find the lifecycle from both the
+package root and docs index.
+
+#### Cut the routine matrix without deleting coverage
+
+Classify scenarios into two optional pytest groups:
+
+- Routine guidance suite:
+  Tests 01, 02, 03, 04, 05, 06, 07, 10, 11, and 13.
+- Extended workflow suite:
+  Tests 08, 09, 12, and 14, while also including the routine group when a full
+  run is requested.
+
+The extended-only cases are valuable but lower-frequency continuations or
+reverse ownership checks:
+
+- Test 08 implements from the prepared state created by Test 07.
+- Test 09 repeats substantial-specification creation after authorization,
+  complementing Test 06's approval boundary.
+- Test 12 is a documentation-only follow-up after an intentionally mutated
+  seed.
+- Test 14 is the reverse ownership direction complementing Test 04.
+
+This is a runtime cut, not deletion of specifications, seeds, or executable
+tests. Every `DOCGEN-*` requirement remains covered in the routine group, and
+the extended group preserves the broader workflow matrix.
+
+#### Model execution policy
+
+For ordinary changes to the guidance:
+
+- run the routine group on GLM-5.2;
+- run GPT-5.6-luna sentinels for Tests 01, 02, 04, 06, and 13.
+
+For material changes to specification workflow, ownership, approval, current
+documentation boundaries, or before declaring the standard behaviorally
+verified:
+
+- run all fourteen tests on at least one supported model;
+- run the GPT sentinel set;
+- use a full second-model matrix only when the change or observed variance
+  justifies its cost.
+
+The current sample shows that provider/model diversity matters, but raw full
+cross-products are expensive: sampled GLM branches generally took about one to
+two minutes, while sampled GPT seed/branch commands took about three to five
+minutes.
+
+#### Reruns after fixture correction
+
+The corrected fixture revision invalidates affected caches. Before using those
+runs as final requirement evidence:
+
+- rerun Tests 10, 11, and 13 so model diffs no longer include import/path setup
+  repairs;
+- run Tests 03, 08, 09, and 14 at least once because they have no real-model
+  result yet;
+- run Test 06 on GPT to distinguish a GLM-specific approval failure from a
+  cross-model guidance issue;
+- run Test 07 on GPT to compare exact status-vocabulary compliance.
+
+Test 05 does not require another model call solely to validate the corrected
+assertion because its preserved canonical artifact is sufficient for
+deterministic replay. It may still run as part of the routine matrix.
+
+#### Repetition and new scenarios
+
+Do not add random repetitions or new DOCGEN seeds yet. Cross-model sentinel
+runs provide more useful information than repeated identical calls at the
+current evidence volume.
+
+Proceed separately with the required `DOCREP-*` scenarios. Their
+repository-specific package profiles, root-versus-package ownership, shared
+plugin domain, and applying-versus-maintaining boundaries are missing
+requirement consumers rather than calibration additions to DOCGEN.
+
+#### Approval boundary
+
+Approval of this proposal would authorize:
+
+- updating Test 05's specification and deterministic assertion;
+- adding routine/extended pytest markers or equivalent selection;
+- following the calibrated model/rerun matrix above.
+
+It would not authorize removing seeds/tests, weakening Tests 01, 02, 06, 07,
+or 13, or changing the documentation standard itself. Any later remove,
+replace, or add proposal based on new evidence would require another approval.
+
 ## Execution plan
 
 Status: Approved
@@ -763,7 +908,9 @@ confirmation.
   cache invalidation without changing approved scenario behavior.
 - [ ] Update `AEVAL-*` and `DOCVAL-005` evidence.
 - [ ] Present canonical behavioral artifacts for human review.
-- [ ] Prepare the post-run seed/test calibration proposal for user approval.
+- [x] Prepare the post-run seed/test calibration proposal for user approval.
+  - [ ] Obtain user approval before changing scenario specifications,
+    assertions, or routine/extended selection.
 
 ### Requirement verification
 
