@@ -330,16 +330,20 @@ class DocumentationEvaluationHarness:
         parent: Run[TurnValue],
         fixture_id: str,
         branch_variant: str,
+        prompt_heading: str = "## Exact user prompt",
     ) -> Run[TurnValue]:
+        key = f"parent-branch:{test_id}:{branch_variant}:{prompt_heading}"
+        if key in self._runs:
+            return self._runs[key]
         if parent.workspace is None:
             raise ValueError("parent run has no workspace")
-        prompt = extract_blockquote(SPEC_ROOT / spec_file, "## Exact user prompt")
+        prompt = extract_blockquote(SPEC_ROOT / spec_file, prompt_heading)
         workspace = ParentWorkspaceFactory(
             parent_workspace=parent.workspace,
             fixture_id=fixture_id,
             branch_variant=branch_variant,
         )
-        return self.evaluation.run(
+        run = self.evaluation.run(
             test_id,
             lambda context: self._turn(
                 context,
@@ -354,6 +358,8 @@ class DocumentationEvaluationHarness:
                 f"{_sha256_text(prompt)}:v1"
             ),
         )
+        self._runs[key] = run
+        return run
 
     def _turn(
         self,
@@ -622,9 +628,51 @@ def file_text(run: Run[TurnValue], relative: str) -> str:
     return run.workspace.joinpath(relative).read_text(encoding="utf-8")
 
 
+def file_exists(run: Run[TurnValue], relative: str) -> bool:
+    if run.workspace is None:
+        raise ValueError("run has no workspace")
+    return run.workspace.joinpath(relative).exists()
+
+
+def matching_paths(run: Run[TurnValue], prefix: str) -> tuple[str, ...]:
+    if run.workspace is None:
+        raise ValueError("run has no workspace")
+    root = run.workspace / prefix
+    if not root.exists():
+        return ()
+    return tuple(
+        sorted(
+            str(path.relative_to(run.workspace))
+            for path in root.rglob("*")
+            if path.is_file()
+        )
+    )
+
+
 def apply_fixture(workspace: Path, fixture_id: str, branch_variant: str) -> None:
-    if fixture_id != "js-single-file-tool":
+    if fixture_id == "js-single-file-tool":
+        _fixture_js_single_file_tool(workspace, branch_variant)
+    elif fixture_id == "report-export":
+        _fixture_report_export(workspace, branch_variant)
+    elif fixture_id == "mobile-composer":
+        _fixture_mobile_composer(workspace, branch_variant)
+    elif fixture_id == "event-retry":
+        _fixture_event_retry(workspace, branch_variant)
+    elif fixture_id == "batch-sync":
+        _fixture_batch_sync(workspace, branch_variant)
+    elif fixture_id == "path-policy":
+        _fixture_path_policy(workspace, branch_variant)
+    elif fixture_id == "slug-utils":
+        _fixture_slug_utils(workspace, branch_variant)
+    elif fixture_id == "label-utils":
+        _fixture_label_utils(workspace, branch_variant)
+    elif fixture_id == "sync-engine":
+        _fixture_sync_engine(workspace, branch_variant)
+    else:
         raise KeyError(f"unknown fixture: {fixture_id}")
+
+
+def _fixture_js_single_file_tool(workspace: Path, branch_variant: str) -> None:
     _focus_js_single_file_tool_workspace(workspace)
     if branch_variant == "generated-typo":
         readme = workspace / "plugins/js-single-file-tool/README.md"
@@ -645,6 +693,433 @@ def apply_fixture(workspace: Path, fixture_id: str, branch_variant: str) -> None
         )
     elif branch_variant != "base":
         raise KeyError(f"unknown branch variant: {branch_variant}")
+
+
+def _fixture_report_export(workspace: Path, branch_variant: str) -> None:
+    if branch_variant != "base":
+        raise KeyError(f"unknown report-export variant: {branch_variant}")
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/report-export-sdk/README.md": """# report-export-sdk
+
+Exports rows to an in-memory report. `export_rows(rows)` currently accepts any
+number of rows.
+
+## Verify
+
+```bash
+pytest packages/report-export-sdk/tests -q
+```
+""",
+            "packages/report-export-sdk/src/report_export.py": """def export_rows(rows):
+    return list(rows)
+""",
+            "packages/report-export-sdk/tests/test_report_export.py": """from packages.report_export_sdk.src.report_export import export_rows
+
+
+def test_export_rows_preserves_rows():
+    assert export_rows([1, 2]) == [1, 2]
+""",
+            "packages/report-export-sdk/docs/development/index.md": """# Development
+
+- [Export limits](specifications/export-limits/index.md)
+""",
+            "packages/report-export-sdk/docs/development/specifications/export-limits/index.md": """# Export limits
+
+Owner: `packages/report-export-sdk`
+
+- [Product specification](product-spec.md)
+- [Technical specification](technical-spec.md)
+- [Requirements](requirements.md)
+""",
+            "packages/report-export-sdk/docs/development/specifications/export-limits/product-spec.md": """# Product specification
+
+The export API returns all supplied rows. The current target does not define a
+row-count limit.
+""",
+            "packages/report-export-sdk/docs/development/specifications/export-limits/technical-spec.md": """# Technical specification
+
+`export_rows(rows)` materializes and returns the supplied iterable.
+""",
+            "packages/report-export-sdk/docs/development/specifications/export-limits/requirements.md": """# Requirements
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| EXPORT-001 | Export preserves supplied rows. | Implemented | Automated | Documented | `src/report_export.py`; `tests/test_report_export.py`; `README.md` |
+""",
+            "tasks/report-export-max-rows.md": """# Report export maximum rows
+
+Status: Approved
+
+## Requirements checklist
+
+- [ ] `export_rows` accepts optional `max_rows`.
+- [ ] Omitted or `None` preserves unlimited compatibility.
+- [ ] A positive limit permits `len(rows) <= max_rows`.
+- [ ] Exceeding the limit raises `ValueError` before returning output.
+- [ ] Target specification, live requirements, tests, and current README stay
+  consistent.
+
+Implementation is approved. A separate specification version is not requested.
+""",
+        },
+    )
+
+
+def _fixture_mobile_composer(workspace: Path, branch_variant: str) -> None:
+    if branch_variant != "base":
+        raise KeyError(f"unknown mobile-composer variant: {branch_variant}")
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/conversation-contract/docs/development/specifications/composer/index.md": """# Portable composer contract
+
+Owner: `packages/conversation-contract`
+
+- [Product specification](product-spec.md)
+- [Requirements](requirements.md)
+""",
+            "packages/conversation-contract/docs/development/specifications/composer/product-spec.md": """# Product specification
+
+All clients submit non-empty text messages through a composer. Portable
+behavior covers message validity and submission, not platform layout.
+""",
+            "packages/conversation-contract/docs/development/specifications/composer/requirements.md": """# Requirements
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| COMPOSER-001 | Clients submit non-empty text. | Implemented | Automated | Documented | Existing clients |
+""",
+            "mobile/example-app/src/Composer.tsx": """export function Composer() {
+  return null;
+}
+""",
+            "mobile/example-app/docs/development/index.md": """# Mobile development
+
+The app implements the portable composer contract.
+""",
+            "tasks/mobile-composer-ux.md": """# Mobile composer UX
+
+Status: Approved
+
+## Requirements checklist
+
+- [ ] Define a mobile-only multiline composer refinement.
+- [ ] Specify keyboard avoidance, send-button placement, and accessibility
+  labels.
+- [ ] Link the portable composer contract instead of copying it.
+- [ ] Create requirements with implementation and verification pending.
+
+Create the specification only. Do not implement the UI.
+""",
+        },
+    )
+
+
+def _fixture_event_retry(workspace: Path, branch_variant: str) -> None:
+    if branch_variant != "base":
+        raise KeyError(f"unknown event-retry variant: {branch_variant}")
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/event-sdk/README.md": """# event-sdk
+
+SDK for publishing events.
+
+- [User documentation](docs/index.md)
+""",
+            "packages/event-sdk/docs/index.md": """# Event SDK documentation
+
+- [Publishing events](publishing.md)
+""",
+            "packages/event-sdk/docs/publishing.md": """# Publishing events
+
+Call `publish(event)`. Transient delivery failures are retried automatically.
+""",
+            "packages/event-sdk/src/events.py": """def retry_state(attempt, max_attempts=3):
+    if attempt >= max_attempts:
+        return "failed"
+    return "retrying"
+""",
+            "packages/event-sdk/tests/test_events.py": """from packages.event_sdk.src.events import retry_state
+
+
+def test_retry_state():
+    assert retry_state(1) == "retrying"
+    assert retry_state(3) == "failed"
+""",
+            "packages/event-sdk/docs/development/specifications/event-lifecycle/index.md": """# Event lifecycle
+
+- [Technical specification](technical-spec.md)
+- [Requirements](requirements.md)
+""",
+            "packages/event-sdk/docs/development/specifications/event-lifecycle/technical-spec.md": """# Technical specification
+
+Implemented target: transient delivery failures move through retrying and then
+failed after the configured attempt limit.
+
+Target-only behavior: a future `replay_failed()` API may replay persisted
+failed events. It is not implemented.
+""",
+            "packages/event-sdk/docs/development/specifications/event-lifecycle/requirements.md": """# Requirements
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| EVENT-001 | Transient failures retry to the configured limit. | Implemented | Automated | Partial | `src/events.py`; `tests/test_events.py` |
+| EVENT-002 | Failed events can be replayed. | Not started | Unverified | Pending | Target only |
+""",
+        },
+    )
+
+
+def _fixture_batch_sync(workspace: Path, branch_variant: str) -> None:
+    files = {
+        "packages/batch-sdk/README.md": """# batch-sdk
+
+Submits online batches through the shared transport contract.
+""",
+        "packages/batch-sdk/src/batch.py": """def submit_batch(items):
+    return {"submitted": len(items)}
+""",
+        "packages/batch-sdk/docs/development/index.md": """# Batch SDK development
+
+No offline synchronization specification exists.
+""",
+        "packages/transport-contract/docs/development/specifications/transport/index.md": """# Transport contract
+
+Defines request delivery, retryable transport errors, and idempotency keys.
+""",
+        "packages/persistence-contract/docs/development/specifications/persistence/index.md": """# Persistence contract
+
+Defines durable record encoding, schema migration, and recovery boundaries.
+""",
+    }
+    if branch_variant == "approved-task":
+        files["tasks/batch-offline-sync.md"] = """# Batch offline synchronization
+
+Status: Approved
+
+## Requirements checklist
+
+- [ ] Create a substantial package-owned offline synchronization specification.
+- [ ] Include conflict resolution, persisted queue migration, compatibility,
+  and recovery.
+- [ ] Link transport and persistence contracts without copying them.
+- [ ] Add stable requirements beginning not implemented and unverified.
+
+Specification and requirements are authorized. Do not implement the protocol.
+"""
+    elif branch_variant != "base":
+        raise KeyError(f"unknown batch-sync variant: {branch_variant}")
+    _write_synthetic_fixture(workspace, files)
+
+
+def _fixture_path_policy(workspace: Path, branch_variant: str) -> None:
+    if branch_variant != "base":
+        raise KeyError(f"unknown path-policy variant: {branch_variant}")
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/path-policy/README.md": """# path-policy
+
+`normalize_path("~/file", home=...)` resolves against the supplied home.
+""",
+            "packages/path-policy/src/path_policy.py": """from pathlib import Path
+
+
+def normalize_path(value, *, home, cwd):
+    if value.startswith("~/"):
+        return str(Path(cwd) / value[2:])
+    return str(Path(cwd) / value)
+""",
+            "packages/path-policy/tests/test_path_policy.py": """from packages.path_policy.src.path_policy import normalize_path
+
+
+def test_relative_path_uses_cwd():
+    assert normalize_path("file", home="/home/a", cwd="/work") == "/work/file"
+""",
+            "packages/path-policy/docs/development/specifications/path-normalization/index.md": """# Path normalization
+
+- [Technical specification](technical-spec.md)
+- [Requirements](requirements.md)
+""",
+            "packages/path-policy/docs/development/specifications/path-normalization/technical-spec.md": """# Technical specification
+
+Home-relative paths beginning `~/` resolve against the supplied user home.
+Ordinary relative paths resolve against the current working directory.
+""",
+            "packages/path-policy/docs/development/specifications/path-normalization/requirements.md": """# Requirements
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| PATH-001 | `~/` resolves against user home. | Implemented | Unverified | Documented | `README.md`; regression missing |
+""",
+            "tasks/path-policy-home-relative-bug.md": """# Home-relative path bug
+
+Status: Approved
+
+`normalize_path("~/file", home="/home/a", cwd="/work")` incorrectly returns
+`/work/file`. Fix the implementation, add regression coverage, and update live
+evidence. The existing target specification is correct.
+""",
+        },
+    )
+
+
+def _fixture_slug_utils(workspace: Path, branch_variant: str) -> None:
+    if branch_variant != "base":
+        raise KeyError(f"unknown slug-utils variant: {branch_variant}")
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/slug-utils/README.md": """# slug-utils
+
+Internal slug and cache helpers.
+""",
+            "packages/slug-utils/src/slug_cache.py": """def remove_expired(paths, *, unlink):
+    for path in paths:
+        unlink(path)
+""",
+            "packages/slug-utils/tests/test_slug_cache.py": """from packages.slug_utils.src.slug_cache import remove_expired
+
+
+def test_remove_expired_deletes_paths():
+    deleted = []
+    remove_expired(["a"], unlink=deleted.append)
+    assert deleted == ["a"]
+""",
+        },
+    )
+
+
+def _fixture_label_utils(workspace: Path, branch_variant: str) -> None:
+    if branch_variant != "base":
+        raise KeyError(f"unknown label-utils variant: {branch_variant}")
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/label-utils/README.md": """# label-utils
+
+`normalize_label(value)` preserves surrounding whitespace.
+""",
+            "packages/label-utils/src/labels.py": """def normalize_label(value):
+    return value
+""",
+            "packages/label-utils/tests/test_labels.py": """from packages.label_utils.src.labels import normalize_label
+
+
+def test_normalize_label_preserves_value():
+    assert normalize_label("  name  ") == "  name  "
+""",
+            "packages/label-utils/docs/development/index.md": """# Label development
+
+- [Label normalization](specifications/label-normalization/index.md)
+""",
+            "packages/label-utils/docs/development/specifications/label-normalization/index.md": """# Label normalization
+
+- [Technical specification](technical-spec.md)
+- [Requirements](requirements.md)
+""",
+            "packages/label-utils/docs/development/specifications/label-normalization/technical-spec.md": """# Technical specification
+
+`normalize_label(value, trim_whitespace=False)` preserves whitespace by
+default. When enabled, `trim_whitespace=True` strips leading and trailing
+whitespace.
+""",
+            "packages/label-utils/docs/development/specifications/label-normalization/requirements.md": """# Requirements
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| LABEL-001 | Optional whitespace trimming is supported. | Not started | Unverified | Pending | Target specification |
+""",
+        },
+    )
+
+
+def _fixture_sync_engine(workspace: Path, branch_variant: str) -> None:
+    if branch_variant != "base":
+        raise KeyError(f"unknown sync-engine variant: {branch_variant}")
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/sync-engine/README.md": """# sync-engine
+
+Sync v2 currently supports Phase 1 local change capture.
+""",
+            "packages/sync-engine/src/sync.py": """def capture_local(change):
+    return {"captured": change}
+""",
+            "packages/sync-engine/tests/test_sync.py": """from packages.sync_engine.src.sync import capture_local
+
+
+def test_capture_local():
+    assert capture_local("x") == {"captured": "x"}
+""",
+            "packages/sync-engine/docs/development/specifications/sync-v2/index.md": """# Sync v2
+
+## Temporary progress
+
+Active task: `tasks/sync-v2.md`
+
+- `SYNC-001`: verified
+- `SYNC-002`: approved next phase
+- `SYNC-003`: later target
+
+- [Product specification](product-spec.md)
+- [Technical specification](technical-spec.md)
+- [Requirements](requirements.md)
+""",
+            "packages/sync-engine/docs/development/specifications/sync-v2/product-spec.md": """# Product specification
+
+Phase 1 captures local changes. Phase 2 uploads queued changes with stable
+idempotency keys. Phase 3 resolves concurrent remote conflicts.
+""",
+            "packages/sync-engine/docs/development/specifications/sync-v2/technical-spec.md": """# Technical specification
+
+Phase 2 adds `queue_upload(change, idempotency_key)` and rejects empty keys.
+Phase 3 conflict resolution remains target-only.
+""",
+            "packages/sync-engine/docs/development/specifications/sync-v2/requirements.md": """# Requirements
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| SYNC-001 | Capture local changes. | Implemented | Automated | Documented | Phase 1 |
+| SYNC-002 | Queue uploads with idempotency keys. | Not started | Unverified | Pending | Phase 2 |
+| SYNC-003 | Resolve concurrent conflicts. | Not started | Unverified | Pending | Phase 3 |
+""",
+            "tasks/sync-v2.md": """# Sync v2
+
+Status: Approved
+
+Phase 1 is complete. Implement and verify Phase 2 in the next commit. Leave
+Phase 3 pending and keep temporary progress until all phases are verified.
+""",
+        },
+    )
+
+
+def _write_synthetic_fixture(
+    workspace: Path,
+    files: Mapping[str, str],
+) -> None:
+    for path in workspace.iterdir():
+        if path.name == ".git":
+            continue
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    neutral_agents = """# Evaluation fixture
+
+This is a small repository fixture. Inspect the files named by the task and
+report or implement only the requested scope.
+"""
+    values = {"AGENTS.md": neutral_agents, **dict(files)}
+    for relative, content in values.items():
+        target = workspace / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content.rstrip() + "\n", encoding="utf-8")
 
 
 def _focus_js_single_file_tool_workspace(workspace: Path) -> None:

@@ -342,6 +342,11 @@ presentation mechanism.
   package README, added concrete first-use input/output and verification, and
   completed in about 77 seconds. The complete pytest command took 258.65
   seconds.
+- Tests 03–14 and Seeds 02–09 are now implemented with focused package/task
+  fixtures and explicit Python assertions. All 14 DOCGEN consumers collect only
+  under the gated marker. Deterministic prompt/fixture contracts, package tests,
+  and lint currently pass with 47 default tests and 14 real-model tests
+  deselected.
 
 ## Execution plan
 
@@ -682,7 +687,7 @@ confirmation.
     guidance provenance, prompt extraction, cacheable seeds, review records,
     and Tests 01–02.
   - [x] Fix and verify clean continuation after workspace-path rebasing.
-  - [ ] Add Tests 03–14 and their remaining fixtures/assertions.
+  - [x] Add Tests 03–14 and their remaining fixtures/assertions.
   - [ ] Add `DOCREP-*` consumers after their scenario contracts are approved.
 - [x] Run deterministic tests.
 - [ ] Run or explicitly report the gated real-model suite as not run.

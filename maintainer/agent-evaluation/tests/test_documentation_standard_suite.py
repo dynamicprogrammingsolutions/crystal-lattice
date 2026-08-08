@@ -5,6 +5,7 @@ from pathlib import Path
 from suites.documentation_standard.support import (
     PROFILES,
     SPEC_ROOT,
+    apply_fixture,
     candidate_guidance_files,
     candidate_guidance_sha256,
     completed_tool_call_ids,
@@ -88,3 +89,51 @@ def test_completed_tool_calls_support_claude_result_shape() -> None:
     }
 
     assert completed_tool_call_ids(event) == ("call_claude",)
+
+
+def test_all_seed_and_consumer_prompts_are_extractable() -> None:
+    for path in sorted(SPEC_ROOT.glob("seed-*.md")):
+        assert extract_blockquote(path, "## Exact seed prompt")
+    for path in sorted(SPEC_ROOT.glob("[0-9][0-9]-*.md")):
+        headings = (
+            ("## First exact user prompt", "## Second exact user prompt")
+            if path.name.startswith("06-")
+            else ("## Exact user prompt",)
+        )
+        for heading in headings:
+            assert extract_blockquote(path, heading)
+
+
+def test_synthetic_fixtures_contain_expected_seed_sources(tmp_path: Path) -> None:
+    fixtures = {
+        "report-export": "tasks/report-export-max-rows.md",
+        "mobile-composer": "tasks/mobile-composer-ux.md",
+        "event-retry": "packages/event-sdk/src/events.py",
+        "batch-sync": "packages/batch-sdk/src/batch.py",
+        "path-policy": "tasks/path-policy-home-relative-bug.md",
+        "slug-utils": "packages/slug-utils/src/slug_cache.py",
+        "label-utils": (
+            "packages/label-utils/docs/development/specifications/"
+            "label-normalization/technical-spec.md"
+        ),
+        "sync-engine": "tasks/sync-v2.md",
+    }
+    for fixture_id, expected in fixtures.items():
+        workspace = tmp_path / fixture_id
+        workspace.mkdir()
+        workspace.joinpath(".git").write_text("fixture\n", encoding="utf-8")
+        apply_fixture(workspace, fixture_id, "base")
+        assert workspace.joinpath("AGENTS.md").is_file()
+        assert workspace.joinpath(expected).is_file()
+
+
+def test_batch_approved_task_variant_adds_authorization(tmp_path: Path) -> None:
+    workspace = tmp_path / "batch"
+    workspace.mkdir()
+    workspace.joinpath(".git").write_text("fixture\n", encoding="utf-8")
+
+    apply_fixture(workspace, "batch-sync", "approved-task")
+
+    task = workspace.joinpath("tasks/batch-offline-sync.md")
+    assert task.is_file()
+    assert "Status: Approved" in task.read_text(encoding="utf-8")
