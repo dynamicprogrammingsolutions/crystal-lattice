@@ -347,6 +347,19 @@ presentation mechanism.
   under the gated marker. Deterministic prompt/fixture contracts, package tests,
   and lint currently pass with 47 default tests and 14 real-model tests
   deselected.
+- GLM-5.2 Test 07 completed with only the existing product specification,
+  technical specification, and requirements changed. It correctly avoided
+  code, tests, and current user documentation, and it represented the future
+  implementation/documentation state as pending. The deterministic scenario
+  still failed because the requirements table used `Pending` for verification
+  instead of the standard `Unverified` vocabulary. This is retained for the
+  calibration review as a distinction between correct live-state meaning and
+  exact status-convention compliance.
+- GPT-5.6-luna Test 11 passed end to end in 220.18 seconds. The guidance-neutral
+  seed made no changes. The continuation fixed the local cache-cleanup race,
+  added a focused regression test, changed only code and tests, created no
+  specification, left the README unchanged, and reported two passing tests
+  plus a clean diff check.
 
 ## Execution plan
 
@@ -694,8 +707,10 @@ confirmation.
   - [x] Run GLM-5.2 Seed 01 and preserve the completed seed artifact.
   - [ ] Complete GLM-5.2 consumer branches.
     - [x] Run Tests 01–02 and preserve their passing/failing findings.
+    - [x] Run Test 07 and preserve its status-vocabulary finding.
   - [x] Run GPT-5.6-luna through ChatGPT account authentication.
     - [x] Run Test 01 and preserve its passing artifact.
+    - [x] Run Test 11 and preserve its passing artifact.
     - [ ] Run the remaining implemented consumer cases.
 - [ ] Update `AEVAL-*` and `DOCVAL-005` evidence.
 - [ ] Present canonical behavioral artifacts for human review.
