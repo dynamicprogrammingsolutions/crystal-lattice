@@ -61,6 +61,9 @@ behavioral consumers.
   guidance-neutral task-specific base runs and clean continuations.
 - [ ] Behavioral model results remain supporting evidence; static checks and
   explicit human review retain their distinct roles.
+- [ ] After representative model runs, an evidence-backed calibration review
+  proposes any seed/test cuts, replacements, or additions, and no such suite
+  change is applied without user approval.
 - [ ] Existing task-guidance evaluation remains operational and is not moved or
   rewritten by this subtask.
 
@@ -435,6 +438,10 @@ Cover:
    evidence.
 11. Keep human-review requirements unverified until the user reviews the
    canonical artifacts.
+12. After representative runs, prepare a separate calibration proposal covering
+    redundant/low-value cases, excessive setup cost, observed variance, and
+    missing guidance-clarity signals. Do not modify the approved scenario
+    specification or suite from that proposal without user approval.
 
 ### 8. Verify and document
 
@@ -524,6 +531,8 @@ Complete plan sections 7 and 8 as one reviewable outcome:
 - `AEVAL-*` and `DOCVAL-005` evidence updates;
 - `DOCGEN-*` and `DOCREP-*` human-review handoff;
 - explicit reporting of provider/model cases not run.
+- post-run calibration proposal for seed/test retention and additional
+  clarity coverage, awaiting user approval before any suite changes.
 
 Stop and report:
 
@@ -580,6 +589,9 @@ confirmation.
 - Approved: every behavior-test specification links line ranges for its
   requirement, target meta-specification, and authored guidance and copies the
   relevant source sentences as non-normative review aids.
+- Approved: representative runs are followed by a separate evidence-backed
+  suite-calibration review; proposed seed/test changes require user approval
+  before implementation or specification updates.
 - Local reversible choices include internal module decomposition, snapshot
   codec implementation, JSON serialization, file locking, and canonical
   rendering details.
@@ -626,6 +638,7 @@ confirmation.
 - [ ] Run or explicitly report the gated real-model suite as not run.
 - [ ] Update `AEVAL-*` and `DOCVAL-005` evidence.
 - [ ] Present canonical behavioral artifacts for human review.
+- [ ] Prepare the post-run seed/test calibration proposal for user approval.
 
 ### Requirement verification
 
@@ -641,6 +654,7 @@ confirmation.
 | Documentation-standard consumers (`AEVAL-016`, `DOCVAL-005`) | Requirement-to-test mapping covers every `DOCGEN-*` and `DOCREP-*` ID; gated runs use narrow cached task-specific bases and clean continuations and preserve exact canonical artifacts. |
 | Provenance and interpretation (`AEVAL-017`) | Artifacts identify environment/configuration, instructions, prompts, model, seed, requests, tools, projections, evaluations, presentations, errors, and outputs; AI scores remain supporting evidence and human verification remains pending review. |
 | Maintainer documentation (`AEVAL-018`) | README and complete examples let a new author run a simple Crystal Lattice assertion, customize drivers/snapshots/evidence/scoring/presentation, and substitute an alternate environment without reading internals. |
+| Post-run calibration (`AEVAL-019`, `DOCVAL-006`) | Representative-run evidence supports a keep/remove/replace/add proposal covering redundancy, cost, variance, diagnostic value, and missing clarity signals; suite changes remain pending explicit user approval. |
 
 ### Additional implementation verification
 

@@ -293,6 +293,12 @@ Behavioral model results supplement rather than replace:
 - deterministic repository assertions;
 - explicit human review.
 
+After representative runs, a separate calibration review evaluates whether the
+initial seed/test matrix is proportionate and informative. It may recommend
+cutting redundant cases or adding cases that expose missing clarity signals,
+but the approved verification specification and suite change only after user
+approval.
+
 Acceptance and contract tests may reference requirement IDs. Ordinary
 low-level tests do not need them. Manual verification is recorded only when a
 human performs or directly confirms it.

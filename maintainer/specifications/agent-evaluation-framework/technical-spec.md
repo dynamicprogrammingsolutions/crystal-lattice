@@ -777,6 +777,26 @@ Every real-model artifact records exact environment/configuration identity,
 model, candidate instruction hash, prompt, seed, response, tool summary,
 projections, evaluations, presentations, and failure state.
 
+## Post-run suite calibration
+
+The initially approved seed and test matrix is deliberately broader than the
+expected long-term suite. After implementation and representative real-model
+runs, maintainers perform a separate calibration review using observed cost,
+runtime, variance, failures, artifact usefulness, and requirement coverage.
+
+The review identifies:
+
+- seeds or tests that add little information beyond another case;
+- cases whose setup cost is disproportionate to their diagnostic value;
+- prompts or assertions that do not isolate guidance clarity;
+- missing task types or branch variations that would reveal additional useful
+  information about the guidance;
+- cases that should remain manual or occasional rather than routine.
+
+The review produces a concrete keep/remove/replace/add proposal with run
+evidence. It does not alter the approved specification or implemented suite
+until the user approves the proposed changes.
+
 ## Existing task-guidance evaluator
 
 The implementation under `test/task_guidance/` remains a reference prototype
