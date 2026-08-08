@@ -360,6 +360,48 @@ presentation mechanism.
   added a focused regression test, changed only code and tests, created no
   specification, left the README unchanged, and reported two passing tests
   plus a clean diff check.
+- The targeted representative sample now exercises all nine seed families.
+  GLM-5.2 Test 04 passed: the agent created a proportional mobile-owned UX
+  refinement, linked rather than copied the portable contract, kept live state
+  pending, and updated the package development index without implementing the
+  UI.
+- GPT-5.6-luna Test 10 passed: the agent treated the existing target as
+  correct, fixed implementation and regression coverage, updated current user
+  documentation and live evidence, and did not create or rewrite a
+  specification.
+- GLM-5.2 Test 05 completed with semantically strong discoverability changes
+  but failed a lexical assertion because the README used `retried` while the
+  assertion required the exact substring `retry`. The run is retained as a
+  likely assertion false negative for the approval-gated calibration review.
+- GPT-5.6-luna Test 12 passed: from an intentionally mutated seed, the agent
+  left code/tests and the stable technical target unchanged while completing
+  current README documentation and live requirement evidence.
+- GLM-5.2 Test 06 failed the substantial-specification approval boundary on
+  its first turn. It made no file changes and covered owner, scope, artifacts,
+  transport, and persistence overlap, but produced a complete 9,448-character
+  design instead of explicitly requesting approval. The approved continuation
+  did not run because the first-turn assertion failed.
+- GPT-5.6-luna Test 13 completed Phase 2 implementation, verification,
+  requirements, task tracking, and temporary progress correctly, but failed
+  because the current README mentioned target-only Phase 3 conflict
+  resolution. The future-target leak is retained as a genuine current-versus-
+  target documentation finding.
+- The representative runs exposed fixture noise independent of the guidance:
+  synthetic Python packages use hyphenated directories while their initial
+  tests import underscore package paths. Models repaired imports or added path
+  setup in Tests 10, 11, and 13. The fixture baseline should be runnable before
+  the task, and fixture revisions must invalidate stale cached seeds.
+- The fixture baseline defect is corrected. Six synthetic Python packages now
+  use package-local test path setup and module imports that pass before any
+  consumer task. Per-fixture revisions participate in workspace fingerprints
+  and explicit seed/branch cache keys, preventing stale cached conversations
+  from restoring the previous fixture contents. Verification passes with 49
+  default tests, 14 gated tests deselected, clean Ruff, and clean diff checks.
+- Because all seed families have now produced representative evidence and the
+  sample found both a likely assertion defect and fixture noise, calibration
+  should precede the complete cross-model matrix. The calibration proposal may
+  recommend suite/specification changes, but none may be applied without user
+  approval.
 
 ## Execution plan
 
@@ -707,11 +749,18 @@ confirmation.
   - [x] Run GLM-5.2 Seed 01 and preserve the completed seed artifact.
   - [ ] Complete GLM-5.2 consumer branches.
     - [x] Run Tests 01–02 and preserve their passing/failing findings.
+    - [x] Run Tests 04–06 and preserve the ownership, discoverability, and
+      approval-boundary findings.
     - [x] Run Test 07 and preserve its status-vocabulary finding.
   - [x] Run GPT-5.6-luna through ChatGPT account authentication.
     - [x] Run Test 01 and preserve its passing artifact.
+    - [x] Run Test 10 and preserve its passing existing-target artifact.
     - [x] Run Test 11 and preserve its passing artifact.
+    - [x] Run Test 12 and preserve its passing follow-up artifact.
+    - [x] Run Test 13 and preserve its future-target leak finding.
     - [ ] Run the remaining implemented consumer cases.
+- [x] Correct and verify synthetic fixture baseline test imports and fixture
+  cache invalidation without changing approved scenario behavior.
 - [ ] Update `AEVAL-*` and `DOCVAL-005` evidence.
 - [ ] Present canonical behavioral artifacts for human review.
 - [ ] Prepare the post-run seed/test calibration proposal for user approval.

@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 from suites.documentation_standard.support import (
     PROFILES,
     SPEC_ROOT,
+    ScenarioWorkspaceFactory,
     apply_fixture,
     candidate_guidance_files,
     candidate_guidance_sha256,
     completed_tool_call_ids,
     extract_blockquote,
+    fixture_revision,
 )
 
 
@@ -125,6 +129,45 @@ def test_synthetic_fixtures_contain_expected_seed_sources(tmp_path: Path) -> Non
         apply_fixture(workspace, fixture_id, "base")
         assert workspace.joinpath("AGENTS.md").is_file()
         assert workspace.joinpath(expected).is_file()
+
+
+def test_synthetic_python_fixture_baselines_are_runnable(tmp_path: Path) -> None:
+    package_paths = {
+        "report-export": "packages/report-export-sdk/tests",
+        "event-retry": "packages/event-sdk/tests",
+        "path-policy": "packages/path-policy/tests",
+        "slug-utils": "packages/slug-utils/tests",
+        "label-utils": "packages/label-utils/tests",
+        "sync-engine": "packages/sync-engine/tests",
+    }
+    for fixture_id, tests_path in package_paths.items():
+        workspace = tmp_path / fixture_id
+        workspace.mkdir()
+        workspace.joinpath(".git").write_text("fixture\n", encoding="utf-8")
+        apply_fixture(workspace, fixture_id, "base")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", tests_path],
+            cwd=workspace,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, (
+            f"{fixture_id} fixture baseline failed:\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
+
+
+def test_fixture_revision_participates_in_workspace_fingerprint() -> None:
+    factory = ScenarioWorkspaceFactory(
+        fixture_id="slug-utils",
+        candidate_guidance=False,
+    )
+
+    assert fixture_revision("slug-utils") == "v2"
+    assert factory.fingerprint()["fixture_revision"] == "v2"
 
 
 def test_batch_approved_task_variant_adds_authorization(tmp_path: Path) -> None:

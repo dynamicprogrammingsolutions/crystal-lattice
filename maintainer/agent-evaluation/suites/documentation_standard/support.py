@@ -31,6 +31,23 @@ SPEC_ROOT = (
 )
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
+FIXTURE_REVISIONS = {
+    "js-single-file-tool": "v1",
+    "report-export": "v2",
+    "mobile-composer": "v1",
+    "event-retry": "v2",
+    "batch-sync": "v1",
+    "path-policy": "v2",
+    "slug-utils": "v2",
+    "label-utils": "v2",
+    "sync-engine": "v2",
+}
+SYNTHETIC_SRC_CONFTEST = """import sys
+from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+"""
 
 CANDIDATE_GUIDANCE_PATHS = (
     "AGENTS.md",
@@ -159,6 +176,7 @@ class ScenarioWorkspaceFactory:
         return {
             "type": "documentation-standard-scenario",
             "fixture_id": self.fixture_id,
+            "fixture_revision": fixture_revision(self.fixture_id),
             "candidate_guidance": self.candidate_guidance,
             "guidance_sha256": (
                 candidate_guidance_sha256() if self.candidate_guidance else None
@@ -198,6 +216,7 @@ class ParentWorkspaceFactory:
             "type": "documentation-standard-parent-fork",
             "parent": _workspace_content_sha256(self.parent_workspace),
             "fixture_id": self.fixture_id,
+            "fixture_revision": fixture_revision(self.fixture_id),
             "branch_variant": self.branch_variant,
             "guidance_sha256": candidate_guidance_sha256(),
         }
@@ -278,7 +297,8 @@ class DocumentationEvaluationHarness:
             workspace=workspace,
             cache_key=(
                 f"documentation-standard:{self.profile.name}:{seed_id}:"
-                f"{_sha256_text(prompt)}:{strategy_version}"
+                f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
+                f"{strategy_version}"
             ),
         )
         self._runs[key] = run
@@ -310,7 +330,7 @@ class DocumentationEvaluationHarness:
             cache_key = (
                 f"documentation-standard:{self.profile.name}:{test_id}:"
                 f"{candidate_guidance_sha256()}:{_sha256_text(prompt)}:"
-                f"{branch_variant}:v1"
+                f"{branch_variant}:{fixture_revision(fixture_id)}:v1"
             )
         run = self.evaluation.run(
             test_id,
@@ -355,7 +375,7 @@ class DocumentationEvaluationHarness:
             cache_key=(
                 f"documentation-standard:{self.profile.name}:{test_id}:"
                 f"{parent.snapshot_sha256}:{candidate_guidance_sha256()}:"
-                f"{_sha256_text(prompt)}:v1"
+                f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:v1"
             ),
         )
         self._runs[key] = run
@@ -672,6 +692,13 @@ def apply_fixture(workspace: Path, fixture_id: str, branch_variant: str) -> None
         raise KeyError(f"unknown fixture: {fixture_id}")
 
 
+def fixture_revision(fixture_id: str) -> str:
+    try:
+        return FIXTURE_REVISIONS[fixture_id]
+    except KeyError as error:
+        raise KeyError(f"unknown fixture: {fixture_id}") from error
+
+
 def _fixture_js_single_file_tool(workspace: Path, branch_variant: str) -> None:
     _focus_js_single_file_tool_workspace(workspace)
     if branch_variant == "generated-typo":
@@ -715,7 +742,8 @@ pytest packages/report-export-sdk/tests -q
             "packages/report-export-sdk/src/report_export.py": """def export_rows(rows):
     return list(rows)
 """,
-            "packages/report-export-sdk/tests/test_report_export.py": """from packages.report_export_sdk.src.report_export import export_rows
+            "packages/report-export-sdk/tests/conftest.py": SYNTHETIC_SRC_CONFTEST,
+            "packages/report-export-sdk/tests/test_report_export.py": """from report_export import export_rows
 
 
 def test_export_rows_preserves_rows():
@@ -842,7 +870,8 @@ Call `publish(event)`. Transient delivery failures are retried automatically.
         return "failed"
     return "retrying"
 """,
-            "packages/event-sdk/tests/test_events.py": """from packages.event_sdk.src.events import retry_state
+            "packages/event-sdk/tests/conftest.py": SYNTHETIC_SRC_CONFTEST,
+            "packages/event-sdk/tests/test_events.py": """from events import retry_state
 
 
 def test_retry_state():
@@ -933,7 +962,8 @@ def normalize_path(value, *, home, cwd):
         return str(Path(cwd) / value[2:])
     return str(Path(cwd) / value)
 """,
-            "packages/path-policy/tests/test_path_policy.py": """from packages.path_policy.src.path_policy import normalize_path
+            "packages/path-policy/tests/conftest.py": SYNTHETIC_SRC_CONFTEST,
+            "packages/path-policy/tests/test_path_policy.py": """from path_policy import normalize_path
 
 
 def test_relative_path_uses_cwd():
@@ -981,7 +1011,8 @@ Internal slug and cache helpers.
     for path in paths:
         unlink(path)
 """,
-            "packages/slug-utils/tests/test_slug_cache.py": """from packages.slug_utils.src.slug_cache import remove_expired
+            "packages/slug-utils/tests/conftest.py": SYNTHETIC_SRC_CONFTEST,
+            "packages/slug-utils/tests/test_slug_cache.py": """from slug_cache import remove_expired
 
 
 def test_remove_expired_deletes_paths():
@@ -1006,7 +1037,8 @@ def _fixture_label_utils(workspace: Path, branch_variant: str) -> None:
             "packages/label-utils/src/labels.py": """def normalize_label(value):
     return value
 """,
-            "packages/label-utils/tests/test_labels.py": """from packages.label_utils.src.labels import normalize_label
+            "packages/label-utils/tests/conftest.py": SYNTHETIC_SRC_CONFTEST,
+            "packages/label-utils/tests/test_labels.py": """from labels import normalize_label
 
 
 def test_normalize_label_preserves_value():
@@ -1050,7 +1082,8 @@ Sync v2 currently supports Phase 1 local change capture.
             "packages/sync-engine/src/sync.py": """def capture_local(change):
     return {"captured": change}
 """,
-            "packages/sync-engine/tests/test_sync.py": """from packages.sync_engine.src.sync import capture_local
+            "packages/sync-engine/tests/conftest.py": SYNTHETIC_SRC_CONFTEST,
+            "packages/sync-engine/tests/test_sync.py": """from sync import capture_local
 
 
 def test_capture_local():
