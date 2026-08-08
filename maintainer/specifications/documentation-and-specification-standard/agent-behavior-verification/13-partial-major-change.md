@@ -1,0 +1,111 @@
+# Partial major-change implementation
+
+Requirement coverage: `DOCGEN-002`
+
+## Normative traceability
+
+Quoted excerpts are review aids; linked sources remain authoritative.
+
+### Requirement
+
+[DOCGEN-002](../requirements.md#L17-L22):
+
+> A package-neutral specification standard defines target specifications, live
+> requirements, work-tracked approval, current public/maintainer docs,
+> proportional artifacts, evidence, and simple spec-first commits.
+
+### Target specification
+
+[Major multi-commit acceptance example](../product-spec.md#L116-L121):
+
+> The target remains in one specification when clear. A separate target version
+> or change document is introduced only when it makes the intended result and
+> current implementation easier to distinguish. Temporary progress links the
+> task and affected requirement IDs and is removed after verification.
+
+[Technical progress target](../technical-spec.md#L133-L144):
+
+> Major changes introduce separate target versions only when one evolving target
+> would be confusing.
+
+> Temporary progress links the task and affected requirement IDs and is removed
+> after all relevant requirements are verified.
+
+### Authored guidance under test
+
+[Major change](../../../../docs/development/standards/specifications.md#L113-L124):
+
+> Use the same simple workflow while one target remains clear. Introduce an
+> explicit target version or separate change specification only when it
+> materially improves understanding.
+
+[Approval and progress](../../../../docs/development/standards/specifications.md#L126-L143):
+
+> Temporary progress inside a specification or its index is optional. Use it
+> only when implementation is expected to span more than one commit and the
+> target/current difference would otherwise be confusing.
+
+> When present, progress links the active work item, lists the affected
+> requirement IDs, distinguishes current from target behavior, and is removed
+> when all relevant requirements are verified.
+
+### Assertion relationship
+
+Requirement and progress updates verify honest partial state. Current-doc
+assertions prevent Phase 3 leakage. Absence of a new target version verifies
+that one clear target remains proportional.
+
+## Setup
+
+Continue from
+[Seed 09: partial major-change investigation](seed-09-partial-major-change.md)
+with candidate guidance added.
+
+## Exact user prompt
+
+> Please implement and verify the approved Phase 2 work, update its tracking and
+> current documentation, and leave later phases pending.
+
+## Expected behavior
+
+- Implement/test Phase 2.
+- Update only Phase 2 requirements to completed evidence.
+- Keep Phase 3 pending.
+- Update current docs for Phases 1–2 only.
+- Update temporary progress to the remaining boundary.
+- Keep one target specification.
+
+## Allowed mutations
+
+```text
+packages/sync-engine/src/**
+packages/sync-engine/tests/**
+packages/sync-engine/README.md
+packages/sync-engine/docs/development/specifications/sync-v2/**
+tasks/sync-v2.md
+```
+
+Changes must remain limited to Phase 2 implementation, its live evidence,
+current docs, and the temporary progress boundary.
+
+## Mechanical assertions
+
+1. Phase 2 implementation/tests pass.
+2. Phase 2 requirements transition accurately.
+3. Phase 3 remains not implemented/unverified/pending.
+4. Current docs omit unsupported Phase 3 behavior.
+5. Progress links task and remaining requirement IDs.
+6. No new target version/change specification is created.
+
+## Semantic assessment
+
+The reviewer receives the original/final target, progress section,
+requirements, Phase 2 code/tests, current docs, mechanical findings, and
+response. It scores phase separation, target/current clarity, progress
+usefulness, and proportional versioning.
+
+## Human review
+
+- Is partial state understandable?
+- Are target, requirements, progress, and current docs consistent?
+- Was versioning avoided appropriately?

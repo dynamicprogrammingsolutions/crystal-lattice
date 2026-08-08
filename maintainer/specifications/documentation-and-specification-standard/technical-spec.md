@@ -280,10 +280,12 @@ mechanisms, use short human-style task prompts, and assert on generated files,
 mutations, provenance, and responses. They do not ask agents to author or
 summarize the standards being tested.
 
-Cached seed conversations are narrow factual investigations of a concrete
-package, issue, task, or contract. A seed may feed several closely related
-continuations and is reusable across candidate-guidance revisions because
-guidance is added only after the continuation forks.
+Cached seed conversations establish narrow concrete task-specific bases. Most
+are read-only factual investigations of a package, issue, task, or contract. A
+seed may instead perform one tightly constrained operation when its completed
+state is the shared base for follow-up tasks. A seed may feed several closely
+related continuations and is reusable across candidate-guidance revisions
+because guidance is added only after the continuation forks.
 
 Behavioral model results supplement rather than replace:
 

@@ -57,8 +57,8 @@ behavioral consumers.
 - [ ] Pytest is the initial suite runner, with explicit real-model markers and
   hosted-execution gates outside normal default tests.
 - [ ] First-consumer tests exercise every `DOCGEN-*` and `DOCREP-*`
-  documentation-standard instruction requirement using a reusable neutral
-  repository investigation and clean continuations.
+  documentation-standard instruction requirement using reusable narrow
+  guidance-neutral task-specific base runs and clean continuations.
 - [ ] Behavioral model results remain supporting evidence; static checks and
   explicit human review retain their distinct roles.
 - [ ] Existing task-guidance evaluation remains operational and is not moved or
@@ -285,6 +285,16 @@ presentation mechanism.
   of a concrete package/task/contract, simple enough for a cheap model, shared
   only by closely related branches, and reusable across candidate-guidance
   revisions because guidance is added after continuation.
+- August 8, 2026: The approved follow-up coverage was added. Seeds now also
+  cover existing-contract and local bug fixes, a completed implementation
+  awaiting documentation, and a partial major change. Consumer tests cover
+  spec-only preparation, implementation from a prepared target, task-authorized
+  specification creation, proportional bug fixes, documentation follow-up,
+  partial multi-commit state, and portable-versus-package ownership.
+- Seed 08 establishes an intentionally mutated code/test base. The seed
+  contract therefore permits an exact verified mutation allowlist when the
+  behavior under test is a continuation from completed work; candidate guidance
+  remains absent until the follow-up branch.
 
 ## Execution plan
 
@@ -403,8 +413,10 @@ Cover:
    `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/`.
 2. Register an `agent_eval` marker and exclude real-model suites from normal
    package tests.
-3. Create session-scoped narrow scenario-family investigations using pinned
+3. Create session-scoped narrow scenario-family base runs using pinned
    baselines or clean fixtures that do not contain candidate instructions.
+   Keep most read-only; allow exact verified mutations only when a completed
+   state is the intended shared follow-up base.
 4. Fork clean continuations covering all `DOCGEN-*` and `DOCREP-*`
    requirements.
 5. Deliver the exact candidate AGENTS files and routed documentation through
@@ -497,7 +509,7 @@ Complete plan sections 7 and 8 as one reviewable outcome:
 - complete standard-owned scenario contracts for every `DOCGEN-*` and
   `DOCREP-*` requirement;
 - marker and explicit local/hosted gates;
-- narrow guidance-neutral scenario-family investigations;
+- narrow guidance-neutral scenario-family base runs;
 - exact candidate AGENTS/routed-file overlay and provenance;
 - clean continuation fixtures;
 - ordinary short task prompts that do not restate the rules;
@@ -561,6 +573,8 @@ confirmation.
 - Approved: each seed investigates one concrete package, issue, task, or
   contract and supports closely related continuation branches; a generic
   repository survey is not an evaluation seed.
+- Approved: a seed may perform one tightly constrained, fully verified base
+  operation when later consumer tests need a completed follow-up state.
 - Approved: candidate guidance is excluded from seed cache identity and added
   only to branch continuations so the seed can compare guidance revisions.
 - Approved: every behavior-test specification links line ranges for its
@@ -605,6 +619,7 @@ confirmation.
 - [x] Specify the `DOCGEN-*` behavioral consumer scenarios.
 - [x] Specify narrow scenario-family investigation seeds for current DOCGEN
   tests.
+- [x] Specify proposed additional DOCGEN seeds and consumer-task branches.
 - [ ] Specify the `DOCREP-*` behavioral consumer scenarios.
 - [ ] Add documentation-standard behavioral consumers.
 - [x] Run deterministic tests.
@@ -623,7 +638,7 @@ confirmation.
 | Artifacts and safety (`AEVAL-012`–`AEVAL-013`) | Success/failure fixtures produce concise canonical output and separate raw evidence; tests confirm credential/auth files are not copied and custom projections/presentations use only selected inputs. |
 | Deterministic quality (`AEVAL-014`) | Normal package tests pass kernel, alternate-environment, Crystal Lattice customization, continuation, cache, workspace, artifact, and failure coverage. |
 | Pytest operation (`AEVAL-015`) | Marker registration and default configuration exclude real-model calls; explicitly gated invocation collects intended tests; disabled hosted cases are reported as not run. |
-| Documentation-standard consumers (`AEVAL-016`, `DOCVAL-005`) | Requirement-to-test mapping covers every `DOCGEN-*` and `DOCREP-*` ID; gated runs use a neutral cached seed and clean continuations and preserve exact canonical artifacts. |
+| Documentation-standard consumers (`AEVAL-016`, `DOCVAL-005`) | Requirement-to-test mapping covers every `DOCGEN-*` and `DOCREP-*` ID; gated runs use narrow cached task-specific bases and clean continuations and preserve exact canonical artifacts. |
 | Provenance and interpretation (`AEVAL-017`) | Artifacts identify environment/configuration, instructions, prompts, model, seed, requests, tools, projections, evaluations, presentations, errors, and outputs; AI scores remain supporting evidence and human verification remains pending review. |
 | Maintainer documentation (`AEVAL-018`) | README and complete examples let a new author run a simple Crystal Lattice assertion, customize drivers/snapshots/evidence/scoring/presentation, and substitute an alternate environment without reading internals. |
 

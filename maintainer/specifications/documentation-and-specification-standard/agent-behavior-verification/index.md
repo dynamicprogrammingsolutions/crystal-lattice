@@ -78,12 +78,16 @@ The seed should:
 - be simple enough for the inexpensive subject model to complete quickly;
 - avoid ownership, artifact, workflow, or approval decisions controlled by the
   candidate guidance;
-- perform no mutations;
 - omit candidate guidance;
 - support multiple clean continuation prompts with small behavioral
   differences;
 - remain reusable while candidate guidance revisions or delivery mechanisms
   change.
+
+Most seeds are read-only investigations. A seed may instead establish a
+tightly constrained completed base operation when the consumer scenario is a
+follow-up task. Such a seed defines an exact mutation allowlist, verifies its
+result, and still excludes the candidate guidance.
 
 Current seeds:
 
@@ -94,6 +98,10 @@ Current seeds:
 | [Seed 03](seed-03-mobile-composer-refinement.md) | Inspect one portable contract, mobile package, and approved UX task | Test [04](04-package-owned-refinement.md) |
 | [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Test [05](05-normative-owner-and-discoverability.md) |
 | [Seed 05](seed-05-batch-sync-design.md) | Inspect one package and related persistence/transport contracts | Test [06](06-substantial-specification-approval.md) |
+| [Seed 06](seed-06-existing-contract-bugfix.md) | Reproduce one public bug against an already-correct target contract | Test [10](10-bug-fix-with-existing-specification.md) |
+| [Seed 07](seed-07-local-bugfix.md) | Reproduce one internal race with no durable public contract | Test [11](11-local-bugfix-without-durable-specification.md) |
+| [Seed 08](seed-08-completed-small-implementation.md) | Complete one code/test-only change whose target already exists | Test [12](12-documentation-follow-up-after-implementation.md) |
+| [Seed 09](seed-09-partial-major-change.md) | Inspect one approved partially implemented multi-commit target | Test [13](13-partial-major-change.md) |
 
 Each seed page owns its exact fixture, prompt, request profile, assertions,
 cache identity, provenance, and current/planned branches.
@@ -179,6 +187,14 @@ AI assessment is supporting evidence and does not satisfy human verification.
 | [Package-owned refinement](04-package-owned-refinement.md) | Seed 03 | Complete approved mobile-only specification work | `DOCGEN-003` |
 | [Normative owner and discoverability](05-normative-owner-and-discoverability.md) | Seed 04 | Make implemented retry behavior easy for users to find | `DOCGEN-004` |
 | [Substantial specification approval](06-substantial-specification-approval.md) | Seed 05 | Design a substantial protocol without prior authorization | `DOCGEN-005` |
+| [Approved task: specification only](07-approved-task-specification-only.md) | Seed 02 | Prepare an approved target and pending requirements without implementation | `DOCGEN-002` |
+| [Implement prepared specification](08-approved-specification-implementation.md) | Test 07 continuation | Implement, verify, document, and complete live tracking | `DOCGEN-002` |
+| [Task-authorized new specification](09-task-authorized-new-specification.md) | Seed 05 | Create a substantial package specification without duplicate approval | `DOCGEN-002`, `DOCGEN-003`, `DOCGEN-005` |
+| [Bug fix with existing specification](10-bug-fix-with-existing-specification.md) | Seed 06 | Fix implementation against an already-correct target | `DOCGEN-002` |
+| [Local bug fix without durable specification](11-local-bugfix-without-durable-specification.md) | Seed 07 | Keep an internal bug fix proportional and code/test-local | `DOCGEN-002`, `DOCGEN-005` |
+| [Documentation follow-up](12-documentation-follow-up-after-implementation.md) | Seed 08 | Finish live tracking and current docs after code/tests | `DOCGEN-002`, `DOCGEN-004` |
+| [Partial major change](13-partial-major-change.md) | Seed 09 | Implement one phase while preserving honest partial state | `DOCGEN-002` |
+| [Portable contract owner](14-portable-contract-owner.md) | Seed 03 | Move clarified portable behavior to the shared contract owner | `DOCGEN-003` |
 
 `DOCGEN-001` intentionally has two behavioral tests because a proportional
 small-package profile and the generated-output boundary are independent
@@ -188,7 +204,8 @@ behaviors.
 
 Every implemented test must verify:
 
-- its narrow parent seed had no candidate guidance and no mutations;
+- its narrow parent seed had no candidate guidance and only its declared seed
+  mutations;
 - the continuation used a fresh workspace;
 - parent snapshot and artifacts were not modified;
 - exact candidate guidance hashes were recorded;

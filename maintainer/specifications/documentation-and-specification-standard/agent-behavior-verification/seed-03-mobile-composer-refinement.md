@@ -50,11 +50,13 @@ whether the requested work is a refinement. Those are branch assertions.
 5. No specification path or ownership recommendation is made.
 6. Candidate guidance is absent and continuation provenance is complete.
 
-## Current branch
+## Current branches
 
 - [Package-owned refinement](04-package-owned-refinement.md): create the
   approved specification after candidate guidance is added.
+- [Portable contract owner](14-portable-contract-owner.md): clarify that the
+  requested behavior applies identically to every client and update the shared
+  owner instead.
 
-Future branches may ask for a genuinely portable behavior, a desktop-specific
-refinement, or an unapproved mobile specification using the same contract
-investigation.
+Future branches may ask for a desktop-specific refinement or an unapproved
+mobile specification using the same contract investigation.

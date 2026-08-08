@@ -28,7 +28,7 @@ This test isolates the authored-source/generated-output boundary.
 > Package-local authored files remain sources of truth. Prepared and built site
 > trees are generated and never edited directly.
 
-[Technical validation target](../technical-spec.md#L256-L292):
+[Technical validation target](../technical-spec.md#L256-L294):
 
 > Deterministic validation should cover, in stages:
 

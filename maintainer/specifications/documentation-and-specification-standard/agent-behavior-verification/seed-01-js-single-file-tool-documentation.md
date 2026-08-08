@@ -21,8 +21,9 @@ authoritative.
 [DOCVAL-005](../requirements.md#L66-L74):
 
 > Programmatic behavioral tests exercise every `DOCGEN-*` and `DOCREP-*`
-> instruction requirement through neutral cached repository investigations and
-> clean continuations, preserving canonical artifacts for human review.
+> instruction requirement through narrow guidance-neutral cached task-specific
+> base runs and clean continuations, preserving canonical artifacts for human
+> review.
 
 [Agent-evaluation first-consumer target](../../agent-evaluation-framework/technical-spec.md#L726-L775):
 

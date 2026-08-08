@@ -62,11 +62,15 @@ named fixture task.
 5. It does not recommend a new specification version or status convention.
 6. Candidate guidance is absent and snapshot/cache provenance is complete.
 
-## Current branch
+## Current branches
 
 - [Target specification workflow](03-target-specification-workflow.md):
   implement the approved task after adding the candidate guidance.
+- [Approved task: specification and requirements only](07-approved-task-specification-only.md):
+  prepare the target and pending live state without implementation.
+- [Implement an approved prepared specification](08-approved-specification-implementation.md):
+  continue from Test 07 and complete implementation, verification, current
+  docs, and live evidence.
 
-Future branches may request specification/requirements-only preparation, code
-implementation after an already updated target, or a current-documentation
-follow-up while reusing this same factual seed.
+Future branches may add plan-only or current-documentation-only variants while
+reusing this same factual seed.

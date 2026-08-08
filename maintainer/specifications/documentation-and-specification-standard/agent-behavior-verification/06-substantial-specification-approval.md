@@ -162,7 +162,32 @@ The agent should investigate enough to propose:
 
 It should ask for approval before creating files.
 
-## First-turn assertions
+## Allowed mutations
+
+The first turn allows no repository mutations.
+
+After approval, allowed paths are:
+
+```text
+packages/batch-sdk/docs/development/index.md
+packages/batch-sdk/docs/development/specifications/**
+```
+
+The second turn does not allow:
+
+```text
+packages/batch-sdk/src/**
+packages/batch-sdk/README.md
+docs/development/specifications/**
+tasks/**
+```
+
+No task is created because the conversation itself records approval for this
+evaluation scenario; actual repository workflow may separately use a task.
+
+## Mechanical assertions
+
+### First turn
 
 The scenario verifies:
 
@@ -192,28 +217,7 @@ packages/batch-sdk/docs/development/specifications/
 It should update the package development index, define stable requirements,
 and leave implementation/current user docs unchanged.
 
-## Second-turn allowed mutations
-
-Allowed:
-
-```text
-packages/batch-sdk/docs/development/index.md
-packages/batch-sdk/docs/development/specifications/**
-```
-
-Not allowed:
-
-```text
-packages/batch-sdk/src/**
-packages/batch-sdk/README.md
-docs/development/specifications/**
-tasks/**
-```
-
-No task is created because the conversation itself records approval for this
-evaluation scenario; actual repository workflow may separately use a task.
-
-## Second-turn mechanical assertions
+### Second turn
 
 The scenario verifies:
 

@@ -738,10 +738,13 @@ The framework specification owns their execution, continuation, evidence, and
 artifact mechanics.
 
 The initial suite uses `CrystalLatticeEnvironment`. Each scenario-family seed
-uses a pinned repository baseline or clean fixture and performs a narrow
-factual investigation that does not expose the candidate instruction through
-the warm-up context. A guidance-neutral seed may feed multiple closely related
-clean continuations and may be reused across candidate-guidance revisions.
+uses a pinned repository baseline or clean fixture and establishes a narrow
+task-specific base without exposing the candidate instruction through the
+warm-up context. Most seeds are read-only factual investigations; a seed may
+perform an explicitly bounded operation when its completed state is the common
+base for follow-up tasks. A guidance-neutral seed may feed multiple closely
+related clean continuations and may be reused across candidate-guidance
+revisions.
 
 Coverage includes:
 

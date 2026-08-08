@@ -43,12 +43,15 @@ branches.
    is proposed.
 6. Candidate guidance is absent and snapshot/cache provenance is complete.
 
-## Current branch
+## Current branches
 
 - [Substantial specification approval](06-substantial-specification-approval.md):
   request the design without prior authorization, then approve it in a second
   turn.
+- [Task-authorized new specification](09-task-authorized-new-specification.md):
+  add an approved task in the child workspace and create the specification
+  without requesting duplicate approval.
 
-Future branches may add an already approved task, request a small local
-behavior that should remain task-only, or ask for a package refinement of an
-existing portable synchronization contract.
+Future branches may request a small local behavior that should remain task-only
+or ask for a package refinement of an existing portable synchronization
+contract.
