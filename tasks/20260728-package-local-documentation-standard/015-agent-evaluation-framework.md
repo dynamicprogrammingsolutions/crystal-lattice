@@ -298,6 +298,50 @@ presentation mechanism.
   contract therefore permits an exact verified mutation allowlist when the
   behavior under test is a continuation from completed work; candidate guidance
   remains absent until the follow-up branch.
+- August 8, 2026: Merged Checkpoint 3 implementation started. The first
+  executable vertical slice now includes explicit GLM/GPT profiles, hosted-run
+  gating, pinned focused Git fixtures, exact prompt extraction from the
+  approved scenario pages, candidate-guidance hashing/overlay, cached seeds,
+  continuation branches, deterministic findings, semantic-assessment inputs,
+  and manual-review artifacts for Tests 01–02.
+- Package verification for the vertical slice has 40 passing default tests,
+  two gated real-model tests collected only under `agent_eval`, and clean Ruff
+  and diff checks. Package-local mypy imports currently expose pre-existing
+  Core/Application typing failures when the repository dependency graph is
+  followed; no new suite-specific mypy failure remains after the fixture
+  annotation correction.
+- The first GLM-5.2 seed attempts showed that raw application event count is
+  unsuitable as a model-work budget because streaming/token events dominate
+  it. The test-owned run strategy now uses a meaningful tool-event stop
+  condition and leaves raw stream events uncapped.
+- The GLM Seed 01 run completed after the workspace was narrowed to the target
+  plugin and relevant shared docs. It produced a factual investigation with no
+  repository mutation. Its first continuation exposed a generic restoration
+  defect: workspace-path rebasing updates restored messages while retaining
+  stale provider-native history, causing Core to reject the next request. A
+  framework regression fix is in progress before additional consumer cases run.
+- The continuation defect is fixed with regression coverage: rebased snapshots
+  discard stale provider-native history so the next request rebuilds it, while
+  same-workspace restoration preserves valid native history.
+- The first completed GLM Test 01 branch changed only the package README and
+  added supported configuration, first-use, verification, and shared-doc
+  links. It failed the approved first-use assertion because the first-use
+  section did not provide a concrete input plus expected uppercase output.
+  This is retained as behavioral evidence rather than weakening the scenario.
+- GLM Test 02 corrected the authored README but also directly edited
+  `docs_site/prepared/`, explicitly acknowledging that the generated page
+  should not be edited. The approved generated-output assertion therefore
+  failed and is retained as guidance-clarity evidence.
+- Initial GPT-5.6-luna execution authenticated successfully through the saved
+  ChatGPT account but showed that raw `tool_event_count` is provider-dependent:
+  streamed shell fragments exhausted the budget after only three completed
+  commands. The strategy now counts unique completed tool-call IDs from
+  `tool_results`; deterministic tests cover Codex and Claude event shapes.
+- With the completed-call strategy, GPT-5.6-luna Test 01 passed. The seed made
+  no mutations and completed in about 156 seconds; the branch changed only the
+  package README, added concrete first-use input/output and verification, and
+  completed in about 77 seconds. The complete pytest command took 258.65
+  seconds.
 
 ## Execution plan
 
@@ -634,8 +678,20 @@ confirmation.
 - [x] Specify proposed additional DOCGEN seeds and consumer-task branches.
 - [ ] Specify the `DOCREP-*` behavioral consumer scenarios.
 - [ ] Add documentation-standard behavioral consumers.
+  - [x] Add profile selection, explicit gates, focused Git fixtures, exact
+    guidance provenance, prompt extraction, cacheable seeds, review records,
+    and Tests 01–02.
+  - [x] Fix and verify clean continuation after workspace-path rebasing.
+  - [ ] Add Tests 03–14 and their remaining fixtures/assertions.
+  - [ ] Add `DOCREP-*` consumers after their scenario contracts are approved.
 - [x] Run deterministic tests.
 - [ ] Run or explicitly report the gated real-model suite as not run.
+  - [x] Run GLM-5.2 Seed 01 and preserve the completed seed artifact.
+  - [ ] Complete GLM-5.2 consumer branches.
+    - [x] Run Tests 01–02 and preserve their passing/failing findings.
+  - [x] Run GPT-5.6-luna through ChatGPT account authentication.
+    - [x] Run Test 01 and preserve its passing artifact.
+    - [ ] Run the remaining implemented consumer cases.
 - [ ] Update `AEVAL-*` and `DOCVAL-005` evidence.
 - [ ] Present canonical behavioral artifacts for human review.
 - [ ] Prepare the post-run seed/test calibration proposal for user approval.

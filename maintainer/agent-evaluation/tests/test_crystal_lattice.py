@@ -11,9 +11,11 @@ from agent_eval import AgentEval
 from agent_eval.crystal_lattice import (
     CrystalLatticeContext,
     CrystalLatticeEnvironment,
+    CrystalLatticeSnapshot,
     CrystalRequestOutcome,
     application_session_snapshot,
 )
+from agent_eval.crystal_lattice.snapshots import restore_session
 
 
 def write_config(
@@ -240,6 +242,82 @@ def test_continuation_rebases_workspace_paths(tmp_path: Path) -> None:
     assert parent_workspace != child_workspace
     assert child_workspace in restored_content
     assert parent_workspace not in restored_content
+
+
+def test_rebased_snapshot_drops_stale_provider_native_history() -> None:
+    old_root = "/tmp/evaluation-parent"
+    new_root = "/tmp/evaluation-child"
+    snapshot = CrystalLatticeSnapshot(
+        schema=1,
+        session={
+            "session_id": "session-1",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"Inspect {old_root}/target.txt",
+                }
+            ],
+            "metadata": {
+                "native_messages": [
+                    {
+                        "role": "user",
+                        "content": f"Inspect {old_root}/target.txt",
+                    }
+                ],
+                "native_messages_integrity": {
+                    "message_count": 1,
+                    "total_chars": len(f"Inspect {old_root}/target.txt"),
+                },
+                "agent_id": "default",
+            },
+        },
+        workspace_root=old_root,
+        request_defaults={},
+    )
+
+    restored = restore_session(snapshot, workspace_root=new_root)
+
+    assert restored is not None
+    assert restored.messages[0].content == f"Inspect {new_root}/target.txt"
+    assert "native_messages" not in restored.metadata
+    assert "native_messages_integrity" not in restored.metadata
+    assert restored.metadata["agent_id"] == "default"
+
+
+def test_snapshot_without_rebase_retains_provider_native_history() -> None:
+    workspace = "/tmp/evaluation"
+    snapshot = CrystalLatticeSnapshot(
+        schema=1,
+        session={
+            "session_id": "session-1",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"Inspect {workspace}/target.txt",
+                }
+            ],
+            "metadata": {
+                "native_messages": [
+                    {
+                        "role": "user",
+                        "content": f"Inspect {workspace}/target.txt",
+                    }
+                ],
+                "native_messages_integrity": {
+                    "message_count": 1,
+                    "total_chars": len(f"Inspect {workspace}/target.txt"),
+                },
+            },
+        },
+        workspace_root=workspace,
+        request_defaults={},
+    )
+
+    restored = restore_session(snapshot, workspace_root=workspace)
+
+    assert restored is not None
+    assert "native_messages" in restored.metadata
+    assert "native_messages_integrity" in restored.metadata
 
 
 def test_named_snapshots_evaluation_projection_and_presentation(

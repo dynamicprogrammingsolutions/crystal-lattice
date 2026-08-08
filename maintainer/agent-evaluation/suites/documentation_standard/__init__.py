@@ -1,0 +1,1 @@
+"""Behavioral consumers for the documentation and specification standards."""

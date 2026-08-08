@@ -90,6 +90,11 @@ def restore_session(
     )
     if not isinstance(rebased, dict):
         raise TypeError("rebased snapshot session must be an object")
+    if rebased != snapshot.session:
+        metadata = rebased.get("metadata")
+        if isinstance(metadata, dict):
+            metadata.pop("native_messages", None)
+            metadata.pop("native_messages_integrity", None)
     return Session.from_dict(rebased)
 
 
