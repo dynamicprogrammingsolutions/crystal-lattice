@@ -62,6 +62,45 @@ the standards and agent workflows themselves.
 | root `docs/development/` | Reusable standards, repository policy, architecture, and cross-package targets |
 | `maintainer/` | Non-public standards and agent-workflow maintenance |
 
+## Audience and reference mapping
+
+The generic
+[audience and context rules](../standards/documentation.md#audience-and-context-boundaries)
+apply to every Crystal Lattice documentation artifact.
+
+| Crystal Lattice artifact | Normal references | Limited references | Excluded as ordinary content context |
+|---|---|---|---|
+| `<package>/README.md`, `docs/index.md`, `docs/quickstart.md`, and package user pages | Package/shared user guides and public reference | A clearly labeled development/contributor pointer | `tasks/`, requirement tracking, internal target specifications, AGENTS, `maintainer/`, commits, checkpoints, or internal phases |
+| `<package>/docs/reference/` | Current user guides, public contracts, and maintained reference inputs | Source provenance required by the reference generator | Task, approval, and maintainer workflow |
+| `<package>/docs/development/` | User docs, reference, current code/tests, other development pages, specifications, and requirements | Active task links only in temporary progress | Unrelated task chronology or standards-maintenance internals |
+| Package/root/maintainer specifications | Related specifications, requirements, and affected current user/development pages | Active task only in governed temporary progress | AGENTS text or task chronology as normative behavior |
+| `requirements.md` | Owning specification, code, tests, current docs, tasks, review, and delivery evidence | — | A second execution plan or consumer guide |
+| nearest `AGENTS.md` | Durable user/development/specification/repository guidance and task guidance needed to act | `maintainer/` instructions when changing the governed rules | Duplicated target or live-state tracking |
+| `tasks/` | All in-scope artifacts needed for approval, planning, findings, evidence, and completion | — | A competing specification or public guide |
+| `maintainer/` | Governed output artifacts, requirements, tasks, tests, and validation evidence | — | A required backlink from ordinary output artifacts |
+| `docs_site/prepared/` and `docs_site/dist/` | Links emitted by authored sources and build tooling | Generated provenance markers | Independent authored edits |
+
+Consumer documentation must stand alone for package users. It may not assume
+task phases, requirement IDs, task paths, checkpoints, approval state,
+temporary progress, or maintainer workflow. Translate a necessary current
+limitation into public vocabulary without exposing the source artifact's
+identifiers, phase structure, future targets, or evidence.
+
+For example:
+
+```text
+Not allowed in a package README:
+“Concurrent conflict resolution remains a later Phase 3 target.”
+
+Allowed when the current limitation matters:
+“Concurrent updates are not automatically reconciled.”
+```
+
+A package user page does not link an internal target specification by default.
+The development specification may link the user page for maintainer
+discoverability. A specification intended as a public contract should be
+published as public reference.
+
 ## Initial package profiles
 
 | Scope | Target profile |
@@ -118,8 +157,11 @@ Special rules:
   under its package.
 - Framework protocol/specification ownership follows the package that defines
   the protocol, or root cross-package ownership when no package does.
-- Shared plugin guides may summarize normative contracts for usability, but
-  link the canonical specification and must not contradict it.
+- Shared plugin guides may summarize normative contracts for usability and may
+  link an audience-compatible public contract when one exists. An internal
+  target specification may link the guide for maintainer discoverability; the
+  consumer guide must not require readers to enter internal target/progress
+  context. Summaries must not contradict the normative owner.
 - Individual plugins inherit `plugins/AGENTS.md` unless package-specific rules
   justify a local AGENTS file.
 
@@ -133,8 +175,10 @@ should say that they do not redefine the contract and identify:
 - implementation invariants;
 - primary tests and manual/native boundaries.
 
-Plugin authoring and package-user guides describe current supported behavior.
-Unimplemented proposals remain in specifications and requirements.
+Plugin authoring and package-user guides describe current supported behavior in
+consumer vocabulary. Unimplemented proposals, task phases, requirement IDs,
+and temporary progress remain in specifications, requirements, and work
+tracking.
 
 ## Source of truth and publication
 
@@ -143,6 +187,12 @@ Authored package and root pages are sources of truth.
 `docs_site/scripts/prepare_mkdocs_site.py` assembles ignored
 `docs_site/prepared/` input. MkDocs builds ignored `docs_site/dist/`.
 Neither generated tree is edited directly.
+
+If preparation or generation is unavailable or fails, edit only the authored
+source or generator. Leave prepared and built trees unchanged, report the
+blocked command or dependency and the exact remaining action, and do not claim
+that generated output was refreshed. A blocked generator does not authorize a
+direct edit as a fallback.
 
 The package registry introduced by the assembly subtask will declare public
 package IDs, titles, roots, destinations, included sources, and development-doc

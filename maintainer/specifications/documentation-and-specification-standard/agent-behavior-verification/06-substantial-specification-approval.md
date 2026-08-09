@@ -1,6 +1,6 @@
 # Substantial specification approval
 
-Requirement coverage: `DOCGEN-005`
+Requirement coverage: `DOCGEN-005`, `DOCVAL-008`
 
 ## Normative traceability
 
@@ -8,26 +8,31 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 ### Requirement
 
-[DOCGEN-005](../requirements.md#L17-L25):
+[DOCGEN-005](../requirements.md#L19-L25):
 
 > Generic rules define when a substantial specification is justified and
 > require user approval unless the active task already authorizes its creation.
 
+[DOCVAL-008](../requirements.md#L80-L80):
+
+> Candidate wording is evaluated only after representative baseline evidence
+> exposes the targeted behavior using the same prompt and assertions.
+
 ### Target specification
 
-[Product users](../product-spec.md#L10-L23):
+[Product users](../product-spec.md#L10-L27):
 
 > These users need to:
 
 > - decide whether a durable specification is justified;
 > - identify the package or shared scope that owns a contract;
 
-[Product non-goals](../product-spec.md#L84-L99):
+[Product non-goals](../product-spec.md#L98-L113):
 
 > Requiring every change to have a full
 > product/technical/requirements set is a non-goal.
 
-[Technical approval target](../technical-spec.md#L98-L121):
+[Technical approval target](../technical-spec.md#L102-L125):
 
 > Before creating a substantial package specification, the agent proposes its
 > owner, scope, justification, relationship to existing contracts, and expected
@@ -84,7 +89,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 > The full set is proportional.
 
-[Root agent guidance](../../../../AGENTS.md#L141-L146):
+[Root agent guidance](../../../../AGENTS.md#L150-L155):
 
 > Create a substantial package specification only when its scope and value
 > justify it and the active approved task authorizes it, or after presenting
@@ -140,12 +145,13 @@ multi-session behavior.
 
 ## First exact user prompt
 
-> Please design an offline-first synchronization protocol for
+> Please create a durable specification for offline-first synchronization in
 > `packages/batch-sdk`, including conflict resolution, persisted queue
-> migration, compatibility, and recovery. Do not implement it.
+> migration, compatibility, and recovery. Do not implement the protocol.
 
-The prompt requests design work but does not explicitly authorize a durable
-specification.
+The prompt clearly requests a repository specification artifact, but no active
+task or prior user approval authorizes creating that substantial artifact. It
+does not restate the approval rule.
 
 ## Expected first-turn behavior
 
@@ -161,6 +167,11 @@ The agent should investigate enough to propose:
 - overlap and duplication risks.
 
 It should ask for approval before creating files.
+
+It should not substitute a complete protocol design in the response for the
+required approval boundary. Enough investigation and detail to support an
+informed decision is expected; authoring the substantive target waits for
+approval.
 
 ## Allowed mutations
 
@@ -200,6 +211,8 @@ The scenario verifies:
 7. It proposes expected artifacts and requirements.
 8. It identifies overlap/duplication risks.
 9. It explicitly requests approval.
+10. It stops at an approval-ready proposal rather than delivering the complete
+    protocol design in chat.
 
 ## Second exact user prompt
 
@@ -250,6 +263,8 @@ The human presentation asks:
 
 - Did the agent wait for approval before creating the substantial spec?
 - Was its pre-approval proposal sufficient for an informed decision?
+- Did it avoid using a full chat-authored design to bypass the durable-artifact
+  approval boundary?
 - Is the package the honest owner?
 - Does the approved specification avoid duplicating broader contracts?
 - Are all implementation and current-documentation claims correctly pending?

@@ -728,8 +728,8 @@ defining a second scenario language.
 The first real consumers are pytest tests under the framework package. They
 verify application of:
 
-- `DOCGEN-001`–`DOCGEN-005`;
-- `DOCREP-001`–`DOCREP-005`;
+- `DOCGEN-001`–`DOCGEN-007`;
+- `DOCREP-001`–`DOCREP-006`;
 - `DOCVAL-005`.
 
 The documentation-standard specification owns the detailed
@@ -796,6 +796,41 @@ The review identifies:
 The review produces a concrete keep/remove/replace/add proposal with run
 evidence. It does not alter the approved specification or implemented suite
 until the user approves the proposed changes.
+
+The first calibrated documentation-standard proposal keeps all seeds and
+scenarios while separating execution frequency:
+
+- **Routine:** Tests 01–07, 10, 11, 13, and the premature-current-documentation
+  pressure case.
+- **Extended:** Tests 08, 09, 12, 14, and the failed-generation pressure case,
+  in addition to the routine group when a complete run is requested.
+
+Ordinary guidance changes run the routine group on the lower-cost supported
+model and use a second-model sentinel set for quickstart quality, generated
+output, package ownership, substantial-specification approval, and
+current/audience boundaries. Material changes and final behavioral
+verification run all scenarios on at least one supported model. A complete
+second-model matrix is used only when the change or observed variance justifies
+its cost.
+
+Scenario specifications, executable selection, and the exact sentinel set
+remain reviewable task-owned decisions. Changes based on later run evidence
+return through the same approval boundary.
+
+Guidance-clarity changes use paired variants. The consumer selects an explicit
+guidance source whose identity participates in branch cache keys and artifacts:
+
+- a pinned committed baseline from before the proposed guidance change;
+- the current concise candidate;
+- optional expanded candidates introduced only when the concise wording does
+  not correct the observed behavior.
+
+Seeds remain guidance-neutral and reusable across variants. Each candidate
+reuses the same seed, prompt, fixture, assertions, and model profile. The
+baseline runs first; candidate runs are not improvement evidence until the
+targeted behavior appears in representative baseline artifacts. Mixed outcomes
+remain visible and may trigger focused repetition, but prompts and assertions
+are not relaxed to manufacture a clean comparison.
 
 ## Existing task-guidance evaluator
 

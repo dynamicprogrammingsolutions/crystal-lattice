@@ -172,6 +172,10 @@ Recommended documentation values:
 - `Documented`
 - `Not applicable`
 
+Use `Unverified` when verification has not occurred. Reserve `Pending` for
+documentation that has not yet been written. Do not use `Pending` as a
+verification state.
+
 Example:
 
 ```markdown
@@ -179,6 +183,12 @@ Example:
 |---|---|---|---|---|---|
 | EVT-001 | External events have stable type discriminators. | Implemented | Automated | Documented | test path, user-doc path, work item, delivery |
 | EVT-002 | Internal checkpoints are not exposed publicly. | In progress | Unverified | Pending | active work item |
+```
+
+A common pre-implementation row is:
+
+```text
+Not started | Unverified | Pending | —
 ```
 
 Identifiers remain stable after acceptance and are not recycled. Evidence may
@@ -240,3 +250,8 @@ committed with the code that makes new claims true.
 
 Draft, deferred, or target-only behavior belongs in specifications and
 requirements, not in current guides.
+
+Current guides also exclude the specification's internal tracking vocabulary.
+Do not copy phase names, requirement IDs, task paths, approval state, temporary
+progress, or evidence notation into user documentation. Translate a necessary
+current limitation into user-domain language and omit future plans.

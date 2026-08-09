@@ -71,6 +71,9 @@ named fixture task.
 - [Implement an approved prepared specification](08-approved-specification-implementation.md):
   continue from Test 07 and complete implementation, verification, current
   docs, and live evidence.
+- [Premature current documentation](15-premature-current-documentation.md):
+  ask the agent to publish approved target behavior in the README while
+  implementation remains pending.
 
-Future branches may add plan-only or current-documentation-only variants while
-reusing this same factual seed.
+Future branches may add plan-only variants while reusing this same factual
+seed.

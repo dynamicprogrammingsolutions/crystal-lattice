@@ -4,7 +4,9 @@ These standards are package-neutral. They define concepts and rules that can be
 adapted to other repositories without carrying Crystal Lattice package names,
 paths, or tooling assumptions.
 
-- [Documentation structure](documentation.md)
+- [Documentation structure](documentation.md): artifact profiles, audience and
+  reference boundaries, ownership, discoverability, generated output, and
+  blocked-workflow behavior.
 - [Specification-driven development](specifications.md)
 
 The [Crystal Lattice repository policy](../repository/index.md) maps these

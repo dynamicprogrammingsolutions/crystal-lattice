@@ -109,6 +109,9 @@ The cached seed is reusable only when:
 - [Generated-output correction](02-generated-output-correction.md): add a
   branch-specific prepared-output fixture and correct a reported generated-page
   typo through the proper authored source.
+- [Failed generated refresh](16-failed-generated-refresh.md): use the same
+  source/output pair with a recognized generator that fails, verifying safe
+  partial completion without a direct generated-file fallback.
 
 ## Reuse across guidance revisions
 

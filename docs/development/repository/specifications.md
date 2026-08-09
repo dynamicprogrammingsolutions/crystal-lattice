@@ -68,6 +68,11 @@ Specifications are targets. Requirements track what is implemented, verified,
 and documented. Public and implementation documentation describe current
 committed behavior.
 
+Public current documentation does not inherit task, phase, requirement,
+approval, or temporary-progress context. When a current limitation from a
+specification matters to users, translate it into package-user vocabulary and
+omit target-only plans and internal identifiers.
+
 ## Artifact set
 
 A substantial specification normally uses:
@@ -109,6 +114,10 @@ Requirements track:
   `Not applicable`;
 - documentation: `Pending`, `Documented`, or `Not applicable`;
 - evidence: tests, docs, tasks, review, and delivery references.
+
+Before implementation, use `Not started` for implementation, `Unverified` for
+verification, and `Pending` for documentation. `Pending` is not a verification
+state.
 
 Evidence may be in the table or a separate ID-keyed section. A status such as
 `Automated` or `Documented` must eventually lead to concrete evidence.

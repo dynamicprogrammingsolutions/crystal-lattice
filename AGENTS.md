@@ -138,6 +138,15 @@ Documentation is authored next to the package or subsystem that owns it.
 - Public user documentation and implementation/maintainer documentation
   describe current committed behavior. Commit new claims with the code that
   makes them true.
+- Preserve artifact and audience boundaries. Information available from tasks,
+  specifications, requirements, commits, AGENTS files, or maintainer workflows
+  does not automatically belong in another artifact; include only information
+  available and appropriate to that artifact's audience, translating current
+  user-relevant facts into its vocabulary.
+- A blocked compliant workflow does not broaden authority. Do not bypass
+  source-of-truth, generated-output, ownership, validation, or scope boundaries
+  to produce an apparent completion. Complete safe in-scope work, report the
+  blocker and remaining action, and ask before a boundary-changing workaround.
 - Create a substantial package specification only when its scope and value
   justify it and the active approved task authorizes it, or after presenting
   the owner/scope/overlap and obtaining user approval.

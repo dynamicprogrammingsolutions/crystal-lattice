@@ -32,6 +32,31 @@ A reader being a software developer does not make a page implementation
 documentation. Someone importing an SDK or authoring an extension is a package
 user when the page teaches the supported public contract.
 
+## Audience and context boundaries
+
+Every artifact has an intended audience and role. A document may assume only
+concepts introduced in that document or available through documentation
+intended for the same audience.
+
+Broader repository context may guide the author, but does not become reader
+context. When information crosses an audience boundary, include only what the
+destination needs, translate it into that audience's vocabulary, and omit
+source-specific phases, IDs, progress, approval, evidence, and workflow.
+
+- Consumer docs may rely on consumer docs and public reference. A development
+  link is a labeled pointer, not required user context.
+- Development docs may map current code to specifications and requirements;
+  specifications may link related targets and affected current docs;
+  requirements may link implementation and evidence.
+- Agent guidance, tasks, and maintainer material may route broadly within their
+  scope, but their context does not flow into output artifacts. Generated
+  output depends on its maintained source or generator.
+
+A contract intended for package users may be public reference even when it is
+called a specification. A target specification containing unimplemented
+behavior, requirement progress, task links, or design alternatives remains
+development material regardless of its filename.
+
 ## Package profiles
 
 ### Public package, application, SDK, or service
@@ -47,6 +72,10 @@ The target profile provides:
 - optional generated reference.
 
 The exact filenames belong to repository policy.
+
+When package behavior has an observable result, the first-success path shows a
+concrete input and expected result. A later verification section does not
+substitute for an understandable first-use outcome.
 
 ### Small package or implementation-only component
 
@@ -87,7 +116,7 @@ standards.
 | Package entry point | Purpose, installation, first use/build/test, and links |
 | Agent/contributor routing | Local constraints, ownership, important files, verification, and documentation routes |
 | Documentation index | Short map to detailed pages; it does not reproduce them |
-| Quickstart | Complete first-success workflow for a package user |
+| Quickstart | Complete first-success workflow for a package user, including a concrete input and expected result when behavior is observable |
 | User pages | Supported guides, concepts, configuration, recipes, and troubleshooting |
 | Development index | Short map to internals, testing, specifications, and maintenance pages |
 | Development pages | Current architecture, ownership, debugging, testing, and release behavior |
@@ -129,15 +158,17 @@ When a package implements a specified behavior, its implementation page should:
 - identify important invariants and verification boundaries.
 
 The specification may link primary user and implementation pages for
-discoverability. Output pages do not need to link internal meta-specifications
-used to develop the standards themselves.
+maintainer discoverability. A consumer page does not need to expose an internal
+target specification merely to preserve normative ownership. Output pages do
+not need to link internal meta-specifications used to develop the standards
+themselves.
 
 ## Avoid duplication
 
 - Give every contract one normative owner.
 - Let other pages summarize only what their audience needs.
-- Link lifecycle, compatibility, persistence, and protocol detail instead of
-  independently redefining complete rules.
+- Link audience-compatible lifecycle, compatibility, persistence, and protocol
+  detail instead of independently redefining complete rules.
 - Extract a shared concept when three or more consumers would otherwise repeat
   the same explanation.
 - Keep proposed behavior in target specifications, not in current user or
@@ -184,6 +215,11 @@ They may be edited before code in the working tree, but new claims must be
 committed with the code that makes them true. Target-only behavior remains in
 specifications and requirements until implementation is committed.
 
+Current consumer documentation uses public, self-contained vocabulary. It does
+not mention internal phases, requirement IDs, task paths, temporary progress,
+or future targets. If a current limitation matters to users, state the current
+limitation in user-domain language without copying internal tracking context.
+
 ## Moving existing pages
 
 1. Establish the page's audience, authority, and owner.
@@ -208,6 +244,19 @@ Repository policy must identify:
 
 Generated output is never edited directly. If a generated page is wrong,
 change its maintained source or generator.
+
+If the approved generator or preparation workflow is unavailable or fails,
+update only the maintained source or generator, leave generated output
+unchanged, and report the failure and remaining action without claiming a
+refresh.
+
+## Preserve boundaries when blocked
+
+A blocker does not broaden scope or authorize bypassing ownership,
+source-of-truth, audience, validation, or publication boundaries. Complete safe
+in-scope work, report what is blocked and what remains, and ask before a
+boundary-changing workaround. Do not weaken validation or claim incomplete work
+as complete.
 
 ## Adoption
 

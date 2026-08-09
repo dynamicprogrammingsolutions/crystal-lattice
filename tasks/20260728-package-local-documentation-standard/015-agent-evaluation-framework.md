@@ -13,8 +13,8 @@ Specification:
 `maintainer/specifications/agent-evaluation-framework/index.md`
 
 Requirement IDs:
-`AEVAL-001`–`AEVAL-018`, `DOCGEN-001`–`DOCGEN-005`,
-`DOCREP-001`–`DOCREP-005`, `DOCVAL-005`
+`AEVAL-001`–`AEVAL-021`, `DOCGEN-001`–`DOCGEN-007`,
+`DOCREP-001`–`DOCREP-006`, `DOCVAL-005`–`DOCVAL-008`
 
 # Programmatic Agent Evaluation Framework
 
@@ -54,7 +54,7 @@ behavioral consumers.
   credentials or authentication state.
 - [x] Deterministic package tests cover the generic kernel, environment
   substitution, Crystal Lattice customization, and failure behavior.
-- [ ] Pytest is the initial suite runner, with explicit real-model markers and
+- [x] Pytest is the initial suite runner, with explicit real-model markers and
   hosted-execution gates outside normal default tests.
 - [ ] First-consumer tests exercise every `DOCGEN-*` and `DOCREP-*`
   documentation-standard instruction requirement using reusable narrow
@@ -64,6 +64,15 @@ behavioral consumers.
 - [ ] After representative model runs, an evidence-backed calibration review
   proposes any seed/test cuts, replacements, or additions, and no such suite
   change is applied without user approval.
+- [ ] Documentation-standard consumers verify audience/context boundaries for
+  every artifact role, including translation from internal development context
+  into self-contained consumer vocabulary.
+- [ ] Documentation-standard consumers verify that blocked compliant workflows
+  do not broaden mutation scope, ownership, source-of-truth, validation, or
+  completion claims.
+- [ ] New guidance-clarity tests run against the exact pre-change guidance
+  first, then compare the same seed/prompt/fixture/assertions against
+  shortest-first candidate variants with paired provenance.
 - [ ] Existing task-guidance evaluation remains operational and is not moved or
   rewritten by this subtask.
 
@@ -192,6 +201,11 @@ The suite covers:
 - root/package/shared-plugin ownership;
 - proportional package profiles without filler;
 - applying versus maintaining the standards.
+- audience-compatible information and reference flow among consumer docs,
+  development docs, specifications, requirements, AGENTS, tasks, maintainer
+  material, and generated output;
+- boundary preservation when a user names a derived artifact, requests
+  premature current documentation, or the compliant generator fails.
 
 Tests may vary user messages, configuration, plugins, skills, request drivers,
 snapshots, evidence projections, evaluators, presentations, or models. They
@@ -402,10 +416,33 @@ presentation mechanism.
   should precede the complete cross-model matrix. The calibration proposal may
   recommend suite/specification changes, but none may be applied without user
   approval.
+- August 9, 2026: The user requested an uncommitted review draft applying the
+  calibration proposal plus broader audience/context and blocked-workflow
+  insights. The governing meta-specification, requirements, generic standards,
+  repository mapping, root AGENTS guidance, scenario contracts, and this task
+  are updated for review. The material plan is returned to `Draft`; executable
+  consumer changes and real-model reruns remain unstarted pending approval.
+- August 9, 2026: The user refined the experiment order. New pressure tests must
+  first run against the exact committed guidance preceding this draft and
+  demonstrate the risky behavior in representative runs. Candidate guidance is
+  then tested with the same seed, prompt, fixture, assertions, and model
+  profile. Wording starts concise and expands only when paired evidence shows
+  that the shorter general rule is insufficient. Baseline restoration occurs
+  only in isolated evaluation workspaces; the uncommitted review draft remains
+  in the main worktree.
+- The first concise candidate reduces
+  `docs/development/standards/documentation.md` from the earlier 317-line review
+  draft to 270 lines; the committed baseline has 222 lines. Exact
+  Crystal Lattice artifact mappings remain in repository policy rather than
+  expanding the reusable rule. Further shortening or expansion is driven by
+  paired baseline/candidate behavior, not by speculation alone.
+- August 9, 2026: The user approved the revised requirements, concise guidance,
+  scenario contracts, calibrated matrix, and baseline-first workflow and asked
+  execution to proceed after committing the review state.
 
 ### Post-run calibration proposal
 
-Status: Pending user approval
+Status: Approved for baseline-first execution
 
 The representative sample covers every seed family and includes both models,
 successful behavior, genuine guidance-consumer failures, one likely
@@ -413,9 +450,9 @@ deterministic-assertion false negative, and one corrected fixture defect. This
 is sufficient to propose the first suite calibration without treating a single
 model outcome as conclusive proof.
 
-#### Keep and enforce
+#### Keep behavioral boundaries and refine setup where needed
 
-Keep the following scenario requirements and assertions unchanged:
+Keep the following behavioral boundaries and assertions:
 
 - Test 01 concrete first-use input/output. GLM's plausible but incomplete
   README demonstrates that this assertion distinguishes a usable quickstart
@@ -424,8 +461,9 @@ Keep the following scenario requirements and assertions unchanged:
   not authorize direct edits to prepared output; the agent should change the
   source and report blocked regeneration.
 - Test 06 explicit approval request before a substantial unapproved
-  specification. A detailed design in chat is not a substitute for stopping at
-  an owner/scope/overlap/artifact proposal and asking for approval.
+  specification. Its prompt is clarified to request a durable repository
+  artifact so a detailed chat design cannot be mistaken for a valid response to
+  a brainstorming-only request.
 - Test 07 exact requirements status vocabulary. `Pending` accurately conveyed
   future work but did not satisfy the standard's separate `Unverified`
   verification state. Keep this strict because deterministic live-state
@@ -434,7 +472,7 @@ Keep the following scenario requirements and assertions unchanged:
   Requirements and temporary progress may describe Phase 3; the package README
   may describe only delivered behavior.
 
-Keep all nine seeds and all fourteen scenario specifications. Each seed now
+Keep all nine seeds and all sixteen scenario specifications. Each seed now
 owns a distinct setup family, and the multi-branch seeds amortize their
 investigation:
 
@@ -446,32 +484,47 @@ investigation:
 - Seed 08 uniquely verifies a documentation/tracking follow-up after completed
   code and tests.
 
+The review draft adds two boundary-pressure branches without adding seeds:
+
+- Test 15 reuses Seed 02 and asks the agent to publish approved but
+  unimplemented target behavior in current consumer documentation.
+- Test 16 reuses Seed 01 and makes the approved generator fail after the
+  authored-source correction.
+
 No seed or scenario should be deleted based on the current sample.
 
-#### Replace one brittle assertion
+#### Revise the Test 05 audience and assertion contract
 
-Replace Test 05's exact substring assertion with a deterministic
-discoverability assertion that accepts normal retry morphology:
+Test 05 exposed both a brittle lexical assertion and an audience-boundary issue
+in the original scenario contract. The review draft:
 
 - README contains `retry`, `retries`, `retried`, or `retrying`, or directly
   links the retry lifecycle page.
 - The package docs index names retry behavior and links the current user page.
 - The current user page still contains the `retrying` and `failed` states.
+- The current user page does not link or depend on the internal target
+  specification, whose target-only replay behavior and requirement context are
+  not consumer-compatible.
+- The internal specification may link the current user page for maintainer
+  discoverability.
+- Consumer pages contain no requirement IDs, target labels, task paths, phases,
+  or temporary-progress terminology.
 - Target-only replay behavior remains excluded.
 
-This changes only how the approved discoverability behavior is detected. It
-does not relax the requirement that users can find the lifecycle from both the
-package root and docs index.
+This preserves one normative owner without exposing internal target context to
+package users. It also replaces the exact substring check without relaxing the
+requirement that users can find and understand the lifecycle from the package
+root and docs index.
 
 #### Cut the routine matrix without deleting coverage
 
 Classify scenarios into two optional pytest groups:
 
 - Routine guidance suite:
-  Tests 01, 02, 03, 04, 05, 06, 07, 10, 11, and 13.
+  Tests 01–07, 10, 11, 13, and 15.
 - Extended workflow suite:
-  Tests 08, 09, 12, and 14, while also including the routine group when a full
-  run is requested.
+  Tests 08, 09, 12, 14, and 16, while also including the routine group when a
+  full run is requested.
 
 The extended-only cases are valuable but lower-frequency continuations or
 reverse ownership checks:
@@ -482,6 +535,8 @@ reverse ownership checks:
 - Test 12 is a documentation-only follow-up after an intentionally mutated
   seed.
 - Test 14 is the reverse ownership direction complementing Test 04.
+- Test 16 repeats the authored/generated boundary under a failing rather than
+  absent compliant generator.
 
 This is a runtime cut, not deletion of specifications, seeds, or executable
 tests. Every `DOCGEN-*` requirement remains covered in the routine group, and
@@ -492,13 +547,13 @@ the extended group preserves the broader workflow matrix.
 For ordinary changes to the guidance:
 
 - run the routine group on GLM-5.2;
-- run GPT-5.6-luna sentinels for Tests 01, 02, 04, 06, and 13.
+- run GPT-5.6-luna sentinels for Tests 01, 02, 04, 06, 13, and 15.
 
 For material changes to specification workflow, ownership, approval, current
 documentation boundaries, or before declaring the standard behaviorally
 verified:
 
-- run all fourteen tests on at least one supported model;
+- run all sixteen tests on at least one supported model;
 - run the GPT sentinel set;
 - use a full second-model matrix only when the change or observed variance
   justifies its cost.
@@ -520,33 +575,70 @@ runs as final requirement evidence:
 - run Test 06 on GPT to distinguish a GLM-specific approval failure from a
   cross-model guidance issue;
 - run Test 07 on GPT to compare exact status-vocabulary compliance.
+- run Tests 15 and 16 on both subject models initially because they establish
+  new boundary-pressure coverage.
 
-Test 05 does not require another model call solely to validate the corrected
-assertion because its preserved canonical artifact is sufficient for
-deterministic replay. It may still run as part of the routine matrix.
+The preserved Test 05 artifact can be replayed as baseline evidence for the
+revised assertion when its guidance hash, prompt, fixture revision, and model
+profile match. The concise candidate still requires a paired model run.
 
 #### Repetition and new scenarios
 
-Do not add random repetitions or new DOCGEN seeds yet. Cross-model sentinel
-runs provide more useful information than repeated identical calls at the
-current evidence volume.
+Do not add random repetitions or new DOCGEN seeds yet. The two new pressure
+branches reuse existing seeds. Cross-model sentinel runs provide more useful
+information than repeated identical calls at the current evidence volume.
 
 Proceed separately with the required `DOCREP-*` scenarios. Their
 repository-specific package profiles, root-versus-package ownership, shared
 plugin domain, and applying-versus-maintaining boundaries are missing
 requirement consumers rather than calibration additions to DOCGEN.
 
+#### Baseline-first guidance experiment
+
+New or materially revised pressure cases do not begin with the proposed
+guidance:
+
+1. Select the exact committed pre-change guidance at `3a62b6fc` and record its
+   content hash.
+2. Run the case against that baseline using the ordinary task prompt.
+3. Retain the case as regression evidence only when at least one representative
+   model run shows the targeted boundary failure. A consistently passing case
+   may remain a robustness check but cannot prove the new wording fixed
+   behavior.
+4. Run the same cached seed, prompt, fixture, assertions, and model profile
+   against the concise candidate.
+5. Try a longer candidate only if the concise wording does not reliably correct
+   the observed behavior.
+6. Preserve paired artifacts and mixed outcomes. Do not alter the prompt or
+   weaken assertions between baseline and candidate runs.
+
+Existing canonical runs may serve as baseline evidence only when their
+guidance hash, prompt, fixture revision, assertion inputs, and model profile
+match the revised case. Otherwise the baseline is rerun.
+
+The evaluation harness should select guidance by explicit source/variant. It
+must not require reverting or discarding the uncommitted main-worktree draft.
+Baseline files are restored only inside the clean continuation workspace.
+
 #### Approval boundary
 
-Approval of this proposal would authorize:
+Approval of this review draft would authorize:
 
-- updating Test 05's specification and deterministic assertion;
+- retaining the new `DOCGEN-006`, `DOCGEN-007`, `DOCREP-006`, and
+  `DOCVAL-007`–`DOCVAL-008` requirements;
+- retaining the audience/reference and blocked-workflow guidance changes;
+- updating executable Tests 02, 05, 06, 07, and 13 to match their revised
+  scenario specifications;
+- adding executable Tests 15 and 16 using the existing seeds;
 - adding routine/extended pytest markers or equivalent selection;
-- following the calibrated model/rerun matrix above.
+- following the calibrated model/rerun matrix above;
+- implementing explicit baseline/candidate guidance variants and running the
+  baseline before candidate comparisons.
 
-It would not authorize removing seeds/tests, weakening Tests 01, 02, 06, 07,
-or 13, or changing the documentation standard itself. Any later remove,
-replace, or add proposal based on new evidence would require another approval.
+It would not authorize removing seeds/tests or weakening the concrete
+quickstart, generated-output, approval, status-vocabulary, audience, or
+current-state boundaries. Any later remove, replace, or add proposal based on
+new evidence would require another approval.
 
 ## Execution plan
 
@@ -691,6 +783,22 @@ Cover:
     redundant/low-value cases, excessive setup cost, observed variance, and
     missing guidance-clarity signals. Do not modify the approved scenario
     specification or suite from that proposal without user approval.
+13. After calibration approval, implement routine and extended selection,
+    revised audience/blocker assertions, and boundary-pressure Tests 15–16
+    without adding another seed.
+14. Keep destination-audience assertions, blocked-workflow completion honesty,
+    and semantic assessment distinct so a lexical failure does not masquerade
+    as a guidance failure.
+15. Add explicit guidance-source variants:
+    - pinned committed pre-change baseline;
+    - concise worktree candidate;
+    - optional expanded candidate.
+16. Run each new guidance-clarity case against the baseline first. Reuse the
+    same seed, prompt, fixture, assertions, and model profile for candidate
+    comparisons. Preserve guidance hashes and paired artifacts.
+17. Treat a baseline case that never shows the targeted behavior as robustness
+    coverage, not evidence that candidate wording fixed a regression. Refine
+    the pressure situation without embedding the desired rule in the prompt.
 
 ### 8. Verify and document
 
@@ -764,6 +872,8 @@ Complete plan sections 7 and 8 as one reviewable outcome:
 
 - complete standard-owned scenario contracts for every `DOCGEN-*` and
   `DOCREP-*` requirement;
+- boundary-pressure scenarios for audience-incompatible context, premature
+  current documentation, unavailable generation, and failed generation;
 - marker and explicit local/hosted gates;
 - narrow guidance-neutral scenario-family base runs;
 - exact candidate AGENTS/routed-file overlay and provenance;
@@ -782,6 +892,7 @@ Complete plan sections 7 and 8 as one reviewable outcome:
 - explicit reporting of provider/model cases not run.
 - post-run calibration proposal for seed/test retention and additional
   clarity coverage, awaiting user approval before any suite changes.
+- approved routine/extended selection and second-model sentinel policy.
 
 Stop and report:
 
@@ -841,6 +952,23 @@ confirmation.
 - Approved: representative runs are followed by a separate evidence-backed
   suite-calibration review; proposed seed/test changes require user approval
   before implementation or specification updates.
+- Proposed for review: every documentation artifact has an audience and context
+  boundary; access to tasks/specifications/requirements does not transfer that
+  context to another artifact's readers.
+- Proposed for review: Crystal Lattice repository policy defines normal,
+  pointer-only, evidence-only, and prohibited reference directions for exact
+  artifact paths.
+- Proposed for review: a blocked compliant workflow does not broaden mutation
+  authority; safe partial progress, blocker reporting, remaining work, and
+  completion honesty are required.
+- Proposed for review: keep all nine seeds and sixteen scenarios, with Tests
+  01–07, 10, 11, 13, and 15 routine and Tests 08, 09, 12, 14, and 16 extended.
+- Proposed for review: ordinary guidance changes use GLM-5.2 for the routine
+  group and GPT-5.6-luna sentinels for Tests 01, 02, 04, 06, 13, and 15.
+- Proposed for review: new pressure cases run first against the pinned
+  pre-change guidance. The concise candidate is evaluated only after baseline
+  evidence exposes the target behavior; longer wording is tried only when the
+  concise rule remains insufficient.
 - Local reversible choices include internal module decomposition, snapshot
   codec implementation, JSON serialization, file locking, and canonical
   rendering details.
@@ -881,6 +1009,12 @@ confirmation.
 - [x] Specify narrow scenario-family investigation seeds for current DOCGEN
   tests.
 - [x] Specify proposed additional DOCGEN seeds and consumer-task branches.
+- [x] Draft `DOCGEN-006`, `DOCGEN-007`, `DOCREP-006`, and `DOCVAL-007`
+  audience/boundary requirements and their output guidance for review.
+- [x] Draft revised Tests 02, 05, 06, 07, and 13 plus pressure Tests 15–16
+  using existing seeds.
+- [x] Draft the baseline-first guidance comparison workflow and
+  `DOCVAL-008`/`AEVAL-021` requirements.
 - [ ] Specify the `DOCREP-*` behavioral consumer scenarios.
 - [ ] Add documentation-standard behavioral consumers.
   - [x] Add profile selection, explicit gates, focused Git fixtures, exact
@@ -909,8 +1043,16 @@ confirmation.
 - [ ] Update `AEVAL-*` and `DOCVAL-005` evidence.
 - [ ] Present canonical behavioral artifacts for human review.
 - [x] Prepare the post-run seed/test calibration proposal for user approval.
-  - [ ] Obtain user approval before changing scenario specifications,
-    assertions, or routine/extended selection.
+  - [x] Apply the proposal and refinements as an uncommitted specification and
+    documentation review draft.
+  - [x] Obtain user approval for the revised requirements, guidance, scenario
+    specifications, and routine/extended selection.
+  - [ ] Implement executable assertion, fixture-variant, marker, and model-run
+    changes only after approval.
+  - [ ] Add explicit guidance-source selection and paired baseline/candidate
+    artifacts.
+  - [ ] Run new pressure cases against the pinned pre-change guidance before
+    testing concise or expanded candidate wording.
 
 ### Requirement verification
 
@@ -927,6 +1069,10 @@ confirmation.
 | Provenance and interpretation (`AEVAL-017`) | Artifacts identify environment/configuration, instructions, prompts, model, seed, requests, tools, projections, evaluations, presentations, errors, and outputs; AI scores remain supporting evidence and human verification remains pending review. |
 | Maintainer documentation (`AEVAL-018`) | README and complete examples let a new author run a simple Crystal Lattice assertion, customize drivers/snapshots/evidence/scoring/presentation, and substitute an alternate environment without reading internals. |
 | Post-run calibration (`AEVAL-019`, `DOCVAL-006`) | Representative-run evidence supports a keep/remove/replace/add proposal covering redundancy, cost, variance, diagnostic value, and missing clarity signals; suite changes remain pending explicit user approval. |
+| Calibrated execution (`AEVAL-020`) | Pytest selection distinguishes routine and extended groups; all sixteen scenarios run on at least one supported model for material/final verification; the documented GPT sentinel set runs without requiring an unconditional full model cross-product. |
+| Audience and reference boundaries (`DOCGEN-006`, `DOCREP-006`) | Static guidance maps generic roles and Crystal Lattice paths; revised Tests 05 and 13 plus Test 15 verify consumer docs stand alone, exclude internal context, and translate only current user-relevant facts. |
+| Blocked workflow boundaries (`DOCGEN-007`, `DOCVAL-007`) | Revised Test 02 and Test 16 verify authored-source ownership, unavailable/failing generator behavior, safe partial completion, blocker reporting, remaining action, and no direct generated-output fallback or false completion claim. |
+| Baseline-first guidance comparison (`AEVAL-021`, `DOCVAL-008`) | The harness selects a pinned committed baseline and candidate variants without changing seed cache identity; paired runs preserve the same prompt, fixture, assertions, model profile, guidance hashes, and artifacts, and candidate wording is credited only after the baseline exhibits the targeted behavior. |
 
 ### Additional implementation verification
 

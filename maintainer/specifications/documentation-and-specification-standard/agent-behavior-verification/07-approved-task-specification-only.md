@@ -1,6 +1,6 @@
 # Approved task: specification and requirements only
 
-Requirement coverage: `DOCGEN-002`
+Requirement coverage: `DOCGEN-002`, `DOCVAL-008`
 
 ## Normative traceability
 
@@ -8,21 +8,26 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 ### Requirement
 
-[DOCGEN-002](../requirements.md#L17-L22):
+[DOCGEN-002](../requirements.md#L19-L22):
 
 > A package-neutral specification standard defines target specifications, live
 > requirements, work-tracked approval, current public/maintainer docs,
 > proportional artifacts, evidence, and simple spec-first commits.
 
+[DOCVAL-008](../requirements.md#L80-L80):
+
+> Variants are tried shortest-first and do not pass by weakening the task or
+> assertions.
+
 ### Target specification
 
-[Product specification and current state](../product-spec.md#L50-L62):
+[Product specification and current state](../product-spec.md#L59-L71):
 
 > Specifications describe intended targets and may temporarily differ from
 > implementation. Requirements track the live implementation, verification,
 > documentation, and evidence state.
 
-[Small-change acceptance example](../product-spec.md#L110-L114):
+[Small-change acceptance example](../product-spec.md#L124-L128):
 
 > An agent updates a target specification, requirements, implementation, tests,
 > and current documentation. The spec and code are committed together or in
@@ -39,15 +44,23 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 > implemented and are updated as code, verification, and current documentation
 > are completed.
 
-[Current documentation](../../../../docs/development/standards/specifications.md#L235-L242):
+[Requirements status vocabulary](../../../../docs/development/standards/specifications.md#L145-L192):
+
+> Use `Unverified` when verification has not occurred. Reserve `Pending` for
+> documentation that has not yet been written.
+
+[Current documentation](../../../../docs/development/standards/specifications.md#L245-L257):
 
 > Draft, deferred, or target-only behavior belongs in specifications and
 > requirements, not in current guides.
 
-[Repository workflow](../../../../docs/development/repository/specifications.md#L119-L130):
+[Repository requirement values and workflow](../../../../docs/development/repository/specifications.md#L109-L139):
 
 > Create the approved specification and requirements before implementation.
 > Requirements begin `Not started` and are updated as work progresses.
+
+> Before implementation, use `Not started` for implementation, `Unverified`
+> for verification, and `Pending` for documentation.
 
 ### Assertion relationship
 
@@ -93,7 +106,9 @@ allowed.
    links change.
 2. No code, test, README, or current implementation page changes.
 3. The target defines default, limit, rejection, and compatibility behavior.
-4. The requirement has stable ID and correct pending states.
+4. The requirement has a stable ID and column-correct pending states:
+   implementation `Not started`, verification `Unverified`, documentation
+   `Pending`, and no implementation evidence.
 5. Approval remains in the existing task.
 6. The resulting run preserves a reusable snapshot for Test 08.
 

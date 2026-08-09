@@ -1,6 +1,6 @@
 # Small-package documentation
 
-Requirement coverage: `DOCGEN-001`
+Requirement coverage: `DOCGEN-001`, `DOCVAL-008`
 
 ## Normative traceability
 
@@ -9,11 +9,16 @@ meta-specification, and authored guidance remain authoritative.
 
 ### Requirement
 
-[DOCGEN-001](../requirements.md#L17-L21):
+[DOCGEN-001](../requirements.md#L19-L21):
 
 > A package-neutral documentation standard defines profiles, artifact roles,
 > ownership, source-of-truth, incremental adoption, and generated-output
 > boundaries without Crystal Lattice-specific paths or package names.
+
+[DOCVAL-008](../requirements.md#L80-L80):
+
+> New guidance-clarity scenarios run first against the exact pinned pre-change
+> guidance using the same seed, prompt, fixture, assertions, and model profile.
 
 This test exercises the profile, artifact-role, ownership, source-of-truth, and
 incremental-adoption portions. Generated-output behavior is exercised
@@ -24,7 +29,7 @@ page.
 
 ### Target specification
 
-[Product-specification purpose and ordinary users](../product-spec.md#L3-L23):
+[Product-specification purpose and ordinary users](../product-spec.md#L3-L27):
 
 > The repository needs documentation and specification rules that are easy to
 > apply during ordinary work, precise enough for agents, reusable outside this
@@ -34,20 +39,20 @@ page.
 > - decide where documentation belongs;
 > - identify the package or shared scope that owns a contract;
 
-[Product goals and non-goals](../product-spec.md#L64-L95):
+[Product goals and non-goals](../product-spec.md#L73-L113):
 
 > Keep the process proportional and avoid placeholder documentation.
 
 > Requiring every package to create the full documentation structure
 > immediately is a non-goal.
 
-[Technical generic boundary](../technical-spec.md#L47-L75):
+[Technical generic boundary](../technical-spec.md#L47-L79):
 
 > - documentation profiles and artifact roles;
 > - package-local ownership;
 > - anti-duplication and discoverability;
 
-[Technical migration target](../technical-spec.md#L240-L250):
+[Technical migration target](../technical-spec.md#L315-L329):
 
 > Adoption is incremental:
 
@@ -66,7 +71,10 @@ page.
 > Adopt the structure incrementally. Do not create empty pages or reconstruct
 > unfamiliar systems merely to complete a directory shape.
 
-[Small-package profile](../../../../docs/development/standards/documentation.md#L51-L63):
+[First-success and small-package profile](../../../../docs/development/standards/documentation.md#L60-L92):
+
+> When package behavior has an observable result, the first-success path shows
+> a concrete input and expected result.
 
 > A concise package entry point may be sufficient when it already covers
 > purpose, supported use, installation or loading, basic verification, and
@@ -76,7 +84,7 @@ page.
 > parent. Add a documentation index and quickstart when the package entry point
 > can no longer provide a clear first-use path.
 
-[Artifact roles](../../../../docs/development/standards/documentation.md#L83-L97):
+[Artifact roles](../../../../docs/development/standards/documentation.md#L112-L126):
 
 > | Package entry point | Purpose, installation, first use/build/test, and
 > links |
@@ -84,14 +92,14 @@ page.
 > Keep package entry points concise. Move detail into focused pages once the
 > entry point becomes difficult to scan.
 
-[Ownership](../../../../docs/development/standards/documentation.md#L99-L116):
+[Ownership](../../../../docs/development/standards/documentation.md#L128-L145):
 
 > Content about one package's supported behavior belongs with that package.
 
 > A shared user-documentation domain is appropriate when the audience consumes
 > a common extension or integration surface across many packages.
 
-[Adoption](../../../../docs/development/standards/documentation.md#L212-L222):
+[Adoption](../../../../docs/development/standards/documentation.md#L261-L271):
 
 > Apply the standard prospectively and when documentation is touched.
 
@@ -105,7 +113,7 @@ page.
 > guidance and that README provide a complete route. Do not add empty AGENTS,
 > index, or quickstart pages.
 
-[Plugin profile and shared-domain rules](../../../../docs/development/repository/documentation.md#L65-L86):
+[Plugin profile and shared-domain rules](../../../../docs/development/repository/documentation.md#L104-L125):
 
 > | Individual `plugins/*` packages | README-first by default; add local
 > guidance/docs when package needs exceed inherited rules |
@@ -113,7 +121,7 @@ page.
 > This is a profile classification, not a requirement to generate every
 > missing file in one change.
 
-[Shared plugin documentation](../../../../docs/development/repository/documentation.md#L105-L124):
+[Shared plugin documentation](../../../../docs/development/repository/documentation.md#L144-L166):
 
 > One plugin's internal behavior does not become a shared plugin contract by
 > being used as an example.
@@ -121,7 +129,7 @@ page.
 > Individual plugins inherit `plugins/AGENTS.md` unless package-specific rules
 > justify a local AGENTS file.
 
-[Root agent routing](../../../../AGENTS.md#L118-L154):
+[Root agent routing](../../../../AGENTS.md#L118-L164):
 
 > Start package work by reading its `README.md`, nearest `AGENTS.md`, and
 > `docs/index.md` when present.
