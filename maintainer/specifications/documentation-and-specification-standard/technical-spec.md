@@ -197,7 +197,7 @@ Indexes remain concise but complete:
 
 - meta-specifications for standards and agent workflows;
 - deterministic and real-model evaluation tooling for those workflows;
-- fixtures and review-bundle preparation belonging to that tooling;
+- fixtures, review-bundle ordering, and preparation belonging to that tooling;
 - future standards-maintenance utilities whose audience is the maintainers of
   the rules rather than ordinary package users.
 

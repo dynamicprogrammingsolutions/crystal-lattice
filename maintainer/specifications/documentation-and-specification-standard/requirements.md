@@ -10,7 +10,7 @@ Implementation values use `Not started`, `In progress`, `Implemented`,
 
 | ID | Requirement | Implementation | Verification | Documentation | Evidence |
 |---|---|---|---|---|---|
-| DOCMETA-001 | `maintainer/` has a clear non-public maintenance boundary and uses the simplified `maintainer/specifications/` layout. | Implemented | Human verified | Documented | `maintainer/README.md`; user approval on August 5, 2026 |
+| DOCMETA-001 | `maintainer/` has a clear non-public maintenance boundary and uses the simplified `maintainer/specifications/` layout. | Implemented | Human verified | Documented | `maintainer/README.md`; `maintainer/documentation-standards-review-bundle.md`; user approval on August 5, 2026 |
 | DOCMETA-002 | One meta-specification defines both reusable standards and Crystal Lattice repository policy because they share ownership, approval, delivery, and validation. | Implemented | Human verified | Documented | `index.md`, `product-spec.md`, `technical-spec.md`; user approval on August 5, 2026 |
 | DOCMETA-003 | The documentation-standard task and its subtasks link their scope to stable requirements in this file without duplicating the specification. | Implemented | Human verified | Documented | `tasks/20260728-package-local-documentation-standard/`; user approval on August 5, 2026 |
 

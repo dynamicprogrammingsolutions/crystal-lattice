@@ -22,6 +22,10 @@ Current maintainer tooling:
 
 - [Agent evaluation kernel](agent-evaluation/README.md)
 
+Current maintainer procedures:
+
+- [Documentation standards review bundle](documentation-standards-review-bundle.md)
+
 The target standard will produce reusable guidance and repository-specific
 policy under `docs/development/`. Those output pages are artifacts for agents
 and contributors using the rules. They do not need to link back to the
