@@ -52,6 +52,11 @@ plugins/docs/node-tool-plugins.md
 plugins/docs/plugin-packaging-and-loading.md
 ```
 
+The focused test fixture appends one small `Verify npm` block with the typo
+`npm --vesion` to the package README before the seed runs.
+That source state is shared by every Seed 01 branch so the cached investigation
+does not become stale when generated-output pressure is added later.
+
 The candidate root AGENTS and documentation-standard pages do not exist at the
 pinned baseline and are not overlaid during the seed.
 

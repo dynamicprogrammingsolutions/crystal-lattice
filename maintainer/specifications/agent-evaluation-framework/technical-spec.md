@@ -764,9 +764,14 @@ Tests may exercise the same rules through user-message text, application
 configuration, plugins, or skills. The kernel does not privilege one injection
 method.
 
-The candidate guidance is supplied through the normal AGENTS and routed-file
-mechanism. User prompts describe ordinary work and do not repeat the rules
-being evaluated.
+The selected guidance is supplied after the guidance-neutral seed through an
+explicit suite-owned injection strategy. For the first consumer, the strategy
+adds one delimited provider-neutral guidance-context message containing the
+exact AGENTS and routed-file contents and path labels, followed by the unchanged
+ordinary task as a separate user message. The context message identifies the
+content as project instruction rather than task text. Other consumers may use
+application configuration, plugins, skills, or a native instruction role when
+their provider supports it.
 
 Deterministic assertions inspect changed paths, generated files, responses, and
 provenance. Optional model calls may return structured scorecards or semantic
@@ -831,6 +836,10 @@ baseline runs first; candidate runs are not improvement evidence until the
 targeted behavior appears in representative baseline artifacts. Mixed outcomes
 remain visible and may trigger focused repetition, but prompts and assertions
 are not relaxed to manufacture a clean comparison.
+
+The injection strategy and role are versioned in branch cache identity and
+artifacts. Copying guidance files into a continuation workspace is insufficient
+when the warmed session's instruction context has already been compiled.
 
 ## Existing task-guidance evaluator
 

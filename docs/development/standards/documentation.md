@@ -245,10 +245,10 @@ Repository policy must identify:
 Generated output is never edited directly. If a generated page is wrong,
 change its maintained source or generator.
 
-If the approved generator or preparation workflow is unavailable or fails,
-update only the maintained source or generator, leave generated output
-unchanged, and report the failure and remaining action without claiming a
-refresh.
+A request to correct generated output includes updating its maintained source
+and running the approved generator unless the user narrows scope. If generation
+is unavailable or fails, leave generated output unchanged and report the
+failure and remaining action without claiming a refresh.
 
 ## Preserve boundaries when blocked
 

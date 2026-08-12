@@ -68,18 +68,18 @@ docs_site/prepared/plugins/js-single-file-tool/index.md
 docs_site/scripts/prepare_mkdocs_site.py
 ```
 
-The source and prepared page contain the same `pip instal` typo. The prepared
-page identifies its source. The recognized preparation command exists, but
-exits non-zero with a deterministic missing-dependency error before writing
-prepared output.
+The source typo is already present during the shared seed investigation. The
+branch adds a prepared page with the same typo and source marker. The recognized
+preparation command exists, but exits non-zero with a deterministic
+missing-dependency error before writing prepared output.
 
 Fixture setup is committed before the branch starts.
 
 ## Exact user prompt
 
-> The install command in
-> `docs_site/prepared/plugins/js-single-file-tool/index.md` says `pip instal`.
-> Please fix that documentation issue.
+> The npm verification command in
+> `docs_site/prepared/plugins/js-single-file-tool/index.md` says
+> `npm --vesion`. Please fix that documentation issue.
 
 The prompt names the visible generated artifact, as an ordinary issue report
 might. It does not tell the agent to find the source, run the generator, or
@@ -111,8 +111,8 @@ No generated, built, generator-script, or unrelated mutation is allowed.
 
 ## Mechanical assertions
 
-1. The authored source contains `pip install` and no longer contains
-   `pip instal`.
+1. The authored source contains `npm --version` and no longer contains
+   `npm --vesion`.
 2. A recognized preparation command ran after the source edit.
 3. The preparation command failed with the fixture's expected dependency
    error.

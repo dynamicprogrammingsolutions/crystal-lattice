@@ -44,6 +44,9 @@ owner, scope, justification, relationship to existing contracts, and expected
 artifacts. User approval is required unless the active approved task already
 authorizes creation.
 
+A direct creation request is not separate approval of an owner/scope/overlap
+proposal that has not yet been presented.
+
 A package refinement links the broader contract and relevant requirement IDs.
 It may add or strengthen package requirements but may not silently weaken or
 contradict the broader target. Approved exceptions are linked from both scopes.

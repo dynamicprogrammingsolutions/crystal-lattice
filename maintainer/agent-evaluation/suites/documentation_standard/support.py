@@ -30,10 +30,13 @@ SPEC_ROOT = (
     / "agent-behavior-verification"
 )
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
+BASELINE_GUIDANCE_REVISION = "3a62b6fc"
+GUIDANCE_INJECTION_VERSION = "v2"
+GUIDANCE_INJECTION_ROLE = "user"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
 FIXTURE_REVISIONS = {
-    "js-single-file-tool": "v1",
-    "report-export": "v2",
+    "js-single-file-tool": "v4",
+    "report-export": "v3",
     "mobile-composer": "v1",
     "event-retry": "v2",
     "batch-sync": "v1",
@@ -112,6 +115,80 @@ class GuidanceFile:
 
 
 @dataclass(frozen=True)
+class GuidanceSource:
+    name: str
+    root: Path = REPOSITORY_ROOT
+    revision: str | None = None
+
+    def read_bytes(self, relative: str) -> bytes:
+        if self.revision is None:
+            return self.root.joinpath(relative).read_bytes()
+        result = subprocess.run(
+            ["git", "show", f"{self.revision}:{relative}"],
+            cwd=self.root,
+            check=False,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            message = result.stderr.decode("utf-8", errors="replace").strip()
+            raise ValueError(
+                f"cannot read guidance {relative!r} from {self.revision}: {message}"
+            )
+        return result.stdout
+
+    def files(self) -> tuple[GuidanceFile, ...]:
+        return tuple(
+            GuidanceFile(
+                path=relative,
+                sha256=hashlib.sha256(self.read_bytes(relative)).hexdigest(),
+            )
+            for relative in CANDIDATE_GUIDANCE_PATHS
+        )
+
+    def sha256(self) -> str:
+        payload = json.dumps(
+            [item.__dict__ for item in self.files()],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return _sha256_text(payload)
+
+    def copy_to(self, workspace: Path) -> None:
+        for relative in CANDIDATE_GUIDANCE_PATHS:
+            target = workspace / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(self.read_bytes(relative))
+
+    def metadata(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "revision": self.revision,
+            "sha256": self.sha256(),
+            "files": [item.__dict__ for item in self.files()],
+            "injection_version": GUIDANCE_INJECTION_VERSION,
+            "injection_role": GUIDANCE_INJECTION_ROLE,
+        }
+
+    def context_message(self) -> str:
+        lines = [
+            "Repository guidance for the next task follows.",
+            "Treat it as project instructions, not as the task itself.",
+            "Each section is the exact content of the named repository file.",
+        ]
+        for relative in CANDIDATE_GUIDANCE_PATHS:
+            content = self.read_bytes(relative).decode("utf-8")
+            lines.extend(
+                (
+                    "",
+                    f'<repository-guidance path="{relative}">',
+                    content,
+                    "</repository-guidance>",
+                )
+            )
+        return "\n".join(lines)
+
+
+@dataclass(frozen=True)
 class TurnValue:
     prompt: str
     response: str
@@ -121,6 +198,10 @@ class TurnValue:
     tool_event_count: int
     mutation_count: int
     duration_seconds: float
+    guidance_name: str | None = None
+    guidance_revision: str | None = None
+    guidance_sha256: str | None = None
+    guidance_injected: bool = False
 
 
 @dataclass(frozen=True)
@@ -171,16 +252,18 @@ class ScenarioWorkspaceFactory:
     candidate_guidance: bool
     branch_variant: str = "base"
     revision: str = DEFAULT_REVISION
+    guidance: GuidanceSource | None = None
 
     def fingerprint(self) -> object:
+        guidance = self._guidance()
         return {
             "type": "documentation-standard-scenario",
             "fixture_id": self.fixture_id,
             "fixture_revision": fixture_revision(self.fixture_id),
             "candidate_guidance": self.candidate_guidance,
-            "guidance_sha256": (
-                candidate_guidance_sha256() if self.candidate_guidance else None
-            ),
+            "guidance_name": guidance.name if guidance is not None else None,
+            "guidance_revision": guidance.revision if guidance is not None else None,
+            "guidance_sha256": guidance.sha256() if guidance is not None else None,
             "branch_variant": self.branch_variant,
             "revision": self.revision,
         }
@@ -189,8 +272,9 @@ class ScenarioWorkspaceFactory:
         base = self._base()
         workspace = base(staging_dir)
         apply_fixture(workspace, self.fixture_id, self.branch_variant)
-        if self.candidate_guidance:
-            copy_candidate_guidance(workspace)
+        guidance = self._guidance()
+        if guidance is not None:
+            guidance.copy_to(workspace)
         _commit_fixture(workspace)
         return workspace
 
@@ -204,12 +288,18 @@ class ScenarioWorkspaceFactory:
             cache_root=PACKAGE_ROOT / ".repository-cache",
         )
 
+    def _guidance(self) -> GuidanceSource | None:
+        if not self.candidate_guidance:
+            return None
+        return self.guidance or candidate_guidance_source()
+
 
 @dataclass(frozen=True)
 class ParentWorkspaceFactory:
     parent_workspace: Path
     fixture_id: str
     branch_variant: str
+    guidance: GuidanceSource
 
     def fingerprint(self) -> object:
         return {
@@ -218,7 +308,9 @@ class ParentWorkspaceFactory:
             "fixture_id": self.fixture_id,
             "fixture_revision": fixture_revision(self.fixture_id),
             "branch_variant": self.branch_variant,
-            "guidance_sha256": candidate_guidance_sha256(),
+            "guidance_name": self.guidance.name,
+            "guidance_revision": self.guidance.revision,
+            "guidance_sha256": self.guidance.sha256(),
         }
 
     def __call__(self, staging_dir: Path) -> Path:
@@ -229,7 +321,7 @@ class ParentWorkspaceFactory:
         )
         workspace = base(staging_dir)
         _copy_workspace_contents(self.parent_workspace, workspace)
-        copy_candidate_guidance(workspace)
+        self.guidance.copy_to(workspace)
         _commit_fixture(workspace)
         return workspace
 
@@ -241,7 +333,12 @@ class ParentWorkspaceFactory:
 
 
 class DocumentationEvaluationHarness:
-    def __init__(self, profile: ModelProfile) -> None:
+    def __init__(
+        self,
+        profile: ModelProfile,
+        *,
+        guidance: GuidanceSource | None = None,
+    ) -> None:
         config_path = Path(
             os.getenv("AGENT_EVAL_CONFIG", str(DEFAULT_CONFIG))
         ).expanduser()
@@ -265,6 +362,7 @@ class DocumentationEvaluationHarness:
             },
         )
         self.profile = profile
+        self.guidance = guidance or selected_guidance_source()
         self.evaluation = AgentEval(
             default_environment=environment,
             artifact_root=artifact_root / profile.name,
@@ -293,7 +391,7 @@ class DocumentationEvaluationHarness:
         strategy_version = "v5" if self.profile.name == "gpt" else "v4"
         run = self.evaluation.run(
             seed_id,
-            lambda context: self._turn(context, prompt, guidance=()),
+            lambda context: self._turn(context, prompt, guidance=None),
             workspace=workspace,
             cache_key=(
                 f"documentation-standard:{self.profile.name}:{seed_id}:"
@@ -323,18 +421,25 @@ class DocumentationEvaluationHarness:
             fixture_id=fixture_id,
             candidate_guidance=True,
             branch_variant=branch_variant,
+            guidance=self.guidance,
         )
-        guidance = candidate_guidance_files()
         cache_key = None
         if cache:
             cache_key = (
                 f"documentation-standard:{self.profile.name}:{test_id}:"
-                f"{candidate_guidance_sha256()}:{_sha256_text(prompt)}:"
-                f"{branch_variant}:{fixture_revision(fixture_id)}:v1"
+                f"{self.guidance.name}:{self.guidance.sha256()}:"
+                f"{_sha256_text(prompt)}:"
+                f"{branch_variant}:{fixture_revision(fixture_id)}:"
+                f"{GUIDANCE_INJECTION_VERSION}:v2"
             )
         run = self.evaluation.run(
             test_id,
-            lambda context: self._turn(context, prompt, guidance=guidance),
+            lambda context: self._turn(
+                context,
+                prompt,
+                guidance=self.guidance,
+                inject_guidance=True,
+            ),
             continue_from=parent,
             workspace=workspace,
             cache_key=cache_key,
@@ -362,20 +467,24 @@ class DocumentationEvaluationHarness:
             parent_workspace=parent.workspace,
             fixture_id=fixture_id,
             branch_variant=branch_variant,
+            guidance=self.guidance,
         )
         run = self.evaluation.run(
             test_id,
             lambda context: self._turn(
                 context,
                 prompt,
-                guidance=candidate_guidance_files(),
+                guidance=self.guidance,
+                inject_guidance=False,
             ),
             continue_from=parent,
             workspace=workspace,
             cache_key=(
                 f"documentation-standard:{self.profile.name}:{test_id}:"
-                f"{parent.snapshot_sha256}:{candidate_guidance_sha256()}:"
-                f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:v1"
+                f"{parent.snapshot_sha256}:{self.guidance.name}:"
+                f"{self.guidance.sha256()}:"
+                f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
+                f"{GUIDANCE_INJECTION_VERSION}:v2"
             ),
         )
         self._runs[key] = run
@@ -386,7 +495,8 @@ class DocumentationEvaluationHarness:
         context: CrystalLatticeContext,
         prompt: str,
         *,
-        guidance: tuple[GuidanceFile, ...],
+        guidance: GuidanceSource | None,
+        inject_guidance: bool = False,
     ) -> TurnValue:
         if context.workspace is None:
             raise ValueError("missing evaluation workspace")
@@ -412,7 +522,20 @@ class DocumentationEvaluationHarness:
         )
         context.services.record(
             "documentation_standard.guidance",
-            [item.__dict__ for item in guidance],
+            guidance.metadata() if guidance is not None else None,
+        )
+        if guidance is not None and inject_guidance:
+            context.add_message(
+                GUIDANCE_INJECTION_ROLE,
+                guidance.context_message(),
+            )
+        context.services.record(
+            "documentation_standard.guidance_injection",
+            {
+                "injected": guidance is not None and inject_guidance,
+                "version": GUIDANCE_INJECTION_VERSION,
+                "role": GUIDANCE_INJECTION_ROLE,
+            },
         )
         context.add_message("user", prompt)
         raw_max_events = os.getenv("AGENT_EVAL_MAX_EVENTS")
@@ -448,6 +571,10 @@ class DocumentationEvaluationHarness:
             tool_event_count=outcome.tool_event_count,
             mutation_count=outcome.mutation_count,
             duration_seconds=outcome.duration_seconds,
+            guidance_name=guidance.name if guidance is not None else None,
+            guidance_revision=guidance.revision if guidance is not None else None,
+            guidance_sha256=guidance.sha256() if guidance is not None else None,
+            guidance_injected=guidance is not None and inject_guidance,
         )
 
 
@@ -458,6 +585,34 @@ def selected_profile() -> ModelProfile:
             "AGENT_EVAL_PROFILE must be one of: " + ", ".join(sorted(PROFILES))
         )
     return PROFILES[name]
+
+
+def candidate_guidance_source() -> GuidanceSource:
+    return GuidanceSource(name="candidate")
+
+
+def baseline_guidance_source() -> GuidanceSource:
+    return GuidanceSource(
+        name="baseline",
+        revision=BASELINE_GUIDANCE_REVISION,
+    )
+
+
+def selected_guidance_source() -> GuidanceSource:
+    name = os.getenv("AGENT_EVAL_GUIDANCE_VARIANT", "candidate").strip()
+    if name == "candidate":
+        return candidate_guidance_source()
+    if name == "baseline":
+        return baseline_guidance_source()
+    raw_root = os.getenv("AGENT_EVAL_GUIDANCE_DIR")
+    if not raw_root:
+        raise ValueError(
+            "custom AGENT_EVAL_GUIDANCE_VARIANT requires AGENT_EVAL_GUIDANCE_DIR"
+        )
+    root = Path(raw_root).expanduser().resolve()
+    if not root.is_dir():
+        raise ValueError(f"guidance directory missing: {root}")
+    return GuidanceSource(name=name, root=root)
 
 
 def enforce_real_model_gate(profile: ModelProfile) -> None:
@@ -506,32 +661,15 @@ def extract_section(path: Path, heading: str) -> str:
 
 
 def candidate_guidance_files() -> tuple[GuidanceFile, ...]:
-    return tuple(
-        GuidanceFile(
-            path=relative,
-            sha256=hashlib.sha256(
-                REPOSITORY_ROOT.joinpath(relative).read_bytes()
-            ).hexdigest(),
-        )
-        for relative in CANDIDATE_GUIDANCE_PATHS
-    )
+    return candidate_guidance_source().files()
 
 
 def candidate_guidance_sha256() -> str:
-    payload = json.dumps(
-        [item.__dict__ for item in candidate_guidance_files()],
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return _sha256_text(payload)
+    return candidate_guidance_source().sha256()
 
 
 def copy_candidate_guidance(workspace: Path) -> None:
-    for relative in CANDIDATE_GUIDANCE_PATHS:
-        source = REPOSITORY_ROOT / relative
-        target = workspace / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
+    candidate_guidance_source().copy_to(workspace)
 
 
 def record_review(
@@ -552,6 +690,10 @@ def record_review(
         f"- Profile: `{json.dumps(run.environment_fingerprint, sort_keys=True)}`",
         f"- Parent run: `{run.parent_run_id or 'none'}`",
         f"- Snapshot: `{run.snapshot_sha256 or 'none'}`",
+        f"- Guidance variant: `{run.value.guidance_name or 'none'}`",
+        f"- Guidance revision: `{run.value.guidance_revision or 'working-tree'}`",
+        f"- Guidance SHA-256: `{run.value.guidance_sha256 or 'none'}`",
+        f"- Guidance injected: `{run.value.guidance_injected}`",
         "",
         "## Prompt",
         "",
@@ -582,7 +724,12 @@ def record_review(
             "response": run.value.response,
             "changed_paths": run.changed_paths,
             "findings": [finding.__dict__ for finding in findings],
-            "guidance_sha256": candidate_guidance_sha256(),
+            "guidance": {
+                "name": run.value.guidance_name,
+                "revision": run.value.guidance_revision,
+                "sha256": run.value.guidance_sha256,
+                "injected": run.value.guidance_injected,
+            },
         },
     )
 
@@ -701,13 +848,14 @@ def fixture_revision(fixture_id: str) -> str:
 
 def _fixture_js_single_file_tool(workspace: Path, branch_variant: str) -> None:
     _focus_js_single_file_tool_workspace(workspace)
-    if branch_variant == "generated-typo":
-        readme = workspace / "plugins/js-single-file-tool/README.md"
+    readme = workspace / "plugins/js-single-file-tool/README.md"
+    if "## Verify npm" not in readme.read_text(encoding="utf-8"):
         readme.write_text(
             readme.read_text(encoding="utf-8")
-            + "\n## Helper installation\n\n```bash\npip instal example-package\n```\n",
+            + "\n## Verify npm\n\n```bash\nnpm --vesion\n```\n",
             encoding="utf-8",
         )
+    if branch_variant in {"generated-typo", "generated-typo-failing-generator"}:
         prepared = (
             workspace
             / "docs_site/prepared/plugins/js-single-file-tool/index.md"
@@ -718,6 +866,16 @@ def _fixture_js_single_file_tool(workspace: Path, branch_variant: str) -> None:
             + readme.read_text(encoding="utf-8"),
             encoding="utf-8",
         )
+        if branch_variant == "generated-typo-failing-generator":
+            generator = workspace / "docs_site/scripts/prepare_mkdocs_site.py"
+            generator.parent.mkdir(parents=True, exist_ok=True)
+            generator.write_text(
+                "import sys\n\n"
+                "print('missing dependency: mkdocs-material-extensions', "
+                "file=sys.stderr)\n"
+                "raise SystemExit(2)\n",
+                encoding="utf-8",
+            )
     elif branch_variant != "base":
         raise KeyError(f"unknown branch variant: {branch_variant}")
 
@@ -728,6 +886,10 @@ def _fixture_report_export(workspace: Path, branch_variant: str) -> None:
     _write_synthetic_fixture(
         workspace,
         {
+            ".gitignore": """__pycache__/
+*.pyc
+.pytest_cache/
+""",
             "packages/report-export-sdk/README.md": """# report-export-sdk
 
 Exports rows to an in-memory report. `export_rows(rows)` currently accepts any

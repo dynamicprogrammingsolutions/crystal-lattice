@@ -149,7 +149,8 @@ Documentation is authored next to the package or subsystem that owns it.
   blocker and remaining action, and ask before a boundary-changing workaround.
 - Create a substantial package specification only when its scope and value
   justify it and the active approved task authorizes it, or after presenting
-  the owner/scope/overlap and obtaining user approval.
+  the owner/scope/overlap and obtaining user approval. A direct creation request
+  does not replace that proposal and confirmation.
 - Use stable requirement IDs for important acceptance behavior and record
   concrete implementation, verification, documentation, task, and delivery
   evidence. Do not duplicate execution plans in specifications.

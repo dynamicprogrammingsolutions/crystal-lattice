@@ -38,6 +38,8 @@ pythonpath = ["src", "."]
 addopts = "-m 'not agent_eval'"
 markers = [
   "agent_eval: explicitly enabled tests that invoke real agents or models",
+  "routine: frequent high-signal behavioral guidance checks",
+  "extended: lower-frequency workflow and reverse-ownership checks",
   "requirements(*ids): requirement identifiers covered by an acceptance test",
 ]
 

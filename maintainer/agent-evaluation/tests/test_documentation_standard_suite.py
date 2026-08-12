@@ -3,12 +3,18 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 from suites.documentation_standard.support import (
+    BASELINE_GUIDANCE_REVISION,
     PROFILES,
+    REPOSITORY_ROOT,
     SPEC_ROOT,
+    GuidanceSource,
+    DocumentationEvaluationHarness,
     ScenarioWorkspaceFactory,
     apply_fixture,
+    baseline_guidance_source,
     candidate_guidance_files,
     candidate_guidance_sha256,
     completed_tool_call_ids,
@@ -32,6 +38,86 @@ def test_candidate_guidance_provenance_is_stable() -> None:
     assert len(candidate_guidance_sha256()) == 64
 
 
+def test_baseline_guidance_is_pinned_and_distinct() -> None:
+    baseline = baseline_guidance_source()
+
+    assert baseline.revision == BASELINE_GUIDANCE_REVISION
+    assert len(baseline.sha256()) == 64
+    assert baseline.sha256() != candidate_guidance_sha256()
+    agents = baseline.read_bytes("AGENTS.md").decode("utf-8")
+    assert "Preserve artifact and audience boundaries" not in agents
+
+
+def test_explicit_guidance_source_participates_in_workspace_fingerprint(
+    tmp_path: Path,
+) -> None:
+    for item in candidate_guidance_files():
+        target = tmp_path / item.path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(REPOSITORY_ROOT.joinpath(item.path).read_bytes())
+    source = GuidanceSource(name="short-candidate", root=tmp_path)
+    factory = ScenarioWorkspaceFactory(
+        fixture_id="js-single-file-tool",
+        candidate_guidance=True,
+        guidance=source,
+    )
+
+    fingerprint = factory.fingerprint()
+
+    assert fingerprint["guidance_name"] == "short-candidate"
+    assert fingerprint["guidance_revision"] is None
+    assert fingerprint["guidance_sha256"] == source.sha256()
+
+
+def test_guidance_is_injected_before_the_branch_task_prompt(tmp_path: Path) -> None:
+    source = GuidanceSource(name="candidate")
+
+    class Services:
+        def record(self, _name: str, _value: object) -> None:
+            return None
+
+    class Context:
+        workspace = tmp_path
+        session_or_none = object()
+        config: dict[str, object] = {}
+        services = Services()
+        messages: list[tuple[str, str]] = []
+
+        def add_message(self, role: str, content: str) -> None:
+            self.messages.append((role, content))
+
+        def request(self, **_kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                final_response="done",
+                completed=True,
+                cancelled=False,
+                error_messages=(),
+                tool_event_count=0,
+                mutation_count=0,
+                duration_seconds=0.1,
+            )
+
+    harness = object.__new__(DocumentationEvaluationHarness)
+    harness.profile = PROFILES["glm"]
+    context = Context()
+
+    value = harness._turn(
+        context,
+        "Please continue.",
+        guidance=source,
+        inject_guidance=True,
+    )
+
+    assert context.messages[0][0] == "user"
+    assert "Treat it as project instructions, not as the task itself." in (
+        context.messages[0][1]
+    )
+    assert '<repository-guidance path="AGENTS.md">' in context.messages[0][1]
+    assert REPOSITORY_ROOT.joinpath("AGENTS.md").read_text() in context.messages[0][1]
+    assert context.messages[1] == ("user", "Please continue.")
+    assert value.guidance_injected is True
+
+
 def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
     seed = extract_blockquote(
         SPEC_ROOT / "seed-01-js-single-file-tool-documentation.md",
@@ -45,6 +131,15 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
     assert branch == (
         "Please implement the documentation improvements identified in the "
         "investigation. Keep the scope to documentation."
+    )
+    failed_refresh = extract_blockquote(
+        SPEC_ROOT / "16-failed-generated-refresh.md",
+        "## Exact user prompt",
+    )
+    assert failed_refresh == (
+        "The npm verification command in "
+        "`docs_site/prepared/plugins/js-single-file-tool/index.md` says "
+        "`npm --vesion`. Please fix that documentation issue."
     )
 
 
@@ -168,6 +263,32 @@ def test_fixture_revision_participates_in_workspace_fingerprint() -> None:
 
     assert fixture_revision("slug-utils") == "v2"
     assert factory.fingerprint()["fixture_revision"] == "v2"
+    assert fixture_revision("js-single-file-tool") == "v4"
+
+
+def test_failed_generator_fixture_preserves_prepared_output(tmp_path: Path) -> None:
+    factory = ScenarioWorkspaceFactory(
+        fixture_id="js-single-file-tool",
+        candidate_guidance=False,
+        branch_variant="generated-typo-failing-generator",
+    )
+    workspace = factory(tmp_path)
+    try:
+        prepared = workspace / "docs_site/prepared/plugins/js-single-file-tool/index.md"
+        before = prepared.read_text(encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, "docs_site/scripts/prepare_mkdocs_site.py"],
+            cwd=workspace,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 2
+        assert "mkdocs-material-extensions" in result.stderr
+        assert prepared.read_text(encoding="utf-8") == before
+    finally:
+        factory.cleanup(workspace)
 
 
 def test_batch_approved_task_variant_adds_authorization(tmp_path: Path) -> None:

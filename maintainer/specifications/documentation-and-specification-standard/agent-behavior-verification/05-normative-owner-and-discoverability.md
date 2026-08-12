@@ -111,7 +111,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > does not mention internal phases, requirement IDs, task paths, temporary
 > progress, or future targets.
 
-[Adoption](../../../../docs/development/standards/documentation.md#L261-L271):
+[Adoption](../../../../docs/development/standards/documentation.md#L260-L270):
 
 > Do not create placeholder quickstarts or nearly empty indexes with no useful
 > route.

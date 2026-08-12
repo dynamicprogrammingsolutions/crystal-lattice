@@ -81,4 +81,6 @@ pytest maintainer/agent-evaluation/tests -q
 ```
 
 Real-agent suites use the `agent_eval` marker and remain excluded from the
-package's default pytest configuration.
+package's default pytest configuration. See the
+[documentation-standard suite guide](docs/development/documentation-standard-suite.md)
+for baseline-first model runs and guidance variants.

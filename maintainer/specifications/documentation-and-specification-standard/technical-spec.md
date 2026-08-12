@@ -124,6 +124,9 @@ owner, scope, justification, relationship to existing contracts, and expected
 artifacts. The user approves creation through the task workflow unless the
 existing approved task already authorizes it.
 
+A direct request to create a substantial specification is not by itself
+approval of an owner/scope/overlap proposal that has not yet been presented.
+
 ## Target, requirements, task, and current documentation
 
 | Artifact | Authority |
@@ -209,6 +212,10 @@ When a compliant workflow is blocked, an agent:
    source of truth, validation, public behavior, or persisted state;
 5. does not mark the task or requirement complete while a required step remains
    blocked.
+
+A request to correct generated output includes updating its maintained source
+and attempting the approved generator unless the user narrows scope. The agent
+does this before reporting the refresh as blocked.
 
 Equivalent local commands and reversible in-scope implementation details do not
 require escalation. A workaround becomes approval-relevant when it crosses an

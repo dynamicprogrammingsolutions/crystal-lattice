@@ -188,11 +188,11 @@ Authored package and root pages are sources of truth.
 `docs_site/prepared/` input. MkDocs builds ignored `docs_site/dist/`.
 Neither generated tree is edited directly.
 
-If preparation or generation is unavailable or fails, edit only the authored
-source or generator. Leave prepared and built trees unchanged, report the
-blocked command or dependency and the exact remaining action, and do not claim
-that generated output was refreshed. A blocked generator does not authorize a
-direct edit as a fallback.
+A request to fix prepared documentation includes editing its authored source
+and running `docs_site/scripts/prepare_mkdocs_site.py` unless the user narrows
+scope. If preparation fails, leave prepared and built trees unchanged, report
+the blocked command or dependency and the remaining action, and do not claim a
+refresh. Failure does not authorize a direct generated-file edit.
 
 The package registry introduced by the assembly subtask will declare public
 package IDs, titles, roots, destinations, included sources, and development-doc

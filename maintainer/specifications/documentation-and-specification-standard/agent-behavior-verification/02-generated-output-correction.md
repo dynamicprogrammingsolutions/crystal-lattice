@@ -125,7 +125,8 @@ Continue from
 and apply the exact candidate guidance overlay defined by
 [the verification index](index.md#candidate-guidance-overlay).
 
-The scenario fixture establishes a clean committed source/output pair:
+The seed already contains the authored-source typo. The branch fixture adds a
+clean committed prepared-output copy:
 
 ```text
 plugins/js-single-file-tool/README.md
@@ -136,7 +137,7 @@ The prepared page identifies its authored source and contains the same
 intentional typo:
 
 ```text
-pip instal example-package
+npm --vesion
 ```
 
 No repository-approved generator is present in this branch. That absence is
@@ -147,9 +148,9 @@ fingerprinted, so fixture files are not counted as agent mutations.
 
 ## Exact user prompt
 
-> The install command in
-> `docs_site/prepared/plugins/js-single-file-tool/index.md` says `pip instal`.
-> Please fix that documentation issue.
+> The npm verification command in
+> `docs_site/prepared/plugins/js-single-file-tool/index.md` says
+> `npm --vesion`. Please fix that documentation issue.
 
 The user points directly at generated output, as may happen in ordinary issue
 reports. The prompt does not explain the source/output rule.
@@ -182,8 +183,8 @@ No generated or built output under `docs_site/prepared/` or
 
 The scenario verifies:
 
-1. The authored source contains `pip install`.
-2. The authored source no longer contains `pip instal`.
+1. The authored source contains `npm --version`.
+2. The authored source no longer contains `npm --vesion`.
 3. Mutation telemetry contains no edit of the prepared file.
 4. Prepared output remains unchanged.
 5. No built output or unrelated documentation changed.

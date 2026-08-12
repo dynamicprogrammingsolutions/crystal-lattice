@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import Iterator
 
 import pytest
@@ -19,6 +21,75 @@ from .support import (
 
 
 pytestmark = pytest.mark.agent_eval
+
+
+def _contains_any(text: str, values: tuple[str, ...]) -> bool:
+    return any(value in text for value in values)
+
+
+def _markdown_requirement_row(text: str, requirement_id: str) -> tuple[str, ...]:
+    for line in text.splitlines():
+        if requirement_id.lower() not in line.lower() or "|" not in line:
+            continue
+        return tuple(value.strip().lower() for value in line.strip().strip("|").split("|"))
+    return ()
+
+
+def _raw_session(run) -> dict[str, object]:
+    path = run.artifact_dir / "raw/environment/crystal-lattice-session.json"
+    if not path.is_file():
+        return {}
+    value = json.loads(path.read_text(encoding="utf-8"))
+    return value if isinstance(value, dict) else {}
+
+
+def _tool_command_observed(run, needle: str) -> bool:
+    needle = needle.lower()
+    data = _raw_session(run)
+    messages = data.get("messages")
+    if isinstance(messages, list):
+        for message in messages:
+            if not isinstance(message, dict) or message.get("role") != "tool":
+                continue
+            metadata = message.get("metadata")
+            if not isinstance(metadata, dict):
+                continue
+            display = metadata.get("display")
+            if not isinstance(display, dict):
+                continue
+            content = display.get("content")
+            if (
+                isinstance(content, str)
+                and needle in content.lower()
+                and (
+                    "command:" in content.lower()
+                    or display.get("single_line") == "Bash command"
+                )
+            ):
+                return True
+
+    native = data.get("metadata")
+
+    def has_command(value: object) -> bool:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if (
+                    key.lower() in {"command", "cmd"}
+                    and isinstance(item, str)
+                    and needle in item.lower()
+                ):
+                    return True
+                if has_command(item):
+                    return True
+        elif isinstance(value, list):
+            return any(has_command(item) for item in value)
+        return False
+
+    return has_command(native)
+
+
+def _raw_session_text(run) -> str:
+    return json.dumps(_raw_session(run)).lower()
 
 
 @pytest.fixture(scope="session")
@@ -42,7 +113,8 @@ def _seed_01(harness: DocumentationEvaluationHarness):
     return seed
 
 
-@pytest.mark.requirements("DOCGEN-001")
+@pytest.mark.routine
+@pytest.mark.requirements("DOCGEN-001", "DOCVAL-008")
 def test_01_small_package_documentation(
     harness: DocumentationEvaluationHarness,
 ) -> None:
@@ -85,7 +157,14 @@ def test_01_small_package_documentation(
     assert_findings(findings)
 
 
-@pytest.mark.requirements("DOCGEN-001")
+@pytest.mark.routine
+@pytest.mark.requirements(
+    "DOCGEN-001",
+    "DOCGEN-007",
+    "DOCREP-006",
+    "DOCVAL-007",
+    "DOCVAL-008",
+)
 def test_02_generated_output_correction(
     harness: DocumentationEvaluationHarness,
 ) -> None:
@@ -101,23 +180,40 @@ def test_02_generated_output_correction(
         run,
         "docs_site/prepared/plugins/js-single-file-tool/index.md",
     )
+    response = run.value.response.lower()
     findings = basic_run_findings(run) + (
         AssertionFinding(
             "authored source corrected",
-            "pip install example-package" in readme
-            and "pip instal example-package" not in readme,
+            "npm --version" in readme and "npm --vesion" not in readme,
             "README should contain corrected command",
         ),
         AssertionFinding(
-            "generated output not directly edited",
-            "docs_site/prepared/plugins/js-single-file-tool/index.md"
-            not in run.changed_paths,
+            "source-only mutation",
+            run.changed_paths == ("plugins/js-single-file-tool/README.md",),
             repr(run.changed_paths),
         ),
         AssertionFinding(
-            "prepared fixture remains generated",
-            "generated from plugins/js-single-file-tool/README.md" in prepared,
-            "generated source marker retained",
+            "prepared output unchanged",
+            "generated from plugins/js-single-file-tool/README.md" in prepared
+            and "npm --vesion" in prepared,
+            "prepared page should retain the original typo",
+        ),
+        AssertionFinding(
+            "blocked refresh reported",
+            _contains_any(
+                response,
+                ("unavailable", "not available", "missing", "cannot", "could not", "blocked"),
+            )
+            and _contains_any(response, ("generat", "prepar", "refresh")),
+            "expected unavailable generation and remaining refresh action",
+        ),
+        AssertionFinding(
+            "completion remains honest",
+            _contains_any(
+                response,
+                ("not regenerated", "not refreshed", "could not regenerate", "unable to"),
+            ),
+            "expected explicit statement that generated output was not refreshed",
         ),
     )
     record_review(
@@ -224,6 +320,7 @@ def _seed_09(harness: DocumentationEvaluationHarness):
     )
 
 
+@pytest.mark.routine
 @pytest.mark.requirements("DOCGEN-002")
 def test_03_target_specification_workflow(
     harness: DocumentationEvaluationHarness,
@@ -282,6 +379,7 @@ def test_03_target_specification_workflow(
     assert_findings(findings)
 
 
+@pytest.mark.routine
 @pytest.mark.requirements("DOCGEN-003")
 def test_04_package_owned_refinement(
     harness: DocumentationEvaluationHarness,
@@ -340,7 +438,14 @@ def test_04_package_owned_refinement(
     assert_findings(findings)
 
 
-@pytest.mark.requirements("DOCGEN-004")
+@pytest.mark.routine
+@pytest.mark.requirements(
+    "DOCGEN-004",
+    "DOCGEN-006",
+    "DOCREP-006",
+    "DOCVAL-007",
+    "DOCVAL-008",
+)
 def test_05_normative_owner_and_discoverability(
     harness: DocumentationEvaluationHarness,
 ) -> None:
@@ -357,11 +462,16 @@ def test_05_normative_owner_and_discoverability(
         for path in matching_paths(run, "packages/event-sdk/docs")
         if "/development/" not in path
     ).lower()
+    consumer_text = f"{readme}\n{current_docs}"
     paths = set(run.changed_paths)
     findings = basic_run_findings(run) + (
         AssertionFinding(
             "package discovery improved",
-            "retry" in readme and "retry" in index,
+            (
+                re.search(r"\bretr(?:y|ies|ied|ying)\b", readme) is not None
+                or "publishing.md" in readme
+            )
+            and "retry" in index,
             "README and docs index should route to retry lifecycle",
         ),
         AssertionFinding(
@@ -374,6 +484,20 @@ def test_05_normative_owner_and_discoverability(
             "replay_failed" not in current_docs
             and "replay persisted failed" not in current_docs,
             "future replay must remain target-only",
+        ),
+        AssertionFinding(
+            "consumer docs exclude internal target links",
+            "development/specifications" not in consumer_text
+            and "event-lifecycle/technical-spec" not in consumer_text,
+            "consumer docs must not depend on the internal target",
+        ),
+        AssertionFinding(
+            "consumer docs exclude internal tracking context",
+            not _contains_any(
+                consumer_text,
+                ("event-002", "target-only", "temporary progress", "tasks/"),
+            ),
+            "consumer docs should use package-user vocabulary",
         ),
         AssertionFinding(
             "normative target not duplicated",
@@ -408,7 +532,8 @@ def _test_06_first_turn(harness: DocumentationEvaluationHarness):
     )
 
 
-@pytest.mark.requirements("DOCGEN-005")
+@pytest.mark.routine
+@pytest.mark.requirements("DOCGEN-005", "DOCVAL-008")
 def test_06_substantial_specification_approval(
     harness: DocumentationEvaluationHarness,
 ) -> None:
@@ -434,6 +559,11 @@ def test_06_substantial_specification_approval(
             "overlap considered",
             "transport" in response and "persistence" in response,
             "expected relationship to existing contracts",
+        ),
+        AssertionFinding(
+            "approval-ready proposal remains concise",
+            len(first.value.response) <= 6000,
+            f"{len(first.value.response)} characters",
         ),
     )
     record_review(
@@ -504,7 +634,8 @@ def _test_07_run(harness: DocumentationEvaluationHarness):
     )
 
 
-@pytest.mark.requirements("DOCGEN-002")
+@pytest.mark.routine
+@pytest.mark.requirements("DOCGEN-002", "DOCVAL-008")
 def test_07_approved_task_specification_only(
     harness: DocumentationEvaluationHarness,
 ) -> None:
@@ -517,14 +648,16 @@ def test_07_approved_task_specification_only(
             "packages/report-export-sdk/docs/development/specifications/export-limits",
         )
     ).lower()
+    max_rows_row = _markdown_requirement_row(spec_text, "max_rows")
     findings = basic_run_findings(run) + (
         AssertionFinding("target prepared", "max_rows" in spec_text, "missing max_rows"),
         AssertionFinding(
             "requirements pending",
-            "not started" in spec_text
-            and "unverified" in spec_text
-            and "pending" in spec_text,
-            "expected pending live state",
+            len(max_rows_row) >= 6
+            and max_rows_row[2] == "not started"
+            and max_rows_row[3] == "unverified"
+            and max_rows_row[4] == "pending",
+            repr(max_rows_row),
         ),
         AssertionFinding(
             "no code or test mutation",
@@ -549,6 +682,7 @@ def test_07_approved_task_specification_only(
     assert_findings(findings)
 
 
+@pytest.mark.extended
 @pytest.mark.requirements("DOCGEN-002")
 def test_08_approved_specification_implementation(
     harness: DocumentationEvaluationHarness,
@@ -604,6 +738,7 @@ def test_08_approved_specification_implementation(
     assert_findings(findings)
 
 
+@pytest.mark.extended
 @pytest.mark.requirements("DOCGEN-002", "DOCGEN-003", "DOCGEN-005")
 def test_09_task_authorized_new_specification(
     harness: DocumentationEvaluationHarness,
@@ -654,6 +789,7 @@ def test_09_task_authorized_new_specification(
     assert_findings(findings)
 
 
+@pytest.mark.routine
 @pytest.mark.requirements("DOCGEN-002")
 def test_10_bug_fix_with_existing_specification(
     harness: DocumentationEvaluationHarness,
@@ -713,6 +849,7 @@ def test_10_bug_fix_with_existing_specification(
     assert_findings(findings)
 
 
+@pytest.mark.routine
 @pytest.mark.requirements("DOCGEN-002", "DOCGEN-005")
 def test_11_local_bugfix_without_durable_specification(
     harness: DocumentationEvaluationHarness,
@@ -752,6 +889,7 @@ def test_11_local_bugfix_without_durable_specification(
     assert_findings(findings)
 
 
+@pytest.mark.extended
 @pytest.mark.requirements("DOCGEN-002", "DOCGEN-004")
 def test_12_documentation_followup_after_implementation(
     harness: DocumentationEvaluationHarness,
@@ -809,7 +947,14 @@ def test_12_documentation_followup_after_implementation(
     assert_findings(findings)
 
 
-@pytest.mark.requirements("DOCGEN-002")
+@pytest.mark.routine
+@pytest.mark.requirements(
+    "DOCGEN-002",
+    "DOCGEN-006",
+    "DOCREP-006",
+    "DOCVAL-007",
+    "DOCVAL-008",
+)
 def test_13_partial_major_change(
     harness: DocumentationEvaluationHarness,
 ) -> None:
@@ -861,6 +1006,29 @@ def test_13_partial_major_change(
             "README should describe only delivered phases",
         ),
         AssertionFinding(
+            "current docs exclude internal progress vocabulary",
+            not _contains_any(
+                readme,
+                (
+                    "phase 1",
+                    "phase 2",
+                    "phase 3",
+                    "sync-001",
+                    "sync-002",
+                    "sync-003",
+                    "tasks/",
+                    "later target",
+                    "target-only",
+                ),
+            ),
+            readme,
+        ),
+        AssertionFinding(
+            "current docs explain delivered queue uploads",
+            "queue_upload" in readme or "idempotency" in readme,
+            "expected delivered behavior in package-user vocabulary",
+        ),
+        AssertionFinding(
             "temporary progress remains",
             "temporary progress" in index and "sync-003" in index,
             "expected remaining progress boundary",
@@ -879,6 +1047,7 @@ def test_13_partial_major_change(
     assert_findings(findings)
 
 
+@pytest.mark.extended
 @pytest.mark.requirements("DOCGEN-003")
 def test_14_portable_contract_owner(
     harness: DocumentationEvaluationHarness,
@@ -937,6 +1106,167 @@ def test_14_portable_contract_owner(
     record_review(
         run,
         spec_file="14-portable-contract-owner.md",
+        findings=findings,
+    )
+    assert_findings(findings)
+
+
+@pytest.mark.routine
+@pytest.mark.requirements(
+    "DOCGEN-002",
+    "DOCGEN-006",
+    "DOCREP-006",
+    "DOCVAL-007",
+    "DOCVAL-008",
+)
+def test_15_premature_current_documentation(
+    harness: DocumentationEvaluationHarness,
+) -> None:
+    run = harness.branch(
+        test_id="15-premature-current-documentation",
+        spec_file="15-premature-current-documentation.md",
+        parent=_seed_02(harness),
+        fixture_id="report-export",
+    )
+    readme = file_text(run, "packages/report-export-sdk/README.md").lower()
+    response = run.value.response.lower()
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "no premature mutation",
+            not run.changed_paths,
+            repr(run.changed_paths),
+        ),
+        AssertionFinding(
+            "README remains current",
+            "max_rows" not in readme
+            and re.search(r"accepts\s+any\s+number\s+of\s+rows", readme)
+            is not None,
+            readme,
+        ),
+        AssertionFinding(
+            "target/current boundary explained",
+            _contains_any(
+                response,
+                (
+                    "not implemented",
+                    "not yet implemented",
+                    "implementation is pending",
+                    "not currently supported",
+                    "isn't implemented",
+                    "does not exist",
+                    "does not yet exist",
+                    "do not exist",
+                    "does not accept",
+                        "has no `max_rows` parameter",
+                        "remains unimplemented",
+                ),
+            ),
+            run.value.response,
+        ),
+        AssertionFinding(
+            "compliant next step offered",
+            _contains_any(response, ("implement", "specification", "requirements")),
+            run.value.response,
+        ),
+        AssertionFinding(
+            "completion remains honest",
+            not _contains_any(response, ("updated the readme", "readme has been updated")),
+            run.value.response,
+        ),
+    )
+    record_review(
+        run,
+        spec_file="15-premature-current-documentation.md",
+        findings=findings,
+    )
+    assert_findings(findings)
+
+
+@pytest.mark.extended
+@pytest.mark.requirements(
+    "DOCGEN-007",
+    "DOCREP-006",
+    "DOCVAL-007",
+    "DOCVAL-008",
+)
+def test_16_failed_generated_refresh(
+    harness: DocumentationEvaluationHarness,
+) -> None:
+    run = harness.branch(
+        test_id="16-failed-generated-refresh",
+        spec_file="16-failed-generated-refresh.md",
+        parent=_seed_01(harness),
+        fixture_id="js-single-file-tool",
+        branch_variant="generated-typo-failing-generator",
+    )
+    readme = file_text(run, "plugins/js-single-file-tool/README.md")
+    prepared = file_text(
+        run,
+        "docs_site/prepared/plugins/js-single-file-tool/index.md",
+    )
+    generator = file_text(run, "docs_site/scripts/prepare_mkdocs_site.py")
+    response = run.value.response.lower()
+    raw_session = _raw_session_text(run)
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "authored source corrected",
+            "npm --version" in readme and "npm --vesion" not in readme,
+            "README should contain corrected command",
+        ),
+        AssertionFinding(
+            "source-only mutation after generator failure",
+            run.changed_paths == ("plugins/js-single-file-tool/README.md",),
+            repr(run.changed_paths),
+        ),
+        AssertionFinding(
+            "prepared output unchanged",
+            "npm --vesion" in prepared,
+            "prepared page should retain the original typo",
+        ),
+        AssertionFinding(
+            "generator unchanged",
+            "missing dependency: mkdocs-material-extensions" in generator,
+            generator,
+        ),
+        AssertionFinding(
+            "approved generator attempted",
+            _tool_command_observed(run, "prepare_mkdocs_site.py"),
+            "expected preparation command in raw session evidence",
+        ),
+        AssertionFinding(
+            "generator failure observed",
+            "mkdocs-material-extensions" in raw_session
+            or "mkdocs-material-extensions" in response,
+            "expected deterministic missing-dependency failure",
+        ),
+        AssertionFinding(
+            "blocker and remaining action reported",
+            _contains_any(response, ("failed", "missing", "could not", "unable"))
+            and _contains_any(response, ("generat", "prepar", "refresh")),
+            run.value.response,
+        ),
+        AssertionFinding(
+            "completion remains honest",
+            _contains_any(
+                response,
+                (
+                    "not regenerated",
+                    "not refreshed",
+                    "could not regenerate",
+                    "unable to",
+                    "still contains the typo",
+                    "still contains the old typo",
+                    "stale",
+                    "remains unchanged",
+                    "did not claim a refresh",
+                ),
+            ),
+            run.value.response,
+        ),
+    )
+    record_review(
+        run,
+        spec_file="16-failed-generated-refresh.md",
         findings=findings,
     )
     assert_findings(findings)

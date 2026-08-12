@@ -73,7 +73,10 @@ pytest maintainer/agent-evaluation/tests -q
 ```
 
 Real-model tests use the `agent_eval` marker and are excluded by default.
-Checkpoint 3 owns the first documentation-standard consumers.
+The
+[documentation-standard behavioral suite](documentation-standard-suite.md)
+explains baseline/candidate guidance variants, routine/extended selection, and
+real-model commands.
 
 ## Extension guidance
 

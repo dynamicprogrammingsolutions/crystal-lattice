@@ -44,6 +44,10 @@ Before creating a substantial new specification, the implementer should propose:
 Creation requires user approval unless the active work item already authorizes
 the specification.
 
+A direct request to create a substantial specification does not replace this
+proposal and confirmation when its owner, scope, and overlap have not already
+been approved.
+
 ## Specification ownership
 
 Any package may define specifications for behavior it owns.
