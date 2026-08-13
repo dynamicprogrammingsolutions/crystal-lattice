@@ -1,0 +1,34 @@
+# Native conversation compaction requirements
+
+These requirements track the live implementation of the
+[native conversation compaction specification](index.md).
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| ORCMP-001 | API-key native compaction uses the dedicated non-streaming Responses compact API and applies its validated output as the selected prefix replacement. | Implemented | Automated | Documented | `openai_responses_native_compaction.py`; `tests/test_openai_responses_native_compaction_extension_unit.py::test_compaction_action_uses_sdk_and_sanitizes_input`; package README |
+| ORCMP-002 | ChatGPT native compaction uses streamed remote compaction v2 over the normal Responses endpoint, advertises `remote_compaction_v2`, appends a transient `compaction_trigger`, and requires exactly one encrypted compaction output item. | Implemented | Automated | Documented | `openai_responses_native_compaction.py`; `tests/test_openai_responses_native_compaction_extension_unit.py::test_compaction_uses_chatgpt_effective_endpoint_when_enabled`; `tests/test_openai_responses_native_compaction_extension_unit.py::test_chatgpt_compaction_rejects_invalid_v2_output_count`; `tests/test_openai_responses_chatgpt_native_compaction_manual_integration.py::test_openai_responses_chatgpt_saved_login_native_compaction`; package README |
+| ORCMP-003 | ChatGPT V2 constructs reusable native history from eligible retained messages followed by the returned compaction item, without persisting the trigger. | Implemented | Automated | Documented | `openai_responses_native_compaction.py`; `tests/test_openai_responses_native_compaction_extension_unit.py::test_chatgpt_message_injection_compaction_sends_rendered_system_as_instructions_and_preserves_history`; `tests/test_openai_responses_chatgpt_native_compaction_manual_integration.py::test_openai_responses_chatgpt_saved_login_native_compaction` |
+| ORCMP-004 | Applicable tools, reasoning, service tier, prompt-cache, text, and include options from the effective normal request are available to ChatGPT V2 compaction, while unrelated sampling options are not forwarded. | Implemented | Automated | Documented | `tests/test_openai_responses_native_compaction_extension_unit.py::test_compaction_uses_chatgpt_effective_endpoint_when_enabled`; technical specification |
+| ORCMP-005 | A user can compact all visible history or a contiguous visible prefix and continue from the resulting native history; the untouched suffix remains after the compacted prefix. | Implemented | Automated | Documented | `tests/test_openai_responses_native_compaction_extension_unit.py::test_core_session_action_compacts_only_visible_prefix_slice`; `tests/test_openai_responses_native_compaction_extension_unit.py::test_core_session_action_rebuilds_from_compacted_native_output_and_keeps_future_turns_working`; `tests/test_openai_responses_native_compaction_integration.py::test_openai_responses_full_compaction_allows_followup_turn`; `tests/test_openai_responses_native_compaction_integration.py::test_openai_responses_partial_compaction_allows_followup_turn`; package README |
+| ORCMP-006 | A saved ChatGPT login supports an initial hosted request, cancellable async V2 compaction, persisted encrypted compaction state, and a hosted follow-up request. | Implemented | Automated | Documented | `tests/test_openai_responses_chatgpt_native_compaction_manual_integration.py::test_openai_responses_chatgpt_saved_login_native_compaction`; hosted run using `~/.crystal/auth/chatgpt-auth.json` |
+| ORCMP-007 | `compaction_model` selects the compaction request model without changing the normal request model. | Implemented | Automated | Documented | `tests/test_openai_responses_native_compaction_extension_unit.py::test_compaction_model_overrides_request_model_when_configured`; package README |
+| ORCMP-008 | Disabling ChatGPT authentication for compaction forces API/V1 mode and reports a clear error when no API key is available. | Implemented | Automated | Documented | `tests/test_openai_responses_native_compaction_extension_unit.py::test_compaction_can_force_api_endpoint_when_chatgpt_compaction_disabled`; `tests/test_openai_responses_native_compaction_extension_unit.py::test_compaction_disabled_chatgpt_mode_requires_api_key`; package README |
+| ORCMP-009 | The primary session action runs compaction in the background, reports progress, commits validated results, and asks clients to reload the completed session. | Implemented | Automated | Documented | `tests/test_openai_responses_native_compaction_app.py::test_background_action_returns_promptly_and_publishes_heartbeats`; `tests/test_openai_responses_native_compaction_app.py::test_session_ui_uses_application_owned_background_action`; package README |
+| ORCMP-010 | Cancelling background compaction interrupts both V1 and V2 HTTP work, revokes commit authority, and prevents a late result from changing the session. | Implemented | Automated | Documented | `tests/test_openai_responses_native_compaction_transport.py::test_async_compact_transport_cancels_delayed_http_exchange`; `tests/test_openai_responses_native_compaction_app.py::test_cancel_action_interrupts_transport_and_discards_result`; package README |
+| ORCMP-011 | Concurrent session-history changes detected before compaction commit produce a visible failure and preserve the concurrently updated session. | Implemented | Automated | Documented | `tests/test_openai_responses_native_compaction_app.py::test_concurrent_history_change_fails_without_overwriting_current_session`; product and technical specifications |
+| ORCMP-012 | Users can toggle expanded and placeholder transcript projections without changing canonical compacted native history. | Implemented | Automated | Documented | `tests/test_openai_responses_native_compaction_extension_unit.py::test_toggle_compaction_transcript_mode_updates_overrides_and_rebuilds`; `tests/test_openai_responses_native_compaction_extension_unit.py::test_core_session_action_can_use_placeholder_transcript_when_enabled`; package README |
+
+## Verification notes
+
+The hosted ChatGPT acceptance test uses saved credentials and is intentionally
+marked `manual_integration`, `integration`, `api`, and `openai`. It must be run
+with those gates enabled; a skipped run is not verification.
+
+Hosted API/V1 verification additionally depends on an OpenAI API account with
+available credit. Local contract coverage verifies that API mode continues to
+call the V1 SDK compact resource even when hosted billing prevents the
+provider-backed test from running.
+
+Requirements intentionally omit helper-only parsing, conversion, and internal
+state tests that do not establish an additional user-facing or compatibility
+contract.

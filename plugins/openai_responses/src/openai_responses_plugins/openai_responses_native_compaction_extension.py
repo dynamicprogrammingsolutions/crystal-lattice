@@ -845,6 +845,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             if isinstance(raw_instructions, str) and raw_instructions.strip()
             else None
         )
+        request_payload = (
+            request.get("payload") if isinstance(request.get("payload"), dict) else {}
+        )
 
         (
             input_items,
@@ -886,7 +889,10 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                         "or re-enable use_chatgpt_auth_for_compaction."
                     ) from exc
                 raise
-            transport = SyncOpenAIResponsesCompactionTransport(client)
+            transport = SyncOpenAIResponsesCompactionTransport(
+                client,
+                config=compaction_config,
+            )
 
         try:
             response_obj = OpenAIResponsesNativeCompactionBackend().compact(
@@ -894,13 +900,14 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 model=model,
                 input_items=input_items,
                 instructions=instructions_value,
+                request_options=request_payload,
                 timeout=timeout,
             )
         except Exception as exc:
             if effective_auth_mode(compaction_config) == "chatgpt":
                 raise RuntimeError(
                     "OpenAI Responses native compaction failed on the ChatGPT endpoint. "
-                    "This backend may not support native compaction: "
+                    "Remote compaction v2 failed: "
                     f"{exc}"
                 ) from exc
             raise RuntimeError(f"OpenAI Responses compact failed: {exc}") from exc

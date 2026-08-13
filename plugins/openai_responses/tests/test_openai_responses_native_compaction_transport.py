@@ -32,22 +32,33 @@ class _DelayedCompactHandler(BaseHTTPRequestHandler):
         if length:
             self.rfile.read(length)
         type(self).entered.set()
-        payload = json.dumps(
-            {
-                "id": "cmp_test",
-                "created_at": 1,
-                "object": "response.compaction",
-                "output": [],
-                "usage": {
-                    "input_tokens": 0,
-                    "output_tokens": 0,
-                    "total_tokens": 0,
-                },
-            }
-        ).encode()
+        if self.path.endswith("/responses"):
+            payload = (
+                'event: response.completed\n'
+                'data: {"type":"response.completed","response":'
+                '{"id":"resp_test","output":[{"type":"compaction",'
+                '"encrypted_content":"opaque"}]}}\n\n'
+                "data: [DONE]\n\n"
+            ).encode()
+            content_type = "text/event-stream"
+        else:
+            payload = json.dumps(
+                {
+                    "id": "cmp_test",
+                    "created_at": 1,
+                    "object": "response.compaction",
+                    "output": [],
+                    "usage": {
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "total_tokens": 0,
+                    },
+                }
+            ).encode()
+            content_type = "application/json"
         if type(self).mode == "after_headers":
             self.send_response(200)
-            self.send_header("content-type", "application/json")
+            self.send_header("content-type", content_type)
             self.send_header("content-length", str(len(payload)))
             self.end_headers()
             self.wfile.flush()
@@ -55,7 +66,7 @@ class _DelayedCompactHandler(BaseHTTPRequestHandler):
         try:
             if type(self).mode == "before_headers":
                 self.send_response(200)
-                self.send_header("content-type", "application/json")
+                self.send_header("content-type", content_type)
                 self.send_header("content-length", str(len(payload)))
                 self.end_headers()
             self.wfile.write(payload)
@@ -64,7 +75,11 @@ class _DelayedCompactHandler(BaseHTTPRequestHandler):
 
 
 @pytest.mark.parametrize("mode", ["before_headers", "after_headers"])
-def test_async_compact_transport_cancels_delayed_http_exchange(mode: str) -> None:
+@pytest.mark.parametrize("auth_mode", ["api", "chatgpt"])
+def test_async_compact_transport_cancels_delayed_http_exchange(
+    mode: str,
+    auth_mode: str,
+) -> None:
     _DelayedCompactHandler.mode = mode
     _DelayedCompactHandler.entered = threading.Event()
     _DelayedCompactHandler.release = threading.Event()
@@ -75,12 +90,23 @@ def test_async_compact_transport_cancels_delayed_http_exchange(mode: str) -> Non
         run_awaitable_blocking=runtime.run_blocking,
         max_retries=0,
     )
-    transport.configure(
-        {
-            "api_key": "test",
-            "base_url": f"http://127.0.0.1:{server.server_port}/v1",
-        }
-    )
+    base_url = f"http://127.0.0.1:{server.server_port}/v1"
+    if auth_mode == "chatgpt":
+        transport.configure(
+            {
+                "auth_mode": "chatgpt",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+                "chatgpt_access_token": "test",
+                "chatgpt_base_url": base_url,
+            }
+        )
+    else:
+        transport.configure(
+            {
+                "api_key": "test",
+                "base_url": base_url,
+            }
+        )
     outcome: dict[str, BaseException] = {}
 
     def _run() -> None:
