@@ -316,7 +316,9 @@ def _build_fixture(
     events = _read_jsonl(stdout_jsonl)
     replacements = {
         str(raw_dir.resolve()): "<RAW_DIR>",
+        str(raw_dir): "<RAW_DIR>",
         str(mcp_config.resolve()): "<MCP_CONFIG>",
+        str(mcp_config): "<MCP_CONFIG>",
         str(SERVER_SRC.resolve()): "<DUMMY_MCP_OUTPUT_SERVER_SRC>",
     }
     normalized_requests = normalize_value(

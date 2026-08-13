@@ -86,7 +86,8 @@ cloud cost, or a major obstacle to understanding the repository.
 
 - [x] `tasks/20260804-open-source-public-release/010-sensitive-data-and-history-release-gate.md`
   - COMPLETED on 2026-08-04: full-history and current-tree scans found no verified active credential; the historical ChatGPT session was revoked and retained findings were explicitly accepted.
-- [ ] `tasks/20260804-open-source-public-release/020-claude-tools-license-and-provenance-restoration.md`
+- [x] `tasks/20260804-open-source-public-release/020-claude-tools-license-and-provenance-restoration.md`
+  - COMPLETED on 2026-08-12: restored Apache-2.0 licensing and independent public-behavior provenance, normalized fixture home paths, and verified package behavior and distributions.
 - [ ] `tasks/20260804-open-source-public-release/030-minimum-public-documentation-and-support.md`
 - [ ] `tasks/20260804-open-source-public-release/040-minimum-ci-and-automation-hardening.md`
 - [ ] `tasks/20260804-open-source-public-release/050-lean-root-cleanup-and-archive.md`

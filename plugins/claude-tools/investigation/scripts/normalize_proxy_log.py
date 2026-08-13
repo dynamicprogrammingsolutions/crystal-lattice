@@ -27,6 +27,16 @@ from typing import Any
 
 BODY_MARKER = "Body:"
 LONG_TEXT_HEADER = "--- Long Text Fields ---"
+USER_HOME_PLACEHOLDER = "<USER_HOME>"
+_POSIX_USER_HOME_RE = re.compile(
+    r"(?<![A-Za-z0-9_])/(?:Users|home)/[^/\\\s\"'<>]+"
+)
+_WINDOWS_USER_HOME_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9_])(?:[A-Z]:[\\/])Users[\\/][^/\\\s\"'<>]+"
+)
+_ENCODED_USER_HOME_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9_])-(?:(?:[A-Z]--)?Users|home)-[^/\\\s\"'<>-]+"
+)
 
 
 def _extract_balanced_json(text: str, start_index: int) -> tuple[dict[str, Any], int]:
@@ -94,6 +104,9 @@ def _normalize_string(value: str, replacements: dict[str, str]) -> str:
     for original, replacement in replacements.items():
         if original:
             value = value.replace(original, replacement)
+    value = _WINDOWS_USER_HOME_RE.sub(USER_HOME_PLACEHOLDER, value)
+    value = _POSIX_USER_HOME_RE.sub(USER_HOME_PLACEHOLDER, value)
+    value = _ENCODED_USER_HOME_RE.sub("<USER_HOME_KEY>", value)
     value = re.sub(
         r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
         "<UUID>",
@@ -104,6 +117,16 @@ def _normalize_string(value: str, replacements: dict[str, str]) -> str:
     value = re.sub(r"\breq_[A-Za-z0-9_-]+\b", "<REQUEST_ID>", value)
     value = re.sub(r'"device_id":"[^"]+"', '"device_id":"<DEVICE_ID>"', value)
     return value
+
+
+def contains_user_home_path(value: str) -> bool:
+    """Return whether text contains an unnormalized platform user-home path."""
+
+    return bool(
+        _WINDOWS_USER_HOME_RE.search(value)
+        or _POSIX_USER_HOME_RE.search(value)
+        or _ENCODED_USER_HOME_RE.search(value)
+    )
 
 
 def normalize_value(value: Any, replacements: dict[str, str]) -> Any:

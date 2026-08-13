@@ -83,6 +83,30 @@ Normalized fixtures should be produced by the investigation scripts. Do not trea
 
 If manual transcription or hand-editing is ever used as a temporary debugging step, it should be replaced with script-generated fixtures before the work is considered complete.
 
+## Licensing And Provenance
+
+This subtree is licensed under Apache-2.0. Its compatibility implementation,
+investigation scripts and notes, tests, system-message compatibility assets,
+and AI-generated normalized behavior fixtures are Crystal Lattice project
+materials covered by the subtree `LICENSE`.
+
+Do not claim that Anthropic's license applies to a Crystal Lattice file merely
+because publicly visible Claude Code behavior was observed. User-facing
+documentation must clearly state that Crystal Lattice is an independent
+compatibility implementation and is not affiliated with or endorsed by
+Anthropic.
+
+Claude and Claude Code names and observed literal strings may remain where
+factually or behaviorally necessary for compatibility. Preserve those
+LLM-facing contracts unless an investigation and tests support changing them.
+
+Raw logs, credentials, local settings, real user-home paths, and other
+run-specific private data must not be committed. Explicit workspace and raw
+directory replacements take precedence, after which normalizers must replace
+macOS, Linux, and Windows user-home prefixes with stable placeholders.
+
+See `PROVENANCE.md` for the public provenance and non-affiliation statement.
+
 ## Implemented Surface
 
 Currently implemented:

@@ -541,10 +541,10 @@ Some subdirectories may include their own `LICENSE` files, file-level license
 headers, `NOTICE` files, or other rights notices. Those more specific notices
 apply within their respective files or subtrees.
 
-Some compatibility-oriented materials in this repository are derived from or
-adapted from third-party systems and are not necessarily licensed by us under
-Apache-2.0. Rights for those materials should be determined from the
-applicable file-level notices, subtree-specific notices, and upstream terms.
+Independently authored compatibility implementations and generated normalized
+behavior fixtures may be Apache-2.0 licensed where the applicable project or
+subtree says so. Actual third-party source or adapted material remains subject
+to its applicable upstream notices and terms.
 
 See [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md) for the repository-wide
 licensing rule.

@@ -28,5 +28,7 @@ Licensed under the Apache License, Version 2.0
 Copyright 2025 Qwen contributors
 https://github.com/QwenLM/qwen-code
 
-Additional subtree-specific attribution notices are provided in the directories
-that contain the derived prompt and tool compatibility materials.
+Additional subtree-specific attribution and provenance notices are provided in
+the directories that contain compatibility materials. Claude Tools is an
+independent compatibility implementation; see
+plugins/claude-tools/PROVENANCE.md.

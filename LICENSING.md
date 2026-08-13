@@ -10,10 +10,18 @@ that tree overrides it.
 File-level license headers, `NOTICE` files, and other rights notices also apply
 to the files or subtrees where they appear.
 
-Some compatibility-oriented materials in this repository are derived from or
-adapted from third-party systems and are not necessarily licensed by us under
-Apache-2.0. Rights for those materials should be determined from the
-applicable file-level notices, subtree-specific notices, and upstream terms.
+Independently authored compatibility implementations and generated normalized
+behavior fixtures may be licensed under Apache-2.0 when stated by the
+applicable project or subtree license. Observing a third-party system's
+publicly visible behavior does not by itself import that system's license into
+those independently produced materials.
+
+Actual third-party source code, prompts, media, or other copied or adapted
+materials remain subject to their applicable file-level notices,
+subtree-specific notices, and upstream terms.
+
+For Claude Tools specifically, see
+`plugins/claude-tools/PROVENANCE.md` and its subtree `LICENSE`.
 
 Contributions are accepted under the license that applies to the directory in
 which the contribution is made.
