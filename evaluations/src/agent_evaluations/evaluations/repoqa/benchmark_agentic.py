@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 from pathlib import Path
-import sys
 from typing import Any, Dict
 
 from agent_evaluations.benchmark_registry import BenchmarkDefinition
@@ -19,39 +17,23 @@ from agent_evaluations.cli_helpers import (
 )
 from agent_evaluations.config_dir import load_evaluation_environment
 from agent_evaluations.container_backend import resolve_docker_runtime_config
+from agent_evaluations.evaluations.repoqa.logic_agentic import (
+    DEFAULT_REPOQA_RELEASE,
+    RepoQATask,
+    build_repoqa_manifest,
+    default_repoqa_manifest_path,
+    download_repoqa_release,
+    materialize_repoqa_workspace,
+    repoqa_cache_path,
+    run_benchmark_task_in_container,
+    run_repoqa_benchmark,
+    run_repoqa_single_task_from_payload,
+    run_repoqa_task_with_restarts,
+    score_repoqa_answer,
+    warm_container_plugin_cache,
+)
 from agent_evaluations.profiles import load_run_profile
 from agent_evaluations.utils import write_json_atomic
-
-
-def _load_logic_module() -> Any:
-    module_name = "agent_evaluations_external_benchmark_repoqa_agentic_logic"
-    cached = sys.modules.get(module_name)
-    if cached is not None:
-        return cached
-    module_path = Path(__file__).with_name("logic.py")
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load RepoQA agentic logic from {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_logic = _load_logic_module()
-DEFAULT_REPOQA_RELEASE = _logic.DEFAULT_REPOQA_RELEASE
-build_repoqa_manifest = _logic.build_repoqa_manifest
-default_repoqa_manifest_path = _logic.default_repoqa_manifest_path
-download_repoqa_release = _logic.download_repoqa_release
-RepoQATask = _logic.RepoQATask
-materialize_repoqa_workspace = _logic.materialize_repoqa_workspace
-repoqa_cache_path = _logic.repoqa_cache_path
-run_repoqa_benchmark = _logic.run_repoqa_benchmark
-run_repoqa_task_with_restarts = _logic.run_repoqa_task_with_restarts
-run_repoqa_single_task_from_payload = _logic.run_repoqa_single_task_from_payload
-score_repoqa_answer = _logic.score_repoqa_answer
-warm_container_plugin_cache = _logic.warm_container_plugin_cache
-run_benchmark_task_in_container = _logic.run_benchmark_task_in_container
 
 
 def _manifest_profile(profile_payload: Dict[str, Any]) -> Dict[str, Any]:

@@ -65,7 +65,7 @@ def test_internal_run_single_repoqa_dispatches_via_registered_benchmark(
     load_benchmarks()
 
     monkeypatch.setattr(
-        "agent_evaluations_external_benchmark_repoqa_agentic.load_evaluation_environment",
+        "agent_evaluations.evaluations.repoqa.benchmark_agentic.load_evaluation_environment",
         lambda _config_dir: _FakeEnv(),
     )
 
@@ -91,7 +91,7 @@ def test_internal_run_single_repoqa_dispatches_via_registered_benchmark(
         return {"state": "completed", "score": {"score": 1.0}}
 
     monkeypatch.setattr(
-        "agent_evaluations_external_benchmark_repoqa_agentic.run_repoqa_single_task_from_payload",
+        "agent_evaluations.evaluations.repoqa.benchmark_agentic.run_repoqa_single_task_from_payload",
         _fake_run_single,
     )
 
@@ -176,11 +176,11 @@ def test_manifest_repoqa_prompted_uses_profile_manifest_settings(
         return {"task_count": 0, "tasks": []}
 
     monkeypatch.setattr(
-        "agent_evaluations_external_benchmark_repoqa_prompted.download_repoqa_release",
+        "agent_evaluations.evaluations.repoqa.benchmark_prompted.download_repoqa_release",
         _fake_download,
     )
     monkeypatch.setattr(
-        "agent_evaluations_external_benchmark_repoqa_prompted.build_repoqa_prompted_manifest",
+        "agent_evaluations.evaluations.repoqa.benchmark_prompted.build_repoqa_prompted_manifest",
         _fake_build,
     )
 
@@ -227,7 +227,7 @@ def test_download_repoqa_prompted_uses_profile_release(
         return tmp_path / "cache.json.gz"
 
     monkeypatch.setattr(
-        "agent_evaluations_external_benchmark_repoqa_prompted.download_repoqa_release",
+        "agent_evaluations.evaluations.repoqa.benchmark_prompted.download_repoqa_release",
         _fake_download,
     )
 

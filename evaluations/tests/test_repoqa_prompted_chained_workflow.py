@@ -1,21 +1,10 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
 
+from agent_evaluations.evaluations.repoqa.workflows import chained_workflow as MODULE  # type: ignore[import-not-found]
 
-MODULE_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "benchmarks"
-    / "repoqa_prompted"
-    / "chained_workflow.py"
-)
-SPEC = importlib.util.spec_from_file_location("repoqa_prompted_chained_workflow", MODULE_PATH)
-if SPEC is None or SPEC.loader is None:
-    raise RuntimeError(f"Could not load module from {MODULE_PATH}")
-MODULE = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(MODULE)
 
 build_hierarchical_report = MODULE.build_hierarchical_report
 command_report = MODULE.command_report

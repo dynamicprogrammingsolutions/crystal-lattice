@@ -8,20 +8,20 @@ fi
 
 ARTIFACT_ROOT_INPUT="$1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 ARTIFACT_ROOT="$(python - <<'PY' "$ARTIFACT_ROOT_INPUT"
 from pathlib import Path
 import sys
 print(Path(sys.argv[1]).expanduser().resolve())
 PY
 )"
-WORKFLOW_CONFIG="$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_limit50_repeat5_api_codex_workflow.json"
+WORKFLOW_CONFIG="$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_limit50_repeat5_api_codex_workflow.json"
 LOG_DIR="$ARTIFACT_ROOT/logs"
 STATE_DIR="$ARTIFACT_ROOT/state"
 NANO_RUN_MANIFEST_FILE="$STATE_DIR/nano-run-manifest.txt"
 MINI_RUN_MANIFEST_FILE="$STATE_DIR/mini-run-manifest.txt"
 FULL_RUN_MANIFEST_FILE="$STATE_DIR/full-run-manifest.txt"
-MINI_SEED_SOURCE="$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/config/openai_api_mini_codex_system_balanced/artifacts/sample-run1/results/mini-sample-codex-system/repoqa-prompted/20260512T065537Z"
+MINI_SEED_SOURCE="$REPO_ROOT/evaluations/evaluations/repoqa/config/openai_api_mini_codex_system_balanced/artifacts/sample-run1/results/mini-sample-codex-system/repoqa-prompted/20260512T065537Z"
 
 mkdir -p "$LOG_DIR" "$STATE_DIR"
 
@@ -66,7 +66,7 @@ latest_run_manifest_for_stage() {
   find "$root" -maxdepth 2 -name run-manifest.json | sort | tail -n 1
 }
 
-python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
   --workflow-config "$WORKFLOW_CONFIG" \
   prepare-base-manifest \
   > "$LOG_DIR/prepare-base-manifest.log" 2>&1
@@ -76,7 +76,7 @@ if [[ ! -f "$NANO_RUN_MANIFEST_FILE" ]]; then
   if MANIFEST="$(latest_run_manifest_for_stage nano-50 2>/dev/null)"; [[ -n "${MANIFEST:-}" ]]; then
     printf '%s\n' "$MANIFEST" > "$NANO_RUN_MANIFEST_FILE"
   else
-    python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+    python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
       --workflow-config "$WORKFLOW_CONFIG" \
       --artifact-root "$ARTIFACT_ROOT" \
       run-stage nano \
@@ -88,7 +88,7 @@ fi
 
 if [[ "$NANO_STARTED_WITHOUT_MANIFEST" -eq 0 ]]; then
   NANO_RUN_MANIFEST="$(tr -d '\n' < "$NANO_RUN_MANIFEST_FILE")"
-  python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+  python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
     --workflow-config "$WORKFLOW_CONFIG" \
     --artifact-root "$ARTIFACT_ROOT" \
     run-stage nano \
@@ -96,7 +96,7 @@ if [[ "$NANO_STARTED_WITHOUT_MANIFEST" -eq 0 ]]; then
     > "$LOG_DIR/nano-stage.log" 2>&1
 fi
 
-python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
   --workflow-config "$WORKFLOW_CONFIG" \
   --artifact-root "$ARTIFACT_ROOT" \
   refilter-next nano \
@@ -106,7 +106,7 @@ if [[ ! -f "$MINI_RUN_MANIFEST_FILE" ]]; then
   if MANIFEST="$(latest_run_manifest_for_stage mini-50 2>/dev/null)"; [[ -n "${MANIFEST:-}" ]]; then
     printf '%s\n' "$MANIFEST" > "$MINI_RUN_MANIFEST_FILE"
   else
-    python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+    python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
       --workflow-config "$WORKFLOW_CONFIG" \
       --artifact-root "$ARTIFACT_ROOT" \
       seed-run mini \
@@ -117,14 +117,14 @@ if [[ ! -f "$MINI_RUN_MANIFEST_FILE" ]]; then
 fi
 
 MINI_RUN_MANIFEST="$(tr -d '\n' < "$MINI_RUN_MANIFEST_FILE")"
-python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
   --workflow-config "$WORKFLOW_CONFIG" \
   --artifact-root "$ARTIFACT_ROOT" \
   run-stage mini \
   --run-manifest "$MINI_RUN_MANIFEST" \
   > "$LOG_DIR/mini-stage.log" 2>&1
 
-python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
   --workflow-config "$WORKFLOW_CONFIG" \
   --artifact-root "$ARTIFACT_ROOT" \
   refilter-next mini \
@@ -135,7 +135,7 @@ if [[ ! -f "$FULL_RUN_MANIFEST_FILE" ]]; then
   if MANIFEST="$(latest_run_manifest_for_stage full-50 2>/dev/null)"; [[ -n "${MANIFEST:-}" ]]; then
     printf '%s\n' "$MANIFEST" > "$FULL_RUN_MANIFEST_FILE"
   else
-    python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+    python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
       --workflow-config "$WORKFLOW_CONFIG" \
       --artifact-root "$ARTIFACT_ROOT" \
       run-stage full \
@@ -147,7 +147,7 @@ fi
 
 if [[ "$FULL_STARTED_WITHOUT_MANIFEST" -eq 0 ]]; then
   FULL_RUN_MANIFEST="$(tr -d '\n' < "$FULL_RUN_MANIFEST_FILE")"
-  python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+  python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
     --workflow-config "$WORKFLOW_CONFIG" \
     --artifact-root "$ARTIFACT_ROOT" \
     run-stage full \
@@ -155,7 +155,7 @@ if [[ "$FULL_STARTED_WITHOUT_MANIFEST" -eq 0 ]]; then
     > "$LOG_DIR/full-stage.log" 2>&1
 fi
 
-python "$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_workflow.py" \
+python "$REPO_ROOT/evaluations/evaluations/repoqa/workflows/chained_workflow.py" \
   --workflow-config "$WORKFLOW_CONFIG" \
   --artifact-root "$ARTIFACT_ROOT" \
   report \

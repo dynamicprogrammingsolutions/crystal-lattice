@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import json
-import importlib.util
 import re
 from datetime import datetime, timezone
-from pathlib import Path
-import sys
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 import random
 
@@ -17,6 +14,17 @@ from agent_evaluations.container_backend import (
     DockerRuntimeConfig,
     run_benchmark_task_in_container,
     warm_container_plugin_cache,
+)
+from agent_evaluations.evaluations.repoqa.common import (
+    DEFAULT_REPOQA_RELEASE,
+    RepoQATask,
+    count_tool_calls,
+    download_repoqa_release,
+    extract_final_assistant_text,
+    iter_repoqa_tasks,
+    load_repoqa_dataset,
+    repoqa_cache_path,
+    score_repoqa_answer,
 )
 from agent_evaluations.repeated_runs import (
     aggregate_results_by_task_id,
@@ -34,33 +42,6 @@ from agent_evaluations.utils import (
     write_json_atomic,
     write_jsonl_atomic,
 )
-
-
-def _load_repoqa_shared_module() -> Any:
-    module_name = "agent_evaluations_external_benchmark_repoqa_shared_common"
-    cached = sys.modules.get(module_name)
-    if cached is not None:
-        return cached
-    module_path = Path(__file__).resolve().parents[1] / "repoqa_shared" / "common.py"
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load RepoQA shared helpers from {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_shared = _load_repoqa_shared_module()
-DEFAULT_REPOQA_RELEASE = _shared.DEFAULT_REPOQA_RELEASE
-RepoQATask = _shared.RepoQATask
-count_tool_calls = _shared.count_tool_calls
-download_repoqa_release = _shared.download_repoqa_release
-extract_final_assistant_text = _shared.extract_final_assistant_text
-iter_repoqa_tasks = _shared.iter_repoqa_tasks
-load_repoqa_dataset = _shared.load_repoqa_dataset
-repoqa_cache_path = _shared.repoqa_cache_path
-score_repoqa_answer = _shared.score_repoqa_answer
 
 
 REPOQA_PROMPTED_BENCHMARK_ID = "repoqa-prompted"

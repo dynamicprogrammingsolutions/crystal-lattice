@@ -10,22 +10,19 @@ from agent_app.config import resolve_request_config
 from agent_evaluations.benchmark_registry import load_benchmarks
 from agent_evaluations.config_dir import load_evaluation_environment
 from agent_evaluations.container_backend import resolve_docker_runtime_config
+from agent_evaluations.evaluations.repoqa.benchmark_prompted import (
+    RepoQATask,
+    build_repoqa_prompted_manifest,
+    build_repoqa_prompted_prompt,
+    materialize_repoqa_prompted_workspace,
+    parse_repoqa_prompted_answer,
+    run_repoqa_prompted_benchmark,
+    run_repoqa_prompted_single_task_from_payload,
+    run_repoqa_prompted_task_with_restarts,
+)
+from agent_evaluations.evaluations.repoqa.common import DEFAULT_REPOQA_RELEASE, repoqa_cache_path
+from agent_evaluations.evaluations.repoqa import logic_prompted as _logic_prompted
 from agent_evaluations.utils import write_json
-
-
-load_benchmarks()
-_prompted = sys.modules["agent_evaluations_external_benchmark_repoqa_prompted"]
-_shared = sys.modules["agent_evaluations_external_benchmark_repoqa_shared_common"]
-DEFAULT_REPOQA_RELEASE = _shared.DEFAULT_REPOQA_RELEASE
-repoqa_cache_path = _shared.repoqa_cache_path
-RepoQATask = _prompted.RepoQATask
-build_repoqa_prompted_manifest = _prompted.build_repoqa_prompted_manifest
-build_repoqa_prompted_prompt = _prompted.build_repoqa_prompted_prompt
-materialize_repoqa_prompted_workspace = _prompted.materialize_repoqa_prompted_workspace
-parse_repoqa_prompted_answer = _prompted.parse_repoqa_prompted_answer
-run_repoqa_prompted_benchmark = _prompted.run_repoqa_prompted_benchmark
-run_repoqa_prompted_single_task_from_payload = _prompted.run_repoqa_prompted_single_task_from_payload
-run_repoqa_prompted_task_with_restarts = _prompted.run_repoqa_prompted_task_with_restarts
 
 
 def _write_fixture_config(
@@ -384,7 +381,7 @@ def test_repoqa_prompted_omitted_target_skips_request_and_is_excluded(tmp_path: 
     def _unexpected_attempt(*_args, **_kwargs):
         raise AssertionError("request should not be sent when target is omitted from context")
 
-    monkeypatch.setattr(_prompted._logic, "_run_repoqa_prompted_attempt", _unexpected_attempt)
+    monkeypatch.setattr(_logic_prompted, "_run_repoqa_prompted_attempt", _unexpected_attempt)
 
     result = run_repoqa_prompted_task_with_restarts(
         env,
@@ -467,7 +464,7 @@ def test_repoqa_prompted_summary_excludes_missing_target_context_from_accuracy(m
         ]
     )
 
-    monkeypatch.setattr(_prompted._logic, "run_repoqa_prompted_task_with_restarts", lambda *args, **kwargs: next(responses))
+    monkeypatch.setattr(_logic_prompted, "run_repoqa_prompted_task_with_restarts", lambda *args, **kwargs: next(responses))
 
     run_manifest_path = run_repoqa_prompted_benchmark(
         env,
@@ -533,7 +530,7 @@ def test_repoqa_prompted_summary_excludes_failed_requests_and_uses_none_for_zero
         ]
     )
 
-    monkeypatch.setattr(_prompted._logic, "run_repoqa_prompted_task_with_restarts", lambda *args, **kwargs: next(responses))
+    monkeypatch.setattr(_logic_prompted, "run_repoqa_prompted_task_with_restarts", lambda *args, **kwargs: next(responses))
 
     run_manifest_path = run_repoqa_prompted_benchmark(
         env,
@@ -607,11 +604,11 @@ def test_repoqa_prompted_docker_repeat_instances_use_unique_paths(monkeypatch, t
         }
 
     monkeypatch.setattr(
-        _prompted._logic,
+        _logic_prompted,
         "warm_container_plugin_cache",
         lambda runtime, *, host_config_dir, agent_id=None: {"state": "warmed"},
     )
-    monkeypatch.setattr(_prompted._logic, "run_benchmark_task_in_container", _fake_run_in_container)
+    monkeypatch.setattr(_logic_prompted, "run_benchmark_task_in_container", _fake_run_in_container)
 
     run_repoqa_prompted_benchmark(
         env,
@@ -761,11 +758,11 @@ def test_repoqa_prompted_runner_uses_docker_backend_when_selected(monkeypatch, t
         }
 
     monkeypatch.setattr(
-        _prompted._logic,
+        _logic_prompted,
         "warm_container_plugin_cache",
         lambda runtime, *, host_config_dir, agent_id=None: {"state": "warmed"},
     )
-    monkeypatch.setattr(_prompted._logic, "run_benchmark_task_in_container", _fake_run_in_container)
+    monkeypatch.setattr(_logic_prompted, "run_benchmark_task_in_container", _fake_run_in_container)
 
     run_manifest_path = run_repoqa_prompted_benchmark(
         env,
@@ -822,7 +819,7 @@ def test_repoqa_prompted_summary_aggregates_costs(monkeypatch, tmp_path: Path) -
             "meta": {},
         }
 
-    monkeypatch.setattr(_prompted._logic, "run_repoqa_prompted_task_with_restarts", _fake_task_runner)
+    monkeypatch.setattr(_logic_prompted, "run_repoqa_prompted_task_with_restarts", _fake_task_runner)
 
     run_manifest_path = run_repoqa_prompted_benchmark(
         env,

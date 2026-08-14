@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from agent_evaluations.cli_helpers import load_run_environment, resolve_run_value, resolve_runtime_backend
 from agent_evaluations.container_backend import resolve_docker_runtime_config
+from agent_evaluations.evaluations.repoqa.logic_prompted import create_repoqa_prompted_run_manifest
 from agent_evaluations.profiles import load_run_profile
 from agent_evaluations.repeated_runs import select_result_rows_for_manifest
 from agent_evaluations.utils import isoformat_utc, write_json_atomic, write_jsonl_atomic
@@ -88,24 +89,6 @@ def _stage_payload(workflow: Mapping[str, Any], stage_name: str) -> Dict[str, An
     if not isinstance(raw, dict):
         raise KeyError(f"Unknown stage {stage_name!r}")
     return raw
-
-
-def _load_repoqa_logic_module() -> Any:
-    import importlib.util
-    import sys
-
-    module_name = "agent_evaluations_external_benchmark_repoqa_prompted_logic_workflow"
-    cached = sys.modules.get(module_name)
-    if cached is not None:
-        return cached
-    module_path = Path(__file__).with_name("logic.py")
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load RepoQA prompted logic from {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
 
 
 def _config_dir(workflow: Mapping[str, Any]) -> Path:
@@ -623,7 +606,6 @@ def command_seed_run(
     manifest_path: Optional[str],
     artifact_root: str | None = None,
 ) -> Dict[str, Any]:
-    logic = _load_repoqa_logic_module()
     env, profile_payload = _load_stage_environment_and_profile(workflow, stage_name, artifact_root)
     stage = _stage_payload(workflow, stage_name)
     resolved_manifest_path = Path(manifest_path) if isinstance(manifest_path, str) and manifest_path else Path(
@@ -637,7 +619,7 @@ def command_seed_run(
         else None
     )
     profile_name = stage.get("profile")
-    run_manifest = logic.create_repoqa_prompted_run_manifest(
+    run_manifest = create_repoqa_prompted_run_manifest(
         env,
         benchmark_manifest=benchmark_manifest,
         agent_id=str(resolve_run_value(None, profile_payload, "agent_id")),

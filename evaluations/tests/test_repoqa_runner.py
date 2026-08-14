@@ -11,19 +11,17 @@ import time
 from agent_evaluations.benchmark_registry import load_benchmarks
 from agent_evaluations.config_dir import load_evaluation_environment
 from agent_evaluations.container_backend import resolve_docker_runtime_config
+from agent_evaluations.evaluations.repoqa.benchmark_agentic import (
+    DEFAULT_REPOQA_RELEASE,
+    RepoQATask,
+    build_repoqa_manifest,
+    materialize_repoqa_workspace,
+    repoqa_cache_path,
+    run_repoqa_benchmark,
+    run_repoqa_single_task_from_payload,
+    score_repoqa_answer,
+)
 from agent_evaluations.utils import write_json
-
-
-load_benchmarks()
-_agentic = sys.modules["agent_evaluations_external_benchmark_repoqa_agentic"]
-DEFAULT_REPOQA_RELEASE = _agentic.DEFAULT_REPOQA_RELEASE
-RepoQATask = _agentic.RepoQATask
-build_repoqa_manifest = _agentic.build_repoqa_manifest
-materialize_repoqa_workspace = _agentic.materialize_repoqa_workspace
-repoqa_cache_path = _agentic.repoqa_cache_path
-run_repoqa_benchmark = _agentic.run_repoqa_benchmark
-run_repoqa_single_task_from_payload = _agentic.run_repoqa_single_task_from_payload
-score_repoqa_answer = _agentic.score_repoqa_answer
 
 
 def _write_fixture_config(config_dir: Path, *, response_text: str) -> None:

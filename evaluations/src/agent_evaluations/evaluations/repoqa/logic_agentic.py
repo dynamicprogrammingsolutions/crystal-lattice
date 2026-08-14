@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import importlib.util
 import json
 from pathlib import Path
-import sys
 import shutil
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -18,6 +16,17 @@ from agent_evaluations.container_backend import (
     warm_container_plugin_cache,
 )
 from agent_evaluations.config_dir import EvaluationEnvironment, benchmark_settings, merge_dicts
+from agent_evaluations.evaluations.repoqa.common import (
+    DEFAULT_REPOQA_RELEASE,
+    RepoQATask,
+    count_tool_calls,
+    download_repoqa_release,
+    extract_final_assistant_text,
+    iter_repoqa_tasks,
+    load_repoqa_dataset,
+    repoqa_cache_path,
+    score_repoqa_answer,
+)
 from agent_evaluations.profiles import load_run_profile
 from agent_evaluations.repeated_runs import (
     aggregate_results_by_task_id,
@@ -27,33 +36,6 @@ from agent_evaluations.repeated_runs import (
 )
 from agent_evaluations.scheduler import TaskStartPolicy, plan_task_starts, policy_from_config, sleep_until
 from agent_evaluations.utils import append_jsonl, isoformat_utc, utc_now, write_json, write_json_atomic
-
-
-def _load_repoqa_shared_module() -> Any:
-    module_name = "agent_evaluations_external_benchmark_repoqa_shared_common"
-    cached = sys.modules.get(module_name)
-    if cached is not None:
-        return cached
-    module_path = Path(__file__).resolve().parents[1] / "repoqa_shared" / "common.py"
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load RepoQA shared helpers from {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_shared = _load_repoqa_shared_module()
-DEFAULT_REPOQA_RELEASE = _shared.DEFAULT_REPOQA_RELEASE
-RepoQATask = _shared.RepoQATask
-count_tool_calls = _shared.count_tool_calls
-download_repoqa_release = _shared.download_repoqa_release
-extract_final_assistant_text = _shared.extract_final_assistant_text
-iter_repoqa_tasks = _shared.iter_repoqa_tasks
-load_repoqa_dataset = _shared.load_repoqa_dataset
-repoqa_cache_path = _shared.repoqa_cache_path
-score_repoqa_answer = _shared.score_repoqa_answer
 
 
 REPOQA_BENCHMARK_ID = "repoqa"
