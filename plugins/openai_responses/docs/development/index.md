@@ -3,6 +3,20 @@
 This documentation covers implementation and maintenance of the
 `openai_responses` plugin package.
 
+## Implementation guides
+
+- [Model discovery](model-discovery.md): API-key and ChatGPT model discovery
+  precedence, Codex snapshot, last-resort fallback, and the bare `gpt-5.6`
+  alias.
+- [Reasoning controls](reasoning-controls.md): `reasoning.effort`,
+  `reasoning.mode` (Pro mode), and `reasoning.context` shaping, per-model
+  effort sets, silent drops, metadata footers, and Pro mode billing.
+- [Cost estimation](cost-estimation.md): pricing snapshot format, token-bucket
+  splitting, ChatGPT cached-token estimation, and explicit cache boundaries.
+- [Bundle layout](bundle-layout.md): responsibility split across provider and
+  extensions, implementation classes, and background compaction notification
+  handling.
+
 ## Specifications
 
 - [Native conversation compaction](specifications/native-compaction/index.md):
