@@ -158,6 +158,7 @@ export function useProactiveChatScrollPersistence(params: {
   diagnosticsEnabled?: boolean;
   diagnosticsVerbose?: boolean;
   onDiagnosticEvent?: (event: ScrollPersistenceDiagnosticEvent) => void;
+  onUserNavigationIntent?: () => void;
   /** @deprecated Use contentFollowLeaseMs. */
   bottomFollowWindowMs?: number;
   /** @deprecated Use manualBottomConvergenceMaxMs. */
@@ -179,6 +180,8 @@ export function useProactiveChatScrollPersistence(params: {
   resetRestore: (reason: string) => void;
   scrollToTop: (animated?: boolean) => void;
   scrollToBottom: (animated?: boolean) => void;
+  suppressNextBottomContentFollow: () => void;
+  clearBottomContentFollowSuppression: () => void;
   notifyBottomContentChange: (
     reason: string,
     revision: unknown,
@@ -219,6 +222,7 @@ export function useProactiveChatScrollPersistence(params: {
     diagnosticsEnabled: configuredDiagnosticsEnabled,
     diagnosticsVerbose: configuredDiagnosticsVerbose,
     onDiagnosticEvent,
+    onUserNavigationIntent,
     bottomFollowWindowMs,
     manualBottomFollowWindowMs,
     initialBottomFollowWindowMs,
@@ -278,6 +282,7 @@ export function useProactiveChatScrollPersistence(params: {
   const hasRestoredRef = useRef(false);
   const wasEnabledRef = useRef(enabled);
   const lastBottomContentRevisionRef = useRef(bottomContentRevision);
+  const suppressNextBottomContentFollowRef = useRef(false);
 
   const coordinatorRef = useRef<ChatScrollCoordinatorState>(
     createChatScrollCoordinatorState({
@@ -1056,6 +1061,7 @@ export function useProactiveChatScrollPersistence(params: {
 
   const scrollToTop = useCallback(
     (animated = true) => {
+      onUserNavigationIntent?.();
       startNavigation({
         edge: 'top',
         animated,
@@ -1064,11 +1070,12 @@ export function useProactiveChatScrollPersistence(params: {
         maxDurationMs: bottomConvergenceMaxMs,
       });
     },
-    [bottomConvergenceMaxMs, startNavigation],
+    [bottomConvergenceMaxMs, onUserNavigationIntent, startNavigation],
   );
 
   const scrollToBottom = useCallback(
     (animated = true) => {
+      onUserNavigationIntent?.();
       startNavigation({
         edge: 'bottom',
         animated,
@@ -1077,7 +1084,7 @@ export function useProactiveChatScrollPersistence(params: {
         maxDurationMs: manualBottomConvergenceMaxMs,
       });
     },
-    [manualBottomConvergenceMaxMs, startNavigation],
+    [manualBottomConvergenceMaxMs, onUserNavigationIntent, startNavigation],
   );
 
   const notifyBottomContentChange = useCallback(
@@ -1101,13 +1108,28 @@ export function useProactiveChatScrollPersistence(params: {
     ],
   );
 
+  const suppressNextBottomContentFollow = useCallback(() => {
+    suppressNextBottomContentFollowRef.current = true;
+  }, []);
+
+  const clearBottomContentFollowSuppression = useCallback(() => {
+    suppressNextBottomContentFollowRef.current = false;
+  }, []);
+
   useEffect(() => {
     if (Object.is(lastBottomContentRevisionRef.current, bottomContentRevision)) {
       return;
     }
     lastBottomContentRevisionRef.current = bottomContentRevision;
+    if (suppressNextBottomContentFollowRef.current) {
+      suppressNextBottomContentFollowRef.current = false;
+      emitDiagnostic('contentFollowSuppressed', 'rangeNavigation', {
+        revision: bottomContentRevision,
+      });
+      return;
+    }
     notifyBottomContentChange('bottomContentChanged', bottomContentRevision);
-  }, [bottomContentRevision, notifyBottomContentChange]);
+  }, [bottomContentRevision, emitDiagnostic, notifyBottomContentChange]);
 
   const maybeRestoreScroll = useCallback(() => {
     if (!enabled || !restoreReady || hasRestoredRef.current) {
@@ -1488,9 +1510,10 @@ export function useProactiveChatScrollPersistence(params: {
 
   const onScrollBeginDrag = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      onUserNavigationIntent?.();
       beginInteraction('dragging', 'scrollBeginDrag', event);
     },
-    [beginInteraction],
+    [beginInteraction, onUserNavigationIntent],
   );
 
   const onScrollEndDrag = useCallback(
@@ -1569,6 +1592,8 @@ export function useProactiveChatScrollPersistence(params: {
       resetRestore,
       scrollToTop,
       scrollToBottom,
+      suppressNextBottomContentFollow,
+      clearBottomContentFollowSuppression,
       notifyBottomContentChange,
       onListScrollDiagnostic,
       canScrollToTop: scrollAffordanceState.canScrollToTop,
@@ -1592,6 +1617,8 @@ export function useProactiveChatScrollPersistence(params: {
       scrollAffordanceState.isNearBottom,
       scrollToBottom,
       scrollToTop,
+      suppressNextBottomContentFollow,
+      clearBottomContentFollowSuppression,
     ],
   );
 

@@ -108,4 +108,41 @@ describe("InvertedTranscriptViewport", () => {
     });
     expect(mockScrollToOffset).toHaveBeenCalledTimes(callCountAfterBottom);
   });
+
+  test("reports drag and edge navigation intents before issuing commands", () => {
+    const onUserNavigationIntent = jest.fn();
+    const listRef = React.createRef<any>();
+    renderWithMobileProviders(
+      <InvertedTranscriptViewport
+        listRef={listRef}
+        data={[0, 1, 2]}
+        testID="transcript-list"
+        keyExtractor={String}
+        getItemDependencies={() => []}
+        renderItem={({ item }) => <View testID={`row-${item}`} />}
+        onUserNavigationIntent={onUserNavigationIntent}
+      />
+    );
+
+    const list = screen.getByTestId("transcript-list");
+    act(() => {
+      list.props.onLayout({ nativeEvent: { layout: { height: 100 } } });
+      list.props.onContentSizeChange(100, 500);
+      list.props.onScroll({
+        nativeEvent: {
+          contentOffset: { y: 200 },
+          layoutMeasurement: { height: 100 },
+          contentSize: { height: 500 },
+        },
+      });
+    });
+
+    act(() => {
+      list.props.onScrollBeginDrag();
+    });
+    fireEvent.press(screen.getByLabelText("Scroll to top"));
+    fireEvent.press(screen.getByLabelText("Scroll to bottom"));
+
+    expect(onUserNavigationIntent).toHaveBeenCalledTimes(3);
+  });
 });

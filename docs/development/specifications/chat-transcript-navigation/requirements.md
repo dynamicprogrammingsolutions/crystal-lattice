@@ -19,20 +19,18 @@ source inspection, or method-call assertions exist.
 | TNAV-010 | Scroll-to-top and scroll-to-bottom navigate only within loaded messages and appear only when the corresponding visual edge is meaningfully distant. | Implemented | Mobile unit/component/native automated; desktop partial automated | Documented | mobile inverted-scroll and Detox transcript tests; desktop scroll coordinator and native persistence tests |
 | TNAV-011 | Explicit loaded-edge navigation converges on the actual oldest or newest loaded content and can be superseded by later user input. | Implemented | Mobile top/bottom native automated; desktop bottom and item-anchor native automated, exact top-button path unverified | Documented | mobile `InvertedTranscriptViewport` and Detox tests; desktop coordinator tests and macOS transcript-scroll UI tests |
 | TNAV-012 | New content follows only while bottom affinity is pinned; navigating away from the bottom is not undone by unrelated streaming or geometry updates. | Implemented | Desktop automated; mobile streaming-detachment boundary unverified | Documented | desktop coordinator and macOS UI tests; mobile viewport affinity implementation |
-| TNAV-013 | Show-older and show-newer range changes preserve an overlapping visible message index at approximately the same viewport-relative position. | In progress | Unverified; known nonconforming behavior | Documented | Intended by `tasks/20260712-mobile-transcript-navigation-controls/010-mobile-message-range-controls.md`; no range-load native acceptance test; reported viewport jump |
+| TNAV-013 | Show-older and show-newer range changes preserve an overlapping visible message index at approximately the same viewport-relative position. | Implemented | Native automated on iOS, Android, and macOS | Documented | Shared witness tests; mobile `e2e/transcriptRangeNavigation.e2e.test.ts`; desktop `TranscriptRangeNavigationUITests.swift`; correction tracked by `tasks/20260813-chat-transcript-navigation/020-preserve-range-navigation-viewport.md` |
 | TNAV-014 | Show-last selects `-50:` and navigates to the newest loaded edge. | In progress | Unverified across the complete range-to-viewport flow | Documented | shared planner tests; mobile explicit post-load bottom command; desktop currently selects the range without an explicit post-load edge command |
 | TNAV-015 | Transcript navigation controls expose accessible button roles and labels and stable selectors where native acceptance tests require them. | Implemented | Mobile automated; desktop source inspection only | Documented | mobile component and Detox tests; desktop accessible labels in `ChatPane.tsx` |
-| TNAV-016 | A range-navigation operation has deterministic failure, no-overlap, cancellation, and supersession behavior. | Not started | Unverified | Documented | Target behavior in `frontend-behavior.md` and `technical-spec.md` |
+| TNAV-016 | A range-navigation operation has deterministic failure, no-overlap, cancellation, and supersession behavior. | Implemented | Partial automated and source inspection | Documented | Shared witness/no-overlap tests; viewport navigation-intent component test; monotonic operation guards and native bounded-anchor cancellation in both chat implementations; implementation tracked by `tasks/20260813-chat-transcript-navigation/020-preserve-range-navigation-viewport.md` |
 
 ## Baseline validation gaps
 
-- Neither frontend has a native test that changes the loaded range and then
-  verifies an overlapping message's viewport position.
 - Mobile native tests validate loaded-edge navigation but not range
-  replacement or streaming while detached.
+  replacement during streaming while detached.
 - Desktop native tests validate persisted message anchors, long-distance
-  bottom navigation, and far item-anchor restoration, but not the contextual
-  range-button flow or exact scroll-to-top button path.
+  bottom navigation, far item-anchor restoration, and contextual range-button
+  viewport preservation, but not the exact scroll-to-top button path.
 - Complete frontend tests for arbitrary range application, loading
   suppression, and range-request failure behavior were not found.
 - Existing index values are snapshot-relative positions; no test or contract

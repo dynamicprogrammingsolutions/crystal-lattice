@@ -156,12 +156,17 @@ npx react-native run-android
 The transcript scroll suite launches a deterministic 300-message harness that
 uses the same production inverted FlatList viewport and chevron controls as the
 normal chat screen. The E2E builds bundle JavaScript and do not require Metro.
+The transcript-range suite mounts the production chat screen with a
+deterministic backend and verifies that Show older/newer preserves an
+overlapping message at the same visual viewport offset after the loaded range
+is replaced.
 
 Build and run on iOS:
 
 ```bash
 npm run detox:build:ios
 npm run detox:test:transcript:ios
+npm run detox:test:transcript-range:ios
 ```
 
 Build and run on Android:
@@ -169,6 +174,7 @@ Build and run on Android:
 ```bash
 npm run detox:build:android
 npm run detox:test:transcript:android
+npm run detox:test:transcript-range:android
 ```
 
 The deterministic session-list harness exercises application-derived row

@@ -34,6 +34,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }) {
       moduleName = "MobileTranscriptScrollHarness"
     } else if arguments.contains(where: {
+      $0 == "-clcTranscriptRangeNavigationHarness" ||
+        $0 == "clcTranscriptRangeNavigationHarness"
+    }) {
+      moduleName = "MobileTranscriptRangeNavigationHarness"
+    } else if arguments.contains(where: {
       $0 == "-clcNotificationBannerHarness" || $0 == "clcNotificationBannerHarness"
     }) {
       moduleName = "MobileNotificationBannerHarness"

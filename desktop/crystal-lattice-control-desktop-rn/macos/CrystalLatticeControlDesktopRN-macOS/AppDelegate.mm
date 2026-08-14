@@ -55,6 +55,9 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   BOOL enableTranscriptScrollPersistenceHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_SCROLL_PERSISTENCE_HARNESS") ||
       LaunchArgumentPresent(@"--transcript-scroll-persistence-harness");
+  BOOL enableTranscriptRangeNavigationHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_RANGE_NAVIGATION_HARNESS") ||
+      LaunchArgumentPresent(@"--transcript-range-navigation-harness");
   BOOL enableSessionFiltersPopoverHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS") ||
       LaunchArgumentPresent(@"--session-filters-popover-harness");
@@ -64,12 +67,15 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   BOOL enableAnyTestHarness =
       enableScrollTestHarness ||
       enableTranscriptScrollPersistenceHarness ||
+      enableTranscriptRangeNavigationHarness ||
       enableSessionFiltersPopoverHarness ||
       enableNotificationRailHarness;
   if (enableAnyTestHarness) {
     RCTDevLoadingViewSetEnabled(NO);
   }
-  self.moduleName = enableNotificationRailHarness
+  self.moduleName = enableTranscriptRangeNavigationHarness
+      ? @"DesktopTranscriptRangeNavigationHarness"
+      : (enableNotificationRailHarness
       ? @"DesktopNotificationRailHarness"
       : (enableSessionFiltersPopoverHarness
       ? @"SessionFiltersPopoverHarness"
@@ -77,7 +83,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
              ? @"TranscriptScrollPersistenceHarness"
              : (enableScrollTestHarness
                     ? @"ProgressiveScrollHarness"
-                    : @"CrystalLatticeControlDesktopRN")));
+                    : @"CrystalLatticeControlDesktopRN"))));
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
   self.initialProps = @{
@@ -310,10 +316,12 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 {
   if (EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_SCROLL_PERSISTENCE_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_RANGE_NAVIGATION_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_NOTIFICATION_RAIL_HARNESS") ||
       LaunchArgumentPresent(@"--scroll-test-harness") ||
       LaunchArgumentPresent(@"--transcript-scroll-persistence-harness") ||
+      LaunchArgumentPresent(@"--transcript-range-navigation-harness") ||
       LaunchArgumentPresent(@"--session-filters-popover-harness") ||
       LaunchArgumentPresent(@"--notification-rail-harness")) {
     return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];

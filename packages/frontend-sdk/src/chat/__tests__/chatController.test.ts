@@ -148,4 +148,28 @@ describe('ChatController.ensureEventStreamingStarted', () => {
     expect(snapshot.listCursorEventId).toBeNull();
     controller.dispose();
   });
+
+  it('retains read-only snapshot context from a message-list response', async () => {
+    const controller = new ChatController({
+      backend: {
+        listMessages: async () => ({
+          messages: [
+            { index: 0, message: { role: 'user', content: 'snapshot message' } },
+          ],
+          cursorEventId: 'store:5',
+          activeRequestId: null,
+          readonly: true,
+          snapshotId: 'snapshot:1',
+        }),
+      } as any,
+      sessionId: 's1',
+    });
+
+    await controller.loadMessagesFromRangeText({ startText: '-50', endText: '' });
+
+    expect(controller.getSnapshot()).toMatchObject({
+      readonly: true,
+      snapshotId: 'snapshot:1',
+    });
+  });
 });

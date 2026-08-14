@@ -333,6 +333,12 @@ export {
   getTranscriptRangeControlPresentation,
   planTranscriptRangeControlAction,
 } from './chat/messageRangeControls';
+export type {
+  TranscriptRangeResponseContext,
+  TranscriptRangeRestoreAnchor,
+  TranscriptViewportAnchorCandidate,
+} from './chat/transcriptRangeNavigation';
+export { selectTranscriptRangeRestoreAnchor } from './chat/transcriptRangeNavigation';
 
 export type { SessionUiSchemaControllerState } from './uiSchema/sessionUiSchemaController';
 export { SessionUiSchemaController } from './uiSchema/sessionUiSchemaController';
