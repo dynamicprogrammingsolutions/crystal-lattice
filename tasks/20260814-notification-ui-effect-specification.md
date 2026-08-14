@@ -6,37 +6,37 @@ matches current behavior.
 
 ## Requirements checklist
 
-- [ ] The notification specification defines when a notification revision
+- [x] The notification specification defines when a notification revision
   requests a UI effect and prevents lifecycle-only or terminal revisions from
   repeating an earlier effect.
-- [ ] The notification specification defines connection-scoped refresh
+- [x] The notification specification defines connection-scoped refresh
   invalidation behavior for active, inactive, cached, and later-mounted
   frontend consumers.
-- [ ] The notification specification defines successful reload
+- [x] The notification specification defines successful reload
   acknowledgment, failed reload retry, and duplicate in-flight reload
   prevention.
-- [ ] The specification distinguishes the refresh semantics shared by
+- [x] The specification distinguishes the refresh semantics shared by
   notifications and action responses from behavior that remains action-only,
   such as navigation and mutation-derived policy.
-- [ ] Specification requirements and evidence trace the implemented behavior,
+- [x] Specification requirements and evidence trace the implemented behavior,
   tests, producer documentation, and frontend SDK implementation.
 
-## Documentation gap
+## Documentation gap at task creation
 
 Fact:
 
 - Commit `6601e48a` (`Make notification refresh invalidations durable`)
-  implemented and documented behavior that is not yet represented in the
-  formal notification specification.
+  implemented and documented behavior that was not represented in the formal
+  notification specification when this task was created.
 - Producer-facing documentation now describes the behavior in:
   - `plugins/docs/notifications-and-action-displays.md`;
   - `plugins/docs/actions.md`;
   - `plugins/openai_responses/README.md`.
 - Implementation and verification evidence is recorded in
   `tasks/20260802-openai-responses-background-compaction.md`.
-- Package implementation guidance exists in
+- Package implementation guidance existed in
   `packages/frontend-sdk/docs/development/notification-implementation.md`,
-  but it does not yet describe UI-effect invalidation.
+  but did not yet describe UI-effect invalidation.
 
 The missing normative coverage is in the existing specification under
 `docs/development/specifications/notifications/`:
@@ -46,10 +46,10 @@ The missing normative coverage is in the existing specification under
 - `frontend-behavior.md`;
 - `requirements.md`.
 
-The current specification defines notification revisions, terminal lifecycle,
-authoritative reconnect state, and dismissal caches, but does not define
-notification `ui_effects`, revision-scoped effect commands, or durable frontend
-refresh invalidation.
+At task creation, the specification defined notification revisions, terminal
+lifecycle, authoritative reconnect state, and dismissal caches, but did not
+define notification `ui_effects`, revision-scoped effect commands, or durable
+frontend refresh invalidation.
 
 ## Implemented behavior to capture
 
@@ -74,11 +74,10 @@ refresh invalidation.
 - A newer invalidation is not cleared by late acknowledgment of an older one.
 - Notification refresh effects never navigate to another session.
 
-## Proposed specification requirements
+## Specification requirements recorded
 
-The following stable requirements are recommended for addition to
-`docs/development/specifications/notifications/requirements.md`. The exact IDs
-should be confirmed against the specification at execution time.
+The following stable requirements were added to
+`docs/development/specifications/notifications/requirements.md`:
 
 - `NTF-015`: Notification UI effects are revision-scoped commands. Only a
   pending revision that explicitly supplies an effect requests execution, and
@@ -95,10 +94,10 @@ should be confirmed against the specification at execution time.
   refresh field meanings, while notification effects exclude action-only
   navigation and mutation-derived behavior.
 
-## Recommendations
+## Accepted recommendations
 
-These recommendations are not an approved execution plan, and this task does
-not authorize specification edits.
+These recommendations were initially recorded without an approved execution
+plan. The user approved applying them on August 14, 2026.
 
 - Extend the existing notification specification rather than creating another
   specification directory or a separate multi-file specification.
@@ -123,18 +122,98 @@ not authorize specification edits.
   simulator tests as implementation evidence, while independently verifying
   the final specification wording against current code.
 
-## Open questions
+## Resolved decisions
 
-- Should refresh effects remain part of the notification specification only,
-  with the action-display specification linking to it, or should the common
-  refresh-field vocabulary be owned by the action-display specification and
-  imported by notifications?
-  - Recommendation: keep durable invalidation and notification revision
-    semantics in the notification specification; place only genuinely shared
-    field definitions in the action-display specification if duplication
-    becomes material.
-- Should the specification promise immediate background reload for inactive
-  mounted consumers?
-  - Recommendation: no. Require eventual authoritative convergence and no lost
-    invalidation, allowing each frontend to reload immediately or defer until
-    activation.
+- Durable invalidation and notification revision semantics remain in the
+  notification specification. No action-display specification change was
+  needed because refresh effects are not display payloads.
+- The specification requires eventual authoritative convergence and no lost
+  invalidation. It does not require immediate background reload for every
+  inactive mounted consumer.
+
+## Execution plan
+
+Status: Approved
+
+Update the existing notification specification in place. Keep notification
+revision semantics and durable invalidation ownership in the notification
+specification, describe only the shared refresh-field meaning relative to
+action responses, and avoid creating another specification directory.
+
+This plan was approved by the user's August 14, 2026 instruction to update the
+documentation immediately when ownership was straightforward.
+
+### Implementation decisions and open questions
+
+- Decision: `docs/development/specifications/notifications/` owns the behavior.
+- Decision: notification refresh delivery guarantees eventual authoritative
+  convergence, not immediate background reload for every inactive consumer.
+- Decision: action responses share refresh field meanings but remain one-shot;
+  notification revision and replay semantics do not apply to them.
+- Open questions: none blocking this documentation update.
+
+### Documentation
+
+- Update notification product behavior, technical contract, portable frontend
+  behavior, and stable requirements.
+- Align the frontend SDK implementation document.
+- Correct producer documentation if it implies that one-shot action responses
+  receive notification-style durable replay.
+
+### Task checklist
+
+- [x] Record the user-visible convergence behavior.
+- [x] Record revision-scoped notification effect semantics.
+- [x] Record frontend invalidation, acknowledgment, retry, and concurrency
+  behavior.
+- [x] Add stable requirements and evidence.
+- [x] Align implementation and producer documentation.
+- [x] Validate the documentation build and links.
+
+### Requirement verification
+
+- Requirements 1–4: inspect the product, technical, and frontend specification
+  pages for complete normative coverage.
+- Requirement 5: inspect stable requirement rows and evidence references
+  against commit `6601e48a` and its documented verification.
+
+### Additional implementation verification
+
+- Build the prepared MkDocs site.
+- Run repository diff checks for malformed Markdown or whitespace.
+
+## Implementation Notes
+
+- The existing notification specification was the clear owner because
+  revision semantics, authoritative reconnect state, and frontend lifecycle
+  already live there.
+- The action-display specification was left unchanged. It owns display
+  payloads, while `ui_effects` coordinates refresh outside the display
+  payload.
+- Producer documentation was corrected to distinguish durable
+  notification-delivered invalidation from one-shot action-response effects.
+
+## Completion Notes
+
+Completed August 14, 2026.
+
+Outcome:
+
+- added product-level refresh convergence behavior;
+- added the revision-scoped `ui_effects` and frontend invalidation technical
+  contract;
+- added portable active, inactive, cached, later-mounted, retry,
+  acknowledgment, and concurrency behavior;
+- added requirements `NTF-015`, `NTF-016`, and `FNT-011` through `FNT-013`
+  with implementation and verification evidence;
+- updated the frontend SDK notification implementation guide;
+- corrected the application-action authoring documentation so one-shot action
+  responses do not imply notification-style replay.
+
+Verification:
+
+- the prepared MkDocs site built successfully;
+- requirement IDs are unique within the current specification tree;
+- documentation diff and whitespace checks passed;
+- existing MkDocs navigation and API-reference warnings remain unrelated to
+  this task.

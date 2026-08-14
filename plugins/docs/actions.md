@@ -842,9 +842,12 @@ notifications, and application notifications. They invalidate data only on
 the owning connection. A session reload refreshes a mounted/open session and
 otherwise invalidates cached state; it does not open the session.
 
-Frontend invalidation remains pending until authoritative data reloads
-successfully. This allows inactive or later-mounted cache consumers to catch
-up without requiring the producer to repeat the action or notification.
+For notification-delivered refresh effects, frontend invalidation remains
+pending until authoritative data reloads successfully. This allows inactive
+or later-mounted cache consumers to catch up without requiring the producer to
+repeat the notification. Action responses remain one-shot results in the
+initiating action context and do not acquire notification revision or replay
+semantics.
 
 `navigate_to_session_id` remains action-response-only. Action execution has a
 direct user gesture and a concrete navigation context. Asynchronous

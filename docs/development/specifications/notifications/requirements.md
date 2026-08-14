@@ -20,15 +20,23 @@
 | NTF-012 | The record model represents notification and interaction lifecycles without destructive normalization. | Proposed | Unverified | Draft |
 | NTF-013 | Application notification active and terminal records persist across owner and server-process restart in a configurable durable store. | Implemented | Automated public HTTP/store restart; mobile confirmed | Documented |
 | NTF-014 | Application notification lifecycle mutations are atomic and terminal records remain available to later history queries until retention removes them. | Implemented | Automated store/API lifecycle tests | Documented |
+| NTF-015 | Notification UI effects are revision-scoped commands: only a pending revision that explicitly supplies an effect requests execution, and lifecycle-only or terminal revisions do not inherit or repeat it. | Implemented | Automated core/SDK/iOS simulator | Documented |
+| NTF-016 | Notifications and application-action responses share explicit refresh field meanings, while notification effects exclude action-only navigation and mutation-derived behavior. | Implemented | Automated SDK/action/notification tests | Documented |
 | FNT-005 | The dismissing frontend updates immediately, while other open devices may reconcile later and newly hydrated devices honor server dismissal. | Implemented mobile/desktop | Automated mobile/desktop; desktop human postponed | Documented |
 | FNT-006 | Relevant top action bars expose a reusable Notifications history action. | Proposed | Unverified | Draft |
 | FNT-007 | Historical rich displays can be shown again locally without reactivating lifecycle state. | Proposed | Unverified | Draft |
 | FNT-008 | Active interactions are nondismissible and discoverable through a compact waiting-for-input indicator. | Proposed | Unverified | Draft |
 | FNT-009 | A failed frontend dismissal can remain locally persisted and hidden for the exact notification revision, with retry when that same revision is observed again. | Implemented mobile | Automated SDK/component/real-backend; mobile confirmed | Documented |
 | FNT-010 | A cached dismissal is never promoted to a newer revision; an authoritative newer pending revision removes the obsolete cache and is presented. | Implemented mobile | Automated SDK/component/real-backend; mobile confirmed | Documented |
+| FNT-011 | A notification refresh effect invalidates data only on its owning connection and remains observable until an appropriate frontend consumer successfully reloads authoritative state. | Implemented mobile/desktop | Automated SDK/mobile/desktop; iOS simulator confirmed | Documented |
+| FNT-012 | Active, inactive, cached, and later-mounted consumers converge on authoritative state without notification-driven navigation. | Implemented mobile/desktop | Automated SDK/mobile; desktop implementation inspection | Documented |
+| FNT-013 | Frontend delivery prevents duplicate concurrent reloads for one invalidation, retains failed or deferred invalidations for retry, and does not let acknowledgment of an older invalidation clear a newer one. | Implemented | Automated SDK and iOS simulator regression | Documented |
 
 Primary task evidence:
 
 - `tasks/20260729-staged-application-config-and-full-reload.md`
 - `tasks/20260619-generic-session-notifications/000-main.md`
 - `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`
+- `tasks/20260802-openai-responses-background-compaction.md`
+- `tasks/20260814-notification-ui-effect-specification.md`
+- commit `6601e48a` (`Make notification refresh invalidations durable`)

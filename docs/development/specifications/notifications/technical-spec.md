@@ -17,6 +17,7 @@ The record family contains:
 - optional `request_id`;
 - producer `source` including `plugin`;
 - `display`: an action-display payload;
+- optional revision-scoped `ui_effects`;
 - optional `resolution`;
 - optional `dismissal`, `expiration`, `response`, and `timeout` according to
   kind and status;
@@ -98,6 +99,58 @@ record rather than overwriting a later revision.
 Creating with the key of an active notification updates that item while
 retaining its ID. A matching terminal record does not suppress a new
 occurrence.
+
+## UI effects and frontend invalidation
+
+The initial portable notification refresh fields are:
+
+- `reload_session_ids`: unique non-empty session IDs;
+- `reload_sessions_list`: boolean;
+- `reload_application_actions`: boolean.
+
+Known fields are validated. Unknown JSON-compatible fields are preserved for
+forward compatibility and ignored by consumers that do not implement them.
+`navigate_to_session_id` is rejected because asynchronous notification
+delivery must not move user focus.
+
+`ui_effects` is a command on the revision that explicitly supplies it, not
+durable state inherited by every later revision. An update that omits the field
+stores no effect on its new revision. Only `pending` revisions execute effects.
+Consumers ignore effects retained on legacy dismissed, resolved, or expired
+records.
+
+Frontend observation is deduplicated by connection, notification scope,
+notification ID, and revision. Snapshot and event delivery of the same
+revision therefore request an effect once. A newer pending revision may
+request the same effect again explicitly. Rehydrating from a latest persisted
+pending revision may request it once for the reconstructed frontend host.
+
+Refresh execution creates frontend-runtime invalidation state scoped to the
+owning backend connection:
+
+- session invalidation is keyed by session ID;
+- session-list invalidation is keyed by connection;
+- application-action invalidation is keyed by connection.
+
+The invalidation remains pending until an appropriate consumer successfully
+reloads authoritative state. An unavailable or inactive consumer may decline
+the reload without clearing it. Failed reload leaves it pending. Successful
+reload acknowledges only the matching invalidation revision.
+
+One invalidation revision has at most one claimed reload per target at a time.
+Rerender or resubscription while a reload is in flight does not start another
+reload. A newer invalidation supersedes the pending target revision, and late
+acknowledgment of an older revision cannot clear it.
+
+Pending invalidation and in-flight claims are frontend runtime state, not
+additional server notification state. The persisted pending notification
+revision remains the reconnect source when a frontend runtime is reconstructed.
+
+Application-action responses use the same refresh field meanings and parsing,
+but remain one-shot results in their initiating action context. Their
+navigation and mutation-derived policies remain action-only. Notification
+effect execution is best effort and never changes notification lifecycle,
+producer retry, or operation commit authority.
 
 ## Retention and pruning
 
