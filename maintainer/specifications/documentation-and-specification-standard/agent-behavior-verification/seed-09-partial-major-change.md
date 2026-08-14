@@ -31,10 +31,16 @@ affected requirement IDs. Phase 3 remains future work.
 ## Exact seed prompt
 
 > Please investigate the current state of the approved `sync-v2` work in
-> `tasks/sync-v2.md`. Compare the target specification, temporary progress,
-> requirements, implementation, tests, and current user documentation. Report
-> what is complete, what Phase 2 requires, and what remains later. Do not modify
-> files and do not propose a new specification version.
+> `tasks/sync-v2.md`. Read `packages/sync-engine/README.md`,
+> `packages/sync-engine/src/sync.py`,
+> `packages/sync-engine/tests/test_sync.py`,
+> `packages/sync-engine/docs/development/specifications/sync-v2/index.md`,
+> `packages/sync-engine/docs/development/specifications/sync-v2/product-spec.md`,
+> `packages/sync-engine/docs/development/specifications/sync-v2/technical-spec.md`,
+> and
+> `packages/sync-engine/docs/development/specifications/sync-v2/requirements.md`.
+> Report what is complete, what Phase 2 requires, and what remains later. Do
+> not modify files and do not propose a new specification version.
 
 ## Seed assertions
 

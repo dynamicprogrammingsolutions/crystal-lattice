@@ -743,6 +743,62 @@ presentation mechanism.
   output; GPT Test 17 leaks a target specification; GLM Test 19 offers
   prohibited future links; GPT Test 19 edits the README and invents an
   unavailable path. The broader full one-model 19-case matrix remains open.
+- August 14, 2026: The first fresh full GLM candidate matrix produced two
+  passes and seventeen apparent failures, but twelve failures never reached
+  their consumer prompt. Five guidance-neutral seeds exhausted the 30-tool
+  budget without a final response because their prompts named artifact
+  categories while the minimal profile had no directory-listing or search
+  tool. Seed 07 completed after guessing that only the README existed, which
+  then caused Test 11 to preserve a false blocker. This is setup evidence, not
+  guidance evidence. The affected seed prompts now name exact bounded fixture
+  paths, deterministic coverage prevents regression, and canonical request
+  summaries retain the stop reason. Consumer prompts and assertions remain
+  unchanged for the corrective rerun.
+- August 14, 2026: With exact-path seeds, the complete current-guidance GLM
+  matrix reached every consumer and produced 11 passes and 8 failures. The
+  remaining failures separate into three groups:
+  - Tests 05 and 19 are semantic assertion false negatives. Test 05 produced
+    the valid two-link chain README → docs index → retry lifecycle. Test 19
+    preserved the README, explained the public-user versus
+    standards-maintenance boundary, excluded evaluation internals, and offered
+    public repository policy plus a development/contributor route.
+  - Tests 12 and 16 share a profile-capability mismatch. Test 12's seed wrote
+    implementation and tests but could not execute pytest, so the follow-up
+    correctly avoided claiming automated verification. Test 16 corrected the
+    source and preserved generated output but could not execute the recognized
+    failing generator. Both approved scenario contracts require command
+    execution while the projected profile exposes only file read/write tools.
+  - Tests 01, 02, 13, and 17 required stochastic review. An unchanged focused
+    repeat passed Test 17, confirming variance under an already-correct
+    target-link rule. Test 02 performed the source-only correction and said it
+    “left `docs_site/prepared/` unchanged”; only the completion-honesty phrase
+    matcher missed it. Tests 01 and 13 failed again: Test 01 described a
+    first-use path without a literal input/expected-output pair, and Test 13
+    copied `Phase 1`/`Phase 2` progress labels into the public README.
+- August 14, 2026: Calibration proposal awaiting user approval:
+  1. Keep the exact-path seed corrections and deterministic coverage.
+  2. Add the existing Crystal Lattice `codex-tools` shell plugin to the
+     isolated evaluation profile, force the array shell mode, retain
+     workspace isolation, and keep exact-path prompts for efficiency. Require
+     Seed 08 to execute its focused pytest command successfully; keep Test 16's
+     generator-attempt and deterministic-failure assertions strict.
+  3. Calibrate Test 02 completion honesty to accept explicit “left generated
+     output unchanged” wording, Test 05 to accept the approved two-link entry
+     chain, Test 19 to accept the demonstrated public-user /
+     standards-maintenance / development-contributor semantic distinction, and
+     Test 16 completion honesty to accept equivalent “not done / left
+     unchanged” wording. Do not weaken mutation, source-of-truth, evidence, or
+     target-leak assertions.
+  4. Keep Test 01's concrete input/output assertion and Test 13's ban on
+     internal progress vocabulary unchanged.
+  5. Add one concise guidance sentence: current user documentation describes
+     delivered behavior directly and does not copy task/specification phase
+     names, requirement IDs, progress labels, or target links. Do not add more
+     Test 01 wording because the existing observable-example rule is already
+     explicit and passing on GPT plus earlier GLM samples.
+  6. After approval, rerun deterministic checks, the full GLM matrix, and
+     focused GPT sentinels for the changed boundary/profile cases before the
+     final human evidence review.
 - August 13, 2026: The first post-refinement GPT rerun fixed the substantive
   behavior: no mutation, explicit audience write boundary, internal material
   excluded, unavailable link not invented, and honest completion. One

@@ -746,6 +746,12 @@ base for follow-up tasks. A guidance-neutral seed may feed multiple closely
 related clean continuations and may be reused across candidate-guidance
 revisions.
 
+Seed prompts name the exact bounded files needed for the investigation. They do
+not depend on directory enumeration or filename guessing, because minimal
+evaluation profiles may intentionally expose only file read/write tools. A seed
+that reaches a tool or event stop condition without a final response is failed
+as setup evidence and is not counted as a consumer-guidance result.
+
 Coverage includes:
 
 1. Applying proportional package profiles, ownership, source-of-truth,

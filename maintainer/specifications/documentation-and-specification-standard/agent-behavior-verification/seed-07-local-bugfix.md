@@ -24,9 +24,12 @@ durable specification because this is an internal implementation detail.
 ## Exact seed prompt
 
 > Please investigate the cache-cleanup race in `packages/slug-utils`: an
-> expired cache file may disappear between discovery and deletion. Reproduce or
-> explain the failure, identify the affected code and tests, and report whether
-> any supported user behavior is involved. Do not modify files.
+> expired cache file may disappear between discovery and deletion. Read
+> `packages/slug-utils/README.md`,
+> `packages/slug-utils/src/slug_cache.py`, and
+> `packages/slug-utils/tests/test_slug_cache.py`. Reproduce or explain the
+> failure, identify the affected code and test gap, and report whether any
+> supported user behavior is involved. Do not modify files.
 
 ## Seed assertions
 

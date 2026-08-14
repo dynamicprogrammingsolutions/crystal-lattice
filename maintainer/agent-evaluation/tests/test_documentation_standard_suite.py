@@ -456,6 +456,86 @@ def test_all_seed_and_consumer_prompts_are_extractable() -> None:
             assert extract_blockquote(path, heading)
 
 
+def test_seed_prompts_name_the_exact_bounded_fixture_paths() -> None:
+    required_paths = {
+        "seed-02-report-export-row-limit.md": (
+            "tasks/report-export-max-rows.md",
+            "packages/report-export-sdk/README.md",
+            "packages/report-export-sdk/src/report_export.py",
+            "packages/report-export-sdk/tests/test_report_export.py",
+            "packages/report-export-sdk/docs/development/index.md",
+            "packages/report-export-sdk/docs/development/specifications/"
+            "export-limits/index.md",
+            "packages/report-export-sdk/docs/development/specifications/"
+            "export-limits/product-spec.md",
+            "packages/report-export-sdk/docs/development/specifications/"
+            "export-limits/technical-spec.md",
+            "packages/report-export-sdk/docs/development/specifications/"
+            "export-limits/requirements.md",
+        ),
+        "seed-03-mobile-composer-refinement.md": (
+            "tasks/mobile-composer-ux.md",
+            "packages/conversation-contract/docs/development/specifications/"
+            "composer/index.md",
+            "packages/conversation-contract/docs/development/specifications/"
+            "composer/product-spec.md",
+            "packages/conversation-contract/docs/development/specifications/"
+            "composer/requirements.md",
+            "mobile/example-app/src/Composer.tsx",
+            "mobile/example-app/docs/development/index.md",
+        ),
+        "seed-05-batch-sync-design.md": (
+            "packages/batch-sdk/src/batch.py",
+            "packages/transport-contract/docs/development/specifications/"
+            "transport/index.md",
+            "packages/persistence-contract/docs/development/specifications/"
+            "persistence/index.md",
+        ),
+        "seed-06-existing-contract-bugfix.md": (
+            "tasks/path-policy-home-relative-bug.md",
+            "packages/path-policy/README.md",
+            "packages/path-policy/src/path_policy.py",
+            "packages/path-policy/tests/test_path_policy.py",
+            "packages/path-policy/docs/development/specifications/"
+            "path-normalization/index.md",
+            "packages/path-policy/docs/development/specifications/"
+            "path-normalization/technical-spec.md",
+            "packages/path-policy/docs/development/specifications/"
+            "path-normalization/requirements.md",
+        ),
+        "seed-07-local-bugfix.md": (
+            "packages/slug-utils/src/slug_cache.py",
+            "packages/slug-utils/tests/test_slug_cache.py",
+        ),
+        "seed-08-completed-small-implementation.md": (
+            "packages/label-utils/src/labels.py",
+            "packages/label-utils/tests/test_labels.py",
+            "packages/label-utils/docs/development/specifications/"
+            "label-normalization/technical-spec.md",
+        ),
+        "seed-09-partial-major-change.md": (
+            "tasks/sync-v2.md",
+            "packages/sync-engine/README.md",
+            "packages/sync-engine/src/sync.py",
+            "packages/sync-engine/tests/test_sync.py",
+            "packages/sync-engine/docs/development/specifications/"
+            "sync-v2/index.md",
+            "packages/sync-engine/docs/development/specifications/"
+            "sync-v2/product-spec.md",
+            "packages/sync-engine/docs/development/specifications/"
+            "sync-v2/technical-spec.md",
+            "packages/sync-engine/docs/development/specifications/"
+            "sync-v2/requirements.md",
+        ),
+    }
+    for filename, paths in required_paths.items():
+        prompt = extract_blockquote(
+            SPEC_ROOT / filename,
+            "## Exact seed prompt",
+        )
+        assert all(path in prompt for path in paths), filename
+
+
 def test_synthetic_fixtures_contain_expected_seed_sources(tmp_path: Path) -> None:
     fixtures = {
         "report-export": "tasks/report-export-max-rows.md",

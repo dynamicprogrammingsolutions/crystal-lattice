@@ -32,10 +32,17 @@ currently unverified for this delivery path.
 ## Exact seed prompt
 
 > Please investigate the home-relative path bug described in
-> `tasks/path-policy-home-relative-bug.md`. Compare the specification,
-> requirements, implementation paths, tests, and current README. Reproduce or
-> explain the discrepancy and report the exact affected files. Do not modify
-> files and do not propose a documentation or specification workflow.
+> `tasks/path-policy-home-relative-bug.md`. Read only
+> `packages/path-policy/README.md`,
+> `packages/path-policy/src/path_policy.py`,
+> `packages/path-policy/tests/test_path_policy.py`,
+> `packages/path-policy/docs/development/specifications/path-normalization/index.md`,
+> `packages/path-policy/docs/development/specifications/path-normalization/technical-spec.md`,
+> and
+> `packages/path-policy/docs/development/specifications/path-normalization/requirements.md`.
+> Reproduce or explain the discrepancy and report the exact affected files. Do
+> not modify files and do not propose a documentation or specification
+> workflow.
 
 ## Seed assertions
 

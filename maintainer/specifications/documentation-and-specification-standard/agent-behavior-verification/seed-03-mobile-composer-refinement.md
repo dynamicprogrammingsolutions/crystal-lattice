@@ -19,8 +19,7 @@ packages/conversation-contract/
     └── requirements.md
 
 mobile/example-app/
-├── README.md
-├── AGENTS.md
+├── src/Composer.tsx
 └── docs/development/index.md
 
 tasks/mobile-composer-ux.md
@@ -32,11 +31,17 @@ transition behavior without implementation.
 ## Exact seed prompt
 
 > Please investigate `tasks/mobile-composer-ux.md`, the existing portable
-> composer specification under `packages/conversation-contract`, and the
-> current `mobile/example-app` documentation. Report the behavior already
-> defined by the portable contract, the mobile-specific facts and constraints
-> visible in the task or package, and the relevant files. Do not modify files
-> and do not recommend where a new specification should be placed.
+> composer contract in
+> `packages/conversation-contract/docs/development/specifications/composer/index.md`,
+> `packages/conversation-contract/docs/development/specifications/composer/product-spec.md`,
+> and
+> `packages/conversation-contract/docs/development/specifications/composer/requirements.md`,
+> plus
+> `mobile/example-app/src/Composer.tsx` and
+> `mobile/example-app/docs/development/index.md`. Report the portable behavior
+> already defined and the mobile-specific facts and constraints in those
+> files. Do not modify files and do not recommend where a new specification
+> should be placed.
 
 The seed does not choose package, shared, or root ownership and does not decide
 whether the requested work is a refinement. Those are branch assertions.

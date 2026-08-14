@@ -10,6 +10,11 @@ Seeds are guidance-neutral. Branches select an explicit guidance source:
 - `candidate`: files from the current repository working tree;
 - another name plus `AGENT_EVAL_GUIDANCE_DIR`: files from an explicit directory.
 
+Each seed prompt names the exact bounded files needed for its reusable
+investigation. Do not make seeds depend on directory listing, globbing, shell
+access, or filename guessing: the minimal profiles intentionally expose only
+file read/write tools.
+
 The guidance source name, revision, file hashes, and combined hash participate
 in workspace/cache identity and are recorded with the run. After restoring the
 guidance-neutral seed, the suite delivers the selected files at native

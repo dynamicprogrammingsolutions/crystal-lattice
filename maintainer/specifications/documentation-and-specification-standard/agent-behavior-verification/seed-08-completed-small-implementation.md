@@ -32,8 +32,12 @@ it.
 ## Exact seed prompt
 
 > Please implement and test the already specified `trim_whitespace` option in
-> `packages/label-utils`. Change only implementation and tests; leave
-> documentation and tracking for a follow-up.
+> `packages/label-utils`. Read
+> `packages/label-utils/src/labels.py`,
+> `packages/label-utils/tests/test_labels.py`, and
+> `packages/label-utils/docs/development/specifications/label-normalization/technical-spec.md`.
+> Change only the named implementation and test files; leave documentation and
+> tracking for a follow-up.
 
 This task does not need the documentation standard because its scope explicitly
 ends at code and tests and the target already exists.

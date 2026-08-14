@@ -36,11 +36,19 @@ request.
 ## Exact seed prompt
 
 > Please investigate the approved row-limit change in
-> `tasks/report-export-max-rows.md`. Compare the task with the existing export
-> specification, requirements, implementation, tests, README, and development
-> documentation. Report the current behavior, the exact files involved, and
-> any factual inconsistencies. Do not modify files and do not decide the order
-> or documentation workflow for implementing the change.
+> `tasks/report-export-max-rows.md`. Read only these owning artifacts:
+> `packages/report-export-sdk/README.md`,
+> `packages/report-export-sdk/src/report_export.py`,
+> `packages/report-export-sdk/tests/test_report_export.py`,
+> `packages/report-export-sdk/docs/development/index.md`,
+> `packages/report-export-sdk/docs/development/specifications/export-limits/index.md`,
+> `packages/report-export-sdk/docs/development/specifications/export-limits/product-spec.md`,
+> `packages/report-export-sdk/docs/development/specifications/export-limits/technical-spec.md`,
+> and
+> `packages/report-export-sdk/docs/development/specifications/export-limits/requirements.md`.
+> Compare their current behavior and report any factual inconsistencies. Do not
+> modify files and do not decide the order or documentation workflow for
+> implementing the change.
 
 The seed supplies facts. It does not decide whether to update the
 specification first, how requirements should transition, where approval is

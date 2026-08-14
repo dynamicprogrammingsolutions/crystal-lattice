@@ -23,11 +23,15 @@ synchronization specification or active authorizing task exists.
 ## Exact seed prompt
 
 > Please investigate `packages/batch-sdk` and the existing transport and
-> persistence contracts relevant to offline synchronization. Report the current
-> package behavior, persisted-state and compatibility constraints already
-> defined elsewhere, missing behavior needed for offline synchronization, and
-> the relevant files. Do not modify files and do not propose a specification,
-> owner, or artifact set.
+> persistence contracts relevant to offline synchronization. Read only
+> `packages/batch-sdk/README.md`, `packages/batch-sdk/src/batch.py`,
+> `packages/batch-sdk/docs/development/index.md`,
+> `packages/transport-contract/docs/development/specifications/transport/index.md`,
+> and
+> `packages/persistence-contract/docs/development/specifications/persistence/index.md`.
+> Report current behavior, existing persisted-state and compatibility
+> constraints, and the missing offline behavior. Do not modify files and do
+> not propose a specification, owner, or artifact set.
 
 The seed performs the expensive contract search but leaves specification
 justification, ownership, artifact shape, and approval behavior to child
