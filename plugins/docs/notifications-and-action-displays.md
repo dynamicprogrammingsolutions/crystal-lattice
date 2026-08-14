@@ -156,7 +156,6 @@ app.create_application_notification(notification)
 app.update_application_notification(
     notification_id,
     patch,
-    expected_revision=revision,
 )
 app.dismiss_application_notification(
     notification_id,
@@ -166,15 +165,19 @@ app.dismiss_application_notification(
 app.resolve_application_notification(
     notification_id,
     resolution,
-    expected_revision=revision,
 )
 app.expire_application_notification(
     notification_id,
     reason="expired",
-    expected_revision=revision,
 )
 app.list_application_notifications(include_terminal=True)
 ```
+
+Producer publication (create, update, resolve, expire) does not require
+`expected_revision`; the notification service applies the patch to the current
+active occurrence and increments revision internally. Dismissal accepts
+optional `expected_revision` because a stale user gesture should not hide a
+newer revision.
 
 ## Session notifications
 
@@ -232,13 +235,11 @@ app.update_session_notification(
     session_id,
     notification_id,
     patch,
-    expected_revision=revision,
 )
 app.update_session_notification_by_key(
     session_id,
     key,
     patch,
-    expected_revision=revision,
 )
 app.dismiss_session_notification(
     session_id,
@@ -250,13 +251,11 @@ app.resolve_session_notification(
     session_id,
     notification_id,
     resolution,
-    expected_revision=revision,
 )
 app.expire_session_notification(
     session_id,
     notification_id,
     reason="expired",
-    expected_revision=revision,
 )
 app.list_session_notifications(session_id)
 app.list_session_notifications(session_id, include_terminal=True)
@@ -294,29 +293,48 @@ receives a later `updated_at`. Creating with the key of a dismissed, resolved,
 or expired record creates a new notification occurrence with a new ID. Use
 separate keys when two active conditions must be represented independently.
 
-## Revisions and conflicts
+## Producer and consumer update behavior
 
-New notification records begin at revision `1`. Pass the revision shown to the
-user back as `expected_revision` for update, dismiss, resolve, or expire
-operations.
+New notification records begin at revision `1`. The notification service owns
+revision assignment and increment.
 
-A stale revision raises `NotificationRevisionConflictError`. The exception
-contains the current notification. HTTP dismissal routes return the same
-condition as status 409.
+Producer publication (create, update by ID, update by key, resolve, expire)
+does not require `expected_revision`. The service applies the patch to the
+current active occurrence for the stable key and increments revision
+internally. If the previous occurrence is terminal or absent, publication
+creates a new occurrence.
+
+Dismissal is the only frontend lifecycle mutation that accepts optional
+`expected_revision` and `reason`. A stale revision raises
+`NotificationRevisionConflictError`. The exception contains the current
+notification. HTTP dismissal routes return the same condition as status 409.
+This prevents a stale user gesture from hiding a newer revision or a later
+stable-key occurrence.
 
 Existing records created before integer revisions use their `updated_at` value
 as the compatibility expected-revision token. Their first mutation assigns
 integer revision `1`.
 
+### Operation-occurrence guard
+
+For operation notifications, the stable key identifies the notification
+stream, while a unique operation ID identifies one execution. A late update
+from an older operation occurrence must not overwrite a newer operation using
+the same stable key. Producers may include an optional operation identifier in
+their publication payload; the service rejects updates whose operation
+identifier does not match the current active occurrence for that key. This
+guard replaces plugin-side revision-conflict recovery for producer updates.
+
 ### Background-operation heartbeats
 
-Background work can keep one pending notification and update it by revision:
+Background work can keep one pending notification and update it by key. Use
+one stable key per operation stream, not one key per operation occurrence:
 
 ```python
 notification = app.create_session_notification(
     session_id,
     {
-        "key": f"example:operation:{operation_id}",
+        "key": "example:operation",
         "severity": "info",
         "title": "Operation running",
         "body": "Waiting for the provider. Elapsed: 0 seconds.",
@@ -327,7 +345,7 @@ notification = app.create_session_notification(
             "body": "Waiting for the provider. Elapsed: 0 seconds.",
             "variant": "info",
             "presentation": "inline",
-            "dismissible": False,
+            "dismissible": True,
         },
         "operation": {
             "version": 1,
@@ -343,16 +361,29 @@ notification = app.create_session_notification(
 )
 ```
 
-Each heartbeat updates the visible body and structured `operation` field with
-`expected_revision=notification["revision"]`. The structured `operation`
-mapping is plugin-owned presentation data; its optional fields do not define
-the application operation registration contract. The minimal active
+Each heartbeat updates the visible body and structured `operation` field by
+republishing the same stable progress notification key. The structured
+`operation` mapping is plugin-owned presentation data; its optional fields do
+not define the application operation registration contract. The minimal active
 registration used for admission and lookup remains separate. Notification
 failure must not grant commit authority or cancel the underlying operation.
 
-Use `display.dismissible: false` while Cancel is the intended user action.
-After failure or interruption, update the display to `dismissible: true` and
-provide Retry or Continue follow-ups as appropriate.
+Keep the unique operation ID in the structured `operation.id` field and in
+Cancel follow-up action parameters. The notification service uses it as the
+operation-occurrence guard so a late update from a superseded occurrence cannot
+overwrite a newer operation using the same stable key.
+
+Operation-progress notifications are dismissible by default. The user can
+dismiss the banner at any time; dismissing the presentation does not cancel
+the underlying operation. Cancel remains an explicit follow-up action. Use
+`dismissible: false` only for genuinely permanent notifications such as status
+indicators whose dismissal would remove the only path to a required response.
+A persistent notification must never become a dead end: if it cannot be
+dismissed, it must have a viable recovery action or reliably transition into a
+dismissible state.
+
+When your plugin uses dismissible banners for in-progress work, design follow-up
+actions so users can still find an explicit continuation or retry path.
 
 ### Notification UI effects
 
@@ -462,7 +493,8 @@ app.resolve_application_notification(
 
 ## Dismissing and expiring
 
-Dismissal is a terminal server-side lifecycle transition:
+Dismissal is a terminal server-side lifecycle transition. It accepts optional
+`expected_revision` so a stale user gesture cannot hide a newer revision:
 
 ```python
 dismissed = app.dismiss_session_notification(
@@ -473,13 +505,13 @@ dismissed = app.dismiss_session_notification(
 )
 ```
 
-Expiration is also terminal:
+Expiration is also terminal. Producer-initiated expiration does not require
+`expected_revision`:
 
 ```python
 expired = app.expire_application_notification(
     notification_id,
     reason="manual_expiration",
-    expected_revision=revision,
 )
 ```
 

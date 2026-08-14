@@ -30,12 +30,22 @@ it is:
 - resolved because its underlying condition ended;
 - expired according to retention.
 
-Creating with the stable key of an active record updates that record. Creating
-with the key of a terminal record creates a new lifecycle occurrence.
+Producers publish notifications using stable keys. Repeated publication updates
+the active occurrence for that key. If the key currently maps to a terminal
+record, publication creates a new lifecycle occurrence. If no occurrence exists,
+publication creates one.
 
+Plugin and background-work producers publish these recurring updates via a
+stable key without passing `expected_revision`; the notification service owns
+revision allocation and performs an atomic upsert against the current active
+occurrence. A stale terminal or older occurrence does not suppress a later
+key-scoped producer publication.
+
+Dismissal applies only to the notification ID and revision the user saw. A
+stale dismissal cannot hide a newer revision or a later stable-key occurrence.
 The frontend that dismisses a notification may hide and cache that exact
 revision immediately while sending the server mutation. If the request fails,
-the cached revision remains hidden and the same expected-revision request may
+the cached revision remains hidden and the same `expected_revision` request may
 be resent when that revision is observed again.
 
 A cached dismissal never transfers to a newer revision. A newer pending
@@ -44,6 +54,25 @@ revision makes the old cache entry obsolete and is presented normally.
 Other already-open devices do not have to reconcile the dismissal immediately.
 A newly opened, reconnected, or explicitly refreshed frontend loads
 authoritative state and does not present a server-dismissed record as active.
+
+## Dismissability
+
+Regular operation-progress notifications are user-dismissible. The user can
+dismiss a progress banner at any time; dismissing the presentation does not
+cancel the underlying operation. An explicit Cancel action remains the
+operation control.
+
+Nondismissible presentation remains available only for deliberately
+exceptional cases, such as:
+
+- permanent or environment status indicators;
+- active interactions that must remain discoverable;
+- presentations where hiding would remove the only path to a required response.
+
+Long-running operation progress should not use nondismissible presentation
+merely to preserve a Cancel action. A persistent notification must never
+become a dead end: if it cannot be dismissed, it must have a viable recovery
+action or reliably transition into a dismissible state.
 
 ## Refresh effects
 
@@ -137,6 +166,9 @@ credentials or sensitive configuration values.
 
 Frontend dismissal caches store only notification identity, scope, revision,
 and retry metadata. They do not duplicate notification content.
+
+Dismissal being revision-scoped for the mutation does not prevent producers from
+issuing a later key-scoped update.
 
 ## Non-goals of this proposed follow-up
 

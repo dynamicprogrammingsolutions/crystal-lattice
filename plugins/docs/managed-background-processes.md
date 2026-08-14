@@ -289,9 +289,9 @@ operations need different:
 - cancellation meaning.
 
 Pass narrow notification methods or callbacks into the process. The process
-can then create one notification, update it by revision, and expose a
-plugin-specific cancellation action without coupling generic runtime
-ownership to notification semantics.
+can then create one notification and publish key-based updates, then expose a
+plugin-specific cancellation action without coupling generic runtime ownership
+to notification semantics.
 
 Similarly, the registry has no `cancel(process_id)` method. A later action
 looks up the concrete process and calls its operation-specific cancellation

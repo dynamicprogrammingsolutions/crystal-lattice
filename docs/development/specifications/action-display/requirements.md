@@ -11,3 +11,4 @@
 | DSP-007 | All hosts preserve embedded form values and parameter mappings for follow-up actions. | Proposed | Unverified | Draft |
 | DSP-008 | Historical replay disables mutating actions unless explicitly valid and server-validated. | Proposed | Unverified | Draft |
 | DSP-009 | A notification display may optimistically cache dismissal only for the exact displayed revision; direct and historical display close never enters that cache. | Implemented mobile | Automated SDK/component; mobile confirmed | Documented |
+| DSP-010 | Persistent operation-progress notifications are dismissible by default; nondismissible presentation requires an explicit product reason and must not be used as a substitute for operation ownership or update coordination. | Proposed | Unverified | Draft |

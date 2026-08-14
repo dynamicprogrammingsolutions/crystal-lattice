@@ -27,6 +27,11 @@ The UI-effect invalidation amendment records the behavior implemented by
 commit `6601e48a` and tracked by
 `tasks/20260814-notification-ui-effect-specification.md`.
 
+The stable-key publication amendment proposes removing `expected_revision`
+from the plugin-facing notification contract, making producer publication an
+atomic upsert by stable key, and keeping dismissal revision-scoped. It is
+tracked by `tasks/20260814-notification-stable-key-publication.md`.
+
 Related contracts:
 
 - [Action displays](../action-display/index.md)
