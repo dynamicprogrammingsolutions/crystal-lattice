@@ -40,6 +40,8 @@ export interface ChatControllerState {
   updatedAtMs: number | null;
   eventsStatus: PollingStatus;
   activeRequestId: string | null;
+  readonly: boolean;
+  snapshotId: string | null;
   streamingRow: StreamingRow | null;
   requestError: RequestErrorState | null;
 }
@@ -102,6 +104,8 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
       updatedAtMs: null,
       eventsStatus: 'idle',
       activeRequestId: options.initialActiveRequestId ?? null,
+      readonly: false,
+      snapshotId: null,
       streamingRow: null,
       requestError: null,
     });
@@ -513,10 +517,13 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     });
 
     try {
-      const { messages, cursorEventId, activeRequestId } = await this.backend.listMessages(
-        this.sessionId,
-        range,
-      );
+      const {
+        messages,
+        cursorEventId,
+        activeRequestId,
+        readonly,
+        snapshotId,
+      } = await this.backend.listMessages(this.sessionId, range);
 
       const windowed = trimTail(messages, maxMessages);
       this.setSnapshot({
@@ -529,6 +536,8 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
         dirtyReason: null,
         updatedAtMs: Date.now(),
         activeRequestId,
+        readonly: readonly === true,
+        snapshotId: snapshotId ?? null,
         requestError: null,
         streamingRow: null,
       });

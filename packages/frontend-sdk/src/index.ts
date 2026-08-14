@@ -170,12 +170,15 @@ export {
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
-export type { RefreshUiEffect } from './plugins/uiEffects';
+export type { RefreshUiEffect, RefreshUiInvalidation } from './plugins/uiEffects';
 export {
+  acknowledgeRefreshUiEffect,
   emitRefreshUiEffects,
   NotificationUiEffectObserver,
   parseRefreshUiEffects,
   subscribeRefreshUiEffects,
+  subscribeSessionRefreshInvalidations,
+  subscribeSessionsListRefreshInvalidations,
 } from './plugins/uiEffects';
 export {
   applicationActionKey,
@@ -184,6 +187,7 @@ export {
 } from './plugins/applicationActions';
 export type { ApplicationActionDiagnostic } from './plugins/applicationActions';
 export {
+  acknowledgeApplicationActionsInvalidated,
   emitApplicationActionsInvalidated,
   subscribeApplicationActionsInvalidated,
 } from './plugins/applicationActionsInvalidation';
@@ -329,6 +333,12 @@ export {
   getTranscriptRangeControlPresentation,
   planTranscriptRangeControlAction,
 } from './chat/messageRangeControls';
+export type {
+  TranscriptRangeResponseContext,
+  TranscriptRangeRestoreAnchor,
+  TranscriptViewportAnchorCandidate,
+} from './chat/transcriptRangeNavigation';
+export { selectTranscriptRangeRestoreAnchor } from './chat/transcriptRangeNavigation';
 
 export type { SessionUiSchemaControllerState } from './uiSchema/sessionUiSchemaController';
 export { SessionUiSchemaController } from './uiSchema/sessionUiSchemaController';

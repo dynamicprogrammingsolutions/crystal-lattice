@@ -364,8 +364,10 @@ def _run_case(case: CaseSpec, *, model: str, keep_raw: bool) -> dict[str, object
                 proxy.wait(timeout=5)
 
         replacements = {
+            str(paths["workspace"].resolve()): "<WORKSPACE>",
             str(paths["workspace"]): "<WORKSPACE>",
-            str(REPO_ROOT): "<REPO_ROOT>",
+            str(REPO_ROOT.resolve()): "<REPO_ROOT>",
+            str(raw_dir.resolve()): "<RAW_DIR>",
             str(raw_dir): "<RAW_DIR>",
         }
         fixture = build_system_fixture(

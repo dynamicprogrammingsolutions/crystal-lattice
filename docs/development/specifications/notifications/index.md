@@ -23,6 +23,10 @@ dismissal behavior into mobile. Stage B-1 makes application notification
 history durable, Stage B-2 adds revision-scoped failed-dismissal caching, and
 Stage C adds authoritative desktop snapshot hydration and server dismissal.
 
+The UI-effect invalidation amendment records the behavior implemented by
+commit `6601e48a` and tracked by
+`tasks/20260814-notification-ui-effect-specification.md`.
+
 Related contracts:
 
 - [Action displays](../action-display/index.md)

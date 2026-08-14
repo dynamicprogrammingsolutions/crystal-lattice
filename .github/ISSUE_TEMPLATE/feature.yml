@@ -1,0 +1,64 @@
+name: Feature request
+description: Propose an improvement to Crystal Lattice
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem and desired outcome before prescribing an implementation. For usage questions, use the [support page](https://crystallattice.dev/support).
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Terminal or HTTP server
+        - Core SDK or application layer
+        - React Native mobile application
+        - Desktop application
+        - Frontend SDK or shared components
+        - Bridge service
+        - Cloud orchestrator or deployment
+        - Plugin system or first-party plugin
+        - Documentation or landing site
+        - Cross-project or other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What is difficult or impossible today, and who is affected?
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the user-visible or developer-visible result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include current workarounds or other approaches when relevant.
+
+  - type: textarea
+    id: considerations
+    attributes:
+      label: Compatibility and operational considerations
+      description: Note migration, security, privacy, deployment, cost, provider, platform, or compatibility constraints.
+
+  - type: checkboxes
+    id: public_issue_safety
+    attributes:
+      label: Public issue safety
+      options:
+        - label: This proposal contains no credentials, private conversations, personal data, or security-sensitive details.
+          required: true

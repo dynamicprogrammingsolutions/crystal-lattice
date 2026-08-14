@@ -40,5 +40,18 @@ describe("mobile notification UI effects", () => {
         `Expected a backend reload, count remained ${attributeText(after)}`
       );
     }
+
+    await element(by.id("notification-ui-effects-dismiss")).tap();
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+    const afterDismiss = await element(
+      by.id("notification-ui-effects-reload-count")
+    ).getAttributes();
+    if (attributeText(afterDismiss) !== attributeText(after)) {
+      throw new Error(
+        `Dismissal repeated the reload: before=${attributeText(
+          after
+        )} after=${attributeText(afterDismiss)}`
+      );
+    }
   });
 });

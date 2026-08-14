@@ -1,0 +1,116 @@
+name: Bug report
+description: Report a reproducible, non-sensitive Crystal Lattice defect
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem.
+
+        Do not include credentials, private conversations, personal data, or private infrastructure details. Do not use this form for a suspected vulnerability; report it privately through the [security policy](https://github.com/dynamicprogrammingsolutions/crystal-lattice/security/policy).
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Select the closest owning application, package, or service.
+      options:
+        - Terminal or HTTP server
+        - Core SDK or application layer
+        - React Native mobile application
+        - Desktop application
+        - Frontend SDK or shared components
+        - Bridge service
+        - Cloud orchestrator or deployment
+        - First-party plugin
+        - Documentation or landing site
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Provide the release version, package version, tag, or commit SHA.
+      placeholder: "For example: crystal-lattice-cli 0.1.0 or commit abc1234"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the operating system, device, runtime, browser, or simulator/emulator as relevant.
+      placeholder: "For example: macOS 15, Python 3.11, iPhone 16 simulator on iOS 18"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Bundled CLI installer
+        - pip or pipx package
+        - Source checkout
+        - Docker or Docker Compose
+        - Mobile or desktop native build
+        - Hosted deployment
+        - Not applicable
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest sequence that reliably demonstrates the problem.
+      placeholder: |
+        1. Start ...
+        2. Configure ...
+        3. Select ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the exact error text when it is safe to share.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Remove credentials, tokens, private messages, personal data, local user paths, and private infrastructure details.
+      render: shell
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Include workarounds, regression information, or other relevant details.
+
+  - type: checkboxes
+    id: public_issue_safety
+    attributes:
+      label: Public issue safety
+      options:
+        - label: I removed credentials, tokens, private conversations, personal data, and private infrastructure details.
+          required: true
+        - label: This is not a suspected security vulnerability.
+          required: true

@@ -19,6 +19,7 @@ landing_page/
 │   │   ├── index.astro     # /
 │   │   ├── mobile.astro    # /mobile
 │   │   ├── privacy.astro   # /privacy
+│   │   ├── support.astro   # /support
 │   │   └── terms.astro     # /terms
 │   │
 │   ├── layouts/

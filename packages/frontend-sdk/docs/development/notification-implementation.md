@@ -12,6 +12,9 @@ Maintainer entry points:
 - `src/plugins/displayPresentation.ts`
 - `src/plugins/actionDisplayPolicy.ts`
 - `src/plugins/actionRunner.ts`
+- `src/plugins/uiEffects.ts`
+- `src/plugins/applicationActionsInvalidation.ts`
+- `src/plugins/pluginsRegistry.ts`
 - `src/events/pollingEventSource.ts`
 
 Session selectors validate metadata and skip malformed records. Application
@@ -42,6 +45,27 @@ TTL lifecycle event removes an already accepted record.
 Direct action-display close remains transient and does not enter the
 notification dismissal cache. The cache is synchronization state, not the
 authoritative notification record.
+
+`NotificationUiEffectObserver` deduplicates notification effects by scope,
+notification identity, and revision and ignores terminal revisions.
+`uiEffects.ts` stores backend-keyed pending session and session-list
+invalidations. Matching mobile and desktop consumers claim one invalidation,
+reload authoritative data, and acknowledge only after success. A failed or
+deferred reload releases the claim while retaining the invalidation for a
+later subscription.
+
+Claims live in backend-scoped SDK state rather than component-local state.
+This prevents React rerender or resubscription from starting duplicate reloads
+while the first reload is still in flight. Revision comparison prevents a late
+completion from clearing a newer invalidation.
+
+Application-action definition invalidation uses a parallel backend-keyed
+pending revision. `PluginsRegistry` invalidates its cache, refreshes actions
+and application UI schema, and acknowledges after successful refresh.
+
+These runtime invalidations are not persisted independently. A reconstructed
+frontend can recreate notification invalidation by observing the latest
+persisted pending notification revision.
 
 Tests should distinguish portable contract coverage from TypeScript-specific
 details such as backend-keyed subscriptions and controller ownership.

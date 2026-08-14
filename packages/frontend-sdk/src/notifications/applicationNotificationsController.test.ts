@@ -6,6 +6,7 @@ import type { ApplicationNotification } from '../types/applicationNotifications'
 import { ApplicationNotificationsController } from './applicationNotificationsController';
 import { NotificationDismissalCache } from './notificationDismissalCache';
 import { subscribeRefreshUiEffects } from '../plugins/uiEffects';
+import { subscribeApplicationActionsInvalidated } from '../plugins/applicationActionsInvalidation';
 
 const pending: ApplicationNotification = {
   id: 'notification-1',
@@ -77,7 +78,11 @@ describe('ApplicationNotificationsController', () => {
       dismiss: vi.fn(),
     });
     const effects: string[] = [];
+    const applicationActionInvalidations: number[] = [];
     subscribeRefreshUiEffects(backend, (effect) => effects.push(effect.type));
+    subscribeApplicationActionsInvalidated(backend, (revision) =>
+      applicationActionInvalidations.push(revision),
+    );
     const controller = new ApplicationNotificationsController({
       backend,
       hydrateSnapshot: true,
@@ -88,7 +93,8 @@ describe('ApplicationNotificationsController', () => {
     await vi.waitFor(() => {
       expect(controller.getSnapshot().loading).toBe(false);
     });
-    expect(effects).toEqual(['reloadSessionsList', 'reloadApplicationActions']);
+    expect(effects).toEqual(['reloadSessionsList']);
+    expect(applicationActionInvalidations).toEqual([1]);
     controller.close();
   });
 

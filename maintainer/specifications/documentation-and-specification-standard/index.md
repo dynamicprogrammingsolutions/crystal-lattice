@@ -2,7 +2,7 @@
 
 This specification defines the target documentation structure, specification
 workflow, repository policy, agent routing, publication behavior, migration,
-and validation rules.
+audience/reference boundaries, blocked-workflow behavior, and validation rules.
 
 It governs two user-facing output layers:
 
@@ -23,10 +23,17 @@ Artifacts:
 - [Product specification](product-spec.md)
 - [Technical specification](technical-spec.md)
 - [Requirements and evidence](requirements.md)
+- [Agent-behavior verification](agent-behavior-verification/index.md)
 
 Approval and execution are tracked by:
 
 - [Package-local documentation standard task](../../../tasks/20260728-package-local-documentation-standard/000-main.md)
+
+Related maintainer specification:
+
+- [Agent evaluation framework](../agent-evaluation-framework/index.md), whose
+  first consumers provide behavioral evidence for the generic and
+  repository-specific instructions governed here.
 
 The generic and repository-specific rules share one meta-specification because
 they have one approval path, owner, delivery, and validation system. If the

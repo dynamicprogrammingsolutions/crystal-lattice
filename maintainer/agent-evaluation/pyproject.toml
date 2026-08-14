@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crystal-lattice-agent-eval"
+version = "0.1.0"
+description = "Programmatic evaluation kernel for Crystal Lattice maintainers"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+  {name = "AI Agent Platform Team"},
+]
+dependencies = []
+
+[project.optional-dependencies]
+crystal-lattice = [
+  "agent-core>=0.3.0",
+]
+dev = [
+  "agent-core>=0.3.0",
+  "pytest>=7.0.0",
+  "ruff>=0.1.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agent_eval*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "suites"]
+python_files = ["test_*.py"]
+pythonpath = ["src", "."]
+addopts = "-m 'not agent_eval'"
+markers = [
+  "agent_eval: explicitly enabled tests that invoke real agents or models",
+  "routine: frequent high-signal behavioral guidance checks",
+  "extended: lower-frequency workflow and reverse-ownership checks",
+  "requirements(*ids): requirement identifiers covered by an acceptance test",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

@@ -127,7 +127,8 @@ Examples of shared topics:
 - UI elements and `ui_type`
 - testing/validation commands
 
-When adding a new shared doc, update `plugins/docs/index.md`.
+When adding a new shared doc, update `plugins/docs/index.md`. If the page
+refines one canonical plugin guide, link it from that guide too.
 
 ## 9) Keep `docs/plugins/development.md` as a general overview
 

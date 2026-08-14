@@ -8,6 +8,7 @@ import { AppRegistry } from 'react-native';
 import App from './App';
 import { MobileSessionListHarness } from './src/testing/MobileSessionListHarness';
 import { MobileTranscriptScrollHarness } from './src/testing/MobileTranscriptScrollHarness';
+import { MobileTranscriptRangeNavigationHarness } from './src/testing/MobileTranscriptRangeNavigationHarness';
 import { MobileNotificationBannerHarness } from './src/testing/MobileNotificationBannerHarness';
 import { MobileSelectableCodeBlockHarness } from './src/testing/MobileSelectableCodeBlockHarness';
 import { MobileOrderedListMarkdownHarness } from './src/testing/MobileOrderedListMarkdownHarness';
@@ -18,6 +19,8 @@ const RootComponent = props => {
   let Component = App;
   if (props?.clcTranscriptScrollHarness === '1') {
     Component = MobileTranscriptScrollHarness;
+  } else if (props?.clcTranscriptRangeNavigationHarness === '1') {
+    Component = MobileTranscriptRangeNavigationHarness;
   } else if (props?.clcSessionListHarness === '1') {
     Component = MobileSessionListHarness;
   } else if (props?.clcNotificationBannerHarness === '1') {
@@ -36,6 +39,10 @@ AppRegistry.registerComponent(appName, () => RootComponent);
 AppRegistry.registerComponent(
   'MobileTranscriptScrollHarness',
   () => MobileTranscriptScrollHarness,
+);
+AppRegistry.registerComponent(
+  'MobileTranscriptRangeNavigationHarness',
+  () => MobileTranscriptRangeNavigationHarness,
 );
 AppRegistry.registerComponent(
   'MobileSessionListHarness',

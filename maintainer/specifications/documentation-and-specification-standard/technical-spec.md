@@ -35,6 +35,7 @@ maintainer/
 ├── README.md
 ├── specifications/
 │   └── documentation-and-specification-standard/
+│       └── agent-behavior-verification/
 └── <standards-maintenance tooling and tests>
 ```
 
@@ -58,6 +59,8 @@ The generic pages use package-neutral terms such as:
 They define:
 
 - documentation profiles and artifact roles;
+- audience and context boundaries for every artifact role;
+- normal, pointer-only, evidence-only, and prohibited reference directions;
 - normative contract, consumer guide, implementation guide, and generated
   reference distinctions;
 - package-local ownership;
@@ -68,6 +71,8 @@ They define:
 - current-state public and maintainer documentation;
 - proportional specification artifacts;
 - anti-duplication and discoverability;
+- boundary preservation and honest partial completion when a compliant
+  documentation workflow is blocked;
 - evidence, verification, and optional decision records.
 
 They do not name Crystal Lattice packages, `plugins/docs/`, `tasks/`,
@@ -94,6 +99,11 @@ Repository policy extends the generic rules and contains only local mappings,
 exceptions, and operational requirements. It does not restate the complete
 generic explanations.
 
+Within the shared plugin-authoring domain, a focused page is linked from
+`plugins/docs/index.md`. When it refines one canonical plugin guide, that guide
+also links the focused page so authors encounter the refinement in the ordinary
+topic flow.
+
 ## Generalized specification ownership
 
 Every package may define specifications for behavior it owns. A package is not
@@ -119,6 +129,9 @@ owner, scope, justification, relationship to existing contracts, and expected
 artifacts. The user approves creation through the task workflow unless the
 existing approved task already authorizes it.
 
+A direct request to create a substantial specification is not by itself
+approval of an owner/scope/overlap proposal that has not yet been presented.
+
 ## Target, requirements, task, and current documentation
 
 | Artifact | Authority |
@@ -142,6 +155,77 @@ expected to span more than one commit when target/current divergence would
 otherwise be unclear. It links the task and affected requirement IDs and is
 removed after all relevant requirements are verified.
 
+## Audience and context boundaries
+
+Every artifact has an intended audience and role. A document may assume only
+concepts introduced in that document or available through documentation
+intended for the same audience.
+
+Access to broader repository context does not transfer that context to the
+artifact's readers. Information from tasks, specifications, requirements,
+implementation notes, agent instructions, commits, or maintainer material may
+be used to decide what to write, but it is not copied into another artifact
+unless the destination audience is expected to know it and the destination
+role owns it.
+
+Cross-audience information is translated into the destination audience's
+vocabulary. Internal phases, requirement IDs, task paths, approval state,
+temporary progress, evidence notation, and maintainer workflow are excluded
+from consumer documentation unless a term is itself a public contract,
+introduced for the reader, and necessary to use the product.
+
+Reference relationships have four forms:
+
+- **normal dependency:** the destination may rely on the referenced material;
+- **labeled pointer:** navigation is allowed, but the main content remains
+  understandable without the other audience's context;
+- **evidence reference:** allowed for live-state or delivery traceability;
+- **not allowed by default:** requires an explicitly justified public contract
+  or governance exception.
+
+The generic standard defines reference rules among package entry points,
+consumer guides, public reference, development guides, specifications,
+requirements, agent/contributor guidance, tasks, maintainer material, and
+generated output. Repository policy maps those roles to exact paths.
+
+Consumer documentation normally depends only on other consumer documentation
+and public reference. A clearly labeled development pointer is allowed, but
+installation, supported use, and troubleshooting do not depend on internal
+specifications, requirements, tasks, AGENTS files, or maintainer material.
+
+Development documentation may map current implementation to specifications and
+requirements. Specifications may link related targets, requirements, and
+affected current docs. Requirements may use code, tests, docs, tasks, reviews,
+and commits as evidence. Tasks and maintainer specifications may refer broadly
+within their scope, but output artifacts do not inherit their context.
+
+## Boundary preservation under blockers
+
+A blocked operation does not expand task scope, change artifact ownership, or
+authorize bypassing a source-of-truth, audience, validation, or publication
+boundary. These constraints remain part of the required outcome when the normal
+mechanism is unavailable.
+
+When a compliant workflow is blocked, an agent:
+
+1. completes only safe work that remains within scope and ownership;
+2. does not directly edit derived output, substitute another owner, weaken
+   requirements or validation, or create an alternate production path;
+3. reports what was completed, what is blocked, why it is blocked, and the
+   exact remaining action;
+4. requests direction before a workaround that changes scope, ownership,
+   source of truth, validation, public behavior, or persisted state;
+5. does not mark the task or requirement complete while a required step remains
+   blocked.
+
+A request to correct generated output includes updating its maintained source
+and attempting the approved generator unless the user narrows scope. The agent
+does this before reporting the refresh as blocked.
+
+Equivalent local commands and reversible in-scope implementation details do not
+require escalation. A workaround becomes approval-relevant when it crosses an
+established artifact, ownership, production, or evidence boundary.
+
 ## Documentation authority and duplication
 
 Substantive pages fit one authority class:
@@ -153,13 +237,17 @@ Substantive pages fit one authority class:
 - repository or documentation infrastructure.
 
 Each behavioral contract has one normative owner. Other pages may summarize
-for their audience, but identify the canonical contract and do not independently
-redefine complete lifecycle, compatibility, persistence, or protocol semantics.
+only what their audience needs and do not independently redefine complete
+lifecycle, compatibility, persistence, or protocol semantics. A consumer page
+does not need to expose an internal target specification merely to preserve
+normative ownership; the specification may link the current consumer page for
+maintainer discoverability.
 
 Implementation mapping pages link their target specification and describe
 current code, ownership, invariants, and tests. User guides teach current
-supported use. Target-only behavior remains in specifications and requirements
-until implementation is committed.
+supported use using public concepts that stand alone for their audience.
+Target-only behavior, internal phase names, requirement IDs, task paths, and
+temporary progress remain in specifications, requirements, and work tracking.
 
 ## Discoverability
 
@@ -196,15 +284,16 @@ Indexes remain concise but complete:
 
 - meta-specifications for standards and agent workflows;
 - deterministic and real-model evaluation tooling for those workflows;
-- fixtures and review-bundle preparation belonging to that tooling;
+- fixtures, review-bundle ordering, and preparation belonging to that tooling;
 - future standards-maintenance utilities whose audience is the maintainers of
   the rules rather than ordinary package users.
 
 Existing task-guidance evaluation under `test/task_guidance/` and its dedicated
-fixtures are targeted for relocation under a coherent `maintainer/`-owned
-layout. The task-guidance alignment subtask decides the exact internal layout,
-updates commands and references, and verifies an existing consumer after the
-move.
+fixtures are targeted for relocation under the reusable agent-evaluation
+framework's `maintainer/`-owned domain. Subtask 015 creates the framework and
+documentation-standard consumers. The task-guidance alignment subtask then
+moves and adapts the existing task-guidance consumer, updates commands and
+references, and verifies equivalent behavior.
 
 Production/package tests remain with their owning packages. `maintainer/` is
 not a replacement for ordinary shared test infrastructure.
@@ -234,6 +323,11 @@ material.
 Public user and implementation/maintainer documentation must match committed
 code. A working tree may stage documentation first, but it is committed with
 the implementation that makes new current-state claims true.
+
+Observable examples include a concrete expected result. Before completion,
+each documented result is compared with the current implementation or a test,
+and contradictions are resolved rather than copied into both first-use and
+verification sections.
 
 ## Migration
 
@@ -265,6 +359,71 @@ Deterministic validation should cover, in stages:
 - moved maintainer-tool commands and fixtures;
 - public docs and navigation paths;
 - normal MkDocs build and newly introduced warnings.
+
+Behavioral instruction validation should additionally exercise whether
+representative supported agents can apply `DOCGEN-*` and `DOCREP-*` rules
+through the programmatic framework specified in
+`maintainer/specifications/agent-evaluation-framework/`.
+
+Detailed consumer scenarios are owned by
+[agent-behavior verification](agent-behavior-verification/index.md). They
+deliver the exact candidate AGENTS/routed files through normal agent
+mechanisms, use short human-style task prompts, and assert on generated files,
+mutations, provenance, and responses. They do not ask agents to author or
+summarize the standards being tested.
+
+Cached seed conversations establish narrow concrete task-specific bases. Most
+are read-only factual investigations of a package, issue, task, or contract. A
+seed may instead perform one tightly constrained operation when its completed
+state is the shared base for follow-up tasks. A seed may feed several closely
+related continuations and is reusable across candidate-guidance revisions
+because guidance is added only after the continuation forks.
+
+Behavioral model results supplement rather than replace:
+
+- static checks of the authored pages;
+- deterministic repository assertions;
+- explicit human review.
+
+Behavioral validation deliberately creates boundary pressure. Scenarios may
+give the agent internal context unavailable to the destination audience, point
+the user request at derived output, request current documentation for an
+unimplemented target, or make the compliant generation/verification path
+unavailable. The expected behavior preserves audience, ownership,
+source-of-truth, scope, validation, and completion-honesty boundaries rather
+than optimizing for apparent completion.
+
+New guidance-clarity scenarios use a baseline-first comparison:
+
+1. Pin the exact committed guidance from before the proposed wording change.
+2. Run the ordinary task against that baseline before changing the prompt,
+   assertion, fixture pressure, or expected destination behavior.
+3. Confirm that at least one representative model run exhibits the targeted
+   behavior. A case that always passes may remain a robustness check but is not
+   evidence that new wording fixed a regression.
+4. Reuse the same cached seed, prompt, fixture, assertions, and model profile
+   with candidate guidance variants.
+5. Start with the shortest general rule. Add detail or examples only when
+   paired evidence shows the concise wording is insufficient.
+6. Preserve instruction hashes, paired artifacts, failures, and mixed outcomes.
+   Do not make a candidate pass by weakening the task or assertions.
+
+Baseline guidance is restored only inside isolated evaluation workspaces or an
+explicit guidance-source overlay. The main working tree may retain the
+uncommitted review draft.
+
+The calibrated suite has a routine group for frequent high-signal guidance
+checks and an extended group for lower-frequency continuations and reverse
+ownership cases. Ordinary guidance changes run the routine group on the
+lower-cost supported model plus a small second-model sentinel set. Material
+changes and final verification run all scenarios on at least one model and use
+additional cross-model coverage when observed variance justifies it.
+
+After representative runs, a separate calibration review evaluates whether the
+initial seed/test matrix is proportionate and informative. It may recommend
+cutting redundant cases or adding cases that expose missing clarity signals,
+but the approved verification specification and suite change only after user
+approval.
 
 Acceptance and contract tests may reference requirement IDs. Ordinary
 low-level tests do not need them. Manual verification is recorded only when a

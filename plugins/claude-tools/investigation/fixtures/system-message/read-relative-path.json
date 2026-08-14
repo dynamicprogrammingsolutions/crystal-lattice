@@ -39,7 +39,7 @@
     "fast_mode_state": "off",
     "mcp_servers": [],
     "memory_paths": {
-      "auto": "/Users/ferenci84/.claude/projects/-Users-ferenci84-Dev-Mine-ai-agent-platform/memory/"
+      "auto": "<USER_HOME>/.claude/projects/<USER_HOME_KEY>-Dev-Mine-ai-agent-platform/memory/"
     },
     "model": "qwen3-coder-next:cloud",
     "output_style": "default",

@@ -1,26 +1,58 @@
 import type { AgentBackend } from '../backend/backend';
 import type { Unsubscribe } from '../util/subscribable';
 
-type Listener = () => void;
-const LISTENERS_BY_BACKEND: WeakMap<object, Set<Listener>> = new WeakMap();
+type Listener = (invalidationRevision: number) => void;
+
+interface InvalidationState {
+  nextRevision: number;
+  pendingRevision: number | null;
+  listeners: Set<Listener>;
+}
+
+const STATE_BY_BACKEND: WeakMap<object, InvalidationState> = new WeakMap();
+
+function getState(backend: AgentBackend): InvalidationState {
+  let state = STATE_BY_BACKEND.get(backend as object);
+  if (!state) {
+    state = {
+      nextRevision: 0,
+      pendingRevision: null,
+      listeners: new Set(),
+    };
+    STATE_BY_BACKEND.set(backend as object, state);
+  }
+  return state;
+}
 
 export function subscribeApplicationActionsInvalidated(
   backend: AgentBackend,
   listener: Listener,
 ): Unsubscribe {
-  let listeners = LISTENERS_BY_BACKEND.get(backend as object);
-  if (!listeners) {
-    listeners = new Set();
-    LISTENERS_BY_BACKEND.set(backend as object, listeners);
+  const state = getState(backend);
+  state.listeners.add(listener);
+  if (state.pendingRevision != null) {
+    listener(state.pendingRevision);
   }
-  listeners.add(listener);
   return () => {
-    LISTENERS_BY_BACKEND.get(backend as object)?.delete(listener);
+    state.listeners.delete(listener);
   };
 }
 
 export function emitApplicationActionsInvalidated(backend: AgentBackend): void {
-  for (const listener of LISTENERS_BY_BACKEND.get(backend as object) ?? []) {
-    listener();
+  const state = getState(backend);
+  const revision = ++state.nextRevision;
+  state.pendingRevision = revision;
+  for (const listener of state.listeners) {
+    listener(revision);
+  }
+}
+
+export function acknowledgeApplicationActionsInvalidated(
+  backend: AgentBackend,
+  invalidationRevision: number,
+): void {
+  const state = getState(backend);
+  if (state.pendingRevision === invalidationRevision) {
+    state.pendingRevision = null;
   }
 }

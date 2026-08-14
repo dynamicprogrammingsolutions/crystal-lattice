@@ -24,7 +24,7 @@ import {
   normalizeActionDisplayForSurface,
   pickDefaultAgentId,
   runApplicationAction,
-  subscribeRefreshUiEffects,
+  subscribeSessionsListRefreshInvalidations,
   selectSessionListRichActionForPlacement,
   type AgentBackend,
   type ApplicationActionUiElement,
@@ -311,7 +311,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	  const loadSessions = useCallback(async () => {
     if (!sessionsController) {
       Alert.alert('Error', 'No active connection');
-      return;
+      return false;
     }
     try {
       const [list] = await Promise.all([
@@ -319,20 +319,18 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         refreshApplicationPlugins(),
       ]);
       onUpdateCache(list);
+      return true;
     } catch (err: any) {
       console.log('Failed to load sessions', err);
       const message = err?.message || 'Failed to load sessions';
       Alert.alert('Error', message);
+      return false;
     }
 	  }, [sessionsController, onUpdateCache, refreshApplicationPlugins]);
 
   useEffect(() => {
     if (!backend) return;
-    return subscribeRefreshUiEffects(backend, (effect) => {
-      if (effect.type === 'reloadSessionsList') {
-        void loadSessions();
-      }
-    });
+    return subscribeSessionsListRefreshInvalidations(backend, loadSessions);
   }, [backend, loadSessions]);
 
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {

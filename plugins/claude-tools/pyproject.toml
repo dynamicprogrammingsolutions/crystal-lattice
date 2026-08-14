@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 
@@ -23,7 +23,14 @@ version = "0.1.0"
 description = "Claude Code-compatible tool plugin bundle"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE", "PROVENANCE.md"]
 dynamic = ["dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
+Repository = "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
+Issues = "https://github.com/dynamicprogrammingsolutions/crystal-lattice/issues"
 
 
 [project.optional-dependencies]

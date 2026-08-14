@@ -60,6 +60,9 @@ const {
   TranscriptScrollPersistenceHarness,
 } = require('./src/testing/TranscriptScrollPersistenceHarness');
 const {
+  DesktopTranscriptRangeNavigationHarness,
+} = require('./src/testing/DesktopTranscriptRangeNavigationHarness');
+const {
   SessionFiltersPopoverHarness,
 } = require('./src/testing/SessionFiltersPopoverHarness');
 const {
@@ -83,6 +86,7 @@ const { name: appName } = require('./app.json');
 AppRegistry.registerComponent(appName, () => App);
 AppRegistry.registerComponent('ProgressiveScrollHarness', () => ProgressiveScrollHarness);
 AppRegistry.registerComponent('TranscriptScrollPersistenceHarness', () => TranscriptScrollPersistenceHarness);
+AppRegistry.registerComponent('DesktopTranscriptRangeNavigationHarness', () => DesktopTranscriptRangeNavigationHarness);
 AppRegistry.registerComponent('SessionFiltersPopoverHarness', () => SessionFiltersPopoverHarness);
 AppRegistry.registerComponent('DesktopNotificationRailHarness', () => DesktopNotificationRailHarness);
 AppRegistry.registerComponent('ConnectionEditorWindow', () => ConnectionEditorWindow);

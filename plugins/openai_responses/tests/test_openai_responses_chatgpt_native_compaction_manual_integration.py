@@ -7,11 +7,16 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
+from agent_app.application_future import AsyncRuntimeHost
 from agent_core import AgentCore
 from feature_system_message.system_message_feature import SystemMessageFeature
 from openai_responses_plugins import (
     OpenAIResponsesChatGPTAuthFeature,
     OpenAIResponsesProvider,
+)
+from openai_responses_plugins.openai_responses_native_compaction import (
+    COMPACTION_TRANSPORT_CONTEXT_KEY,
+    CancellableAsyncOpenAIResponsesCompactionTransport,
 )
 from openai_responses_plugins.openai_responses_native_compaction_extension import (
     OpenAIResponsesNativeCompactionExtension,
@@ -21,6 +26,9 @@ from openai_responses_plugins.openai_responses_native_compaction_extension impor
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_CHATGPT_AUTH_STATE_DIR = (
     REPO_ROOT / "plugins" / "chatgpt-auth-app" / "tests" / ".manual-state"
+)
+_DEFAULT_CRYSTAL_CREDENTIALS_PATH = (
+    Path.home() / ".crystal" / "auth" / "chatgpt-auth.json"
 )
 pytestmark = pytest.mark.api
 
@@ -33,6 +41,11 @@ def _manual_state_dir() -> Path:
 
 
 def _credentials_path() -> Path:
+    configured_state_dir = os.getenv("CHATGPT_TEST_STATE_DIR")
+    if isinstance(configured_state_dir, str) and configured_state_dir.strip():
+        return Path(configured_state_dir).expanduser() / "auth" / "chatgpt-auth.json"
+    if _DEFAULT_CRYSTAL_CREDENTIALS_PATH.is_file():
+        return _DEFAULT_CRYSTAL_CREDENTIALS_PATH
     return _manual_state_dir() / "auth" / "chatgpt-auth.json"
 
 
@@ -117,13 +130,21 @@ def test_openai_responses_chatgpt_saved_login_native_compaction() -> None:
     assert first_messages
     assert "CHATGPT_COMPACTION_TURN_ONE" in str(first_messages[-1].get("content"))
 
-    compacted_session, result = core.execute_session_action(
-        first_session,
-        config,
-        plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history_sync",
-        params={},
+    runtime = AsyncRuntimeHost()
+    transport = CancellableAsyncOpenAIResponsesCompactionTransport(
+        run_awaitable_blocking=runtime.run_blocking,
     )
+    try:
+        compacted_session, result = core.execute_session_action(
+            first_session,
+            config,
+            plugin_id="openai_responses_native_compaction",
+            action_id="compact_native_history_sync",
+            params={},
+            context={COMPACTION_TRANSPORT_CONTEXT_KEY: transport},
+        )
+    finally:
+        runtime.close()
 
     assert result["message"] == "Compacted the full visible history."
     _assert_has_compaction_native_items(compacted_session)

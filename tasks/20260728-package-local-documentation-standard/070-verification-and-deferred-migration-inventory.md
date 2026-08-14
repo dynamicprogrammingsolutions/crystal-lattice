@@ -3,6 +3,7 @@ Parent Task: tasks/20260728-package-local-documentation-standard/000-main.md
 Depends On:
 
 - `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
+- `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
 - `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 - `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
 - `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
@@ -15,7 +16,7 @@ Specification:
 `maintainer/specifications/documentation-and-specification-standard/index.md`
 
 Requirement IDs:
-`DOCMIG-004`, `DOCFLOW-004`, `DOCVAL-001`–`DOCVAL-004`
+`DOCMIG-004`, `DOCFLOW-004`, `DOCVAL-001`–`DOCVAL-005`
 
 # Verification and Deferred Migration Inventory
 
@@ -47,6 +48,9 @@ silently expanding scope.
   each other unnecessarily.
 - [ ] Deterministic task-guidance evaluation affected by the update passes;
   real-model review is recorded separately when run.
+- [ ] Deterministic agent-evaluation framework tests pass, and the gated
+  documentation-standard behavioral consumers are run or explicitly reported
+  as not run.
 - [ ] A concise deferred migration inventory records likely owner, reason for
   deferral, and a useful future trigger.
 - [ ] Parent and subtask requirement evidence is updated before completion.
@@ -95,12 +99,14 @@ Status: Draft
 4. Exercise representative old/new public paths and internal links.
 5. Inspect the rendered contributor workflow for readability, role clarity,
    prompt concision, and human review gates.
-6. Verify canonical/bundled task-guidance parity and run affected deterministic
+6. Run deterministic agent-evaluation tests and inspect the
+   documentation-standard behavioral evidence or explicit not-run report.
+7. Verify canonical/bundled task-guidance parity and run affected deterministic
    evaluation tests.
-7. Review all migration candidates and record final disposition.
-8. Create the concise deferred migration inventory.
-9. Map acceptance evidence to parent and subtask requirements.
-10. Identify any human review still needed and leave those requirements
+8. Review all migration candidates and record final disposition.
+9. Create the concise deferred migration inventory.
+10. Map acceptance evidence to parent and subtask requirements.
+11. Identify any human review still needed and leave those requirements
    incomplete.
 
 ### Implementation decisions and open questions
@@ -129,6 +135,7 @@ Status: Draft
 - [ ] Compare warnings with baseline.
 - [ ] Verify representative links and routes.
 - [ ] Review contributor workflow readability and prompt examples.
+- [ ] Verify the agent-evaluation framework and documentation-standard consumers.
 - [ ] Verify task-guidance parity and deterministic evaluation.
 - [ ] Record every migration outcome.
 - [ ] Write deferred migration inventory.
@@ -143,6 +150,7 @@ Status: Draft
 | Site build | Normal MkDocs build exits successfully; warning comparison is recorded. |
 | Navigation and compatibility | Representative canonical pages and old routes resolve in built output. |
 | Contributor workflow | Human inspection confirms the six-step guide is easy to follow, risk-scaled, role-clear, and keeps prompt examples separate from standing rules. |
+| Agent evaluation | Deterministic framework tests pass; every `DOCGEN-*` and `DOCREP-*` requirement maps to a gated behavioral consumer; exact artifacts are reviewed or the provider-dependent suite is explicitly reported as not run. |
 | Task guidance | Canonical/bundled parity check passes; specification/task semantics and concise-prompt evaluation cases pass deterministic checks. |
 | Migration completeness | Every parent migration candidate has relocate/retain/defer outcome with owner and verification boundary. |
 | Deferred work quality | Inventory is concise, contains no hidden requirements, and gives a clear future trigger without filler pages. |

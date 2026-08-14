@@ -57,6 +57,36 @@ it refreshes or reconnects. Immediate cross-device removal is not required.
 A newly opened or rehydrated frontend uses authoritative state and does not
 present dismissed, resolved, or expired records as active.
 
+## Refresh effects
+
+Only a pending notification revision that explicitly carries a refresh effect
+requests execution. Snapshot and event observation of the same revision does
+not repeat the request. Presentation-only updates and dismissed, resolved, or
+expired revisions do not inherit or repeat an earlier effect.
+
+Refresh effects are limited to the owning connection:
+
+- a session reload refreshes the matching active or mounted session;
+- a session-list reload refreshes the owning connection's collection;
+- an application-action reload refreshes definitions and related application
+  UI schema for the owning connection.
+
+The frontend does not navigate because of a notification effect.
+
+If a matching consumer cannot reload immediately, the invalidation remains
+available. An inactive mounted consumer may defer until activation. A consumer
+mounted later receives the pending invalidation. Cached data is not considered
+authoritative after the invalidation until reload succeeds.
+
+A successful authoritative reload acknowledges the invalidation. Failure
+leaves it pending. Frontend rerender or resubscription does not create
+concurrent duplicate reloads for the same target and invalidation revision.
+A late completion for an older invalidation does not clear a newer one.
+
+Action responses use the same explicit refresh field meanings, but they remain
+one-shot and may additionally navigate or derive policy from declared
+mutations. Those action-only behaviors are not inferred for notifications.
+
 ## TTL presentation
 
 A TTL deadline is checked when a frontend host first observes or rehydrates a

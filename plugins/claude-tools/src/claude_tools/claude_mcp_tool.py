@@ -1,11 +1,3 @@
-# Licensing note:
-# This file may contain both original code authored for this repository and
-# material derived from or adapted from Claude Code or other
-# Anthropic-authored materials.
-#
-# Original code in this file authored for this repository is licensed under
-# the Apache License, Version 2.0.
-#
 # Copyright 2026 Dynamic Programming Solutions Kft.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Anthropic-derived material in this file is not licensed by us under
-# Apache-2.0, and are instead subject to Anthropic's terms:
-#
-# © Anthropic PBC. All rights reserved. Use is subject to Anthropic's
-# Commercial Terms of Service:
-# https://www.anthropic.com/legal/commercial-terms
 
 from __future__ import annotations
 

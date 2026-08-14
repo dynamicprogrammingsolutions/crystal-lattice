@@ -26,7 +26,7 @@
     "2026-06-01T05:33:19.584Z [ERROR] MCP server \"filesystem\" ENOENT: no such file or directory, open '<WORKSPACE>/missing.txt'",
     "2026-06-01T05:33:19.585Z [DEBUG] MCP server \"filesystem\": Tool 'read_text_file' failed after 0s: ENOENT: no such file or directory, open '<WORKSPACE>/missing.txt'",
     "2026-06-01T05:33:19.589Z [WARN] [Stall] tool_dispatch_end tool=mcp__filesystem__read_text_file toolUseId=<TOOL_CALL_ID> outcome=error durationMs=17",
-    "2026-06-01T05:33:19.589Z [DEBUG] mcp__filesystem__read_text_file tool error (17ms): ENOENT: no such file or directory, open '/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/claude-mcp-tools/plugins/claude-tools/investigation/raw/mcp/20260601-073316-filesystem-missing-file/works",
+    "2026-06-01T05:33:19.589Z [DEBUG] mcp__filesystem__read_text_file tool error (17ms): ENOENT: no such file or directory, open '<USER_HOME>/Dev/Mine/ai-agent-platform-worktrees/claude-mcp-tools/plugins/claude-tools/investigation/raw/mcp/20260601-073316-filesystem-missing-file/works",
     "2026-06-01T05:33:21.582Z [DEBUG] MCP server \"filesystem\": Sending SIGINT to MCP server process",
     "2026-06-01T05:33:21.608Z [DEBUG] MCP server \"filesystem\": STDIO connection closed after 3s (cleanly)",
     "2026-06-01T05:33:21.608Z [DEBUG] MCP server \"filesystem\": Cleared connection cache for reconnection",

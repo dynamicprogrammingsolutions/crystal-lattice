@@ -205,10 +205,10 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     },
     [getNativeScrollTarget],
   );
-  const captureVisibleAnchor = React.useCallback(async (): Promise<VisibleAnchor | null> => {
+  const captureVisibleAnchors = React.useCallback(async (): Promise<VisibleAnchor[]> => {
     const candidates = viewableAnchorsRef.current;
     if (candidates.length === 0) {
-      return null;
+      return [];
     }
     const measured = await Promise.all(
       candidates.map(async (candidate) => ({
@@ -216,19 +216,19 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
         offsetFromViewportTop: await measureItemViewportOffset(candidate.key),
       })),
     );
-    const visible = measured
+    return measured
       .filter((candidate) => typeof candidate.offsetFromViewportTop === 'number')
-      .sort((a, b) => (a.offsetFromViewportTop ?? 0) - (b.offsetFromViewportTop ?? 0))[0];
-    if (!visible || typeof visible.offsetFromViewportTop !== 'number') {
-      return null;
-    }
-    const anchor = {
-      key: visible.key,
-      sourceIndex: visible.sourceIndex,
-      offsetFromViewportTop: visible.offsetFromViewportTop,
-    };
-    return anchor;
+      .sort((a, b) => (a.offsetFromViewportTop ?? 0) - (b.offsetFromViewportTop ?? 0))
+      .map((visible) => ({
+        key: visible.key,
+        sourceIndex: visible.sourceIndex,
+        offsetFromViewportTop: visible.offsetFromViewportTop as number,
+      }));
   }, [measureItemViewportOffset]);
+  const captureVisibleAnchor = React.useCallback(async (): Promise<VisibleAnchor | null> => {
+    const anchors = await captureVisibleAnchors();
+    return anchors[0] ?? null;
+  }, [captureVisibleAnchors]);
   const emitScrollActionDiagnostic = React.useCallback(
     (event: string, reason?: string, details?: Record<string, unknown>) => {
       onScrollActionDiagnostic?.({ event, reason, details });
@@ -344,12 +344,37 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
             .catch(() => setTimeout(issueIndexRetry, 100));
           return;
         }
-        issueIndexRetry();
+        getMacScrollViewMetrics(flatListRef.current)
+          .then((metrics) => {
+            if (pendingItemAnchorRef.current !== nextPending) {
+              return;
+            }
+            if (!metrics) {
+              issueIndexRetry();
+              return;
+            }
+            const maxOffsetY = Math.max(
+              0,
+              metrics.contentHeight - metrics.viewportHeight,
+            );
+            const visualError = actualOffset - pending.viewOffset;
+            const correction = inverted ? -visualError : visualError;
+            flatListRef.current?.scrollToOffset?.({
+              offset: Math.max(
+                0,
+                Math.min(maxOffsetY, metrics.offsetY + correction),
+              ),
+              animated: false,
+            });
+            retryItemAnchor();
+          })
+          .catch(issueIndexRetry);
       });
     });
   }, [
     emitScrollActionDiagnostic,
     finishPendingItemAnchor,
+    inverted,
     measureItemViewportOffset,
     resolvedItemAnchorMaxAttempts,
     resolvedItemAnchorTimeoutMs,
@@ -506,8 +531,10 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
       getNativeScrollRef: () => flatListRef.current,
       getScrollableNode: () => flatListRef.current?.getScrollableNode?.(),
       getVisibleAnchor: captureVisibleAnchor,
+      getVisibleMessageAnchors: captureVisibleAnchors,
       getItemViewportOffset: (key: string) => measureItemViewportOffset(key),
       hasPendingScrollAction: () => pendingItemAnchorRef.current != null,
+      cancelItemAnchor: () => cancelPendingItemAnchor('cancelled'),
       scrollToItemAnchor: (request: {
         key?: string;
         sourceIndex?: number;
@@ -569,6 +596,7 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     [
       cancelPendingItemAnchor,
       captureVisibleAnchor,
+      captureVisibleAnchors,
       emitScrollActionDiagnostic,
       indexByKey,
       measureItemViewportOffset,

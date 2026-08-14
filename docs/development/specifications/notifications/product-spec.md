@@ -45,6 +45,26 @@ Other already-open devices do not have to reconcile the dismissal immediately.
 A newly opened, reconnected, or explicitly refreshed frontend loads
 authoritative state and does not present a server-dismissed record as active.
 
+## Refresh effects
+
+A pending notification revision may explicitly request connection-scoped
+refresh effects. The initial portable effects reload named sessions, reload
+the session collection, or reload application-action definitions.
+
+The effect belongs to the revision that explicitly requests it. A later
+presentation or lifecycle update does not inherit the earlier command.
+Dismissed, resolved, and expired revisions do not repeat it.
+
+An active frontend consumer reloads authoritative state promptly. If the
+affected consumer is inactive, unavailable, or not mounted, the connection
+retains the invalidation until an appropriate consumer can reload
+successfully. A frontend that started from cached data therefore converges on
+authoritative state without requiring the producer to repeat the notification.
+
+Notification effects do not navigate or change user focus. Action responses
+may use the same explicit refresh field meanings, but action-only navigation
+and mutation-derived behavior do not become notification behavior.
+
 ## Retention
 
 Every notification has a defined lifetime. Initial retention policies support:

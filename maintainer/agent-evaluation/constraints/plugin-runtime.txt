@@ -1,0 +1,6 @@
+# Keep path-installed evaluation providers reproducible.
+#
+# OpenAI 3.0.0 currently imports an aiohttp timeout symbol that is unavailable
+# in the Crystal Lattice application environment used by this suite. The
+# previously validated ChatGPT-account evaluation runtime used OpenAI 2.53.0.
+openai==2.53.0

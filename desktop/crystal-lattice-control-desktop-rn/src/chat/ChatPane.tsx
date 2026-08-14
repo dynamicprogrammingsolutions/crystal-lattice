@@ -48,10 +48,12 @@ import {
   runApplicationAction,
   selectSessionAssetId,
   selectDisplayContent,
+  selectTranscriptRangeRestoreAnchor,
   storeSessionAttachment,
-  subscribeRefreshUiEffects,
+  subscribeSessionRefreshInvalidations,
   type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
   type AttachmentDraftStatus,
+  type TranscriptViewportAnchorCandidate,
 } from '@crystal-lattice/frontend-sdk';
 import {
   useApplicationPlugins,
@@ -457,6 +459,19 @@ export const ChatPane = React.memo(function ChatPane({
   const attemptedInitialLoadRef = useRef(false);
   const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistKeyRef = useRef<string | null>(null);
+  const rangeNavigationOperationRef = useRef(0);
+  const [pendingRangeRestore, setPendingRangeRestore] = useState<{
+    operationId: number;
+    messageIndex: number;
+    offsetFromViewportTop: number;
+  } | null>(null);
+
+  const cancelRangeNavigation = useCallback(() => {
+    rangeNavigationOperationRef.current += 1;
+    setPendingRangeRestore(null);
+  }, []);
+
+  useEffect(() => cancelRangeNavigation, [cancelRangeNavigation, sessionId]);
 
   const [composerHeight, setComposerHeight] = useState(34);
   const handleComposerHeightChange = useCallback((height: number) => {
@@ -1105,7 +1120,26 @@ export const ChatPane = React.memo(function ChatPane({
       TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ||
       TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList',
     listEdgeMethodsEnabled: TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll',
+    onUserNavigationIntent: cancelRangeNavigation,
   });
+
+  useEffect(() => {
+    if (
+      !pendingRangeRestore ||
+      rangeNavigationOperationRef.current !== pendingRangeRestore.operationId
+    ) {
+      return;
+    }
+    if (!messages.some((entry) => entry.index === pendingRangeRestore.messageIndex)) {
+      return;
+    }
+    transcriptScroll.listRef.current?.scrollToItemAnchor?.({
+      key: `msg-${pendingRangeRestore.messageIndex}`,
+      offsetFromViewportTop: pendingRangeRestore.offsetFromViewportTop,
+      animated: false,
+    });
+    setPendingRangeRestore(null);
+  }, [messages, pendingRangeRestore, transcriptScroll.listRef]);
 
   const requestPersistTranscriptScroll = transcriptScroll.requestPersist;
 
@@ -2016,10 +2050,10 @@ export const ChatPane = React.memo(function ChatPane({
 
   const handleReload = useCallback(async () => {
     if (!canRunHeaderActions) {
-      return;
+      return false;
     }
     if (reloadInFlight) {
-      return;
+      return false;
     }
 
     setReloadInFlight(true);
@@ -2032,6 +2066,7 @@ export const ChatPane = React.memo(function ChatPane({
       });
       const snapshot = chatController.getCacheSnapshot();
       setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
+      return true;
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message
@@ -2039,6 +2074,7 @@ export const ChatPane = React.memo(function ChatPane({
           : 'Failed to reload messages.';
       setLoadError(message);
       Alert.alert('Failed to reload', message);
+      return false;
     } finally {
       setReloadInFlight(false);
     }
@@ -2048,20 +2084,14 @@ export const ChatPane = React.memo(function ChatPane({
     () => (backend ? new NotificationUiEffectObserver(backend) : null),
     [backend],
   );
-
   useEffect(() => {
     if (!backend) return;
-    return subscribeRefreshUiEffects(backend, (effect) => {
-      if (effect.type === 'reloadSession' && effect.sessionId === sessionId) {
-        void handleReload();
-      } else if (effect.type === 'reloadSessionsList') {
-        desktopEventBus.publish('sessionsReloadRequested', {
-          connectionId,
-          reason: 'notification_ui_effect',
-        });
-      }
-    });
-  }, [backend, connectionId, handleReload, sessionId]);
+    return subscribeSessionRefreshInvalidations(
+      backend,
+      sessionId,
+      handleReload,
+    );
+  }, [backend, handleReload, sessionId]);
 
   useEffect(() => {
     if (!notificationUiEffectObserver) return;
@@ -2200,7 +2230,18 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   const applyMessageLimitAndReload = useCallback(
-    async (params: { startText: string; endText: string }) => {
+    async (params: {
+      startText: string;
+      endText: string;
+      rangeNavigationOperationId?: number;
+    }) => {
+      if (params.rangeNavigationOperationId == null) {
+        cancelRangeNavigation();
+      } else if (
+        rangeNavigationOperationRef.current !== params.rangeNavigationOperationId
+      ) {
+        return null;
+      }
       setRangeStartText(params.startText);
       setRangeEndText(params.endText);
 
@@ -2214,15 +2255,22 @@ export const ChatPane = React.memo(function ChatPane({
           startText: params.startText,
           endText: params.endText,
         });
+        if (
+          params.rangeNavigationOperationId != null &&
+          rangeNavigationOperationRef.current !== params.rangeNavigationOperationId
+        ) {
+          return null;
+        }
         const snapshot = chatController.getCacheSnapshot();
         setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
+        return snapshot;
       } catch (err: any) {
         const message = err?.message || 'Failed to reload messages.';
         setLoadError(message);
         Alert.alert('Failed to reload', message);
       }
     },
-    [backend, chatController],
+    [backend, cancelRangeNavigation, chatController],
   );
 
   const firstLoadedMessageIndex = messages.length > 0 ? messages[0].index : null;
@@ -2244,7 +2292,7 @@ export const ChatPane = React.memo(function ChatPane({
     [firstLoadedMessageIndex, lastLoadedMessageIndex, messages.length, rangeEndText, rangeStartText],
   );
   const handleTranscriptRangeAction = useCallback(
-    (action: TranscriptRangeControlAction) => {
+    async (action: TranscriptRangeControlAction) => {
       if (!TRANSCRIPT_RANGE_CONTROLS || reloadInFlight || chatState?.loading) {
         return;
       }
@@ -2263,20 +2311,129 @@ export const ChatPane = React.memo(function ChatPane({
       if (!plan) {
         return;
       }
-      applyMessageLimitAndReload({
+      if (action !== 'expandAbove' && action !== 'expandBelow') {
+        await applyMessageLimitAndReload({
+          startText: plan.startText,
+          endText: plan.endText,
+        });
+        return;
+      }
+      const operationId = rangeNavigationOperationRef.current + 1;
+      rangeNavigationOperationRef.current = operationId;
+      setPendingRangeRestore(null);
+      transcriptScroll.listRef.current?.cancelItemAnchor?.();
+      const previousState = chatController?.getSnapshot() ?? null;
+      const previousMessages = previousState?.messages ?? messages;
+      const messageByIndex = new Map(
+        previousMessages.map((entry) => [entry.index, entry.message] as const),
+      );
+      const measuredAnchors =
+        (await transcriptScroll.listRef.current?.getVisibleMessageAnchors?.()) ?? [];
+      if (rangeNavigationOperationRef.current !== operationId) {
+        return;
+      }
+      const candidates: TranscriptViewportAnchorCandidate[] = measuredAnchors
+        .map((measured: { key: string; offsetFromViewportTop: number }) => {
+          const match = /^msg-(-?\d+)$/.exec(measured.key);
+          const messageIndex = match ? Number(match[1]) : Number.NaN;
+          const message = messageByIndex.get(messageIndex);
+          return message && Number.isFinite(messageIndex)
+            ? {
+                messageIndex,
+                offsetFromViewportTop: measured.offsetFromViewportTop,
+                message,
+              }
+            : null;
+        })
+        .filter(
+          (
+            candidate: TranscriptViewportAnchorCandidate | null,
+          ): candidate is TranscriptViewportAnchorCandidate => candidate != null,
+        );
+      if ((globalThis as any).CLC_DEBUG_TRANSCRIPT_RANGE_NAVIGATION === true) {
+        console.log('[transcriptRangeNavigation] captured', {
+          action,
+          operationId,
+          candidates: candidates.map((candidate) => ({
+            messageIndex: candidate.messageIndex,
+            offsetFromViewportTop: candidate.offsetFromViewportTop,
+          })),
+        });
+      }
+      transcriptScroll.suppressNextBottomContentFollow();
+      const completed = await applyMessageLimitAndReload({
         startText: plan.startText,
         endText: plan.endText,
-      }).catch(() => {});
+        rangeNavigationOperationId: operationId,
+      });
+      if (
+        !completed ||
+        !chatController ||
+        rangeNavigationOperationRef.current !== operationId
+      ) {
+        if (!completed) {
+          transcriptScroll.clearBottomContentFollowSuppression();
+        }
+        return;
+      }
+      const completedState = chatController.getSnapshot();
+      const anchor = selectTranscriptRangeRestoreAnchor({
+        candidates,
+        completedMessages: completedState.messages,
+        previousContext: {
+          cursorEventId: previousState?.listCursorEventId ?? null,
+          snapshotId: previousState?.snapshotId ?? null,
+        },
+        completedContext: {
+          cursorEventId: completedState.listCursorEventId,
+          snapshotId: completedState.snapshotId,
+        },
+      });
+      if ((globalThis as any).CLC_DEBUG_TRANSCRIPT_RANGE_NAVIGATION === true) {
+        console.log('[transcriptRangeNavigation] selected', {
+          action,
+          operationId,
+          anchor,
+        });
+      }
+      if (rangeNavigationOperationRef.current !== operationId) {
+        return;
+      }
+      if (!anchor) {
+        if (action === 'expandAbove') {
+          transcriptScroll.scrollToBottom(false);
+          return;
+        }
+        const firstCompletedIndex = completedState.messages[0]?.index;
+        if (firstCompletedIndex != null) {
+          setPendingRangeRestore({
+            operationId,
+            messageIndex: firstCompletedIndex,
+            offsetFromViewportTop: 0,
+          });
+        }
+        return;
+      }
+      setPendingRangeRestore({
+        operationId,
+        messageIndex: anchor.messageIndex,
+        offsetFromViewportTop: anchor.offsetFromViewportTop,
+      });
     },
     [
       applyMessageLimitAndReload,
       chatState?.loading,
+      chatController,
       firstLoadedMessageIndex,
       lastLoadedMessageIndex,
       messages.length,
       rangeEndText,
       rangeStartText,
       reloadInFlight,
+      transcriptScroll.listRef,
+      transcriptScroll.clearBottomContentFollowSuppression,
+      transcriptScroll.scrollToBottom,
+      transcriptScroll.suppressNextBottomContentFollow,
     ],
   );
 
@@ -2747,21 +2904,27 @@ export const ChatPane = React.memo(function ChatPane({
       const renderMode = messageViewModeByIndex[msg.index] ?? defaultModeForRole;
 
       return (
-        <DesktopMessageBubble
-          index={msg.index}
-          message={msg.message}
-          allowedActions={allowedActions}
-          onAction={(action, index, message) => handleMessageAction(action, index, message)}
-          isEditing={isEditing}
-          editingInitialText={isEditing ? editingInitialText : undefined}
-          editingText={isEditing ? editingText : undefined}
-          onChangeEditingText={isEditing ? setEditingText : undefined}
-          onSubmitEdit={(index, _message, nextText) => handleSubmitEditMessage(index, nextText)}
-          onCancelEdit={handleCancelEditMessage}
-          renderMode={renderMode}
-          footerElements={footerElements}
-          pluginActionDefs={pluginMessageActionDefs}
-        />
+        <View
+          accessible
+          accessibilityLabel={`Transcript message ${msg.index}`}
+          testID={`transcript-message-${msg.index}`}
+        >
+          <DesktopMessageBubble
+            index={msg.index}
+            message={msg.message}
+            allowedActions={allowedActions}
+            onAction={(action, index, message) => handleMessageAction(action, index, message)}
+            isEditing={isEditing}
+            editingInitialText={isEditing ? editingInitialText : undefined}
+            editingText={isEditing ? editingText : undefined}
+            onChangeEditingText={isEditing ? setEditingText : undefined}
+            onSubmitEdit={(index, _message, nextText) => handleSubmitEditMessage(index, nextText)}
+            onCancelEdit={handleCancelEditMessage}
+            renderMode={renderMode}
+            footerElements={footerElements}
+            pluginActionDefs={pluginMessageActionDefs}
+          />
+        </View>
       );
     },
     [
@@ -2847,7 +3010,9 @@ export const ChatPane = React.memo(function ChatPane({
           rangeControlsDisabled && styles.transcriptRangeControlButtonDisabled,
           pressed && !rangeControlsDisabled && styles.transcriptRangeControlButtonPressed,
         ]}
-        onPress={() => handleTranscriptRangeAction(button.id)}
+        onPress={() => {
+          void handleTranscriptRangeAction(button.id);
+        }}
       >
         <Text style={styles.transcriptRangeControlText}>{button.title}</Text>
       </Pressable>
@@ -3014,6 +3179,7 @@ export const ChatPane = React.memo(function ChatPane({
           <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
             {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
               <DependencyFlatList
+	              testID="transcript-scroll-list"
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
@@ -3095,6 +3261,7 @@ export const ChatPane = React.memo(function ChatPane({
 	            />
             ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ? (
               <ProgressiveScrollList
+                testID="transcript-scroll-list"
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
@@ -3131,6 +3298,7 @@ export const ChatPane = React.memo(function ChatPane({
 	            />
             ) : (
               <PlaceholderFlatList
+                testID="transcript-scroll-list"
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}

@@ -12,6 +12,19 @@ built on a modular Python agent framework. It gives you:
 This README starts with the user path for trying the app. Developer and SDK
 material follows after that.
 
+## Project Status
+
+Crystal Lattice is in active early development. The terminal/server, mobile
+connection, SDK, and plugin-authoring workflows are available for evaluation
+and development, but public APIs, configuration, plugin contracts, packaging,
+and deployment procedures may change as the project incorporates early-adopter
+feedback.
+
+The bridge and cloud-orchestrator components are optional self-hosted software.
+Dynamic Programming Solutions Kft. does not currently operate a public
+production bridge or cloud-agent service. The project does not promise a
+support SLA or a fixed compatibility window at this stage.
+
 ## Quickstart: Try Crystal Lattice
 
 ### 1. Install The Terminal/Server App
@@ -475,12 +488,16 @@ pytest core/python/examples/tests -qs
 Browse the MkDocs site locally:
 
 ```bash
-pip install -r docs/requirements.txt
-mkdocs serve
+python -m pip install -r docs_site/requirements.txt
+python docs_site/scripts/prepare_mkdocs_site.py
+(cd docs_site && mkdocs serve -a 127.0.0.1:8001)
 ```
 
 Key docs:
 
+- [Development documentation](docs/development/index.md)
+- [Reusable development standards](docs/development/standards/index.md)
+- [Crystal Lattice repository policy](docs/development/repository/index.md)
 - [docs/api/core-sdk.md](docs/api/core-sdk.md)
 - [plugins/docs/index.md](plugins/docs/index.md)
 - [docs/plugins/development.md](docs/plugins/development.md) - older/general plugin overview
@@ -489,12 +506,36 @@ Key docs:
 - [mobile/crystal-lattice-control-rn/README.md](mobile/crystal-lattice-control-rn/README.md)
 - [bridge-elixir/README.md](bridge-elixir/README.md)
 
+Build the prepared site without starting a server:
+
+```bash
+python docs_site/scripts/prepare_mkdocs_site.py
+(cd docs_site && mkdocs build)
+```
+
+See [docs_site/README.md](docs_site/README.md) for the full build, generated
+reference snapshot, and deployment workflow.
+
 When changing examples:
 
 ```bash
 pytest core/python/examples/tests -qs
 python scripts/generate_examples_md.py
 ```
+
+## Community And Support
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing or submitting a
+  change.
+- Use [SUPPORT.md](SUPPORT.md) to route usage questions, reproducible bugs, and
+  feature requests.
+- Use the
+  [GitHub issue chooser](https://github.com/dynamicprogrammingsolutions/crystal-lattice/issues/new/choose)
+  for non-sensitive bugs and feature proposals.
+- Read [SECURITY.md](SECURITY.md) and report suspected vulnerabilities
+  privately. Do not disclose security-sensitive details in a public issue.
+- Product and mobile-app support information is also available at
+  [crystallattice.dev/support](https://crystallattice.dev/support).
 
 ## Status And Version
 
@@ -527,10 +568,10 @@ Some subdirectories may include their own `LICENSE` files, file-level license
 headers, `NOTICE` files, or other rights notices. Those more specific notices
 apply within their respective files or subtrees.
 
-Some compatibility-oriented materials in this repository are derived from or
-adapted from third-party systems and are not necessarily licensed by us under
-Apache-2.0. Rights for those materials should be determined from the
-applicable file-level notices, subtree-specific notices, and upstream terms.
+Independently authored compatibility implementations and generated normalized
+behavior fixtures may be Apache-2.0 licensed where the applicable project or
+subtree says so. Actual third-party source or adapted material remains subject
+to its applicable upstream notices and terms.
 
 See [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md) for the repository-wide
 licensing rule.

@@ -42,11 +42,13 @@ import {
   notificationExpectedRevision,
   runApplicationAction,
   observeSessionNotificationUiEffects,
-  subscribeRefreshUiEffects,
+  subscribeSessionRefreshInvalidations,
+  subscribeSessionsListRefreshInvalidations,
   resolveAttachmentActionPluginId,
   selectSessionAssetId,
   selectLastAssistantMessage,
   selectSessionNotifications,
+  selectTranscriptRangeRestoreAnchor,
   storeSessionAttachment,
   generateIdempotencyKey,
   getTranscriptRangeControlPresentation,
@@ -55,6 +57,7 @@ import {
   type TranscriptRangeControlAction,
   type RunActionContext,
   type AttachmentDraftStatus,
+  type TranscriptViewportAnchorCandidate,
 } from '@crystal-lattice/frontend-sdk';
 import {
   ApplicationActionDialog,
@@ -273,8 +276,19 @@ function upsertInlineDisplay(
 const TRANSCRIPT_STATUS_ROW: TranscriptRow = { kind: 'status' };
 const TRANSCRIPT_STREAM_ROW: TranscriptRow = { kind: 'stream' };
 
+type MobileTranscriptListHandle = FlatListType<any> & {
+  getVisibleMessageAnchors?: () => Promise<
+    Array<{ key: string; offsetFromViewportTop: number }>
+  >;
+  scrollToMessageAnchor?: (request: {
+    key: string;
+    offsetFromViewportTop: number;
+  }) => void;
+  cancelMessageAnchor?: () => void;
+};
+
 type ChatTranscriptProps = {
-  listRef: React.RefObject<FlatListType<any> | null>;
+  listRef: React.RefObject<MobileTranscriptListHandle | null>;
   messages: IndexedMessage[];
   streamingRow: { content?: string | null; reasoning?: string | null; metadata?: any } | null;
   isActive: boolean;
@@ -298,6 +312,7 @@ type ChatTranscriptProps = {
   rangeBottomControlsContent: React.ReactElement | null;
   initialScrollAnchor: ChatScrollAnchor | null;
   onScrollStateChange: (state: InvertedTranscriptScrollState) => void;
+  onUserNavigationIntent: () => void;
 };
 
 const ChatTranscript = React.memo(({
@@ -325,6 +340,7 @@ const ChatTranscript = React.memo(({
   rangeBottomControlsContent,
   initialScrollAnchor,
   onScrollStateChange,
+  onUserNavigationIntent,
 }: ChatTranscriptProps) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -345,6 +361,7 @@ const ChatTranscript = React.memo(({
       testID="transcript-scroll-list"
       initialScrollAnchor={initialScrollAnchor}
       onScrollStateChange={onScrollStateChange}
+      onUserNavigationIntent={onUserNavigationIntent}
       ListHeaderComponent={
         inlineActionDisplaysContent || rangeBottomControlsContent ? (
           <View>
@@ -890,7 +907,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     sessionListFields,
   } = useApplicationPlugins();
 
-	  const listRef = useRef<FlatListType<any> | null>(null);
+	  const listRef = useRef<MobileTranscriptListHandle | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const onSaveComposeTextRef = useRef(onSaveComposeText);
@@ -912,6 +929,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   } | null>(null);
   const attachmentPickRequestIdRef = useRef(0);
   const attachmentPickRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rangeNavigationOperationRef = useRef(0);
+  const [pendingRangeRestore, setPendingRangeRestore] = useState<{
+    operationId: number;
+    messageIndex: number;
+    offsetFromViewportTop: number;
+  } | null>(null);
+
+  const cancelRangeNavigation = useCallback(() => {
+    rangeNavigationOperationRef.current += 1;
+    setPendingRangeRestore(null);
+    listRef.current?.cancelMessageAnchor?.();
+  }, []);
+
+  useEffect(() => cancelRangeNavigation, [cancelRangeNavigation, sessionId]);
 
   const clearAttachmentPickRecoveryTimer = useCallback(() => {
     if (attachmentPickRecoveryTimerRef.current != null) {
@@ -1077,6 +1108,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const loadingMessages = chatState?.loading ?? false;
   const sessionDirty = chatState?.dirty ?? false;
   const eventsStatus = chatState?.eventsStatus ?? 'idle';
+
+  useEffect(() => {
+    if (
+      !pendingRangeRestore ||
+      rangeNavigationOperationRef.current !== pendingRangeRestore.operationId
+    ) {
+      return;
+    }
+    if (!messages.some((entry) => entry.index === pendingRangeRestore.messageIndex)) {
+      return;
+    }
+    listRef.current?.scrollToMessageAnchor?.({
+      key: `msg-${pendingRangeRestore.messageIndex}`,
+      offsetFromViewportTop: pendingRangeRestore.offsetFromViewportTop,
+    });
+    setPendingRangeRestore(null);
+  }, [messages, pendingRangeRestore]);
 
   useEffect(() => {
     if (
@@ -1713,12 +1761,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       endText,
       reason,
       scrollToBottomAfterLoad = false,
+      rangeNavigationOperationId,
     }: {
       startText: string;
       endText: string;
       reason: string;
       scrollToBottomAfterLoad?: boolean;
+      rangeNavigationOperationId?: number;
     }) => {
+      if (rangeNavigationOperationId == null) {
+        cancelRangeNavigation();
+      } else if (rangeNavigationOperationRef.current !== rangeNavigationOperationId) {
+        return null;
+      }
       setRangeStartText(startText);
       setRangeEndText(endText);
       onSaveHistoryRangeRef.current(startText, endText);
@@ -1740,6 +1795,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           startText,
           endText,
         });
+        if (
+          rangeNavigationOperationId != null &&
+          rangeNavigationOperationRef.current !== rangeNavigationOperationId
+        ) {
+          return null;
+        }
         const snapshot = syncCacheFromController(chatController);
         await refreshSelectedSnapshot();
         appendDebugNote('Reload succeeded', reason, {
@@ -1762,6 +1823,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     },
     [
       appendDebugNote,
+      cancelRangeNavigation,
       chatController,
       refreshSelectedSnapshot,
       refreshSessionUiControllers,
@@ -1804,26 +1866,38 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const reloadSessionSummaries = useCallback(async () => {
     if (!backend || !onUpdateSessionSummaries) {
-      return;
+      return false;
     }
     const sessions = await backend.listSessions();
     onUpdateSessionSummaries(sessions);
+    return true;
   }, [backend, onUpdateSessionSummaries]);
 
   const notificationUiEffectObserver = useMemo(
     () => (backend ? new NotificationUiEffectObserver(backend) : null),
     [backend],
   );
-
   useEffect(() => {
     if (!backend) return;
-    return subscribeRefreshUiEffects(backend, (effect) => {
-      if (effect.type === 'reloadSession' && effect.sessionId === sessionId) {
-        void loadMessages({ reason: 'notification_ui_effect', refreshUiSchema: true });
-      } else if (effect.type === 'reloadSessionsList') {
-        void reloadSessionSummaries();
-      }
-    });
+    const unsubscribeSession = subscribeSessionRefreshInvalidations(
+      backend,
+      sessionId,
+      async () =>
+        Boolean(
+          await loadMessages({
+            reason: 'notification_ui_effect',
+            refreshUiSchema: true,
+          }),
+        ),
+    );
+    const unsubscribeSessionsList = subscribeSessionsListRefreshInvalidations(
+      backend,
+      reloadSessionSummaries,
+    );
+    return () => {
+      unsubscribeSession();
+      unsubscribeSessionsList();
+    };
   }, [backend, loadMessages, reloadSessionSummaries, sessionId]);
 
   useEffect(() => {
@@ -3752,7 +3826,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     ],
   );
   const handleTranscriptRangeAction = useCallback(
-    (action: TranscriptRangeControlAction) => {
+    async (action: TranscriptRangeControlAction) => {
       if (loadingMessages) {
         return;
       }
@@ -3771,13 +3845,95 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       if (!plan) {
         return;
       }
-      reloadMessagesForRange({
+      if (action !== 'expandAbove' && action !== 'expandBelow') {
+        await reloadMessagesForRange({
+          ...plan,
+          reason: `transcript_range_${action}`,
+          scrollToBottomAfterLoad: action === 'showLast',
+        });
+        return;
+      }
+      const operationId = rangeNavigationOperationRef.current + 1;
+      rangeNavigationOperationRef.current = operationId;
+      listRef.current?.cancelMessageAnchor?.();
+      const previousState = chatController?.getSnapshot() ?? null;
+      const previousMessages = previousState?.messages ?? messages;
+      const messageByIndex = new Map(
+        previousMessages.map((entry) => [entry.index, entry.message] as const),
+      );
+      const measuredAnchors =
+        (await listRef.current?.getVisibleMessageAnchors?.()) ?? [];
+      if (rangeNavigationOperationRef.current !== operationId) {
+        return;
+      }
+      const candidates: TranscriptViewportAnchorCandidate[] = measuredAnchors
+        .map((anchor) => {
+          const match = /^msg-(-?\d+)$/.exec(anchor.key);
+          const messageIndex = match ? Number(match[1]) : Number.NaN;
+          const message = messageByIndex.get(messageIndex);
+          return message && Number.isFinite(messageIndex)
+            ? {
+                messageIndex,
+                offsetFromViewportTop: anchor.offsetFromViewportTop,
+                message,
+              }
+            : null;
+        })
+        .filter(
+          (candidate): candidate is TranscriptViewportAnchorCandidate =>
+            candidate != null,
+        );
+      const completed = await reloadMessagesForRange({
         ...plan,
         reason: `transcript_range_${action}`,
-        scrollToBottomAfterLoad: action === 'showLast',
-      }).catch(() => {});
+        rangeNavigationOperationId: operationId,
+      });
+      if (
+        !completed ||
+        !chatController ||
+        rangeNavigationOperationRef.current !== operationId
+      ) {
+        return;
+      }
+      const completedState = chatController.getSnapshot();
+      const anchor = selectTranscriptRangeRestoreAnchor({
+        candidates,
+        completedMessages: completedState.messages,
+        previousContext: {
+          cursorEventId: previousState?.listCursorEventId ?? null,
+          snapshotId: previousState?.snapshotId ?? null,
+        },
+        completedContext: {
+          cursorEventId: completedState.listCursorEventId,
+          snapshotId: completedState.snapshotId,
+        },
+      });
+      if (rangeNavigationOperationRef.current !== operationId) {
+        return;
+      }
+      if (!anchor) {
+        if (action === 'expandAbove') {
+          scrollInvertedTranscriptToBottom(listRef.current, false);
+          return;
+        }
+        const firstCompletedIndex = completedState.messages[0]?.index;
+        if (firstCompletedIndex != null) {
+          setPendingRangeRestore({
+            operationId,
+            messageIndex: firstCompletedIndex,
+            offsetFromViewportTop: 0,
+          });
+        }
+        return;
+      }
+      setPendingRangeRestore({
+        operationId,
+        messageIndex: anchor.messageIndex,
+        offsetFromViewportTop: anchor.offsetFromViewportTop,
+      });
     },
     [
+      chatController,
       firstLoadedMessageIndex,
       lastLoadedMessageIndex,
       loadingMessages,
@@ -3792,7 +3948,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       <TranscriptRangeControls
         buttons={transcriptRangeControlPresentation.topButtons}
         disabled={loadingMessages}
-        onAction={handleTranscriptRangeAction}
+        onAction={(action) => {
+          void handleTranscriptRangeAction(action);
+        }}
         testID="transcript-range-top"
       />
     ) : null;
@@ -3801,7 +3959,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       <TranscriptRangeControls
         buttons={transcriptRangeControlPresentation.bottomButtons}
         disabled={loadingMessages}
-        onAction={handleTranscriptRangeAction}
+        onAction={(action) => {
+          void handleTranscriptRangeAction(action);
+        }}
         testID="transcript-range-bottom"
       />
     ) : null;
@@ -4095,6 +4255,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           rangeBottomControlsContent={rangeBottomControlsContent}
           initialScrollAnchor={initialScrollAnchor}
           onScrollStateChange={handleTranscriptScrollStateChange}
+          onUserNavigationIntent={cancelRangeNavigation}
         />
 
       {activeError && (

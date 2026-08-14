@@ -794,6 +794,9 @@ persistent error banner with a Retry action.
 The successful notification requests `ui_effects.reload_session_ids` for the
 compacted session, so connected frontends refresh a mounted transcript without
 opening or navigating to another session.
+The invalidation remains pending for inactive or later-mounted cache consumers
+until an authoritative reload succeeds. Dismissing the completion notification
+does not repeat the reload.
 
 The synchronous provider-extension compatibility action remains available as
 `compact_native_history_sync`, but it has no default UI element. Both paths
@@ -816,12 +819,22 @@ The action changes the visible projection only. Retained native history stays
 canonical and is rebuilt using the updated session override.
 
 By default, native compaction follows the same effective auth mode as normal
-Responses requests. If `use_chatgpt_auth_for_compaction` is enabled, a session
-running in ChatGPT mode, or `auto` mode that selected ChatGPT, will attempt
-native compaction against the ChatGPT-backed endpoint too. If that backend does
-not support native compaction, the action fails with a clear endpoint-specific
-error. Set `use_chatgpt_auth_for_compaction: false` to force compaction onto
-the normal API endpoint instead.
+Responses requests. The selected mode also selects the upstream compaction
+protocol:
+
+- API-key mode uses the dedicated, non-streaming
+  `POST /v1/responses/compact` API.
+- ChatGPT mode uses remote compaction v2 over the normal streamed
+  `POST /backend-api/codex/responses` endpoint. The request appends a
+  `compaction_trigger` item and expects one encrypted `compaction` output item.
+
+Remote compaction v2 retains eligible user, system, and developer input
+messages client-side before the returned encrypted compaction item. The trigger
+itself is transient and is not stored in session history.
+
+Set `use_chatgpt_auth_for_compaction: false` to force a ChatGPT-authenticated
+session to use the API-key mode and its dedicated compact endpoint. This
+requires `config.api_key` or `OPENAI_API_KEY`.
 
 By default, compaction uses the same `model` as normal requests. Set
 `compaction_model` to use a different model for the compaction API call, for
@@ -839,6 +852,10 @@ visible compacted assistant messages alongside opaque compaction artifacts;
 others return only the retained visible user messages plus opaque compaction
 state. Both shapes are valid as long as future requests continue from the
 compacted native history.
+
+Maintainers can find the complete protocol, compatibility, lifecycle, and
+verification contract in the
+[native compaction specification](docs/development/specifications/native-compaction/index.md).
 
 The action no longer accepts a freeform `instructions` field. When the backend
 requires top-level instructions, native compaction now uses the same

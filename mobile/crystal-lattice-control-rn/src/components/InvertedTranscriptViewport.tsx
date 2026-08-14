@@ -39,6 +39,7 @@ type InvertedTranscriptViewportProps<TItem> = Pick<
   listRef: React.RefObject<FlatList<any> | null>;
   initialScrollAnchor?: ChatScrollAnchor | null;
   onScrollStateChange?: (state: InvertedTranscriptScrollState) => void;
+  onUserNavigationIntent?: () => void;
   style?: StyleProp<ViewStyle>;
   listStyle?: StyleProp<ViewStyle>;
   testID?: string;
@@ -51,6 +52,7 @@ export function InvertedTranscriptViewport<TItem>({
   listRef,
   initialScrollAnchor,
   onScrollStateChange,
+  onUserNavigationIntent,
   style,
   listStyle,
   testID,
@@ -64,6 +66,7 @@ export function InvertedTranscriptViewport<TItem>({
   );
   const hasRestoredScrollRef = React.useRef(false);
   const onScrollStateChangeRef = React.useRef(onScrollStateChange);
+  const onUserNavigationIntentRef = React.useRef(onUserNavigationIntent);
   const scrollStateRef = React.useRef<InvertedTranscriptScrollState | null>(
     null
   );
@@ -91,6 +94,9 @@ export function InvertedTranscriptViewport<TItem>({
   React.useEffect(() => {
     onScrollStateChangeRef.current = onScrollStateChange;
   }, [onScrollStateChange]);
+  React.useEffect(() => {
+    onUserNavigationIntentRef.current = onUserNavigationIntent;
+  }, [onUserNavigationIntent]);
 
   React.useEffect(() => {
     if (hasRestoredScrollRef.current) {
@@ -289,6 +295,7 @@ export function InvertedTranscriptViewport<TItem>({
   runTopNavigationRef.current = runTopNavigation;
 
   const startTopNavigation = React.useCallback(() => {
+    onUserNavigationIntentRef.current?.();
     stopTopNavigation();
     topNavigationRef.current = {
       attempts: 0,
@@ -321,6 +328,7 @@ export function InvertedTranscriptViewport<TItem>({
   );
 
   const handleScrollBeginDrag = React.useCallback(() => {
+    onUserNavigationIntentRef.current?.();
     stopTopNavigation();
   }, [stopTopNavigation]);
 
@@ -356,6 +364,7 @@ export function InvertedTranscriptViewport<TItem>({
         canScrollToBottom={scrollState.canScrollToBottom}
         onScrollToTop={startTopNavigation}
         onScrollToBottom={() => {
+          onUserNavigationIntentRef.current?.();
           stopTopNavigation();
           scrollInvertedTranscriptToBottom(listRef.current);
         }}

@@ -3,11 +3,16 @@ Parent Task: tasks/20260728-package-local-documentation-standard/000-main.md
 Depends On:
 
 - `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
+- `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
 - `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
 
 Related Existing Task:
 
 - `tasks/20260721-task-guidance-evaluation-workflow.md`
+
+Related Specification:
+
+- `maintainer/specifications/agent-evaluation-framework/index.md`
 
 Specification:
 `maintainer/specifications/documentation-and-specification-standard/index.md`
@@ -152,7 +157,7 @@ current behavior and are committed with the code that makes new claims true.
 
 ### Existing evaluation workflow
 
-Use the completed infrastructure documented in:
+Use the completed specialized infrastructure documented in:
 
 - `tasks/20260721-task-guidance-evaluation-workflow.md`
 - `test/task_guidance/README.md`
@@ -167,7 +172,9 @@ The evaluation separates:
 - human-readable review bundles;
 - human interpretation.
 
-The update should preserve that separation.
+The update should preserve that separation while adopting the programmatic
+framework from subtask 015 for generic runtime, continuation, cache, workspace,
+and artifact behavior where it provides equivalent coverage.
 
 ## Execution plan
 
@@ -181,8 +188,10 @@ Status: Draft
 5. Add a synchronization command, packaging step, or exact-equality test for
    the bundled copy.
 6. Update the bundled file from the canonical source.
-7. Move the task-guidance evaluation harness, fixtures, README, and review
-   tooling into a coherent `maintainer/`-owned layout and update all commands,
+7. Move the task-guidance evaluation suite, fixtures, README, and
+   task-specific review/assertion tooling into the `maintainer/`-owned
+   agent-evaluation layout; adapt it to the generic kernel and Crystal Lattice
+   environment where equivalent behavior is verified and update all commands,
    imports, and consumers.
 8. Update deterministic fixtures/assertions for the changed guidance.
 9. Add or update concise-prompt evaluation cases.
@@ -202,6 +211,9 @@ Status: Draft
 - Real-model evaluation is recommended because the guide affects model
   behavior, but hosted/provider-dependent execution must remain explicitly
   enabled and separately reported from deterministic acceptance.
+- The generic kernel, Crystal Lattice environment, and
+  documentation-standard first consumers are owned by subtask 015; this task
+  owns task-guidance-specific adoption and migration.
 - No requirement questions are open.
 
 ### Documentation

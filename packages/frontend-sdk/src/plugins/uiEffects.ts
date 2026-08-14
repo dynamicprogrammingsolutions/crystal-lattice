@@ -8,8 +8,58 @@ export type RefreshUiEffect =
   | { type: 'reloadSessionsList' }
   | { type: 'reloadApplicationActions' };
 
-type Listener = (effect: RefreshUiEffect) => void;
-const LISTENERS_BY_BACKEND: WeakMap<object, Set<Listener>> = new WeakMap();
+export type RefreshUiInvalidation = RefreshUiEffect & {
+  invalidationRevision: number;
+};
+
+type Listener = (effect: RefreshUiInvalidation) => void;
+
+interface BackendInvalidationState {
+  nextRevision: number;
+  pendingSessionRevisions: Map<string, number>;
+  pendingSessionsListRevision: number | null;
+  claimedSessionRevisions: Map<string, number>;
+  claimedSessionsListRevision: number | null;
+  listeners: Set<Listener>;
+}
+
+const STATE_BY_BACKEND: WeakMap<object, BackendInvalidationState> = new WeakMap();
+
+function getState(backend: AgentBackend): BackendInvalidationState {
+  let state = STATE_BY_BACKEND.get(backend as object);
+  if (!state) {
+    state = {
+      nextRevision: 0,
+      pendingSessionRevisions: new Map(),
+      pendingSessionsListRevision: null,
+      claimedSessionRevisions: new Map(),
+      claimedSessionsListRevision: null,
+      listeners: new Set(),
+    };
+    STATE_BY_BACKEND.set(backend as object, state);
+  }
+  return state;
+}
+
+function pendingInvalidations(state: BackendInvalidationState): RefreshUiInvalidation[] {
+  return [
+    ...[...state.pendingSessionRevisions.entries()].map(
+      ([sessionId, invalidationRevision]) => ({
+        type: 'reloadSession' as const,
+        sessionId,
+        invalidationRevision,
+      }),
+    ),
+    ...(state.pendingSessionsListRevision == null
+      ? []
+      : [
+          {
+            type: 'reloadSessionsList' as const,
+            invalidationRevision: state.pendingSessionsListRevision,
+          },
+        ]),
+  ];
+}
 
 export function parseRefreshUiEffects(value: unknown): RefreshUiEffect[] {
   if (!value || typeof value !== 'object') return [];
@@ -31,23 +81,159 @@ export function parseRefreshUiEffects(value: unknown): RefreshUiEffect[] {
 }
 
 export function subscribeRefreshUiEffects(backend: AgentBackend, listener: Listener): Unsubscribe {
-  let listeners = LISTENERS_BY_BACKEND.get(backend as object);
-  if (!listeners) {
-    listeners = new Set();
-    LISTENERS_BY_BACKEND.set(backend as object, listeners);
+  const state = getState(backend);
+  state.listeners.add(listener);
+  for (const effect of pendingInvalidations(state)) {
+    listener(effect);
   }
-  listeners.add(listener);
-  return () => listeners?.delete(listener);
+  return () => state.listeners.delete(listener);
+}
+
+export function acknowledgeRefreshUiEffect(
+  backend: AgentBackend,
+  effect: RefreshUiInvalidation,
+): void {
+  const state = getState(backend);
+  if (effect.type === 'reloadSession') {
+    if (
+      state.pendingSessionRevisions.get(effect.sessionId) ===
+      effect.invalidationRevision
+    ) {
+      state.pendingSessionRevisions.delete(effect.sessionId);
+      state.claimedSessionRevisions.delete(effect.sessionId);
+    }
+    return;
+  }
+  if (
+    effect.type === 'reloadSessionsList' &&
+    state.pendingSessionsListRevision === effect.invalidationRevision
+  ) {
+    state.pendingSessionsListRevision = null;
+    state.claimedSessionsListRevision = null;
+  }
+}
+
+function claimRefreshUiEffect(
+  state: BackendInvalidationState,
+  effect: RefreshUiInvalidation,
+): boolean {
+  if (effect.type === 'reloadSession') {
+    if (
+      state.claimedSessionRevisions.get(effect.sessionId) ===
+      effect.invalidationRevision
+    ) {
+      return false;
+    }
+    state.claimedSessionRevisions.set(
+      effect.sessionId,
+      effect.invalidationRevision,
+    );
+    return true;
+  }
+  if (effect.type === 'reloadSessionsList') {
+    if (state.claimedSessionsListRevision === effect.invalidationRevision) {
+      return false;
+    }
+    state.claimedSessionsListRevision = effect.invalidationRevision;
+    return true;
+  }
+  return false;
+}
+
+function releaseRefreshUiEffect(
+  state: BackendInvalidationState,
+  effect: RefreshUiInvalidation,
+): void {
+  if (
+    effect.type === 'reloadSession' &&
+    state.claimedSessionRevisions.get(effect.sessionId) ===
+      effect.invalidationRevision
+  ) {
+    state.claimedSessionRevisions.delete(effect.sessionId);
+  } else if (
+    effect.type === 'reloadSessionsList' &&
+    state.claimedSessionsListRevision === effect.invalidationRevision
+  ) {
+    state.claimedSessionsListRevision = null;
+  }
+}
+
+function subscribeMatchingRefreshInvalidations(
+  backend: AgentBackend,
+  matches: (effect: RefreshUiInvalidation) => boolean,
+  reload: () => Promise<boolean>,
+): Unsubscribe {
+  const state = getState(backend);
+  return subscribeRefreshUiEffects(backend, (effect) => {
+    if (!matches(effect) || !claimRefreshUiEffect(state, effect)) return;
+    let acknowledged = false;
+    void reload()
+      .then((reloaded) => {
+        if (reloaded) {
+          acknowledgeRefreshUiEffect(backend, effect);
+          acknowledged = true;
+        }
+      })
+      .catch(() => {
+        // Keep the invalidation pending for a later consumer or retry.
+      })
+      .finally(() => {
+        if (!acknowledged) {
+          releaseRefreshUiEffect(state, effect);
+        }
+      });
+  });
+}
+
+export function subscribeSessionRefreshInvalidations(
+  backend: AgentBackend,
+  sessionId: string,
+  reload: () => Promise<boolean>,
+): Unsubscribe {
+  return subscribeMatchingRefreshInvalidations(
+    backend,
+    (effect) =>
+      effect.type === 'reloadSession' && effect.sessionId === sessionId,
+    reload,
+  );
+}
+
+export function subscribeSessionsListRefreshInvalidations(
+  backend: AgentBackend,
+  reload: () => Promise<boolean>,
+): Unsubscribe {
+  return subscribeMatchingRefreshInvalidations(
+    backend,
+    (effect) => effect.type === 'reloadSessionsList',
+    reload,
+  );
 }
 
 export function emitRefreshUiEffects(backend: AgentBackend, value: unknown): RefreshUiEffect[] {
   const effects = parseRefreshUiEffects(value);
+  const state = getState(backend);
   for (const effect of effects) {
     if (effect.type === 'reloadApplicationActions') {
       emitApplicationActionsInvalidated(backend);
+      continue;
     }
-    for (const listener of LISTENERS_BY_BACKEND.get(backend as object) ?? []) {
-      listener(effect);
+    const invalidationRevision = ++state.nextRevision;
+    const invalidation: RefreshUiInvalidation = {
+      ...effect,
+      invalidationRevision,
+    };
+    if (invalidation.type === 'reloadSession') {
+      state.pendingSessionRevisions.set(
+        invalidation.sessionId,
+        invalidationRevision,
+      );
+      state.claimedSessionRevisions.delete(invalidation.sessionId);
+    } else {
+      state.pendingSessionsListRevision = invalidationRevision;
+      state.claimedSessionsListRevision = null;
+    }
+    for (const listener of state.listeners) {
+      listener(invalidation);
     }
   }
   return effects;
@@ -62,6 +248,7 @@ export class NotificationUiEffectObserver {
     scope: 'session' | 'application',
     notification: {
       id: string;
+      status: string;
       revision?: number;
       updated_at: string;
       ui_effects?: RefreshUiEffects;
@@ -71,6 +258,7 @@ export class NotificationUiEffectObserver {
     const key = `${scope}:${notification.id}:${String(revision)}`;
     if (this.seen.has(key)) return [];
     this.seen.add(key);
+    if (notification.status !== 'pending') return [];
     return emitRefreshUiEffects(this.backend, notification.ui_effects);
   }
 }

@@ -336,10 +336,15 @@ def _build_fixture(
     events = _read_jsonl(stdout_jsonl)
     replacements = {
         str(workspace.resolve()): "<WORKSPACE>",
+        str(workspace): "<WORKSPACE>",
         str(mcp_config.resolve()): "<MCP_CONFIG>",
+        str(mcp_config): "<MCP_CONFIG>",
         str(stdout_jsonl.resolve()): "<STDOUT_JSONL>",
+        str(stdout_jsonl): "<STDOUT_JSONL>",
         str(stderr_log.resolve()): "<STDERR_LOG>",
+        str(stderr_log): "<STDERR_LOG>",
         str(debug_log.resolve()): "<DEBUG_LOG>",
+        str(debug_log): "<DEBUG_LOG>",
     }
     normalized_requests = normalize_value(
         _replace_all(requests, replacements),

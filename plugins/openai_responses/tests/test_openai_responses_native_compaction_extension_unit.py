@@ -23,6 +23,18 @@ class _ScriptedResponse:
         return self._payload
 
 
+class _ScriptedStream:
+    def __init__(self, events: List[Dict[str, Any]]) -> None:
+        self._events = events
+        self.closed = False
+
+    def __iter__(self):
+        return iter(self._events)
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class _ScriptedResponsesResource:
     def __init__(
         self,
@@ -35,8 +47,43 @@ class _ScriptedResponsesResource:
         self.compact_calls: List[Dict[str, Any]] = []
         self._create_cursor = 0
 
-    def create(self, **kwargs: Any) -> _ScriptedResponse:
+    def create(self, **kwargs: Any) -> Any:
         self.create_calls.append(kwargs)
+        input_items = kwargs.get("input")
+        if (
+            kwargs.get("stream") is True
+            and isinstance(input_items, list)
+            and input_items
+            and isinstance(input_items[-1], dict)
+            and input_items[-1].get("type") == "compaction_trigger"
+        ):
+            output = self._compact_payload.get("output")
+            output_items = (
+                [item for item in output if isinstance(item, dict)]
+                if isinstance(output, list)
+                else []
+            )
+            completed_response = {
+                key: value
+                for key, value in self._compact_payload.items()
+                if key != "output"
+            }
+            completed_response["output"] = output_items
+            return _ScriptedStream(
+                [
+                    *[
+                        {
+                            "type": "response.output_item.done",
+                            "item": item,
+                        }
+                        for item in output_items
+                    ],
+                    {
+                        "type": "response.completed",
+                        "response": completed_response,
+                    },
+                ]
+            )
         if self._create_cursor >= len(self._create_payloads):
             raise RuntimeError("no scripted create payload remaining")
         payload = self._create_payloads[self._create_cursor]
@@ -896,7 +943,18 @@ def test_compaction_uses_chatgpt_effective_endpoint_when_enabled(
             "chatgpt_base_url": "https://chatgpt.com/backend-api/codex",
             "chatgpt_access_token": "chatgpt_token",
             "chatgpt_account_id": "acct_123",
-        }
+        },
+        "request": {
+            "payload": {
+                "reasoning": {"effort": "high", "summary": "auto"},
+                "prompt_cache_key": "session-cache-key",
+                "tools": [{"type": "function", "name": "example"}],
+                "tool_choice": "auto",
+                "parallel_tool_calls": True,
+                "include": ["reasoning.encrypted_content"],
+                "temperature": 0.7,
+            }
+        },
     }
 
     extension.execute_action(
@@ -911,6 +969,84 @@ def test_compaction_uses_chatgpt_effective_endpoint_when_enabled(
     assert captured["config"]["_openai_responses_effective_auth_mode"] == "chatgpt"
     assert captured["config"]["base_url"] == "https://chatgpt.com/backend-api/codex"
     assert captured["config"]["chatgpt_access_token"] == "chatgpt_token"
+    responses = _ScriptedCompactionProvider.scripted_client.responses
+    assert responses.compact_calls == []
+    assert len(responses.create_calls) == 1
+    request = responses.create_calls[0]
+    assert request["stream"] is True
+    assert request["store"] is False
+    assert request["extra_headers"] == {
+        "x-codex-beta-features": "remote_compaction_v2"
+    }
+    assert request["input"][-1] == {"type": "compaction_trigger"}
+    assert request["reasoning"] == {"effort": "high", "summary": "auto"}
+    assert request["prompt_cache_key"] == "session-cache-key"
+    assert request["tools"] == [{"type": "function", "name": "example"}]
+    assert request["tool_choice"] == "auto"
+    assert request["parallel_tool_calls"] is True
+    assert request["include"] == ["reasoning.encrypted_content"]
+    assert "temperature" not in request
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        [],
+        [
+            {"type": "compaction", "encrypted_content": "first"},
+            {"type": "compaction", "encrypted_content": "second"},
+        ],
+    ],
+    ids=["missing-compaction", "multiple-compactions"],
+)
+def test_chatgpt_compaction_rejects_invalid_v2_output_count(
+    monkeypatch: pytest.MonkeyPatch,
+    output: List[Dict[str, Any]],
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "id": "cmp_invalid_v2",
+            "output": output,
+        },
+    )
+    _patch_extension_client(monkeypatch)
+
+    extension = OpenAIResponsesNativeCompactionExtension()
+    session = Session(
+        session_id="session-invalid-v2",
+        messages=[
+            Message(role="user", content="hello", metadata={"native_indices": [0]})
+        ],
+    )
+    native_messages = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hello"}],
+        }
+    ]
+    state = {
+        "config": {
+            **_config(),
+            "auth_mode": "chatgpt",
+            "_openai_responses_effective_auth_mode": "chatgpt",
+            "chatgpt_access_token": "chatgpt_token",
+        }
+    }
+
+    with pytest.raises(
+        RuntimeError,
+        match="expected exactly one compaction output item",
+    ):
+        extension.execute_action(
+            "compact_native_history_sync",
+            session=session,
+            native_messages=native_messages,
+            params={},
+            context=None,
+            state=state,
+        )
 
 
 def test_compaction_can_force_api_endpoint_when_chatgpt_compaction_disabled(
@@ -1311,10 +1447,10 @@ def test_chatgpt_message_injection_compaction_sends_rendered_system_as_instructi
     )
 
     assert result["message"] == "Compacted the full visible history."
-    calls = _ScriptedCompactionProvider.scripted_client.responses.compact_calls
+    calls = _ScriptedCompactionProvider.scripted_client.responses.create_calls
     assert len(calls) == 1
     assert calls[0]["instructions"] == "You are helping AI Agent Platform."
-    assert calls[0]["input"] == [
+    assert calls[0]["input"][:-1] == [
         {
             "type": "message",
             "role": "user",
@@ -1326,6 +1462,7 @@ def test_chatgpt_message_injection_compaction_sends_rendered_system_as_instructi
             "content": [{"type": "output_text", "text": "world"}],
         },
     ]
+    assert calls[0]["input"][-1] == {"type": "compaction_trigger"}
 
     compacted_native = (compacted_session.metadata or {}).get("native_messages")
     assert isinstance(compacted_native, list)
@@ -1336,7 +1473,12 @@ def test_chatgpt_message_injection_compaction_sends_rendered_system_as_instructi
             "text": "You are helping {{PROJECT}}.",
         }
     ]
-    assert compacted_native[1]["type"] == "compaction"
+    assert compacted_native[1] == {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "hello"}],
+    }
+    assert compacted_native[2]["type"] == "compaction"
     assert compacted_session.messages
     assert compacted_session.messages[0].role == "system"
     assert compacted_session.messages[0].content == "You are helping {{PROJECT}}."

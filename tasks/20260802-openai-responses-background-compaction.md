@@ -13,6 +13,15 @@ orchestration out of the FastAPI adapter into shared application-layer code.
   every 15 seconds.
 - [x] The compaction notification reports successful completion or failure
   and allows the user to request cancellation while compaction is running.
+- [x] Successful compaction refreshes the affected session from authoritative
+  server state in both mobile and desktop, including when the session was
+  loaded from cache or was not active when completion was received, without
+  navigating the user or repeating the refresh when the notification is
+  dismissed or otherwise transitions to a terminal state.
+- [x] Notification refresh effects reliably invalidate affected connection
+  data for current and later frontend consumers, while each effect-bearing
+  revision is applied only as intended and notification lifecycle-only
+  revisions do not repeat earlier effects.
 - [ ] The user can choose whether successful compaction stops after updating
   the session or immediately starts a normal model request without appending a
   new message.
@@ -2083,6 +2092,51 @@ Verification notes:
   wiring introduced no additional diagnostics;
 - Android emulator execution was not run in this environment; the same Detox
   scenario and package script were added for Android.
+
+### Notification refresh lifecycle correction — August 14, 2026
+
+Finding:
+
+- notification normalization inherited `ui_effects` into every later
+  revision;
+- dismissal therefore created a new terminal revision carrying the successful
+  compaction reload effect;
+- frontend deduplication correctly treated that revision as new and reloaded a
+  second time;
+- transient effect delivery could also be lost while a desktop tab was
+  inactive or before a matching cache consumer mounted.
+
+Correction:
+
+- made `ui_effects` revision-scoped so a later update inherits no earlier
+  effect unless it explicitly supplies one;
+- made notification observers ignore terminal revisions as compatibility
+  protection for legacy retained records;
+- changed session, session-list, and application-action refresh delivery to
+  backend-scoped pending invalidations;
+- keep invalidations pending after unavailable or failed reload attempts and
+  acknowledge them only after authoritative reload succeeds;
+- route mobile and desktop cache consumers through the same shared
+  acknowledgment helpers;
+- extended the native simulator scenario to verify dismissal does not repeat
+  the transcript reload.
+
+Evidence:
+
+- focused core notification tests: 20 passed;
+- frontend SDK: 43 files and 302 tests passed;
+- mobile TypeScript check passed;
+- desktop TypeScript reports only the same three pre-existing diagnostics;
+- iOS release build and Detox notification UI-effect scenario passed,
+  including verification that dismissal leaves the reload count unchanged.
+
+Verification finding:
+
+- the first simulator run exposed a maximum-update-depth loop because a
+  component resubscription replayed an invalidation while its first reload was
+  still in flight;
+- backend-scoped in-flight claims now prevent duplicate work across
+  resubscriptions, and focused SDK coverage preserves that regression.
 
 ## Completion Notes
 

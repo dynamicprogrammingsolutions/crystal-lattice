@@ -1,8 +1,18 @@
 # Claude Tools Investigation
 
-This directory contains behavior-driven investigation assets for matching Claude Code's standard tools.
+This directory contains AI-assisted, behavior-driven investigation assets for
+matching Claude Code's publicly visible standard-tool behavior.
 
-Raw logs are written to `raw/` and ignored by git. Normalized, implementation-relevant fixtures are committed under `fixtures/`. Human-readable implementation directions live under `notes/`.
+Raw logs are written to `raw/` and ignored by git. Generated,
+implementation-relevant fixtures are normalized to remove credentials,
+user-home paths, volatile IDs, temporary paths, and other run-specific data
+before they are committed under `fixtures/`. Human-readable implementation
+directions live under `notes/`.
+
+The normalized fixtures, investigation scripts, and notes are Crystal Lattice
+project materials licensed under Apache-2.0. They are not raw Claude Code logs.
+See the package [provenance statement](../PROVENANCE.md) for the full
+compatibility and non-affiliation boundary.
 
 ## Harness Setup
 
@@ -37,6 +47,9 @@ ANTHROPIC_DEFAULT_HAIKU_MODEL=qwen3-coder-next:cloud
 - Pin both `ANTHROPIC_SMALL_FAST_MODEL` and `ANTHROPIC_DEFAULT_HAIKU_MODEL`. Claude otherwise emits auxiliary requests using a default Haiku model that Ollama usually does not provide.
 - Claude Code may still attempt first-party bootstrap or telemetry calls and log 401s. Those do not necessarily mean the proxied tool investigation failed.
 - The normalization scripts intentionally replace volatile ids, temp paths, and other run-specific data so the committed fixtures stay stable.
+- Never commit raw logs, authentication material, local settings, or real
+  user-home paths. Add normalization coverage before retaining a new kind of
+  captured path or identifier.
 
 Run the first investigation script with:
 
