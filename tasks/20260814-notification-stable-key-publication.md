@@ -141,67 +141,182 @@ operation notifications can currently reach.
 
 Status: Draft
 
-This plan documents the proposed contract change. It is not approved for
-execution. The specification and documentation updates described below are
-being applied as uncommitted documentation changes so the user can review the
-target contract before any code modifications arrive. The documentation will
-describe the target state; code changes to the notification service and the
-compaction plugin will follow under a separately approved execution of this
-plan.
+This plan documents the proposed implementation. It is not approved for
+execution. The specification and documentation updates have already been applied
+(committed as `cd61f586`) so the user can review the target contract before any
+code modifications arrive. The documentation describes the target state; code
+changes to the notification service and the compaction plugin will follow under
+an approved execution of this plan.
 
-### Server changes
+### Implementation findings
 
-- Add an atomic publish/upsert operation to the notification service that
-  accepts a stable key and payload, finds the current active occurrence,
-  applies the patch, increments revision internally, and publishes the new
-  revision. If the previous occurrence is terminal or absent, create a new
-  occurrence.
-- Accept an optional operation identifier in the publication payload. Reject
-  updates whose operation identifier does not match the current active
-  occurrence for that key. This replaces the plugin's manual revision-conflict
-  recovery for producer updates.
-- Remove `expected_revision` from the producer-facing publication path
-  (create, update-by-key, resolve, expire). Retain `expected_revision` as an
-  optional parameter on by-ID updates and lifecycle operations that are
-  user/client-initiated (dismissal).
-- Keep `expected_revision` on dismissal routes. A stale dismissal returns the
-  current record (HTTP 409) rather than hiding a newer revision.
+Inspecting the current code reveals that the server-side change is smaller than
+the spec implies:
 
-### Plugin changes
+- `SessionNotifications.create()` already performs an atomic upsert by stable
+  key: if an active notification with the same key exists, it updates it in
+  place (same ID, incremented revision); otherwise it creates a new occurrence.
+  It does not accept `expected_revision`.
+- `_require_expected_revision(...)` already returns early when
+  `expected_revision is None`, so `update`, `update_by_key`, `resolve`, and
+  `expire` already apply to the current authoritative revision when the caller
+  omits `expected_revision`.
+- `dismiss` already accepts optional `expected_revision` and raises
+  `NotificationRevisionConflictError` on a stale revision. The HTTP dismissal
+  routes already extract and forward `expected_revision` and `reason` from the
+  request payload.
+- The compaction process (`openai_responses_native_compaction_process.py`)
+  currently builds the full notification payload in `_notification_payload()`,
+  pops `"key"` from it, and calls `update_session_notification` by ID with
+  `expected_revision=revision`. On conflict it retries with the current
+  revision. This is the plugin-side revision coordination the new contract
+  removes.
 
-- Simplify the OpenAI Responses native compaction notification to use one
-  stable compaction key per session instead of a per-operation key.
-- Stop retaining `_notification["revision"]` and stop passing
-  `expected_revision` on heartbeat, success, failure, and interruption
-  updates.
-- Stop implementing revision-conflict retries for producer updates. Let the
-  notification service apply updates to the current authoritative occurrence.
-- Keep the unique operation ID in the structured `operation` mapping and in
-  Cancel follow-up action parameters so the operation-occurrence guard can
-  reject late updates from a superseded occurrence.
-- Omit `dismissible: false` on progress notifications. Use `dismissible: true`
-  (or omit the field) so the user can dismiss the banner at any time. Cancel
-  remains an explicit follow-up action.
-- Retain `dismissible: false` only for genuinely permanent notifications such
-  as status indicators whose dismissal would remove the only path to a
-  required response.
+The remaining server-side work is therefore:
 
-### Frontend changes
+1. Add an operation-occurrence guard to `create()` so a late publication from a
+   superseded operation cannot overwrite a newer operation's active
+   notification for the same stable key.
+2. Make `update_by_key()` create a new occurrence when the key is terminal or
+   absent, turning it into a patch-based publish/upsert for producers that
+   prefer partial updates. (The compaction process will use `create()` because
+   it already builds the full payload.)
+3. Document that `expected_revision` is optional on `update`, `update_by_key`,
+   `resolve`, and `expire`, and that producers should omit it. The parameter
+   remains accepted for by-ID lifecycle operations that are user/client-
+   initiated; dismissal is the primary such operation.
 
-- Dismissal targets the displayed notification ID and the optional expected
-  revision. A stale dismissal cannot hide a newer revision or a later
-  stable-key occurrence.
-- The frontend never retargets a dismissal to a newer revision or occurrence.
-- The failed-dismissal cache remains revision-scoped. A newer pending
-  publication for the same stable key removes the obsolete cache entry and is
-  presented normally.
+### Stage 1 — Server-side notification service
 
-### Specification and documentation changes
+#### 1.1 Operation-occurrence guard in `create()`
 
-Apply the target contract to the notification and action-display
-specifications and to the plugin-authoring documentation. These changes are
-uncommitted and describe the target state at the time the code changes are
-committed.
+In `core/python/agent_app/notifications.py`, `SessionNotifications.create()`:
+
+- After finding `existing_index` (the active notification with the same key),
+  compare the incoming notification's `operation.id` with the existing
+  notification's `operation.id`.
+- If both have an `operation.id` and they differ, raise a new
+  `NotificationOperationSupersededError` (subclass of
+  `NotificationRevisionConflictError` or a new sibling). The error carries the
+  current notification so the caller can detect the supersession and stop
+  publishing.
+- If the incoming notification has no `operation.id`, or the existing
+  notification has no `operation.id`, proceed with the update as today.
+- If no active notification with the key exists, create a new occurrence as
+  today (the guard does not apply to new occurrences).
+
+Apply the same guard to `ApplicationNotificationStore.create()` in
+`core/python/agent_app/application_notifications.py`.
+
+#### 1.2 Publish/upsert semantics for `update_by_key()`
+
+In `SessionNotifications.update_by_key()`:
+
+- If an active notification with the key exists, apply the patch to it as today.
+- If only a terminal notification with the key exists, or no notification with
+  the key exists, create a new occurrence from the patch. The patch must include
+  the required producer fields (`key`, `title`, `source.plugin`, `display`); if
+  any are missing, raise `ValueError` as `create()` would.
+- Do not accept `expected_revision` on the create-new-occurrence path.
+
+This makes `update_by_key` a patch-based publish/upsert. Producers that want
+to send partial updates can use it; producers that build the full payload (like
+compaction) can use `create()`.
+
+Apply the same change to `ApplicationNotificationStore.update_by_key()` if it
+exists, or document that application notification producers should use
+`create()`.
+
+#### 1.3 Resolve and expire without `expected_revision`
+
+`resolve()` and `expire()` already accept `expected_revision=None` and skip the
+check. No code change is needed. Update the docstrings to state that producers
+should omit `expected_revision`; it remains optional for by-ID lifecycle
+operations that are user/client-initiated.
+
+#### 1.4 Dismissal retains `expected_revision`
+
+No code change. The HTTP dismissal routes already extract and forward
+`expected_revision` and `reason`. The 409 mapping for
+`NotificationRevisionConflictError` already exists.
+
+### Stage 2 — Compaction plugin
+
+In `plugins/openai_responses/src/openai_responses_plugins/openai_responses_native_compaction_process.py`:
+
+#### 2.1 Stable notification key
+
+- Change `_notification_payload()` to use `"key": "openai_responses:native_compaction"`
+  instead of `f"openai_responses:native_compaction:{self.operation_id}"`.
+- Keep `operation.id` set to `self.operation_id` in the structured `operation`
+  mapping so the operation-occurrence guard can reject late updates from a
+  superseded compaction.
+
+#### 2.2 Dismissible progress banner
+
+- In `_notification_payload()`, change `"dismissible": False` to
+  `"dismissible": True` for the running progress banner.
+- Keep `"dismissible": True` on the success, failure, and interruption
+  banners (already `True`).
+
+#### 2.3 Remove plugin-side revision coordination
+
+- In `_safe_notification_update()`, `_safe_notification_failure()`, and
+  `_safe_notification_completion()`:
+  - Remove `revision = notification.get("revision") or notification.get("updated_at")`.
+  - Remove `expected_revision=revision` from the `update_session_notification`
+    call.
+  - Remove `patch.pop("key", None)` (the key is needed for the upsert).
+  - Replace `self._app.update_session_notification(...)` with
+    `self._app.create_session_notification(self.session_id, payload)`.
+  - Remove the `except NotificationRevisionConflictError` retry block in
+    `_safe_notification_update()`.
+  - Keep `except (NotificationTransitionError, KeyError, ValueError): return`
+    for safety, and add `except NotificationOperationSupersededError: return`
+    so a late update from a superseded compaction stops quietly.
+- Stop retaining `self._notification["revision"]`. The process still stores
+  `self._notification` (the full record) for the notification ID and
+  `operation.id`, but no longer threads the revision through updates.
+
+#### 2.4 Cancel follow-up parameters
+
+- Keep the `operation_id` parameter in the `cancel_native_compaction` follow-up
+  action so the cancel action can look up the concrete process and verify
+  ownership. No change needed.
+
+#### 2.5 Initial notification creation
+
+- The initial `create_session_notification` call in `start()` already uses
+  `create` and does not pass `expected_revision`. No change needed.
+
+### Stage 3 — HTTP API
+
+No code change needed. The HTTP dismissal routes already accept optional
+`expected_revision` and `reason`. The 409 mapping for stale dismissal already
+exists. Verify that the public HTTP notification contract tests cover the
+stale-dismissal 409 path.
+
+### Stage 4 — Frontend
+
+No code change needed. The frontend dismissal cache is already revision-scoped
+and already removes the cache entry when a newer pending revision arrives. The
+race behavior described in the frontend specification is already implemented.
+
+Add the new frontend SDK and component tests described in the Requirement
+verification section to cover the new-occurrence-after-dismissal and
+dismiss-does-not-cancel-operation behavior explicitly.
+
+### Stage 5 — Verification
+
+Run the test changes and additions described in the Requirement verification
+section. Specifically:
+
+- `pytest core/python/tests/test_session_notifications.py -q`
+- `pytest core/python/tests/test_application_notifications.py -q`
+- `pytest application/python/tests/test_notification_demo_plugins_http.py -q`
+- `pytest plugins/openai_responses/tests/test_openai_responses_native_compaction_app.py -q`
+- `npm --workspace @crystal-lattice/frontend-sdk test`
+- Focused mobile and desktop notification component test suites.
 
 ### Implementation decisions and open questions
 
