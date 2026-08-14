@@ -101,6 +101,15 @@ The development specification may link the user page for maintainer
 discoverability. A specification intended as a public contract should be
 published as public reference.
 
+Even when directly requested, package README and user pages do not link tasks,
+maintainer specifications, requirement tracking, or test/evaluation internals.
+Leave the page unchanged. Explain the audience mismatch and that applying the
+standard does not require citing its maintenance artifacts; offer this public
+repository-policy page or a labeled development/contributor location, and keep
+internal provenance in `maintainer/`.
+This is an audience prohibition, not an availability check; do not offer to add
+the internal links if paths are later supplied.
+
 ## Initial package profiles
 
 | Scope | Target profile |

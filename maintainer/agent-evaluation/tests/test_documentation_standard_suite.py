@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +21,14 @@ from suites.documentation_standard.support import (
     completed_tool_call_ids,
     extract_blockquote,
     fixture_revision,
+    _project_config_for_profile,
+    EVALUATION_TOOL_PLUGINS,
+    GUIDANCE_CONFIG_KEY,
+    GUIDANCE_FEATURE_PLUGIN,
+    PLUGIN_RUNTIME_CONSTRAINTS,
+)
+from suites.documentation_standard.guidance_feature import (
+    DocumentationStandardGuidanceFeature,
 )
 
 
@@ -72,6 +81,35 @@ def test_explicit_guidance_source_participates_in_workspace_fingerprint(
 def test_guidance_is_injected_before_the_branch_task_prompt(tmp_path: Path) -> None:
     source = GuidanceSource(name="candidate")
 
+    class Core:
+        calls: list[dict[str, object]] = []
+
+        def add_message(
+            self,
+            session: object,
+            role: str,
+            content: str,
+            metadata: object,
+            config: object,
+            *,
+            after_index: int,
+        ) -> object:
+            self.calls.append(
+                {
+                    "session": session,
+                    "role": role,
+                    "content": content,
+                    "metadata": metadata,
+                    "config": config,
+                    "after_index": after_index,
+                }
+            )
+            return object()
+
+    class Application:
+        def save_session(self, session: object) -> object:
+            return session
+
     class Services:
         def record(self, _name: str, _value: object) -> None:
             return None
@@ -81,7 +119,26 @@ def test_guidance_is_injected_before_the_branch_task_prompt(tmp_path: Path) -> N
         session_or_none = object()
         config: dict[str, object] = {}
         services = Services()
+        application = Application()
+        core = Core()
+        base_config: dict[str, object] = {}
+        session = session_or_none
         messages: list[tuple[str, str]] = []
+
+        def effective_config(self) -> dict[str, object]:
+            return {"model": "test"}
+
+        def replace_runtime(
+            self,
+            *,
+            core: object,
+            base_config: object,
+            session: object,
+        ) -> None:
+            self.core = core
+            self.base_config = base_config
+            self.session = session
+            self.session_or_none = session
 
         def add_message(self, role: str, content: str) -> None:
             self.messages.append((role, content))
@@ -108,14 +165,176 @@ def test_guidance_is_injected_before_the_branch_task_prompt(tmp_path: Path) -> N
         inject_guidance=True,
     )
 
-    assert context.messages[0][0] == "user"
-    assert "Treat it as project instructions, not as the task itself." in (
-        context.messages[0][1]
+    instruction = context.core.calls[0]
+    assert instruction["role"] == "system"
+    assert instruction["after_index"] == -1
+    assert instruction["metadata"] is None
+    assert '<repository-guidance path="AGENTS.md">' in str(instruction["content"])
+    assert REPOSITORY_ROOT.joinpath("AGENTS.md").read_text() in str(
+        instruction["content"]
     )
-    assert '<repository-guidance path="AGENTS.md">' in context.messages[0][1]
-    assert REPOSITORY_ROOT.joinpath("AGENTS.md").read_text() in context.messages[0][1]
-    assert context.messages[1] == ("user", "Please continue.")
+    assert context.messages == [("user", "Please continue.")]
     assert value.guidance_injected is True
+
+
+def test_chatgpt_guidance_uses_late_request_feature(tmp_path: Path) -> None:
+    source = GuidanceSource(name="candidate")
+
+    class Services:
+        def record(self, _name: str, _value: object) -> None:
+            return None
+
+    class Context:
+        workspace = tmp_path
+        session_or_none = object()
+        config: dict[str, object] = {}
+        services = Services()
+        messages: list[tuple[str, str]] = []
+
+        def add_message(self, role: str, content: str) -> None:
+            self.messages.append((role, content))
+
+        def request(self, **_kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                final_response="done",
+                completed=True,
+                cancelled=False,
+                error_messages=(),
+                tool_event_count=0,
+                mutation_count=0,
+                duration_seconds=0.1,
+            )
+
+    harness = object.__new__(DocumentationEvaluationHarness)
+    harness.profile = PROFILES["gpt"]
+    context = Context()
+
+    harness._turn(
+        context,
+        "Please continue.",
+        guidance=source,
+        inject_guidance=True,
+    )
+
+    guidance = context.config[GUIDANCE_CONFIG_KEY]
+    assert '<repository-guidance path="AGENTS.md">' in str(guidance)
+    assert REPOSITORY_ROOT.joinpath("AGENTS.md").read_text() in str(guidance)
+    assert context.messages == [("user", "Please continue.")]
+
+
+def test_guidance_feature_preserves_compiled_instruction_and_strips_request_item() -> None:
+    feature = DocumentationStandardGuidanceFeature()
+    leading = {
+        "type": "message",
+        "role": "developer",
+        "content": [{"type": "input_text", "text": "Normal Codex instruction"}],
+    }
+    user = {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Do the task"}],
+    }
+    native = [leading, user]
+    state = {
+        "config": {GUIDANCE_CONFIG_KEY: "Exact repository guidance"},
+        "request": {
+            "payload": {
+                "model": "gpt-test",
+                "instructions": "Payload instruction",
+            },
+            "messages": native,
+        },
+    }
+
+    returned_native, returned_state = feature.initialize_request(native, state)
+
+    assert returned_native is native
+    request = returned_state["request"]
+    assert request["messages"] == [user]
+    assert request["payload"] == {"model": "gpt-test"}
+    assert request["instructions"] == (
+        "Payload instruction\n\n"
+        "Normal Codex instruction\n\n"
+        "Exact repository guidance"
+    )
+    evidence = returned_state["_documentation_standard_guidance_injection"]
+    assert evidence["leading_instruction_preserved"] is True
+    assert evidence["request_message_stripped"] is True
+
+
+def test_guidance_feature_is_noop_without_suite_config() -> None:
+    feature = DocumentationStandardGuidanceFeature()
+    native = [{"role": "system", "content": "Normal instruction"}]
+    state = {"config": {}, "request": {"messages": native}}
+
+    returned_native, returned_state = feature.initialize_request(native, state)
+
+    assert returned_native is native
+    assert returned_state is state
+
+
+def test_profile_config_projection_excludes_other_agent_tool_stacks(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "config.json"
+    source.write_text(
+        json.dumps(
+            {
+                "plugin_cache_dir": "shared",
+                "plugins": [
+                    "path:/plugins/feature-request-options",
+                    "path:/plugins/feature-system-message",
+                    "path:/plugins/openai_responses",
+                    "path:/plugins/codex-tools",
+                    "path:/plugins/chatgpt-auth-app",
+                    "path:/plugins/reference-openai-compatible-provider",
+                    "path:/plugins/claude-tools",
+                    "plugins.tool_call_preview_feature.ToolCallPreviewFeature",
+                ],
+                "providers": {"openai": {}, "ollama": {}},
+                "mixins": {"shared": {}},
+                "application": {"setting": True},
+                "agents": {
+                    "codex-openai": {
+                        "provider": "openai",
+                        "plugins": ["path:/plugins/codex-tools"],
+                    },
+                    "glm-ollama": {
+                        "provider": "ollama",
+                        "plugins": ["path:/plugins/claude-tools"],
+                    },
+                },
+            }
+        )
+    )
+
+    target = _project_config_for_profile(
+        source,
+        artifact_root=tmp_path / "artifacts",
+        profile=PROFILES["gpt"],
+    )
+    projected = json.loads(target.read_text())
+
+    assert set(projected["agents"]) == {"codex-openai"}
+    assert any("openai_responses" in item for item in projected["plugins"])
+    assert any("chatgpt-auth-app" in item for item in projected["plugins"])
+    assert any("ToolCallPreviewFeature" in item for item in projected["plugins"])
+    assert not any("claude-tools" in item for item in projected["plugins"])
+    assert projected["agents"]["codex-openai"]["plugins"] == [
+        GUIDANCE_FEATURE_PLUGIN,
+        *EVALUATION_TOOL_PLUGINS,
+    ]
+    assert projected["providers"] == {"openai": {}, "ollama": {}}
+    assert projected["mixins"] == {"shared": {}}
+    assert projected["application"] == {"setting": True}
+    assert "plugin-cache/gpt/" in projected["plugin_cache_dir"]
+    assert projected["plugin_cache_dir"].endswith("-v4")
+
+
+def test_plugin_runtime_constraints_pin_validated_openai_sdk() -> None:
+    assert PLUGIN_RUNTIME_CONSTRAINTS.read_text().splitlines()[-1] == (
+        "openai==2.53.0"
+    )
 
 
 def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
@@ -141,12 +360,46 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "`docs_site/prepared/plugins/js-single-file-tool/index.md` says "
         "`npm --vesion`. Please fix that documentation issue."
     )
+    public_profile = extract_blockquote(
+        SPEC_ROOT / "17-public-package-profile.md",
+        "## Exact user prompt",
+    )
+    assert public_profile == (
+        "Please finish the documentation setup for `packages/event-sdk` so a "
+        "new SDK user can get started and a package maintainer can find the "
+        "implementation and specification entry points. Keep the work "
+        "documentation-only."
+    )
+    plugin_boundary = extract_blockquote(
+        SPEC_ROOT / "18-shared-plugin-authoring-boundary.md",
+        "## Exact user prompt",
+    )
+    assert plugin_boundary == (
+        "Please make `plugins/js-single-file-tool` usable as a complete "
+        "example, and add a focused shared explanation of the single-file "
+        "object-export, loading/configuration, and verification workflow for "
+        "other Node tool authors. Keep plugin-specific behavior with the "
+        "example and keep the work documentation-only."
+    )
+    maintainer_boundary = extract_blockquote(
+        SPEC_ROOT / "19-apply-versus-maintain-boundary.md",
+        "## Exact user prompt",
+    )
+    assert maintainer_boundary == (
+        "Please add a short “Why these docs are structured this way” section "
+        "to `packages/event-sdk/README.md` that links the "
+        "standards-maintenance specification and the agent-behavior evaluation "
+        "covering this package, so SDK users can trace the internal decision."
+    )
 
 
 def test_all_current_specification_pages_are_indexed() -> None:
     index = SPEC_ROOT.joinpath("index.md").read_text(encoding="utf-8")
     for path in sorted(SPEC_ROOT.glob("[0-9][0-9]-*.md")):
         assert path.name in index
+        text = path.read_text(encoding="utf-8")
+        assert "## Semantic assessment" in text
+        assert "## Human review" in text
     for path in sorted(SPEC_ROOT.glob("seed-*.md")):
         assert path.name in index
 
@@ -264,6 +517,7 @@ def test_fixture_revision_participates_in_workspace_fingerprint() -> None:
     assert fixture_revision("slug-utils") == "v2"
     assert factory.fingerprint()["fixture_revision"] == "v2"
     assert fixture_revision("js-single-file-tool") == "v4"
+    assert fixture_revision("event-retry") == "v5"
 
 
 def test_failed_generator_fixture_preserves_prepared_output(tmp_path: Path) -> None:

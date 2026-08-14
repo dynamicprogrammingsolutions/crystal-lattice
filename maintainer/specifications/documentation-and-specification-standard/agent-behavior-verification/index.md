@@ -100,10 +100,10 @@ Current seeds:
 
 | Seed | Narrow investigation | Current branches |
 |---|---|---|
-| [Seed 01](seed-01-js-single-file-tool-documentation.md) | Compare one plugin README with its code and shared Node-tool facts | Tests [01](01-small-package-documentation.md), [02](02-generated-output-correction.md), and [16](16-failed-generated-refresh.md) |
+| [Seed 01](seed-01-js-single-file-tool-documentation.md) | Compare one plugin README with its code and shared Node-tool facts | Tests [01](01-small-package-documentation.md), [02](02-generated-output-correction.md), [16](16-failed-generated-refresh.md), and [18](18-shared-plugin-authoring-boundary.md) |
 | [Seed 02](seed-02-report-export-row-limit.md) | Inspect one approved row-limit task and its current spec/code/test/doc state | Tests [03](03-target-specification-workflow.md), [07](07-approved-task-specification-only.md), [08](08-approved-specification-implementation.md), and [15](15-premature-current-documentation.md) |
 | [Seed 03](seed-03-mobile-composer-refinement.md) | Inspect one portable contract, mobile package, and approved UX task | Test [04](04-package-owned-refinement.md) |
-| [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Test [05](05-normative-owner-and-discoverability.md) |
+| [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Tests [05](05-normative-owner-and-discoverability.md), [17](17-public-package-profile.md), and [19](19-apply-versus-maintain-boundary.md) |
 | [Seed 05](seed-05-batch-sync-design.md) | Inspect one package and related persistence/transport contracts | Test [06](06-substantial-specification-approval.md) |
 | [Seed 06](seed-06-existing-contract-bugfix.md) | Reproduce one public bug against an already-correct target contract | Test [10](10-bug-fix-with-existing-specification.md) |
 | [Seed 07](seed-07-local-bugfix.md) | Reproduce one internal race with no durable public contract | Test [11](11-local-bugfix-without-durable-specification.md) |
@@ -238,6 +238,9 @@ AI assessment is supporting evidence and does not satisfy human verification.
 | [Portable contract owner](14-portable-contract-owner.md) | Seed 03 | Move clarified portable behavior to the shared contract owner | `DOCGEN-003` |
 | [Premature current documentation](15-premature-current-documentation.md) | Seed 02 | Ask for current README claims while approved target behavior is still unimplemented | `DOCGEN-002`, `DOCGEN-006`, `DOCREP-006`, `DOCVAL-007`–`DOCVAL-008` |
 | [Failed generated refresh](16-failed-generated-refresh.md) | Seed 01 | Report a prepared-page defect when the approved generator exists but fails | `DOCGEN-007`, `DOCREP-006`, `DOCVAL-007`–`DOCVAL-008` |
+| [Public package profile](17-public-package-profile.md) | Seed 04 | Finish user and maintainer entry points for one public SDK package | `DOCREP-001`, `DOCREP-003`–`DOCREP-005` |
+| [Shared plugin-authoring boundary](18-shared-plugin-authoring-boundary.md) | Seed 01 | Improve reusable Node-tool guidance and one plugin's usage docs | `DOCREP-002` |
+| [Apply versus maintain boundary](19-apply-versus-maintain-boundary.md) | Seed 04 | Ask a package README to expose standards-maintenance and evaluation provenance | `DOCREP-005`–`DOCREP-006`, `DOCVAL-007` |
 
 `DOCGEN-001` intentionally has two behavioral tests because a proportional
 small-package profile and the generated-output boundary are independent
@@ -248,8 +251,8 @@ behaviors.
 The review-draft calibrated matrix keeps every scenario but separates
 frequency:
 
-- **Routine:** Tests 01–07, 10, 11, 13, and 15.
-- **Extended:** Tests 08, 09, 12, 14, and 16, plus the routine group when a
+- **Routine:** Tests 01–07, 10, 11, 13, 15, 17, and 18.
+- **Extended:** Tests 08, 09, 12, 14, 16, and 19, plus the routine group when a
   complete run is requested.
 
 Ordinary guidance changes run the routine group on GLM-5.2 and use

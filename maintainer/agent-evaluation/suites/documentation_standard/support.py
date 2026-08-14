@@ -9,7 +9,7 @@ import subprocess
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Mapping
+from typing import Any, Iterator, Mapping, cast
 
 from agent_eval import AgentEval, Run
 from agent_eval.crystal_lattice import (
@@ -31,14 +31,15 @@ SPEC_ROOT = (
 )
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
 BASELINE_GUIDANCE_REVISION = "3a62b6fc"
-GUIDANCE_INJECTION_VERSION = "v2"
-GUIDANCE_INJECTION_ROLE = "user"
+GUIDANCE_INJECTION_VERSION = "v5"
+PROFILE_CONFIG_VERSION = "v4"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
+PLUGIN_RUNTIME_CONSTRAINTS = PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
 FIXTURE_REVISIONS = {
     "js-single-file-tool": "v4",
     "report-export": "v3",
     "mobile-composer": "v1",
-    "event-retry": "v2",
+    "event-retry": "v5",
     "batch-sync": "v1",
     "path-policy": "v2",
     "slug-utils": "v2",
@@ -73,6 +74,7 @@ class ModelProfile:
     model: str
     hosted: bool
     auth_mode: str | None = None
+    plugin_fragments: tuple[str, ...] = ()
 
     def request_overrides(self, workspace: Path) -> dict[str, object]:
         overrides: dict[str, object] = {
@@ -97,6 +99,11 @@ PROFILES = {
         agent_id="glm-ollama",
         model="glm-5.2:cloud",
         hosted=False,
+        plugin_fragments=(
+            "/feature-request-options",
+            "/feature-system-message",
+            "/reference-openai-compatible-provider",
+        ),
     ),
     "gpt": ModelProfile(
         name="gpt",
@@ -104,8 +111,24 @@ PROFILES = {
         model="gpt-5.6-luna",
         hosted=True,
         auth_mode="chatgpt",
+        plugin_fragments=(
+            "/feature-request-options",
+            "/feature-system-message",
+            "/openai_responses",
+            "/chatgpt-auth-app",
+        ),
     ),
 }
+
+EVALUATION_TOOL_PLUGINS = (
+    "plugins.file_reader_tool.FileReaderTool",
+    "plugins.file_writer_tool.FileWriterTool",
+)
+GUIDANCE_FEATURE_PLUGIN = (
+    "suites.documentation_standard.guidance_feature."
+    "DocumentationStandardGuidanceFeature"
+)
+GUIDANCE_CONFIG_KEY = "_documentation_standard_guidance"
 
 
 @dataclass(frozen=True)
@@ -166,7 +189,6 @@ class GuidanceSource:
             "sha256": self.sha256(),
             "files": [item.__dict__ for item in self.files()],
             "injection_version": GUIDANCE_INJECTION_VERSION,
-            "injection_role": GUIDANCE_INJECTION_ROLE,
         }
 
     def context_message(self) -> str:
@@ -350,11 +372,17 @@ class DocumentationEvaluationHarness:
                 str(REPOSITORY_ROOT / "tmp" / "agent-evaluation" / "documentation-standard"),
             )
         ).expanduser()
-        environment = WorkspaceAwareEnvironment.from_config(
+        projected_config = _project_config_for_profile(
             config_path,
+            artifact_root=artifact_root,
+            profile=profile,
+        )
+        environment = WorkspaceAwareEnvironment.from_config(
+            projected_config,
             environment={
                 "CONFIG_DIR": str(config_path.parent),
                 "CHATGPT_TEST_STATE_DIR": str(config_path.parent),
+                "PIP_CONSTRAINT": str(PLUGIN_RUNTIME_CONSTRAINTS),
                 "OLLAMA_OPENAI_BASE_URL": os.getenv(
                     "OLLAMA_OPENAI_BASE_URL",
                     "http://localhost:11434/v1",
@@ -388,7 +416,7 @@ class DocumentationEvaluationHarness:
             fixture_id=fixture_id,
             candidate_guidance=False,
         )
-        strategy_version = "v5" if self.profile.name == "gpt" else "v4"
+        strategy_version = f"profile-{PROFILE_CONFIG_VERSION}"
         run = self.evaluation.run(
             seed_id,
             lambda context: self._turn(context, prompt, guidance=None),
@@ -417,6 +445,7 @@ class DocumentationEvaluationHarness:
         if key in self._runs:
             return self._runs[key]
         prompt = extract_blockquote(SPEC_ROOT / spec_file, prompt_heading)
+        cache_variant = os.getenv("AGENT_EVAL_BRANCH_CACHE_VARIANT", "").strip()
         workspace = ScenarioWorkspaceFactory(
             fixture_id=fixture_id,
             candidate_guidance=True,
@@ -425,12 +454,14 @@ class DocumentationEvaluationHarness:
         )
         cache_key = None
         if cache:
+            cache_variant_suffix = f":{cache_variant}" if cache_variant else ""
             cache_key = (
                 f"documentation-standard:{self.profile.name}:{test_id}:"
                 f"{self.guidance.name}:{self.guidance.sha256()}:"
                 f"{_sha256_text(prompt)}:"
                 f"{branch_variant}:{fixture_revision(fixture_id)}:"
-                f"{GUIDANCE_INJECTION_VERSION}:v2"
+                f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}"
+                f"{cache_variant_suffix}"
             )
         run = self.evaluation.run(
             test_id,
@@ -484,7 +515,7 @@ class DocumentationEvaluationHarness:
                 f"{parent.snapshot_sha256}:{self.guidance.name}:"
                 f"{self.guidance.sha256()}:"
                 f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
-                f"{GUIDANCE_INJECTION_VERSION}:v2"
+                f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}"
             ),
         )
         self._runs[key] = run
@@ -525,17 +556,48 @@ class DocumentationEvaluationHarness:
             guidance.metadata() if guidance is not None else None,
         )
         if guidance is not None and inject_guidance:
-            context.add_message(
-                GUIDANCE_INJECTION_ROLE,
-                guidance.context_message(),
-            )
+            guidance_message = guidance.context_message()
+            if self.profile.auth_mode == "chatgpt":
+                context.config[GUIDANCE_CONFIG_KEY] = guidance_message
+                injection_strategy = "late_feature_endpoint_instructions"
+                injection_role = "instructions"
+                injection_position: int | str = "post_compilation"
+            else:
+                effective_config = context.effective_config()
+                session = context.core.add_message(
+                    context.session,
+                    "system",
+                    guidance_message,
+                    None,
+                    cast(dict[str, Any], effective_config),
+                    after_index=-1,
+                )
+                session = context.application.save_session(session)
+                context.replace_runtime(
+                    core=context.core,
+                    base_config=context.base_config,
+                    session=session,
+                )
+                injection_strategy = "leading_message"
+                injection_role = "system"
+                injection_position = 0
+        else:
+            injection_strategy = None
+            injection_role = None
+            injection_position = None
         context.services.record(
             "documentation_standard.guidance_injection",
             {
                 "injected": guidance is not None and inject_guidance,
                 "version": GUIDANCE_INJECTION_VERSION,
-                "role": GUIDANCE_INJECTION_ROLE,
+                "strategy": injection_strategy,
+                "role": injection_role,
+                "position": injection_position,
             },
+        )
+        context.services.record(
+            "documentation_standard.branch_cache_variant",
+            os.getenv("AGENT_EVAL_BRANCH_CACHE_VARIANT", "").strip() or "default",
         )
         context.add_message("user", prompt)
         raw_max_events = os.getenv("AGENT_EVAL_MAX_EVENTS")
@@ -680,6 +742,13 @@ def record_review(
 ) -> None:
     spec_path = SPEC_ROOT / spec_file
     human_questions = extract_section(spec_path, "## Human review")
+    value = run.value
+    prompt = value.prompt if value is not None else "(Run failed before prompt execution.)"
+    response = value.response if value is not None else "(No assistant response.)"
+    guidance_name = value.guidance_name if value is not None else None
+    guidance_revision = value.guidance_revision if value is not None else None
+    guidance_sha256 = value.guidance_sha256 if value is not None else None
+    guidance_injected = value.guidance_injected if value is not None else False
     run.record(
         "assertions.json",
         [finding.__dict__ for finding in findings],
@@ -690,18 +759,18 @@ def record_review(
         f"- Profile: `{json.dumps(run.environment_fingerprint, sort_keys=True)}`",
         f"- Parent run: `{run.parent_run_id or 'none'}`",
         f"- Snapshot: `{run.snapshot_sha256 or 'none'}`",
-        f"- Guidance variant: `{run.value.guidance_name or 'none'}`",
-        f"- Guidance revision: `{run.value.guidance_revision or 'working-tree'}`",
-        f"- Guidance SHA-256: `{run.value.guidance_sha256 or 'none'}`",
-        f"- Guidance injected: `{run.value.guidance_injected}`",
+        f"- Guidance variant: `{guidance_name or 'none'}`",
+        f"- Guidance revision: `{guidance_revision or 'working-tree'}`",
+        f"- Guidance SHA-256: `{guidance_sha256 or 'none'}`",
+        f"- Guidance injected: `{guidance_injected}`",
         "",
         "## Prompt",
         "",
-        run.value.prompt,
+        prompt,
         "",
         "## Response",
         "",
-        run.value.response or "(No assistant response.)",
+        response or "(No assistant response.)",
         "",
         "## Changed paths",
         "",
@@ -720,15 +789,15 @@ def record_review(
         "semantic-assessment-input.json",
         {
             "requirements": _requirement_ids(spec_path),
-            "prompt": run.value.prompt,
-            "response": run.value.response,
+            "prompt": prompt,
+            "response": response,
             "changed_paths": run.changed_paths,
             "findings": [finding.__dict__ for finding in findings],
             "guidance": {
-                "name": run.value.guidance_name,
-                "revision": run.value.guidance_revision,
-                "sha256": run.value.guidance_sha256,
-                "injected": run.value.guidance_injected,
+                "name": guidance_name,
+                "revision": guidance_revision,
+                "sha256": guidance_sha256,
+                "injected": guidance_injected,
             },
         },
     )
@@ -742,6 +811,18 @@ def assert_findings(findings: tuple[AssertionFinding, ...]) -> None:
 
 
 def basic_run_findings(run: Run[TurnValue]) -> tuple[AssertionFinding, ...]:
+    if run.value is None:
+        error = run.error
+        detail = (
+            f"{error.phase}: {error.type}: {error.message}"
+            if error is not None
+            else "run produced no value and no structured error"
+        )
+        return (
+            AssertionFinding("run completed", False, detail),
+            AssertionFinding("assistant response", False, "run produced no value"),
+            AssertionFinding("provider errors", False, detail),
+        )
     return (
         AssertionFinding(
             "run completed",
@@ -763,6 +844,90 @@ def basic_run_findings(run: Run[TurnValue]) -> tuple[AssertionFinding, ...]:
             repr(run.value.errors),
         ),
     )
+
+
+def require_run_value(run: Run[TurnValue]) -> TurnValue:
+    if run.value is not None:
+        return run.value
+    error = run.error
+    if error is None:
+        raise AssertionError("evaluation run produced no value and no structured error")
+    raise AssertionError(
+        "evaluation setup failed before scenario assertions: "
+        f"{error.phase}: {error.type}: {error.message}"
+    )
+
+
+def _project_config_for_profile(
+    source: Path,
+    *,
+    artifact_root: Path,
+    profile: ModelProfile,
+) -> Path:
+    raw = json.loads(source.read_text())
+    if not isinstance(raw, dict):
+        raise ValueError(f"Crystal Lattice config must contain an object: {source}")
+    agents = raw.get("agents")
+    if not isinstance(agents, dict):
+        raise ValueError(f"Crystal Lattice config has no agents mapping: {source}")
+    selected = agents.get(profile.agent_id)
+    if not isinstance(selected, dict):
+        raise KeyError(
+            f"Crystal Lattice config has no selected agent {profile.agent_id!r}: "
+            f"{source}"
+        )
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    plugins = raw.get("plugins")
+    if not isinstance(plugins, list):
+        raise ValueError(f"Crystal Lattice config has no plugins list: {source}")
+    selected_plugins = [
+        item
+        for item in plugins
+        if (
+            isinstance(item, str)
+            and (
+                not item.startswith(("path:", "bash:", "node:"))
+                or any(fragment in item for fragment in profile.plugin_fragments)
+            )
+        )
+    ]
+    missing_fragments = [
+        fragment
+        for fragment in profile.plugin_fragments
+        if not any(
+            isinstance(item, str) and fragment in item for item in selected_plugins
+        )
+    ]
+    if missing_fragments:
+        raise ValueError(
+            f"Crystal Lattice config is missing profile plugins "
+            f"{missing_fragments!r}: {source}"
+        )
+    projected_agent = {
+        **selected,
+        "plugins": [GUIDANCE_FEATURE_PLUGIN, *EVALUATION_TOOL_PLUGINS],
+    }
+    projection = {
+        **raw,
+        "agents": {profile.agent_id: projected_agent},
+        "plugins": selected_plugins,
+        "plugin_cache_dir": str(
+            artifact_root
+            / "plugin-cache"
+            / profile.name
+            / f"{source_sha[:16]}-{PROFILE_CONFIG_VERSION}"
+        ),
+    }
+    config_root = artifact_root / "config"
+    config_root.mkdir(parents=True, exist_ok=True)
+    target = (
+        config_root
+        / f"{profile.name}-{source_sha[:16]}-{PROFILE_CONFIG_VERSION}.json"
+    )
+    rendered = json.dumps(projection, indent=2, sort_keys=True) + "\n"
+    if not target.exists() or target.read_text() != rendered:
+        target.write_text(rendered)
+    return target
 
 
 def completed_tool_call_ids(event: Mapping[str, object]) -> tuple[str, ...]:
@@ -1013,6 +1178,10 @@ def _fixture_event_retry(workspace: Path, branch_variant: str) -> None:
     _write_synthetic_fixture(
         workspace,
         {
+            ".gitignore": """__pycache__/
+*.pyc
+.pytest_cache/
+""",
             "packages/event-sdk/README.md": """# event-sdk
 
 SDK for publishing events.
@@ -1031,6 +1200,10 @@ Call `publish(event)`. Transient delivery failures are retried automatically.
     if attempt >= max_attempts:
         return "failed"
     return "retrying"
+
+
+def publish(event):
+    return {"status": "published", "event": event}
 """,
             "packages/event-sdk/tests/conftest.py": SYNTHETIC_SRC_CONFTEST,
             "packages/event-sdk/tests/test_events.py": """from events import retry_state
@@ -1039,6 +1212,15 @@ Call `publish(event)`. Transient delivery failures are retried automatically.
 def test_retry_state():
     assert retry_state(1) == "retrying"
     assert retry_state(3) == "failed"
+
+
+def test_publish_returns_published_event():
+    from events import publish
+
+    assert publish({"type": "created"}) == {
+        "status": "published",
+        "event": {"type": "created"},
+    }
 """,
             "packages/event-sdk/docs/development/specifications/event-lifecycle/index.md": """# Event lifecycle
 

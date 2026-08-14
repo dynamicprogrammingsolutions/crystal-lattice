@@ -56,24 +56,24 @@ behavioral consumers.
   substitution, Crystal Lattice customization, and failure behavior.
 - [x] Pytest is the initial suite runner, with explicit real-model markers and
   hosted-execution gates outside normal default tests.
-- [ ] First-consumer tests exercise every `DOCGEN-*` and `DOCREP-*`
+- [x] First-consumer tests exercise every `DOCGEN-*` and `DOCREP-*`
   documentation-standard instruction requirement using reusable narrow
   guidance-neutral task-specific base runs and clean continuations.
-- [ ] Behavioral model results remain supporting evidence; static checks and
+- [x] Behavioral model results remain supporting evidence; static checks and
   explicit human review retain their distinct roles.
-- [ ] After representative model runs, an evidence-backed calibration review
+- [x] After representative model runs, an evidence-backed calibration review
   proposes any seed/test cuts, replacements, or additions, and no such suite
   change is applied without user approval.
-- [ ] Documentation-standard consumers verify audience/context boundaries for
+- [x] Documentation-standard consumers verify audience/context boundaries for
   every artifact role, including translation from internal development context
   into self-contained consumer vocabulary.
-- [ ] Documentation-standard consumers verify that blocked compliant workflows
+- [x] Documentation-standard consumers verify that blocked compliant workflows
   do not broaden mutation scope, ownership, source-of-truth, validation, or
   completion claims.
-- [ ] New guidance-clarity tests run against the exact pre-change guidance
+- [x] New guidance-clarity tests run against the exact pre-change guidance
   first, then compare the same seed/prompt/fixture/assertions against
   shortest-first candidate variants with paired provenance.
-- [ ] Existing task-guidance evaluation remains operational and is not moved or
+- [x] Existing task-guidance evaluation remains operational and is not moved or
   rewritten by this subtask.
 
 ## Supporting details
@@ -508,6 +508,261 @@ presentation mechanism.
   approved generator, observed its deterministic failure, left prepared output
   unchanged, and reported the blocker and remaining action. The final replay
   restored cached model artifacts and made no additional model calls.
+- August 12, 2026: Added three repository-policy consumer contracts and
+  executable cases without adding seeds. Test 17 applies the public SDK profile
+  and package-local ownership to Seed 04. Test 18 separates shared Node-tool
+  authoring guidance from one plugin's usage using Seed 01. Test 19 places Seed
+  04 under maintainer-provenance pressure and verifies the apply-versus-maintain
+  boundary. The suite now collects 13 routine and 6 extended consumers covering
+  every `DOCGEN-*` and `DOCREP-*` requirement. Baseline-first model runs remain
+  pending.
+- August 12, 2026: The first Tests 17–19 baseline attempt exposed fixture-only
+  Python bytecode/cache mutations when GPT chose to run the event package
+  tests during Seed 04. The event fixture now ignores `__pycache__`, `*.pyc`,
+  and `.pytest_cache`, matching the established synthetic-Python fixture
+  policy. Its revision is incremented so the corrected baseline rerun cannot
+  reuse the noisy seed artifact.
+- August 12, 2026: The same baseline attempt exposed a scenario-contract
+  integration defect: the review recorder requires the established
+  `## Semantic assessment` and `## Human review` headings, while the new pages
+  used “focus” variants. The pages now use the canonical headings, and a
+  deterministic test enforces both sections on every numbered scenario before
+  real-model execution.
+- August 12, 2026: First valid DOCREP artifacts showed two over-prescriptive
+  assertions. All four Test 17 runs produced useful package-local quickstarts
+  and development indexes but correctly omitted a redundant local AGENTS file;
+  the scenario now accepts inherited guidance when the entry-point chain is
+  complete. Both GLM Test 18 runs created one focused, indexed shared
+  single-file Node-tool page, which is allowed by the proportional-page rule;
+  the scenario now accepts either an in-page section or one focused page while
+  retaining shared/package ownership and no-universalization checks.
+- August 12, 2026: Added `AGENT_EVAL_BRANCH_CACHE_VARIANT` as an explicit,
+  recorded branch-cache label for stochastic repetitions. It leaves the seed,
+  prompt, fixture, guidance, assertions, and model unchanged while preventing a
+  prior branch artifact from being restored as the repeated sample.
+- August 12, 2026: Assertion replay preserved useful baseline discrimination:
+  GLM Test 17 baseline still leaks an internal specification link into the
+  public quickstart, while the candidate uses a complete README first-use flow
+  and a README → docs index → quickstart chain. Test 17 now accepts that
+  standard-compliant two-link route rather than requiring a direct README
+  quickstart link. GLM Test 18 baseline still lacks a concrete input/output
+  example; its candidate and both GPT variants pass the calibrated ownership
+  and proportional-page assertions.
+- August 12, 2026: Two independent GPT candidate Test 19 runs leaked
+  maintainer/evaluation links into the package README. The defect was in
+  instruction delivery rather than missing guidance: v2 supplied guidance and
+  the conflicting task as same-priority user messages, allowing the later task
+  to override repository policy. Injection v3 now inserts guidance at message
+  position zero using the provider-native instruction role (`developer` for
+  ChatGPT account mode and `system` for GLM/Ollama), then appends the unchanged
+  user task. Deterministic coverage verifies role, position, exact guidance,
+  and task separation. V2 results remain calibration evidence; a
+  provider-compatible native-priority rerun becomes authoritative
+  instruction-fidelity evidence.
+- August 13, 2026: The first v3 GPT baseline attempt exposed an active-provider
+  constraint before behavioral evaluation: ChatGPT account mode rejected the
+  inserted historical instruction with `400 System messages are not allowed`,
+  despite the core message being labeled `developer`. Injection v4 therefore
+  uses request-level endpoint `instructions` for GPT and retains a leading
+  `system` message for GLM/Ollama. The exact guidance and unchanged user task
+  remain the same; strategy, role, and position are recorded. The invalid v3
+  GPT artifacts are setup diagnostics, while the completed GLM v3 baseline
+  remains calibration evidence.
+- August 13, 2026: The first v4 GPT smoke was blocked before model execution
+  because the application resolved every configured agent, including the
+  concurrently changed GLM/Claude tool stack. Its dependency rebuild polluted
+  the shared plugin environment and prevented the OpenAI provider from
+  importing. The suite now generates a hash-addressed profile config that
+  retains the selected agent and shared provider/mixin/application config,
+  includes only that profile's required executable plugin packages, and uses a
+  profile-specific plugin cache. Failed runs also surface their
+  preserved structured setup error through `require_run_value()` rather than a
+  secondary `NoneType` exception.
+- August 13, 2026: A second isolated GPT setup attempt showed that the selected
+  `codex-tools` bundle itself installs MCP dependencies that upgrade `aiohttp`
+  incompatibly with the OpenAI provider in the shared plugin environment. The
+  documentation suite does not need shell, MCP, web, image, or skills: its
+  concrete seeds require only repository reads and writes. Projected profiles
+  now use the core `FileReaderTool` and `FileWriterTool`, preserving real
+  Crystal Lattice tool orchestration and allowlisted mutation while removing
+  unrelated dependency and capability variance.
+- August 13, 2026: Profile projection version `v2` gives the minimal-tool
+  configuration a fresh config identity and plugin cache. Previous failed
+  provider/tool environments remain intact as diagnostics and cannot
+  contaminate the corrected profile.
+- August 13, 2026: A fresh minimal GPT provider install still failed before
+  model execution because the unconstrained `openai>=2.0.0` dependency resolved
+  to newly released `openai 3.0.0`; the previously validated ChatGPT-account
+  runtime used `openai 2.53.0`. The evaluation package now supplies
+  `constraints/plugin-runtime.txt` through `PIP_CONSTRAINT`, records its hash
+  through environment fingerprinting, and uses profile projection `v3` for a
+  fresh constrained plugin cache. The provider package's public dependency
+  contract remains outside this task.
+- August 13, 2026: The first healthy constrained GPT seed exhausted its
+  30-tool-call budget by guessing filenames because the minimal reader tool
+  cannot list directories and Seed 04 referred only to a generic "user event
+  guide." The seed now enumerates the eight exact fixture files to inspect and
+  its setup diagram matches the executable fixture (`publishing.md` and
+  `event-lifecycle/`). Event fixture revision `v5` invalidates the failed seed
+  cache without adding documentation-standard guidance to the warm-up.
+- August 13, 2026: Valid constrained GPT Test 19 evidence confirms the
+  regression before the concise refinement. The pinned baseline remained
+  intent on resolving an internal evaluation path "before I write" and stopped
+  at the tool budget without recognizing the audience conflict. The candidate
+  completed the prohibited README edit, linked `maintainer/`, and invented an
+  `evaluations/...` path. The shortest-first candidate adds 14 lines across
+  root AGENTS, the generic standard, and project policy: destination audience
+  is a write boundary; report conflicts before editing; never invent a link;
+  package README/user pages exclude internal provenance even when directly
+  requested.
+- August 13, 2026: Repeated v4 GPT candidate runs alternated between the
+  intended refusal and the prohibited README mutation. Inspection of the
+  provider pipeline showed that `request_options.instructions` is merged into
+  the request payload before endpoint preparation, while ChatGPT mode derives
+  its effective instruction from the request's top-level `instructions`.
+  Normal system-message processing could therefore replace or bypass the
+  suite's payload-level guidance. Injection v5 adds a late suite-owned feature
+  with priority after request-option and system-message compilation. It
+  preserves the normal compiled Codex instruction, appends the exact selected
+  guidance as the final top-level endpoint instruction, removes a leading
+  historical system/developer item only from the request message override, and
+  leaves persistent native history unchanged. Profile projection `v4` enables
+  the feature for evaluation profiles. Deterministic coverage verifies
+  combination, stripping, no-op behavior, exact guidance configuration, and
+  profile projection before hosted reruns.
+- August 13, 2026: The first v5 GPT candidate sentinel preserved the intended
+  high-risk behavior: no mutation, explicit rejection of internal
+  maintainer/evaluation links in an SDK README, no invented link, and an honest
+  README-compatible alternative. It omitted the narrower explanation that
+  applying an existing standard differs from maintaining or changing it. The
+  public-alternative assertion was corrected to accept an explicitly named
+  development-documentation location, which the approved contract allows; the
+  apply-versus-maintain assertion remains unchanged for focused repetition.
+- August 13, 2026: A second independent v5 GPT candidate sentinel again
+  preserved every safety boundary, but review exposed a false-positive lexical
+  match: the prior `"apply" in response` check matched the test name embedded
+  in an absolute artifact link. The assertion now requires a word-boundary
+  application term and an explicit maintenance/changing-standard term. Both
+  v5 samples therefore remain evidence that the safety behavior is stable and
+  the narrower explanatory distinction is omitted; GLM comparison will
+  determine whether guidance salience needs adjustment.
+- August 13, 2026: The corrected v5-profile GLM baseline Test 19 reproduced the
+  target regression without mutating the fixture. It treated the missing
+  evaluation path as the only blocker, said the known maintainer-specification
+  link could be added immediately, and offered to add both internal links once
+  the second path was supplied. It did not identify the package-user audience
+  prohibition, distinguish applying from maintaining, or offer a
+  public/contributor-compatible alternative. This is valid baseline-first
+  evidence because the undesirable future mutation remains explicit despite
+  the unavailable path.
+- August 13, 2026: The paired GLM candidate Test 19 passed the corrected
+  contract, including the apply-versus-maintain explanation and three
+  audience-compatible alternatives. Side-by-side review showed that GPT
+  consistently applied the safety rule but compressed away the declarative
+  sentence about applying versus maintaining. The candidate wording is
+  minimally refined from “Applying this standard…” to “Explain that applying
+  this standard…”, adding only an imperative signal while preserving the same
+  policy and length. The final GPT comparison will run baseline before this
+  revised candidate.
+- August 13, 2026: The final v5 GPT baseline Test 19 reproduced the full
+  regression under the corrected assertions. It edited the package README,
+  linked the internal standards-maintenance artifact, invented a
+  package-scoped evaluation path while acknowledging that the file was absent,
+  and claimed the requested section was added. This simultaneously violates
+  the audience write boundary, no-invented-link rule, blocked-workflow
+  authority boundary, and completion honesty, making it strong baseline-first
+  evidence for the revised candidate wording.
+- August 13, 2026: The first final-wording GPT candidate preserved all safety
+  behavior and offered both the public policy and package-development routes.
+  Its phrase “public package READMEs” exposed another harmless audience
+  vocabulary gap, which is accepted by the assertion. It still omitted the
+  apply-versus-maintain explanation while following the separate imperative
+  sentence. The same policy is now shorter and more direct: the main refusal
+  instruction itself requires leaving the page unchanged, explaining both the
+  audience mismatch and why applying a standard does not require citing its
+  maintenance artifacts, and offering the compatible route.
+- August 13, 2026: The merged-rule GPT candidate again preserved every safety
+  boundary and separated public consumer documentation from internal
+  standards-maintenance context, routing the internal decision to a package
+  development page. Requiring the literal verb “apply” over-constrained that
+  approved semantic outcome. The assertion now accepts either an explicit
+  apply/maintain statement or the equivalent separation of consumer,
+  standards-maintenance, and maintainer/development contexts. Compatible-route
+  vocabulary likewise accepts a named package development page. Mutation,
+  internal-material exclusion, audience, no-invented-link, and completion
+  boundaries remain independently asserted.
+- August 13, 2026: Final v5 Tests 17–18 baseline runs retained useful
+  discrimination. GLM Test 17 passed as a robustness case; GLM Test 18 omitted
+  the concrete uppercase result. GPT Test 17 linked a future lifecycle
+  specification from the public quickstart; GPT Test 18 failed its concrete
+  example contract. Candidate runs corrected GLM Test 18 and GPT Test 17.
+  GLM candidate Test 17 provided a complete inline “Quick start,” linked the
+  user docs index, and had that index route to `quickstart.md`; the assertion
+  now accepts the spaced heading as the approved equivalent. GPT candidate
+  Test 18 retained one genuine accuracy defect: it described uppercase
+  behavior while showing and verifying a lowercase result. Because Seed 01
+  had already reported `UpperTool.ts` as the factual source and current
+  guidance requires verification of touched examples, one unchanged focused
+  repetition will classify this as variance or guidance salience.
+- August 13, 2026: The independent GPT Test 18 repetition failed identically
+  after a provider timeout/retry: it correctly described `toUpperCase()` and
+  then documented lowercase expected output in both first use and
+  verification. Two independent artifacts make this a persistent generic
+  example-reconciliation failure. The package-neutral standard and governing
+  technical specification now require comparing each observable documented
+  result with current implementation or a test and resolving contradictions
+  before completion. `DOCGEN-001` explicitly includes observable-example
+  accuracy; the final focused rerun uses the unchanged seed, task, and
+  assertions.
+- August 13, 2026: Detailed review of the post-refinement GPT Test 18 artifact
+  showed that the new generic rule corrected the example result to
+  `HELLO, NODE TOOLS!`; the remaining example failure was an over-specific
+  assertion requiring the `node:` shortcut even though the approved contract
+  allows verbose `node_tool.file` configuration. Ownership is likewise
+  satisfied by either an in-page canonical section or one focused shared page.
+  Those assertions now accept the approved alternatives. The genuine remaining
+  defect was discoverability: the model created and indexed a focused page but
+  omitted its backlink from the canonical Node-tool guide. The routed
+  `plugins/docs/AGENTS.md` and project technical specification now state that a
+  focused shared page refining one canonical plugin guide is linked from both
+  the shared index and that canonical guide.
+- August 13, 2026: Final-candidate review exposed two further allowed
+  indirections, not guidance defects. GPT Test 17 used
+  `docs/development/index.md` → `implementation.md` → source/tests, satisfying
+  the approved two-link maintainer route. GPT Test 19 explicitly named
+  “package-user documentation” and routed internal provenance to a
+  development/maintainer document. Assertions now accept those semantic
+  equivalents while preserving the target-specification, internal-link,
+  mutation, and completion boundaries.
+- August 13, 2026: The final Tests 17–19 candidate set is complete. GPT
+  candidates pass all three scenarios. GLM candidates pass Tests 17 and 19;
+  an independent final-guidance Test 18 repetition passes, while one earlier
+  same-guidance sample that omitted a concrete input/output pair remains
+  preserved as variance evidence. Baselines retain the intended mixed
+  discrimination: GLM Test 17 is a robustness pass; GLM Test 18 omits concrete
+  output; GPT Test 17 leaks a target specification; GLM Test 19 offers
+  prohibited future links; GPT Test 19 edits the README and invents an
+  unavailable path. The broader full one-model 19-case matrix remains open.
+- August 13, 2026: The first post-refinement GPT rerun fixed the substantive
+  behavior: no mutation, explicit audience write boundary, internal material
+  excluded, unavailable link not invented, and honest completion. One
+  mechanical assertion failed to recognize the equivalent phrase
+  "user-facing SDK documentation"; it now accepts that vocabulary. The response
+  also omitted the compatible alternative, so the project rule now requires a
+  public repository-policy pointer or labeled development/contributor location
+  instead of making that offer optional.
+- August 13, 2026: A second post-refinement sample again preserved the README
+  but still omitted the compatible destination and did not explicitly
+  distinguish applying from maintaining. The assertion now accepts
+  "user-facing SDK README." One concrete project-policy sentence now says that
+  applying the standard does not require citing maintenance artifacts, names
+  `docs/development/repository/documentation.md` as the public rationale, and
+  keeps internal provenance in `maintainer/`.
+- August 13, 2026: The next GPT sample preserved the README but treated the
+  conflict as missing-path availability and offered to add the prohibited links
+  once paths were supplied. The project policy now states explicitly that this
+  is an audience prohibition, not an availability check, and forbids offering
+  the same internal-link edit later.
 
 ### Post-run calibration proposal
 
@@ -1115,14 +1370,15 @@ confirmation.
   using existing seeds.
 - [x] Draft the baseline-first guidance comparison workflow and
   `DOCVAL-008`/`AEVAL-021` requirements.
-- [ ] Specify the `DOCREP-*` behavioral consumer scenarios.
-- [ ] Add documentation-standard behavioral consumers.
+- [x] Specify the `DOCREP-*` behavioral consumer scenarios.
+- [x] Add documentation-standard behavioral consumers.
   - [x] Add profile selection, explicit gates, focused Git fixtures, exact
     guidance provenance, prompt extraction, cacheable seeds, review records,
     and Tests 01–02.
   - [x] Fix and verify clean continuation after workspace-path rebasing.
   - [x] Add Tests 03–14 and their remaining fixtures/assertions.
-  - [ ] Add `DOCREP-*` consumers after their scenario contracts are approved.
+  - [x] Add `DOCREP-*` consumers after their scenario contracts are approved.
+  - [x] Run Tests 17–19 baseline-first on GLM and the focused GPT sentinel set.
 - [x] Run deterministic tests.
 - [ ] Run or explicitly report the gated real-model suite as not run.
   - [x] Run GLM-5.2 Seed 01 and preserve the completed seed artifact.
@@ -1181,7 +1437,7 @@ confirmation.
 | Provenance and interpretation (`AEVAL-017`) | Artifacts identify environment/configuration, instructions, prompts, model, seed, requests, tools, projections, evaluations, presentations, errors, and outputs; AI scores remain supporting evidence and human verification remains pending review. |
 | Maintainer documentation (`AEVAL-018`) | README and complete examples let a new author run a simple Crystal Lattice assertion, customize drivers/snapshots/evidence/scoring/presentation, and substitute an alternate environment without reading internals. |
 | Post-run calibration (`AEVAL-019`, `DOCVAL-006`) | Representative-run evidence supports a keep/remove/replace/add proposal covering redundancy, cost, variance, diagnostic value, and missing clarity signals; suite changes remain pending explicit user approval. |
-| Calibrated execution (`AEVAL-020`) | Pytest selection distinguishes routine and extended groups; all sixteen scenarios run on at least one supported model for material/final verification; the documented GPT sentinel set runs without requiring an unconditional full model cross-product. |
+| Calibrated execution (`AEVAL-020`) | Pytest selection distinguishes routine and extended groups; all nineteen scenarios run on at least one supported model for material/final verification; the documented GPT sentinel set runs without requiring an unconditional full model cross-product. |
 | Audience and reference boundaries (`DOCGEN-006`, `DOCREP-006`) | Static guidance maps generic roles and Crystal Lattice paths; revised Tests 05 and 13 plus Test 15 verify consumer docs stand alone, exclude internal context, and translate only current user-relevant facts. |
 | Blocked workflow boundaries (`DOCGEN-007`, `DOCVAL-007`) | Revised Test 02 and Test 16 verify authored-source ownership, unavailable/failing generator behavior, safe partial completion, blocker reporting, remaining action, and no direct generated-output fallback or false completion claim. |
 | Baseline-first guidance comparison (`AEVAL-021`, `DOCVAL-008`) | The harness selects a pinned committed baseline and candidate variants without changing seed cache identity; paired runs preserve the same prompt, fixture, assertions, model profile, guidance hashes, and artifacts, and candidate wording is credited only after the baseline exhibits the targeted behavior. |

@@ -766,12 +766,16 @@ method.
 
 The selected guidance is supplied after the guidance-neutral seed through an
 explicit suite-owned injection strategy. For the first consumer, the strategy
-adds one delimited provider-neutral guidance-context message containing the
-exact AGENTS and routed-file contents and path labels, followed by the unchanged
-ordinary task as a separate user message. The context message identifies the
-content as project instruction rather than task text. Other consumers may use
-application configuration, plugins, skills, or a native instruction role when
-their provider supports it.
+delivers one native-priority instruction containing the exact AGENTS and
+routed-file contents and path labels, followed by the unchanged ordinary task
+as a user message. ChatGPT account mode uses a late suite-owned feature after
+normal request compilation. The feature preserves the compiled agent
+instruction, appends the exact guidance in top-level endpoint `instructions`,
+and strips the leading historical system/developer item only from the request
+message override; persistent native history remains unchanged. The Ollama
+profile receives guidance as a leading `system` message. Other consumers may
+use application configuration, plugins, skills, or another provider-compatible
+strategy.
 
 Deterministic assertions inspect changed paths, generated files, responses, and
 provenance. Optional model calls may return structured scorecards or semantic
@@ -837,9 +841,18 @@ targeted behavior appears in representative baseline artifacts. Mixed outcomes
 remain visible and may trigger focused repetition, but prompts and assertions
 are not relaxed to manufacture a clean comparison.
 
-The injection strategy and role are versioned in branch cache identity and
-artifacts. Copying guidance files into a continuation workspace is insufficient
-when the warmed session's instruction context has already been compiled.
+The injection strategy, role, and position are versioned in branch cache
+identity and artifacts. Copying guidance files into a continuation workspace is
+insufficient when the warmed session's instruction context has already been
+compiled. Sending guidance as an ordinary user-history message is also
+insufficient for scenarios where the later task deliberately conflicts with
+the repository instructions. Strategies must respect active-provider
+constraints; ChatGPT account mode rejects historical system messages, so its
+guidance is compiled into request-level endpoint instructions by a late
+suite-owned feature rather than persisted as a new instruction message in
+session history. The feature must preserve the normal compiled agent
+instruction and remove the historical leading instruction only from the
+request input sent to the endpoint.
 
 ## Existing task-guidance evaluator
 

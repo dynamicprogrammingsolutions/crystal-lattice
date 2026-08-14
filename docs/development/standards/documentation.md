@@ -43,6 +43,11 @@ context. When information crosses an audience boundary, include only what the
 destination needs, translate it into that audience's vocabulary, and omit
 source-specific phases, IDs, progress, approval, evidence, and workflow.
 
+Treat the destination audience as a write boundary. If requested content is
+not appropriate or available to that audience, do not add it or invent a link;
+report the conflict before editing and offer an audience-compatible translation
+or location.
+
 - Consumer docs may rely on consumer docs and public reference. A development
   link is a labeled pointer, not required user context.
 - Development docs may map current code to specifications and requirements;
@@ -76,6 +81,8 @@ The exact filenames belong to repository policy.
 When package behavior has an observable result, the first-success path shows a
 concrete input and expected result. A later verification section does not
 substitute for an understandable first-use outcome.
+Before finishing, compare each documented expected result with the current
+implementation or a test and resolve any contradiction.
 
 ### Small package or implementation-only component
 

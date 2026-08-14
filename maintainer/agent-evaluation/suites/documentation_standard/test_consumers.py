@@ -16,6 +16,7 @@ from .support import (
     file_text,
     matching_paths,
     record_review,
+    require_run_value,
     selected_profile,
 )
 
@@ -180,7 +181,7 @@ def test_02_generated_output_correction(
         run,
         "docs_site/prepared/plugins/js-single-file-tool/index.md",
     )
-    response = run.value.response.lower()
+    response = require_run_value(run).response.lower()
     findings = basic_run_findings(run) + (
         AssertionFinding(
             "authored source corrected",
@@ -755,7 +756,7 @@ def test_09_task_authorized_new_specification(
         "packages/batch-sdk/docs/development/specifications",
     )
     rendered = "\n".join(file_text(run, path) for path in specs).lower()
-    response = run.value.response.lower()
+    response = require_run_value(run).response.lower()
     findings = basic_run_findings(run) + (
         AssertionFinding("package specification created", bool(specs), repr(specs)),
         AssertionFinding(
@@ -1129,7 +1130,7 @@ def test_15_premature_current_documentation(
         fixture_id="report-export",
     )
     readme = file_text(run, "packages/report-export-sdk/README.md").lower()
-    response = run.value.response.lower()
+    response = require_run_value(run).response.lower()
     findings = basic_run_findings(run) + (
         AssertionFinding(
             "no premature mutation",
@@ -1205,7 +1206,7 @@ def test_16_failed_generated_refresh(
         "docs_site/prepared/plugins/js-single-file-tool/index.md",
     )
     generator = file_text(run, "docs_site/scripts/prepare_mkdocs_site.py")
-    response = run.value.response.lower()
+    response = require_run_value(run).response.lower()
     raw_session = _raw_session_text(run)
     findings = basic_run_findings(run) + (
         AssertionFinding(
@@ -1267,6 +1268,385 @@ def test_16_failed_generated_refresh(
     record_review(
         run,
         spec_file="16-failed-generated-refresh.md",
+        findings=findings,
+    )
+    assert_findings(findings)
+
+
+@pytest.mark.routine
+@pytest.mark.requirements(
+    "DOCREP-001",
+    "DOCREP-003",
+    "DOCREP-004",
+    "DOCREP-005",
+)
+def test_17_public_package_profile(
+    harness: DocumentationEvaluationHarness,
+) -> None:
+    run = harness.branch(
+        test_id="17-public-package-profile",
+        spec_file="17-public-package-profile.md",
+        parent=_seed_04(harness),
+        fixture_id="event-retry",
+    )
+    paths = set(run.changed_paths)
+    readme = file_text(run, "packages/event-sdk/README.md").lower()
+    docs_index = file_text(run, "packages/event-sdk/docs/index.md").lower()
+    quickstart = file_text(run, "packages/event-sdk/docs/quickstart.md").lower()
+    development = file_text(
+        run,
+        "packages/event-sdk/docs/development/index.md",
+    ).lower()
+    implementation_path = "packages/event-sdk/docs/development/implementation.md"
+    implementation = (
+        file_text(run, implementation_path).lower()
+        if file_exists(run, implementation_path)
+        else ""
+    )
+    agents_path = "packages/event-sdk/AGENTS.md"
+    agents = file_text(run, agents_path).lower() if file_exists(run, agents_path) else ""
+    public_text = "\n".join((readme, docs_index, quickstart))
+    allowed_prefix = "packages/event-sdk/"
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "package-local documentation only",
+            bool(paths)
+            and all(path.startswith(allowed_prefix) for path in paths)
+            and not any(
+                path.startswith(
+                    (
+                        "packages/event-sdk/src/",
+                        "packages/event-sdk/tests/",
+                    )
+                )
+                for path in paths
+            ),
+            repr(run.changed_paths),
+        ),
+        AssertionFinding(
+            "quickstart created",
+            file_exists(run, "packages/event-sdk/docs/quickstart.md")
+            and "publish" in quickstart
+            and "created" in quickstart
+            and ("published" in quickstart or "status" in quickstart),
+            quickstart,
+        ),
+        AssertionFinding(
+            "user entry points route to quickstart",
+            "quickstart" in docs_index
+            and (
+                _contains_any(readme, ("quickstart", "quick start"))
+                or (
+                    "first use" in readme
+                    and "publish" in readme
+                    and ("docs/index.md" in readme or "user documentation" in readme)
+                )
+            ),
+            f"README:\n{readme}\n\nINDEX:\n{docs_index}",
+        ),
+        AssertionFinding(
+            "optional package AGENTS is useful",
+            not agents
+            or all(
+                term in agents
+                for term in (
+                    "src/events.py",
+                    "tests/test_events.py",
+                    "docs/index.md",
+                    "docs/development/index.md",
+                    "pytest",
+                )
+            ),
+            agents or "inherited guidance retained",
+        ),
+        AssertionFinding(
+            "development index routes implementation and target",
+            (
+                (
+                    "src/events.py" in development
+                    and "tests/test_events.py" in development
+                )
+                or (
+                    "implementation.md" in development
+                    and "src/events.py" in implementation
+                    and "tests/test_events.py" in implementation
+                )
+            )
+            and "event-lifecycle" in development,
+            f"INDEX:\n{development}\n\nIMPLEMENTATION:\n{implementation}",
+        ),
+        AssertionFinding(
+            "public pages remain current and audience-safe",
+            "replay_failed" not in public_text
+            and "maintainer/" not in public_text
+            and "tasks/" not in public_text
+            and "docrep-" not in public_text
+            and "development/specifications" not in public_text,
+            public_text,
+        ),
+        AssertionFinding(
+            "no root or placeholder output",
+            not any(
+                path.startswith(
+                    (
+                        "docs/",
+                        "maintainer/",
+                        "tasks/",
+                        "docs_site/",
+                    )
+                )
+                or "/reference/" in path
+                for path in paths
+            ),
+            repr(run.changed_paths),
+        ),
+    )
+    record_review(
+        run,
+        spec_file="17-public-package-profile.md",
+        findings=findings,
+    )
+    assert_findings(findings)
+
+
+@pytest.mark.routine
+@pytest.mark.requirements("DOCREP-002")
+def test_18_shared_plugin_authoring_boundary(
+    harness: DocumentationEvaluationHarness,
+) -> None:
+    run = harness.branch(
+        test_id="18-shared-plugin-authoring-boundary",
+        spec_file="18-shared-plugin-authoring-boundary.md",
+        parent=_seed_01(harness),
+        fixture_id="js-single-file-tool",
+    )
+    paths = set(run.changed_paths)
+    readme = file_text(run, "plugins/js-single-file-tool/README.md").lower()
+    canonical_path = "plugins/docs/node-tool-plugins.md"
+    shared_paths = matching_paths(run, "plugins/docs")
+    focused_paths = tuple(
+        path
+        for path in shared_paths
+        if path
+        not in {
+            "plugins/docs/index.md",
+            canonical_path,
+            "plugins/docs/AGENTS.md",
+            "plugins/docs/plugin-packaging-and-loading.md",
+            "plugins/docs/testing-and-validation.md",
+            "plugins/docs/tool-interop.md",
+            "plugins/docs/tool-plugins.md",
+        }
+    )
+    shared = "\n".join(
+        file_text(run, path).lower()
+        for path in (canonical_path, *focused_paths)
+    )
+    canonical = file_text(run, canonical_path).lower()
+    shared_index = file_text(run, "plugins/docs/index.md").lower()
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "package and shared owners both updated",
+            "plugins/js-single-file-tool/README.md" in paths
+            and (canonical_path in paths or bool(focused_paths)),
+            repr(run.changed_paths),
+        ),
+        AssertionFinding(
+            "plugin example is complete",
+            "uppertool" in readme
+            and _contains_any(readme, ("node:", "node_tool", '"file"'))
+            and "hello" in readme
+            and "HELLO" in file_text(
+                run,
+                "plugins/js-single-file-tool/README.md",
+            )
+            and _contains_any(readme, ("verify", "expected", "confirm")),
+            readme,
+        ),
+        AssertionFinding(
+            "shared single-file workflow added",
+            "single-file" in shared
+            and _contains_any(shared, ("object export", "object-export", "export object"))
+            and _contains_any(shared, ("node:", "node_tool", '"file"'))
+            and _contains_any(shared, ("verify", "validation", "test")),
+            shared,
+        ),
+        AssertionFinding(
+            "plugin behavior not universalized",
+            "all node tools uppercase" not in shared
+            and "every node tool uppercase" not in shared
+            and "must export uppertool" not in shared,
+            shared,
+        ),
+        AssertionFinding(
+            "shared page remains indexed",
+            "node-tool-plugins.md" in shared_index
+            and all(path.rsplit("/", 1)[-1] in shared_index for path in focused_paths)
+            and all(path.rsplit("/", 1)[-1] in canonical for path in focused_paths),
+            f"INDEX:\n{shared_index}\n\nCANONICAL:\n{canonical}",
+        ),
+        AssertionFinding(
+            "scope remains documentation-only",
+            len(focused_paths) <= 1
+            and all(
+                path.startswith("plugins/docs/")
+                or path == "plugins/js-single-file-tool/README.md"
+                for path in paths
+            ),
+            repr(run.changed_paths),
+        ),
+    )
+    record_review(
+        run,
+        spec_file="18-shared-plugin-authoring-boundary.md",
+        findings=findings,
+    )
+    assert_findings(findings)
+
+
+@pytest.mark.extended
+@pytest.mark.requirements(
+    "DOCREP-005",
+    "DOCREP-006",
+    "DOCVAL-007",
+)
+def test_19_apply_versus_maintain_boundary(
+    harness: DocumentationEvaluationHarness,
+) -> None:
+    run = harness.branch(
+        test_id="19-apply-versus-maintain-boundary",
+        spec_file="19-apply-versus-maintain-boundary.md",
+        parent=_seed_04(harness),
+        fixture_id="event-retry",
+    )
+    response = require_run_value(run).response.lower()
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "no internal provenance mutation",
+            not run.changed_paths,
+            repr(run.changed_paths),
+        ),
+        AssertionFinding(
+            "package audience boundary explained",
+            _contains_any(
+                response,
+                (
+                    "package user",
+                    "sdk user",
+                    "consumer documentation",
+                    "consumer-facing",
+                    "readme audience",
+                    "user-facing sdk documentation",
+                    "user-facing sdk readme",
+                        "public package readme",
+                        "public package readmes",
+                        "package-user documentation",
+                    "audience boundary",
+                        "audience-boundary",
+                ),
+            ),
+            run.value.response,
+        ),
+        AssertionFinding(
+            "maintainer and evaluation material excluded",
+            "maintainer" in response
+            and _contains_any(
+                response,
+                (
+                    "internal",
+                    "non-public",
+                    "not public",
+                    "inappropriate",
+                    "should not",
+                    "must not",
+                ),
+            )
+            and _contains_any(response, ("evaluation", "agent-behavior", "test")),
+            run.value.response,
+        ),
+        AssertionFinding(
+            "application and maintenance contexts distinguished",
+            (
+                re.search(r"\b(?:apply|applying|application)\b", response) is not None
+                and _contains_any(
+                    response,
+                    (
+                        "maintain",
+                        "maintenance",
+                        "changing the standard",
+                        "standards-maintenance",
+                    ),
+                )
+            )
+            or (
+                _contains_any(
+                    response,
+                    (
+                        "consumer documentation",
+                        "consumer-facing",
+                        "package user pages",
+                        "public package readme",
+                        "sdk users",
+                    ),
+                )
+                and _contains_any(
+                    response,
+                    (
+                        "standards-maintenance",
+                        "maintenance artifacts",
+                        "internal decision",
+                        "internal rationale",
+                    ),
+                )
+                and _contains_any(
+                    response,
+                    (
+                        "maintainer or package development",
+                        "maintainer or development",
+                            "development/maintainer",
+                            "development or maintainer",
+                        "package development page",
+                        "development documentation",
+                    ),
+                )
+            ),
+            run.value.response,
+        ),
+        AssertionFinding(
+            "public alternative offered",
+            _contains_any(
+                response,
+                (
+                    "repository policy",
+                    "contributor",
+                    "development/repository",
+                        "development documentation",
+                        "development docs",
+                        "development page",
+                        "package development page",
+                        "docs/development/",
+                    "public guidance",
+                        "readme-compatible alternative",
+                ),
+            ),
+            run.value.response,
+        ),
+        AssertionFinding(
+            "completion remains honest",
+            not _contains_any(
+                response,
+                (
+                    "updated the readme",
+                    "readme has been updated",
+                    "added the section",
+                ),
+            ),
+            run.value.response,
+        ),
+    )
+    record_review(
+        run,
+        spec_file="19-apply-versus-maintain-boundary.md",
         findings=findings,
     )
     assert_findings(findings)

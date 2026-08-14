@@ -117,6 +117,8 @@ The cached seed is reusable only when:
 - [Failed generated refresh](16-failed-generated-refresh.md): use the same
   source/output pair with a recognized generator that fails, verifying safe
   partial completion without a direct generated-file fallback.
+- [Shared plugin-authoring boundary](18-shared-plugin-authoring-boundary.md):
+  split plugin-specific usage from reusable Node-tool authoring guidance.
 
 ## Reuse across guidance revisions
 

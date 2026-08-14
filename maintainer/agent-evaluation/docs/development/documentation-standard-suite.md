@@ -12,10 +12,14 @@ Seeds are guidance-neutral. Branches select an explicit guidance source:
 
 The guidance source name, revision, file hashes, and combined hash participate
 in workspace/cache identity and are recorded with the run. After restoring the
-guidance-neutral seed, the suite adds the selected files in one delimited
-guidance-context message and then adds the unchanged task as a separate user
-message. The provider-neutral context message is used because not every
-supported account/provider path accepts a historical `system` message.
+guidance-neutral seed, the suite delivers the selected files at native
+instruction priority and then adds the unchanged task as a user message.
+ChatGPT account mode uses a late suite-owned feature: after normal agent
+instructions and request options are compiled, the feature combines them with
+the exact selected guidance in endpoint `instructions` and removes the leading
+historical instruction item from the request input. Persistent session history
+is unchanged. The Ollama profile uses a leading `system` message. The strategy,
+role, position, and injection-strategy version are retained in evidence.
 
 ## Baseline-first comparison
 
@@ -71,6 +75,12 @@ pytest maintainer/agent-evaluation/suites/documentation_standard \
 
 Use `AGENT_EVAL_GUIDANCE_VARIANT=candidate` for the paired candidate run.
 
+The current suite collects:
+
+- 13 routine consumers;
+- 6 extended consumers;
+- 19 total behavioral consumers over 9 reusable guidance-neutral seeds.
+
 ## Run a custom wording variant
 
 The directory must contain every guidance path listed by the suite:
@@ -85,6 +95,34 @@ pytest maintainer/agent-evaluation/suites/documentation_standard \
 ```
 
 Do not change the task prompt, fixture, or assertions between guidance variants.
+
+For a fresh stochastic repetition with the same seed, task, fixture, guidance,
+assertions, and model, set a unique branch cache label:
+
+```bash
+AGENT_EVAL_BRANCH_CACHE_VARIANT=repeat-1 \
+...
+```
+
+The label changes only branch cache identity and is recorded in run evidence.
+
+Each model profile runs from a generated projection of the configured Crystal
+Lattice application. It retains the selected agent, providers, mixins,
+application settings, and direct in-process feature plugins, but includes only
+the selected profile's global path-based provider, instruction/request, and
+authentication packages. The selected agent definition remains intact,
+except that its broad agent-specific tool bundle is replaced by the core
+`FileReaderTool` and `FileWriterTool`. Those tools preserve real allowlisted
+repository reads and mutations without MCP, web, image, skill, or shell
+dependencies that are unrelated to documentation-guidance comprehension.
+Other agents and their tool packages are absent. Each profile also gets a
+separate plugin cache.
+
+Path-installed evaluation providers use
+`constraints/plugin-runtime.txt` through `PIP_CONSTRAINT`. This prevents a
+fresh plugin cache from silently changing the provider SDK used by an
+otherwise identical model run. The constraint file is part of the environment
+fingerprint and must record why each pin is needed.
 
 ## Evidence
 

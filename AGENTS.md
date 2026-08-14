@@ -143,6 +143,10 @@ Documentation is authored next to the package or subsystem that owns it.
   does not automatically belong in another artifact; include only information
   available and appropriate to that artifact's audience, translating current
   user-relevant facts into its vocabulary.
+- Treat the destination audience as a write boundary. If a request would expose
+  internal or unavailable context in an output artifact, leave that artifact
+  unchanged, report the conflict before editing, and offer an
+  audience-compatible translation or location; never invent a link.
 - A blocked compliant workflow does not broaden authority. Do not bypass
   source-of-truth, generated-output, ownership, validation, or scope boundaries
   to produce an apparent completion. Complete safe in-scope work, report the

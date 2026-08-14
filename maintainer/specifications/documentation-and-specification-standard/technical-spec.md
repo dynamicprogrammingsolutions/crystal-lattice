@@ -99,6 +99,11 @@ Repository policy extends the generic rules and contains only local mappings,
 exceptions, and operational requirements. It does not restate the complete
 generic explanations.
 
+Within the shared plugin-authoring domain, a focused page is linked from
+`plugins/docs/index.md`. When it refines one canonical plugin guide, that guide
+also links the focused page so authors encounter the refinement in the ordinary
+topic flow.
+
 ## Generalized specification ownership
 
 Every package may define specifications for behavior it owns. A package is not
@@ -318,6 +323,11 @@ material.
 Public user and implementation/maintainer documentation must match committed
 code. A working tree may stage documentation first, but it is committed with
 the implementation that makes new current-state claims true.
+
+Observable examples include a concrete expected result. Before completion,
+each documented result is compared with the current implementation or a test,
+and contradictions are resolved rather than copied into both first-use and
+verification sections.
 
 ## Migration
 
