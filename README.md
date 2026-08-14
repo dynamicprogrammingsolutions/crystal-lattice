@@ -12,6 +12,19 @@ built on a modular Python agent framework. It gives you:
 This README starts with the user path for trying the app. Developer and SDK
 material follows after that.
 
+## Project Status
+
+Crystal Lattice is in active early development. The terminal/server, mobile
+connection, SDK, and plugin-authoring workflows are available for evaluation
+and development, but public APIs, configuration, plugin contracts, packaging,
+and deployment procedures may change as the project incorporates early-adopter
+feedback.
+
+The bridge and cloud-orchestrator components are optional self-hosted software.
+Dynamic Programming Solutions Kft. does not currently operate a public
+production bridge or cloud-agent service. The project does not promise a
+support SLA or a fixed compatibility window at this stage.
+
 ## Quickstart: Try Crystal Lattice
 
 ### 1. Install The Terminal/Server App
@@ -509,6 +522,20 @@ When changing examples:
 pytest core/python/examples/tests -qs
 python scripts/generate_examples_md.py
 ```
+
+## Community And Support
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing or submitting a
+  change.
+- Use [SUPPORT.md](SUPPORT.md) to route usage questions, reproducible bugs, and
+  feature requests.
+- Use the
+  [GitHub issue chooser](https://github.com/dynamicprogrammingsolutions/crystal-lattice/issues/new/choose)
+  for non-sensitive bugs and feature proposals.
+- Read [SECURITY.md](SECURITY.md) and report suspected vulnerabilities
+  privately. Do not disclose security-sensitive details in a public issue.
+- Product and mobile-app support information is also available at
+  [crystallattice.dev/support](https://crystallattice.dev/support).
 
 ## Status And Version
 
