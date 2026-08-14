@@ -90,7 +90,8 @@ cloud cost, or a major obstacle to understanding the repository.
   - COMPLETED on 2026-08-12: restored Apache-2.0 licensing and independent public-behavior provenance, normalized fixture home paths, and verified package behavior and distributions.
 - [x] `tasks/20260804-open-source-public-release/030-minimum-public-documentation-and-support.md`
   - COMPLETED on 2026-08-14: added early-release, contribution, support, and security guidance; structured issue/PR intake; and aligned and built the landing support route.
-- [ ] `tasks/20260804-open-source-public-release/040-minimum-ci-and-automation-hardening.md`
+- [x] `tasks/20260804-open-source-public-release/040-minimum-ci-and-automation-hardening.md`
+  - COMPLETED on 2026-08-14: added credential-free public CI, isolated deployment/release permissions, pinned active actions, and prepared exact GitHub settings handoff.
 - [ ] `tasks/20260804-open-source-public-release/050-lean-root-cleanup-and-archive.md`
 - [ ] `tasks/20260804-open-source-public-release/060-publication-readiness-gate.md`
 - [ ] `tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md`
@@ -102,6 +103,7 @@ cloud cost, or a major obstacle to understanding the repository.
 - [ ] `tasks/20260804-open-source-public-release/120-package-metadata-and-license-consistency.md`
 - [ ] `tasks/20260804-open-source-public-release/130-expanded-ci-and-dependency-security.md`
 - [ ] `tasks/20260804-open-source-public-release/140-follow-up-repository-information-architecture.md`
+- [ ] `tasks/20260804-open-source-public-release/150-continuous-cli-development-releases.md`
 
 ## Execution plan
 Status: Draft
