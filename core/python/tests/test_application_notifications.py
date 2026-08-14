@@ -124,6 +124,7 @@ def test_application_notification_validation_and_revision_conflicts(
         {"body": "Updated"},
         expected_revision=effects["revision"],
     )
+    assert "ui_effects" not in updated
     try:
         application.dismiss_application_notification(
             created["id"],

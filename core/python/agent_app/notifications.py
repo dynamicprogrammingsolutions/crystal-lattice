@@ -302,8 +302,8 @@ def _normalize_notification(
             f"notification.status must be one of {sorted(_NOTIFICATION_STATUSES)}"
         )
     ui_effects = (
-        normalize_notification_ui_effects(merged["ui_effects"])
-        if "ui_effects" in merged
+        normalize_notification_ui_effects(notification["ui_effects"])
+        if "ui_effects" in notification
         else None
     )
 
@@ -366,6 +366,7 @@ def _normalize_notification(
         "expiration": merged.get("expiration"),
         "model_visibility": "hidden",
     }
+    stored.pop("ui_effects", None)
     if ui_effects is not None:
         stored["ui_effects"] = ui_effects
     return stored

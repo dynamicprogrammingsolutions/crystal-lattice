@@ -407,11 +407,27 @@ Delivery is revision-based:
 
 - an effect is considered once per connection, notification ID, and revision;
 - observing the same revision through a snapshot and event does not repeat it;
-- a newer revision may request another effect;
+- `ui_effects` belongs to the revision that explicitly supplies it and is not
+  inherited by later notification updates;
+- dismissal, resolution, expiration, and other terminal revisions do not
+  execute effects, including when reading legacy records that retained them;
+- a newer pending revision may request another effect by explicitly supplying
+  `ui_effects`;
 - reconnecting or remounting may apply the latest persisted revision once so
   a stale client catches up;
 - effect execution is best effort and does not change notification lifecycle,
   retry the producer, or affect operation commit authority.
+
+Refresh delivery is durable for the lifetime of the frontend connection.
+Session, session-list, and application-action invalidations remain pending
+until a matching consumer successfully reloads authoritative data. Therefore:
+
+- a mounted active consumer reloads immediately;
+- an inactive consumer may defer the reload without losing it;
+- a later-mounted consumer receives the pending invalidation;
+- a failed reload leaves the invalidation pending for retry;
+- successful reload acknowledgment prevents later remounts from replaying the
+  same invalidation.
 
 Action responses remain one-shot and are not revisioned. Their shared refresh
 fields should use the same parsing and routing implementation as notification

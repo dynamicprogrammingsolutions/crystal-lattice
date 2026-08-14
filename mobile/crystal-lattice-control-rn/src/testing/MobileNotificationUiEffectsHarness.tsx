@@ -57,6 +57,18 @@ function notification(
   };
 }
 
+function dismissedNotification(): SessionNotification {
+  return {
+    ...notification(3, true),
+    status: "dismissed",
+    updated_at: "2026-08-04T00:00:03Z",
+    dismissal: {
+      dismissed_at: "2026-08-04T00:00:03Z",
+      reason: "user",
+    },
+  };
+}
+
 function summary(revision: number, completed: boolean): SessionSummary {
   return {
     session_id: SESSION_ID,
@@ -116,6 +128,18 @@ export function MobileNotificationUiEffectsHarness(): React.JSX.Element {
     setSessionSummary(summaryRef.current);
   };
 
+  const dismiss = () => {
+    summaryRef.current = {
+      ...summary(3, true),
+      metadata: {
+        notifications: {
+          items: [dismissedNotification()],
+        },
+      },
+    };
+    setSessionSummary(summaryRef.current);
+  };
+
   return (
     <ThemeProvider theme={lightTheme}>
       <PinnedActionsProvider>
@@ -133,6 +157,13 @@ export function MobileNotificationUiEffectsHarness(): React.JSX.Element {
               onPress={complete}
             >
               <Text>Complete compaction</Text>
+            </Pressable>
+            <Pressable
+              testID="notification-ui-effects-dismiss"
+              style={styles.button}
+              onPress={dismiss}
+            >
+              <Text>Dismiss completion</Text>
             </Pressable>
             <Text testID="notification-ui-effects-reload-count">
               {String(reloadCount)}

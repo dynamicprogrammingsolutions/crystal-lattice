@@ -42,7 +42,8 @@ import {
   notificationExpectedRevision,
   runApplicationAction,
   observeSessionNotificationUiEffects,
-  subscribeRefreshUiEffects,
+  subscribeSessionRefreshInvalidations,
+  subscribeSessionsListRefreshInvalidations,
   resolveAttachmentActionPluginId,
   selectSessionAssetId,
   selectLastAssistantMessage,
@@ -1804,10 +1805,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const reloadSessionSummaries = useCallback(async () => {
     if (!backend || !onUpdateSessionSummaries) {
-      return;
+      return false;
     }
     const sessions = await backend.listSessions();
     onUpdateSessionSummaries(sessions);
+    return true;
   }, [backend, onUpdateSessionSummaries]);
 
   const notificationUiEffectObserver = useMemo(
@@ -1817,13 +1819,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   useEffect(() => {
     if (!backend) return;
-    return subscribeRefreshUiEffects(backend, (effect) => {
-      if (effect.type === 'reloadSession' && effect.sessionId === sessionId) {
-        void loadMessages({ reason: 'notification_ui_effect', refreshUiSchema: true });
-      } else if (effect.type === 'reloadSessionsList') {
-        void reloadSessionSummaries();
-      }
-    });
+    const unsubscribeSession = subscribeSessionRefreshInvalidations(
+      backend,
+      sessionId,
+      async () =>
+        Boolean(
+          await loadMessages({
+            reason: 'notification_ui_effect',
+            refreshUiSchema: true,
+          }),
+        ),
+    );
+    const unsubscribeSessionsList = subscribeSessionsListRefreshInvalidations(
+      backend,
+      reloadSessionSummaries,
+    );
+    return () => {
+      unsubscribeSession();
+      unsubscribeSessionsList();
+    };
   }, [backend, loadMessages, reloadSessionSummaries, sessionId]);
 
   useEffect(() => {

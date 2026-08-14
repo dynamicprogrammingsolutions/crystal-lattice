@@ -49,7 +49,7 @@ import {
   selectSessionAssetId,
   selectDisplayContent,
   storeSessionAttachment,
-  subscribeRefreshUiEffects,
+  subscribeSessionRefreshInvalidations,
   type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
   type AttachmentDraftStatus,
 } from '@crystal-lattice/frontend-sdk';
@@ -2016,10 +2016,10 @@ export const ChatPane = React.memo(function ChatPane({
 
   const handleReload = useCallback(async () => {
     if (!canRunHeaderActions) {
-      return;
+      return false;
     }
     if (reloadInFlight) {
-      return;
+      return false;
     }
 
     setReloadInFlight(true);
@@ -2032,6 +2032,7 @@ export const ChatPane = React.memo(function ChatPane({
       });
       const snapshot = chatController.getCacheSnapshot();
       setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
+      return true;
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message
@@ -2039,6 +2040,7 @@ export const ChatPane = React.memo(function ChatPane({
           : 'Failed to reload messages.';
       setLoadError(message);
       Alert.alert('Failed to reload', message);
+      return false;
     } finally {
       setReloadInFlight(false);
     }
@@ -2051,17 +2053,12 @@ export const ChatPane = React.memo(function ChatPane({
 
   useEffect(() => {
     if (!backend) return;
-    return subscribeRefreshUiEffects(backend, (effect) => {
-      if (effect.type === 'reloadSession' && effect.sessionId === sessionId) {
-        void handleReload();
-      } else if (effect.type === 'reloadSessionsList') {
-        desktopEventBus.publish('sessionsReloadRequested', {
-          connectionId,
-          reason: 'notification_ui_effect',
-        });
-      }
-    });
-  }, [backend, connectionId, handleReload, sessionId]);
+    return subscribeSessionRefreshInvalidations(
+      backend,
+      sessionId,
+      handleReload,
+    );
+  }, [backend, handleReload, sessionId]);
 
   useEffect(() => {
     if (!notificationUiEffectObserver) return;

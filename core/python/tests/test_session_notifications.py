@@ -151,6 +151,25 @@ def test_session_notification_ui_effects_are_normalized(tmp_path: Path) -> None:
         "reload_application_actions": True,
         "plugin_detail": {"value": 1},
     }
+    updated = app.update_session_notification(
+        session_id,
+        stored["id"],
+        {"body": "Presentation-only update"},
+    )
+    assert "ui_effects" not in updated
+
+    repeated = app.update_session_notification(
+        session_id,
+        stored["id"],
+        {"ui_effects": {"reload_session_ids": [session_id]}},
+    )
+    assert repeated["ui_effects"] == {"reload_session_ids": [session_id]}
+    dismissed = app.dismiss_session_notification(
+        session_id,
+        stored["id"],
+        expected_revision=repeated["revision"],
+    )
+    assert "ui_effects" not in dismissed
 
     with pytest.raises(ValueError, match="action-only"):
         app.update_session_notification(

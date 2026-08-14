@@ -47,7 +47,7 @@ import {
   normalizeActionDisplayForSurface,
   normalizeDisplayEnvelope,
   runApplicationAction,
-  subscribeRefreshUiEffects,
+  subscribeSessionsListRefreshInvalidations,
   selectSessionListRichActionForPlacement,
 } from '@crystal-lattice/frontend-sdk';
 
@@ -233,18 +233,20 @@ function SessionsPanelInner({
 
   const refreshSessions = useCallback(async () => {
     if (!connectionId) {
-      return;
+      return false;
     }
     if (!sessionsController) {
       Alert.alert('No connection', 'Open a connection to refresh sessions.');
-      return;
+      return false;
     }
 
     try {
       const list = await sessionsController.load({ force: true });
       onUpdateCache(connectionId, list);
+      return true;
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to load sessions');
+      return false;
     }
   }, [connectionId, onUpdateCache, sessionsController]);
 
@@ -276,11 +278,10 @@ function SessionsPanelInner({
 
   useEffect(() => {
     if (!backend) return;
-    return subscribeRefreshUiEffects(backend, (effect) => {
-      if (effect.type === 'reloadSessionsList') {
-        void refreshSessions();
-      }
-    });
+    return subscribeSessionsListRefreshInvalidations(
+      backend,
+      refreshSessions,
+    );
   }, [backend, refreshSessions]);
 
   const {

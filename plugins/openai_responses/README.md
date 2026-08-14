@@ -794,6 +794,9 @@ persistent error banner with a Retry action.
 The successful notification requests `ui_effects.reload_session_ids` for the
 compacted session, so connected frontends refresh a mounted transcript without
 opening or navigating to another session.
+The invalidation remains pending for inactive or later-mounted cache consumers
+until an authoritative reload succeeds. Dismissing the completion notification
+does not repeat the reload.
 
 The synchronous provider-extension compatibility action remains available as
 `compact_native_history_sync`, but it has no default UI element. Both paths

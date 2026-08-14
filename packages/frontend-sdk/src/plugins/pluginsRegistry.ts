@@ -11,7 +11,10 @@ import {
   buildApplicationActionsByKey,
   normalizeApplicationActionElements,
 } from './applicationActions';
-import { subscribeApplicationActionsInvalidated } from './applicationActionsInvalidation';
+import {
+  acknowledgeApplicationActionsInvalidated,
+  subscribeApplicationActionsInvalidated,
+} from './applicationActionsInvalidation';
 import type {
   SessionListActionElement,
   SessionListContractDiagnostic,
@@ -179,11 +182,18 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
       );
       this.unsubscribeApplicationActions = subscribeApplicationActionsInvalidated(
         this.backend,
-        () => {
+        (invalidationRevision) => {
           this.invalidate();
-          this.refresh().catch(() => {
-            // Errors are stored in registry state.
-          });
+          this.refresh()
+            .then(() => {
+              acknowledgeApplicationActionsInvalidated(
+                this.backend!,
+                invalidationRevision,
+              );
+            })
+            .catch(() => {
+              // Errors are stored in registry state and the invalidation remains pending.
+            });
         },
       );
     }
