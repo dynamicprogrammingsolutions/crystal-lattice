@@ -29,6 +29,16 @@ class NotificationRevisionConflictError(RuntimeError):
         self.current = dict(current)
 
 
+class NotificationOperationSupersededError(RuntimeError):
+    """Raised when a producer publication targets a superseded operation occurrence."""
+
+    error_type = "notification_operation_superseded"
+
+    def __init__(self, message: str, current: Mapping[str, Any]) -> None:
+        super().__init__(message)
+        self.current = dict(current)
+
+
 class NotificationTransitionError(RuntimeError):
     """Raised when a notification lifecycle transition is not valid."""
 
@@ -198,6 +208,39 @@ def _require_expected_revision(
             "Notification revision does not match the current record",
             existing,
         )
+
+
+_IN_PROGRESS_OPERATION_STATES = frozenset({"running", "cancelling"})
+
+
+def _require_operation_match(
+    existing: Mapping[str, Any],
+    notification: Mapping[str, Any],
+) -> None:
+    """Reject a producer publication whose operation ID differs from the active occurrence.
+
+    The guard only applies when the existing notification represents an in-progress
+    operation (``operation.state`` is ``running`` or ``cancelling``). A completed
+    operation (``succeeded``, ``failed``, ``interrupted``) leaves a dismissible
+    notification that a new operation may replace.
+    """
+    existing_operation = existing.get("operation") or {}
+    incoming_operation = notification.get("operation") or {}
+    existing_id = existing_operation.get("id") if isinstance(existing_operation, Mapping) else None
+    incoming_id = incoming_operation.get("id") if isinstance(incoming_operation, Mapping) else None
+    if existing_id is None or incoming_id is None:
+        return
+    if existing_id != incoming_id:
+        existing_state = (
+            existing_operation.get("state")
+            if isinstance(existing_operation, Mapping)
+            else None
+        )
+        if existing_state in _IN_PROGRESS_OPERATION_STATES:
+            raise NotificationOperationSupersededError(
+                "Notification operation ID does not match the current active occurrence",
+                existing,
+            )
 
 
 def _validate_transition(
@@ -406,6 +449,7 @@ class SessionNotifications:
                 event_type = "session_notification_created"
                 items = [*items, stored]
             else:
+                _require_operation_match(items[existing_index], notification)
                 stored = _normalize_notification(
                     notification,
                     existing=items[existing_index],
@@ -448,14 +492,49 @@ class SessionNotifications:
         request_id: str | None = None,
         expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
-        return self._update_matching(
-            session_id,
-            lambda item: item.get("key") == key,
-            patch,
-            request_id=request_id,
-            expected_revision=expected_revision,
-            missing=f"Notification key {key!r} not found",
-        )
+        if not isinstance(patch, dict):
+            raise ValueError("notification patch must be a mapping")
+        with self._app.acquire_session_lock(session_id):
+            session = self._require_session(session_id)
+            items = self._items(session)
+            active_index = next(
+                (
+                    index
+                    for index, item in enumerate(items)
+                    if item.get("key") == key and is_active_notification(item)
+                ),
+                None,
+            )
+            if active_index is None:
+                notification = {**patch, "key": key}
+                stored = _normalize_notification(
+                    notification,
+                    request_id=request_id,
+                    owner_epoch=self._app._notification_owner_epoch,
+                )
+                event_type = "session_notification_created"
+                items = [*items, stored]
+            else:
+                _require_operation_match(items[active_index], patch)
+                _require_expected_revision(items[active_index], expected_revision)
+                target_status = patch.get(
+                    "status", items[active_index].get("status", "pending")
+                )
+                _validate_transition(items[active_index], target_status)
+                stored = _normalize_notification(
+                    patch,
+                    existing=items[active_index],
+                    request_id=request_id,
+                    owner_epoch=self._app._notification_owner_epoch,
+                )
+                items = [
+                    stored if current_index == active_index else item
+                    for current_index, item in enumerate(items)
+                ]
+                event_type = "session_notification_updated"
+            self._persist(session, items)
+            self._publish(event_type, session_id, stored, request_id)
+            return stored
 
     def resolve(
         self,
@@ -847,6 +926,7 @@ class NotificationSink:
 
 
 __all__ = [
+    "NotificationOperationSupersededError",
     "NotificationRevisionConflictError",
     "NotificationSink",
     "NotificationTransitionError",

@@ -7,26 +7,26 @@ operation notifications can currently reach.
 
 ## Requirements checklist
 
-- [ ] Plugin-facing notification publication uses stable keys and does not
+- [x] Plugin-facing notification publication uses stable keys and does not
   require the caller to supply or track `expected_revision`.
-- [ ] The notification service owns revision assignment and increment as an
+- [x] The notification service owns revision assignment and increment as an
   internal contract for producer publication.
-- [ ] Dismissal remains revision-scoped for user and client mutations and
+- [x] Dismissal remains revision-scoped for user and client mutations and
   accepts optional `expected_revision` and `reason` fields.
-- [ ] A stale dismissal cannot hide a newer revision or a later stable-key
+- [x] A stale dismissal cannot hide a newer revision or a later stable-key
   occurrence.
-- [ ] Publishing a stable key with no active occurrence creates a new lifecycle
+- [x] Publishing a stable key with no active occurrence creates a new lifecycle
   occurrence, including after dismissal, resolution, or expiration of an
   earlier occurrence.
-- [ ] A late update from a superseded operation occurrence does not overwrite a
+- [x] A late update from a superseded operation occurrence does not overwrite a
   newer operation using the same stable key.
-- [ ] Persistent operation-progress notifications are dismissible by default;
+- [x] Persistent operation-progress notifications are dismissible by default;
   nondismissible presentation requires an explicit product reason and is not
   used as a substitute for operation ownership or update coordination.
-- [ ] The OpenAI Responses native compaction notification uses one stable
+- [x] The OpenAI Responses native compaction notification uses one stable
   compaction key per session, dismissible progress, and no plugin-side revision
   tracking.
-- [ ] Notification revision semantics, durable refresh invalidation, and
+- [x] Notification revision semantics, durable refresh invalidation, and
   one-shot action-response refresh behavior remain consistent with the
   existing notification specification.
 
@@ -139,14 +139,12 @@ operation notifications can currently reach.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-This plan documents the proposed implementation. It is not approved for
-execution. The specification and documentation updates have already been applied
-(committed as `cd61f586`) so the user can review the target contract before any
-code modifications arrive. The documentation describes the target state; code
-changes to the notification service and the compaction plugin will follow under
-an approved execution of this plan.
+This plan documents the approved implementation. The specification and
+documentation updates were applied and committed (`cd61f586` for the spec/docs,
+`29ec01ac` for the openai_responses development docs, `05b1853b` for this plan).
+Code changes to the notification service and the compaction plugin follow below.
 
 ### Implementation findings
 
@@ -368,7 +366,12 @@ section. Specifically:
 - [x] Update `plugins/openai_responses/README.md`.
 - [x] Update the notification specification index.
 - [x] Validate the documentation build and requirement ID uniqueness.
-- [ ] Obtain user approval before any code changes.
+- [x] Obtain user approval before any code changes.
+- [x] Stage 1: Server-side notification service (operation-occurrence guard, update_by_key publish/upsert).
+- [x] Stage 2: Compaction plugin (stable key, dismissible progress, no revision coordination).
+- [x] Stage 3: HTTP API (error mapping for NotificationOperationSupersededError).
+- [x] Stage 4: Frontend (no code change needed; tests added).
+- [x] Stage 5: Verification (all tests pass).
 
 ### Requirement verification
 

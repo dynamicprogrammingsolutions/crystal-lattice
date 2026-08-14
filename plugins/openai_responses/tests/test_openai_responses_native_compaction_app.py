@@ -228,12 +228,14 @@ def test_background_action_returns_promptly_and_publishes_heartbeats(
     assert notification["severity"] == "warning"
     assert notification["display"]["variant"] == "warning"
     assert notification["display"]["presentation"] == "banner"
-    assert notification["display"]["dismissible"] is False
+    assert notification["display"]["dismissible"] is True
+    assert notification["key"] == "openai_responses:native_compaction"
     assert "Elapsed:" in notification["body"]
     assert notification["display"]["actions"][0]["action_id"] == (
         "cancel_native_compaction"
     )
     assert notification["display"]["actions"][0]["label"] == "Cancel compaction"
+    assert notification["operation"]["id"] == result["operation_id"]
 
     operations = get_application_operation_service(app.get_runtime_store()).list_active(
         session_id=session_id
@@ -589,4 +591,134 @@ def test_session_ui_uses_application_owned_background_action(
     )
     assert compaction["plugin"] == "openai_responses_native_compaction_app"
     assert compaction["action_owner"] == "application"
+    app.close()
+
+
+def test_dismissing_progress_banner_does_not_cancel_operation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, session_id = _build_app(tmp_path, monkeypatch)
+
+    result = _start(app, session_id)
+    transport = _ControlledTransport.instances[0]
+    assert transport.started.wait(2)
+    _wait_until(
+        lambda: (
+            (app.list_session_notifications(session_id)[0].get("revision") or 0) >= 2
+        )
+    )
+
+    notification = app.list_session_notifications(session_id)[0]
+    app.dismiss_session_notification(
+        session_id, notification["id"], expected_revision=notification["revision"]
+    )
+
+    # The operation remains registered and the transport is still running.
+    operations = get_application_operation_service(app.get_runtime_store()).list_active(
+        session_id=session_id
+    )
+    assert len(operations) == 1
+    assert operations[0].operation_id == result["operation_id"]
+    assert not transport.cancelled.is_set()
+
+    transport.release.set()
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            result["operation_id"]
+        )
+        is None
+    )
+    app.close()
+
+
+def test_next_heartbeat_after_dismissal_creates_new_occurrence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, session_id = _build_app(tmp_path, monkeypatch)
+
+    result = _start(app, session_id)
+    transport = _ControlledTransport.instances[0]
+    assert transport.started.wait(2)
+    _wait_until(
+        lambda: (
+            (app.list_session_notifications(session_id)[0].get("revision") or 0) >= 2
+        )
+    )
+
+    notification = app.list_session_notifications(session_id)[0]
+    dismissed_id = notification["id"]
+    app.dismiss_session_notification(
+        session_id, dismissed_id, expected_revision=notification["revision"]
+    )
+
+    # The next heartbeat creates a new pending occurrence with a new ID.
+    _wait_until(
+        lambda: (
+            app.list_session_notifications(session_id)
+            and app.list_session_notifications(session_id)[0]["id"] != dismissed_id
+        )
+    )
+    replacement = app.list_session_notifications(session_id)[0]
+    assert replacement["status"] == "pending"
+    assert replacement["key"] == "openai_responses:native_compaction"
+    assert replacement["operation"]["id"] == result["operation_id"]
+
+    transport.release.set()
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            result["operation_id"]
+        )
+        is None
+    )
+    app.close()
+
+
+def test_compaction_uses_one_stable_key_per_session(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, session_id = _build_app(tmp_path, monkeypatch)
+
+    # First compaction.
+    result_a = _start(app, session_id)
+    transport_a = _ControlledTransport.instances[0]
+    assert transport_a.started.wait(2)
+    _wait_until(
+        lambda: (
+            (app.list_session_notifications(session_id)[0].get("revision") or 0) >= 2
+        )
+    )
+    notification_a = app.list_session_notifications(session_id)[0]
+    assert notification_a["key"] == "openai_responses:native_compaction"
+
+    transport_a.release.set()
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            result_a["operation_id"]
+        )
+        is None
+    )
+
+    # Second compaction in the same session uses the same stable key.
+    result_b = _start(app, session_id)
+    transport_b = _ControlledTransport.instances[1]
+    assert transport_b.started.wait(2)
+    _wait_until(
+        lambda: (
+            (app.list_session_notifications(session_id)[0].get("revision") or 0) >= 2
+        )
+    )
+    notification_b = app.list_session_notifications(session_id)[0]
+    assert notification_b["key"] == "openai_responses:native_compaction"
+    assert notification_b["operation"]["id"] == result_b["operation_id"]
+
+    transport_b.release.set()
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            result_b["operation_id"]
+        )
+        is None
+    )
     app.close()

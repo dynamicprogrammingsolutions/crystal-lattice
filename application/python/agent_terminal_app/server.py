@@ -35,6 +35,7 @@ from agent_app.application_future import (
 )
 from agent_app.config import resolve_request_config
 from agent_app.notifications import (
+    NotificationOperationSupersededError,
     NotificationRevisionConflictError,
     NotificationTransitionError,
 )
@@ -2593,7 +2594,11 @@ def _notification_mutation_inputs(
 def _raise_notification_mutation_error(exc: Exception) -> None:
     if isinstance(
         exc,
-        (NotificationRevisionConflictError, NotificationTransitionError),
+        (
+            NotificationRevisionConflictError,
+            NotificationTransitionError,
+            NotificationOperationSupersededError,
+        ),
     ):
         raise HTTPException(
             status_code=409,

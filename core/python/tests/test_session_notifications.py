@@ -9,6 +9,7 @@ import pytest
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
 from agent_app.notifications import (
+    NotificationOperationSupersededError,
     NotificationRevisionConflictError,
     NotificationSink,
     NotificationTransitionError,
@@ -129,6 +130,229 @@ def test_update_by_id_and_key(tmp_path: Path) -> None:
     assert by_id["body"] == "Updated by id"
     assert by_key["severity"] == "success"
     assert by_key["display"]["variant"] == "info"
+
+
+def test_producer_publication_by_key_updates_active_occurrence(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    first = app.create_session_notification(session_id, _notification())
+    second = app.create_session_notification(session_id, _notification())
+
+    assert first["id"] == second["id"]
+    assert second["revision"] == first["revision"] + 1
+
+
+def test_producer_publication_by_key_creates_new_occurrence_after_dismissal(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    created = app.create_session_notification(session_id, _notification())
+    app.dismiss_session_notification(
+        session_id, created["id"], expected_revision=created["revision"]
+    )
+
+    replacement = app.create_session_notification(session_id, _notification())
+
+    assert replacement["id"] != created["id"]
+    assert replacement["revision"] == 1
+    active = app.list_session_notifications(session_id)
+    assert [item["id"] for item in active] == [replacement["id"]]
+
+
+def test_producer_publication_by_key_creates_new_occurrence_after_resolution(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    created = app.create_session_notification(session_id, _notification())
+    app.resolve_session_notification(
+        session_id, created["id"], {"action_id": "done"}
+    )
+
+    replacement = app.create_session_notification(session_id, _notification())
+
+    assert replacement["id"] != created["id"]
+    assert replacement["revision"] == 1
+
+
+def test_producer_publication_by_key_creates_new_occurrence_after_expiration(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    created = app.create_session_notification(session_id, _notification())
+    app.expire_session_notification(session_id, created["id"])
+
+    replacement = app.create_session_notification(session_id, _notification())
+
+    assert replacement["id"] != created["id"]
+    assert replacement["revision"] == 1
+
+
+def test_producer_resolve_and_expire_do_not_require_expected_revision(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    created = app.create_session_notification(session_id, _notification())
+
+    resolved = app.resolve_session_notification(
+        session_id, created["id"], {"action_id": "done"}
+    )
+    assert resolved["status"] == "resolved"
+    assert resolved["revision"] == created["revision"] + 1
+
+    replacement = app.create_session_notification(session_id, _notification())
+    expired = app.expire_session_notification(session_id, replacement["id"])
+    assert expired["status"] == "expired"
+    assert expired["revision"] == replacement["revision"] + 1
+
+
+def test_dismissal_with_stale_expected_revision_returns_current_record(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    created = app.create_session_notification(session_id, _notification())
+    updated = app.update_session_notification(
+        session_id, created["id"], {"body": "new body"}
+    )
+
+    with pytest.raises(NotificationRevisionConflictError) as conflict:
+        app.dismiss_session_notification(
+            session_id, created["id"], expected_revision=created["revision"]
+        )
+    assert conflict.value.current["revision"] == updated["revision"]
+
+
+def test_stale_dismissal_does_not_hide_newer_revision(tmp_path: Path) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    created = app.create_session_notification(session_id, _notification())
+    updated = app.update_session_notification(
+        session_id, created["id"], {"body": "new body"}
+    )
+
+    with pytest.raises(NotificationRevisionConflictError):
+        app.dismiss_session_notification(
+            session_id, created["id"], expected_revision=created["revision"]
+        )
+
+    active = app.list_session_notifications(session_id)
+    assert len(active) == 1
+    assert active[0]["revision"] == updated["revision"]
+    assert active[0]["body"] == "new body"
+
+
+def test_dismissed_occurrence_does_not_suppress_later_publication(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    created = app.create_session_notification(session_id, _notification())
+    app.dismiss_session_notification(
+        session_id, created["id"], expected_revision=created["revision"]
+    )
+
+    replacement = app.create_session_notification(session_id, _notification())
+
+    active = app.list_session_notifications(session_id)
+    assert [item["id"] for item in active] == [replacement["id"]]
+    terminal = app.list_session_notifications(session_id, include_terminal=True)
+    assert created["id"] in [item["id"] for item in terminal]
+    assert replacement["id"] in [item["id"] for item in terminal]
+
+
+def test_operation_occurrence_guard_rejects_late_update_from_older_operation(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    first = app.create_session_notification(
+        session_id,
+        {**_notification(), "operation": {"id": "op-1", "state": "running"}},
+    )
+    # Simulate a newer operation taking over the stable key by dismissing the
+    # first occurrence and creating a new one with a different operation ID.
+    app.dismiss_session_notification(
+        session_id, first["id"], expected_revision=first["revision"]
+    )
+    second = app.create_session_notification(
+        session_id,
+        {**_notification(), "operation": {"id": "op-2", "state": "running"}},
+    )
+
+    with pytest.raises(NotificationOperationSupersededError) as conflict:
+        app.create_session_notification(
+            session_id,
+            {**_notification(), "operation": {"id": "op-1", "state": "running"}},
+        )
+    assert conflict.value.current["id"] == second["id"]
+
+    active = app.list_session_notifications(session_id)
+    assert [item["id"] for item in active] == [second["id"]]
+
+
+def test_operation_occurrence_guard_allows_same_operation_update(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    first = app.create_session_notification(
+        session_id,
+        {**_notification(), "operation": {"id": "op-1", "state": "running"}},
+    )
+    second = app.create_session_notification(
+        session_id,
+        {**_notification(), "operation": {"id": "op-1", "state": "running"}},
+    )
+
+    assert first["id"] == second["id"]
+    assert second["revision"] == first["revision"] + 1
+
+
+def test_operation_occurrence_guard_allows_new_operation_after_completion(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    first = app.create_session_notification(
+        session_id,
+        {**_notification(), "operation": {"id": "op-1", "state": "succeeded"}},
+    )
+    # A new operation may replace a completed operation's notification.
+    second = app.create_session_notification(
+        session_id,
+        {**_notification(), "operation": {"id": "op-2", "state": "running"}},
+    )
+
+    assert first["id"] == second["id"]
+    assert second["operation"]["id"] == "op-2"
+
+
+def test_update_by_key_creates_new_occurrence_when_key_is_terminal(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    created = app.create_session_notification(session_id, _notification())
+    app.dismiss_session_notification(
+        session_id, created["id"], expected_revision=created["revision"]
+    )
+
+    replacement = app.update_session_notification_by_key(
+        session_id, created["key"], _notification()
+    )
+
+    assert replacement["id"] != created["id"]
+    assert replacement["revision"] == 1
+    active = app.list_session_notifications(session_id)
+    assert [item["id"] for item in active] == [replacement["id"]]
+
+
+def test_update_by_key_creates_new_occurrence_when_key_is_absent(
+    tmp_path: Path,
+) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+
+    created = app.update_session_notification_by_key(
+        session_id, "absent:key", _notification(key="absent:key")
+    )
+
+    assert created["revision"] == 1
+    active = app.list_session_notifications(session_id)
+    assert [item["id"] for item in active] == [created["id"]]
 
 
 def test_session_notification_ui_effects_are_normalized(tmp_path: Path) -> None:

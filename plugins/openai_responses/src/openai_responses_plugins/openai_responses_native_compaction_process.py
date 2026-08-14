@@ -8,7 +8,7 @@ import time
 from typing import Any, Dict
 
 from agent_app.notifications import (
-    NotificationRevisionConflictError,
+    NotificationOperationSupersededError,
     NotificationTransitionError,
 )
 from agent_app.operations import ApplicationOperationLease
@@ -376,7 +376,7 @@ class OpenAIResponsesNativeCompactionProcess:
             "cancelling" if phase == "cancellation_requested" else "running"
         )
         return {
-            "key": f"openai_responses:native_compaction:{self.operation_id}",
+            "key": "openai_responses:native_compaction",
             "severity": severity,
             "title": "Compacting native history",
             "body": body,
@@ -387,7 +387,7 @@ class OpenAIResponsesNativeCompactionProcess:
                 "body": body,
                 "variant": severity,
                 "presentation": "banner",
-                "dismissible": False,
+                "dismissible": True,
                 "actions": (
                     actions
                     if actions is not None
@@ -417,43 +417,25 @@ class OpenAIResponsesNativeCompactionProcess:
         cancellable: bool,
     ) -> None:
         with self._notification_lock:
-            notification = self._notification
-            if not isinstance(notification, dict):
+            if not isinstance(self._notification, dict):
                 return
-            notification_id = notification.get("id")
-            revision = notification.get("revision") or notification.get("updated_at")
-            if not isinstance(notification_id, str):
-                return
-            patch = self._notification_payload(
+            payload = self._notification_payload(
                 severity=severity,
                 phase=phase,
                 body=body,
                 cancellable=cancellable,
             )
-            patch.pop("key", None)
             try:
-                stored = self._app.update_session_notification(
+                stored = self._app.create_session_notification(
                     self.session_id,
-                    notification_id,
-                    patch,
-                    expected_revision=revision,
+                    payload,
                 )
-            except NotificationRevisionConflictError as exc:
-                current = exc.current
-                if (
-                    current.get("status") != "pending"
-                    or (current.get("operation") or {}).get("id") != self.operation_id
-                ):
-                    self._notification = current
-                    return
-                stored = self._app.update_session_notification(
-                    self.session_id,
-                    notification_id,
-                    patch,
-                    expected_revision=current.get("revision")
-                    or current.get("updated_at"),
-                )
-            except (NotificationTransitionError, KeyError, ValueError):
+            except (
+                NotificationTransitionError,
+                NotificationOperationSupersededError,
+                KeyError,
+                ValueError,
+            ):
                 return
             self._notification = stored
 
@@ -470,17 +452,14 @@ class OpenAIResponsesNativeCompactionProcess:
         )
         body = detail if interrupted else f"OpenAI native compaction failed: {detail}"
         with self._notification_lock:
-            notification = self._notification
-            if not isinstance(notification, dict):
+            if not isinstance(self._notification, dict):
                 return
-            notification_id = notification.get("id")
-            revision = notification.get("revision") or notification.get("updated_at")
-            if not isinstance(notification_id, str):
-                return
-            patch = {
+            payload = {
+                "key": "openai_responses:native_compaction",
                 "severity": "warning" if interrupted else "error",
                 "title": title,
                 "body": body,
+                "source": {"plugin": PLUGIN_ID},
                 "display": {
                     "format": "text",
                     "title": title,
@@ -490,6 +469,8 @@ class OpenAIResponsesNativeCompactionProcess:
                     "dismissible": True,
                     "actions": self._retry_followups(),
                 },
+                "model_visibility": "hidden",
+                "retention": {"version": 1, "policy": "until_resolved"},
                 "operation": {
                     "version": 1,
                     "type": "openai_responses_native_compaction",
@@ -502,13 +483,16 @@ class OpenAIResponsesNativeCompactionProcess:
                 },
             }
             try:
-                stored = self._app.update_session_notification(
+                stored = self._app.create_session_notification(
                     self.session_id,
-                    notification_id,
-                    patch,
-                    expected_revision=revision,
+                    payload,
                 )
-            except Exception:
+            except (
+                NotificationTransitionError,
+                NotificationOperationSupersededError,
+                KeyError,
+                ValueError,
+            ):
                 return
             self._notification = stored
 
@@ -522,17 +506,14 @@ class OpenAIResponsesNativeCompactionProcess:
         phase: str,
     ) -> None:
         with self._notification_lock:
-            notification = self._notification
-            if not isinstance(notification, dict):
+            if not isinstance(self._notification, dict):
                 return
-            notification_id = notification.get("id")
-            revision = notification.get("revision") or notification.get("updated_at")
-            if not isinstance(notification_id, str):
-                return
-            patch = {
+            payload = {
+                "key": "openai_responses:native_compaction",
                 "severity": severity,
                 "title": title,
                 "body": body,
+                "source": {"plugin": PLUGIN_ID},
                 "display": {
                     "format": "text",
                     "title": title,
@@ -542,6 +523,8 @@ class OpenAIResponsesNativeCompactionProcess:
                     "dismissible": True,
                     "actions": [],
                 },
+                "model_visibility": "hidden",
+                "retention": {"version": 1, "policy": "until_resolved"},
                 "operation": {
                     "version": 1,
                     "type": "openai_responses_native_compaction",
@@ -554,17 +537,20 @@ class OpenAIResponsesNativeCompactionProcess:
                 },
             }
             if state == "succeeded":
-                patch["ui_effects"] = {
+                payload["ui_effects"] = {
                     "reload_session_ids": [self.session_id],
                 }
             try:
-                stored = self._app.update_session_notification(
+                stored = self._app.create_session_notification(
                     self.session_id,
-                    notification_id,
-                    patch,
-                    expected_revision=revision,
+                    payload,
                 )
-            except Exception:
+            except (
+                NotificationTransitionError,
+                NotificationOperationSupersededError,
+                KeyError,
+                ValueError,
+            ):
                 return
             self._notification = stored
 

@@ -12,6 +12,7 @@ from agent_app.application_notifications import (
 )
 from agent_app.events import InMemoryEventStore
 from agent_app.notifications import (
+    NotificationOperationSupersededError,
     NotificationRevisionConflictError,
     NotificationTransitionError,
     notification_ttl_elapsed,
@@ -150,6 +151,91 @@ def test_application_notification_validation_and_revision_conflicts(
         pass
     else:
         raise AssertionError("terminal notification transition must be rejected")
+    application.close()
+
+
+def test_application_producer_publication_by_key_creates_new_occurrence_after_terminal(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.json"
+    _write_config(config_path)
+    application = AgentApplication(
+        config_path,
+        tmp_path / "sessions",
+        application_notification_store=InMemoryApplicationNotificationStore(),
+    )
+
+    created = application.create_application_notification(_notification())
+    application.dismiss_application_notification(
+        created["id"], expected_revision=created["revision"]
+    )
+
+    replacement = application.create_application_notification(_notification())
+
+    assert replacement["id"] != created["id"]
+    assert replacement["revision"] == 1
+    active = application.list_application_notifications(include_terminal=False)
+    assert [item["id"] for item in active] == [replacement["id"]]
+    application.close()
+
+
+def test_application_producer_resolve_and_expire_without_expected_revision(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.json"
+    _write_config(config_path)
+    application = AgentApplication(
+        config_path,
+        tmp_path / "sessions",
+        application_notification_store=InMemoryApplicationNotificationStore(),
+    )
+
+    created = application.create_application_notification(_notification())
+    resolved = application.resolve_application_notification(
+        created["id"], {"action_id": "done"}
+    )
+    assert resolved["status"] == "resolved"
+    assert resolved["revision"] == created["revision"] + 1
+
+    replacement = application.create_application_notification(_notification())
+    expired = application.expire_application_notification(replacement["id"])
+    assert expired["status"] == "expired"
+    assert expired["revision"] == replacement["revision"] + 1
+    application.close()
+
+
+def test_application_operation_occurrence_guard_rejects_superseded_operation(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.json"
+    _write_config(config_path)
+    application = AgentApplication(
+        config_path,
+        tmp_path / "sessions",
+        application_notification_store=InMemoryApplicationNotificationStore(),
+    )
+
+    first = application.create_application_notification(
+        {**_notification(), "operation": {"id": "op-1", "state": "running"}}
+    )
+    application.dismiss_application_notification(
+        first["id"], expected_revision=first["revision"]
+    )
+    second = application.create_application_notification(
+        {**_notification(), "operation": {"id": "op-2", "state": "running"}}
+    )
+
+    try:
+        application.create_application_notification(
+            {**_notification(), "operation": {"id": "op-1", "state": "running"}}
+        )
+    except NotificationOperationSupersededError as exc:
+        assert exc.current["id"] == second["id"]
+    else:
+        raise AssertionError("superseded operation publication must be rejected")
+
+    active = application.list_application_notifications(include_terminal=False)
+    assert [item["id"] for item in active] == [second["id"]]
     application.close()
 
 
