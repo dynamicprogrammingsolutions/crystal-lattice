@@ -52,6 +52,16 @@ shared plugin overview documentation with bounded verification.
 - `plugins/docs/AGENTS.md`
 - `plugins/docs/index.md`
 
+### Existing guidance added by subtask 015
+
+Subtask 015 already updated `plugins/docs/AGENTS.md` so a new focused shared
+plugin page must be linked from `plugins/docs/index.md` and, when it refines one
+canonical guide, from that guide as well.
+
+Preserve this rule while relocating the general plugin overview. Treat it as
+the current baseline rather than overwriting `plugins/docs/AGENTS.md` from an
+older task description.
+
 ### Ownership rationale
 
 - Application configuration is resolved and applied by `agent_app` and the
@@ -87,6 +97,8 @@ Status: Draft
 4. Inspect `DEVELOPMENT.md` scope and referenced paths, then choose the
    approved root/application destination or defer with rationale.
 5. Update relevant package and plugin agent guidance.
+   Preserve the focused-page index/canonical-guide backlink rule added by
+   subtask 015.
 6. Record inbound links and public compatibility requirements for subtask 060.
 
 ### Implementation decisions and open questions

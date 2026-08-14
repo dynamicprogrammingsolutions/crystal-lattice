@@ -4,8 +4,13 @@ Specification:
 `maintainer/specifications/documentation-and-specification-standard/index.md`
 
 Requirement IDs:
-`DOCMETA-001`–`DOCMETA-003`, `DOCGEN-001`–`DOCGEN-005`,
-`DOCREP-001`–`DOCREP-005`
+`DOCMETA-001`–`DOCMETA-003`, `DOCGEN-001`–`DOCGEN-007`,
+`DOCREP-001`–`DOCREP-006`
+
+Related Verification:
+`tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
+owns `DOCVAL-005`–`DOCVAL-008` behavioral evidence. Its remaining framework
+and matrix refinements are non-blocking for this task.
 
 # Documentation Standard and Agent Guidance
 
@@ -24,6 +29,12 @@ boilerplate or reconstructed documentation to every package.
 - [ ] `docs/development/repository/` maps the generic standards to Crystal
   Lattice paths, package profiles, plugin documentation, tasks, agent guidance,
   publication, and validation without duplicating the generic explanations.
+- [ ] The standards define audience/context write boundaries, observable
+  first-success results, and boundary-preserving behavior when a compliant
+  workflow is blocked.
+- [ ] Repository policy maps normal, pointer-only, evidence-only, and prohibited
+  references among user docs, development docs, specifications, requirements,
+  AGENTS, tasks, maintainer material, and generated output.
 - [x] Root `AGENTS.md` contains concise routing and update guidance and points to
   the effective repository policy, generic standards, and maintainer
   specification only when an agent is changing the standards themselves.
@@ -128,6 +139,28 @@ long-form content merely to complete the shape.
 - No docs-site navigation changes, content migrations, or maintainer-tool
   relocations have been implemented by 010.
 - The execution plan is `Approved`.
+- August 14, 2026: Reviewed the committed subtask 015 changes. The
+  documentation meta-specification and applied guidance now also define
+  audience/context boundaries, artifact-reference directions,
+  observable-example accuracy, blocked-workflow boundaries, and
+  baseline-first behavioral verification.
+- Subtask 015 added `DOCGEN-006`, `DOCGEN-007`, `DOCREP-006`, and
+  `DOCVAL-005`–`DOCVAL-008`, plus nineteen behavioral consumers over nine
+  reusable seeds. This task now maps the new output requirements; 015 continues
+  to own behavioral evidence.
+- The user's August 14, 2026 direction makes 015's remaining calibration,
+  complete one-model matrix, and framework provenance review explicitly
+  non-blocking for 010 and later subtasks.
+- Refreshed 010 verification against the current committed guidance:
+  - generic-standard project-specific term scan passed;
+  - relevant relative links resolve; the only reported missing source paths are
+    the two pre-existing prepared-site links in `docs/index.md`;
+  - `git diff --check` passed for the current standards/specifications;
+  - docs-site preparation and normal MkDocs build completed;
+  - all standards/repository pages are present in prepared output;
+  - `maintainer/` and AGENTS remain excluded from public output;
+  - explicit navigation warnings remain assigned to subtask 060, while the
+    existing griffe/autoref warnings remain outside 010.
 
 ## Execution plan
 
@@ -467,6 +500,9 @@ Documentation-only verification:
    - the owner decision guide;
    - specification/task separation;
    - requirements/evidence terminology;
+   - audience/context and prohibited-reference boundaries;
+   - observable first-success behavior;
+   - blocked-workflow and completion-honesty rules;
    - whether root AGENTS remains concise enough for recurring agent context.
 8. Leave requirements depending on that human review incomplete until the
    review is confirmed.
@@ -491,6 +527,8 @@ Documentation-only verification:
   compatibility.
 - **Contributor/task guidance:** do not create `CONTRIBUTING.md` or modify
   `TASKS-v7`; 065 and 068 own those outputs.
+- **Behavioral verification:** 015 supplies supporting `DOCVAL-005`–`DOCVAL-008`
+  evidence. Its remaining refinements do not block 010 or later subtasks.
 - No other requirement questions are open.
 - If a package cannot be confidently classified using current manifests,
   READMEs, and ownership, record it for the deferred inventory instead of
@@ -524,6 +562,8 @@ Documentation-only verification:
 - [x] Classify initial package profiles.
 - [x] Update root README and docs index links/build guidance.
 - [x] Run documentation preparation/build and inspect warnings.
+- [x] Map subtask 015 additions and refresh static/build evidence against the
+  current committed guidance.
 - [ ] Obtain human review of clarity and agent-context concision.
 
 ### Requirement verification
@@ -533,6 +573,8 @@ Documentation-only verification:
 | Development hub | `docs/development/index.md` preserves all active cross-package specification links and exposes reusable standards and repository policy with a concise ownership explanation. |
 | Documentation structure | Human inspection confirms the generic page is package-neutral, the repository overlay contains local mappings/exceptions without generic duplication, and artifact roles, package profiles, ownership, generated-output, migration, and incremental-adoption rules are explicit. |
 | Specification workflow | Human inspection confirms target-state specification semantics, requirements-owned live tracking, task-owned approval, simple spec-first commits, optional major-version separation, stable IDs, evidence, ADRs, current-doc coupling, and temporary multi-commit progress rules. |
+| Audience and boundary behavior | Human inspection confirms artifacts use audience-appropriate context, internal provenance does not leak into consumer docs, generated-source and blocked-workflow boundaries remain intact, and observable first-success claims are concrete and current. |
+| Behavioral evidence | Subtask 015 maps every `DOCGEN-*` and `DOCREP-*` requirement to executable consumers; this evidence supplements rather than replaces human review and its remaining refinements are non-blocking. |
 | Existing specifications | Diff inspection confirms current feature specifications were preserved and no mass conformance rewrite or unsupported claims were introduced. |
 | Agent guidance | Root `AGENTS.md` routes agents to package docs and full standards without reproducing the long explanations or preempting `CONTRIBUTING.md`/`TASKS-v7` work. |
 | Package profiles | The structure standard classifies initial package categories and assigns Core/application entry-point creation to 030/040 after the ownership correction is approved. |

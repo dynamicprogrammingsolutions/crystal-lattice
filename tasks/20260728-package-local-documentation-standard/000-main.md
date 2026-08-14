@@ -735,6 +735,10 @@ The work is organized standards-first:
 2. Subtask 015 creates the minimal programmatic agent-evaluation library and
    uses the documentation-standard instructions as its first behavioral
    consumers. It can proceed in parallel with site assembly after 010.
+   Remaining calibration, full-matrix execution, and framework refinements are
+   explicitly non-blocking for 010 completion and for subtasks 020–070. Later
+   guidance changes remain owned and evidenced by 015 without reopening
+   completed downstream work unless they change an approved requirement.
 3. Subtask 020 extends the existing site assembler and establishes package
    registration and focused tests.
 4. Subtasks 030, 040, and 050 migrate or classify bounded documentation areas
@@ -746,8 +750,9 @@ The work is organized standards-first:
    and artifact roles from 010 are established. It can proceed in parallel with
    most migration work.
 7. Subtask 068 aligns and synchronizes `TASKS-v7` after the documentation
-   standard, agent-evaluation framework, and contributor workflow are defined.
-   It adopts the framework while moving the existing task-guidance evaluator.
+   standard and contributor workflow are defined. It may adopt the committed
+   agent-evaluation framework while 015 continues non-blocking refinements, and
+   it owns moving the existing task-guidance evaluator.
 8. Subtask 070 performs final verification after migration, contributor
    workflow, and task-guidance alignment are complete.
 
@@ -762,6 +767,12 @@ The decisions in `## Approved decision register` are approved implementation
 and process directions. They remain reviewable and may be changed later only
 through an explicit user-approved update to this task and any affected
 requirements or subtasks.
+
+Subtask 015's remaining `AEVAL-017`/`AEVAL-020` work and calibration follow-ups
+do not block 010, package-site assembly, migration, contributor workflow, task
+guidance alignment, or final documentation verification. Each consuming
+subtask uses the committed standards/framework state available when it starts
+and records any material later integration follow-up explicitly.
 
 There are no unresolved requirement questions at task creation.
 
