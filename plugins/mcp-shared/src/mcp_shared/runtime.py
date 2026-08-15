@@ -646,12 +646,227 @@ def _extract_discovered_tools(
                 server_name=server_name,
                 raw_name=raw_name,
                 description=description,
-                input_schema=dict(input_schema),
+                input_schema=_sanitize_input_schema(input_schema),
                 annotations=dict(annotations),
                 meta=dict(meta),
             )
         )
     return discovered
+
+
+# Standard JSON Schema draft 2020-12 keywords retained during sanitization.
+# Anything not in this set (and not a recognized sub-schema container) is
+# dropped so non-standard MCP server schemas (e.g. mcp-gsheets Effect/Schema
+# output) become valid JSON Schema before reaching LLM providers.
+_STANDARD_SCHEMA_KEYWORDS = frozenset(
+    {
+        "type",
+        "enum",
+        "const",
+        "description",
+        "default",
+        "format",
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "minLength",
+        "maxLength",
+        "pattern",
+        "minItems",
+        "maxItems",
+        "uniqueItems",
+        "minProperties",
+        "maxProperties",
+        "required",
+        "properties",
+        "additionalProperties",
+        "items",
+        "prefixItems",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "not",
+        "$ref",
+        "$defs",
+        "title",
+    }
+)
+
+# Keywords whose values are sub-schemas (or maps of sub-schemas) and therefore
+# need recursive sanitization.
+_SUBSCHEMA_KEYS = frozenset(
+    {"properties", "additionalProperties", "items", "prefixItems", "not"}
+)
+_SUBSCHEMA_LIST_KEYS = frozenset({"anyOf", "oneOf", "allOf"})
+_SUBSCHEMA_MAP_KEYS = frozenset({"properties", "$defs"})
+
+
+def _sanitize_input_schema(schema: Any) -> dict[str, Any]:
+    """Rewrite a non-standard MCP ``inputSchema`` to valid JSON Schema.
+
+    Some MCP servers (notably ``mcp-gsheets``) return ``inputSchema`` that uses
+    a TypeScript schema-library format (Effect/Schema-style) instead of JSON
+    Schema. This helper recursively converts the known non-standard patterns to
+    their JSON Schema draft 2020-12 equivalents and drops unknown fields so the
+    result can be forwarded to LLM providers without a 400.
+    """
+    seen: set[int] = set()
+    return _sanitize_schema_node(schema, seen)
+
+
+def _sanitize_schema_node(node: Any, seen: set[int]) -> dict[str, Any]:
+    if not isinstance(node, dict):
+        return {"type": "object", "properties": {}}
+    node_id = id(node)
+    if node_id in seen:
+        # Cycle guard: a malformed schema referencing itself would otherwise
+        # blow the stack. Return a permissive object schema for the cycle.
+        return {"type": "object", "properties": {}}
+    seen.add(node_id)
+
+    # The gsheets Effect/Schema pattern puts the canonical definition under
+    # ``def`` and repeats (or expands) it in sibling fields. Merge ``def`` as
+    # the base so both forms are handled, then sanitize the merged dict.
+    base = node.get("def")
+    if isinstance(base, dict):
+        merged: dict[str, Any] = dict(base)
+        for key, value in node.items():
+            if key == "def":
+                continue
+            merged[key] = value
+        node = merged
+
+    raw_type = node.get("type")
+
+    # Unwrap ``type: "optional"`` by replacing the node with its inner schema.
+    if raw_type == "optional":
+        inner = node.get("innerType")
+        if isinstance(inner, dict):
+            # Preserve siblings (e.g. description) on the unwrapped node.
+            unwrapped = dict(inner)
+            for key, value in node.items():
+                if key in {"type", "innerType", "def"}:
+                    continue
+                unwrapped.setdefault(key, value)
+            return _sanitize_schema_node(unwrapped, seen)
+        # No inner type to unwrap to; fall back to a permissive object schema.
+        return {"type": "object", "properties": {}}
+
+    out: dict[str, Any] = {}
+
+    # Convert ``type: "enum"`` (with ``entries``/``options``) to
+    # ``type: "string"`` + ``enum: [...]``.
+    if raw_type == "enum":
+        enum_values = _extract_enum_values(node)
+        if enum_values:
+            out["type"] = "string"
+            out["enum"] = enum_values
+        else:
+            # No values could be extracted; keep a plain string type so the
+            # schema stays valid rather than dropping the field entirely.
+            out["type"] = "string"
+    else:
+        if isinstance(raw_type, str) and raw_type:
+            out["type"] = raw_type
+
+    # Map non-standard container keywords to their JSON Schema equivalents.
+    if "shape" in node and "properties" not in node:
+        shape = node.get("shape")
+        if isinstance(shape, dict):
+            out["properties"] = _sanitize_schema_map(shape, seen)
+    if "element" in node and "items" not in node:
+        element = node.get("element")
+        if isinstance(element, dict):
+            out["items"] = _sanitize_schema_node(element, seen)
+
+    # Carry over standard keywords, recursing into sub-schemas.
+    for key, value in node.items():
+        if key in {"def", "type", "shape", "element", "innerType"}:
+            continue
+        if key in {"entries", "options"}:
+            # Consumed by enum handling above; never re-emitted.
+            continue
+        if key in {"checks", "isInt", "isFinite", "minValue", "maxValue"}:
+            # Non-standard Effect/Schema metadata with no safe JSON Schema
+            # equivalent; drop.
+            continue
+        if key not in _STANDARD_SCHEMA_KEYWORDS:
+            # Unknown extension keyword; drop to keep the schema valid.
+            continue
+        if value is None:
+            # JSON Schema draft 2020-12 does not accept ``null`` for most
+            # keywords; omit null-valued optional fields.
+            continue
+        if key == "enum":
+            # ``enum`` may already be set by the ``type: "enum"`` handling
+            # above (from ``options``/``entries``). A dict-valued ``enum`` (as
+            # emitted by Effect/Schema) is not valid JSON Schema; normalize to
+            # a list of string keys. A list-valued ``enum`` is kept as-is,
+            # unless the enum-type handling already produced a list (in which
+            # case we prefer the one already in ``out`` to avoid regressing
+            # the order/content extracted from ``options``).
+            if "enum" in out:
+                continue
+            if isinstance(value, dict):
+                out["enum"] = [str(k) for k in value.keys() if isinstance(k, str)]
+            elif isinstance(value, list):
+                out["enum"] = [str(item) for item in value if isinstance(item, str)]
+            continue
+        if key in _SUBSCHEMA_MAP_KEYS and isinstance(value, dict):
+            out[key] = _sanitize_schema_map(value, seen)
+            continue
+        if key in _SUBSCHEMA_KEYS and isinstance(value, dict):
+            out[key] = _sanitize_schema_node(value, seen)
+            continue
+        if key in _SUBSCHEMA_KEYS and isinstance(value, bool):
+            # ``additionalProperties`` may be a boolean.
+            out[key] = value
+            continue
+        if key in _SUBSCHEMA_LIST_KEYS and isinstance(value, list):
+            out[key] = [
+                _sanitize_schema_node(item, seen) if isinstance(item, dict) else item
+                for item in value
+            ]
+            continue
+        if key == "required" and isinstance(value, list):
+            out[key] = [str(item) for item in value if isinstance(item, str)]
+            continue
+        # Primitive-valued standard keywords pass through as-is.
+        out[key] = value
+
+    # Ensure object schemas have a ``properties`` map so downstream coercions
+    # (e.g. ``_coerce_anthropic_input_schema``) don't have to fill it in.
+    if out.get("type") == "object" and "properties" not in out:
+        out["properties"] = {}
+
+    return out
+
+
+def _sanitize_schema_map(mapping: dict[str, Any], seen: set[int]) -> dict[str, Any]:
+    sanitized: dict[str, Any] = {}
+    for key, value in mapping.items():
+        if not isinstance(key, str) or not key:
+            continue
+        sanitized[key] = _sanitize_schema_node(value, seen)
+    return sanitized
+
+
+def _extract_enum_values(node: dict[str, Any]) -> list[str]:
+    # Prefer ``options`` (list form), then ``entries`` (dict form), then a
+    # top-level ``enum`` if it is already a list.
+    options = node.get("options")
+    if isinstance(options, list):
+        return [str(item) for item in options if isinstance(item, str)]
+    entries = node.get("entries")
+    if isinstance(entries, dict):
+        return [str(key) for key in entries.keys() if isinstance(key, str)]
+    enum = node.get("enum")
+    if isinstance(enum, list):
+        return [str(item) for item in enum if isinstance(item, str)]
+    if isinstance(enum, dict):
+        return [str(key) for key in enum.keys() if isinstance(key, str)]
+    return []
 
 
 def _content_block_to_dict(part: Any) -> dict[str, Any]:
