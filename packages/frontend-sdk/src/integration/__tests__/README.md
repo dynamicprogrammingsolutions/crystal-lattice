@@ -248,7 +248,8 @@ npm run integration:backend:openrouter:mcp
 Selected by `npm run integration:bridge` and the AWS bridge variants.
 
 Starts or connects to an Elixir bridge and a real Python backend, then verifies
-`BridgeTransport` end-to-end through pairing and proxied HTTP requests.
+the WebSocket-only, HTTP-only, and hybrid transports end-to-end through pairing
+and proxied requests.
 
 Modes:
 
@@ -259,7 +260,21 @@ Modes:
 Tests:
 
 - `supports large request + large response bodies`
+- `supports HTTP-only large JSON and raw binary request/response bodies`
+- `uses HTTP for normal hybrid requests and legacy WebSocket only for events`
 - `reconnects and resumes after the bridge restarts`
+- `allows a fast proxied request to complete while an earlier slow request is pending`
+
+The HTTP-only case also verifies token resume, `/events` over HTTP, and
+negotiated gzip. Docker mode is required for the bridge restart case and for
+the normal self-managed run. External mode can exercise the remaining cases
+against a bridge started separately:
+
+```bash
+BRIDGE_E2E_MODE=external \
+BRIDGE_E2E_URL=ws://127.0.0.1:4000/ws/websocket \
+npm run integration:bridge
+```
 
 Example:
 

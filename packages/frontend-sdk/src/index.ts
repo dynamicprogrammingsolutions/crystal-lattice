@@ -97,6 +97,14 @@ export type {
 
 export { FetchTransport } from './transport/fetchTransport';
 export { BridgeTransport } from './transport/bridgeTransport';
+export { createBridgeConnectionTransport } from './transport/bridgeConnectionTransport';
+export type {
+  BridgeConnectionTransport,
+  BridgeConnectionTransportOptions,
+  BridgeTransportMode,
+} from './transport/bridgeConnectionTransport';
+export { HttpBridgeTransport, deriveBridgeHttpBaseUrl } from './transport/httpBridgeTransport';
+export { HybridBridgeTransport, isLegacyEventRequest } from './transport/hybridBridgeTransport';
 export {
   CloudTransport,
   formatCloudConnectionLink,

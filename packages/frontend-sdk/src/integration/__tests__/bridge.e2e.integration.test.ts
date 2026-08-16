@@ -3,7 +3,15 @@ import WS from 'ws';
 
 import { BridgeTransport } from '../../transport/bridgeTransport';
 import type { WebSocketLike } from '../../transport/bridgeTransport';
-import { startBackendServer, startBridgeForE2E, waitForAsync, waitForStdoutMatch } from '../harness';
+import type { BridgeConnectionTransport } from '../../transport/bridgeConnectionTransport';
+import { HttpBridgeTransport } from '../../transport/httpBridgeTransport';
+import { HybridBridgeTransport } from '../../transport/hybridBridgeTransport';
+import {
+  startBackendServer,
+  startBridgeForE2E,
+  waitForAsync,
+  waitForStdoutMatch,
+} from '../harness';
 
 const IS_AWS_E2E = (process.env.BRIDGE_E2E_MODE || '').startsWith('aws-');
 const TEST_TIMEOUT_MS = IS_AWS_E2E ? 2_700_000 : 600_000;
@@ -11,13 +19,15 @@ const HOOK_TIMEOUT_MS = IS_AWS_E2E ? 900_000 : 10_000;
 
 class NodeWebSocketWrapper implements WebSocketLike {
   private sock: WS;
+  private sentMessages?: any[];
 
   onopen: ((ev?: any) => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
   onerror: ((ev: any) => void) | null = null;
   onclose: ((ev: { code?: number; reason?: string; wasClean?: boolean }) => void) | null = null;
 
-  constructor(url: string) {
+  constructor(url: string, sentMessages?: any[]) {
+    this.sentMessages = sentMessages;
     this.sock = new WS(url);
     this.sock.on('open', () => this.onopen?.());
     this.sock.on('message', (data) => this.onmessage?.({ data: String(data) }));
@@ -30,12 +40,37 @@ class NodeWebSocketWrapper implements WebSocketLike {
   }
 
   send(data: string): void {
+    if (this.sentMessages) {
+      this.sentMessages.push(JSON.parse(data));
+    }
     this.sock.send(data);
   }
 
   close(code?: number, reason?: string): void {
     this.sock.close(code, reason);
   }
+}
+
+async function pairTransport(options: {
+  transport: BridgeConnectionTransport;
+  serverId: string;
+  stdout: string[];
+}): Promise<void> {
+  await options.transport.connect();
+  await waitForAsync(
+    async () => {
+      const servers = await options.transport.listServers();
+      return servers.some((server) => server.server_id === options.serverId);
+    },
+    { timeoutMs: 30_000, intervalMs: 250 },
+  );
+  await options.transport.requestPairing(options.serverId);
+  const match = await waitForStdoutMatch({
+    stdout: options.stdout,
+    pattern: /PAIRING CODE:\s*(\d{6})/,
+    timeoutMs: 30_000,
+  });
+  await options.transport.submitPairingCode(options.serverId, match[1]);
 }
 
 describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient -> FastAPI)', () => {
@@ -101,10 +136,13 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
       await transport.connect();
 
       // Wait until server is visible via bridge registry.
-      await waitForAsync(async () => {
-        const servers = await transport.listServers();
-        return servers.some((s) => s.server_id === serverId);
-      }, { timeoutMs: 30_000, intervalMs: 250 });
+      await waitForAsync(
+        async () => {
+          const servers = await transport.listServers();
+          return servers.some((s) => s.server_id === serverId);
+        },
+        { timeoutMs: 30_000, intervalMs: 250 },
+      );
 
       await transport.requestPairing(serverId);
       const match = await waitForStdoutMatch({
@@ -138,6 +176,160 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
       expect(getResp.status).toBe(200);
       expect(getResp.data.success).toBe(true);
       expect(getResp.data.data.blob.length).toBe(big.length);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'supports HTTP-only large JSON and raw binary request/response bodies',
+    async () => {
+      const bridge = sharedAwsBridge ?? (await startBridgeForE2E());
+      if (!sharedAwsBridge) {
+        stopAll.push(bridge.stop);
+      }
+      const serverId = `e2e-http-server-${Date.now()}`;
+      const started = await startBackendServer({
+        config: {
+          providers: {
+            test_provider: {
+              provider: 'deterministic_stream',
+              model: 'test-model',
+            },
+          },
+          plugins: ['plugins.deterministic_stream_provider.DeterministicStreamProvider'],
+          agents: { default: { provider: 'test_provider' } },
+        },
+        enableTestControl: true,
+        env: {
+          BRIDGE_URL: bridge.bridgeUrl,
+          BRIDGE_SERVER_ID: serverId,
+          BRIDGE_DISPLAY_NAME: 'HTTP E2E Test Server',
+          BRIDGE_HTTP_TIMEOUT_SECONDS: '120.0',
+        },
+      });
+      stopAll.push(started.stop);
+
+      let compressedProxyResponseSeen = false;
+      const transport = new HttpBridgeTransport({
+        bridgeUrl: bridge.bridgeUrl,
+        defaultRequestTimeoutMs: 120_000,
+        fetchImpl: (async (input: any, init?: RequestInit) => {
+          const response = await fetch(input, init);
+          if (
+            String(input).includes('/bridge/v1/proxy/') &&
+            response.headers.get('content-encoding') === 'gzip'
+          ) {
+            compressedProxyResponseSeen = true;
+          }
+          return response;
+        }) as typeof fetch,
+      });
+      await pairTransport({ transport, serverId, stdout: started.stdout });
+
+      const big = 'h'.repeat(1_200_000);
+      const putJson = await transport.request<any>({
+        method: 'PUT',
+        path: '/api/data',
+        body: { blob: big },
+      });
+      expect(putJson.status).toBe(200);
+      expect(putJson.data.updated.blob).toHaveLength(big.length);
+
+      const binary = new Uint8Array(512 * 1024);
+      for (let index = 0; index < binary.length; index += 1) {
+        binary[index] = index % 251;
+      }
+      const putBinary = await transport.request<ArrayBuffer>({
+        method: 'PUT',
+        path: '/__test/binary',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: binary,
+      });
+      expect(Array.from(new Uint8Array(putBinary.data))).toEqual(Array.from(binary));
+
+      const getBinary = await transport.request<ArrayBuffer>({
+        method: 'GET',
+        path: '/__test/binary?size=524288',
+      });
+      expect(new Uint8Array(getBinary.data)).toEqual(binary);
+      expect(compressedProxyResponseSeen).toBe(true);
+
+      transport.prepareForResume();
+      const resumed = await transport.request<any>({
+        method: 'GET',
+        path: '/api/hello',
+      });
+      expect(resumed.data.message).toMatch(/Hello from Bonjour Server!/);
+
+      const events = await transport.request<any>({
+        method: 'GET',
+        path: '/events',
+      });
+      expect(events.data.events).toEqual([]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'uses HTTP for normal hybrid requests and legacy WebSocket only for events',
+    async () => {
+      const bridge = sharedAwsBridge ?? (await startBridgeForE2E());
+      if (!sharedAwsBridge) {
+        stopAll.push(bridge.stop);
+      }
+      const serverId = `e2e-hybrid-server-${Date.now()}`;
+      const started = await startBackendServer({
+        config: {
+          providers: {
+            test_provider: {
+              provider: 'deterministic_stream',
+              model: 'test-model',
+            },
+          },
+          plugins: ['plugins.deterministic_stream_provider.DeterministicStreamProvider'],
+          agents: { default: { provider: 'test_provider' } },
+        },
+        env: {
+          BRIDGE_URL: bridge.bridgeUrl,
+          BRIDGE_SERVER_ID: serverId,
+          BRIDGE_DISPLAY_NAME: 'Hybrid E2E Test Server',
+        },
+      });
+      stopAll.push(started.stop);
+
+      const fetchedUrls: string[] = [];
+      const sentWebSocketMessages: any[] = [];
+      const transport = new HybridBridgeTransport({
+        bridgeUrl: bridge.bridgeUrl,
+        fetchImpl: (async (input: any, init?: RequestInit) => {
+          fetchedUrls.push(String(input));
+          return await fetch(input, init);
+        }) as typeof fetch,
+        wsFactory: (url: string): WebSocketLike =>
+          new NodeWebSocketWrapper(url, sentWebSocketMessages),
+        defaultRequestTimeoutMs: 30_000,
+      });
+      await pairTransport({ transport, serverId, stdout: started.stdout });
+
+      const hello = await transport.request<any>({
+        method: 'GET',
+        path: '/api/hello',
+      });
+      expect(hello.data.message).toMatch(/Hello from Bonjour Server!/);
+
+      const events = await transport.request<any>({
+        method: 'GET',
+        path: '/events',
+      });
+      expect(events.data.events).toEqual([]);
+
+      expect(fetchedUrls.some((url) => url.includes('/bridge/v1/proxy/api/hello'))).toBe(true);
+      expect(fetchedUrls.some((url) => url.includes('/bridge/v1/proxy/events'))).toBe(false);
+      expect(
+        sentWebSocketMessages.some(
+          (message) => message.event === 'http_request' && message.payload?.path === '/events',
+        ),
+      ).toBe(true);
     },
     TEST_TIMEOUT_MS,
   );
@@ -190,10 +382,13 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
       });
       await transport.connect();
 
-      await waitForAsync(async () => {
-        const servers = await transport.listServers();
-        return servers.some((s) => s.server_id === serverId);
-      }, { timeoutMs: 30_000, intervalMs: 250 });
+      await waitForAsync(
+        async () => {
+          const servers = await transport.listServers();
+          return servers.some((s) => s.server_id === serverId);
+        },
+        { timeoutMs: 30_000, intervalMs: 250 },
+      );
 
       await transport.requestPairing(serverId);
       const match = await waitForStdoutMatch({
@@ -234,14 +429,17 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
         stopAll.push(restartedBridge.stop);
       }
 
-      await waitForAsync(async () => {
-        try {
-          const servers = await transport.listServers();
-          return servers.some((s) => s.server_id === serverId);
-        } catch {
-          return false;
-        }
-      }, { timeoutMs: 60_000, intervalMs: 500 });
+      await waitForAsync(
+        async () => {
+          try {
+            const servers = await transport.listServers();
+            return servers.some((s) => s.server_id === serverId);
+          } catch {
+            return false;
+          }
+        },
+        { timeoutMs: 60_000, intervalMs: 500 },
+      );
 
       const resumed = await transport.request({
         method: 'GET',
@@ -304,10 +502,13 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
       });
       await transport.connect();
 
-      await waitForAsync(async () => {
-        const servers = await transport.listServers();
-        return servers.some((s) => s.server_id === serverId);
-      }, { timeoutMs: 30_000, intervalMs: 250 });
+      await waitForAsync(
+        async () => {
+          const servers = await transport.listServers();
+          return servers.some((s) => s.server_id === serverId);
+        },
+        { timeoutMs: 30_000, intervalMs: 250 },
+      );
 
       await transport.requestPairing(serverId);
       const match = await waitForStdoutMatch({

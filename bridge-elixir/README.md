@@ -345,7 +345,37 @@ GOSSIP_MULTICAST_ADDR=230.1.1.251  # Multicast address
 PAIRING_CODE_TTL=300           # Code expiration (seconds)
 MAX_PAIRING_ATTEMPTS=3         # Max wrong code attempts
 SESSION_TIMEOUT=3600           # Session timeout (seconds)
+BRIDGE_HTTP_TRANSFER_TOKEN_TTL_SECONDS=180
+BRIDGE_HTTP_MAX_BODY_BYTES=104857600
+BRIDGE_MAX_PENDING_HTTP_TRANSFERS=128
+BRIDGE_HTTP_COMPRESS_THRESHOLD_BYTES=1024
 ```
+
+### HTTP bridge protocol v1
+
+The legacy Phoenix WebSocket protocol remains available and unchanged. Opt-in
+HTTP and hybrid frontends use these additional endpoints:
+
+- `GET /bridge/v1/capabilities`
+- `GET /bridge/v1/servers`
+- `POST /bridge/v1/pairings/request`
+- `POST /bridge/v1/pairings/confirm`
+- `POST /bridge/v1/pairings/resume`
+- `MATCH /bridge/v1/proxy/*path`
+
+Frontend proxy requests authenticate with `X-Crystal-Bridge-Token`; this keeps
+the proxied `Authorization` header available to the local application.
+Pairing-request handles and transfer credentials are signed, short-lived, and
+direction scoped. Request bodies are downloaded by the registered Python
+server and response bodies are uploaded through one-time transfer endpoints.
+Body bytes are streamed with backpressure and are never placed in JSON
+WebSocket frames or base64 encoded.
+
+The server WebSocket carries only `http_request_v2`,
+`http_response_v2_init`, and `http_request_v2_cancel` control metadata for the
+HTTP path. Existing `http_request*` and `http_response*` messages are unchanged.
+HTTP responses negotiate gzip at Cowboy. Brotli is available only at configured
+deployment edges.
 
 **Note:** The WebSocket endpoint has `check_origin: false` configured in `lib/bridge/endpoint.ex` to allow connections from mobile apps (React Native) across different networks. For production deployments, configure specific allowed origins:
 

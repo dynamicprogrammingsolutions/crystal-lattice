@@ -429,11 +429,20 @@ Common bridge options:
 - `--bridge-display-name` - human-friendly server name shown to clients.
 - `--bridge-location` - optional display metadata.
 - `--bridge-local-http-base` - override the local server URL used by the bridge.
+- `--bridge-http-base` - override the public bridge HTTP origin used by v2 body
+  downloads/uploads. By default this is derived from `--bridge-url`.
 - `--bridge-server-id` - provide a stable server id.
 - `--bridge-exit-on-superseded` - exit if the bridge reports this server was replaced.
 - `--bridge-local-guard` - opt into a local lockfile guard for the bridge server id.
 - `--bridge-takeover-local` - with the local guard, try to terminate and replace
   the existing local process.
+
+The equivalent environment override for the public HTTP origin is
+`BRIDGE_HTTP_BASE_URL`. The server WebSocket remains the registration and
+control channel. For HTTP/hybrid frontends, request bodies are downloaded from
+the bridge and local response bodies are uploaded to it as raw HTTP byte
+streams; only status, headers, paths, and short-lived transfer credentials use
+the WebSocket.
 
 ### Bonjour + Bridge Together
 

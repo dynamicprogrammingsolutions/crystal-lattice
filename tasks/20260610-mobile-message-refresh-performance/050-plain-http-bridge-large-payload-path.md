@@ -4,16 +4,16 @@ Add opt-in HTTP-only and hybrid bridge transports while preserving the existing 
 
 ## Requirements checklist
 
-- [ ] Keep the existing `BridgeTransport`, its WebSocket wire messages, and its pairing/control/event/normal-request behavior fully intact and make WebSocket-only mode the default.
-- [ ] Expose explicit frontend bridge modes for WebSocket-only, HTTP-only, and hybrid operation without automatic request fallback between modes.
-- [ ] In hybrid mode, route only `GET /events` (with or without a query string) through the existing `BridgeTransport`; route discovery, pairing, resume/validation, and every other proxied backend request through HTTP.
-- [ ] Make HTTP-only mode complete: it must discover servers, pair, validate a saved pairing token, and proxy all backend requests—including `/events`—without opening a frontend WebSocket.
-- [ ] Preserve the existing SDK `Transport.request()` contract and the SDK-facing status/data/error behavior for JSON and text endpoints across all three modes.
-- [ ] Keep small control metadata on the Python server WebSocket, but transfer every request/response body selected for the new HTTP path as raw HTTP bytes, including a Python-to-bridge HTTP response upload path.
-- [ ] Support binary request and response bodies on the HTTP path without JSON text framing or base64 conversion.
+- [x] Keep the existing `BridgeTransport`, its WebSocket wire messages, and its pairing/control/event/normal-request behavior fully intact and make WebSocket-only mode the default.
+- [x] Expose explicit frontend bridge modes for WebSocket-only, HTTP-only, and hybrid operation without automatic request fallback between modes.
+- [x] In hybrid mode, route only `GET /events` (with or without a query string) through the existing `BridgeTransport`; route discovery, pairing, resume/validation, and every other proxied backend request through HTTP.
+- [x] Make HTTP-only mode complete: it must discover servers, pair, validate a saved pairing token, and proxy all backend requests—including `/events`—without opening a frontend WebSocket.
+- [x] Preserve the existing SDK `Transport.request()` contract and the SDK-facing status/data/error behavior for JSON and text endpoints across all three modes.
+- [x] Keep small control metadata on the Python server WebSocket, but transfer every request/response body selected for the new HTTP path as raw HTTP bytes, including a Python-to-bridge HTTP response upload path.
+- [x] Support binary request and response bodies on the HTTP path without JSON text framing or base64 conversion.
 - [ ] Bound, authenticate, time out, cancel, and clean up HTTP transfers safely across single-node and clustered bridge deployments.
-- [ ] Enable negotiated gzip for HTTP bridge responses, retain HTTP/2 at supported TLS edges, and allow Brotli at deployment edges that support it; do not require Brotli from the Phoenix origin.
-- [ ] Wire the mobile frontend through an opt-in mode factory so old saved connections remain WebSocket-only unless explicitly configured otherwise, and leave the permanent default switch out of this task.
+- [x] Enable negotiated gzip for HTTP bridge responses, retain HTTP/2 at supported TLS edges, and allow Brotli at deployment edges that support it; do not require Brotli from the Phoenix origin.
+- [x] Wire the mobile frontend through an opt-in mode factory so old saved connections remain WebSocket-only unless explicitly configured otherwise, and leave the permanent default switch out of this task.
 - [ ] Add unit, integration, clustered, and SDK-facing E2E evidence for all modes, path routing, large JSON, raw binary, compression, timeout/cancellation cleanup, and unchanged legacy WebSocket behavior.
 
 Parent Task: tasks/20260610-mobile-message-refresh-performance/000-main.md
@@ -179,20 +179,60 @@ Planned verification commands include:
 
 - [x] After explicit user approval, change this plan status to `Approved` before implementation.
 - [ ] Capture the passing legacy WebSocket unit/E2E baseline and preserve existing `BridgeTransport` source and wire messages.
-- [ ] Add shared bridge mode/lifecycle types, URL derivation, and an explicit mode factory without changing `BridgeTransport`.
-- [ ] Add `HttpBridgeTransport` control, pairing-token validation, proxy, timeout/abort, JSON/text, and raw-binary behavior.
-- [ ] Add `HybridBridgeTransport` with exact event-only legacy routing and no automatic fallback.
-- [ ] Add versioned capabilities, discovery, pairing, resume, proxy, and transfer HTTP routes before body parsing.
-- [ ] Add dedicated frontend pairing authentication and short-lived signed transfer credentials.
-- [ ] Add the supervised, bounded, cluster-aware transfer coordinator and raw chunk backpressure protocol.
-- [ ] Add server-channel v2 request, response-init, and cancel metadata events while preserving legacy handlers.
-- [ ] Add Python v2 request-body download, local byte streaming, response upload, task tracking, cancellation, and HTTP-base override.
-- [ ] Add gzip origin configuration and update CloudFront/HAProxy edge settings without changing WebSocket compression behavior.
-- [ ] Add SDK unit tests for all modes, exact routing, token/errors, timeout/abort, parity, binary bodies, and no fallback.
-- [ ] Add Elixir route/coordinator/security/cleanup/compression tests.
-- [ ] Add Python byte-streaming, metadata-only WebSocket, cancellation, and legacy-regression tests.
-- [ ] Extend SDK-facing bridge E2E for HTTP-only, hybrid, large JSON, binary, compression, resume, and failure cleanup.
+- [x] Add shared bridge mode/lifecycle types, URL derivation, and an explicit mode factory without changing `BridgeTransport`.
+- [x] Add `HttpBridgeTransport` control, pairing-token validation, proxy, timeout/abort, JSON/text, and raw-binary behavior.
+- [x] Add `HybridBridgeTransport` with exact event-only legacy routing and no automatic fallback.
+- [x] Add versioned capabilities, discovery, pairing, resume, proxy, and transfer HTTP routes before body parsing.
+- [x] Add dedicated frontend pairing authentication and short-lived signed transfer credentials.
+- [x] Add the supervised, bounded, cluster-aware transfer coordinator and raw chunk backpressure protocol.
+- [x] Add server-channel v2 request, response-init, and cancel metadata events while preserving legacy handlers.
+- [x] Add Python v2 request-body download, local byte streaming, response upload, task tracking, cancellation, and HTTP-base override.
+- [x] Add gzip origin configuration and update CloudFront/HAProxy edge settings without changing WebSocket compression behavior.
+- [x] Add SDK unit tests for all modes, exact routing, token/errors, timeout/abort, parity, binary bodies, and no fallback.
+- [x] Add Elixir route/coordinator/security/cleanup/compression tests.
+- [x] Add Python byte-streaming, metadata-only WebSocket, cancellation, and legacy-regression tests.
+- [x] Extend SDK-facing bridge E2E for HTTP-only, hybrid, large JSON, binary, compression, resume, and failure cleanup.
 - [ ] Add and run a multi-node HAProxy transfer E2E that crosses bridge nodes.
-- [ ] Add mobile opt-in mode persistence/factory wiring and migration/rollback tests while retaining the WebSocket default.
-- [ ] Update SDK, bridge protocol/deployment, terminal bridge, mobile rollout, and integration-test documentation.
+- [x] Add mobile opt-in mode persistence/factory wiring and migration/rollback tests while retaining the WebSocket default.
+- [x] Update SDK, bridge protocol/deployment, terminal bridge, mobile rollout, and integration-test documentation.
 - [ ] Run the planned verification matrix, record blocked hosted/manual evidence separately, and leave the permanent default switch deferred.
+
+## Implementation Notes
+
+Added during implementation.
+
+- The implementation is isolated on
+  `task/20260610-plain-http-bridge-large-payload-path` in the dedicated
+  worktree. The existing `BridgeTransport` source was not modified.
+- HTTP pairing uses an opaque signed request handle that binds the server,
+  client, owner node, and expiry. Transfer credentials bind request id, server,
+  direction, and expiry. The frontend pairing token uses
+  `X-Crystal-Bridge-Token`, leaving a proxied `Authorization` header intact.
+- A supervised per-request Elixir coordinator relays request-download and
+  response-upload chunks with acknowledgements, byte/concurrency limits,
+  monitors, timeout cancellation, and clustered PubSub attachment.
+- The Python bridge client handles v2 work in separately tracked tasks,
+  downloads request bodies, streams local HTTP with identity encoding, sends
+  only response metadata over WebSocket, and uploads raw response bytes.
+- The first real E2E exposed gzip on the internal request-body download.
+  Marking that internal response `Content-Encoding: identity` fixed the issue
+  while retaining negotiated gzip on frontend-facing proxy responses.
+- Post-merge local verification completed before the implementation commit:
+  - `mix test`: 52 tests passed, 4 existing skips.
+  - Python bridge and CLI environment suites: 50 passed with the worktree
+    explicitly first on `PYTHONPATH`.
+  - Frontend SDK default suite: 310 passed.
+  - Mobile Jest suite: 115 passed.
+  - Mobile TypeScript: passed.
+  - Local external-mode bridge E2E: 4 applicable tests passed, including
+    legacy large payload/concurrency, HTTP-only large JSON/binary/gzip/resume,
+    and hybrid event-only WebSocket routing.
+- Deferred verification:
+  - An earlier Docker and multi-node HAProxy E2E attempt could not start
+    because the local Docker daemon was not running. The user has since
+    enabled Docker and authorized the rerun after this implementation commit.
+  - The existing bridge-restart E2E cannot run in external mode because the
+    harness cannot suspend an externally managed bridge.
+  - Hosted Brotli/HTTP2 and real-device iOS/Android checks remain manual/gated.
+  - `test_cli_environment_isolation.py` is included in the 50-test Python
+    result above.

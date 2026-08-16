@@ -33,6 +33,29 @@ Common categories:
 - Cloud orchestrator e2e: `npm run integration:cloud`, `npm run integration:cloud:profiles`
 - AWS-backed e2e and maintenance commands: run only when intentionally working on those deployments
 
+## Bridge transport modes
+
+`createBridgeConnectionTransport()` supports three explicit modes:
+
+- `websocket` is the compatibility default and returns the existing
+  `BridgeTransport` unchanged.
+- `http` uses the bridge HTTP v1 API for discovery, pairing, token validation,
+  event polling, and every proxied backend request. The frontend does not open
+  a WebSocket in this mode.
+- `hybrid` uses HTTP for discovery, pairing, validation, and normal backend
+  requests. Only exact `GET /events` requests (including query strings) use
+  the existing `BridgeTransport`.
+
+HTTP requests never fall back automatically to WebSocket. Recreate the
+connection with `mode: "websocket"` for an explicit rollback; automatic retry
+could duplicate non-idempotent writes.
+
+Both HTTP modes accept the existing `ws(s)://.../ws/websocket` bridge URL and
+derive the matching HTTP origin. Set `bridgeHttpBaseUrl` when a deployment uses
+different public HTTP and WebSocket origins. JSON and text preserve the
+standard `Transport` response contract, while non-text responses return an
+`ArrayBuffer` and binary request bodies are sent as raw bytes.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

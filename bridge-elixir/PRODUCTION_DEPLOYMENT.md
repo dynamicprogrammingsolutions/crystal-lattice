@@ -63,6 +63,22 @@ Configured in `config/config.exs`:
 - `PAIRING_CODE_TTL` – seconds before a pairing code expires (default `300`).
 - `MAX_PAIRING_ATTEMPTS` – max code submissions per client (default `3`).
 - `SESSION_TIMEOUT` – seconds before an inactive session is cleaned up (default `3600`).
+- `BRIDGE_HTTP_TRANSFER_TOKEN_TTL_SECONDS` – lifetime of one-time HTTP body
+  transfer credentials (default `180`).
+- `BRIDGE_HTTP_MAX_BODY_BYTES` – maximum streamed request or response body
+  size (default `104857600`).
+- `BRIDGE_MAX_PENDING_HTTP_TRANSFERS` – per-node active transfer bound
+  (default `128`).
+- `BRIDGE_HTTP_COMPRESS_THRESHOLD_BYTES` – minimum viewer response size for
+  Cowboy gzip (default `1024`).
+
+All bridge nodes must share `BRIDGE_TOKEN_SECRET` and the transfer-token salt
+when HTTP/hybrid clients are enabled. Edge proxies must forward
+`Authorization`, `X-Crystal-Bridge-Token`, query strings, and all supported
+HTTP methods without caching `/bridge/v1/*`. The provided secure CloudFront
+templates enable HTTP/2 and compression; the TLS HAProxy listener advertises
+`h2,http/1.1`. Origin gzip is portable, while Brotli depends on the selected
+edge.
 
 ### TLS-related variables (for future internal TLS)
 
