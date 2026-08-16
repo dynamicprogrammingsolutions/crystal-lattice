@@ -165,6 +165,7 @@ Build and run on iOS:
 
 ```bash
 npm run detox:build:ios
+npm run detox:test:bridge-transport:ios
 npm run detox:test:transcript:ios
 npm run detox:test:transcript-range:ios
 ```
@@ -173,6 +174,7 @@ Build and run on Android:
 
 ```bash
 npm run detox:build:android
+npm run detox:test:bridge-transport:android
 npm run detox:test:transcript:android
 npm run detox:test:transcript-range:android
 ```

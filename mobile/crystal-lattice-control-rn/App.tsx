@@ -1050,6 +1050,7 @@ function App(): React.JSX.Element {
       </TouchableOpacity>
 
       <TouchableOpacity
+        testID="connection-method-bridge"
         style={[styles.button, styles.methodButton]}
         onPress={() => selectMethod('bridge')}>
         <Text style={styles.buttonText}>Bridge Service</Text>
@@ -1244,6 +1245,13 @@ function App(): React.JSX.Element {
               <TouchableOpacity
                 key={mode}
                 testID={`bridge-transport-mode-${mode}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${label} bridge transport${
+                  bridgeTransportMode === mode ? ' selected' : ''
+                }`}
+                accessibilityState={{
+                  selected: bridgeTransportMode === mode,
+                }}
                 style={[
                   styles.bridgeModeButton,
                   bridgeTransportMode === mode &&

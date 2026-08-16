@@ -14,6 +14,7 @@ import {
 } from '../harness';
 
 const IS_AWS_E2E = (process.env.BRIDGE_E2E_MODE || '').startsWith('aws-');
+const IS_EXTERNAL_E2E = process.env.BRIDGE_E2E_MODE === 'external';
 const TEST_TIMEOUT_MS = IS_AWS_E2E ? 2_700_000 : 600_000;
 const HOOK_TIMEOUT_MS = IS_AWS_E2E ? 900_000 : 10_000;
 
@@ -334,7 +335,7 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
     TEST_TIMEOUT_MS,
   );
 
-  it(
+  it.skipIf(IS_EXTERNAL_E2E)(
     'reconnects and resumes after the bridge restarts',
     async () => {
       const bridge = sharedAwsBridge ?? (await startBridgeForE2E());

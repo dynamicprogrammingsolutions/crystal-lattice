@@ -252,22 +252,13 @@ Tests cover:
 
 ### Integration Tests
 
-Run Python integration tests against running bridge:
+Run the bridge-owned integration suite. It starts or reuses the two-node
+Docker/HAProxy cluster, verifies the legacy WebSocket registration and pairing
+flow, then verifies HTTP pairing and a large raw request/response transfer
+whose HTTP legs cross both bridge nodes:
 
 ```bash
-# Start bridge first
-make docker-up
-
-# Wait for healthy state
-sleep 10
-
-# Run integration tests
-cd ../server-python
-python -m pytest test_bridge_integration.py -v -s
-
-# Stop bridge
-cd ../bridge-elixir
-make docker-down
+./run-integration-tests.sh
 ```
 
 Tests cover:
@@ -275,7 +266,13 @@ Tests cover:
 - Server registration with metadata
 - Client server discovery
 - Complete pairing flow
-- Real Python server integration
+- HTTP pairing through HAProxy without affinity
+- Large binary HTTP request download and response upload across bridge nodes
+
+The frontend SDK owns the full SDK → bridge → Python → FastAPI E2E, including
+WebSocket-only, HTTP-only, hybrid routing, compression, and restart coverage.
+Run it from the repository root with
+`npm --workspace @crystal-lattice/frontend-sdk run integration:bridge`.
 
 ### Manual Testing with wscat
 

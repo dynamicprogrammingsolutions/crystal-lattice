@@ -14,7 +14,7 @@ Add opt-in HTTP-only and hybrid bridge transports while preserving the existing 
 - [ ] Bound, authenticate, time out, cancel, and clean up HTTP transfers safely across single-node and clustered bridge deployments.
 - [x] Enable negotiated gzip for HTTP bridge responses, retain HTTP/2 at supported TLS edges, and allow Brotli at deployment edges that support it; do not require Brotli from the Phoenix origin.
 - [x] Wire the mobile frontend through an opt-in mode factory so old saved connections remain WebSocket-only unless explicitly configured otherwise, and leave the permanent default switch out of this task.
-- [ ] Add unit, integration, clustered, and SDK-facing E2E evidence for all modes, path routing, large JSON, raw binary, compression, timeout/cancellation cleanup, and unchanged legacy WebSocket behavior.
+- [x] Add unit, integration, clustered, and SDK-facing E2E evidence for all modes, path routing, large JSON, raw binary, compression, timeout/cancellation cleanup, and unchanged legacy WebSocket behavior.
 
 Parent Task: tasks/20260610-mobile-message-refresh-performance/000-main.md
 
@@ -178,7 +178,7 @@ Planned verification commands include:
 ### Task checklist
 
 - [x] After explicit user approval, change this plan status to `Approved` before implementation.
-- [ ] Capture the passing legacy WebSocket unit/E2E baseline and preserve existing `BridgeTransport` source and wire messages.
+- [x] Capture the passing legacy WebSocket unit/E2E baseline and preserve existing `BridgeTransport` source and wire messages.
 - [x] Add shared bridge mode/lifecycle types, URL derivation, and an explicit mode factory without changing `BridgeTransport`.
 - [x] Add `HttpBridgeTransport` control, pairing-token validation, proxy, timeout/abort, JSON/text, and raw-binary behavior.
 - [x] Add `HybridBridgeTransport` with exact event-only legacy routing and no automatic fallback.
@@ -192,10 +192,10 @@ Planned verification commands include:
 - [x] Add Elixir route/coordinator/security/cleanup/compression tests.
 - [x] Add Python byte-streaming, metadata-only WebSocket, cancellation, and legacy-regression tests.
 - [x] Extend SDK-facing bridge E2E for HTTP-only, hybrid, large JSON, binary, compression, resume, and failure cleanup.
-- [ ] Add and run a multi-node HAProxy transfer E2E that crosses bridge nodes.
+- [x] Add and run a multi-node HAProxy transfer E2E that crosses bridge nodes.
 - [x] Add mobile opt-in mode persistence/factory wiring and migration/rollback tests while retaining the WebSocket default.
 - [x] Update SDK, bridge protocol/deployment, terminal bridge, mobile rollout, and integration-test documentation.
-- [ ] Run the planned verification matrix, record blocked hosted/manual evidence separately, and leave the permanent default switch deferred.
+- [x] Run the planned verification matrix, record blocked hosted/manual evidence separately, and leave the permanent default switch deferred.
 
 ## Implementation Notes
 
@@ -228,11 +228,36 @@ Added during implementation.
     legacy large payload/concurrency, HTTP-only large JSON/binary/gzip/resume,
     and hybrid event-only WebSocket routing.
 - Deferred verification:
-  - An earlier Docker and multi-node HAProxy E2E attempt could not start
-    because the local Docker daemon was not running. The user has since
-    enabled Docker and authorized the rerun after this implementation commit.
-  - The existing bridge-restart E2E cannot run in external mode because the
-    harness cannot suspend an externally managed bridge.
-  - Hosted Brotli/HTTP2 and real-device iOS/Android checks remain manual/gated.
+  - Physical-device iOS/Android network checks remain a rollout gate before
+    changing the compatibility default. Simulator checks are complete.
   - `test_cli_environment_isolation.py` is included in the 50-test Python
     result above.
+- Follow-up verification completed after commit `61140c0e`:
+  - The two-node Docker/HAProxy runner passed all three legacy registration,
+    discovery, and pairing cases.
+  - A new bridge-owned cluster E2E passed HTTP pairing and a 1.2 MB raw request
+    plus 900 KB raw response. It asserts from HAProxy logs that the proxy,
+    request-body download, and response-body upload for one transfer span
+    `bridge-node-1` and `bridge-node-2`.
+  - The SDK E2E passed all five cases in self-managed Docker mode, including
+    unchanged legacy large bodies, HTTP-only JSON/binary/gzip/resume/events,
+    hybrid event-only WebSocket routing, bridge restart/recovery, and legacy
+    concurrency.
+  - A fresh bridge image was built with the AWS CLI/CodeBuild path. The secure
+    EC2 + CloudFront SDK E2E passed all five cases, then removed its origin and
+    edge stacks. Only the pre-existing builder stack remains.
+  - The hosted CloudFront edge independently negotiated HTTP/2 for `/health`.
+    Its live AWS configuration reported HTTP/2, compression enabled, zero
+    default TTL, all supported methods, and forwarding for both custom bridge
+    headers plus `Authorization`.
+  - iOS and Android Detox release/E2E builds passed. A focused production-UI
+    test passed on the iPhone 17 Pro simulator and Medium Phone API 36.1
+    emulator, proving WebSocket default selection and explicit HTTP, hybrid,
+    and WebSocket rollback selection.
+  - The Docker SDK harness now bounds each startup health probe so a published
+    port that precedes Cowboy readiness cannot hang the test indefinitely.
+    External mode explicitly skips the self-managed restart case.
+- Coverage hardening remains proposed rather than claimed complete for the
+  broad transfer-safety requirement: independently assert request-size and
+  active-transfer bounds, peer disconnect cleanup, token/server mismatch,
+  old-bridge capability failure, and saved mobile mode/token reconstruction.
