@@ -93,7 +93,7 @@ def _build_default_config_app(
 @pytest.mark.parametrize(
     ("inputs", "expected_leading_non_system", "expected_trailing_contents"),
     [
-        ({}, [], []),
+        ({}, [], ["Answer exactly THREE.", "THREE"]),
         (
             {"start": 0, "end": 4},
             [],
@@ -119,10 +119,8 @@ def test_default_kimi_agent_compaction_action_rewrites_history(
     1. The kimi agent loads the KimiCompactionFeature via path:${env:BUILTIN_PLUGINS}/kimi-tools
     2. The compact_conversation action is registered and reachable via server.execute_action
     3. Compaction produces the expected session structure:
-       - Summary user message with _COMPACTION_PREFIX and Kimi XML sections
-       - Local-command artifact user message
-       - No-response-requested assistant message
-       - Preserved system messages and trailing messages
+       - Summary user message with <system>…</system>-wrapped prefix and Kimi XML sections
+       - Preserved system messages and trailing messages (preserved tail for full range)
        - kimi_compaction metadata on session and summary message
     """
     from agent_terminal_app import server as server_mod
@@ -178,12 +176,13 @@ def test_default_kimi_agent_compaction_action_rewrites_history(
     compacted = app.load_session_record(seeded.session_id)
     assert compacted is not None
 
-    # Find the summary message (starts with _COMPACTION_PREFIX)
+    # Find the summary message (contains <system>{_COMPACTION_PREFIX}</system>)
+    summary_prefix = f"<system>{_COMPACTION_PREFIX}</system>"
     summary_index = next(
         idx
         for idx, message in enumerate(compacted.messages)
         if isinstance(message.content, str)
-        and message.content.startswith(_COMPACTION_PREFIX)
+        and summary_prefix in message.content
     )
 
     # Verify the 1 injected message: summary (user)
@@ -191,7 +190,7 @@ def test_default_kimi_agent_compaction_action_rewrites_history(
 
     summary_text = compacted.messages[summary_index].content
     assert isinstance(summary_text, str)
-    assert summary_text.startswith(_COMPACTION_PREFIX)
+    assert summary_text.startswith(summary_prefix)
     # Kimi-style XML sections
     assert "<current_focus>" in summary_text
     assert "<environment>" in summary_text
