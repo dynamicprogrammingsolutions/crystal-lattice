@@ -103,8 +103,8 @@ Current seeds:
 | [Seed 01](seed-01-js-single-file-tool-documentation.md) | Compare one plugin README with its code and shared Node-tool facts | Tests [01](01-small-package-documentation.md), [02](02-generated-output-correction.md), [16](16-failed-generated-refresh.md), and [18](18-shared-plugin-authoring-boundary.md) |
 | [Seed 02](seed-02-report-export-row-limit.md) | Inspect one approved row-limit task and its current spec/code/test/doc state | Tests [03](03-target-specification-workflow.md), [07](07-approved-task-specification-only.md), [08](08-approved-specification-implementation.md), and [15](15-premature-current-documentation.md) |
 | [Seed 03](seed-03-mobile-composer-refinement.md) | Inspect one portable contract, mobile package, and approved UX task | Test [04](04-package-owned-refinement.md) |
-| [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Tests [05](05-normative-owner-and-discoverability.md), [17](17-public-package-profile.md), and [19](19-apply-versus-maintain-boundary.md) |
-| [Seed 05](seed-05-batch-sync-design.md) | Inspect one package and related persistence/transport contracts | Test [06](06-substantial-specification-approval.md) |
+| [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Tests [05](05-normative-owner-and-discoverability.md), [17](17-public-package-profile.md), [19](19-apply-versus-maintain-boundary.md), and [20](20-routed-guidance-reading.md) |
+| [Seed 05](seed-05-batch-sync-design.md) | Inspect one package and related persistence/transport contracts | Tests [06](06-substantial-specification-approval.md), [09](09-task-authorized-new-specification.md), and [21](21-explicit-specification-layout-override.md) |
 | [Seed 06](seed-06-existing-contract-bugfix.md) | Reproduce one public bug against an already-correct target contract | Test [10](10-bug-fix-with-existing-specification.md) |
 | [Seed 07](seed-07-local-bugfix.md) | Reproduce one internal race with no durable public contract | Test [11](11-local-bugfix-without-durable-specification.md) |
 | [Seed 08](seed-08-completed-small-implementation.md) | Complete one code/test-only change whose target already exists | Test [12](12-documentation-follow-up-after-implementation.md) |
@@ -149,6 +149,11 @@ skills.
 
 Maintainer meta-specifications are not supplied for ordinary application of the
 rules. They are relevant only to work maintaining the standards.
+
+Test 20 uses a routing-only variation of this overlay. It injects applicable
+AGENTS content but leaves repository-policy and generic-standard pages to be
+read from their normal workspace paths, so the test can observe whether routing
+instructions were followed before editing.
 
 ### Execution controls
 
@@ -241,6 +246,8 @@ AI assessment is supporting evidence and does not satisfy human verification.
 | [Public package profile](17-public-package-profile.md) | Seed 04 | Finish user and maintainer entry points for one public SDK package | `DOCREP-001`, `DOCREP-003`–`DOCREP-005` |
 | [Shared plugin-authoring boundary](18-shared-plugin-authoring-boundary.md) | Seed 01 | Improve reusable Node-tool guidance and one plugin's usage docs | `DOCREP-002` |
 | [Apply versus maintain boundary](19-apply-versus-maintain-boundary.md) | Seed 04 | Ask a package README to expose standards-maintenance and evaluation provenance | `DOCREP-005`–`DOCREP-006`, `DOCVAL-007` |
+| [Routed guidance reading](20-routed-guidance-reading.md) | Seed 04 | Create package documentation while routed standards remain filesystem-only | `DOCREP-007`, `DOCVAL-009` |
+| [Explicit specification layout override](21-explicit-specification-layout-override.md) | Seed 05 | Complete an approved package specification using one requested `decisions.md` file | `DOCGEN-008`–`DOCGEN-009`, `DOCVAL-009` |
 
 `DOCGEN-001` intentionally has two behavioral tests because a proportional
 small-package profile and the generated-output boundary are independent
@@ -248,18 +255,19 @@ behaviors.
 
 ## Calibrated execution groups
 
-The review-draft calibrated matrix keeps every scenario but separates
-frequency:
+The approved calibrated matrix keeps every scenario but separates frequency:
 
 - **Routine:** Tests 01–07, 10, 11, 13, 15, 17, and 18.
-- **Extended:** Tests 08, 09, 12, 14, 16, and 19, plus the routine group when a
-  complete run is requested.
+- **Extended:** Tests 08, 09, 12, 14, 16, and 19–21, plus the routine group
+  when a complete run is requested.
 
 Ordinary guidance changes run the routine group on GLM-5.2 and use
 GPT-5.6-luna sentinels for Tests 01, 02, 04, 06, 13, and 15. Material changes
-and final behavioral verification run all scenarios on at least one supported
-model. A complete second-model matrix is reserved for changes or observed
-variance that justify its cost.
+and final behavioral verification run all 21 scenarios on at least one
+supported model. This approved calibration additionally uses focused GPT
+sentinels for changed profile/boundary behavior and Tests 20–21. A complete
+second-model matrix remains reserved for changes or observed variance that
+justify its cost.
 
 The grouping affects execution frequency only. It does not remove requirement
 coverage, scenario specifications, seeds, or executable tests.
@@ -284,6 +292,12 @@ Every implemented test must verify:
   criteria;
 - safe partial work, blockers, and remaining actions are distinguished in the
   final response.
+- required routed pages are read before the first mutation when the scenario
+  declares a routing-read contract;
+- obvious placement does not trigger duplicate confirmation or opaque
+  ownership jargon;
+- explicit approved structure overrides are honored unless a substantive
+  boundary prevents them.
 
 ## Implementation ownership
 

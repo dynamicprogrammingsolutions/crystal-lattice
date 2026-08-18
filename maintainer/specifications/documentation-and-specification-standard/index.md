@@ -2,7 +2,9 @@
 
 This specification defines the target documentation structure, specification
 workflow, repository policy, agent routing, publication behavior, migration,
-audience/reference boundaries, blocked-workflow behavior, and validation rules.
+audience/reference boundaries, blocked-workflow behavior, proportional routed
+reading, placement communication, explicit safe layout overrides, and
+validation rules.
 
 It governs two user-facing output layers:
 

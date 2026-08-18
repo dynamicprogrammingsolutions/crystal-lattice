@@ -165,3 +165,71 @@ wording is evaluated only after the baseline exposes the boundary failure in at
 least one representative model run. The same seed, task prompt, fixture, and
 assertions are then reused to compare concise and, only when needed, expanded
 guidance variants.
+
+## Approved August 18 calibration extension
+
+### Additional user needs
+
+Contributors and agents applying the rules also need to:
+
+- know when repository guidance requires reading the complete directly
+  relevant routed standard pages before editing;
+- make clear package-local placement decisions without burdening the user with
+  internal ownership jargon or duplicate confirmation;
+- honor an explicit approved documentation or specification layout when it
+  preserves required content and repository boundaries.
+
+### Additional target experience
+
+A documentation task makes required reading proportionate and explicit. Agents
+read the complete directly relevant routed pages before creating, moving, or
+materially restructuring documentation or specifications, while a local
+factual correction does not require unrelated standards research.
+
+When placement is clear, the agent implements it without asking the user to
+confirm an obvious package path or explaining internal ownership terminology.
+When multiple materially different scopes remain plausible, the agent gives a
+short recommendation and asks one focused question.
+
+Recommended artifact trees are defaults rather than mandatory schemas. An
+explicit user- or work-item-approved alternative is honored unless it would
+violate audience, authoritative-source, generated-output, discoverability, or
+required-content boundaries.
+
+### Additional goals
+
+- Define explicit and proportional triggers for reading routed standards in
+  full.
+- Use clear placement and authoritative-source language without forcing users
+  to discuss internal ownership mechanics for obvious tasks.
+- Treat standard file layouts as recommended defaults and honor explicit safe
+  alternatives.
+
+### Additional non-goals
+
+- Requiring one mandatory documentation or specification file layout.
+- Requiring user confirmation for an obvious package-local documentation
+  placement.
+
+### Routed documentation reading
+
+An agent asked to create a package documentation structure reads the root and
+nearest package guidance, then reads the relevant repository-policy and generic
+standard pages in full before editing. An agent correcting a factual typo in an
+already-owned page does not load unrelated structure and specification rules.
+
+### Clear package-local placement
+
+An agent asked to document behavior defined by one package creates the
+documentation with that package without asking the user to confirm the obvious
+location or discussing an “honest normative owner.” Its response reports the
+result and paths. If two materially different scopes remain plausible, it
+recommends one and asks a focused question.
+
+### Explicit layout override
+
+An approved specification task requests one `decisions.md` file instead of a
+`decisions/` directory. The agent follows that structure, links the file from
+the specification index, preserves required decision content, and does not
+create both forms or refuse merely because the standard shows a directory as
+the default.

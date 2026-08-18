@@ -118,14 +118,14 @@ Choose the narrowest authoritative scope:
 3. A shared abstraction is normally specified with the package that defines
    it, even when several packages consume it.
 4. A cross-package scope is used when independently owned packages must
-   coordinate and no package is the honest normative owner.
+   coordinate and no package provides a clear authoritative home.
 
 A package-specific specification may add or strengthen requirements and define
 allowed platform behavior. It must not silently weaken or contradict a broader
 contract. Approved exceptions are linked from both scopes.
 
 Before creating a substantial package specification, the agent proposes its
-owner, scope, justification, relationship to existing contracts, and expected
+owning scope, behavior scope, justification, related contracts, and expected
 artifacts. The user approves creation through the task workflow unless the
 existing approved task already authorizes it.
 
@@ -439,3 +439,75 @@ The bootstrap does not claim that existing documentation conforms. After the
 generic and repository pages are authored, this meta-specification is reviewed
 once against the resulting standard and adjusted through the task workflow if
 the approved target changed.
+
+## Approved August 18 calibration extension
+
+The generic standards additionally define:
+
+- recommended layout defaults and explicit approved structure overrides;
+- clear documentation-scope and authoritative-source terminology;
+- proportionate agent-routing read triggers.
+
+### Placement decisions and user communication
+
+Documentation placement is normally an implementation decision derived from
+audience, behavior scope, and the authoritative source.
+
+When one package or shared domain is the clear home, the agent:
+
+- chooses that location without asking for confirmation;
+- does not describe the choice using opaque phrases such as “honest owner” or
+  “honest normative owner”;
+- reports the created or changed paths and only includes placement rationale
+  when it helps the user understand a material boundary.
+
+When multiple materially different scopes remain plausible, the agent states
+the ambiguity briefly, recommends one option with its reason, and asks one
+focused question before making a boundary-changing choice.
+
+Approval to create a substantial specification remains separate from routine
+file placement. Existing task or conversational authorization is not repeated
+merely to confirm an obvious package-local path.
+
+### Recommended layouts and explicit overrides
+
+Documentation and specification trees shown by the standards are recommended
+defaults. They communicate common artifact roles without creating a mandatory
+schema.
+
+An explicit user- or work-item-approved layout is followed when it preserves:
+
+- required content and traceability;
+- audience and authoritative-source boundaries;
+- discoverability from the relevant index or entry point;
+- generated-output and maintained-source boundaries;
+- one maintained source rather than duplicate editable forms.
+
+A safe override does not require duplicate confirmation. If a requested layout
+would omit required information, create competing sources, hide material
+decisions, or cross an artifact boundary, the agent explains the conflict and
+recommends the smallest compatible alternative.
+
+### Proportional agent routing
+
+Before creating, moving, materially restructuring, or deciding the audience,
+placement, or artifact set of documentation or specifications, root AGENTS
+guidance requires the repository-policy and generic-standard indexes and the
+directly relevant pages they route to be read in full.
+
+A local factual correction to an existing page does not require unrelated
+standards reading when the destination audience, maintained source, and
+placement are already clear. Standards-maintenance work additionally reads the
+meta-specification, requirements, active task, and relevant maintainer tooling.
+
+### Behavioral verification extension
+
+Routing-read scenarios deliver applicable AGENTS content while keeping routed
+standard pages available through the repository filesystem, then verify that
+required pages were read before the first mutation. They do not preload routed
+page contents into the instruction merely to make the behavior pass.
+
+Behavioral validation also covers interaction quality and explicit safe
+overrides. Obvious package-local placement does not trigger an ownership
+lecture or confirmation question. A task-approved file shape that differs from
+the recommended default is followed unless it violates a substantive boundary.

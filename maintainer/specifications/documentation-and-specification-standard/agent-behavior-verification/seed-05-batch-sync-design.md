@@ -55,6 +55,9 @@ branches.
 - [Task-authorized new specification](09-task-authorized-new-specification.md):
   add an approved task in the child workspace and create the specification
   without requesting duplicate approval.
+- [Explicit specification layout override](21-explicit-specification-layout-override.md):
+  follow an approved single-file decisions layout instead of treating the
+  default decisions directory as mandatory.
 
 Future branches may request a small local behavior that should remain task-only
 or ask for a package refinement of an existing portable synchronization
