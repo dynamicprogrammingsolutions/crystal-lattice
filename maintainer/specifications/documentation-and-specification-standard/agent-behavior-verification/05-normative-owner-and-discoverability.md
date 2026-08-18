@@ -11,7 +11,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 [DOCGEN-004](../requirements.md#L19-L24):
 
-> Generic rules define one normative owner, controlled summaries,
+> Generic rules define one authoritative source, controlled summaries,
 > current-versus-target separation, complete indexes, and two-link
 > discoverability without requiring placeholder pages.
 
@@ -54,7 +54,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 > Other pages may summarize only what their audience needs. A consumer page
 > does not need to expose an internal target specification merely to preserve
-> normative ownership.
+> authority.
 
 [Technical discoverability](../technical-spec.md#L240-L267):
 
@@ -82,9 +82,9 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > maintainer discoverability. A consumer page does not need to expose an
 > internal target specification.
 
-[Avoid duplication](../../../../docs/development/standards/documentation.md#L166-L182):
+[Avoid duplication](../../../../docs/development/standards/documentation.md#L172-L185):
 
-> Give every contract one normative owner.
+> Give every contract one authoritative source.
 
 > Let other pages summarize only what their audience needs.
 
@@ -102,16 +102,16 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > Every multi-page documentation scope should have a short index. Every
 > specification index should link all of its authored artifacts.
 
-[Current-state documentation](../../../../docs/development/standards/documentation.md#L209-L221):
+[Current-state documentation](../../../../docs/development/standards/documentation.md#L215-L229):
 
 > Public user documentation and implementation/maintainer documentation
 > describe current supported behavior.
 
-> Current consumer documentation uses public, self-contained vocabulary and
-> does not mention internal phases, requirement IDs, task paths, temporary
-> progress, or future targets.
+> Current consumer documentation describes delivered behavior directly in
+> public, self-contained vocabulary. Do not copy task/specification phase names,
+> requirement IDs, progress labels, or internal target links.
 
-[Adoption](../../../../docs/development/standards/documentation.md#L260-L270):
+[Adoption](../../../../docs/development/standards/documentation.md#L269-L279):
 
 > Do not create placeholder quickstarts or nearly empty indexes with no useful
 > route.
@@ -145,7 +145,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 ### Assertion relationship
 
 The existing specification path and substantial-overlap checks preserve one
-normative owner. User-page content assertions verify a controlled summary of
+authoritative source. User-page content assertions verify a controlled summary of
 implemented behavior only. Audience assertions ensure consumer docs do not
 depend on an internal target specification or leak its requirement/progress
 context. Link-graph assertions verify two-link consumer discoverability and
@@ -159,7 +159,7 @@ creating a competing normative contract.
 
 It should:
 
-- preserve one normative owner;
+- preserve one authoritative source;
 - write audience-appropriate summaries and consumer links;
 - keep target-only behavior out of current user docs;
 - keep internal specification, requirement, and progress terminology out of
@@ -204,7 +204,7 @@ lifecycle, making it difficult to discover.
 > `packages/event-sdk` users to find and understand. Keep the scope to
 > documentation.
 
-The prompt does not identify the normative owner or warn about target-only
+The prompt does not identify the authoritative source or warn about target-only
 behavior.
 
 ## Expected behavior
@@ -212,7 +212,7 @@ behavior.
 The agent should update package user documentation and indexes with a concise
 current-behavior explanation that stands alone for package users.
 
-The internal development specification remains the normative owner, but the
+The internal development specification remains the authoritative source, but the
 consumer page should not depend on or directly link it because it contains
 target-only behavior and internal tracking context. The specification index may
 link the current consumer page for maintainer discoverability.
@@ -245,9 +245,12 @@ consumer dependency:
 ```text
 packages/event-sdk/docs/development/index.md
 packages/event-sdk/docs/development/specifications/event-lifecycle/index.md
+packages/event-sdk/docs/development/specifications/event-lifecycle/requirements.md
 ```
 
-No root docs or new normative specification are allowed.
+The requirements file may update current documentation status/evidence while
+the target-only replay requirement remains not started and pending. No root
+docs or authoritative technical-target rewrite is allowed.
 
 ## Mechanical assertions
 

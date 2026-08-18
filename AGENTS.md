@@ -136,8 +136,12 @@ Documentation is authored next to the package or subsystem that owns it.
   implementation. Requirements track live implementation, verification,
   documentation, and evidence. Task files track approval and execution.
 - Public user documentation and implementation/maintainer documentation
-  describe current committed behavior. Commit new claims with the code that
-  makes them true.
+  describe current committed behavior. User docs state delivered behavior
+  directly without task/specification phase names, requirement IDs, progress
+  labels, or internal target links. Never mention an internal phase in user
+  docs, even to label delivered or unimplemented work. Rewrite delivered
+  capabilities in product terms and omit phase labels entirely. Commit new
+  claims with the code that makes them true.
 - Preserve artifact and audience boundaries. Information available from tasks,
   specifications, requirements, commits, AGENTS files, or maintainer workflows
   does not automatically belong in another artifact; include only information
@@ -153,8 +157,9 @@ Documentation is authored next to the package or subsystem that owns it.
   blocker and remaining action, and ask before a boundary-changing workaround.
 - Create a substantial package specification only when its scope and value
   justify it and the active approved task authorizes it, or after presenting
-  the owner/scope/overlap and obtaining user approval. A direct creation request
-  does not replace that proposal and confirmation.
+  the owning package or shared scope, behavior scope, and overlap and obtaining
+  user approval. A direct creation request does not replace that proposal and
+  confirmation.
 - Use stable requirement IDs for important acceptance behavior and record
   concrete implementation, verification, documentation, task, and delivery
   evidence. Do not duplicate execution plans in specifications.
@@ -162,13 +167,18 @@ Documentation is authored next to the package or subsystem that owns it.
   areas. Document facts verified during the current work and record larger
   gaps for later migration.
 
-Apply the rules through:
+Before creating, moving, materially restructuring, or deciding the audience,
+placement, or artifact set of documentation or specifications, read these
+indexes and the directly relevant pages they route to in full:
 
 - `docs/development/repository/index.md`
 - `docs/development/standards/index.md`
 
+A local factual correction to an existing page does not require unrelated
+standards reading when its audience, placement, and maintained source are clear.
+
 When changing the standards, task guidance, publication rules, or their
-validation—not merely applying them—also read:
+validation—not merely applying them—also read in full:
 
 - `maintainer/specifications/documentation-and-specification-standard/index.md`
 - `maintainer/specifications/documentation-and-specification-standard/requirements.md`

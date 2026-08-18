@@ -56,7 +56,7 @@ behavioral consumers.
   substitution, Crystal Lattice customization, and failure behavior.
 - [x] Pytest is the initial suite runner, with explicit real-model markers and
   hosted-execution gates outside normal default tests.
-- [ ] First-consumer tests exercise every `DOCGEN-*` and `DOCREP-*`
+- [x] First-consumer tests exercise every `DOCGEN-*` and `DOCREP-*`
   documentation-standard instruction requirement using reusable narrow
   guidance-neutral task-specific base runs and clean continuations.
 - [x] Behavioral model results remain supporting evidence; static checks and
@@ -75,13 +75,13 @@ behavioral consumers.
   shortest-first candidate variants with paired provenance.
 - [x] Existing task-guidance evaluation remains operational and is not moved or
   rewritten by this subtask.
-- [ ] Root documentation guidance gives explicit, proportional read triggers
+- [x] Root documentation guidance gives explicit, proportional read triggers
   and behavioral evidence verifies that routed pages are read before relevant
   documentation-structure edits.
-- [ ] Obvious documentation placement is handled without duplicate
+- [x] Obvious documentation placement is handled without duplicate
   confirmation or opaque ownership jargon, while material ambiguity receives a
   recommendation and one focused question.
-- [ ] Explicit user- or task-approved documentation/specification layouts are
+- [x] Explicit user- or task-approved documentation/specification layouts are
   honored when they preserve required content and repository boundaries.
 
 ## Supporting details
@@ -820,6 +820,39 @@ presentation mechanism.
   contracts were recorded and marked approved, but authored guidance,
   executable tests, profile changes, assertion changes, and model reruns have
   not started.
+- August 18, 2026: Implementation started after the user's completion
+  instruction. The approved target/specification state was committed first as
+  `44e479e0`. The concise candidate now has explicit routed-reading triggers,
+  direct current-user vocabulary, clear scope/authority terminology, and
+  explicit safe layout overrides. The isolated GLM/GPT profiles use the real
+  `codex-tools` array shell with workspace allowlisting; profile projection
+  supports plugin paths declared on configured agents. Tests 02, 05, 16, and
+  19 have the approved semantic calibrations; Tests 04, 05, and 09 check
+  proportionate placement communication; Seed 08 requires an observed passing
+  pytest command; Tests 20–21 are executable.
+- August 18, 2026: Deterministic verification has 61 passing tests and 21
+  gated consumers deselected; Ruff, compilation, link/range validation, and
+  diff checks pass. GLM Test 20 baseline ignored all routed pages and leaked an
+  internal target into consumer docs. With final scenario-focused assertions,
+  the same baseline fails while the concise candidate reads both indexes plus
+  the directly relevant repository/generic documentation pages before the
+  first mutation and passes. GLM Test 21 passes under both baseline and
+  candidate guidance, so it is retained as robustness coverage rather than
+  evidence that the new wording fixed a demonstrated regression. The complete
+  21-test GLM candidate matrix is running; focused GPT sentinels remain pending.
+- August 18, 2026: Final behavioral execution is complete. The effective GLM
+  result is 18 passing and 3 strict failures across all 21 consumers:
+  Test 01 omitted a literal input/output pair, Test 12 used free-form text
+  instead of the stable requirement status vocabulary, and Test 13 continued
+  to copy Phase 1/2 labels into the README after three shortest-first wording
+  variants. Focused GPT sentinels pass 7 of 8 final boundaries; Test 02
+  preserved generated output and explained the missing generator but did not
+  state the exact remaining regeneration action. GPT Test 21 initially edited
+  the current README but an independent final-guidance repeat passed, so both
+  artifacts remain as variance evidence. Test 20 provides the intended
+  regression evidence: baseline skipped every routed standards page and leaked
+  an internal target, while GLM and GPT candidates followed the routed-reading
+  and audience boundaries. A full GPT cross-product was intentionally not run.
 - August 13, 2026: The first post-refinement GPT rerun fixed the substantive
   behavior: no mutation, explicit audience write boundary, internal material
   excluded, unavailable link not invented, and honest completion. One
@@ -1486,7 +1519,7 @@ confirmation.
 - [x] Draft the baseline-first guidance comparison workflow and
   `DOCVAL-008`/`AEVAL-021` requirements.
 - [x] Specify the `DOCREP-*` behavioral consumer scenarios.
-- [ ] Add documentation-standard behavioral consumers.
+- [x] Add documentation-standard behavioral consumers.
   - [x] Add profile selection, explicit gates, focused Git fixtures, exact
     guidance provenance, prompt extraction, cacheable seeds, review records,
     and Tests 01–02.
@@ -1496,12 +1529,12 @@ confirmation.
   - [x] Run Tests 17–19 baseline-first on GLM and the focused GPT sentinel set.
   - [x] Specify approved routed-read Test 20 and layout-override Test 21 using
     existing Seeds 04 and 05.
-  - [ ] Implement executable Tests 20–21 and assertion extensions for Tests
+  - [x] Implement executable Tests 20–21 and assertion extensions for Tests
     04, 05, and 09.
 - [x] Run deterministic tests.
-- [ ] Run or explicitly report the gated real-model suite as not run.
+- [x] Run or explicitly report the gated real-model suite as not run.
   - [x] Run GLM-5.2 Seed 01 and preserve the completed seed artifact.
-  - [ ] Complete GLM-5.2 consumer branches.
+  - [x] Complete GLM-5.2 consumer branches.
     - [x] Run Tests 01–02 and preserve their passing/failing findings.
     - [x] Run Tests 04–06 and preserve the ownership, discoverability, and
       approval-boundary findings.
@@ -1512,7 +1545,8 @@ confirmation.
     - [x] Run Test 11 and preserve its passing artifact.
     - [x] Run Test 12 and preserve its passing follow-up artifact.
     - [x] Run Test 13 and preserve its future-target leak finding.
-    - [ ] Run the remaining implemented consumer cases.
+    - [x] Run the approved focused GPT sentinel cases; a complete GPT
+      cross-product remains intentionally not run.
 - [x] Correct and verify synthetic fixture baseline test imports and fixture
   cache invalidation without changing approved scenario behavior.
 - [x] Update `AEVAL-*` and `DOCVAL-005` evidence for the implemented guidance
@@ -1540,21 +1574,21 @@ confirmation.
     pre-injection branch caches/artifacts as guidance-effect evidence.
   - [x] Rerun Tests 06, 15, and 16 baseline-first on GLM and GPT using explicit
     guidance injection.
-- [ ] Implement the approved August 18 calibration extension.
-  - [ ] Add the real shell-capable isolated model profile and focused Seed 08
+- [x] Implement the approved August 18 calibration extension.
+  - [x] Add the real shell-capable isolated model profile and focused Seed 08
     verification.
-  - [ ] Apply the approved semantic assertion calibrations without weakening
+  - [x] Apply the approved semantic assertion calibrations without weakening
     behavioral boundaries.
-  - [ ] Add the concise current-user-documentation translation rule.
-  - [ ] Add explicit proportional routed-reading instructions.
-  - [ ] Replace opaque ownership terminology and add proportionate placement
+  - [x] Add the concise current-user-documentation translation rule.
+  - [x] Add explicit proportional routed-reading instructions.
+  - [x] Replace opaque ownership terminology and add proportionate placement
     communication.
-  - [ ] Document layouts as defaults and honor explicit safe alternatives.
-  - [ ] Implement Tests 20–21 and the Test 04/05/09 communication assertions.
-  - [ ] Run Tests 20–21 against the pinned baseline before candidate guidance.
-  - [ ] Rerun deterministic verification, the complete 21-test GLM matrix, and
+  - [x] Document layouts as defaults and honor explicit safe alternatives.
+  - [x] Implement Tests 20–21 and the Test 04/05/09 communication assertions.
+  - [x] Run Tests 20–21 against the pinned baseline before candidate guidance.
+  - [x] Rerun deterministic verification, the complete 21-test GLM matrix, and
     focused GPT sentinels.
-  - [ ] Present final canonical evidence and guidance findings for human review.
+  - [x] Present final canonical evidence and guidance findings for human review.
 
 ### Requirement verification
 
@@ -1589,3 +1623,75 @@ confirmation.
   operations.
 - Run `git diff --check`, package lint/type checks, and package-local tests.
 - If real-model tests run, record provider/model and exact gate used.
+
+## Completion Notes
+
+The approved generic agent-evaluation framework, Crystal Lattice environment,
+documentation-standard consumer suite, and August 18 calibration extension are
+implemented.
+
+Delivered outcomes:
+
+- The suite has nine reusable guidance-neutral seeds and twenty-one executable
+  consumer scenarios split into thirteen routine and eight extended cases.
+- The isolated GLM and GPT profiles use the real `codex-tools` array shell
+  alongside allowlisted file read/write tools, while MCP, web, image, skills,
+  and unrelated agent tool bundles remain disabled.
+- Seed 08 proves its implementation with a passing focused pytest command;
+  Test 16 runs the approved generator and observes its deterministic failure.
+- Root and reusable guidance now give explicit proportional read triggers,
+  direct current-user vocabulary, clear documentation-scope/authority terms,
+  proportionate placement communication, and safe explicit layout overrides.
+- Tests 02, 05, 16, and 19 accept demonstrated semantic equivalents without
+  weakening mutation, source-of-truth, target-leak, or completion boundaries.
+- Tests 04, 05, and 09 cover unnecessary placement confirmation and opaque
+  ownership jargon.
+- Test 20 observes routed-page reads before mutation. Test 21 verifies one
+  approved `decisions.md` file and rejects a default `decisions/` directory.
+
+Verification performed:
+
+- 61 deterministic package tests pass; 21 gated real-model consumers are
+  excluded from the default run.
+- Ruff, Python compilation, Markdown relative-link/range checks, and
+  `git diff --check` pass.
+- All twenty-one consumers ran on GLM-5.2 through Ollama. Effective final
+  evidence is 18 passing and 3 retained strict failures.
+- Focused GPT-5.6-luna ChatGPT-account sentinels ran for Tests 02, 05, 13, 16,
+  17, 19, 20, and 21. Effective final evidence is 7 passing and 1 retained
+  strict failure.
+- Test 20 has paired regression evidence: the pinned baseline skipped every
+  routed standards page and leaked internal target context; GLM and GPT
+  candidates pass the final routed-reading/audience assertions.
+- Test 21 passes under GLM baseline and candidate guidance. One GPT candidate
+  edited the current README, while an independent final-guidance repeat passed;
+  both are retained as variance evidence.
+
+Retained findings:
+
+- GLM Test 01 still omits a literal input/expected-output pair. The assertion
+  remains strict and no duplicate quickstart wording was added.
+- GLM Test 12 uses free-form requirement status cells instead of the required
+  `Implemented | Automated | Documented` vocabulary. The status assertion
+  remains strict.
+- GLM Test 13 continues to copy Phase 1/2 labels into current README content
+  after three shortest-first guidance variants. GPT translates the same task
+  into product vocabulary correctly. Further wording growth was stopped and
+  this remains model-specific compliance evidence.
+- GPT Test 02 preserves generated output and explains the missing generator,
+  but its final sample does not state the exact remaining regeneration action.
+  The completion assertion remains strict.
+
+Verification limitations:
+
+- A complete GPT cross-product was intentionally not run; the approved focused
+  sentinel policy was used.
+- Mypy still reports the previously documented mock/context typing failures in
+  the suite and one existing guidance-feature assignment issue. This is not
+  counted as a passing static check.
+- Behavioral artifacts are supporting evidence. Human verification of the
+  documentation rules remains incomplete until the user reviews or confirms
+  the canonical evidence.
+
+The specification-first approval checkpoint was committed as `44e479e0`.
+No task-guidance migration from subtask 068 was performed.

@@ -77,7 +77,7 @@ that an unavailable compliant workflow does not authorize a direct fallback.
 > Generated documentation belongs with the maintained source that produces it;
 > the generated destination remains output.
 
-[Generated output and blocker behavior](../../../../docs/development/standards/documentation.md#L235-L259):
+[Generated output and blocker behavior](../../../../docs/development/standards/documentation.md#L243-L267):
 
 > Generated output is never edited directly. If a generated page is wrong,
 > change its maintained source or generator.
@@ -102,7 +102,7 @@ that an unavailable compliant workflow does not authorize a direct fallback.
 
 ### Assertion relationship
 
-The source-file correction proves that the agent found the normative owner.
+The source-file correction proves that the agent found the authoritative source.
 Mutation telemetry rejects direct writes to prepared output. The unchanged
 prepared tree and response assertions distinguish safe partial progress from a
 boundary-breaking fallback and false completion claim.

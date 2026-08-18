@@ -99,7 +99,7 @@ page.
 > A shared user-documentation domain is appropriate when the audience consumes
 > a common extension or integration surface across many packages.
 
-[Adoption](../../../../docs/development/standards/documentation.md#L260-L270):
+[Adoption](../../../../docs/development/standards/documentation.md#L269-L279):
 
 > Apply the standard prospectively and when documentation is touched.
 

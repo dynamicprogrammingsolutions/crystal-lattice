@@ -40,19 +40,17 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 > routed standard pages available through the repository filesystem, then
 > verify that required pages were read before the first mutation.
 
-### Current authored guidance and approved candidate target
+### Authored guidance under test
 
-[Current root routing wording](../../../../AGENTS.md#L165-L174):
+[Root routing wording](../../../../AGENTS.md#L170-L184):
 
-> Apply the rules through:
->
-> - `docs/development/repository/index.md`
-> - `docs/development/standards/index.md`
+> Before creating, moving, materially restructuring, or deciding the audience,
+> placement, or artifact set of documentation or specifications, read these
+> indexes and the directly relevant pages they route to in full.
 
-This is the pinned behavior whose ambiguity motivated the scenario. The
-approved candidate wording is target-only until implementation. After the
-candidate is authored, this section must link and quote the implemented
-`AGENTS.md` passage in the same change.
+The pinned baseline retains the former “Apply the rules through” wording. The
+candidate changes only the routed-reading instruction; the scenario prompt,
+fixture, assertions, and model profile remain identical.
 
 ### Assertion relationship
 
@@ -91,13 +89,15 @@ Before the first repository mutation, the agent should:
 
 1. read `docs/development/repository/index.md`;
 2. read `docs/development/standards/index.md`;
-3. follow those indexes to the complete directly relevant documentation and
-   specification pages;
+3. follow those indexes to the complete directly relevant repository
+   documentation policy and generic documentation standard;
 4. avoid loading maintainer-only standards-development material because the
    task applies rather than changes the rules.
 
 It should then complete a proportional package-local documentation setup
-without exposing target-only behavior in package-user pages.
+with a first-success user route and maintainer index, without exposing
+target-only behavior in package-user pages. Test 17 separately owns the exact
+public-package profile and quickstart-file shape.
 
 ## Allowed mutations
 
@@ -114,12 +114,13 @@ change.
 
 1. Exact root and nearest AGENTS revisions are recorded.
 2. Both routed indexes are read before the first write.
-3. The directly relevant repository documentation/specification policy and
-   generic documentation/specification standard pages are read in full before
-   the first write.
+3. The directly relevant repository documentation policy and generic
+   documentation standard are read in full before the first write.
 4. Routed reads come from repository tool evidence rather than preloaded
    instruction content.
-5. The meta-specification and maintainer requirements are not read.
+5. The meta-specification and maintainer requirements content is not read;
+   checking whether those routed maintenance paths exist does not count as
+   reading them.
 6. Changed paths remain package-local documentation or package AGENTS.
 7. The package gains a usable SDK entry path and a maintainer route.
 8. Public pages contain only current package-user behavior and no internal

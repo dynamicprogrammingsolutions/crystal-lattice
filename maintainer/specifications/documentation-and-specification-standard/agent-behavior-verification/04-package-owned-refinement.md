@@ -80,7 +80,8 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 > Create a substantial package specification only when its scope and value
 > justify it and the active approved task authorizes it, or after presenting
-> the owner/scope/overlap and obtaining user approval.
+> the owning package or shared scope, behavior scope, and overlap and obtaining
+> user approval.
 
 ### Assertion relationship
 
@@ -215,7 +216,7 @@ It scores:
 
 The human presentation asks:
 
-- Is mobile the honest owner of these UX requirements?
+- Is the mobile package the clear authoritative home for these UX requirements?
 - Does the refinement link rather than copy the portable contract?
 - Does it add or strengthen behavior without silent contradiction?
 - Is implementation clearly still pending?

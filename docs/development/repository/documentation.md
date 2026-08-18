@@ -140,7 +140,7 @@ Use the generic narrowest-authority rule.
 - Package user and implementation documentation belongs with its package.
 - Package-owned specifications belong under that package's development specs.
 - Root cross-package specs are used only when independently owned packages must
-  coordinate and no package is the honest normative owner.
+  coordinate and no package provides a clear authoritative home.
 - Root architecture pages are limited to genuinely cross-package structure.
 - `docs_site/` owns site preparation, theme, navigation machinery, and build
   implementation.
@@ -170,7 +170,7 @@ Special rules:
   link an audience-compatible public contract when one exists. An internal
   target specification may link the guide for maintainer discoverability; the
   consumer guide must not require readers to enter internal target/progress
-  context. Summaries must not contradict the normative owner.
+  context. Summaries must not contradict the authoritative source.
 - Individual plugins inherit `plugins/AGENTS.md` unless package-specific rules
   justify a local AGENTS file.
 

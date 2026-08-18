@@ -32,7 +32,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 ### Authored guidance under test
 
-[Generated output](../../../../docs/development/standards/documentation.md#L235-L259):
+[Generated output](../../../../docs/development/standards/documentation.md#L243-L259):
 
 > If the approved generator or preparation workflow is unavailable or fails,
 > update only the maintained source or generator and leave generated output

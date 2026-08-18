@@ -55,7 +55,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > Before creating a substantial new specification, the implementer should
 > propose:
 
-> - its owner and scope;
+> - its owning package or shared scope and behavior scope;
 > - why existing specifications are insufficient;
 > - whether it defines, refines, or implements another contract;
 > - the expected artifacts and requirements;
@@ -83,17 +83,18 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > artifacts. User approval is required unless the active approved task already
 > authorizes creation.
 
-[Crystal Lattice artifact set](../../../../docs/development/repository/specifications.md#L71-L89):
+[Crystal Lattice artifact set](../../../../docs/development/repository/specifications.md#L79-L101):
 
 > A substantial specification normally uses:
 
 > The full set is proportional.
 
-[Root agent guidance](../../../../AGENTS.md#L150-L155):
+[Root agent guidance](../../../../AGENTS.md#L158-L162):
 
 > Create a substantial package specification only when its scope and value
 > justify it and the active approved task authorizes it, or after presenting
-> the owner/scope/overlap and obtaining user approval.
+> the owning package or shared scope, behavior scope, and overlap and obtaining
+> user approval.
 
 ### Assertion relationship
 
@@ -265,6 +266,6 @@ The human presentation asks:
 - Was its pre-approval proposal sufficient for an informed decision?
 - Did it avoid using a full chat-authored design to bypass the durable-artifact
   approval boundary?
-- Is the package the honest owner?
+- Is the package the clear authoritative home for this behavior?
 - Does the approved specification avoid duplicating broader contracts?
 - Are all implementation and current-documentation claims correctly pending?

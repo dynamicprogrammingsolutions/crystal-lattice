@@ -107,5 +107,5 @@ honesty of pending implementation state.
 ## Human review
 
 - Did the agent act on existing authorization without bypassing scope?
-- Is the package the honest normative owner?
+- Is the package the clear authoritative home for this behavior?
 - Are the artifacts substantial but non-boilerplate?

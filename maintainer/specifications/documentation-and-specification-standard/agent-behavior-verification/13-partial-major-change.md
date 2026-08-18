@@ -71,7 +71,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 > requirement IDs, distinguishes current from target behavior, and is removed
 > when all relevant requirements are verified.
 
-[Current documentation](../../../../docs/development/standards/specifications.md#L245-L257):
+[Current documentation](../../../../docs/development/standards/specifications.md#L249-L261):
 
 > Current guides exclude phase names, requirement IDs, task paths, approval
 > state, temporary progress, and evidence notation.

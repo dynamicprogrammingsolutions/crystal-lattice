@@ -35,7 +35,7 @@ worth preserving.
 
 Before creating a substantial new specification, the implementer should propose:
 
-- its owner and scope;
+- its owning package or shared scope and behavior scope;
 - why existing specifications are insufficient;
 - whether it defines, refines, or implements another contract;
 - the expected artifacts and requirements;
@@ -45,10 +45,10 @@ Creation requires user approval unless the active work item already authorizes
 the specification.
 
 A direct request to create a substantial specification does not replace this
-proposal and confirmation when its owner, scope, and overlap have not already
-been approved.
+proposal and confirmation when its owning scope, behavior scope, and overlap
+have not already been approved.
 
-## Specification ownership
+## Specification scope
 
 Any package may define specifications for behavior it owns.
 
@@ -58,7 +58,7 @@ Any package may define specifications for behavior it owns.
 3. A shared abstraction is normally specified with the package that defines it,
    even when several packages use it.
 4. A cross-package specification is appropriate when independently owned
-   packages must coordinate and no package is the honest normative owner.
+   packages must coordinate and no package provides a clear authoritative home.
 
 A refinement may add or strengthen requirements, define platform behavior, and
 select an allowed fallback. It must not silently weaken or contradict the
@@ -259,3 +259,10 @@ Current guides also exclude the specification's internal tracking vocabulary.
 Do not copy phase names, requirement IDs, task paths, approval state, temporary
 progress, or evidence notation into user documentation. Translate a necessary
 current limitation into user-domain language and omit future plans.
+
+## Layout defaults and explicit requests
+
+The illustrated artifact tree is a recommended default, not a mandatory
+schema. Honor an explicit approved alternative when required content,
+traceability, discoverability, and artifact boundaries remain intact; do not
+request duplicate confirmation merely because the requested shape differs.

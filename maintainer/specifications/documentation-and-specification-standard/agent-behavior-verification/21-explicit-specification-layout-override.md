@@ -40,28 +40,22 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > A safe override does not require duplicate confirmation.
 
-### Current authored guidance and approved candidate target
+### Authored guidance under test
 
-[Current generic proportional-artifact guidance](../../../../docs/development/standards/specifications.md#L67-L93):
+[Generic layout override](../../../../docs/development/standards/specifications.md#L263-L268):
 
-> A substantial capability commonly uses:
->
-> `decisions/                 # optional`
->
-> The set is proportional.
+> The illustrated artifact tree is a recommended default, not a mandatory
+> schema. Honor an explicit approved alternative when required content,
+> traceability, discoverability, and artifact boundaries remain intact.
 
-[Current repository artifact mapping](../../../../docs/development/repository/specifications.md#L79-L97):
+[Repository layout mapping](../../../../docs/development/repository/specifications.md#L79-L101):
 
 > A substantial specification normally uses:
 >
 > `decisions/                 # optional`
 >
-> The full set is proportional.
-
-These passages define a default but do not explicitly say that an approved
-single-file alternative must be honored. The approved candidate wording is
-target-only until implementation. After it is authored, this section must link
-and quote the implemented generic and repository guidance in the same change.
+> The illustrated tree is a default. Follow an explicit approved alternative,
+> such as one `decisions.md` file.
 
 ### Assertion relationship
 
