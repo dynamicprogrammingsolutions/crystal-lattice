@@ -11,7 +11,7 @@ The current implementation consists of:
 - [`generate.py`](../../generate.py): CSV validation, deterministic display
   IDs, and Markdown generation;
 - [`roadmap_config.py`](../../roadmap_config.py): self-contained named roadmap,
-  dotenv, and MCP configuration loading;
+  dotenv, and Google Sheets configuration loading;
 - [`sync.py`](../../sync.py): dry-run-first Google Sheets synchronization;
 - [`config.json`](../../config.json): named roadmap destinations;
 - [`tests/`](../../tests/): generator, configuration, and synchronization

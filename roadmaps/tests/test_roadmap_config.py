@@ -26,7 +26,6 @@ class RoadmapConfigTests(unittest.TestCase):
             "\n".join(
                 (
                     f"GOOGLE_APPLICATION_CREDENTIALS={self.credential}",
-                    "GOOGLE_PROJECT_ID=project-from-dotenv",
                     "ROADMAP_SHEET_ID=sheet-from-dotenv",
                     "",
                 )
@@ -34,23 +33,18 @@ class RoadmapConfigTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def _write_registry(self, *, package: str = "mcp-gsheets@1.10.2") -> Path:
+    def _write_registry(self) -> Path:
         path = self.root / "config.json"
         path.write_text(
             json.dumps(
                 {
                     "version": 1,
                     "env_file": ".env",
-                    "mcp": {
-                        "server": "mcp-gsheets",
-                        "command": "npx",
-                        "args": ["-y", package],
-                        "env": {
-                            "GOOGLE_APPLICATION_CREDENTIALS": (
-                                "${env:GOOGLE_APPLICATION_CREDENTIALS}"
-                            ),
-                            "GOOGLE_PROJECT_ID": "${env:GOOGLE_PROJECT_ID}",
-                        },
+                    "google_sheets": {
+                        "credentials_file": (
+                            "${env:GOOGLE_APPLICATION_CREDENTIALS}"
+                        ),
+                        "timeout_seconds": 45,
                     },
                     "roadmaps": {
                         "release": {
@@ -68,24 +62,18 @@ class RoadmapConfigTests(unittest.TestCase):
         )
         return path
 
-    def test_named_target_and_mcp_resolve_from_dotenv(self) -> None:
+    def test_named_target_and_sheets_settings_resolve_from_dotenv(self) -> None:
         registry = roadmap_config.load_registry(self._write_registry())
 
         target = roadmap_config.resolve_target("release", registry)
-        definition = roadmap_config.load_mcp_server(registry.mcp)
 
         self.assertEqual(target.csv_path, (self.root / "release.csv").resolve())
         self.assertEqual(target.spreadsheet_id, "sheet-from-dotenv")
-        self.assertEqual(definition.command, "npx")
-        self.assertEqual(definition.args[-1], "mcp-gsheets@1.10.2")
         self.assertEqual(
-            definition.env["GOOGLE_APPLICATION_CREDENTIALS"],
-            str(self.credential.resolve()),
+            registry.google_sheets.credentials_file,
+            self.credential.resolve(),
         )
-        self.assertEqual(
-            definition.env["GOOGLE_PROJECT_ID"],
-            "project-from-dotenv",
-        )
+        self.assertEqual(registry.google_sheets.timeout_seconds, 45)
 
     def test_exported_environment_overrides_dotenv(self) -> None:
         with patch.dict(
@@ -116,7 +104,7 @@ class RoadmapConfigTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(
-            roadmap_config.RoadmapConfigError, "GOOGLE_PROJECT_ID"
+            roadmap_config.RoadmapConfigError, "ROADMAP_SHEET_ID"
         ):
             roadmap_config.load_registry(self._write_registry())
 
@@ -127,30 +115,28 @@ class RoadmapConfigTests(unittest.TestCase):
             "\n".join(
                 (
                     "GOOGLE_APPLICATION_CREDENTIALS=/private/missing.json",
-                    "GOOGLE_PROJECT_ID=project",
                     "ROADMAP_SHEET_ID=sheet",
                 )
             ),
             encoding="utf-8",
         )
-        registry = roadmap_config.load_registry(self._write_registry())
 
         with self.assertRaisesRegex(
             roadmap_config.RoadmapConfigError,
             "^configured Google application credentials file is missing$",
         ):
-            roadmap_config.load_mcp_server(registry.mcp)
+            roadmap_config.load_registry(self._write_registry())
 
-    def test_unpinned_package_is_reported(self) -> None:
-        registry = roadmap_config.load_registry(
-            self._write_registry(package="mcp-gsheets@latest")
-        )
-        definition = roadmap_config.load_mcp_server(registry.mcp)
+    def test_invalid_timeout_is_rejected(self) -> None:
+        config = self._write_registry()
+        data = json.loads(config.read_text(encoding="utf-8"))
+        data["google_sheets"]["timeout_seconds"] = 0
+        config.write_text(json.dumps(data), encoding="utf-8")
 
-        self.assertEqual(
-            roadmap_config.unpinned_npm_packages(definition),
-            ("mcp-gsheets@latest",),
-        )
+        with self.assertRaisesRegex(
+            roadmap_config.RoadmapConfigError, "positive integer"
+        ):
+            roadmap_config.load_registry(config)
 
 
 if __name__ == "__main__":

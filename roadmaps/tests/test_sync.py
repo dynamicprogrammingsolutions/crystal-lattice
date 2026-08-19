@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import csv
 import io
 import sys
@@ -8,13 +7,14 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import generate  # noqa: E402
 import sync  # noqa: E402
-from roadmap_config import RoadmapTarget  # noqa: E402
+from roadmap_config import GoogleSheetsSettings, RoadmapTarget  # noqa: E402
 
 
 class FakeSheets:
@@ -23,13 +23,13 @@ class FakeSheets:
         self.updated: list[list[str]] | None = None
         self.cleared: tuple[int, int] | None = None
 
-    async def verify_target(self, _target: RoadmapTarget) -> None:
+    def verify_target(self, _target: RoadmapTarget) -> None:
         return None
 
-    async def get_values(self, _target: RoadmapTarget) -> list[list[str]]:
+    def get_values(self, _target: RoadmapTarget) -> list[list[str]]:
         return sync.normalize_matrix(self.values)
 
-    async def update_values(
+    def update_values(
         self,
         _target: RoadmapTarget,
         values: list[list[str]],
@@ -37,7 +37,7 @@ class FakeSheets:
         self.updated = values
         self.values = values
 
-    async def clear_rows(
+    def clear_rows(
         self,
         _target: RoadmapTarget,
         *,
@@ -94,36 +94,39 @@ class RoadmapSyncTests(unittest.TestCase):
         self.assertEqual(len(matrix[0]), len(generate.FIELDS))
         self.assertEqual(matrix[1][0], "one")
 
-    def test_empty_range_text_is_treated_as_empty_values(self) -> None:
-        result = type(
-            "Result",
-            (),
-            {
-                "is_error": False,
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "No data found in range: Sheet1!A1:J1000",
-                    }
-                ],
-            },
-        )()
+    def test_direct_client_treats_missing_values_as_empty(self) -> None:
+        client = object.__new__(sync.GoogleSheetsClient)
+        client._request_json = lambda *_args, **_kwargs: {}
 
-        payload = sync._json_payload(result, empty_range_is_empty=True)
+        values = client.get_values(self.target)
 
-        self.assertEqual(payload, {"values": []})
+        self.assertEqual(values, [])
+
+    def test_direct_client_redacts_authentication_failure(self) -> None:
+        settings = GoogleSheetsSettings(
+            credentials_file=Path("/private/credential.json"),
+            timeout_seconds=30,
+        )
+        with patch.object(
+            sync.service_account.Credentials,
+            "from_service_account_file",
+            side_effect=ValueError("/private/credential.json is invalid"),
+        ):
+            with self.assertRaisesRegex(
+                sync.RoadmapSyncError,
+                "^Google Sheets authentication failed$",
+            ):
+                sync.GoogleSheetsClient(settings)
 
     def test_initial_push_writes_and_verifies(self) -> None:
         sheets = FakeSheets([])
 
         with redirect_stdout(io.StringIO()):
-            asyncio.run(
-                sync.synchronize(
-                    action="push",
-                    target=self.target,
-                    mcp=sheets,
-                    write=True,
-                )
+            sync.synchronize(
+                action="push",
+                target=self.target,
+                sheets=sheets,
+                write=True,
             )
 
         self.assertIsNotNone(sheets.updated)
@@ -133,13 +136,11 @@ class RoadmapSyncTests(unittest.TestCase):
         sheets = FakeSheets([])
 
         with redirect_stdout(io.StringIO()):
-            asyncio.run(
-                sync.synchronize(
-                    action="push",
-                    target=self.target,
-                    mcp=sheets,
-                    write=False,
-                )
+            sync.synchronize(
+                action="push",
+                target=self.target,
+                sheets=sheets,
+                write=False,
             )
 
         self.assertIsNone(sheets.updated)
@@ -151,13 +152,11 @@ class RoadmapSyncTests(unittest.TestCase):
         sheets = FakeSheets(old_values)
 
         with redirect_stdout(io.StringIO()):
-            asyncio.run(
-                sync.synchronize(
-                    action="push",
-                    target=self.target,
-                    mcp=sheets,
-                    write=True,
-                )
+            sync.synchronize(
+                action="push",
+                target=self.target,
+                sheets=sheets,
+                write=True,
             )
 
         self.assertEqual(
@@ -172,13 +171,11 @@ class RoadmapSyncTests(unittest.TestCase):
         sheets = FakeSheets(remote)
 
         with redirect_stdout(io.StringIO()):
-            asyncio.run(
-                sync.synchronize(
-                    action="pull",
-                    target=self.target,
-                    mcp=sheets,
-                    write=True,
-                )
+            sync.synchronize(
+                action="pull",
+                target=self.target,
+                sheets=sheets,
+                write=True,
             )
 
         self.assertIn(
@@ -197,13 +194,11 @@ class RoadmapSyncTests(unittest.TestCase):
         sheets = FakeSheets(remote)
 
         with redirect_stdout(io.StringIO()):
-            asyncio.run(
-                sync.synchronize(
-                    action="pull",
-                    target=self.target,
-                    mcp=sheets,
-                    write=True,
-                )
+            sync.synchronize(
+                action="pull",
+                target=self.target,
+                sheets=sheets,
+                write=True,
             )
 
         self.assertIsNotNone(sheets.updated)
@@ -226,13 +221,11 @@ class RoadmapSyncTests(unittest.TestCase):
         sheets = FakeSheets(remote)
 
         with redirect_stdout(io.StringIO()):
-            asyncio.run(
-                sync.synchronize(
-                    action="pull",
-                    target=self.target,
-                    mcp=sheets,
-                    write=True,
-                )
+            sync.synchronize(
+                action="pull",
+                target=self.target,
+                sheets=sheets,
+                write=True,
             )
 
         self.assertIn(
@@ -246,13 +239,11 @@ class RoadmapSyncTests(unittest.TestCase):
         with self.assertRaisesRegex(
             sync.RoadmapSyncError, "uninitialized"
         ):
-            asyncio.run(
-                sync.synchronize(
-                    action="pull",
-                    target=self.target,
-                    mcp=sheets,
-                    write=True,
-                )
+            sync.synchronize(
+                action="pull",
+                target=self.target,
+                sheets=sheets,
+                write=True,
             )
 
 

@@ -16,6 +16,9 @@ Sheets destinations. The initial roadmap is named `release`.
 Maintainer documentation and specifications start at
 [`docs/development/index.md`](docs/development/index.md).
 
+For the focused editing workflow, see
+[`docs/updating-roadmaps.md`](docs/updating-roadmaps.md).
+
 ## Quick start
 
 Create the ignored local environment file:
@@ -24,11 +27,16 @@ Create the ignored local environment file:
 cp roadmaps/.env.example roadmaps/.env
 ```
 
+Install the standalone Python dependencies:
+
+```bash
+python -m pip install -r roadmaps/requirements.txt
+```
+
 Set these values in `roadmaps/.env`:
 
 ```dotenv
 GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
-GOOGLE_PROJECT_ID=your-google-project-id
 ROADMAP_RELEASE_SPREADSHEET_ID=your-google-spreadsheet-id
 ```
 
@@ -187,19 +195,18 @@ normalization or generated Markdown is stale.
 
 Named roadmaps may define a spreadsheet ID, expected spreadsheet title, and
 sheet name. [`config.json`](config.json) is self-contained: it defines the
-`mcp-gsheets` command, pinned npm package, environment mapping, named CSV, and
-sheet destination. It does not depend on the Crystal application config.
+Google Sheets credential mapping, request timeout, named CSV, and sheet
+destination. It does not depend on Crystal application or plugin source code.
 
 Secret and deployment-specific values come from the ignored `roadmaps/.env`.
 The committed [`.env.example`](.env.example) documents every required
-variable. The config uses `${env:NAME}` placeholders and fails before starting
-MCP when a required value is absent.
+variable. The config uses `${env:NAME}` placeholders and fails before making a
+Google API request when a required value is absent.
 
 The real `.env` must not be committed. It contains:
 
 - `GOOGLE_APPLICATION_CREDENTIALS`: absolute path to the Google service-account
   JSON file;
-- `GOOGLE_PROJECT_ID`: project identifier passed to `mcp-gsheets`;
 - `ROADMAP_RELEASE_SPREADSHEET_ID`: destination spreadsheet for the `release`
   named roadmap.
 
@@ -238,8 +245,7 @@ or incorrectly headed sheet cannot overwrite local files.
 
 `status`, `push`, and `pull` verify the spreadsheet ID, expected title, and
 sheet name before comparing data. Push and pull are dry runs unless `--write`
-is supplied. The tool warns when the configured MCP npm package uses an
-unpinned version such as `@latest`.
+is supplied.
 
 Configuration paths can be overridden without editing the repository:
 

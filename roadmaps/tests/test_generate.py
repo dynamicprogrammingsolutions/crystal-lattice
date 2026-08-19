@@ -89,13 +89,17 @@ class RoadmapGeneratorTests(unittest.TestCase):
         rendered = output.read_text(encoding="utf-8")
         normalized = csv_path.read_text(encoding="utf-8")
 
-        self.assertIn("`0804-OS-010` — First task", rendered)
-        self.assertIn("`CL-368-020` — Second task", rendered)
-        self.assertIn("`WEB-IOS` — Website placeholder", rendered)
-        self.assertIn("| `CL-368` |", rendered)
         self.assertIn("[`0804-OS-010`](../tasks/", rendered)
         self.assertIn("[`CL-368-020`](../tasks/", rendered)
+        self.assertIn("| `WEB-IOS` | Website placeholder |", rendered)
+        self.assertIn("| First task |", rendered)
+        self.assertIn("| Second task |", rendered)
+        self.assertIn("| `CL-368` |", rendered)
         self.assertIn("*(inferred)*", rendered)
+        self.assertIn(
+            "[Updating roadmaps](docs/updating-roadmaps.md)",
+            rendered,
+        )
         self.assertIn(",0804-OS-010,", normalized)
         self.assertIn(",CL-368-020,", normalized)
         self.assertIn(",WEB-IOS,", normalized)
@@ -115,7 +119,8 @@ class RoadmapGeneratorTests(unittest.TestCase):
         output = generate.generate(csv_path, repo_root=self.root)
         rendered = output.read_text(encoding="utf-8")
 
-        self.assertIn("`0804-OS` — First task", rendered)
+        self.assertIn("[`0804-OS`](../tasks/", rendered)
+        self.assertIn("| First task |", rendered)
         self.assertIn(
             "../tasks/20260804-open-source-public-release/000-main.md",
             rendered,

@@ -1,19 +1,9 @@
 {
   "version": 1,
   "env_file": ".env",
-  "mcp": {
-    "server": "mcp-gsheets",
-    "command": "npx",
-    "args": [
-      "-y",
-      "mcp-gsheets@1.10.2"
-    ],
-    "env": {
-      "GOOGLE_APPLICATION_CREDENTIALS": "${env:GOOGLE_APPLICATION_CREDENTIALS}",
-      "GOOGLE_PROJECT_ID": "${env:GOOGLE_PROJECT_ID}"
-    },
-    "startup_timeout_seconds": 60,
-    "tool_timeout_seconds": 60
+  "google_sheets": {
+    "credentials_file": "${env:GOOGLE_APPLICATION_CREDENTIALS}",
+    "timeout_seconds": 30
   },
   "roadmaps": {
     "release": {

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import csv
 import difflib
 import io
@@ -14,6 +13,12 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
+
+import requests
+from google.auth.exceptions import GoogleAuthError
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2 import service_account
 
 from generate import (
     FIELDS,
@@ -25,26 +30,17 @@ from generate import (
     render_markdown,
 )
 from roadmap_config import (
-    MCPServerDefinition,
+    GoogleSheetsSettings,
     RoadmapConfigError,
     RoadmapTarget,
-    load_mcp_server,
     load_registry,
     resolve_target,
-    unpinned_npm_packages,
 )
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MCP_SHARED_SRC = REPO_ROOT / "plugins" / "mcp-shared" / "src"
-if str(MCP_SHARED_SRC) not in sys.path:
-    sys.path.insert(0, str(MCP_SHARED_SRC))
-
-from mcp_shared.runtime import (  # noqa: E402
-    MCPRuntimeConfig,
-    MCPRuntimeManager,
-    MCPServerRuntimeSpec,
-)
+SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
+SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets"
 
 
 class RoadmapSyncError(RuntimeError):
@@ -78,7 +74,10 @@ def normalize_matrix(values: Any) -> list[list[str]]:
     for raw_row in values:
         if not isinstance(raw_row, list):
             raise RoadmapSyncError("Google Sheets row is not an array")
-        row = ["" if value is None else str(value) for value in raw_row[: len(FIELDS)]]
+        row = [
+            "" if value is None else str(value)
+            for value in raw_row[: len(FIELDS)]
+        ]
         row.extend([""] * (len(FIELDS) - len(row)))
         matrix.append(row)
     while matrix and not any(cell for cell in matrix[-1]):
@@ -93,10 +92,7 @@ def matrix_to_csv_text(matrix: list[list[str]]) -> str:
         raise RoadmapSyncError(
             "remote header must be exactly: " + ",".join(FIELDS)
         )
-    buffer = io.StringIO(newline="")
-    writer = csv.writer(buffer, lineterminator="\n")
-    writer.writerows(matrix)
-    return buffer.getvalue()
+    return matrix_to_unchecked_csv_text(matrix)
 
 
 def matrix_to_unchecked_csv_text(matrix: list[list[str]]) -> str:
@@ -143,26 +139,6 @@ def _sheet_range(sheet: str, cells: str) -> str:
     return f"'{escaped}'!{cells}"
 
 
-def _json_payload(result: Any, *, empty_range_is_empty: bool = False) -> Any:
-    if result.is_error:
-        raise RoadmapSyncError("mcp-gsheets returned an error")
-    for item in result.content:
-        if item.get("type") != "text":
-            continue
-        text = item.get("text", "")
-        if (
-            empty_range_is_empty
-            and isinstance(text, str)
-            and text.startswith("No data found in range:")
-        ):
-            return {"values": []}
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            continue
-    raise RoadmapSyncError("mcp-gsheets returned no JSON payload")
-
-
 def _sheet_titles(payload: dict[str, Any]) -> list[str]:
     titles: list[str] = []
     sheets = payload.get("sheets", [])
@@ -170,10 +146,6 @@ def _sheet_titles(payload: dict[str, Any]) -> list[str]:
         return titles
     for sheet in sheets:
         if not isinstance(sheet, dict):
-            continue
-        title = sheet.get("title")
-        if isinstance(title, str):
-            titles.append(title)
             continue
         properties = sheet.get("properties")
         if isinstance(properties, dict) and isinstance(
@@ -183,61 +155,90 @@ def _sheet_titles(payload: dict[str, Any]) -> list[str]:
     return titles
 
 
-class GSheetsMCP:
-    def __init__(
+class GoogleSheetsClient:
+    """Small direct Google Sheets REST client for roadmap synchronization."""
+
+    def __init__(self, settings: GoogleSheetsSettings) -> None:
+        self.timeout_seconds = settings.timeout_seconds
+        self.session = requests.Session()
+        try:
+            credentials = service_account.Credentials.from_service_account_file(
+                str(settings.credentials_file),
+                scopes=[SHEETS_SCOPE],
+            )
+            credentials.refresh(GoogleAuthRequest())
+        except (
+            GoogleAuthError,
+            OSError,
+            ValueError,
+            requests.RequestException,
+        ) as exc:
+            self.session.close()
+            raise RoadmapSyncError(
+                "Google Sheets authentication failed"
+            ) from exc
+        self.session.headers.update(
+            {
+                "Authorization": f"Bearer {credentials.token}",
+                "Accept": "application/json",
+            }
+        )
+
+    def close(self) -> None:
+        self.session.close()
+
+    def _request_json(
         self,
-        definition: MCPServerDefinition,
+        method: str,
+        url: str,
         *,
-        server_name: str,
-    ) -> None:
-        self.definition = definition
-        self.server_name = server_name
-        self.manager = MCPRuntimeManager()
-
-    async def __aenter__(self) -> "GSheetsMCP":
-        definition = self.definition
-        spec = MCPServerRuntimeSpec(
-            name=self.server_name,
-            enabled=True,
-            transport="stdio",
-            command=definition.command,
-            args=list(definition.args),
-            env=definition.env,
-            cwd=definition.cwd,
-            startup_timeout_seconds=definition.startup_timeout_seconds or 60,
-            tool_timeout_seconds=definition.tool_timeout_seconds or 60,
-        )
-        await self.manager.start(
-            MCPRuntimeConfig(
-                servers={self.server_name: spec},
-                fail_on_startup_error=True,
+        operation: str,
+        params: dict[str, str] | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            response = self.session.request(
+                method,
+                url,
+                params=params,
+                json=payload,
+                timeout=self.timeout_seconds,
             )
-        )
-        return self
-
-    async def __aexit__(self, *_args: object) -> None:
-        await self.manager.close()
-
-    async def _call(self, tool: str, arguments: dict[str, Any]) -> Any:
-        return await self.manager.call_tool(
-            server_name=self.server_name,
-            tool_name=tool,
-            arguments=arguments,
-            timeout_seconds=self.definition.tool_timeout_seconds or 60,
-        )
-
-    async def verify_target(self, target: RoadmapTarget) -> None:
-        payload = _json_payload(
-            await self._call(
-                "sheets_get_metadata",
-                {"spreadsheetId": target.spreadsheet_id},
+            response.raise_for_status()
+            data = response.json()
+        except (requests.RequestException, json.JSONDecodeError) as exc:
+            raise RoadmapSyncError(
+                f"Google Sheets {operation} failed"
+            ) from exc
+        if not isinstance(data, dict):
+            raise RoadmapSyncError(
+                f"Google Sheets {operation} returned an invalid response"
             )
+        return data
+
+    def verify_target(self, target: RoadmapTarget) -> None:
+        payload = self._request_json(
+            "GET",
+            f"{SHEETS_API}/{target.spreadsheet_id}",
+            operation="metadata read",
+            params={
+                "fields": (
+                    "spreadsheetId,properties(title),"
+                    "sheets(properties(title))"
+                )
+            },
         )
-        if not isinstance(payload, dict):
-            raise RoadmapSyncError("spreadsheet metadata is not an object")
         if payload.get("spreadsheetId") != target.spreadsheet_id:
-            raise RoadmapSyncError("spreadsheet ID does not match named config")
-        if payload.get("title") != target.spreadsheet_title:
+            raise RoadmapSyncError(
+                "spreadsheet ID does not match named config"
+            )
+        properties = payload.get("properties")
+        title = (
+            properties.get("title")
+            if isinstance(properties, dict)
+            else None
+        )
+        if title != target.spreadsheet_title:
             raise RoadmapSyncError(
                 "spreadsheet title does not match named config"
             )
@@ -246,58 +247,53 @@ class GSheetsMCP:
                 f"sheet {target.sheet!r} does not exist in spreadsheet"
             )
 
-    async def get_values(self, target: RoadmapTarget) -> list[list[str]]:
-        payload = _json_payload(
-            await self._call(
-                "sheets_get_values",
-                {
-                    "spreadsheetId": target.spreadsheet_id,
-                    "range": _sheet_range(target.sheet, "A:J"),
-                    "majorDimension": "ROWS",
-                    "valueRenderOption": "UNFORMATTED_VALUE",
-                },
-            ),
-            empty_range_is_empty=True,
+    def get_values(self, target: RoadmapTarget) -> list[list[str]]:
+        range_name = quote(_sheet_range(target.sheet, "A:J"), safe="")
+        payload = self._request_json(
+            "GET",
+            f"{SHEETS_API}/{target.spreadsheet_id}/values/{range_name}",
+            operation="values read",
+            params={
+                "majorDimension": "ROWS",
+                "valueRenderOption": "UNFORMATTED_VALUE",
+            },
         )
-        if not isinstance(payload, dict):
-            raise RoadmapSyncError("spreadsheet values payload is not an object")
         return normalize_matrix(payload.get("values", []))
 
-    async def update_values(
+    def update_values(
         self,
         target: RoadmapTarget,
         values: list[list[str]],
     ) -> None:
-        result = await self._call(
-            "sheets_update_values",
-            {
-                "spreadsheetId": target.spreadsheet_id,
-                "range": _sheet_range(target.sheet, "A1"),
-                "values": values,
-                "valueInputOption": "RAW",
-            },
+        range_name = quote(_sheet_range(target.sheet, "A1"), safe="")
+        self._request_json(
+            "PUT",
+            f"{SHEETS_API}/{target.spreadsheet_id}/values/{range_name}",
+            operation="values update",
+            params={"valueInputOption": "RAW"},
+            payload={"majorDimension": "ROWS", "values": values},
         )
-        if result.is_error:
-            raise RoadmapSyncError("mcp-gsheets update failed")
 
-    async def clear_rows(
+    def clear_rows(
         self,
         target: RoadmapTarget,
         *,
         first_row: int,
         last_row: int,
     ) -> None:
-        result = await self._call(
-            "sheets_clear_values",
-            {
-                "spreadsheetId": target.spreadsheet_id,
-                "range": _sheet_range(
-                    target.sheet, f"A{first_row}:J{last_row}"
-                ),
-            },
+        range_name = quote(
+            _sheet_range(target.sheet, f"A{first_row}:J{last_row}"),
+            safe="",
         )
-        if result.is_error:
-            raise RoadmapSyncError("mcp-gsheets trailing-row clear failed")
+        self._request_json(
+            "POST",
+            (
+                f"{SHEETS_API}/{target.spreadsheet_id}/values/"
+                f"{range_name}:clear"
+            ),
+            operation="trailing-row clear",
+            payload={},
+        )
 
 
 def _local_state(
@@ -338,18 +334,23 @@ def _atomic_write(path: Path, content: str) -> None:
     )
     temporary = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle:
+        with os.fdopen(
+            descriptor,
+            "w",
+            encoding="utf-8",
+            newline="",
+        ) as handle:
             handle.write(content)
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
 
 
-async def synchronize(
+def synchronize(
     *,
     action: str,
     target: RoadmapTarget,
-    mcp: GSheetsMCP,
+    sheets: Any,
     write: bool,
 ) -> None:
     local, local_source, local_matrix = _local_state(target)
@@ -364,8 +365,8 @@ async def synchronize(
         if markdown_path.exists()
         else ""
     )
-    await mcp.verify_target(target)
-    remote_matrix = await mcp.get_values(target)
+    sheets.verify_target(target)
+    remote_matrix = sheets.get_values(target)
     remote_raw_text = matrix_to_unchecked_csv_text(remote_matrix)
 
     if action == "status":
@@ -435,14 +436,14 @@ async def synchronize(
             _atomic_write(markdown_path, local_markdown)
         previous_rows = len(remote_matrix)
         if not remote_matches:
-            await mcp.update_values(target, local_matrix)
+            sheets.update_values(target, local_matrix)
             if previous_rows > len(local_matrix):
-                await mcp.clear_rows(
+                sheets.clear_rows(
                     target,
                     first_row=len(local_matrix) + 1,
                     last_row=previous_rows,
                 )
-        read_back = await mcp.get_values(target)
+        read_back = sheets.get_values(target)
         if read_back != normalize_matrix(local_matrix):
             raise RoadmapSyncError(
                 "Google Sheets read-back does not match the local CSV"
@@ -503,14 +504,14 @@ async def synchronize(
         _atomic_write(target.csv_path, remote.text)
         _atomic_write(markdown_path, pulled_markdown)
         if remote.changed:
-            await mcp.update_values(target, normalized_remote_matrix)
+            sheets.update_values(target, normalized_remote_matrix)
             if len(remote_matrix) > len(normalized_remote_matrix):
-                await mcp.clear_rows(
+                sheets.clear_rows(
                     target,
                     first_row=len(normalized_remote_matrix) + 1,
                     last_row=len(remote_matrix),
                 )
-        read_back = await mcp.get_values(target)
+        read_back = sheets.get_values(target)
         if read_back != normalize_matrix(normalized_remote_matrix):
             raise RoadmapSyncError(
                 "Google Sheets read-back does not match normalized pull data"
@@ -525,26 +526,6 @@ async def synchronize(
         return
 
     raise RoadmapSyncError(f"unsupported action {action!r}")
-
-
-async def synchronize_with_mcp(
-    *,
-    action: str,
-    target: RoadmapTarget,
-    definition: MCPServerDefinition,
-    server_name: str,
-    write: bool,
-) -> None:
-    async with GSheetsMCP(
-        definition,
-        server_name=server_name,
-    ) as mcp:
-        await synchronize(
-            action=action,
-            target=target,
-            mcp=mcp,
-            write=write,
-        )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -567,36 +548,33 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     if args.action == "status" and args.write:
-        print("roadmap sync error: --write is not valid with status", file=sys.stderr)
+        print(
+            "roadmap sync error: --write is not valid with status",
+            file=sys.stderr,
+        )
         return 1
+    client: GoogleSheetsClient | None = None
     try:
         registry = load_registry(args.config)
         target = resolve_target(args.roadmap, registry)
-        definition = load_mcp_server(registry.mcp)
-        unpinned = unpinned_npm_packages(definition)
-        if unpinned:
-            print(
-                "warning: MCP package is unpinned: " + ", ".join(unpinned),
-                file=sys.stderr,
-            )
-        asyncio.run(
-            synchronize_with_mcp(
-                action=args.action,
-                target=target,
-                definition=definition,
-                server_name=registry.mcp.server,
-                write=args.write,
-            )
+        client = GoogleSheetsClient(registry.google_sheets)
+        synchronize(
+            action=args.action,
+            target=target,
+            sheets=client,
+            write=args.write,
         )
     except (
         RoadmapConfigError,
         RoadmapError,
         RoadmapSyncError,
         OSError,
-        RuntimeError,
     ) as exc:
         print(f"roadmap sync error: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if client is not None:
+            client.close()
     return 0
 
 

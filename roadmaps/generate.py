@@ -547,8 +547,8 @@ def _roadmap_title(stem: str) -> str:
     return " ".join(rendered)
 
 
-def _task_reference(row: Row, output_path: Path, repo_root: Path) -> str:
-    label = f"`{row.internal_id}` — {_markdown_text(row.title)}"
+def _id_reference(row: Row, output_path: Path, repo_root: Path) -> str:
+    label = f"`{row.internal_id}`"
     if row.link_target is None:
         return label
     relative = os.path.relpath(
@@ -585,13 +585,15 @@ def render_markdown(
     lines = [
         f"# {title}",
         "",
-        f"> Generated from `{csv_path.name}`. Edit the CSV and regenerate this file.",
+        f"> Generated from [`{csv_path.name}`]({csv_path.name}). "
+        "Do not edit this Markdown directly. "
+        "See [Updating roadmaps](docs/updating-roadmaps.md).",
         "",
         "Tasks without a dependency relationship may proceed in parallel. "
         "List position is the current priority recommendation.",
         "",
-        "| Order | Priority | Status | Task | External ID | Purpose | Dependencies | Notes |",
-        "|---:|---|---|---|---|---|---|---|",
+        "| Order | ID | Task | Purpose | Dependencies | External ID | Priority | Status | Notes |",
+        "|---:|---|---|---|---|---|---|---|---|",
     ]
     for order, row in enumerate(rows, start=1):
         dependencies = [
@@ -617,16 +619,17 @@ def render_markdown(
             + " | ".join(
                 (
                     str(order),
-                    _markdown_text(row.priority),
-                    _markdown_text(row.status),
-                    _task_reference(row, output_path, repo_root),
+                    _id_reference(row, output_path, repo_root),
+                    _markdown_text(row.title),
+                    _markdown_text(row.purpose),
+                    ", ".join(dependencies) if dependencies else "—",
                     (
                         f"`{_markdown_text(row.external_id)}`"
                         if row.external_id
                         else "—"
                     ),
-                    _markdown_text(row.purpose),
-                    ", ".join(dependencies) if dependencies else "—",
+                    _markdown_text(row.priority),
+                    _markdown_text(row.status),
                     _markdown_text(row.notes) if row.notes else "—",
                 )
             )

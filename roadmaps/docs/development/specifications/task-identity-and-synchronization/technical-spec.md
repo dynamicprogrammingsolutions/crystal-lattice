@@ -238,18 +238,27 @@ It fails when:
 
 ## Generated Markdown
 
-The task cell uses the canonical internal ID:
+Every generated roadmap contains a prominent pointer to
+`roadmaps/docs/updating-roadmaps.md`, allowing an agent that receives only the
+generated Markdown to find the focused update workflow.
+
+The `ID` cell uses the canonical internal ID as the link caption:
 
 ```text
-Label: CL-368-040 — Add minimum public CI
+Caption: CL-368-040
 Target: tasks/20260804-open-source-public-release/040-minimum-ci-and-automation-hardening.md
 ```
 
-A task-directory row links to `000-main.md`. A free-name row renders without a
-link.
+The task title is rendered in a separate `Task` column. A task-directory ID
+links to `000-main.md`. A free-name ID renders without a link.
 
-Generated output includes an `External ID` column. Repeated external IDs are
-shown as entered and do not affect link uniqueness.
+The generated column order is:
+
+```text
+Order, ID, Task, Purpose, Dependencies, External ID, Priority, Status, Notes
+```
+
+Repeated external IDs are shown as entered and do not affect link uniqueness.
 
 Dependencies render canonical internal IDs and retain the current inferred
 dependency marker.
@@ -257,8 +266,8 @@ dependency marker.
 ## Google Sheets synchronization
 
 The named roadmap config selects the CSV, spreadsheet, expected spreadsheet
-title, sheet, pinned MCP command, and MCP environment mapping. It is independent
-of the Crystal application config.
+title, sheet, Google service-account credential, and request timeout. It is
+independent of Crystal application and plugin source code.
 
 Deployment-specific values are resolved from the ignored `roadmaps/.env`.
 The committed `.env.example` documents required names without containing
@@ -329,8 +338,8 @@ An empty or incorrectly headed sheet cannot overwrite local files.
 - A failed normalized sheet write-back after pull is reported as incomplete;
   local normalized files remain valid and a later push can converge the sheet.
 - Credential values and credential paths are never included in logs or diffs.
-- Conflicting duplicate MCP server definitions are rejected.
-- Unpinned MCP npm packages continue to produce a warning.
+- Google API and credential failures are reported without exposing credential
+  paths, spreadsheet IDs, tokens, or response bodies.
 
 ## Migration
 

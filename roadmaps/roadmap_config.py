@@ -1,4 +1,4 @@
-"""Self-contained named roadmap and MCP configuration loading."""
+"""Self-contained named roadmap and Google Sheets configuration loading."""
 
 from __future__ import annotations
 
@@ -15,23 +15,13 @@ ENV_REFERENCE_RE = re.compile(r"\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 class RoadmapConfigError(ValueError):
-    """Raised when roadmap or MCP configuration is invalid."""
+    """Raised when roadmap or Google Sheets configuration is invalid."""
 
 
 @dataclass(frozen=True)
-class MCPServerDefinition:
-    command: str
-    args: tuple[str, ...]
-    env: dict[str, str]
-    cwd: str | None
-    startup_timeout_seconds: int | None
-    tool_timeout_seconds: int | None
-
-
-@dataclass(frozen=True)
-class MCPSettings:
-    server: str
-    definition: MCPServerDefinition
+class GoogleSheetsSettings:
+    credentials_file: Path
+    timeout_seconds: int
 
 
 @dataclass(frozen=True)
@@ -47,7 +37,7 @@ class RoadmapTarget:
 class Registry:
     path: Path
     env_file: Path
-    mcp: MCPSettings
+    google_sheets: GoogleSheetsSettings
     roadmaps: dict[str, RoadmapTarget]
 
 
@@ -123,73 +113,12 @@ def _required_string(
     return resolved
 
 
-def _positive_int(value: Any) -> int | None:
+def _positive_int(value: Any, *, default: int) -> int:
+    if value is None:
+        return default
     if isinstance(value, int) and not isinstance(value, bool) and value > 0:
         return value
-    return None
-
-
-def _load_mcp_definition(
-    raw_mcp: dict[str, Any],
-    *,
-    environment: dict[str, str],
-) -> MCPSettings:
-    server = _required_string(
-        raw_mcp.get("server"),
-        field="mcp.server",
-        environment=environment,
-    )
-    command = _required_string(
-        raw_mcp.get("command"),
-        field="mcp.command",
-        environment=environment,
-    )
-    raw_args = raw_mcp.get("args", [])
-    if not isinstance(raw_args, list):
-        raise RoadmapConfigError("mcp.args must be an array")
-    args = tuple(
-        _required_string(
-            str(value),
-            field="mcp.args item",
-            environment=environment,
-        )
-        for value in raw_args
-    )
-    raw_env = raw_mcp.get("env", {})
-    if not isinstance(raw_env, dict):
-        raise RoadmapConfigError("mcp.env must be an object")
-    mcp_env: dict[str, str] = {}
-    for key, value in raw_env.items():
-        if not isinstance(key, str):
-            raise RoadmapConfigError("mcp.env keys must be strings")
-        mcp_env[key] = _required_string(
-            value,
-            field=f"mcp.env.{key}",
-            environment=environment,
-        )
-    cwd_value = raw_mcp.get("cwd")
-    cwd = (
-        _required_string(
-            cwd_value,
-            field="mcp.cwd",
-            environment=environment,
-        )
-        if cwd_value is not None
-        else None
-    )
-    definition = MCPServerDefinition(
-        command=command,
-        args=args,
-        env=mcp_env,
-        cwd=cwd,
-        startup_timeout_seconds=_positive_int(
-            raw_mcp.get("startup_timeout_seconds")
-        ),
-        tool_timeout_seconds=_positive_int(
-            raw_mcp.get("tool_timeout_seconds")
-        ),
-    )
-    return MCPSettings(server=server, definition=definition)
+    raise RoadmapConfigError("timeout_seconds must be a positive integer")
 
 
 def load_registry(path: Path | None = None) -> Registry:
@@ -220,10 +149,26 @@ def load_registry(path: Path | None = None) -> Registry:
     env_file = env_file.resolve()
     environment = _resolved_environment(env_file)
 
-    raw_mcp = data.get("mcp")
-    if not isinstance(raw_mcp, dict):
-        raise RoadmapConfigError("roadmap config mcp must be an object")
-    mcp = _load_mcp_definition(raw_mcp, environment=environment)
+    raw_sheets = data.get("google_sheets")
+    if not isinstance(raw_sheets, dict):
+        raise RoadmapConfigError("google_sheets must be an object")
+    credentials_value = _required_string(
+        raw_sheets.get("credentials_file"),
+        field="google_sheets.credentials_file",
+        environment=environment,
+    )
+    credentials_file = Path(credentials_value).expanduser().resolve()
+    if not credentials_file.is_file():
+        raise RoadmapConfigError(
+            "configured Google application credentials file is missing"
+        )
+    google_sheets = GoogleSheetsSettings(
+        credentials_file=credentials_file,
+        timeout_seconds=_positive_int(
+            raw_sheets.get("timeout_seconds"),
+            default=30,
+        ),
+    )
 
     raw_roadmaps = data.get("roadmaps")
     if not isinstance(raw_roadmaps, dict) or not raw_roadmaps:
@@ -263,7 +208,7 @@ def load_registry(path: Path | None = None) -> Registry:
     return Registry(
         path=config_path,
         env_file=env_file,
-        mcp=mcp,
+        google_sheets=google_sheets,
         roadmaps=targets,
     )
 
@@ -291,28 +236,3 @@ def resolve_target(key: str, registry: Registry) -> RoadmapTarget:
         raise RoadmapConfigError(
             f"unknown roadmap key {key!r}; available keys: {available}"
         ) from exc
-
-
-def load_mcp_server(settings: MCPSettings) -> MCPServerDefinition:
-    definition = settings.definition
-    env = dict(definition.env)
-    credentials_path = env.get("GOOGLE_APPLICATION_CREDENTIALS")
-    if credentials_path:
-        credential_file = Path(credentials_path).expanduser().resolve()
-        if not credential_file.is_file():
-            raise RoadmapConfigError(
-                "configured Google application credentials file is missing"
-            )
-        env["GOOGLE_APPLICATION_CREDENTIALS"] = str(credential_file)
-    return MCPServerDefinition(
-        command=definition.command,
-        args=definition.args,
-        env=env,
-        cwd=definition.cwd,
-        startup_timeout_seconds=definition.startup_timeout_seconds,
-        tool_timeout_seconds=definition.tool_timeout_seconds,
-    )
-
-
-def unpinned_npm_packages(definition: MCPServerDefinition) -> tuple[str, ...]:
-    return tuple(arg for arg in definition.args if arg.endswith("@latest"))
