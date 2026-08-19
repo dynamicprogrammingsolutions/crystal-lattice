@@ -718,6 +718,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
 
 ## Execution plan
@@ -753,7 +754,10 @@ The work is organized standards-first:
    standard and contributor workflow are defined. It may adopt the committed
    agent-evaluation framework while 015 continues non-blocking refinements, and
    it owns moving the existing task-guidance evaluator.
-8. Subtask 070 performs final verification after migration, contributor
+8. Subtask 069 uses the migrated evaluator to verify minimum sufficient
+   requirements and coherent single-task/subtask decomposition. Guidance
+   changes are baseline-first and preserve exact model/reasoning profiles.
+9. Subtask 070 performs final verification after migration, contributor
    workflow, and task-guidance alignment are complete.
 
 Existing content should be moved with minimal editorial changes. Verification
@@ -816,6 +820,7 @@ Required new or updated documentation includes:
 - [ ] 060: Update navigation, compatibility paths, repository links, and build triggers.
 - [ ] 065: Create the concise AI-assisted contributor workflow and prompt examples.
 - [ ] 068: Align specifications/tasks guidance and synchronize canonical/bundled `TASKS-v7`.
+- [ ] 069: Verify and refine task-guidance scope discipline and subtask decomposition.
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.
 
 ### Requirement verification

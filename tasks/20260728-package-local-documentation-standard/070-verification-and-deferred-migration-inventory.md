@@ -11,6 +11,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
 - `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
 - `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
+- `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 
 Specification:
 `maintainer/specifications/documentation-and-specification-standard/index.md`
@@ -48,6 +49,9 @@ silently expanding scope.
   each other unnecessarily.
 - [ ] Deterministic task-guidance evaluation affected by the update passes;
   real-model review is recorded separately when run.
+- [ ] Task-guidance scope/decomposition scenarios preserve minimum sufficient
+  requirements and coherent working-iteration or isolated-responsibility
+  subtasks.
 - [ ] Deterministic agent-evaluation framework tests pass, and the gated
   documentation-standard behavioral consumers are run or explicitly reported
   as not run.
@@ -102,7 +106,7 @@ Status: Draft
 6. Run deterministic agent-evaluation tests and inspect the
    documentation-standard behavioral evidence or explicit not-run report.
 7. Verify canonical/bundled task-guidance parity and run affected deterministic
-   evaluation tests.
+   evaluation tests, including scope/decomposition coverage from subtask 069.
 8. Review all migration candidates and record final disposition.
 9. Create the concise deferred migration inventory.
 10. Map acceptance evidence to parent and subtask requirements.
@@ -151,7 +155,7 @@ Status: Draft
 | Navigation and compatibility | Representative canonical pages and old routes resolve in built output. |
 | Contributor workflow | Human inspection confirms the six-step guide is easy to follow, risk-scaled, role-clear, and keeps prompt examples separate from standing rules. |
 | Agent evaluation | Deterministic framework tests pass; every `DOCGEN-*` and `DOCREP-*` requirement maps to a gated behavioral consumer; exact artifacts are reviewed or the provider-dependent suite is explicitly reported as not run. |
-| Task guidance | Canonical/bundled parity check passes; specification/task semantics and concise-prompt evaluation cases pass deterministic checks. |
+| Task guidance | Canonical/bundled parity check passes; specification/task semantics, concise-prompt cases, minimum requirement counts, and coherent subtask-decomposition evaluations pass their required checks. |
 | Migration completeness | Every parent migration candidate has relocate/retain/defer outcome with owner and verification boundary. |
 | Deferred work quality | Inventory is concise, contains no hidden requirements, and gives a clear future trigger without filler pages. |
 | Requirements evidence | Main and subtask checklists cite test/build/inspection/human evidence accurately. |
