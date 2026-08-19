@@ -13,6 +13,7 @@ Prepare and, if approved, submit the app for external TestFlight testing with re
 
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
 Depends On: tasks/20260614-ios-testflight-github-fastlane/090-first-testflight-dry-run.md
+Depends On: tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md
 
 ## Notes
 

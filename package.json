@@ -73,6 +73,7 @@
     "docs:serve": "mkdocs serve",
     "docs:build": "mkdocs build",
     "docs:examples": "python scripts/generate_examples_md.py",
+    "roadmap:update": "python roadmaps/generate.py release && python roadmaps/sync.py push release --write",
 
     "install:core": "python -m pip install -e \"core/python[dev]\"",
     "install:app": "python -m pip install -e application/python",
