@@ -11,7 +11,7 @@ The specification owns shared behavior, not one native scroll implementation.
 Mobile may retain its inverted React Native list and desktop may retain its
 macOS scroll coordinator as long as both conform to the portable behavior.
 
-Artifacts:
+Specification documents:
 
 - [Product behavior](product-spec.md)
 - [Portable frontend behavior](frontend-behavior.md)

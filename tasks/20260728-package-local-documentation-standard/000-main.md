@@ -100,13 +100,13 @@ task and the subtasks:
 | Workstream | Requirement IDs |
 |---|---|
 | Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
-| Generic reusable standards | `DOCGEN-001`–`DOCGEN-005` |
-| Crystal Lattice repository policy and package profiles | `DOCREP-001`–`DOCREP-005` |
+| Generic reusable standards | `DOCGEN-001`–`DOCGEN-010` |
+| Crystal Lattice repository policy and package profiles | `DOCREP-001`–`DOCREP-007` |
 | Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-018` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
 | Contributor workflow, task guidance, and maintainer-owned evaluation | `DOCFLOW-001`–`DOCFLOW-004` |
-| Build, links, evidence, and final verification | `DOCVAL-001`–`DOCVAL-005` |
+| Build, links, evidence, and final verification | `DOCVAL-001`–`DOCVAL-009` |
 
 ## Scope
 
@@ -288,7 +288,7 @@ merely because it contains documentation.
 
 ## Documentation roles
 
-| Artifact | Audience | Purpose |
+| Document or record | Audience | Purpose |
 |---|---|---|
 | `README.md` | First-time package visitor | Shortest useful path: purpose, installation, basic use/build/test, and pointers |
 | `AGENTS.md` | Agents and contributors | Development constraints, ownership boundaries, important files, verification commands, and documentation pointers |
@@ -402,7 +402,7 @@ development.
   specification and requirement changes.
 - A task links to relevant requirement identifiers.
 - Requirements link to the implementing task and final delivery reference.
-- Implementation steps are not copied into both artifacts.
+- Implementation steps are not copied into both documents.
 
 ### Tests against specifications
 
@@ -748,7 +748,7 @@ The work is organized standards-first:
 5. Subtask 060 updates navigation, compatibility paths, inbound links, and CI
    triggers after migration destinations are known.
 6. Subtask 065 creates the concise contributor workflow after the terminology
-   and artifact roles from 010 are established. It can proceed in parallel with
+   and document roles from 010 are established. It can proceed in parallel with
    most migration work.
 7. Subtask 068 aligns and synchronizes `TASKS-v7` after the documentation
    standard and contributor workflow are defined. It may adopt the committed
@@ -827,7 +827,7 @@ Required new or updated documentation includes:
 
 | Requirement group | Acceptance evidence |
 |---|---|
-| Canonical documentation structure and profiles | Root development documentation describes each artifact, package profile, ownership rule, and incremental adoption rule; initial package entry points conform without filler. |
+| Canonical documentation structure and profiles | Root development documentation describes each document role, package profile, ownership rule, and incremental adoption rule; initial package entry points conform without filler. |
 | Agent routing and update behavior | Root `AGENTS.md` points to the full standard and clearly distinguishes README, user docs, development docs, specifications, root cross-package docs, and generated site output. |
 | Specification and requirement conventions | Generic standard and repository policy define target product/technical specifications, live requirements, stable IDs, evidence fields, task-owned approval, current-doc behavior, package refinements, and proportional use. |
 | Agent-evaluation framework | Deterministic package tests verify the minimal program/environment/run API, complete environment substitution, Crystal Lattice lower-layer customization, continuation, caching, workspace isolation, canonical/raw artifacts, and failure preservation without required evaluation-specific abstractions. |

@@ -14,7 +14,7 @@ The goal is to keep documentation:
   - Avoid headings like “where did they go?”, “tests-first (per review)”, “as requested”, etc.
 - Keep titles and section headers natural and user-facing.
 - If something changed compared to earlier docs, explain it as a normal design choice,
-  not as an artifact of a prior conversation.
+  not merely because it appeared in a prior conversation.
 
 ## 2) Prefer runtime-accurate claims with code pointers
 

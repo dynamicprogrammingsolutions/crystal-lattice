@@ -27,7 +27,8 @@ harnesses.
 ## Developer Reference
 
 - [Reusable documentation standard](development/standards/documentation.md):
-  package-neutral documentation ownership, artifact, and discoverability rules.
+  package-neutral documentation ownership, document roles, and discoverability
+  rules.
 - [Reusable specification standard](development/standards/specifications.md):
   target specifications, live requirements, work tracking, and evidence.
 - [Crystal Lattice repository policy](development/repository/index.md): local

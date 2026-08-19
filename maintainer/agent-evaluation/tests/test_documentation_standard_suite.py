@@ -57,6 +57,56 @@ def test_baseline_guidance_is_pinned_and_distinct() -> None:
     assert "Preserve artifact and audience boundaries" not in agents
 
 
+def test_documentation_guidance_uses_concrete_terminology() -> None:
+    paths = (
+        "AGENTS.md",
+        "docs/index.md",
+        "docs/development/standards/index.md",
+        "docs/development/standards/documentation.md",
+        "docs/development/standards/specifications.md",
+        "docs/development/repository/index.md",
+        "docs/development/repository/documentation.md",
+        "docs/development/repository/specifications.md",
+        "maintainer/specifications/documentation-and-specification-standard/index.md",
+        "maintainer/specifications/documentation-and-specification-standard/product-spec.md",
+        "maintainer/specifications/documentation-and-specification-standard/technical-spec.md",
+        "maintainer/specifications/documentation-and-specification-standard/requirements.md",
+    )
+    prohibited_phrases = (
+        "artifact audience",
+        "artifact boundary",
+        "artifact mapping",
+        "artifact role",
+        "artifact set",
+        "artifact tree",
+        "authored artifact",
+        "destination artifact",
+        "documentation artifact",
+        "expected artifact",
+        "output artifact",
+        "proportional artifact",
+        "source artifact",
+        "specification artifact",
+        "work-tracking artifact",
+    )
+
+    for path in paths:
+        text = REPOSITORY_ROOT.joinpath(path).read_text().lower()
+        matches = tuple(phrase for phrase in prohibited_phrases if phrase in text)
+        assert not matches, f"{path}: generic umbrella terminology {matches!r}"
+
+    index_paths = (
+        "docs/development/specifications/chat-transcript-navigation/index.md",
+        "plugins/openai_responses/docs/development/specifications/native-compaction/index.md",
+        "plugins/kimi-tools/docs/development/specifications/kimi-compaction-parity/index.md",
+        "maintainer/specifications/documentation-and-specification-standard/index.md",
+        "maintainer/specifications/agent-evaluation-framework/index.md",
+    )
+    for path in index_paths:
+        lines = REPOSITORY_ROOT.joinpath(path).read_text().splitlines()
+        assert "Artifacts:" not in lines, path
+
+
 def test_explicit_guidance_source_participates_in_workspace_fingerprint(
     tmp_path: Path,
 ) -> None:

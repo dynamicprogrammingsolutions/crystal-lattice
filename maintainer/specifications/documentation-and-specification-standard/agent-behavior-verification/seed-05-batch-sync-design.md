@@ -31,10 +31,10 @@ synchronization specification or active authorizing task exists.
 > `packages/persistence-contract/docs/development/specifications/persistence/index.md`.
 > Report current behavior, existing persisted-state and compatibility
 > constraints, and the missing offline behavior. Do not modify files and do
-> not propose a specification, owner, or artifact set.
+> not propose a specification, owner, or file set.
 
 The seed performs the expensive contract search but leaves specification
-justification, ownership, artifact shape, and approval behavior to child
+justification, ownership, file layout, and approval behavior to child
 branches.
 
 ## Seed assertions
@@ -43,7 +43,7 @@ branches.
 2. Current batch behavior and related contracts are identified.
 3. Existing persistence/compatibility constraints are reported accurately.
 4. Missing offline behavior is described as a factual gap.
-5. No specification owner, location, artifact set, or approval recommendation
+5. No specification owner, location, file set, or approval recommendation
    is proposed.
 6. Candidate guidance is absent and snapshot/cache provenance is complete.
 

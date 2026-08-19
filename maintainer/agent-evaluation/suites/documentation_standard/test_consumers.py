@@ -699,8 +699,17 @@ def test_06_substantial_specification_approval(
         ),
         AssertionFinding(
             "proposal is concrete",
-            all(term in response for term in ("owner", "scope", "artifact")),
-            "expected owner, scope, and artifacts",
+            all(term in response for term in ("owner", "scope"))
+            and _contains_any(
+                response,
+                (
+                    "file",
+                    "document",
+                    "specification",
+                    "requirements",
+                ),
+            ),
+            "expected owner, scope, and proposed specification files",
         ),
         AssertionFinding(
             "overlap considered",
@@ -1742,7 +1751,9 @@ def test_19_apply_versus_maintain_boundary(
                 response,
                 (
                     "standards-maintenance",
-                    "maintenance artifacts",
+                    "maintenance files",
+                    "maintenance material",
+                    "maintenance specifications",
                     "maintainer",
                     "development documentation",
                     "contributor",
@@ -1918,7 +1929,12 @@ def test_20_routed_guidance_reading(
 
 
 @pytest.mark.extended
-@pytest.mark.requirements("DOCGEN-008", "DOCGEN-009", "DOCVAL-009")
+@pytest.mark.requirements(
+    "DOCGEN-008",
+    "DOCGEN-009",
+    "DOCGEN-010",
+    "DOCVAL-009",
+)
 def test_21_explicit_specification_layout_override(
     harness: DocumentationEvaluationHarness,
 ) -> None:
@@ -1977,6 +1993,26 @@ def test_21_explicit_specification_layout_override(
             "not started" in rendered
             and "unverified" in rendered
             and "pending" in rendered,
+            rendered,
+        ),
+        AssertionFinding(
+            "concrete specification terminology",
+            not re.search(
+                r"(?mi)^#+\s+(?:specification\s+)?artifacts?\s*:?\s*$",
+                rendered,
+            )
+            and not any(
+                phrase in rendered
+                for phrase in (
+                    "artifact role",
+                    "artifact set",
+                    "artifact tree",
+                    "documentation artifact",
+                    "output artifact",
+                    "specification artifact",
+                    "work-tracking artifact",
+                )
+            ),
             rendered,
         ),
         AssertionFinding(

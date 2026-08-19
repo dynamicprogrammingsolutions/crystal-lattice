@@ -30,7 +30,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 [Proportional agent routing](../technical-spec.md#L491-L501):
 
 > Before creating, moving, materially restructuring, or deciding the audience,
-> placement, or artifact set of documentation or specifications, read the
+> placement, or required file set of documentation or specifications, read the
 > repository-policy and generic-standard indexes and the directly relevant
 > pages they route to in full.
 
@@ -45,7 +45,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 [Root routing wording](../../../../AGENTS.md#L170-L184):
 
 > Before creating, moving, materially restructuring, or deciding the audience,
-> placement, or artifact set of documentation or specifications, read these
+> placement, or required file set of documentation or specifications, read these
 > indexes and the directly relevant pages they route to in full.
 
 The pinned baseline retains the former “Apply the rules through” wording. The
@@ -134,7 +134,7 @@ mentioning a path or reading a small excerpt does not satisfy the assertion.
 
 Run the exact prompt, fixture, assertions, and model profile first against the
 pinned pre-change AGENTS wording. The candidate is credited only after at least
-one representative baseline artifact omits a required read or edits before
+one representative baseline result omits a required read or edits before
 completing the routing chain.
 
 ## Semantic assessment

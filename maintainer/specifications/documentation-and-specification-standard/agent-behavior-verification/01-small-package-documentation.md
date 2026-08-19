@@ -11,7 +11,7 @@ meta-specification, and authored guidance remain authoritative.
 
 [DOCGEN-001](../requirements.md#L19-L21):
 
-> A package-neutral documentation standard defines profiles, artifact roles,
+> A package-neutral documentation standard defines profiles, document roles,
 > ownership, source-of-truth, incremental adoption, and generated-output
 > boundaries without Crystal Lattice-specific paths or package names.
 
@@ -20,7 +20,7 @@ meta-specification, and authored guidance remain authoritative.
 > New guidance-clarity scenarios run first against the exact pinned pre-change
 > guidance using the same seed, prompt, fixture, assertions, and model profile.
 
-This test exercises the profile, artifact-role, ownership, source-of-truth, and
+This test exercises the profile, document-role, ownership, source-of-truth, and
 incremental-adoption portions. Generated-output behavior is exercised
 separately by
 [Generated-output correction](02-generated-output-correction.md).
@@ -48,7 +48,7 @@ page.
 
 [Technical generic boundary](../technical-spec.md#L47-L79):
 
-> - documentation profiles and artifact roles;
+> - documentation profiles and document roles;
 > - package-local ownership;
 > - anti-duplication and discoverability;
 
@@ -84,7 +84,7 @@ page.
 > parent. Add a documentation index and quickstart when the package entry point
 > can no longer provide a clear first-use path.
 
-[Artifact roles](../../../../docs/development/standards/documentation.md#L112-L126):
+[Documentation roles](../../../../docs/development/standards/documentation.md):
 
 > | Package entry point | Purpose, installation, first use/build/test, and
 > links |

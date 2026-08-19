@@ -1,6 +1,7 @@
-# Test 21: explicit specification layout override
+# Test 21: explicit specification layout and terminology
 
-Requirement coverage: `DOCGEN-008`, `DOCGEN-009`, `DOCVAL-009`
+Requirement coverage: `DOCGEN-008`, `DOCGEN-009`, `DOCGEN-010`,
+`DOCVAL-009`
 
 ## Normative traceability
 
@@ -8,7 +9,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 ### Requirements
 
-[DOCGEN-008 and DOCGEN-009](../requirements.md#L86-L87):
+[DOCGEN-008, DOCGEN-009, and DOCGEN-010](../requirements.md):
 
 > Agents make obvious package-local placement decisions without unnecessary
 > confirmation or opaque ownership jargon.
@@ -16,6 +17,10 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 > Generic documentation and specification layouts are proportional recommended
 > defaults. An explicit approved alternative is honored when it preserves
 > required content and repository boundaries.
+
+> Documentation and specification guidance uses concrete nouns for documents,
+> pages, files, specifications, requirements, work items, tests, source code,
+> and generated output rather than using “artifact” as an umbrella label.
 
 [DOCVAL-009](../requirements.md#L89-L89):
 
@@ -35,18 +40,37 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 [Recommended layouts and explicit overrides](../technical-spec.md#L472-L489):
 
 > Documentation and specification trees shown by the standards are recommended
-> defaults. They communicate common artifact roles without creating a mandatory
+> defaults. They communicate common document roles without creating a mandatory
 > schema.
 
 > A safe override does not require duplicate confirmation.
 
 ### Authored guidance under test
 
-[Generic layout override](../../../../docs/development/standards/specifications.md#L263-L268):
+[Terminology in authored content](../../../../docs/development/standards/documentation.md#terminology-in-authored-content):
 
-> The illustrated artifact tree is a recommended default, not a mandatory
+> Name the concrete item being discussed: document, page, file, specification,
+> requirement, work item, task, source code, test, generated output, or
+> evaluation result.
+
+> Do not use “artifact” as an umbrella label for documentation, code,
+> specifications, requirements, tasks, or tests.
+
+[Terminology in specification files](../../../../docs/development/standards/specifications.md#terminology-in-specification-files):
+
+> Name each source or record directly: specification, requirements, work item,
+> decision record, current documentation, source code, or test.
+
+> Specification indexes should label linked files by their purpose—for
+> example, “Specification documents”—rather than using a generic umbrella
+> heading.
+
+[Generic layout override](../../../../docs/development/standards/specifications.md#layout-defaults-and-explicit-requests):
+
+> The illustrated file layout is a recommended default, not a mandatory
 > schema. Honor an explicit approved alternative when required content,
-> traceability, discoverability, and artifact boundaries remain intact.
+> traceability, discoverability, and audience, ownership, and source-of-truth
+> boundaries remain intact.
 
 [Repository layout mapping](../../../../docs/development/repository/specifications.md#L79-L101):
 
@@ -101,7 +125,7 @@ The agent should create a proportional package-local specification under:
 packages/batch-sdk/docs/development/specifications/offline-sync/
 ```
 
-The artifact set should include:
+The specification file set should include:
 
 ```text
 index.md
@@ -141,6 +165,9 @@ change.
 10. The response does not use “honest owner” or “honest normative owner,”
     request duplicate approval, refuse the layout, or claim that a directory is
     mandatory.
+11. The specification index and related files use concrete names such as
+    specification documents, files, requirements, or decisions instead of an
+    `Artifacts:` heading or other generic umbrella wording.
 
 ## Baseline-first comparison
 

@@ -15,7 +15,7 @@ normalized fixtures in this subtree were produced through AI-assisted
 observation and normalization of Claude Code behavior exposed through publicly
 visible interfaces. The investigation harnesses run controlled cases, observe
 the resulting externally visible API traffic and output, remove volatile or
-private data, and retain implementation-relevant normalized artifacts.
+private data, and retain implementation-relevant normalized records.
 
 These normalized fixtures are generated Crystal Lattice project materials.
 They are not raw Claude Code logs or a distribution of the Claude Code

@@ -12,7 +12,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > A package-neutral specification standard defines target specifications, live
 > requirements, work-tracked approval, current public/maintainer docs,
-> proportional artifacts, evidence, and simple spec-first commits.
+> proportional specification files, evidence, and simple spec-first commits.
 
 > Generic rules define when a substantial specification is justified and
 > require user approval unless the active task already authorizes its creation.
@@ -28,7 +28,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > Before creating a substantial package specification, the agent proposes its
 > owner, scope, justification, relationship to existing contracts, and expected
-> artifacts.
+> specification files.
 
 ### Authored guidance under test
 
@@ -38,9 +38,9 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 > straightforward outcome, no material design choice, and no durable contract
 > worth preserving.
 
-[Proportional artifacts](../../../../docs/development/standards/specifications.md#L63-L89):
+[Proportional specification files](../../../../docs/development/standards/specifications.md):
 
-> Do not create empty artifacts merely to complete the shape.
+> Do not create empty files merely to complete the shape.
 
 ### Assertion relationship
 

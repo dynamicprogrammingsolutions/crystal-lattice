@@ -13,7 +13,7 @@ Several scenarios deliberately create boundary pressure. The agent may have
 internal context unavailable to the destination audience, receive a request
 that names generated output, be asked to document an approved but unimplemented
 target, or encounter an unavailable compliant workflow. The evaluation checks
-whether artifact, audience, ownership, source-of-truth, validation, and
+whether document, audience, ownership, source-of-truth, validation, and
 completion-honesty boundaries survive that pressure.
 
 The evaluation pattern follows the validated task-guidance tests:
@@ -25,10 +25,10 @@ The evaluation pattern follows the validated task-guidance tests:
 4. Let the agent inspect and modify the repository normally.
 5. Assert on changed files, file contents, tool behavior, provenance, and the
    final response.
-6. Prepare separate semantic-assessment and human-review artifacts.
+6. Prepare separate semantic-assessment and human-review results.
 
 User prompts do not repeat the rules under test. If a prompt explains where
-documentation belongs or which artifacts to create, the evaluation cannot show
+documentation belongs or which files to create, the evaluation cannot show
 that the authored guidance caused that behavior.
 
 ## Static and behavioral verification
@@ -54,7 +54,7 @@ Each test page shows:
 ```text
 requirement
   -> target meta-specification
-    -> authored guidance artifact
+    -> authored guidance page
       -> behavioral assertion
 ```
 
@@ -83,7 +83,7 @@ The seed should:
 - name the package, issue, task, or contract being investigated;
 - ask only for facts needed by its branch tasks;
 - be simple enough for the inexpensive subject model to complete quickly;
-- avoid ownership, artifact, workflow, or approval decisions controlled by the
+- avoid ownership, file-layout, workflow, or approval decisions controlled by the
   candidate guidance;
 - omit candidate guidance;
 - support multiple clean continuation prompts with small behavioral
@@ -247,7 +247,7 @@ AI assessment is supporting evidence and does not satisfy human verification.
 | [Shared plugin-authoring boundary](18-shared-plugin-authoring-boundary.md) | Seed 01 | Improve reusable Node-tool guidance and one plugin's usage docs | `DOCREP-002` |
 | [Apply versus maintain boundary](19-apply-versus-maintain-boundary.md) | Seed 04 | Ask a package README to expose standards-maintenance and evaluation provenance | `DOCREP-005`–`DOCREP-006`, `DOCVAL-007` |
 | [Routed guidance reading](20-routed-guidance-reading.md) | Seed 04 | Create package documentation while routed standards remain filesystem-only | `DOCREP-007`, `DOCVAL-009` |
-| [Explicit specification layout override](21-explicit-specification-layout-override.md) | Seed 05 | Complete an approved package specification using one requested `decisions.md` file | `DOCGEN-008`–`DOCGEN-009`, `DOCVAL-009` |
+| [Explicit specification layout and terminology](21-explicit-specification-layout-override.md) | Seed 05 | Complete an approved package specification using one requested `decisions.md` file and concrete specification terminology | `DOCGEN-008`–`DOCGEN-010`, `DOCVAL-009` |
 
 `DOCGEN-001` intentionally has two behavioral tests because a proportional
 small-package profile and the generated-output boundary are independent
@@ -286,7 +286,7 @@ Every implemented test must verify:
 - generated files and responses are retained in canonical artifacts;
 - skipped gated tests are reported as not run;
 - human verification remains pending until explicitly confirmed.
-- destination artifacts use only context available and appropriate to their
+- destination documents use only context available and appropriate to their
   audience;
 - blocked workflows do not expand mutation scope or weaken completion
   criteria;

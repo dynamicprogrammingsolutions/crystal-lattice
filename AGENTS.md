@@ -142,15 +142,20 @@ Documentation is authored next to the package or subsystem that owns it.
   docs, even to label delivered or unimplemented work. Rewrite delivered
   capabilities in product terms and omit phase labels entirely. Commit new
   claims with the code that makes them true.
-- Preserve artifact and audience boundaries. Information available from tasks,
+- Preserve document, audience, and source-of-truth boundaries. Information
+  available from tasks,
   specifications, requirements, commits, AGENTS files, or maintainer workflows
-  does not automatically belong in another artifact; include only information
-  available and appropriate to that artifact's audience, translating current
+  does not automatically belong in another document; include only information
+  available and appropriate to that document's audience, translating current
   user-relevant facts into its vocabulary.
 - Treat the destination audience as a write boundary. If a request would expose
-  internal or unavailable context in an output artifact, leave that artifact
+  internal or unavailable context in an output document, leave that document
   unchanged, report the conflict before editing, and offer an
   audience-compatible translation or location; never invent a link.
+- Use concrete nouns in documentation and guidance. Do not use “artifact” as an
+  umbrella label for documentation, code, specifications, requirements, tasks,
+  or tests. Reserve it for established technical terms such as build, release,
+  test, evaluation, or provider-native artifacts and literal paths or APIs.
 - A blocked compliant workflow does not broaden authority. Do not bypass
   source-of-truth, generated-output, ownership, validation, or scope boundaries
   to produce an apparent completion. Complete safe in-scope work, report the
@@ -168,7 +173,7 @@ Documentation is authored next to the package or subsystem that owns it.
   gaps for later migration.
 
 Before creating, moving, materially restructuring, or deciding the audience,
-placement, or artifact set of documentation or specifications, read these
+placement, or required file set of documentation or specifications, read these
 indexes and the directly relevant pages they route to in full:
 
 - `docs/development/repository/index.md`
@@ -186,7 +191,7 @@ validation—not merely applying them—also read in full:
 **Auxiliary directories**
 - `evaluations/`: shared evaluation framework and benchmark suites.
 - `tasks/`: task handoff files used for planning and delegated follow-up work.
-- `plan/` and `plans/`: planning notes and older work artifacts.
+- `plan/` and `plans/`: planning notes and older work records.
 - `artifacts/`, `build/`, `dist/`, `tmp/`: generated outputs, staging areas, and local scratch space.
 - `test_dir/`: ad hoc local scratch/test workspace.
 

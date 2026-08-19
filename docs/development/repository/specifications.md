@@ -41,8 +41,8 @@ The generic ownership rules apply to every package.
 
 Before creating a substantial specification, an agent presents the proposed
 owning package or shared scope, behavior scope, justification, relationship to
-existing contracts, and expected artifacts. User approval is required unless
-the active approved task already authorizes creation.
+existing contracts, and expected specification files. User approval is
+required unless the active approved task already authorizes creation.
 
 A direct creation request is not separate approval of an owning-scope,
 behavior-scope, and overlap proposal that has not yet been presented.
@@ -55,7 +55,7 @@ contradict the broader target. Approved exceptions are linked from both scopes.
 
 Crystal Lattice uses:
 
-| Artifact | Repository implementation |
+| Source | Repository implementation |
 |---|---|
 | Specification | Package, root cross-package, or maintainer specification |
 | Requirements | `requirements.md` with stable IDs and live state |
@@ -76,7 +76,7 @@ approval, or temporary-progress context. When a current limitation from a
 specification matters to users, translate it into package-user vocabulary and
 omit target-only plans and internal identifiers.
 
-## Artifact set
+## Specification file set
 
 A substantial specification normally uses:
 

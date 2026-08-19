@@ -13,7 +13,7 @@ Specification:
 `maintainer/specifications/agent-evaluation-framework/index.md`
 
 Requirement IDs:
-`AEVAL-001`–`AEVAL-021`, `DOCGEN-001`–`DOCGEN-009`,
+`AEVAL-001`–`AEVAL-021`, `DOCGEN-001`–`DOCGEN-010`,
 `DOCREP-001`–`DOCREP-007`, `DOCVAL-005`–`DOCVAL-009`
 
 # Programmatic Agent Evaluation Framework
@@ -65,7 +65,7 @@ behavioral consumers.
   proposes any seed/test cuts, replacements, or additions, and no such suite
   change is applied without user approval.
 - [x] Documentation-standard consumers verify audience/context boundaries for
-  every artifact role, including translation from internal development context
+  every document role, including translation from internal development context
   into self-contained consumer vocabulary.
 - [x] Documentation-standard consumers verify that blocked compliant workflows
   do not broaden mutation scope, ownership, source-of-truth, validation, or
@@ -853,6 +853,23 @@ presentation mechanism.
   regression evidence: baseline skipped every routed standards page and leaked
   an internal target, while GLM and GPT candidates followed the routed-reading
   and audience boundaries. A full GPT cross-product was intentionally not run.
+- August 19, 2026: The approved 010 terminology follow-up adds `DOCGEN-010`.
+  Test 21 now also rejects `Artifacts:` headings and generic umbrella phrases
+  in a generated specification, and the deterministic suite contains a focused
+  governed-guidance/index check. At the user's direction, neither deterministic
+  nor real-model 015 tests were run. `DOCGEN-010` and the expanded
+  `DOCVAL-005` coverage remain unverified and non-blocking pending the focused
+  baseline/candidate rerun described in the user handoff.
+- Read-only review of the preserved August 18 Test 21 results confirms the
+  targeted gap: the GLM baseline, two GLM candidates, and two GPT candidates
+  all used `## Artifacts` or `## Specification artifacts` in the generated
+  index. Those prior runs provide baseline evidence but do not verify the
+  August 19 wording.
+- August 19, 2026: The user approved moving the terminology rule from general
+  principles into authored-content guidance and a focused specification-file
+  application section. Test 21 traceability now points to those sections. The
+  terminology rerun procedure remains a one-off user handoff and is not stored
+  in the persistent suite guide.
 - August 13, 2026: The first post-refinement GPT rerun fixed the substantive
   behavior: no mutation, explicit audience write boundary, internal material
   excluded, unavailable link not invented, and honest completion. One
@@ -1423,12 +1440,12 @@ confirmation.
 - Approved: representative runs are followed by a separate evidence-backed
   suite-calibration review; proposed seed/test changes require user approval
   before implementation or specification updates.
-- Approved: every documentation artifact has an audience and context
-  boundary; access to tasks/specifications/requirements does not transfer that
-  context to another artifact's readers.
+- Approved: every document has an audience and context boundary; access to
+  tasks/specifications/requirements does not transfer that context to another
+  document's readers.
 - Approved: Crystal Lattice repository policy defines normal,
   pointer-only, evidence-only, and prohibited reference directions for exact
-  artifact paths.
+  document and record paths.
 - Approved: a blocked compliant workflow does not broaden mutation
   authority; safe partial progress, blocker reporting, remaining work, and
   completion honesty are required.
@@ -1589,6 +1606,13 @@ confirmation.
   - [x] Rerun deterministic verification, the complete 21-test GLM matrix, and
     focused GPT sentinels.
   - [x] Present final canonical evidence and guidance findings for human review.
+- [ ] Verify the August 19 concrete-terminology follow-up.
+  - [x] Map `DOCGEN-010` to Test 21 and add the specification terminology
+    assertion.
+  - [x] Add the deterministic governed-guidance and specification-index check.
+  - [ ] Run the focused deterministic check.
+  - [ ] Run Test 21 baseline-first against GLM candidate guidance.
+  - [ ] Run a focused GPT Test 21 sentinel if cross-model evidence is desired.
 
 ### Requirement verification
 
@@ -1601,12 +1625,12 @@ confirmation.
 | Artifacts and safety (`AEVAL-012`–`AEVAL-013`) | Success/failure fixtures produce concise canonical output and separate raw evidence; tests confirm credential/auth files are not copied and custom projections/presentations use only selected inputs. |
 | Deterministic quality (`AEVAL-014`) | Normal package tests pass kernel, alternate-environment, Crystal Lattice customization, continuation, cache, workspace, artifact, and failure coverage. |
 | Pytest operation (`AEVAL-015`) | Marker registration and default configuration exclude real-model calls; explicitly gated invocation collects intended tests; disabled hosted cases are reported as not run. |
-| Documentation-standard consumers (`AEVAL-016`, `DOCVAL-005`) | Requirement-to-test mapping covers every `DOCGEN-*` and `DOCREP-*` ID; gated runs use narrow cached task-specific bases and clean continuations and preserve exact canonical artifacts. |
+| Documentation-standard consumers (`AEVAL-016`, `DOCVAL-005`) | Requirement-to-test mapping covers every `DOCGEN-*` and `DOCREP-*` ID; gated runs use narrow cached task-specific bases and clean continuations and preserve exact canonical artifacts. The new `DOCGEN-010` Test 21 assertion is authored but intentionally not rerun. |
 | Provenance and interpretation (`AEVAL-017`) | Artifacts identify environment/configuration, instructions, prompts, model, seed, requests, tools, projections, evaluations, presentations, errors, and outputs; AI scores remain supporting evidence and human verification remains pending review. |
 | Maintainer documentation (`AEVAL-018`) | README and complete examples let a new author run a simple Crystal Lattice assertion, customize drivers/snapshots/evidence/scoring/presentation, and substitute an alternate environment without reading internals. |
 | Post-run calibration (`AEVAL-019`, `DOCVAL-006`) | Representative-run evidence supports a keep/remove/replace/add proposal covering redundancy, cost, variance, diagnostic value, and missing clarity signals; suite changes remain pending explicit user approval. |
 | Calibrated execution (`AEVAL-020`) | Pytest selection distinguishes routine and extended groups; the approved final target runs all twenty-one scenarios on at least one supported model and focused GPT sentinels without requiring an unconditional full model cross-product. Current executable coverage remains nineteen scenarios until the August 18 extension is implemented. |
-| Routed reading, clear placement, and safe layout overrides (`DOCGEN-008`–`DOCGEN-009`, `DOCREP-007`, `DOCVAL-009`) | Approved scenario contracts define Test 20 ordered routed-page reads and Test 21's single `decisions.md` override; Tests 04, 05, and 09 gain communication/confirmation assertions. Authored guidance and executable evidence remain pending. |
+| Routed reading, clear placement, safe layout overrides, and concrete terminology (`DOCGEN-008`–`DOCGEN-010`, `DOCREP-007`, `DOCVAL-009`) | Test 20 verifies ordered routed-page reads. Test 21 verifies the single `decisions.md` override and now rejects generic umbrella terminology in the generated specification; the new terminology assertion remains pending rerun. |
 | Audience and reference boundaries (`DOCGEN-006`, `DOCREP-006`) | Static guidance maps generic roles and Crystal Lattice paths; revised Tests 05 and 13 plus Test 15 verify consumer docs stand alone, exclude internal context, and translate only current user-relevant facts. |
 | Blocked workflow boundaries (`DOCGEN-007`, `DOCVAL-007`) | Revised Test 02 and Test 16 verify authored-source ownership, unavailable/failing generator behavior, safe partial completion, blocker reporting, remaining action, and no direct generated-output fallback or false completion claim. |
 | Baseline-first guidance comparison (`AEVAL-021`, `DOCVAL-008`) | The harness selects a pinned committed baseline and candidate variants without changing seed cache identity; paired runs preserve the same prompt, fixture, assertions, model profile, guidance hashes, and artifacts, and candidate wording is credited only after the baseline exhibits the targeted behavior. |

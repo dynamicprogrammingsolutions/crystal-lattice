@@ -17,14 +17,14 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 [DOCGEN-006](../requirements.md#L26-L26):
 
-> An artifact depends only on information available and appropriate to that
+> A document depends only on information available and appropriate to that
 > audience; cross-audience information is translated into the destination
 > role's vocabulary.
 
 [DOCREP-006](../requirements.md#L31-L38):
 
 > Repository policy maps generic audience roles to exact Crystal Lattice
-> artifacts and defines normal, pointer-only, evidence-only, and prohibited
+> documents and records and defines normal, pointer-only, evidence-only, and prohibited
 > reference directions.
 
 [DOCVAL-008](../requirements.md#L80-L80):
@@ -36,7 +36,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 [Product goals](../product-spec.md#L73-L90):
 
-> Make every documentation artifact discoverable from an appropriate entry
+> Make every documentation page discoverable from an appropriate entry
 > point.
 
 > Keep normative contracts, consumer guidance, implementation guidance, and
@@ -47,7 +47,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > Consumer documentation normally depends only on other consumer documentation
 > and public reference.
 
-> Output artifacts do not inherit task, requirement, specification-progress, or
+> Output documents do not inherit task, requirement, specification-progress, or
 > maintainer context merely because the agent can read it.
 
 [Technical authority and duplication](../technical-spec.md#L217-L238):
@@ -100,7 +100,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > from the nearest repository, package, or shared-domain entry point.
 
 > Every multi-page documentation scope should have a short index. Every
-> specification index should link all of its authored artifacts.
+> specification index should link all of its authored pages and files.
 
 [Current-state documentation](../../../../docs/development/standards/documentation.md#L215-L229):
 
@@ -140,7 +140,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 > Information available from tasks, specifications, requirements, commits,
 > AGENTS files, or maintainer workflows does not automatically belong in
-> another artifact.
+> another document.
 
 ### Assertion relationship
 

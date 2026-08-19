@@ -34,9 +34,9 @@ user when the page teaches the supported public contract.
 
 ## Audience and context boundaries
 
-Every artifact has an intended audience and role. A document may assume only
-concepts introduced in that document or available through documentation
-intended for the same audience.
+Every document or maintained file has an intended audience and role. A
+document may assume only concepts introduced in that document or available
+through documentation intended for the same audience.
 
 Broader repository context may guide the author, but does not become reader
 context. When information crosses an audience boundary, include only what the
@@ -54,8 +54,8 @@ or location.
   specifications may link related targets and affected current docs;
   requirements may link implementation and evidence.
 - Agent guidance, tasks, and maintainer material may route broadly within their
-  scope, but their context does not flow into output artifacts. Generated
-  output depends on its maintained source or generator.
+  scope, but their context does not flow into destination documents or files.
+  Generated output depends on its maintained source or generator.
 
 A contract intended for package users may be public reference even when it is
 called a specification. A target specification containing unimplemented
@@ -116,7 +116,7 @@ maintain the documentation or agent workflow may use a non-public maintainer
 domain. This material should not be required reading for ordinary users of the
 standards.
 
-## Artifact roles
+## Documentation roles
 
 | Concept | Responsibility |
 |---|---|
@@ -131,6 +131,18 @@ standards.
 
 Keep package entry points concise. Move detail into focused pages once the
 entry point becomes difficult to scan.
+
+## Terminology in authored content
+
+Name the concrete item being discussed: document, page, file, specification,
+requirement, work item, task, source code, test, generated output, or
+evaluation result.
+
+Do not use “artifact” as an umbrella label for documentation, code,
+specifications, requirements, tasks, or tests. Reserve it for established
+technical terms such as build, release, test, evaluation, or provider-native
+artifacts and literal paths or APIs such as `artifacts/` or
+`upload-artifact`.
 
 ## Choose the documentation scope
 
@@ -208,7 +220,7 @@ shared-domain index
 ```
 
 Every multi-page documentation scope should have a short index. Every
-specification index should link all of its authored artifacts. A package
+specification index should link all of its authored pages and files. A package
 development index should be linked from a package entry point rather than being
 discoverable only from a task or search.
 

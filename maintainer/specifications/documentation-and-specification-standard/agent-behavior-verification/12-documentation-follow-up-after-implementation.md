@@ -12,7 +12,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > A package-neutral specification standard defines target specifications, live
 > requirements, work-tracked approval, current public/maintainer docs,
-> proportional artifacts, evidence, and simple spec-first commits.
+> proportional specification files, evidence, and simple spec-first commits.
 
 > Generic rules define one authoritative source, controlled summaries,
 > current-versus-target separation, complete indexes, and two-link

@@ -13,13 +13,13 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > A package-neutral specification standard defines target specifications, live
 > requirements, work-tracked approval, current public/maintainer docs,
-> proportional artifacts, evidence, and simple spec-first commits.
+> proportional specification files, evidence, and simple spec-first commits.
 
 [DOCGEN-006 and DOCREP-006](../requirements.md#L26-L38):
 
-> An artifact depends only on information available and appropriate to that
+> A document depends only on information available and appropriate to that
 > audience; repository policy maps that boundary to exact Crystal Lattice
-> artifacts and reference directions.
+> documents, records, and reference directions.
 
 [DOCVAL-007–DOCVAL-008](../requirements.md#L69-L80):
 

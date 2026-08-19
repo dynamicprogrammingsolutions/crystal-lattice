@@ -27,7 +27,7 @@ native-history rebuilding, or the platform's `disable_all_tools` tool-gating
 contract. It applies those package and framework capabilities to Kimi-style
 compaction.
 
-Artifacts:
+Specification documents:
 
 - [Product specification](product-spec.md)
 - [Technical specification](technical-spec.md)
