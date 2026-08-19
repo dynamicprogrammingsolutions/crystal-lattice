@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import html
 import io
 import os
 import re
@@ -548,7 +549,7 @@ def _roadmap_title(stem: str) -> str:
 
 
 def _id_reference(row: Row, output_path: Path, repo_root: Path) -> str:
-    label = f"`{row.internal_id}`"
+    label = row.internal_id
     if row.link_target is None:
         return label
     relative = os.path.relpath(
@@ -564,16 +565,61 @@ def _dependency_reference(
     *,
     inferred: bool,
 ) -> str:
+    blocking = dependency.status != "done"
     if dependency.link_target is not None:
         relative = os.path.relpath(
             repo_root / dependency.link_target, output_path.parent
         )
-        rendered = (
-            f"[`{dependency.internal_id}`]({Path(relative).as_posix()})"
-        )
+        href = Path(relative).as_posix()
+        if blocking:
+            rendered = (
+                '<a style="color:red" href="'
+                + html.escape(href, quote=True)
+                + '">'
+                + html.escape(dependency.internal_id)
+                + "</a>"
+            )
+        else:
+            rendered = f"[{dependency.internal_id}]({href})"
     else:
-        rendered = f"`{dependency.internal_id}`"
+        rendered = (
+            f'<span style="color:red">{html.escape(dependency.internal_id)}</span>'
+            if blocking
+            else dependency.internal_id
+        )
     return rendered + (" *(inferred)*" if inferred else "")
+
+
+def derive_readiness(rows: list[Row]) -> dict[str, tuple[str, tuple[str, ...]]]:
+    by_id = {row.internal_id.casefold(): row for row in rows}
+    derived: dict[str, tuple[str, tuple[str, ...]]] = {}
+    for row in rows:
+        blockers = tuple(
+            dependency
+            for dependency in (
+                *row.declared_dependencies,
+                *row.inferred_dependencies,
+            )
+            if by_id[dependency.casefold()].status != "done"
+        )
+        if row.status == "done":
+            readiness = "done"
+        elif row.status in {"in progress", "review"}:
+            readiness = "active"
+        elif row.status == "pending" and not blockers:
+            readiness = "ready"
+        elif row.status == "pending" and all(
+            derived.get(dependency.casefold(), ("blocked", ()))[0]
+            in {"ready", "active"}
+            for dependency in blockers
+        ):
+            readiness = "queued"
+        elif row.status == "pending":
+            readiness = "blocked"
+        else:
+            readiness = ""
+        derived[row.internal_id.casefold()] = (readiness, blockers)
+    return derived
 
 
 def render_markdown(
@@ -585,7 +631,7 @@ def render_markdown(
     lines = [
         f"# {title}",
         "",
-        f"> Generated from [`{csv_path.name}`]({csv_path.name}). "
+        f"> Generated from [{csv_path.name}]({csv_path.name}). "
         "Do not edit this Markdown directly. "
         "See [Updating roadmaps](docs/updating-roadmaps.md).",
         "",

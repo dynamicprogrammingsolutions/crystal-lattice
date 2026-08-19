@@ -89,9 +89,9 @@ class RoadmapGeneratorTests(unittest.TestCase):
         rendered = output.read_text(encoding="utf-8")
         normalized = csv_path.read_text(encoding="utf-8")
 
-        self.assertIn("[`0804-OS-010`](../tasks/", rendered)
-        self.assertIn("[`CL-368-020`](../tasks/", rendered)
-        self.assertIn("| `WEB-IOS` | Website placeholder |", rendered)
+        self.assertIn("[0804-OS-010](../tasks/", rendered)
+        self.assertIn("[CL-368-020](../tasks/", rendered)
+        self.assertIn("| WEB-IOS | Website placeholder |", rendered)
         self.assertIn("| First task |", rendered)
         self.assertIn("| Second task |", rendered)
         self.assertIn("| `CL-368` |", rendered)
@@ -119,7 +119,7 @@ class RoadmapGeneratorTests(unittest.TestCase):
         output = generate.generate(csv_path, repo_root=self.root)
         rendered = output.read_text(encoding="utf-8")
 
-        self.assertIn("[`0804-OS`](../tasks/", rendered)
+        self.assertIn("[0804-OS](../tasks/", rendered)
         self.assertIn("| First task |", rendered)
         self.assertIn(
             "../tasks/20260804-open-source-public-release/000-main.md",
@@ -227,6 +227,81 @@ class RoadmapGeneratorTests(unittest.TestCase):
         self.assertRegex(rows[0]["internal_id"], r"^WEB-IOS-[A-F0-9]{4}$")
         self.assertRegex(rows[1]["internal_id"], r"^WEB-IOS-[A-F0-9]{4}$")
         self.assertNotEqual(rows[0]["internal_id"], rows[1]["internal_id"])
+
+    def test_readiness_and_blockers_follow_dependency_status(self) -> None:
+        csv_path = self._write_csv(
+            [
+                self._row(status="in progress"),
+                self._row(
+                    task=(
+                        "tasks/20260804-open-source-public-release/"
+                        "020-second.md"
+                    ),
+                    status="pending",
+                    declared_dependencies="0804-OS-010",
+                ),
+                self._row(
+                    task="ready-without-dependencies",
+                    status="pending",
+                ),
+                self._row(
+                    task="waiting-behind-queue",
+                    status="pending",
+                    declared_dependencies="0804-OS-020",
+                ),
+            ]
+        )
+        rows = generate._read_rows(csv_path, self.root)
+
+        readiness = generate.derive_readiness(rows)
+        waiting = next(
+            row for row in rows if row.task == "waiting-behind-queue"
+        )
+
+        self.assertEqual(readiness["0804-os-010"], ("active", ()))
+        self.assertEqual(
+            readiness["0804-os-020"],
+            ("queued", ("0804-OS-010",)),
+        )
+        self.assertEqual(readiness["rea-wit"], ("ready", ()))
+        self.assertEqual(
+            readiness[waiting.internal_id.casefold()],
+            ("blocked", ("0804-OS-020",)),
+        )
+
+    def test_blocking_dependency_link_is_red_and_done_link_is_plain(
+        self,
+    ) -> None:
+        csv_path = self._write_csv(
+            [
+                self._row(status="done"),
+                self._row(
+                    task=(
+                        "tasks/20260804-open-source-public-release/"
+                        "020-second.md"
+                    ),
+                    status="in progress",
+                    declared_dependencies="0804-OS-010",
+                ),
+                self._row(
+                    task="waiting",
+                    status="pending",
+                    declared_dependencies="0804-OS-020",
+                ),
+            ]
+        )
+
+        output = generate.generate(csv_path, repo_root=self.root)
+        rendered = output.read_text(encoding="utf-8")
+
+        self.assertIn("[0804-OS-010](../tasks/", rendered)
+        self.assertIn(
+            '<a style="color:red" href="../tasks/'
+            "20260804-open-source-public-release/020-second.md"
+            '">0804-OS-020</a>',
+            rendered,
+        )
+        self.assertNotIn("[`0804-OS-010`]", rendered)
 
     def test_rejects_done_row_after_non_done_row(self) -> None:
         csv_path = self._write_csv(

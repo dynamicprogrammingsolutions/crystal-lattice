@@ -1,62 +1,22 @@
-# Updating a roadmap
+# Updating a roadmap through CSV
 
-Generated roadmap Markdown files must not be edited directly. Update the
-roadmap through its CSV or synchronized Google Sheet, then regenerate.
+This guide is for agents updating an authored roadmap CSV and regenerating its
+Markdown. Do not edit generated roadmap Markdown directly.
 
-## First-time setup
+Google Sheets synchronization is a separate workflow. See
+[Synchronizing Google Sheets](synchronizing-google-sheets.md). An agent must
+offer the user the sheet update and obtain explicit approval before running a
+command that mutates the sheet.
 
-From the repository root:
+## Edit the source CSV
 
-```bash
-python -m pip install -r roadmaps/requirements.txt
-cp roadmaps/.env.example roadmaps/.env
+For the release roadmap, edit:
+
+```text
+roadmaps/open-source-and-ios-release.csv
 ```
 
-Fill `roadmaps/.env` with:
-
-```dotenv
-GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
-ROADMAP_RELEASE_SPREADSHEET_ID=your-google-spreadsheet-id
-```
-
-The real `.env` is ignored and must not be committed.
-
-## Choose the source of an edit
-
-Before changing anything, inspect synchronization state:
-
-```bash
-python roadmaps/sync.py status release
-```
-
-If the Google Sheet contains the intended edits, preview and apply a pull:
-
-```bash
-python roadmaps/sync.py pull release
-python roadmaps/sync.py pull release --write
-```
-
-If the local CSV is the intended source, edit
-`roadmaps/open-source-and-ios-release.csv`, then normalize and regenerate:
-
-```bash
-python roadmaps/generate.py release
-```
-
-Preview and apply the sheet update:
-
-```bash
-python roadmaps/sync.py push release
-python roadmaps/sync.py push release --write
-```
-
-The root convenience command regenerates and pushes in one step:
-
-```bash
-npm run roadmap:update
-```
-
-## Editing rules
+Important rules:
 
 - `task` is the unique row identity. It may be:
   - a task Markdown path;
@@ -75,25 +35,39 @@ npm run roadmap:update
 - Priority is `must have`, `should have`, or `good to have`.
 - Status is `pending`, `in progress`, `review`, or `done`.
 
-Ordinary generation may rewrite the CSV to normalize task values, IDs, and
-dependency references. Check mode is read-only:
+## Normalize and regenerate
+
+Run:
 
 ```bash
-python roadmaps/generate.py --check release
+python roadmaps/generate.py release
 ```
 
-## Final verification
+Ordinary generation may rewrite the CSV to normalize task values, internal
+IDs, and dependency references. It also regenerates:
 
-After an update:
+```text
+roadmaps/open-source-and-ios-release.md
+```
+
+Review both files after generation.
+
+Blocking dependencies are shown as red links in generated Markdown. A
+dependency is blocking whenever its referenced task does not have status
+`done`.
+
+## Verify the local update
+
+Run:
 
 ```bash
 python roadmaps/generate.py --check release
-python roadmaps/sync.py status release
 python -m unittest discover -s roadmaps/tests -p 'test_*.py'
 ```
 
-The expected final state is:
+Check mode is read-only and fails if either the CSV requires normalization or
+the generated Markdown is stale.
 
-```text
-Local CSV and Google Sheet are synchronized.
-```
+Do not run `npm run roadmap:update` as part of an ordinary CSV edit unless the
+user has explicitly approved updating Google Sheets. That npm command performs
+a remote write.

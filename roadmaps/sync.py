@@ -25,6 +25,7 @@ from generate import (
     NormalizedRoadmap,
     Row,
     RoadmapError,
+    derive_readiness,
     normalize_csv,
     normalize_csv_text,
     render_markdown,
@@ -161,6 +162,7 @@ class GoogleSheetsClient:
     def __init__(self, settings: GoogleSheetsSettings) -> None:
         self.timeout_seconds = settings.timeout_seconds
         self.session = requests.Session()
+        self._sheet_metadata: dict[str, dict[str, Any]] = {}
         try:
             credentials = service_account.Credentials.from_service_account_file(
                 str(settings.credentials_file),
@@ -221,12 +223,6 @@ class GoogleSheetsClient:
             "GET",
             f"{SHEETS_API}/{target.spreadsheet_id}",
             operation="metadata read",
-            params={
-                "fields": (
-                    "spreadsheetId,properties(title),"
-                    "sheets(properties(title))"
-                )
-            },
         )
         if payload.get("spreadsheetId") != target.spreadsheet_id:
             raise RoadmapSyncError(
@@ -246,6 +242,18 @@ class GoogleSheetsClient:
             raise RoadmapSyncError(
                 f"sheet {target.sheet!r} does not exist in spreadsheet"
             )
+        sheets = payload.get("sheets", [])
+        if isinstance(sheets, list):
+            for sheet in sheets:
+                if not isinstance(sheet, dict):
+                    continue
+                properties = sheet.get("properties")
+                if (
+                    isinstance(properties, dict)
+                    and properties.get("title") == target.sheet
+                ):
+                    self._sheet_metadata[target.key] = sheet
+                    break
 
     def get_values(self, target: RoadmapTarget) -> list[list[str]]:
         range_name = quote(_sheet_range(target.sheet, "A:J"), safe="")
@@ -294,6 +302,220 @@ class GoogleSheetsClient:
             operation="trailing-row clear",
             payload={},
         )
+
+    def get_presentation(self, target: RoadmapTarget) -> list[list[str]]:
+        range_name = quote(_sheet_range(target.sheet, "K:L"), safe="")
+        payload = self._request_json(
+            "GET",
+            f"{SHEETS_API}/{target.spreadsheet_id}/values/{range_name}",
+            operation="presentation read",
+            params={
+                "majorDimension": "ROWS",
+                "valueRenderOption": "UNFORMATTED_VALUE",
+            },
+        )
+        values = payload.get("values", [])
+        if not isinstance(values, list):
+            raise RoadmapSyncError(
+                "Google Sheets presentation response is not an array"
+            )
+        matrix: list[list[str]] = []
+        for raw_row in values:
+            if not isinstance(raw_row, list):
+                raise RoadmapSyncError(
+                    "Google Sheets presentation row is not an array"
+                )
+            row = ["" if value is None else str(value) for value in raw_row[:2]]
+            row.extend([""] * (2 - len(row)))
+            matrix.append(row)
+        while matrix and not any(matrix[-1]):
+            matrix.pop()
+        return matrix
+
+    def _conditional_format_requests(
+        self,
+        target: RoadmapTarget,
+    ) -> list[dict[str, Any]]:
+        sheet = self._sheet_metadata.get(target.key)
+        if not isinstance(sheet, dict):
+            raise RoadmapSyncError("spreadsheet metadata is unavailable")
+        properties = sheet.get("properties")
+        if not isinstance(properties, dict):
+            raise RoadmapSyncError("sheet properties are unavailable")
+        sheet_id = properties.get("sheetId")
+        if not isinstance(sheet_id, int):
+            raise RoadmapSyncError("numeric sheet ID is unavailable")
+
+        formulas_and_colors = (
+            ('=$G2="done"', (0.85, 0.92, 0.83)),
+            (
+                '=OR($G2="in progress",$G2="review")',
+                (0.99, 0.90, 0.80),
+            ),
+            (
+                '=$K2="ready"',
+                (0.85, 0.92, 0.97),
+            ),
+            (
+                '=$K2="queued"',
+                (
+                    217 / 255,
+                    210 / 255,
+                    233 / 255,
+                ),
+            ),
+        )
+        owned_formulas = {
+            formula for formula, _color in formulas_and_colors
+        } | {'=OR($G2="pending",$K2="ready")'}
+
+        def is_owned(rule: Any) -> bool:
+            if not isinstance(rule, dict):
+                return False
+            boolean_rule = rule.get("booleanRule")
+            if not isinstance(boolean_rule, dict):
+                return False
+            condition = boolean_rule.get("condition")
+            if not isinstance(condition, dict):
+                return False
+            values = condition.get("values")
+            if not isinstance(values, list) or not values:
+                return False
+            formula = values[0].get("userEnteredValue")
+            if formula not in owned_formulas:
+                return False
+            ranges = rule.get("ranges")
+            if not isinstance(ranges, list):
+                return False
+            return any(
+                isinstance(cell_range, dict)
+                and cell_range.get("sheetId", sheet_id) == sheet_id
+                and cell_range.get("startRowIndex") == 1
+                and cell_range.get("startColumnIndex") == 0
+                and cell_range.get("endColumnIndex") == 12
+                for cell_range in ranges
+            )
+
+        requests_payload: list[dict[str, Any]] = []
+        existing = sheet.get("conditionalFormats", [])
+        if isinstance(existing, list):
+            for index in reversed(range(len(existing))):
+                if is_owned(existing[index]):
+                    requests_payload.append(
+                        {
+                            "deleteConditionalFormatRule": {
+                                "sheetId": sheet_id,
+                                "index": index,
+                            }
+                        }
+                    )
+
+        for formula, (red, green, blue) in reversed(formulas_and_colors):
+            requests_payload.append(
+                {
+                    "addConditionalFormatRule": {
+                        "rule": {
+                            "ranges": [
+                                {
+                                    "sheetId": sheet_id,
+                                    "startRowIndex": 1,
+                                    "startColumnIndex": 0,
+                                    "endColumnIndex": 12,
+                                }
+                            ],
+                            "booleanRule": {
+                                "condition": {
+                                    "type": "CUSTOM_FORMULA",
+                                    "values": [
+                                        {"userEnteredValue": formula}
+                                    ],
+                                },
+                                "format": {
+                                    "backgroundColor": {
+                                        "red": red,
+                                        "green": green,
+                                        "blue": blue,
+                                    }
+                                },
+                            },
+                        },
+                        "index": 0,
+                    }
+                }
+            )
+        return requests_payload
+
+    def update_presentation(
+        self,
+        target: RoadmapTarget,
+        rows: list[Row],
+    ) -> None:
+        readiness = derive_readiness(rows)
+        values = [["readiness", "blocking_dependencies"]]
+        values.extend(
+            [
+                readiness[row.internal_id.casefold()][0],
+                ";".join(readiness[row.internal_id.casefold()][1]),
+            ]
+            for row in rows
+        )
+        range_name = quote(_sheet_range(target.sheet, "K1"), safe="")
+        self._request_json(
+            "PUT",
+            f"{SHEETS_API}/{target.spreadsheet_id}/values/{range_name}",
+            operation="presentation update",
+            params={"valueInputOption": "RAW"},
+            payload={"majorDimension": "ROWS", "values": values},
+        )
+
+        sheet = self._sheet_metadata.get(target.key, {})
+        properties = (
+            sheet.get("properties") if isinstance(sheet, dict) else None
+        )
+        grid = (
+            properties.get("gridProperties")
+            if isinstance(properties, dict)
+            else None
+        )
+        row_count = (
+            grid.get("rowCount")
+            if isinstance(grid, dict)
+            and isinstance(grid.get("rowCount"), int)
+            else len(values)
+        )
+        if row_count > len(values):
+            trailing_range = quote(
+                _sheet_range(
+                    target.sheet,
+                    f"K{len(values) + 1}:L{row_count}",
+                ),
+                safe="",
+            )
+            self._request_json(
+                "POST",
+                (
+                    f"{SHEETS_API}/{target.spreadsheet_id}/values/"
+                    f"{trailing_range}:clear"
+                ),
+                operation="presentation trailing-row clear",
+                payload={},
+            )
+
+        formatting_requests = self._conditional_format_requests(target)
+        if formatting_requests:
+            self._request_json(
+                "POST",
+                f"{SHEETS_API}/{target.spreadsheet_id}:batchUpdate",
+                operation="conditional formatting update",
+                payload={"requests": formatting_requests},
+            )
+
+        read_back = self.get_presentation(target)
+        expected = [[str(cell) for cell in row] for row in values]
+        if read_back != expected:
+            raise RoadmapSyncError(
+                "Google Sheets presentation read-back does not match"
+            )
 
 
 def _local_state(
@@ -402,7 +624,14 @@ def synchronize(
         remote_matches = normalize_matrix(local_matrix) == remote_matrix
         markdown_matches = current_markdown == local_markdown
         if not local.changed and remote_matches and markdown_matches:
-            print("Local CSV and Google Sheet are already synchronized.")
+            if write:
+                sheets.update_presentation(target, local.rows)
+                print(
+                    "Local CSV and Google Sheet are synchronized; "
+                    "presentation refreshed."
+                )
+            else:
+                print("Local CSV and Google Sheet are already synchronized.")
             return
         if local.changed:
             print(
@@ -448,6 +677,7 @@ def synchronize(
             raise RoadmapSyncError(
                 "Google Sheets read-back does not match the local CSV"
             )
+        sheets.update_presentation(target, local.rows)
         print("Local files and Google Sheet normalized; read-back verified.")
         return
 
@@ -473,7 +703,13 @@ def synchronize(
             and not local.changed
             and not remote.changed
         ):
-            print("Local files already match Google Sheets.")
+            if write:
+                sheets.update_presentation(target, remote.rows)
+                print(
+                    "Local files match Google Sheets; presentation refreshed."
+                )
+            else:
+                print("Local files already match Google Sheets.")
             return
         if local.changed:
             print(
@@ -516,6 +752,7 @@ def synchronize(
             raise RoadmapSyncError(
                 "Google Sheets read-back does not match normalized pull data"
             )
+        sheets.update_presentation(target, remote.rows)
         verified = normalize_csv(target.csv_path, repo_root=REPO_ROOT)
         if verified.changed:
             raise RoadmapSyncError("local CSV remains noncanonical after pull")

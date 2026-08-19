@@ -261,7 +261,10 @@ Order, ID, Task, Purpose, Dependencies, External ID, Priority, Status, Notes
 Repeated external IDs are shown as entered and do not affect link uniqueness.
 
 Dependencies render canonical internal IDs and retain the current inferred
-dependency marker.
+dependency marker. Normal dependency links use ordinary Markdown without code
+formatting. A dependency whose referenced task status is not `done` is
+rendered as a red HTML link; a blocking free task is rendered as red inline
+HTML without a link.
 
 ## Google Sheets synchronization
 
@@ -272,6 +275,50 @@ independent of Crystal application and plugin source code.
 Deployment-specific values are resolved from the ignored `roadmaps/.env`.
 The committed `.env.example` documents required names without containing
 credentials or spreadsheet IDs. Exported process values override dotenv values.
+
+### Approval boundary
+
+Read-only status and dry-run push/pull commands do not require mutation
+authority. Before an agent runs `push --write`, `pull --write`, or
+`npm run roadmap:update`, it must summarize the direction and expected changes,
+offer the update, and obtain explicit user approval.
+
+The focused CSV workflow and synchronization workflow are documented
+separately under `roadmaps/docs/`.
+
+### Derived presentation
+
+Columns A–J remain the synchronized authored roadmap table. Synchronization
+owns:
+
+```text
+K readiness
+L blocking_dependencies
+```
+
+Readiness uses:
+
+- `done` for a done task;
+- `active` for `in progress` or `review`;
+- `ready` for a pending task whose dependencies are all done;
+- `queued` for a pending task whose unfinished dependencies are all `ready` or
+  `active`;
+- `blocked` for a pending task with at least one unfinished dependency that is
+  `queued` or `blocked`.
+
+The blocking-dependencies cell lists canonical internal IDs separated by
+semicolons.
+
+Synchronization manages whole-row conditional-formatting rules over A–L:
+
+- `=$G2="done"`: light green;
+- `=$K2="ready"`: light blue;
+- `=$K2="queued"`: light purple;
+- `=OR($G2="in progress",$G2="review")`: light orange.
+
+No roadmap rule formats `blocked` or other values. Existing roadmap-owned rules
+are recognized by exact formula and A–L range before replacement; unrelated
+rules are preserved.
 
 ### Status
 
@@ -303,7 +350,8 @@ With `--write`:
 3. write the normalized table to Google Sheets with `RAW`;
 4. clear only obsolete trailing rows after the table write;
 5. read back with `UNFORMATTED_VALUE`;
-6. require exact normalized matrix equality.
+6. require exact normalized matrix equality;
+7. refresh readiness, blockers, and conditional formatting.
 
 ### Pull
 
@@ -323,7 +371,8 @@ With `--write`:
 2. atomically regenerate Markdown;
 3. write the normalized table back to Google Sheets when remote IDs or
    dependencies were noncanonical;
-4. read back and require exact normalized matrix equality.
+4. read back and require exact normalized matrix equality;
+5. refresh readiness, blockers, and conditional formatting.
 
 An empty or incorrectly headed sheet cannot overwrite local files.
 

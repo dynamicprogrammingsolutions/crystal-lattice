@@ -13,11 +13,9 @@ Each roadmap has two files:
 `config.json` assigns short names to roadmap CSV files and optional Google
 Sheets destinations. The initial roadmap is named `release`.
 
-Maintainer documentation and specifications start at
-[`docs/development/index.md`](docs/development/index.md).
-
-For the focused editing workflow, see
-[`docs/updating-roadmaps.md`](docs/updating-roadmaps.md).
+Roadmap documentation starts at [`docs/index.md`](docs/index.md). It separates
+the focused CSV-editing workflow from Google Sheets synchronization and
+development internals.
 
 ## Quick start
 
