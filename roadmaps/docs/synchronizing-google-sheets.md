@@ -20,6 +20,12 @@ Before an agent runs any command with `--write`, it must:
 3. offer to apply the synchronization;
 4. obtain explicit user approval.
 
+A direct request to update a task status according to the roadmap instructions
+in a linked main task is that explicit approval for the relevant local update
+and configured Google Sheet push. It does not authorize unrelated roadmap
+changes. A generic request to complete a task is not approval to read or update
+the roadmap, and an explicit local-only limitation forbids the sheet write.
+
 This applies to:
 
 ```bash
@@ -30,6 +36,11 @@ npm run roadmap:update
 
 `npm run roadmap:update` regenerates local Markdown and writes the local CSV to
 Google Sheets, so it also requires explicit approval.
+
+When such an explicitly requested roadmap update is made and synchronization
+is already configured and reachable, the agent must perform and verify the
+sheet synchronization. It must not report the roadmap update as fully complete
+after changing only the CSV and generated Markdown.
 
 ## First-time setup
 
@@ -73,6 +84,10 @@ python roadmaps/sync.py pull release --write
 Push and pull are dry runs without `--write`. Pull validates and normalizes
 remote task identities, internal IDs, and dependencies before changing local
 files.
+
+Before an approved task-status push, inspect the dry-run difference. If it
+contains unrelated sheet edits, stop for user direction rather than
+overwriting them.
 
 ## Managed sheet presentation
 

@@ -283,6 +283,19 @@ authority. Before an agent runs `push --write`, `pull --write`, or
 `npm run roadmap:update`, it must summarize the direction and expected changes,
 offer the update, and obtain explicit user approval.
 
+A main task may link the roadmap and focused update guide while forbidding
+routine roadmap reads. A direct user request to update task status according to
+those main-task instructions authorizes reading the linked files, changing only
+the relevant roadmap data, and pushing to an already configured Google Sheet.
+A generic task-completion request does not.
+
+For an explicitly requested status update, configured and reachable sheet
+synchronization is required for completion. The agent inspects the push dry
+run, stops on unrelated remote differences, applies the intended push, and
+verifies synchronized status plus a pull dry run. A local-only user constraint
+forbids the remote write; unavailable configuration or credentials must be
+reported as a synchronization blocker.
+
 The focused CSV workflow and synchronization workflow are documented
 separately under `roadmaps/docs/`.
 

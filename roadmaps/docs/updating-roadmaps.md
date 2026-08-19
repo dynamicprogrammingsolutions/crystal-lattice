@@ -3,10 +3,27 @@
 This guide is for agents updating an authored roadmap CSV and regenerating its
 Markdown. Do not edit generated roadmap Markdown directly.
 
-Google Sheets synchronization is a separate workflow. See
-[Synchronizing Google Sheets](synchronizing-google-sheets.md). An agent must
-offer the user the sheet update and obtain explicit approval before running a
-command that mutates the sheet.
+Google Sheets synchronization details are documented in
+[Synchronizing Google Sheets](synchronizing-google-sheets.md).
+
+## Invocation from a main task
+
+Main task files may point to this guide and the generated roadmap while
+instructing agents not to read either during ordinary execution. Follow those
+links only when the user explicitly requests a roadmap status update.
+
+A direct request such as “update the task status in the roadmap as per the
+instructions in the main task” authorizes:
+
+- reading the linked roadmap and this guide;
+- updating the relevant CSV row and generated Markdown;
+- synchronizing the configured Google Sheet when synchronization is already
+  set up and reachable.
+
+That request does not authorize unrelated row, ordering, dependency, priority,
+or note changes. A generic request to complete a task does not authorize a
+roadmap update. If the user explicitly requests a local-only update, do not
+mutate Google Sheets.
 
 ## Edit the source CSV
 
@@ -68,6 +85,35 @@ python -m unittest discover -s roadmaps/tests -p 'test_*.py'
 Check mode is read-only and fails if either the CSV requires normalization or
 the generated Markdown is stale.
 
-Do not run `npm run roadmap:update` as part of an ordinary CSV edit unless the
-user has explicitly approved updating Google Sheets. That npm command performs
-a remote write.
+## Complete configured synchronization
+
+When the roadmap target and Google credentials are already configured, a
+user-requested roadmap status update is incomplete until the Google Sheet has
+been synchronized and verified.
+
+First inspect the proposed push:
+
+```bash
+python roadmaps/sync.py status release
+python roadmaps/sync.py push release
+```
+
+If the dry-run difference contains only the intended roadmap update and
+normalization, apply it:
+
+```bash
+npm run roadmap:update
+```
+
+Then verify:
+
+```bash
+python roadmaps/sync.py status release
+python roadmaps/sync.py pull release
+```
+
+If the dry run reveals unrelated remote edits, stop and ask the user how to
+resolve them instead of overwriting them. If synchronization is not configured,
+credentials are unavailable, or the sheet cannot be reached, complete the safe
+local update, report synchronization as blocked, and do not claim that the
+roadmap update is fully synchronized.
