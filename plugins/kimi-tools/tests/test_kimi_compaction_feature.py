@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -49,6 +50,7 @@ extract_summary_sections = _kcf.extract_summary_sections
 extract_summary_text = _kcf.extract_summary_text
 validate_summary_text = _kcf.validate_summary_text
 _get_compaction_config = _kcf._get_compaction_config
+_get_effective_compaction_config = _kcf._get_effective_compaction_config
 _is_compaction_enabled = _kcf._is_compaction_enabled
 _merge_request_config = _kcf._merge_request_config
 
@@ -110,6 +112,13 @@ class TestBuildCompactionPrompt:
 
     def test_default_prompt_matches_constant(self) -> None:
         assert build_compaction_prompt() == _KIMI_COMPACTION_PROMPT
+
+    def test_default_prompt_matches_pinned_kimi_cli_prompt_hash(self) -> None:
+        """Keep parity coverage when the sibling kimi-cli checkout is absent."""
+        digest = hashlib.sha256(build_compaction_prompt().encode("utf-8")).hexdigest()
+        assert (
+            digest == "24753a19a3c0dfabc5545a103666a559cc7dd8caa963715fdc6ca7dd787a0e0a"
+        )
 
     def test_default_prompt_matches_kimi_cli_compact_md(self) -> None:
         """The prompt body must match kimi-cli/src/kimi_cli/prompts/compact.md exactly."""
@@ -319,6 +328,26 @@ class TestBuildKimiCompactionRequestSession:
         assert "data:image/png" not in synthetic
         assert "internal reasoning" not in synthetic
 
+    def test_text_tool_message_keeps_text_but_drops_structured_result(self) -> None:
+        messages = [
+            Message(
+                role="tool",
+                content="Visible tool result",
+                tool_result={"type": "provider_native", "secret": "structured payload"},
+            ),
+            Message(role="assistant", content="Old response"),
+            Message(role="user", content="Latest question"),
+            Message(role="assistant", content="Latest response"),
+        ]
+        session = Session(session_id="tool-text", messages=messages)
+        result, _compact, _preserved = build_kimi_compaction_request_session(
+            session, prompt_text="PROMPT"
+        )
+        assert result is not None
+        synthetic = result.messages[1].content
+        assert "Role: tool\nContent:\nVisible tool result" in synthetic
+        assert "structured payload" not in synthetic
+
     def test_preserved_tail_with_default_max_preserved_messages(self) -> None:
         session = _make_session(has_system=False)
         result, compact_indices, preserved_indices = (
@@ -377,27 +406,29 @@ class TestBuildKimiCompactionRequestSession:
         assert "TWO" not in synthetic.replace("Answer exactly TWO.", "")
         assert "THREE" not in synthetic
 
-    def test_leading_system_message_excluded_from_compactable_range(self) -> None:
+    def test_leading_system_message_is_in_request_but_preserved_in_session(
+        self,
+    ) -> None:
         session = _make_session(has_system=True)
         result, compact_indices, preserved_indices = (
             build_kimi_compaction_request_session(session, prompt_text="PROMPT")
         )
         assert result is not None
-        # System message (index 0) is NOT in compact_indices
+        # The system message is not deleted from the platform session.
         assert 0 not in compact_indices
-        # Compactable range starts at index 1
         assert compact_indices == [1, 2, 3, 4]
         # Last 2 user/assistant messages preserved
         assert preserved_indices == [5, 6]
         # Request session uses generic compactor system prompt, not the agent's
         assert result.messages[0].content == _GENERIC_COMPACTION_SYSTEM_PROMPT
         assert result.messages[0].content != "System prompt"
-        # Synthetic message does NOT include the agent's system message
+        # Upstream SimpleCompaction includes the original system message in the
+        # numbered transcript given to the compactor.
         synthetic = result.messages[1].content
-        assert "System prompt" not in synthetic
-        assert "## Message 1\nRole: user\nContent:\nAnswer exactly ONE." in synthetic
+        assert "## Message 1\nRole: system\nContent:\nSystem prompt" in synthetic
+        assert "## Message 2\nRole: user\nContent:\nAnswer exactly ONE." in synthetic
 
-    def test_explicit_end_with_leading_system_excludes_system(self) -> None:
+    def test_explicit_end_with_leading_system_includes_system_in_request(self) -> None:
         session = _make_session(has_system=True)
         result, compact_indices, preserved_indices = (
             build_kimi_compaction_request_session(
@@ -405,13 +436,15 @@ class TestBuildKimiCompactionRequestSession:
             )
         )
         assert result is not None
-        # System (index 0) excluded; range [1, 4) compacted
+        # System (index 0) is preserved in the final session while [1, 4) is
+        # replaced by the summary.
         assert compact_indices == [1, 2, 3]
         assert preserved_indices == []
         synthetic = result.messages[1].content
-        assert "## Message 1\nRole: user\nContent:\nAnswer exactly ONE." in synthetic
-        assert "## Message 2\nRole: assistant\nContent:\nONE" in synthetic
-        assert "## Message 3\nRole: user\nContent:\nAnswer exactly TWO." in synthetic
+        assert "## Message 1\nRole: system\nContent:\nSystem prompt" in synthetic
+        assert "## Message 2\nRole: user\nContent:\nAnswer exactly ONE." in synthetic
+        assert "## Message 3\nRole: assistant\nContent:\nONE" in synthetic
+        assert "## Message 4\nRole: user\nContent:\nAnswer exactly TWO." in synthetic
 
     def test_raises_on_empty_range(self) -> None:
         session = _make_session(has_system=False)
@@ -441,6 +474,23 @@ class TestBuildKimiCompactionRequestSession:
         assert preserved_indices == [3, 4, 5]
         assert compact_indices == [0, 1, 2]
 
+    @pytest.mark.parametrize("max_preserved_messages", [0, -1])
+    def test_nonpositive_max_preserved_messages_is_noop_like_kimi_cli(
+        self,
+        max_preserved_messages: int,
+    ) -> None:
+        session = _make_session(has_system=False)
+        result, compact_indices, preserved_indices = (
+            build_kimi_compaction_request_session(
+                session,
+                prompt_text="PROMPT",
+                max_preserved_messages=max_preserved_messages,
+            )
+        )
+        assert result is None
+        assert compact_indices == []
+        assert preserved_indices == []
+
 
 # ---------------------------------------------------------------------------
 # Merged request config tests
@@ -457,7 +507,7 @@ class TestMergeRequestConfig:
         merged = _merge_request_config(config, compaction_cfg)
         assert merged["disable_all_tools"] is True
 
-    def test_settings_overrides_applied_after_disable_all_tools(self) -> None:
+    def test_settings_overrides_are_applied_without_enabling_tools(self) -> None:
         config = {"provider": "echo", "model": "test"}
         compaction_cfg = {
             "settings_overrides": {"temperature": 0.1, "model": "override-model"},
@@ -467,6 +517,16 @@ class TestMergeRequestConfig:
         assert merged["disable_all_tools"] is True
         assert merged["temperature"] == 0.1
         assert merged["model"] == "override-model"
+
+    def test_settings_overrides_cannot_reenable_tools(self) -> None:
+        merged = _merge_request_config(
+            {"provider": "echo", "model": "test"},
+            {
+                "settings_overrides": {"disable_all_tools": False},
+                "compaction_model": None,
+            },
+        )
+        assert merged["disable_all_tools"] is True
 
     def test_compaction_model_overrides_model(self) -> None:
         config = {"provider": "echo", "model": "test"}
@@ -765,10 +825,10 @@ class TestGetCompactionConfig:
         cfg = _get_compaction_config(base)
         assert cfg["max_preserved_messages"] == 2
 
-    def test_negative_max_preserved_messages_falls_back_to_default(self) -> None:
+    def test_negative_max_preserved_messages_is_retained_for_noop(self) -> None:
         base = {"compaction": {"max_preserved_messages": -1}}
         cfg = _get_compaction_config(base)
-        assert cfg["max_preserved_messages"] == 2
+        assert cfg["max_preserved_messages"] == -1
 
     def test_blank_prompt_treated_as_none(self) -> None:
         base = {"compaction": {"prompt": "  "}}
@@ -784,6 +844,33 @@ class TestGetCompactionConfig:
         base = {"compaction": {"settings_overrides": "not a dict"}}
         cfg = _get_compaction_config(base)
         assert cfg["settings_overrides"] == {}
+
+
+class TestGetEffectiveCompactionConfig:
+    def test_top_level_session_model_override_wins(self) -> None:
+        base = {
+            "compaction": {
+                "enabled": True,
+                "type": "kimi",
+                "compaction_model": "agent-model",
+            }
+        }
+        effective = _get_effective_compaction_config(
+            base,
+            {**base, "compaction_model": "session-model"},
+        )
+        assert effective["compaction_model"] == "session-model"
+
+    def test_agent_compaction_model_is_used_without_session_override(self) -> None:
+        base = {
+            "compaction": {
+                "enabled": True,
+                "type": "kimi",
+                "compaction_model": "agent-model",
+            }
+        }
+        effective = _get_effective_compaction_config(base, base)
+        assert effective["compaction_model"] == "agent-model"
 
 
 # ---------------------------------------------------------------------------
@@ -1027,6 +1114,69 @@ class TestKimiCompactionFeature:
             {},
         )
         assert result.get("status") == "noop"
+
+    def test_execute_action_uses_corrected_request_contract(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        feature = KimiCompactionFeature()
+        core, base_config = _core_and_config_with_compaction()
+        effective_config = {
+            **base_config,
+            "compaction_model": "session-compaction-model",
+            "compaction": {
+                **base_config["compaction"],
+                "settings_overrides": {"disable_all_tools": False},
+            },
+        }
+        session = _make_session(has_system=True)
+        captured: dict = {}
+
+        def fake_run_compaction_request(
+            request_core,
+            request_session,
+            request_config,
+            context=None,
+        ) -> str:
+            captured["core"] = request_core
+            captured["session"] = request_session
+            captured["config"] = request_config
+            captured["context"] = context
+            return (
+                "<current_focus>Testing</current_focus>"
+                "<environment>Python</environment>"
+                "<completed_tasks>None</completed_tasks>"
+                "<active_issues>None</active_issues>"
+                "<code_state>Current</code_state>"
+                "<important_context>None</important_context>"
+            )
+
+        monkeypatch.setattr(
+            _kcf, "_run_compaction_request", fake_run_compaction_request
+        )
+
+        result = feature.execute_action(
+            "compact_conversation",
+            session,
+            [],
+            {},
+            {
+                "core": core,
+                "config": effective_config,
+                "base_config": base_config,
+            },
+            {},
+        )
+
+        assert result["message"] == "Compacted conversation."
+        request_session = captured["session"]
+        assert request_session.messages[0].content == _GENERIC_COMPACTION_SYSTEM_PROMPT
+        assert (
+            "## Message 1\nRole: system\nContent:\nSystem prompt"
+            in request_session.messages[1].content
+        )
+        assert captured["config"]["model"] == "session-compaction-model"
+        assert captured["config"]["disable_all_tools"] is True
 
 
 # ---------------------------------------------------------------------------

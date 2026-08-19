@@ -4,22 +4,22 @@ Short description: Bring the manual `compact_conversation` action in `plugins/ki
 
 ## Requirements checklist
 
-- [ ] Compaction request is a single synthetic `user` message built from `## Message N\nRole: <role>\nContent:\n<text>` blocks, with the compaction prompt appended at the end, matching `kimi-cli` `SimpleCompaction.prepare`.
-- [ ] Only text content is included in the synthetic compaction message; tool calls, tool results, media parts, and think parts are dropped.
-- [ ] The compaction request session's leading system message is `"You are a helpful assistant that compacts conversation context."`, not the agent's normal system message.
-- [ ] The merged compaction request config sets `disable_all_tools: True` unconditionally, before applying `settings_overrides` and `compaction_model` overrides.
-- [ ] When no explicit `end` is supplied, the last `max_preserved_messages` user/assistant messages (default 2) are preserved verbatim and excluded from the synthetic compaction message.
-- [ ] When fewer than `max_preserved_messages` user/assistant messages exist in the compactable range, the action returns a no-op result instead of forcing compaction with no preserved tail.
-- [ ] The compacted session's summary user message wraps the prefix as `<system>Previous context has been compacted. Here is the compaction output:</system>` followed by the summary body, matching `kimi-cli` `system(...)` wrapping.
-- [ ] The compaction prompt body matches `kimi-cli/src/kimi_cli/prompts/compact.md` exactly, without the local "CRITICAL: TEXT ONLY" preamble or trailing "REMINDER" text.
-- [ ] Custom instructions are appended to the compaction prompt in the same text block, matching `kimi-cli` `SimpleCompaction.prepare` custom-instruction handling.
-- [ ] `get_ui_elements` returns `[]` when `config` is provided and `compaction.enabled` is not `true` or `compaction.type` is not `"kimi"`.
-- [ ] `execute_action` returns an error with `type: "disabled"` when compaction is not enabled for the agent.
-- [ ] `max_preserved_messages`, `compaction_model`, `prompt`, and `settings_overrides` are read from the agent's `compaction` config block.
-- [ ] Unit tests in `plugins/kimi-tools/tests/test_kimi_compaction_feature.py` cover the new synthetic-message builder, text-only filtering, preserved-tail behavior, `disable_all_tools`, generic compactor system prompt, `<system>…</system>` prefix wrap, and enablement enforcement.
-- [ ] The existing Ollama integration test continues to pass with the new request shape and enablement enforcement.
-- [ ] The class docstring in `kimi_compaction_feature.py` accurately describes the implemented behavior.
-- [ ] The spec directory at `plugins/kimi-tools/docs/development/specifications/kimi-compaction-parity/` is created with `index.md`, `product-spec.md`, `technical-spec.md`, and `requirements.md`, and the checkpoint/context-rewrite deviation is recorded there as an intentional deviation.
+- [x] Compaction request is a single synthetic `user` message built from `## Message N\nRole: <role>\nContent:\n<text>` blocks, with the compaction prompt appended at the end, matching `kimi-cli` `SimpleCompaction.prepare`.
+- [x] Only text content is included in the synthetic compaction message; structured tool calls/results, media parts, and think parts are dropped.
+- [x] The compaction request session's leading system message is `"You are a helpful assistant that compacts conversation context."`, not the agent's normal system message.
+- [x] The merged compaction request config sets `disable_all_tools: True` unconditionally after configurable overrides.
+- [x] When no explicit `end` is supplied, the last `max_preserved_messages` user/assistant messages (default 2) are preserved verbatim and excluded from the synthetic compaction message.
+- [x] When fewer than `max_preserved_messages` user/assistant messages exist in the compactable range, the action returns a no-op result instead of forcing compaction with no preserved tail.
+- [x] The compacted session's summary user message wraps the prefix as `<system>Previous context has been compacted. Here is the compaction output:</system>` followed by the summary body, matching `kimi-cli` `system(...)` wrapping.
+- [x] The compaction prompt body matches `kimi-cli/src/kimi_cli/prompts/compact.md` exactly, without the local "CRITICAL: TEXT ONLY" preamble or trailing "REMINDER" text.
+- [x] Custom instructions are appended to the compaction prompt in the same text block, matching `kimi-cli` `SimpleCompaction.prepare` custom-instruction handling.
+- [x] `get_ui_elements` returns `[]` when `config` is provided and `compaction.enabled` is not `true` or `compaction.type` is not `"kimi"`.
+- [x] `execute_action` returns an error with `type: "disabled"` when compaction is not enabled for the agent.
+- [x] Agent compaction settings are read from the `compaction` block, and the session UI's top-level `compaction_model` override takes precedence.
+- [x] Unit tests cover the synthetic-message builder, text-only filtering, preserved-tail behavior, tool suppression, model override, generic compactor system prompt, summary prefix, and enablement enforcement.
+- [x] The existing Ollama integration test passes with the new request shape and enablement enforcement.
+- [x] The module/class documentation accurately describes the implemented behavior.
+- [x] The spec directory contains `index.md`, `product-spec.md`, `technical-spec.md`, and `requirements.md`, including intentional deviations.
 
 ## Scope
 
@@ -59,7 +59,8 @@ All `kimi-cli` paths are relative to `../kimi-cli`, commit `7ba9695`.
 - `plugins/kimi-tools/tests/test_kimi_compaction_feature_ollama_integration.py` — Ollama integration test; already sets `compaction.enabled: true` and `type: "kimi"`.
 - `plugins/gemini-compaction-feature/src/gemini_compaction_feature/__init__.py:98-109,490,654-658,698-716` — Gemini reference for `disable_all_tools`, enablement enforcement, and `_get_compaction_config` pattern.
 - `core/python/plugins/tool_gating_feature.py` — platform's `disable_all_tools` feature plugin.
-- `application/python/agent_terminal_app/default_config/config.json` — no `compaction` block in the default Kimi agent config; enablement enforcement will require either adding one or accepting that the action is unavailable by default.
+- `application/python/agent_terminal_app/default_config/config.json` — the default
+  `kimi` and `kimi-ollama` agents enable Kimi compaction.
 
 ### Confirmed parity gaps
 
@@ -81,7 +82,7 @@ Task `20260315-gemini-qwen-grok-tool-packages/240-kimi-compaction-and-checkpoint
 
 ## Execution plan
 
-Status: Draft
+Status: Completed
 
 ### Approach
 
@@ -144,22 +145,22 @@ All five open questions from the investigation were resolved on 2026-08-16; see 
 
 ### Task checklist
 
-- [ ] Replace `_KIMI_COMPACTION_PROMPT` with exact `compact.md` content.
-- [ ] Add `build_kimi_compaction_request_session` with synthetic single-user-message builder, text-only filtering, and preserved-tail logic.
-- [ ] Add generic compactor system prompt to the compaction request session.
-- [ ] Update `_merge_request_config` to set `disable_all_tools: True`.
-- [ ] Update `build_compact_summary_text` to wrap the prefix as `<system>…</system>`.
-- [ ] Update `build_compacted_session` to use the new builder and preserved-tail indices.
-- [ ] Add `_is_compaction_enabled` and `_get_compaction_config` helpers.
-- [ ] Gate `get_ui_elements` on enablement when `config` is provided.
-- [ ] Gate `execute_action` on enablement and return `error.type == "disabled"` when disabled.
-- [ ] Read `max_preserved_messages` from `compaction` config (default 2).
-- [ ] Remove `build_compaction_session` and `build_compaction_request_session` if no longer used.
-- [ ] Update class docstring to match implemented behavior.
-- [ ] Rewrite unit tests for the new builder, preserved tail, `disable_all_tools`, generic system prompt, `<system>…</system>` prefix, and enablement.
-- [ ] Run `pytest plugins/kimi-tools/tests -q`.
-- [ ] Run `ruff check plugins/kimi-tools/src plugins/kimi-tools/tests` and `black plugins/kimi-tools/src plugins/kimi-tools/tests`.
-- [ ] Create the spec directory at `plugins/kimi-tools/docs/development/specifications/kimi-compaction-parity/` with `index.md`, `product-spec.md`, `technical-spec.md`, and `requirements.md`.
+- [x] Replace `_KIMI_COMPACTION_PROMPT` with exact `compact.md` content.
+- [x] Add `build_kimi_compaction_request_session` with synthetic single-user-message builder, text-only filtering, and preserved-tail logic.
+- [x] Add generic compactor system prompt to the compaction request session.
+- [x] Update `_merge_request_config` to set `disable_all_tools: True`.
+- [x] Update `build_compact_summary_text` to wrap the prefix as `<system>…</system>`.
+- [x] Update `build_compacted_session` to use the new builder and preserved-tail indices.
+- [x] Add `_is_compaction_enabled` and `_get_compaction_config` helpers.
+- [x] Gate `get_ui_elements` on enablement when `config` is provided.
+- [x] Gate `execute_action` on enablement and return `error.type == "disabled"` when disabled.
+- [x] Read `max_preserved_messages` from `compaction` config (default 2).
+- [x] Remove `build_compaction_session` and `build_compaction_request_session`.
+- [x] Update class docstring to match implemented behavior.
+- [x] Rewrite unit tests for the new builder, preserved tail, `disable_all_tools`, generic system prompt, `<system>…</system>` prefix, and enablement.
+- [x] Run focused compaction unit and Ollama integration tests.
+- [x] Run focused Ruff and Black checks on the compaction implementation and tests. Package-wide unrelated hygiene is not represented as passing.
+- [x] Create the spec directory at `plugins/kimi-tools/docs/development/specifications/kimi-compaction-parity/` with `index.md`, `product-spec.md`, `technical-spec.md`, and `requirements.md`.
 
 ### Requirement verification
 
@@ -176,4 +177,78 @@ All five open questions from the investigation were resolved on 2026-08-16; see 
 - **Enablement execute gating**: unit test asserts `execute_action` returns `error.type == "disabled"` when disabled.
 - **Config reading**: unit test asserts `max_preserved_messages`, `compaction_model`, `prompt`, and `settings_overrides` are read from the `compaction` block.
 - **Ollama integration**: `pytest plugins/kimi-tools/tests -m 'integration and not api and not slow_integration' -q` passes with the new shape.
-- **Lint/format**: `ruff check` and `black` pass clean.
+- **Lint/format**: focused Ruff and Black checks cover the compaction
+  implementation and tests; package-wide unrelated hygiene remains outside
+  this correction.
+
+## Approved follow-up: parity review corrections
+
+Approval status: Approved by the user on 2026-08-18.
+
+Execution status: Completed.
+
+### Findings addressed
+
+This follow-up corrects the completion-review findings without expanding into
+auto-compaction, checkpoints, D-Mail, or shared cross-vendor compaction:
+
+1. Include a selected leading agent system message in the numbered synthetic
+   transcript, matching upstream `SimpleCompaction.prepare`, while preserving
+   that system message in the final platform session.
+2. Honor the existing top-level per-session `compaction_model` setting emitted
+   by the configuration UI, with precedence over
+   `compaction.compaction_model`.
+3. Return a no-op for unbounded compaction when
+   `max_preserved_messages <= 0`.
+4. Apply `disable_all_tools: True` after request overrides so tools cannot be
+   re-enabled.
+5. Clarify that text content from tool-role messages is retained while
+   structured tool payloads are dropped.
+6. Add self-contained prompt-parity coverage that does not depend on a sibling
+   checkout.
+7. Update current package documentation, the specification, live
+   requirements, generated default-config reference, and completion evidence.
+
+### Follow-up requirements
+
+- KCP-002, KCP-003, KCP-004, KCP-005, KCP-010, KCP-014, and KCP-016 are
+  strengthened to capture the corrected contracts.
+- KCP-018 records the truthful focused lint/format boundary.
+- KCP-019 covers current package-user documentation.
+- KCP-020 covers the generated default-configuration reference.
+
+### Implementation checklist
+
+- [x] Separate synthetic request inclusion from final-session deletion for the
+  leading system message.
+- [x] Resolve the session `compaction_model` override from effective request
+  configuration.
+- [x] Add zero-preservation no-op behavior.
+- [x] Make tool suppression override-proof.
+- [x] Add regression tests for all four behavior corrections and textual tool
+  result semantics.
+- [x] Pin the upstream prompt with a self-contained digest assertion while
+  retaining the direct sibling comparison when available.
+- [x] Update README, module documentation, specification, and requirements.
+- [x] Refresh the generated default-config reference.
+- [x] Run focused unit, Ollama, Ruff, Black, and documentation verification.
+
+### Verification commands
+
+```bash
+pytest plugins/kimi-tools/tests/test_kimi_compaction_feature.py -q
+pytest plugins/kimi-tools/tests/test_kimi_compaction_feature_ollama_integration.py -m 'integration and not api and not slow_integration' -q
+ruff check plugins/kimi-tools/src/kimi_tools/kimi_compaction_feature.py plugins/kimi-tools/tests/test_kimi_compaction_feature.py plugins/kimi-tools/tests/test_kimi_compaction_feature_ollama_integration.py
+black --check plugins/kimi-tools/src/kimi_tools/kimi_compaction_feature.py plugins/kimi-tools/tests/test_kimi_compaction_feature.py plugins/kimi-tools/tests/test_kimi_compaction_feature_ollama_integration.py
+python docs_site/scripts/build_mkdocs_site.py
+```
+
+### Verification results
+
+- Focused compaction unit tests: 83 passed.
+- Gated Ollama integration: 1 passed against the reachable local endpoint.
+- Focused Ruff: passed.
+- Focused Black check: passed.
+- Documentation preparation, MkDocs build, and committed reference refresh:
+  passed. The build retained pre-existing navigation and API-reference
+  warnings unrelated to this task.

@@ -39,7 +39,8 @@ The compaction request session contains exactly two messages:
    message).
 2. ``user``: a single synthetic message built from the compactable range.
 
-The synthetic user message flattens each compactable message into:
+The synthetic user message flattens each message in the compactable prefix,
+including a selected leading agent system message, into:
 
 ::
 
@@ -48,11 +49,13 @@ The synthetic user message flattens each compactable message into:
     Content:
     <text-only content>
 
-followed by ``\n<compaction prompt>``. Only text content is included; tool
-calls, tool results, media parts, and think parts are dropped.
+followed by ``\n<compaction prompt>``. Only text content is included.
+Structured tool-call and tool-result payloads, media parts, and think parts are
+dropped; textual content from any message role is retained.
 
 The merged compaction request config sets ``disable_all_tools: True``
-unconditionally so no tool schemas are serialized into the request payload.
+after all configurable request overrides so no tool schemas are serialized
+into the request payload.
 
 Preserved tail
 --------------
@@ -79,9 +82,11 @@ content is:
 
 The structured summary body uses ``kimi-cli``'s required XML-style sections:
 ``<current_focus>``, ``<environment>``, ``<completed_tasks>``,
-``<active_issues>``, ``<code_state>``, and ``<important_context>``. No
-assistant acknowledgment message is added. Preserved-tail messages, if any,
-follow the summary user message unchanged.
+``<active_issues>``, ``<code_state>``, and ``<important_context>``. The prompt
+requests those sections, but a non-empty unstructured model response is
+retained rather than rejected, matching ``kimi-cli``. No assistant
+acknowledgment message is added. Preserved-tail messages, if any, follow the
+summary user message unchanged.
 
 Enablement
 ----------
@@ -261,7 +266,7 @@ def _get_compaction_config(base_config: Any) -> Dict[str, Any]:
     max_preserved = compaction_cfg.get(
         "max_preserved_messages", _DEFAULT_MAX_PRESERVED_MESSAGES
     )
-    if not isinstance(max_preserved, int) or max_preserved < 0:
+    if not isinstance(max_preserved, int):
         max_preserved = _DEFAULT_MAX_PRESERVED_MESSAGES
 
     prompt_val = compaction_cfg.get("prompt")
@@ -295,18 +300,38 @@ def _get_compaction_config(base_config: Any) -> Dict[str, Any]:
     }
 
 
+def _get_effective_compaction_config(
+    base_config: Any,
+    request_config: Any,
+) -> Dict[str, Any]:
+    """Resolve agent compaction settings plus the session model override.
+
+    Agent-owned compaction settings live under ``base_config["compaction"]``.
+    The existing configuration UI writes ``compaction_model`` as a top-level
+    per-session override, which is present only in the effective request config.
+    Preserve that public UI behavior while keeping the agent configuration
+    block as the source for the remaining compaction settings.
+    """
+    compaction_cfg = _get_compaction_config(base_config)
+    if not isinstance(request_config, dict):
+        return compaction_cfg
+
+    model_override = request_config.get("compaction_model")
+    if not isinstance(model_override, str) or not model_override.strip():
+        return compaction_cfg
+    return {
+        **compaction_cfg,
+        "compaction_model": model_override.strip(),
+    }
+
+
 def _merge_request_config(
     config: Dict[str, Any],
     compaction_cfg: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Merge ``disable_all_tools`` and compaction overrides into a request config.
-
-    ``disable_all_tools: True`` is set unconditionally before
-    ``settings_overrides`` and ``compaction_model`` so explicit overrides still
-    win.
-    """
+    """Merge compaction overrides while keeping all tools disabled."""
     settings_overrides = compaction_cfg.get("settings_overrides") or {}
-    merged = {**config, "disable_all_tools": True, **settings_overrides}
+    merged = {**config, **settings_overrides, "disable_all_tools": True}
     compaction_model = compaction_cfg.get("compaction_model")
     if isinstance(compaction_model, str) and compaction_model.strip():
         merged["model"] = compaction_model.strip()
@@ -408,10 +433,12 @@ def build_kimi_compaction_request_session(
     - ``preserved_indices`` are the preserved-tail indices (empty when an
       explicit ``end`` is supplied).
 
-    The compactable range excludes a leading system message. When ``end`` is
-    ``None``, the last ``max_preserved_messages`` user/assistant messages are
-    preserved verbatim. When ``end`` is supplied, the selected range is
-    compacted exactly and preserved-tail does not apply.
+    A selected leading system message is included in the synthetic request,
+    matching ``kimi-cli``, but is excluded from ``compact_indices`` so the
+    platform keeps it in the final session. When ``end`` is ``None``, the last
+    ``max_preserved_messages`` user/assistant messages are preserved verbatim.
+    When ``end`` is supplied, the selected non-system range is compacted exactly
+    and preserved-tail does not apply.
     """
     start_idx, end_idx = _normalize_slice_bounds(
         len(session.messages),
@@ -433,6 +460,8 @@ def build_kimi_compaction_request_session(
     preserved_indices: List[int] = []
 
     if not explicit_end:
+        if max_preserved_messages <= 0:
+            return None, [], []
         n_preserved = 0
         preserve_start = compact_end
         for index in range(compact_end - 1, compact_start - 1, -1):
@@ -451,8 +480,9 @@ def build_kimi_compaction_request_session(
     if not compact_indices:
         return None, [], []
 
+    request_indices = list(range(start_idx, compact_end))
     parts: List[str] = []
-    for offset, idx in enumerate(compact_indices):
+    for offset, idx in enumerate(request_indices):
         msg = session.messages[idx]
         parts.append(f"## Message {offset + 1}\nRole: {msg.role}\nContent:\n")
         parts.append(_message_text(msg.content))
@@ -906,11 +936,13 @@ class KimiCompactionFeature:
                 },
             }
 
-        compaction_cfg = _get_compaction_config(base_config)
-
         request_config = context.get("config")
         if not isinstance(request_config, dict):
             request_config = base_config
+        compaction_cfg = _get_effective_compaction_config(
+            base_config,
+            request_config,
+        )
         prepared_session = context["core"].rebuild_native_history(
             session,
             request_config,

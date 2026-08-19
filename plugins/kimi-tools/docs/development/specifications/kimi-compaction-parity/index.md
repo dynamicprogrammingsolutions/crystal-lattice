@@ -8,13 +8,17 @@ summary injection format, prompt body, and enablement enforcement.
 
 It covers:
 
-- the single synthetic user message built from `## Message N` blocks;
+- the single synthetic user message built from `## Message N` blocks,
+  including a selected leading agent system message;
 - the generic compactor system prompt used only for the compaction request;
-- unconditional tool suppression via `disable_all_tools`;
+- unconditional tool suppression via `disable_all_tools`, after configurable
+  request overrides;
 - preserved-tail behavior for full-range compaction;
 - the `<system>…</system>`-wrapped summary injection in one user message;
 - the exact `kimi-cli` compaction prompt body;
 - agent-level enablement through `compaction.enabled` and `compaction.type`;
+- the top-level per-session `compaction_model` override emitted by the
+  configuration UI;
 - intentional deviations from `kimi-cli` (auto-compaction, checkpoint/context
   rewrite, D-Mail).
 

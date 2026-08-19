@@ -21,8 +21,7 @@ same tool suppression, and the same preserved-tail behavior are used.
 
 Package users need to:
 
-- compact all non-system history or a selected range into a structured
-  summary;
+- compact conversation history or a selected range into a summary;
 - preserve the most recent user/assistant turns verbatim when compacting the
   full range;
 - continue the conversation after compaction from the compacted session;
@@ -73,8 +72,14 @@ Content:
 <compaction prompt>
 ```
 
-Only text content is included. Tool calls, tool results, media parts, and
-think parts are dropped.
+When the selected prefix begins with the agent's system message, that message
+is included in the numbered transcript, matching `SimpleCompaction.prepare`.
+It is still preserved as the leading system message in the platform's final
+session.
+
+Only text content is included. Structured tool-call and tool-result payloads,
+media parts, and think parts are dropped. Text content is retained from every
+message role, including textual tool messages.
 
 ### Compacted session
 
@@ -86,9 +91,10 @@ whose content is:
 <structured summary body>
 ```
 
-The structured summary body uses `kimi-cli`'s required XML-style sections:
+The prompt requests `kimi-cli`'s required XML-style sections:
 `<current_focus>`, `<environment>`, `<completed_tasks>`, `<active_issues>`,
-`<code_state>`, and `<important_context>`.
+`<code_state>`, and `<important_context>`. A non-empty response that does not
+contain all sections is retained rather than rejected, matching `kimi-cli`.
 
 No assistant acknowledgment message is added. No Claude-style
 `local-command-caveat` artifact is added. Preserved-tail messages, if any,
@@ -100,7 +106,7 @@ When no explicit `end` is supplied, the last `max_preserved_messages`
 user/assistant messages (default 2) are preserved verbatim. If fewer than
 `max_preserved_messages` user/assistant messages exist in the compactable
 range, the action returns a no-op result instead of forcing compaction with
-no preserved tail.
+no preserved tail. `max_preserved_messages <= 0` also produces a no-op.
 
 ### Enablement
 
@@ -133,8 +139,11 @@ injection.
 ### Preserved behavior
 
 - `compaction_model` continues to override the normal request model only for
-  compaction.
+  compaction. Agent configuration reads it from the `compaction` block; the
+  existing session settings UI writes a top-level per-session
+  `compaction_model` override that takes precedence.
 - `settings_overrides` continues to merge into the compaction request config.
+  It cannot override `disable_all_tools: true`.
 - `prompt` continues to override the default compaction prompt body.
 - Custom instructions continue to be appended to the compaction prompt.
 - The `compact_up_to_here` message action continues to compact exactly the

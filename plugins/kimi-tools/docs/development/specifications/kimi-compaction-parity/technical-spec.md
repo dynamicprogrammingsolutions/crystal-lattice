@@ -68,9 +68,15 @@ Content:
 followed by `\n<compaction prompt>` and, if custom instructions are supplied,
 the custom-instruction block appended in the same text block.
 
-The agent's normal system message is not included in the compaction request
-session. The generic compactor system prompt replaces it for this one
-request.
+The generic compactor system prompt is the request session's outer `system`
+message. When the selected conversation prefix begins with the agent's normal
+system message, that original message is also included as the first numbered
+block inside the synthetic `user` message. This matches the upstream
+`test_prepare_builds_compact_message_and_preserves_tail` contract.
+
+The original leading system message is not included in `compact_indices`, so
+the platform preserves it in the final session. Request inclusion and final
+session deletion therefore use distinct index sets.
 
 ### Text-only filtering
 
@@ -79,17 +85,19 @@ Only text content is included in the synthetic message:
 - `str` content is included verbatim.
 - Multipart content: only parts with `type == "text"` are included; their
   `text` field is concatenated.
-- Tool calls, tool results, media parts (image/audio/video URL parts), and
-  think parts are dropped.
+- Structured tool-call and tool-result fields, media parts
+  (image/audio/video URL parts), and think parts are dropped.
+- Text content from every message role, including a tool-role message, is
+  retained.
 
 This matches `kimi-cli`'s whitelist approach
 (`src/kimi_cli/tests/core/test_simple_compaction.py:218-249`).
 
 ## Tool suppression
 
-The merged compaction request config sets `disable_all_tools: True`
-unconditionally. `settings_overrides` and `compaction_model` overrides are
-applied after `disable_all_tools` so explicit overrides still win.
+The merged compaction request config applies `settings_overrides` and
+`compaction_model`, then sets `disable_all_tools: True`. A
+`settings_overrides.disable_all_tools: false` value cannot re-enable tools.
 
 The platform's `ToolGatingFeature`
 (`core/python/plugins/tool_gating_feature.py`) honors this flag by returning
@@ -109,7 +117,9 @@ When no explicit `end` is supplied to the action:
    `max_preserved_messages` messages with role `user` or `assistant`.
 3. If fewer than `max_preserved_messages` such messages are found, return a
    no-op result (no compaction performed).
-4. Otherwise, compact only messages before the boundary; preserve messages
+4. If `max_preserved_messages <= 0`, return a no-op result, matching
+   `SimpleCompaction.prepare`.
+5. Otherwise, compact only messages before the boundary; preserve messages
    from the boundary onward verbatim in the compacted session.
 
 When an explicit `end` is supplied, preserved-tail does not apply; the
@@ -186,6 +196,11 @@ compaction:
 `max_preserved_messages`, `compaction_model`, `prompt`, and
 `settings_overrides` are read from the `compaction` block via a
 `_get_compaction_config` helper matching Gemini's pattern.
+
+The configuration UI's `compaction_model` element predates the nested agent
+block and stores a top-level per-session override. Execution resolves that
+effective request value after reading the agent block, so the UI value takes
+precedence without moving the other settings out of `compaction`.
 
 ## Decisions
 
@@ -313,17 +328,24 @@ checkpoint/D-Mail portion.
 - Synthetic single-user-message format with `## Message N\nRole: …\nContent:`
   blocks.
 - Text-only filtering (multipart content with text + image + think).
+- Leading agent system message included in the numbered synthetic transcript
+  while remaining preserved in the final platform session.
+- Textual tool-message content retained while structured tool-result data is
+  omitted.
 - Generic compactor system prompt as the leading request message.
 - `disable_all_tools: True` in the merged request config.
+- `settings_overrides` cannot re-enable tools.
 - Preserved-tail boundary with default `max_preserved_messages=2`.
 - No-op result when fewer than `max_preserved_messages` user/assistant
   messages exist.
+- No-op result when `max_preserved_messages <= 0`.
 - `<system>…</system>` prefix wrap in `build_compact_summary_text`.
 - Exact prompt body match against `compact.md`.
 - Custom-instruction append in the same text block as the prompt.
 - Enablement UI gating (empty elements when disabled).
 - Enablement execute gating (`error.type == "disabled"`).
 - Config reading from the `compaction` block.
+- Top-level per-session `compaction_model` UI override precedence.
 
 ### Integration tests
 
