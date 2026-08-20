@@ -112,7 +112,9 @@ def signed_archive(api_key)
     scheme: XCODE_SCHEME,
     configuration: "Release",
     clean: true,
-    export_method: "app-store-connect",
+    # fastlane 2.237 validates the legacy name; Xcode 26 still accepts it as an
+    # alias for the current app-store-connect distribution method.
+    export_method: "app-store",
     export_team_id: APPLE_TEAM_ID,
     output_directory: OUTPUT_DIRECTORY,
     output_name: "CrystalLattice.ipa",

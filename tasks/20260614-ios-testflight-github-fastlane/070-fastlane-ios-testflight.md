@@ -9,7 +9,7 @@ Add fastlane configuration so the iOS app can be built, signed, archived, and up
 - [x] Choose and implement signing strategy: recommended `fastlane match`, or a documented manual secret/profile approach.
 - [x] Use App Store Connect API key authentication for upload.
 - [x] Implement build-number incrementing that works locally and in GitHub Actions.
-- [ ] Verify the lane can archive locally when credentials are available.
+- [x] Verify the lane can archive locally when credentials are available.
 
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
 Depends On: tasks/20260614-ios-testflight-github-fastlane/060-app-store-connect-registration-package.md
@@ -76,8 +76,9 @@ The implementation will:
   1. Explicit `IOS_BUILD_NUMBER`.
   2. The greater of `GITHUB_RUN_NUMBER` and latest TestFlight plus one.
   3. Latest TestFlight plus one outside GitHub Actions.
-- Export with Xcode's current `app-store-connect` method and disable Xcode's
-  automatic version/build-number management during export.
+- Export with fastlane's `app-store` method, which Xcode 26 accepts as the
+  deprecated alias for its current `app-store-connect` method, and disable
+  Xcode's automatic version/build-number management during export.
 - Keep the first internal upload waiting policy configurable; default to waiting
   for build processing so the lane can apply TestFlight metadata.
 
@@ -92,8 +93,9 @@ The implementation will:
   confirmation in task `060`.
 - Decision: use App Store numeric Apple ID `6798401926` for TestFlight upload
   targeting.
-- Open credential dependency: the owner must create a private signing repository
-  and an App Store Connect API key before signed archive/upload verification.
+- Decision: the private signing repository, App Store Connect API key, match
+  password, Apple Distribution certificate, and App Store provisioning profile
+  are configured and verified.
 - Open external-review dependency: task `085` remains required before external
   TestFlight review, but it does not block internal testing.
 
@@ -118,6 +120,8 @@ The implementation will:
 - [x] Run the credential-free verification lane.
 - [x] Exercise the archive command to the credential boundary and document the
       expected signing blocker if credentials are unavailable.
+- [x] Create and validate a signed App Store Connect IPA with the production
+      certificate and provisioning profile.
 
 ### Requirement verification
 
@@ -183,12 +187,56 @@ Verification evidence:
 - `.env`, fastlane reports, and `build/` archives are ignored; `.env.example`
   remains eligible for source control.
 
-Remaining requirement evidence:
+Signing bootstrap completed successfully on 2026-08-19:
 
-- A signed archive and IPA export require the owner to create the App Store
-  Connect API key and private match repository, then run `ios setup_signing` and
-  `ios build`. Until that evidence exists, this task and its parent checklist
-  remain open.
+- App Store Connect API-key authentication succeeded.
+- fastlane created Apple Distribution certificate `24ZZ6T98Q5` for team
+  `73Q43R2PD4`.
+- fastlane created and installed the App Store provisioning profile
+  `match AppStore com.dynamicprogrammingsolutions.crystallatticecontrolrn`.
+- The profile application identifier is
+  `73Q43R2PD4.com.dynamicprogrammingsolutions.crystallatticecontrolrn`.
+- The profile expires on 2027-08-20.
+- The encrypted certificate, private-key package, and provisioning profile were
+  pushed to the private `crystal-lattice-ios-signing` repository on its `main`
+  branch.
+- The installed Apple Distribution identity is paired with a private key and is
+  reported as a valid code-signing identity by macOS.
+
+The bootstrap emitted a non-fatal warning that fastlane could not update the
+login keychain item's access control without the macOS login-keychain password.
+The identity and profile were installed successfully. A signed archive will
+confirm whether the local build can access the private key without an
+interactive permission prompt. GitHub Actions will use an ephemeral CI keychain
+rather than this local login-keychain configuration.
+
+The first signed-build attempt on 2026-08-20 stopped before Xcode archive
+because fastlane `2.237.0` rejected Xcode's current `app-store-connect` export
+method name during option validation. The Fastfile now uses fastlane's accepted
+`app-store` alias, which Xcode 26 continues to support for App Store Connect
+exports.
+
+The corrected signed build completed successfully on 2026-08-20:
+
+- `bundle exec fastlane ios build` selected marketing version `0.9.0` and build
+  number `1`, because App Store Connect had no existing `0.9.0` build.
+- The Release archive completed and exported
+  `build/ios/CrystalLattice.ipa`.
+- The IPA size is 18,064,175 bytes and its SHA-256 checksum is
+  `0bbbb7dcfb0f6d0e58782b8d227fe80ee0a1bc88ac03f646fab8a3b95621a0cc`.
+- Strict deep code-signature verification passed and the app satisfies its
+  designated requirement.
+- Signed entitlements contain application identifier
+  `73Q43R2PD4.com.dynamicprogrammingsolutions.crystallatticecontrolrn`, team
+  identifier `73Q43R2PD4`, `beta-reports-active = true`, and
+  `get-task-allow = false`.
+- The embedded profile is the expected match App Store profile with UUID
+  `1e4063e7-f94b-4c97-adcf-9f13e734a565`.
+- Packaged metadata reports display name `Crystal Lattice`, bundle identifier
+  `com.dynamicprogrammingsolutions.crystallatticecontrolrn`, version `0.9.0`,
+  build `1`, minimum iOS `15.1`, and non-exempt encryption `false`.
+- The app privacy manifest is packaged in the signed IPA.
+- No TestFlight upload was performed.
 
 Findings outside this task:
 
@@ -199,3 +247,41 @@ Findings outside this task:
   warning.
 - The unsigned archive includes existing warnings for always-run React Native
   script phases and low deployment targets in several pod resource targets.
+
+## Completion Notes
+
+Task completed on 2026-08-20.
+
+The mobile package now has a checked-in, credential-safe fastlane release setup
+that verifies the app, synchronizes production signing assets through a private
+match repository, produces a signed App Store Connect IPA, and can upload an
+internal TestFlight build through the `ios beta` lane. The local `.env`, API
+private key, match password, generated archives, and reports remain outside
+source control.
+
+Requirement evidence:
+
+- Ruby/Bundler dependencies are pinned and locked.
+- All documented lanes load successfully.
+- App Store Connect API-key authentication and read/write match synchronization
+  succeeded.
+- Build-number selection is covered by automated tests and selected build `1`
+  against an empty TestFlight version.
+- Mobile TypeScript and all 110 Jest tests passed through `ios verify`.
+- A production-signed `0.9.0 (1)` IPA was exported and independently inspected
+  for signature validity, entitlements, provisioning, identity metadata,
+  deployment target, encryption declaration, and privacy manifest packaging.
+
+Plan deviation:
+
+- fastlane `2.237.0` rejects Xcode's current `app-store-connect` export-method
+  spelling. The configuration uses fastlane's accepted `app-store` alias, which
+  Xcode 26 still accepts for App Store Connect export.
+
+Deferred work:
+
+- Uploading this or a newly generated build to TestFlight belongs to task
+  `090`.
+- GitHub Actions secret handling, ephemeral keychain setup, and deployment
+  workflow implementation belong to task `080`.
+- External reviewer access remains in task `085`.

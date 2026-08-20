@@ -19,7 +19,7 @@ Depends On: tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-pa
 | Field | Value |
 | --- | --- |
 | Platform | iOS |
-| App name | Owner confirmation pending; the original `Crystal Lattice` name was unavailable and `Crystal Lattice Control` was recommended |
+| App name | `Crystal Lattice Control` |
 | Bundle ID | `com.dynamicprogrammingsolutions.crystallatticecontrolrn` |
 | Numeric Apple ID | `6798401926` |
 | SKU | `crystal-lattice-ios` |
@@ -145,8 +145,8 @@ enabled. App previews are optional.
 - [x] Create the App Store Connect app record with the fields above.
 - [x] Save the Developer Tools and Productivity categories.
 - [x] Enter the App Privacy answers from task `050`.
-- [ ] Confirm the exact accepted App Store app name.
-- [ ] Create an App Store Connect API key for fastlane.
+- [x] Confirm the exact accepted App Store app name.
+- [x] Create an App Store Connect API key for fastlane.
 - [ ] Complete reviewer access after task `085` before external testing.
 
 ## Implementation Notes
@@ -163,6 +163,11 @@ Owner confirmation received on 2026-08-05:
 - Categories saved: Developer Tools and Productivity.
 - App Privacy saved.
 - No Apple warning or error reported.
+
+Owner confirmation received on 2026-08-19:
+
+- Exact App Store Connect name: `Crystal Lattice Control`.
+- App Store Connect API key created for fastlane.
 
 The identity/export declarations were verified in a successful Debug generic
 iOS Simulator build. The built app reports the expected display name, bundle
