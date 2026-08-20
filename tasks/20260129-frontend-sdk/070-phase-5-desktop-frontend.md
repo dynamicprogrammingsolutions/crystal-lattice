@@ -48,4 +48,5 @@ See detailed subtasks in `tasks/20260202-desktop-macos-frontend/000-main.md`.
 
 ## References
 
-- High-level stage definition: `plans/frontend-sdk/04-migration-phases.md`
+- Historical high-level stage definition:
+  `archive/plans/frontend-sdk/04-migration-phases.md`

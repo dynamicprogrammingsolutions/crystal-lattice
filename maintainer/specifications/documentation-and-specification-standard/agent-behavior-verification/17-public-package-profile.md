@@ -32,7 +32,7 @@ leak standards-maintenance context.
 > documentation paths and public-package profiles without restating the
 > complete generic explanations.
 
-[Crystal Lattice source structure and artifact mapping](../../../../docs/development/repository/documentation.md#L7-L63):
+[Crystal Lattice source structure and documentation mapping](../../../../docs/development/repository/documentation.md):
 
 > Public/reusable packages, applications, SDKs, and services target a concise
 > README, AGENTS, docs index, quickstart, user documentation, development

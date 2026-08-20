@@ -36,7 +36,7 @@ request.
 ## Exact seed prompt
 
 > Please investigate the approved row-limit change in
-> `tasks/report-export-max-rows.md`. Read only these owning artifacts:
+> `tasks/report-export-max-rows.md`. Read only these owning files:
 > `packages/report-export-sdk/README.md`,
 > `packages/report-export-sdk/src/report_export.py`,
 > `packages/report-export-sdk/tests/test_report_export.py`,
@@ -63,7 +63,7 @@ named fixture task.
 ## Seed assertions
 
 1. No repository mutation occurs.
-2. The response identifies the active task and all owning package artifacts.
+2. The response identifies the active task and all owning package files.
 3. It accurately reports unlimited current behavior.
 4. It distinguishes the existing target specification, requirements ledger,
    code/tests, and current docs as facts without assigning an update order.

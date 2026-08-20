@@ -5,7 +5,8 @@ Provider plugins integrate LLM APIs and convert between:
 - **Core messages**: AgentCore’s stable, provider-agnostic message format
 - **Provider-native messages**: the wire-format your provider uses
 
-This guide is **provider-specific** and intended to be more complete than the general plugin overview in `docs/plugins/development.md`.
+This guide is **provider-specific** and intended to be more complete than the
+[general plugin overview](overview.md).
 
 Runtime code references (source of truth):
 
@@ -350,7 +351,7 @@ python -m agent_terminal_app --console --config /path/to/your_config.json
 For more config formats, see:
 
 - [Packaging & loading plugins](plugin-packaging-and-loading.md)
-- `docs/plugins/application-config.md`
+- `application/python/docs/configuration.md`
 
 ---
 

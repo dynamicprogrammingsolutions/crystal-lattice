@@ -11,7 +11,9 @@ harnesses.
 
 ## Start Here
 
-- [Application configuration](plugins/application-config.md): configure agents,
+- [Package documentation](packages/index.md): choose the SDK, application,
+  component, or service that owns the part of Crystal Lattice you want to use.
+- [Application configuration](packages/application-python/configuration.md): configure agents,
   providers, plugins, tools, placeholders, and runtime policy.
 - [Current plugin docs](plugin-development/index.md): build provider, feature,
   application, and tool plugins using the current plugin documentation set.
@@ -27,7 +29,8 @@ harnesses.
 ## Developer Reference
 
 - [Reusable documentation standard](development/standards/documentation.md):
-  package-neutral documentation ownership, artifact, and discoverability rules.
+  package-neutral documentation ownership, document roles, and discoverability
+  rules.
 - [Reusable specification standard](development/standards/specifications.md):
   target specifications, live requirements, work tracking, and evidence.
 - [Crystal Lattice repository policy](development/repository/index.md): local

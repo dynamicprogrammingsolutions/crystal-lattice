@@ -11,7 +11,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 [Generic audience boundary](../requirements.md#L26-L26):
 
-> An artifact depends only on information available and appropriate to that
+> A document depends only on information available and appropriate to that
 > audience; cross-audience information is translated into the destination
 > role's vocabulary without leaking internal tasks, phases, requirement IDs,
 > evidence, approval, or maintainer context.
@@ -29,7 +29,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 [Audience and context target](../technical-spec.md#L150-L192):
 
 > Access to broader repository context does not transfer that context to the
-> artifact's readers.
+> document's readers.
 
 [Target, requirements, and current documentation](../technical-spec.md#L127-L148):
 

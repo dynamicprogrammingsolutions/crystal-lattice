@@ -11,7 +11,7 @@ audiences:
 | Repository policy | Crystal Lattice paths, profiles, exceptions, and tooling integration | Public |
 | Maintainer material | Specifications, evaluation tooling, and implementation details for evolving the standards | Not public by default |
 
-The generic standards and repository policy are output artifacts governed by
+The generic standards and repository policy are output pages governed by
 this meta-specification. They do not link back to the meta-specification.
 
 ## Target source structure
@@ -53,13 +53,13 @@ The generic pages use package-neutral terms such as:
 - documentation entry point;
 - package user;
 - package contributor;
-- work-tracking artifact;
+- work item;
 - documentation-site source and generated output.
 
 They define:
 
-- documentation profiles and artifact roles;
-- audience and context boundaries for every artifact role;
+- documentation profiles and document roles;
+- audience and context boundaries for every document role;
 - normal, pointer-only, evidence-only, and prohibited reference directions;
 - normative contract, consumer guide, implementation guide, and generated
   reference distinctions;
@@ -69,7 +69,7 @@ They define:
 - requirements as live-state tracking;
 - approval and execution through the repository's work-tracking mechanism;
 - current-state public and maintainer documentation;
-- proportional specification artifacts;
+- proportional specification files;
 - anti-duplication and discoverability;
 - boundary preservation and honest partial completion when a compliant
   documentation workflow is blocked;
@@ -77,6 +77,20 @@ They define:
 
 They do not name Crystal Lattice packages, `plugins/docs/`, `tasks/`,
 `TASKS-v7`, `docs_site/prepared/`, or repository-specific test harnesses.
+
+## Concrete terminology
+
+The generic documentation standard owns the reusable terminology rule for
+authored content. The generic specification standard links that rule and
+applies it to specification indexes, requirements, work items, decisions,
+current documentation, source code, and tests.
+
+Documentation and guidance name the concrete item being discussed. They do not
+use “artifact” as an umbrella label for documentation, code,
+specifications, requirements, tasks, or tests. The term remains available when
+it is an established technical concept, including build, release, test,
+evaluation, or provider-native artifacts and literal paths or APIs such as
+`artifacts/` or `upload-artifact`.
 
 ## Repository-policy boundary
 
@@ -118,23 +132,23 @@ Choose the narrowest authoritative scope:
 3. A shared abstraction is normally specified with the package that defines
    it, even when several packages consume it.
 4. A cross-package scope is used when independently owned packages must
-   coordinate and no package is the honest normative owner.
+   coordinate and no package provides a clear authoritative home.
 
 A package-specific specification may add or strengthen requirements and define
 allowed platform behavior. It must not silently weaken or contradict a broader
 contract. Approved exceptions are linked from both scopes.
 
 Before creating a substantial package specification, the agent proposes its
-owner, scope, justification, relationship to existing contracts, and expected
-artifacts. The user approves creation through the task workflow unless the
-existing approved task already authorizes it.
+owning scope, behavior scope, justification, related contracts, and expected
+specification files. The user approves creation through the task workflow
+unless the existing approved task already authorizes it.
 
 A direct request to create a substantial specification is not by itself
 approval of an owner/scope/overlap proposal that has not yet been presented.
 
 ## Target, requirements, task, and current documentation
 
-| Artifact | Authority |
+| Source | Authority |
 |---|---|
 | Specification | Intended target behavior and design |
 | Requirements | Live implementation, verification, documentation, and evidence state |
@@ -157,14 +171,14 @@ removed after all relevant requirements are verified.
 
 ## Audience and context boundaries
 
-Every artifact has an intended audience and role. A document may assume only
-concepts introduced in that document or available through documentation
-intended for the same audience.
+Every document or maintained file has an intended audience and role. A
+document may assume only concepts introduced in that document or available
+through documentation intended for the same audience.
 
 Access to broader repository context does not transfer that context to the
-artifact's readers. Information from tasks, specifications, requirements,
+document's readers. Information from tasks, specifications, requirements,
 implementation notes, agent instructions, commits, or maintainer material may
-be used to decide what to write, but it is not copied into another artifact
+be used to decide what to write, but it is not copied into another document
 unless the destination audience is expected to know it and the destination
 role owns it.
 
@@ -197,11 +211,11 @@ Development documentation may map current implementation to specifications and
 requirements. Specifications may link related targets, requirements, and
 affected current docs. Requirements may use code, tests, docs, tasks, reviews,
 and commits as evidence. Tasks and maintainer specifications may refer broadly
-within their scope, but output artifacts do not inherit their context.
+within their scope, but output documents do not inherit their context.
 
 ## Boundary preservation under blockers
 
-A blocked operation does not expand task scope, change artifact ownership, or
+A blocked operation does not expand task scope, change document ownership, or
 authorize bypassing a source-of-truth, audience, validation, or publication
 boundary. These constraints remain part of the required outcome when the normal
 mechanism is unavailable.
@@ -224,7 +238,7 @@ does this before reporting the refresh as blocked.
 
 Equivalent local commands and reversible in-scope implementation details do not
 require escalation. A workaround becomes approval-relevant when it crosses an
-established artifact, ownership, production, or evidence boundary.
+established document, ownership, production, or evidence boundary.
 
 ## Documentation authority and duplication
 
@@ -272,7 +286,7 @@ the nearest repository, package, or shared-domain entry point.
 Indexes remain concise but complete:
 
 - every multi-page development scope has an index;
-- every specification index links its authored artifacts;
+- every specification index links its authored pages and files;
 - every package development index is linked by a package entry point;
 - specification indexes link primary user guides and implementation mappings
   where useful;
@@ -351,7 +365,7 @@ Deterministic validation should cover, in stages:
 
 - broken relative links;
 - page reachability from owning indexes;
-- specification indexes omitting authored artifacts;
+- specification indexes omitting authored pages or files;
 - duplicate requirement IDs;
 - invalid registry sources, IDs, destinations, and collisions;
 - package docs assembly and source/output boundaries;
@@ -405,7 +419,8 @@ New guidance-clarity scenarios use a baseline-first comparison:
    with candidate guidance variants.
 5. Start with the shortest general rule. Add detail or examples only when
    paired evidence shows the concise wording is insufficient.
-6. Preserve instruction hashes, paired artifacts, failures, and mixed outcomes.
+6. Preserve instruction hashes, paired evaluation results, failures, and mixed
+   outcomes.
    Do not make a candidate pass by weakening the task or assertions.
 
 Baseline guidance is restored only inside isolated evaluation workspaces or an
@@ -439,3 +454,76 @@ The bootstrap does not claim that existing documentation conforms. After the
 generic and repository pages are authored, this meta-specification is reviewed
 once against the resulting standard and adjusted through the task workflow if
 the approved target changed.
+
+## Approved August 18 calibration extension
+
+The generic standards additionally define:
+
+- recommended layout defaults and explicit approved structure overrides;
+- clear documentation-scope and authoritative-source terminology;
+- proportionate agent-routing read triggers.
+
+### Placement decisions and user communication
+
+Documentation placement is normally an implementation decision derived from
+audience, behavior scope, and the authoritative source.
+
+When one package or shared domain is the clear home, the agent:
+
+- chooses that location without asking for confirmation;
+- does not describe the choice using opaque phrases such as “honest owner” or
+  “honest normative owner”;
+- reports the created or changed paths and only includes placement rationale
+  when it helps the user understand a material boundary.
+
+When multiple materially different scopes remain plausible, the agent states
+the ambiguity briefly, recommends one option with its reason, and asks one
+focused question before making a boundary-changing choice.
+
+Approval to create a substantial specification remains separate from routine
+file placement. Existing task or conversational authorization is not repeated
+merely to confirm an obvious package-local path.
+
+### Recommended layouts and explicit overrides
+
+Documentation and specification trees shown by the standards are recommended
+defaults. They communicate common document roles without creating a mandatory
+schema.
+
+An explicit user- or work-item-approved layout is followed when it preserves:
+
+- required content and traceability;
+- audience and authoritative-source boundaries;
+- discoverability from the relevant index or entry point;
+- generated-output and maintained-source boundaries;
+- one maintained source rather than duplicate editable forms.
+
+A safe override does not require duplicate confirmation. If a requested layout
+would omit required information, create competing sources, hide material
+decisions, or cross an audience, ownership, or source-of-truth boundary, the
+agent explains the conflict and recommends the smallest compatible
+alternative.
+
+### Proportional agent routing
+
+Before creating, moving, materially restructuring, or deciding the audience,
+placement, or required file set of documentation or specifications, root
+AGENTS guidance requires the repository-policy and generic-standard indexes and
+the directly relevant pages they route to be read in full.
+
+A local factual correction to an existing page does not require unrelated
+standards reading when the destination audience, maintained source, and
+placement are already clear. Standards-maintenance work additionally reads the
+meta-specification, requirements, active task, and relevant maintainer tooling.
+
+### Behavioral verification extension
+
+Routing-read scenarios deliver applicable AGENTS content while keeping routed
+standard pages available through the repository filesystem, then verify that
+required pages were read before the first mutation. They do not preload routed
+page contents into the instruction merely to make the behavior pass.
+
+Behavioral validation also covers interaction quality and explicit safe
+overrides. Obvious package-local placement does not trigger an ownership
+lecture or confirmation question. A task-approved file shape that differs from
+the recommended default is followed unless it violates a substantive boundary.

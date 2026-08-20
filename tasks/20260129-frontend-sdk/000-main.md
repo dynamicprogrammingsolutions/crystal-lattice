@@ -37,7 +37,7 @@ This task directory is a standalone handoff of the *current plan* (with all phas
 - SDK core: `packages/frontend-sdk/`
 - Optional React bindings: `packages/frontend-sdk-react/`
 - Existing mobile app: `mobile/crystal-lattice-control-rn/`
-- Plans and design notes: `plans/frontend-sdk/`
+- Historical plans and design notes: `archive/plans/frontend-sdk/`
 
 ## Current branch + key commits
 
@@ -81,9 +81,9 @@ Notable commits (ordered newest → oldest):
 
 The tasks are self-contained, but these plan docs contain deeper rationale:
 
-- `plans/frontend-sdk/04-migration-phases.md`
-- `plans/frontend-sdk/08-ui-representation-boundaries.md`
-- `plans/frontend-sdk/09-chat-persistence-scroll-and-reconcile.md`
+- `archive/plans/frontend-sdk/04-migration-phases.md`
+- `archive/plans/frontend-sdk/08-ui-representation-boundaries.md`
+- `archive/plans/frontend-sdk/09-chat-persistence-scroll-and-reconcile.md`
 
 Related standalone task (Phase 4.5 implementation tracking):
 

@@ -7,9 +7,9 @@ filenames, package profiles, publication rules, and local exceptions.
 ## Principles
 
 - Author documentation beside the package or subsystem that owns it.
-- Choose location by audience, authority, and ownership rather than by who
-  happened to implement the current change.
-- Keep one normative owner for each behavioral contract.
+- Choose location by audience, authority, and the package or shared scope that
+  defines the behavior, not by who happened to implement the current change.
+- Keep one authoritative source for each behavioral contract.
 - Keep public/user and implementation/maintainer documentation aligned with
   current committed behavior.
 - Treat generated documentation as output, not a competing authored source.
@@ -34,9 +34,9 @@ user when the page teaches the supported public contract.
 
 ## Audience and context boundaries
 
-Every artifact has an intended audience and role. A document may assume only
-concepts introduced in that document or available through documentation
-intended for the same audience.
+Every document or maintained file has an intended audience and role. A
+document may assume only concepts introduced in that document or available
+through documentation intended for the same audience.
 
 Broader repository context may guide the author, but does not become reader
 context. When information crosses an audience boundary, include only what the
@@ -54,8 +54,8 @@ or location.
   specifications may link related targets and affected current docs;
   requirements may link implementation and evidence.
 - Agent guidance, tasks, and maintainer material may route broadly within their
-  scope, but their context does not flow into output artifacts. Generated
-  output depends on its maintained source or generator.
+  scope, but their context does not flow into destination documents or files.
+  Generated output depends on its maintained source or generator.
 
 A contract intended for package users may be public reference even when it is
 called a specification. A target specification containing unimplemented
@@ -116,7 +116,7 @@ maintain the documentation or agent workflow may use a non-public maintainer
 domain. This material should not be required reading for ordinary users of the
 standards.
 
-## Artifact roles
+## Documentation roles
 
 | Concept | Responsibility |
 |---|---|
@@ -132,7 +132,19 @@ standards.
 Keep package entry points concise. Move detail into focused pages once the
 entry point becomes difficult to scan.
 
-## Determine the owner
+## Terminology in authored content
+
+Name the concrete item being discussed: document, page, file, specification,
+requirement, work item, task, source code, test, generated output, or
+evaluation result.
+
+Do not use “artifact” as an umbrella label for documentation, code,
+specifications, requirements, tasks, or tests. Reserve it for established
+technical terms such as build, release, test, evaluation, or provider-native
+artifacts and literal paths or APIs such as `artifacts/` or
+`upload-artifact`.
+
+## Choose the documentation scope
 
 Choose the narrowest authoritative scope.
 
@@ -142,7 +154,7 @@ Choose the narrowest authoritative scope.
 3. A shared abstraction normally belongs with the package that defines it, even
    when several packages consume it.
 4. A cross-package scope is appropriate when independently owned packages must
-   coordinate and no package is the honest normative owner.
+   coordinate and no package provides a clear authoritative home.
 5. A shared user-documentation domain is appropriate when the audience consumes
    a common extension or integration surface across many packages.
 6. Generated documentation belongs with the maintained source that produces
@@ -166,13 +178,12 @@ When a package implements a specified behavior, its implementation page should:
 
 The specification may link primary user and implementation pages for
 maintainer discoverability. A consumer page does not need to expose an internal
-target specification merely to preserve normative ownership. Output pages do
-not need to link internal meta-specifications used to develop the standards
-themselves.
+target specification merely to preserve authority. Output pages do not need to
+link internal meta-specifications used to develop the standards themselves.
 
 ## Avoid duplication
 
-- Give every contract one normative owner.
+- Give every contract one authoritative source.
 - Let other pages summarize only what their audience needs.
 - Link audience-compatible lifecycle, compatibility, persistence, and protocol
   detail instead of independently redefining complete rules.
@@ -209,7 +220,7 @@ shared-domain index
 ```
 
 Every multi-page documentation scope should have a short index. Every
-specification index should link all of its authored artifacts. A package
+specification index should link all of its authored pages and files. A package
 development index should be linked from a package entry point rather than being
 discoverable only from a task or search.
 
@@ -222,10 +233,12 @@ They may be edited before code in the working tree, but new claims must be
 committed with the code that makes them true. Target-only behavior remains in
 specifications and requirements until implementation is committed.
 
-Current consumer documentation uses public, self-contained vocabulary. It does
-not mention internal phases, requirement IDs, task paths, temporary progress,
-or future targets. If a current limitation matters to users, state the current
-limitation in user-domain language without copying internal tracking context.
+Current consumer documentation describes delivered behavior directly in
+public, self-contained vocabulary. Do not copy task/specification phase names,
+requirement IDs, progress labels, or internal target links. Translate a
+necessary current limitation into user-domain language and omit future plans.
+Internal phases are omitted even when labeling delivered or unimplemented work.
+Rewrite delivered capabilities in product terms and omit phase labels entirely.
 
 ## Moving existing pages
 
@@ -276,3 +289,13 @@ Do not create:
 - nearly empty indexes with no useful route;
 - copied boilerplate that claims unsupported behavior;
 - speculative package baselines reconstructed from unfamiliar code.
+
+## Placement decisions and layout defaults
+
+Choose an obvious package or shared scope without asking the user to confirm
+routine placement or explaining internal ownership terminology. If materially
+different scopes remain plausible, recommend one and ask one focused question.
+
+Document profiles and file trees are recommended defaults. Honor an explicit
+approved alternative when it preserves required content, audience, authority,
+discoverability, generated-output, and source-of-truth boundaries.

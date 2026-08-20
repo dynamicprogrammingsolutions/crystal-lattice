@@ -669,5 +669,7 @@ strategy model.
 Tests fork a shared repository investigation and exercise package ownership,
 package-specific refinements, specification target versus current state,
 anti-duplication, discoverability, plugin documentation, package profiles, and
-maintainer routing. Results map to `DOCGEN-*` and `DOCREP-*` requirements while
-human verification remains separate.
+maintainer routing. The approved extension also observes required routed-file
+reads before mutation, proportionate placement communication, and explicit
+safe structure overrides. Results map to `DOCGEN-*` and `DOCREP-*` requirements
+while human verification remains separate.

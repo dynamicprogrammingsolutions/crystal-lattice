@@ -814,7 +814,11 @@
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
-      "web_search_provider": "gemini_api"
+      "web_search_provider": "gemini_api",
+      "compaction": {
+        "enabled": true,
+        "type": "kimi"
+      }
     },
     "claude": {
       "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
@@ -899,6 +903,10 @@
       },
       "request_options_ui": {
         "reasoning_effort": ["high", "max"]
+      },
+      "compaction": {
+        "enabled": true,
+        "type": "kimi"
       }
     },
     "fireworks": {

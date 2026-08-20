@@ -3,6 +3,7 @@
 - [Application request execution](request-execution.md)
 - [Application operations](operations.md)
 - [Runtime owner integration](runtime-owner-integration.md)
+- [Terminal and HTTP feature development](terminal-and-http-features.md)
 
 Portable reload and notification behavior is specified in root development
 specifications. This package page documents terminal, HTTP, bridge, and

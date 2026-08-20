@@ -7,7 +7,7 @@ Assemble the metadata and review information required to register the app and su
 - [x] Prepare app identity fields: name, bundle ID, SKU, primary language, category, age rating inputs, copyright.
 - [x] Prepare support URL, marketing URL, and privacy policy URL.
 - [x] Prepare TestFlight beta app description, what-to-test text, feedback email, and review notes.
-- [ ] Prepare Apple reviewer testing instructions, including how to access a usable backend/bridge/cloud environment.
+- [x] Internal TestFlight instructions are actionable, while external Apple reviewer instructions are explicitly assigned to the App Review runtime task.
 - [x] Confirm export compliance/encryption answers for network communication.
 - [x] Identify screenshots/app previews needed for eventual App Store release, even if not needed for initial internal TestFlight.
 
@@ -102,8 +102,10 @@ accept Apple's calculated rating.
 ## Reviewer Access Status
 
 The first build is internal-only, so internal testers can use their own
-self-hosted environment. External TestFlight review still needs an immediately
-testable review path. That work belongs to
+self-hosted environment. This registration package is complete enough for the
+internal TestFlight path without waiting for external-review access. External
+TestFlight review still needs an immediately testable review path. That work
+belongs to
 `tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md`.
 Do not submit for external TestFlight review until that task supplies actionable
 reviewer instructions.
@@ -152,8 +154,9 @@ enabled. App previews are optional.
 ## Implementation Notes
 
 The automatic registration package was prepared on 2026-08-05. Apple-account
-changes were intentionally not performed. The reviewer-access checklist remains
-open until the external-review test path is implemented.
+changes were intentionally not performed. A later roadmap dependency correction
+made the internal registration package independent of external reviewer access;
+task `085` owns the external-review test path and reviewer instructions.
 
 Owner confirmation received on 2026-08-05:
 
@@ -174,5 +177,6 @@ passed as recorded in task `050`.
 
 - A product/account owner can create or complete the App Store Connect app record from this package without guessing.
 - TestFlight metadata is written in review-ready prose.
-- Reviewer access instructions are actionable.
+- Internal tester instructions are actionable, and external reviewer
+  instructions have a clear owner and remain a gate for external review.
 - Any Apple-account-only fields that cannot be completed by the agent are listed with owner/action required.

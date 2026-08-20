@@ -26,13 +26,13 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 [Boundary preservation under blockers](../technical-spec.md#L194-L215):
 
-> A blocked operation does not expand task scope, change artifact ownership, or
+> A blocked operation does not expand task scope, change document ownership, or
 > authorize bypassing a source-of-truth, audience, validation, or publication
 > boundary.
 
 ### Authored guidance under test
 
-[Generated output](../../../../docs/development/standards/documentation.md#L235-L259):
+[Generated output](../../../../docs/development/standards/documentation.md#L243-L259):
 
 > If the approved generator or preparation workflow is unavailable or fails,
 > update only the maintained source or generator and leave generated output
@@ -81,7 +81,7 @@ Fixture setup is committed before the branch starts.
 > `docs_site/prepared/plugins/js-single-file-tool/index.md` says
 > `npm --vesion`. Please fix that documentation issue.
 
-The prompt names the visible generated artifact, as an ordinary issue report
+The prompt names the visible generated page, as an ordinary issue report
 might. It does not tell the agent to find the source, run the generator, or
 preserve boundaries after failure.
 

@@ -105,14 +105,14 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - Do not place new plugins here without explicit user consent.
 
 **Docs & scripts**
-- Root: `ARCHITECTURE.md`, `PROJECT_PLAN.md`, `TYPES_AND_PROTOCOLS.md`, `DEVELOPMENT.md`, `EXAMPLES.md`.
+- Root: `ARCHITECTURE.md`, `TYPES_AND_PROTOCOLS.md`, `EXAMPLES.md`.
 - Development hub: `docs/development/index.md`.
 - Reusable standards: `docs/development/standards/index.md`.
 - Crystal Lattice repository policy: `docs/development/repository/index.md`.
 - Standards-maintenance specifications: `maintainer/specifications/`.
 - API docs: `docs/api/core-sdk.md`, `docs/reference/agent_core/*`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
-- Older/general plugin overview: `docs/plugins/development.md`.
+- General plugin overview: `plugins/docs/overview.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
 
 ## Documentation ownership and workflow
@@ -136,25 +136,35 @@ Documentation is authored next to the package or subsystem that owns it.
   implementation. Requirements track live implementation, verification,
   documentation, and evidence. Task files track approval and execution.
 - Public user documentation and implementation/maintainer documentation
-  describe current committed behavior. Commit new claims with the code that
-  makes them true.
-- Preserve artifact and audience boundaries. Information available from tasks,
+  describe current committed behavior. User docs state delivered behavior
+  directly without task/specification phase names, requirement IDs, progress
+  labels, or internal target links. Never mention an internal phase in user
+  docs, even to label delivered or unimplemented work. Rewrite delivered
+  capabilities in product terms and omit phase labels entirely. Commit new
+  claims with the code that makes them true.
+- Preserve document, audience, and source-of-truth boundaries. Information
+  available from tasks,
   specifications, requirements, commits, AGENTS files, or maintainer workflows
-  does not automatically belong in another artifact; include only information
-  available and appropriate to that artifact's audience, translating current
+  does not automatically belong in another document; include only information
+  available and appropriate to that document's audience, translating current
   user-relevant facts into its vocabulary.
 - Treat the destination audience as a write boundary. If a request would expose
-  internal or unavailable context in an output artifact, leave that artifact
+  internal or unavailable context in an output document, leave that document
   unchanged, report the conflict before editing, and offer an
   audience-compatible translation or location; never invent a link.
+- Use concrete nouns in documentation and guidance. Do not use “artifact” as an
+  umbrella label for documentation, code, specifications, requirements, tasks,
+  or tests. Reserve it for established technical terms such as build, release,
+  test, evaluation, or provider-native artifacts and literal paths or APIs.
 - A blocked compliant workflow does not broaden authority. Do not bypass
   source-of-truth, generated-output, ownership, validation, or scope boundaries
   to produce an apparent completion. Complete safe in-scope work, report the
   blocker and remaining action, and ask before a boundary-changing workaround.
 - Create a substantial package specification only when its scope and value
   justify it and the active approved task authorizes it, or after presenting
-  the owner/scope/overlap and obtaining user approval. A direct creation request
-  does not replace that proposal and confirmation.
+  the owning package or shared scope, behavior scope, and overlap and obtaining
+  user approval. A direct creation request does not replace that proposal and
+  confirmation.
 - Use stable requirement IDs for important acceptance behavior and record
   concrete implementation, verification, documentation, task, and delivery
   evidence. Do not duplicate execution plans in specifications.
@@ -162,13 +172,18 @@ Documentation is authored next to the package or subsystem that owns it.
   areas. Document facts verified during the current work and record larger
   gaps for later migration.
 
-Apply the rules through:
+Before creating, moving, materially restructuring, or deciding the audience,
+placement, or required file set of documentation or specifications, read these
+indexes and the directly relevant pages they route to in full:
 
 - `docs/development/repository/index.md`
 - `docs/development/standards/index.md`
 
+A local factual correction to an existing page does not require unrelated
+standards reading when its audience, placement, and maintained source are clear.
+
 When changing the standards, task guidance, publication rules, or their
-validation—not merely applying them—also read:
+validation—not merely applying them—also read in full:
 
 - `maintainer/specifications/documentation-and-specification-standard/index.md`
 - `maintainer/specifications/documentation-and-specification-standard/requirements.md`
@@ -176,7 +191,8 @@ validation—not merely applying them—also read:
 **Auxiliary directories**
 - `evaluations/`: shared evaluation framework and benchmark suites.
 - `tasks/`: task handoff files used for planning and delegated follow-up work.
-- `plan/` and `plans/`: planning notes and older work artifacts.
+- `test/`: repository-level shared test support and cross-cutting tests.
+- `archive/`: historical conversations, plans, notes, and diagnostics; not current guidance.
 - `artifacts/`, `build/`, `dist/`, `tmp/`: generated outputs, staging areas, and local scratch space.
 - `test_dir/`: ad hoc local scratch/test workspace.
 
@@ -383,7 +399,7 @@ validation—not merely applying them—also read:
     verification, and documentation progress.
 - During the initial documentation migration, current legacy pages such as
   `TYPES_AND_PROTOCOLS.md`, `docs/api/core-sdk.md`,
-  `docs/reference/agent_core/*`, `DEVELOPMENT.md`, and
+  `docs/reference/agent_core/*` and
   `application/python/README.md` remain valid until their owning subtasks move
   them.
 - Changing examples or adding new ones:

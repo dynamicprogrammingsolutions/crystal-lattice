@@ -14,7 +14,7 @@ The goal is to keep documentation:
   - Avoid headings like “where did they go?”, “tests-first (per review)”, “as requested”, etc.
 - Keep titles and section headers natural and user-facing.
 - If something changed compared to earlier docs, explain it as a normal design choice,
-  not as an artifact of a prior conversation.
+  not merely because it appeared in a prior conversation.
 
 ## 2) Prefer runtime-accurate claims with code pointers
 
@@ -130,11 +130,11 @@ Examples of shared topics:
 When adding a new shared doc, update `plugins/docs/index.md`. If the page
 refines one canonical plugin guide, link it from that guide too.
 
-## 9) Keep `docs/plugins/development.md` as a general overview
+## 9) Keep `overview.md` as a general overview
 
-`docs/plugins/development.md` is readable and useful as a general plugin overview.
+`plugins/docs/overview.md` is the general plugin-system overview.
 
-- Do not delete it.
+- Keep it linked from `plugins/docs/index.md`.
 - If provider-specific docs evolve, prefer adding a pointer/link rather than duplicating
   provider details there.
 

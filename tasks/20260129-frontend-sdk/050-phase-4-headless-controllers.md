@@ -118,4 +118,5 @@ RN integration uses shims to preserve old import paths:
 
 ## Additional references
 
-- Representation-only guidelines: `plans/frontend-sdk/08-ui-representation-boundaries.md`
+- Historical representation-only guidelines:
+  `archive/plans/frontend-sdk/08-ui-representation-boundaries.md`

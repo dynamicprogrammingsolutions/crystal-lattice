@@ -88,13 +88,20 @@ and survive application replacement and server-process restart until
 retention removes them. Session notifications are stored in
 `Session.metadata["notifications"]["items"]` and remain hidden from model
 history. Records have monotonic revisions and support pending, dismissed,
-resolved, and expired states. Creating with the key of an active notification
-updates that lifecycle item; a terminal record does not suppress a new
-occurrence.
+resolved, and expired states.
+
+Producers publish notifications using stable keys. Repeated publication
+updates the active occurrence for that key. If the key currently maps to a
+terminal record, publication creates a new lifecycle occurrence. Producer
+publication (create, update, resolve, expire) does not require
+`expected_revision`; the notification service owns revision assignment and
+increment. Dismissal is the only frontend lifecycle mutation that accepts
+optional `expected_revision`, so a stale user gesture cannot hide a newer
+revision or a later stable-key occurrence.
 
 For complete record fields, examples, presentation behavior, stable-key
-updates, dismissal, resolution, expiration, tool-sink usage, current frontend
-integration limitations, event names, and focused test commands, see
+publication, dismissal, resolution, expiration, tool-sink usage, current
+frontend integration limitations, event names, and focused test commands, see
 [Notifications and action displays](notifications-and-action-displays.md).
 
 For background work, keep active registration, runtime ownership, and

@@ -30,11 +30,15 @@ The key requirement is future flexibility:
 - `RestAgentBackend.getCapabilities()` currently reports:
   - `featureCompletions: false`
   - `applicationConfig: false`
-- The server parity plan is documented in:
-  - `plans/frontend-sdk/05-terminal-and-vscode-alignment.md`
+- Current server parity behavior is documented in:
   - `application/python/agent_terminal_app/server_endpoints_parity.md`
+- Historical planning context is retained at
+  `archive/plans/frontend-sdk/05-terminal-and-vscode-alignment.md`; revalidate
+  it against current code and documentation before implementation.
 
 ## References
 
-- High-level stage definition: `plans/frontend-sdk/04-migration-phases.md`
-- Alignment doc: `plans/frontend-sdk/05-terminal-and-vscode-alignment.md`
+- Historical high-level stage definition:
+  `archive/plans/frontend-sdk/04-migration-phases.md`
+- Historical alignment notes:
+  `archive/plans/frontend-sdk/05-terminal-and-vscode-alignment.md`

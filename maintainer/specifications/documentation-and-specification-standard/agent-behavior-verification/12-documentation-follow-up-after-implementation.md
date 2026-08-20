@@ -12,9 +12,9 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > A package-neutral specification standard defines target specifications, live
 > requirements, work-tracked approval, current public/maintainer docs,
-> proportional artifacts, evidence, and simple spec-first commits.
+> proportional specification files, evidence, and simple spec-first commits.
 
-> Generic rules define one normative owner, controlled summaries,
+> Generic rules define one authoritative source, controlled summaries,
 > current-versus-target separation, complete indexes, and two-link
 > discoverability without requiring placeholder pages.
 
@@ -34,7 +34,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > Requirements own live state and evidence.
 
-[Current documentation](../../../../docs/development/standards/specifications.md#L235-L242):
+[Current documentation](../../../../docs/development/standards/specifications.md#L249-L261):
 
 > Public user documentation and implementation/maintainer documentation
 > describe current behavior.

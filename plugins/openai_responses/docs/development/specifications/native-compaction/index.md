@@ -17,7 +17,7 @@ It does not redefine general OpenAI Responses request handling, ChatGPT login,
 session persistence, or application notification contracts. It applies those
 package and framework capabilities to native compaction.
 
-Artifacts:
+Specification documents:
 
 - [Product specification](product-spec.md)
 - [Technical specification](technical-spec.md)

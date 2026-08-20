@@ -3,8 +3,8 @@
 Tool plugins (`ToolPlugin`) expose callable tools to the model and execute the
 resulting tool calls inside the core/application tool loop.
 
-This guide is the canonical tool-authoring companion to the general overview in
-`docs/plugins/development.md`.
+This guide is the canonical tool-authoring companion to the
+[general overview](overview.md).
 
 Runtime references (source of truth):
 

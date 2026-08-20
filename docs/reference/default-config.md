@@ -903,7 +903,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
-      "web_search_provider": "gemini_api"
+      "web_search_provider": "gemini_api",
+      "compaction": {
+        "enabled": true,
+        "type": "kimi"
+      }
     },
     "claude": {
       "mixin_refs": [
@@ -1016,6 +1020,10 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "high",
           "max"
         ]
+      },
+      "compaction": {
+        "enabled": true,
+        "type": "kimi"
       }
     },
     "fireworks": {

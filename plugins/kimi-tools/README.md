@@ -1,6 +1,52 @@
 # kimi-tools
 
-Kimi CLI-compatible tool plugin bundle. Provides file tools (ReadFile, ReadMediaFile, WriteFile, StrReplaceFile, Glob, Grep, FetchURL, Shell) with schemas, parameter names, output formatting, and behavioral semantics matching MoonshotAI's `kimi-cli`.
+Kimi CLI-compatible plugin bundle. It provides manual conversation compaction
+and file, search, web, media, and shell tools with model-facing behavior based
+on MoonshotAI's `kimi-cli`.
+
+## Manual conversation compaction
+
+When enabled for an agent, `KimiCompactionFeature` exposes:
+
+- `compact_conversation`, which compacts the full conversation or an explicit
+  Python-style `start:end` range;
+- `compact_up_to_here`, a message action that compacts the prefix ending at the
+  selected message.
+
+Full-conversation compaction preserves the last two user/assistant messages by
+default. It sends the earlier context to a tool-free compaction request using
+the Kimi prompt and injects the result as one user message beginning with:
+
+```text
+<system>Previous context has been compacted. Here is the compaction output:</system>
+```
+
+Enable the feature in the agent configuration:
+
+```json
+{
+  "compaction": {
+    "enabled": true,
+    "type": "kimi",
+    "max_preserved_messages": 2,
+    "compaction_model": null,
+    "prompt": null,
+    "settings_overrides": {}
+  }
+}
+```
+
+- `max_preserved_messages` defaults to `2`. A value less than or equal to `0` makes an
+  unbounded/full compaction request a no-op, matching `kimi-cli`.
+- `compaction_model` selects a model used only for compaction. The session
+  settings UI can override it per session.
+- `prompt` replaces the default Kimi compaction prompt.
+- `settings_overrides` adds request settings, but cannot re-enable tools for
+  the compaction request.
+
+The prompt asks for Kimi's structured XML-style summary sections. If the model
+returns other non-empty text, the plugin retains it instead of rejecting an
+otherwise usable compaction.
 
 ## Exposed Tools
 
@@ -120,7 +166,11 @@ Search for patterns in file contents using regular expressions.
   "web_fetch_timeout_seconds": 10,
   "web_fetch_max_chars": 50000,
   "moonshot_enabled": false,
-  "moonshot_api_key": "${MOONSHOT_API_KEY}"
+  "moonshot_api_key": "${MOONSHOT_API_KEY}",
+  "compaction": {
+    "enabled": true,
+    "type": "kimi"
+  }
 }
 ```
 
@@ -145,6 +195,17 @@ Search for patterns in file contents using regular expressions.
 - `moonshot_api_key`: API key for Moonshot service, can use `${ENV_VAR}` placeholder
 - `moonshot_base_url`: Moonshot service URL (default: `https://api.kimi.com/coding/v1/fetch`)
 - `moonshot_custom_headers`: Additional headers for service requests (optional)
+
+**Manual compaction:**
+
+- `compaction.enabled`: Enable the compaction actions.
+- `compaction.type`: Must be `"kimi"` for this feature.
+- `compaction.max_preserved_messages`: Recent user/assistant messages kept
+  verbatim during full-conversation compaction; defaults to `2`.
+- `compaction.compaction_model`: Optional model dedicated to compaction.
+- `compaction.prompt`: Optional replacement compaction prompt.
+- `compaction.settings_overrides`: Optional request settings; tools remain
+  disabled regardless of this mapping.
 
 ## Dependencies
 

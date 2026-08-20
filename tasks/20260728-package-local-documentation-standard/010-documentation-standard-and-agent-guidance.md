@@ -4,12 +4,12 @@ Specification:
 `maintainer/specifications/documentation-and-specification-standard/index.md`
 
 Requirement IDs:
-`DOCMETA-001`–`DOCMETA-003`, `DOCGEN-001`–`DOCGEN-007`,
-`DOCREP-001`–`DOCREP-006`
+`DOCMETA-001`–`DOCMETA-003`, `DOCGEN-001`–`DOCGEN-010`,
+`DOCREP-001`–`DOCREP-007`
 
 Related Verification:
 `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
-owns `DOCVAL-005`–`DOCVAL-008` behavioral evidence. Its remaining framework
+owns `DOCVAL-005`–`DOCVAL-009` behavioral evidence. Its remaining framework
 and matrix refinements are non-blocking for this task.
 
 # Documentation Standard and Agent Guidance
@@ -21,7 +21,8 @@ boilerplate or reconstructed documentation to every package.
 ## Requirements checklist
 
 - [x] The unified maintainer meta-specification defines the target and its
-  requirements track both reusable and repository-specific output artifacts.
+  requirements track both reusable and repository-specific output
+  documentation.
 - [x] `docs/development/index.md` provides a concise map to repository-wide
   development documentation.
 - [ ] `docs/development/standards/` contains reusable package-neutral
@@ -35,6 +36,9 @@ boilerplate or reconstructed documentation to every package.
 - [ ] Repository policy maps normal, pointer-only, evidence-only, and prohibited
   references among user docs, development docs, specifications, requirements,
   AGENTS, tasks, maintainer material, and generated output.
+- [x] Documentation and specification guidance uses concrete nouns rather than
+  “artifact” as an umbrella label, while retaining established technical uses
+  such as build, evaluation, and provider-native artifacts.
 - [x] Root `AGENTS.md` contains concise routing and update guidance and points to
   the effective repository policy, generic standards, and maintainer
   specification only when an agent is changing the standards themselves.
@@ -141,7 +145,7 @@ long-form content merely to complete the shape.
 - The execution plan is `Approved`.
 - August 14, 2026: Reviewed the committed subtask 015 changes. The
   documentation meta-specification and applied guidance now also define
-  audience/context boundaries, artifact-reference directions,
+  audience/context boundaries, document-reference directions,
   observable-example accuracy, blocked-workflow boundaries, and
   baseline-first behavioral verification.
 - Subtask 015 added `DOCGEN-006`, `DOCGEN-007`, `DOCREP-006`, and
@@ -161,6 +165,37 @@ long-form content merely to complete the shape.
   - `maintainer/` and AGENTS remain excluded from public output;
   - explicit navigation warnings remain assigned to subtask 060, while the
     existing griffe/autoref warnings remain outside 010.
+- August 19, 2026: The user approved a terminology follow-up after observing
+  that agents copied the standards' generic “artifact” wording into
+  specification indexes. Added `DOCGEN-010`, replaced the umbrella term with
+  concrete document/file/work-item terminology in the governing specification
+  and applied guidance, corrected existing `Artifacts:` specification-index
+  headings, and extended Test 21 plus deterministic guidance checks.
+- At the user's direction, no subtask 015 deterministic or real-model test was
+  run for this follow-up. `DOCGEN-010` and the expanded `DOCVAL-005` coverage
+  remain unverified until the recorded focused commands are executed.
+- Read-only inspection of all five preserved August 18 Test 21 runs found that
+  the GLM baseline, two GLM candidates, and two GPT candidates all generated
+  either `## Artifacts` or `## Specification artifacts`. These prior results
+  demonstrate the existing behavioral gap, but they cannot verify the revised
+  guidance because they predate it.
+- Non-test verification for the terminology follow-up completed:
+  - static searches found no remaining generic umbrella phrases in the
+    governed guidance or documentation meta-specification;
+  - no inbound Markdown links retain the renamed generic headings;
+  - Python compilation and Ruff checks pass for the changed deterministic and
+    behavioral test definitions;
+  - changed-page relative-link inspection reports only the two pre-existing
+    site-relative links in `docs/index.md`;
+  - docs-site preparation and normal MkDocs build complete with the known
+    navigation and griffe/autoref warnings;
+  - no pytest or real-model command was executed.
+- August 19, 2026: The user approved the terminology-section placement.
+  The reusable documentation standard now owns the full authored-content rule
+  after its document-role table, while the specification standard applies it
+  after defining the proportional specification file set. The one-off rerun
+  instructions remain in the user handoff rather than persistent evaluation
+  documentation.
 
 ## Execution plan
 
@@ -245,7 +280,7 @@ Together they should cover:
    - shared documentation domain;
    - repository tooling/site support where README plus targeted development
      docs is sufficient.
-3. **Artifact responsibilities**
+3. **Documentation responsibilities**
    - README;
    - AGENTS;
    - docs index;
@@ -315,7 +350,7 @@ Together they should document:
      `<package>/docs/development/specifications/<feature-slug>/`;
    - root `docs/development/specifications/<feature-slug>/` only for genuinely
      cross-package portable behavior without an honest single-package owner.
-3. **Artifact roles**
+3. **Specification document roles**
    - `index.md`: scope, links, ownership, and related tasks/specs;
    - `product-spec.md`: problem, users, user-visible behavior, goals,
      non-goals, acceptance examples;
@@ -323,9 +358,9 @@ Together they should document:
      migration, failure behavior, security, rollout, verification;
    - `requirements.md`: stable normalized outcomes and evidence;
    - `decisions/NNNN-<slug>.md`: material architecture/design decisions.
-4. **Proportional artifact set**
+4. **Proportional specification file set**
    - the full set is not mandatory for every change;
-   - omitted artifacts should be obviously unnecessary from the index/scope,
+   - omitted files should be obviously unnecessary from the index/scope,
      not represented by empty placeholders.
 5. **Target versus live state**
    - the specification describes the intended target;
@@ -507,6 +542,23 @@ Documentation-only verification:
 8. Leave requirements depending on that human review incomplete until the
    review is confirmed.
 
+### 9. Approved terminology follow-up
+
+1. Update the documentation meta-specification and live requirements first,
+   adding a stable requirement for concrete terminology.
+2. Replace generic umbrella wording in reusable standards, repository policy,
+   root agent guidance, review routing, and existing specification indexes.
+3. Preserve established technical uses such as build, release, test,
+   evaluation, provider-native, and literal `artifacts/` terminology.
+4. Synchronize behavioral scenario wording and extend the existing
+   specification-creation scenario so it rejects `Artifacts:` headings and
+   equivalent generic phrases.
+5. Add a deterministic check covering the governed guidance and corrected
+   specification indexes.
+6. Keep verification pending without running subtask 015 tests in this change,
+   and provide exact deterministic and baseline/candidate rerun commands as a
+   one-off user handoff rather than persistent package documentation.
+
 ### Implementation decisions and open questions
 
 - **Approved parent decisions applied:** package profiles, README/docs-index
@@ -564,6 +616,10 @@ Documentation-only verification:
 - [x] Run documentation preparation/build and inspect warnings.
 - [x] Map subtask 015 additions and refresh static/build evidence against the
   current committed guidance.
+- [x] Apply the approved concrete-terminology follow-up to the specification,
+  guidance, existing indexes, scenarios, and test definitions.
+- [ ] Run the new deterministic terminology check and focused Test 21
+  baseline/candidate evaluation.
 - [ ] Obtain human review of clarity and agent-context concision.
 
 ### Requirement verification
@@ -571,9 +627,10 @@ Documentation-only verification:
 | Requirement group | Acceptance evidence |
 |---|---|
 | Development hub | `docs/development/index.md` preserves all active cross-package specification links and exposes reusable standards and repository policy with a concise ownership explanation. |
-| Documentation structure | Human inspection confirms the generic page is package-neutral, the repository overlay contains local mappings/exceptions without generic duplication, and artifact roles, package profiles, ownership, generated-output, migration, and incremental-adoption rules are explicit. |
+| Documentation structure | Human inspection confirms the generic page is package-neutral, the repository overlay contains local mappings/exceptions without generic duplication, and document roles, package profiles, ownership, generated-output, migration, and incremental-adoption rules are explicit. |
 | Specification workflow | Human inspection confirms target-state specification semantics, requirements-owned live tracking, task-owned approval, simple spec-first commits, optional major-version separation, stable IDs, evidence, ADRs, current-doc coupling, and temporary multi-commit progress rules. |
-| Audience and boundary behavior | Human inspection confirms artifacts use audience-appropriate context, internal provenance does not leak into consumer docs, generated-source and blocked-workflow boundaries remain intact, and observable first-success claims are concrete and current. |
+| Audience and boundary behavior | Human inspection confirms documents use audience-appropriate context, internal provenance does not leak into consumer docs, generated-source and blocked-workflow boundaries remain intact, and observable first-success claims are concrete and current. |
+| Concrete terminology | Static inspection confirms the standards, repository policy, agent guidance, and specification indexes name documents, files, specifications, requirements, work items, tests, code, and generated output directly; focused deterministic and Test 21 reruns remain pending by user direction. |
 | Behavioral evidence | Subtask 015 maps every `DOCGEN-*` and `DOCREP-*` requirement to executable consumers; this evidence supplements rather than replaces human review and its remaining refinements are non-blocking. |
 | Existing specifications | Diff inspection confirms current feature specifications were preserved and no mass conformance rewrite or unsupported claims were introduced. |
 | Agent guidance | Root `AGENTS.md` routes agents to package docs and full standards without reproducing the long explanations or preempting `CONTRIBUTING.md`/`TASKS-v7` work. |

@@ -46,6 +46,26 @@ A cached notification dismissal is obsolete when authoritative state contains
 a newer pending revision. It is removed rather than retargeted; the newer
 revision remains eligible for presentation.
 
+### Dismissability
+
+The `dismissible` field is an optional hint controlling whether the user can
+dismiss the rendered display.
+
+- Omitted or `true` means the user can dismiss the notification.
+- `false` is an exceptional producer decision, not a default.
+
+`false` is appropriate for:
+
+- permanent or environment status indicators;
+- active interactions that must remain discoverable;
+- presentations where hiding would remove the only path to a required response.
+
+Long-running operation progress should not normally use `false` merely to
+preserve a Cancel action. Dismissing progress does not cancel the underlying
+operation; Cancel remains an explicit follow-up action. A persistent
+notification must never become a dead end: if it cannot be dismissed, it must
+have a viable recovery action or reliably transition into a dismissible state.
+
 Every host preserves fixed parameters, parameter mappings, embedded forms, and
 submitted form values when invoking `run_action`.
 

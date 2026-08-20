@@ -14,7 +14,7 @@ reader.
 These users need to:
 
 - decide where documentation belongs;
-- identify each artifact's audience and avoid relying on context that audience
+- identify each document's audience and avoid relying on context that audience
   cannot access or is not expected to know;
 - decide whether a durable specification is justified;
 - identify the package or shared scope that owns a contract;
@@ -34,7 +34,8 @@ These users need to:
 - change standards without duplicating rules between output pages;
 - understand how AGENTS, task guidance, contributor guidance, publication, and
   validation fit together;
-- trace output artifacts to requirements, tasks, tests, and delivery evidence;
+- trace output pages and files to requirements, tasks, tests, and delivery
+  evidence;
 - evolve the standards while preserving a clear user-facing result.
 
 ## Target experience
@@ -45,15 +46,15 @@ need to open `maintainer/` to apply the rules.
 
 A maintainer changing the standards is explicitly routed to this
 meta-specification, its requirements, and the owning task before editing the
-user-facing artifacts or supporting tooling.
+user-facing pages or supporting tooling.
 
 The generic pages remain package-neutral and reusable. The repository pages
 map those rules to actual packages, paths, plugin documentation, task files,
 agent guidance, site assembly, and validation.
 
-Every output artifact remains understandable within its own audience. An agent
+Every output document remains understandable within its own audience. An agent
 may use broader repository context to make a decision, but does not copy task,
-phase, requirement, approval, evidence, or maintainer context into an artifact
+phase, requirement, approval, evidence, or maintainer context into a document
 whose readers do not have that context.
 
 ## Specification and current state
@@ -79,13 +80,14 @@ for major changes when they materially improve clarity.
   package-specific refinements of broader contracts.
 - Keep shared plugin-authoring rules explicit without making them universal
   package rules.
-- Make every documentation artifact discoverable from an appropriate entry
-  point.
+- Make every documentation page discoverable from an appropriate entry point.
 - Keep normative contracts, consumer guidance, implementation guidance, and
   standards-maintenance material distinguishable.
-- Give every artifact an audience and context boundary, define allowed
-  reference directions among artifact roles, and translate rather than leak
-  information when it crosses a boundary.
+- Give every document or maintained file an audience and context boundary,
+  define allowed reference directions among document and workflow roles, and
+  translate rather than leak information when it crosses a boundary.
+- Use concrete nouns for documentation, code, specifications, requirements,
+  tasks, tests, and generated output rather than a generic umbrella label.
 - Preserve scope, ownership, source-of-truth, validation, and publication
   boundaries when a compliant workflow is unavailable.
 - Use requirements as the live traceability record.
@@ -165,3 +167,71 @@ wording is evaluated only after the baseline exposes the boundary failure in at
 least one representative model run. The same seed, task prompt, fixture, and
 assertions are then reused to compare concise and, only when needed, expanded
 guidance variants.
+
+## Approved August 18 calibration extension
+
+### Additional user needs
+
+Contributors and agents applying the rules also need to:
+
+- know when repository guidance requires reading the complete directly
+  relevant routed standard pages before editing;
+- make clear package-local placement decisions without burdening the user with
+  internal ownership jargon or duplicate confirmation;
+- honor an explicit approved documentation or specification layout when it
+  preserves required content and repository boundaries.
+
+### Additional target experience
+
+A documentation task makes required reading proportionate and explicit. Agents
+read the complete directly relevant routed pages before creating, moving, or
+materially restructuring documentation or specifications, while a local
+factual correction does not require unrelated standards research.
+
+When placement is clear, the agent implements it without asking the user to
+confirm an obvious package path or explaining internal ownership terminology.
+When multiple materially different scopes remain plausible, the agent gives a
+short recommendation and asks one focused question.
+
+Recommended file layouts are defaults rather than mandatory schemas. An
+explicit user- or work-item-approved alternative is honored unless it would
+violate audience, authoritative-source, generated-output, discoverability, or
+required-content boundaries.
+
+### Additional goals
+
+- Define explicit and proportional triggers for reading routed standards in
+  full.
+- Use clear placement and authoritative-source language without forcing users
+  to discuss internal ownership mechanics for obvious tasks.
+- Treat standard file layouts as recommended defaults and honor explicit safe
+  alternatives.
+
+### Additional non-goals
+
+- Requiring one mandatory documentation or specification file layout.
+- Requiring user confirmation for an obvious package-local documentation
+  placement.
+
+### Routed documentation reading
+
+An agent asked to create a package documentation structure reads the root and
+nearest package guidance, then reads the relevant repository-policy and generic
+standard pages in full before editing. An agent correcting a factual typo in an
+already-owned page does not load unrelated structure and specification rules.
+
+### Clear package-local placement
+
+An agent asked to document behavior defined by one package creates the
+documentation with that package without asking the user to confirm the obvious
+location or discussing an “honest normative owner.” Its response reports the
+result and paths. If two materially different scopes remain plausible, it
+recommends one and asks a focused question.
+
+### Explicit layout override
+
+An approved specification task requests one `decisions.md` file instead of a
+`decisions/` directory. The agent follows that structure, links the file from
+the specification index, preserves required decision content, and does not
+create both forms or refuse merely because the standard shows a directory as
+the default.

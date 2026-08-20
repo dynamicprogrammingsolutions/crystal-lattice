@@ -89,7 +89,7 @@ feature must work for installed users. The test should:
 - allow only the fixture paths and any bundled docs/source paths the agent may
   need
 - override auth/model only through normal config overrides
-- assert final artifacts and run independent validation after the model stops
+- assert final outputs and run independent validation after the model stops
 
 The user prompt should stay generic. Project details should live in the fixture
 project docs and files. Task mechanics should live in the bundled guide.

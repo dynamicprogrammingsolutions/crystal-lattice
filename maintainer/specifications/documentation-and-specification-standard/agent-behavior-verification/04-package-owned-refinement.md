@@ -52,12 +52,12 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > and select an allowed fallback. It must not silently weaken or contradict the
 > broader contract.
 
-[Proportional specification artifacts](../../../../docs/development/standards/specifications.md#L63-L89):
+[Proportional specification files](../../../../docs/development/standards/specifications.md):
 
 > A substantial capability commonly uses:
 
 > Additional contract pages are allowed when they make a substantial domain
-> clearer. Do not create empty artifacts merely to complete the shape.
+> clearer. Do not create empty files merely to complete the shape.
 
 [Crystal Lattice locations](../../../../docs/development/repository/specifications.md#L7-L28):
 
@@ -80,7 +80,8 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 > Create a substantial package specification only when its scope and value
 > justify it and the active approved task authorizes it, or after presenting
-> the owner/scope/overlap and obtaining user approval.
+> the owning package or shared scope, behavior scope, and overlap and obtaining
+> user approval.
 
 ### Assertion relationship
 
@@ -208,15 +209,15 @@ It scores:
 - refinement versus duplication;
 - compatibility with the portable contract;
 - completeness of mobile behavior;
-- proportionality of the specification artifacts;
+- proportionality of the specification files;
 - clarity of deferred implementation state.
 
 ## Human review
 
 The human presentation asks:
 
-- Is mobile the honest owner of these UX requirements?
+- Is the mobile package the clear authoritative home for these UX requirements?
 - Does the refinement link rather than copy the portable contract?
 - Does it add or strengthen behavior without silent contradiction?
 - Is implementation clearly still pending?
-- Is the specification substantial enough to justify its artifact set?
+- Is the specification substantial enough to justify its file set?

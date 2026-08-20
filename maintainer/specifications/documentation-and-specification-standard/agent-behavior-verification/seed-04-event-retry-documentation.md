@@ -61,6 +61,9 @@ normative, how much to summarize, or which links/pages should change.
   package-user and package-maintainer entry points without root ownership.
 - [Apply versus maintain boundary](19-apply-versus-maintain-boundary.md):
   reject maintainer/evaluation provenance in a package-user README.
+- [Routed guidance reading](20-routed-guidance-reading.md): verify that root
+  AGENTS routing causes the relevant standards pages to be read before a
+  documentation-structure edit.
 
 Future branches may ask to document the target-only replay behavior, add a
 duplicate root page, or repair only the link graph.

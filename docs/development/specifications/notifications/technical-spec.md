@@ -93,12 +93,63 @@ POST /sessions/{session_id}/notifications/{notification_id}/dismiss
 List endpoints return active records by default and accept
 `include_terminal=true`.
 
-Mutations may include `expected_revision`. A stale mutation returns the current
-record rather than overwriting a later revision.
+Mutations are divided into two contracts.
+
+**Producer publication** (create, update by key, resolve, expire):
+
+- requires a stable key;
+- atomically operates on the current active occurrence for that key;
+- does not accept `expected_revision`;
+- increments revision internally;
+- creates a new occurrence if the previous one is terminal or absent.
+
+**Frontend lifecycle mutation** (dismissal):
+
+- targets a specific notification ID;
+- accepts optional `expected_revision` and `reason` fields;
+- a stale expected revision returns the current record rather than overwriting
+  a later revision.
+
+Revisions are assigned and incremented by the notification store. They are
+visible to frontends for ordering, deduplication, and conditional dismissal.
+They are not part of the normal plugin publication flow; producers do not
+supply or track `expected_revision`.
 
 Creating with the key of an active notification updates that item while
 retaining its ID. A matching terminal record does not suppress a new
 occurrence.
+
+### Atomic upsert by key
+
+Under the existing session/store lock, producer publication performs:
+
+```text
+publish(key, payload)
+    active key exists     → update that occurrence
+    only terminal exists  → create a new occurrence
+    no occurrence exists  → create a new occurrence
+```
+
+The service owns revision lookup and increment in the same transaction.
+
+### Operation-occurrence guard
+
+For operation notifications, the stable key identifies the notification stream,
+while a unique operation ID identifies one execution. For example, compaction
+uses:
+
+```text
+stable key: openai_responses:native_compaction
+operation ID: openai_responses_native_compaction:<uuid>
+```
+
+A late update from an older operation occurrence must not overwrite a newer
+operation using the same stable key. Producers may include an optional
+operation identifier in their publication payload. The service rejects updates
+whose operation identifier does not match the current active occurrence for
+that key. This guard replaces plugin-side revision-conflict recovery for
+producer updates and does not require the plugin to manage notification
+revisions.
 
 ## UI effects and frontend invalidation
 
@@ -214,9 +265,12 @@ result rather than failing the tool or request. Application plugins calling
 the application API directly receive validation errors.
 
 Application notification create/update/transition operations perform
-stable-key selection, expected-revision comparison, revision increment, and
-durable replacement in one store transaction. Lifecycle events are published
-only after the durable mutation commits.
+stable-key selection, revision increment, and durable replacement in one store
+transaction. Producer publication does not accept a producer-supplied
+`expected_revision`; the service applies the patch to the current active
+occurrence and increments revision internally. Frontend lifecycle operations
+such as dismissal support optional `expected_revision`-guarded mutations.
+Lifecycle events are published only after the durable mutation commits.
 
 ## Dismissal consistency
 

@@ -34,5 +34,6 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 markers = [
   "integration: integration tests that may hit real services",
-  "openrouter: tests exercising the OpenRouter provider"
+  "openrouter: tests exercising the OpenRouter provider",
+  "ollama: tests exercising the Ollama OpenAI-compatible endpoint"
 ]

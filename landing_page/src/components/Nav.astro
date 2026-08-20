@@ -1,3 +1,7 @@
+---
+import { docsUrl } from "../config/publicUrls";
+---
+
 <header
   class="sticky top-0 z-50 border-b border-line bg-[var(--nav-bg)] backdrop-blur-md transition-colors"
 >
@@ -47,9 +51,8 @@
         data-section="mobile">Mobile App</a
       >
       <a
-        href="https://github.com/dynamicprogrammingsolutions/crystal-lattice#readme"
-        target="_blank"
-        rel="noopener"
+        href={docsUrl}
+        aria-label="Documentation"
         class="text-sm text-fg-3 transition-colors hover:text-fg">Docs</a
       >
     </nav>
@@ -103,8 +106,15 @@
         </svg>
       </button>
       <a
+        href={docsUrl}
+        aria-label="Documentation"
+        class="hidden items-center rounded-md px-2.5 py-1.5 text-sm font-medium text-fg-3 transition-colors hover:bg-surface hover:text-fg max-sm:inline-flex"
+      >
+        Docs
+      </a>
+      <a
         href="https://github.com/dynamicprogrammingsolutions/crystal-lattice"
-        class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-fg-3 transition-colors hover:bg-surface hover:text-fg"
+        class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-fg-3 transition-colors hover:bg-surface hover:text-fg max-sm:hidden"
         target="_blank"
         rel="noopener"
       >

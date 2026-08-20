@@ -30,7 +30,7 @@ README. The shared domain may use the plugin as an example, but must not turn
 > being used as an example.
 
 > Shared plugin guides may summarize normative contracts for usability.
-> Summaries must not contradict the normative owner.
+> Summaries must not contradict the authoritative source.
 
 [Initial plugin profiles](../../../../docs/development/repository/documentation.md#L108-L125):
 

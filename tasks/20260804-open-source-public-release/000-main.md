@@ -16,6 +16,26 @@ known developers and early adopters.
 - [ ] An anonymous user can clone the repository, find the license and support path, open an issue, and run the documented primary validation path.
 - [ ] Non-blocking cleanup and governance improvements remain tracked as post-publication work rather than expanding the initial release gate.
 
+## Roadmap status updates
+
+Roadmap:
+[Open Source and iOS Release](../../roadmaps/open-source-and-ios-release.md)
+
+Instructions:
+[Updating a roadmap through CSV](../../roadmaps/docs/updating-roadmaps.md)
+
+Do not read the linked roadmap or instructions, inspect roadmap state, or
+update the roadmap as part of routine task execution or completion. Do so only
+when the user explicitly requests a roadmap status update, for example:
+“update the task status in the roadmap as per the instructions in the main
+task.”
+
+That explicit request authorizes reading the linked files, updating the
+authored CSV and generated Markdown, and synchronizing the configured Google
+Sheet as required by the instructions. It does not authorize unrelated roadmap
+changes. If the user limits the request to local files, do not mutate the
+sheet.
+
 ## Scope and release stages
 
 ### Do now: mandatory before or immediately around publication
@@ -92,7 +112,11 @@ cloud cost, or a major obstacle to understanding the repository.
   - COMPLETED on 2026-08-14: added early-release, contribution, support, and security guidance; structured issue/PR intake; and aligned and built the landing support route.
 - [x] `tasks/20260804-open-source-public-release/040-minimum-ci-and-automation-hardening.md`
   - COMPLETED on 2026-08-14: added credential-free public CI, isolated deployment/release permissions, pinned active actions, and prepared exact GitHub settings handoff.
-- [ ] `tasks/20260804-open-source-public-release/050-lean-root-cleanup-and-archive.md`
+- [x] `tasks/20260804-open-source-public-release/050-lean-root-cleanup-and-archive.md`
+  - COMPLETED on 2026-08-20: archived the reviewed AGI export, historical root
+    plans and planning trees; removed scratch poems; moved shared test
+    environment support under `test/`; and verified links, docs, test
+    bootstraps, and preserved directories.
 - [ ] `tasks/20260804-open-source-public-release/060-publication-readiness-gate.md`
 - [ ] `tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md`
 - [ ] `tasks/20260804-open-source-public-release/080-post-publication-validation-and-early-adopter-intake.md`

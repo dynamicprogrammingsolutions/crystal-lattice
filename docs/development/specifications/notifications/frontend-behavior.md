@@ -39,18 +39,54 @@ accessibly distinguishable.
 
 ## Dismissal, refresh, and resolution
 
-Dismissal invokes the owning server notification operation. The initiating
-frontend may first persist a local dismissal entry for the exact displayed
-revision and hide that revision optimistically.
+Dismissal invokes the owning server notification operation and targets the
+displayed notification ID. It accepts an optional `expected_revision` so a
+stale user gesture cannot hide a newer revision. The initiating frontend may
+first persist a local dismissal entry for the exact displayed revision and hide
+that revision optimistically.
 
 If the mutation fails, that exact revision remains hidden. When the same active
 ID and revision is observed again, the frontend may resend the unchanged
 dismissal request.
 
+If a later producer publishes a newer revision for the same notification key,
+the frontend can present that newer revision even when a cached dismissal exists
+for the older revision.
+
 The cache is never promoted to a newer revision. If authoritative state
 contains the same ID at a newer pending revision, the cached dismissal is
 obsolete, is removed, and the newer revision is presented normally. A
 terminal or missing record also removes the cache entry.
+
+### Race behavior
+
+When a producer publication and a user dismissal race, the revision decides:
+
+```text
+frontend displays revision 5
+        ↓
+plugin publishes revision 6
+        ↓
+dismiss(expected_revision=5) conflicts
+        ↓
+revision 6 remains visible
+```
+
+The reverse order creates a new occurrence:
+
+```text
+frontend dismisses occurrence A revision 5
+        ↓
+occurrence A becomes terminal
+        ↓
+plugin publishes the stable key again
+        ↓
+new pending occurrence B becomes visible
+```
+
+The frontend never retargets a dismissal to the newer revision or occurrence.
+A stale dismissal cannot hide a newer revision or a later stable-key
+occurrence.
 
 An already-open frontend on another device may keep its current display until
 it refreshes or reconnects. Immediate cross-device removal is not required.

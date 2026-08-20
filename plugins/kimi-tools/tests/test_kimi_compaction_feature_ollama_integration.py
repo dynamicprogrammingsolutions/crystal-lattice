@@ -39,7 +39,6 @@ for rel in (
 
 from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
-from agent_core import AgentCore, Message, Session  # noqa: E402
 from agent_core.tool_result_payloads import (  # noqa: E402
     FORMAT_OPENAI_CHAT_COMPLETIONS,
     make_provider_native_tool_result,
@@ -65,16 +64,16 @@ def _ollama_available(base_url: str) -> bool:
 
 @pytest.mark.integration
 @pytest.mark.ollama
-def test_compact_conversation_with_asset_ref_requires_context_ollama(tmp_path: Path) -> None:
+def test_compact_conversation_with_asset_ref_requires_context_ollama(
+    tmp_path: Path,
+) -> None:
     """Regression test: kimi_compaction_feature must pass context to send_request_stream
     so that providers can resolve session asset references in tool messages."""
     if not _ollama_available(BASE_URL):
         pytest.skip("Ollama OpenAI-compatible endpoint not reachable")
 
     try:
-        from reference_openai_compatible_provider.provider import (
-            OpenAICompatibleProvider,
-        )
+        importlib.import_module("reference_openai_compatible_provider.provider")
     except ImportError as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"Ollama compaction test dependencies not installed: {exc}")
 
@@ -125,9 +124,15 @@ def test_compact_conversation_with_asset_ref_requires_context_ollama(tmp_path: P
     asset_id = record.asset_id
 
     # Add a user message
-    session = core.add_message(session, "user", "Hello", metadata=None, config=base_config)
-    session = core.add_message(session, "assistant", "Hi there", metadata=None, config=base_config)
-    session = core.add_message(session, "user", "How are you?", metadata=None, config=base_config)
+    session = core.add_message(
+        session, "user", "Hello", metadata=None, config=base_config
+    )
+    session = core.add_message(
+        session, "assistant", "Hi there", metadata=None, config=base_config
+    )
+    session = core.add_message(
+        session, "user", "How are you?", metadata=None, config=base_config
+    )
 
     # Add a tool message with an asset_ref in the tool result
     tool_result = make_provider_native_tool_result(
@@ -166,7 +171,10 @@ def test_compact_conversation_with_asset_ref_requires_context_ollama(tmp_path: P
         )
     except RuntimeError as exc:
         error_msg = str(exc)
-        assert "session asset attachment requires session_asset_store in context" in error_msg
+        assert (
+            "session asset attachment requires session_asset_store in context"
+            in error_msg
+        )
         pytest.fail(
             f"Regression detected: kimi_compaction_feature did not forward context to "
             f"send_request_stream. Error: {error_msg}"

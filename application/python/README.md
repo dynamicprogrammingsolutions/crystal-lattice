@@ -13,6 +13,13 @@ run:
 The internal Python module is still `agent_terminal_app`, so
 `python -m agent_terminal_app` remains useful for development and debugging.
 
+Documentation:
+
+- [Package documentation](docs/index.md)
+- [Quickstart](docs/quickstart.md)
+- [Application configuration](docs/configuration.md)
+- [Application runtime development](docs/development/index.md)
+
 ## Installation
 
 ### Binary Install
@@ -221,6 +228,9 @@ requests sent through one frontend can be observed by the other when they refer
 to the same session.
 
 ## Configuration
+
+For plugin package specs, mixins, placeholders, enablement, and installation
+policy, see the [application configuration guide](docs/configuration.md).
 
 ### Config Search Order
 

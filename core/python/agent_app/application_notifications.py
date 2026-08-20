@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterator, Mapping, Protocol
 from .notifications import (
     _normalize_notification,
     _require_expected_revision,
+    _require_operation_match,
     _timestamp,
     _validate_transition,
     is_active_notification,
@@ -154,6 +155,8 @@ class _BaseApplicationNotificationStore:
                 ),
                 None,
             )
+            if existing is not None:
+                _require_operation_match(existing, notification)
             stored = _normalize_notification(
                 notification,
                 existing=existing,

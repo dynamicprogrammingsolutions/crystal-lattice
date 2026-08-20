@@ -38,6 +38,30 @@ from mcp_shared import (
 )
 
 
+class _FakeTool:
+    """Minimal stand-in for an MCP SDK ``Tool`` pydantic model.
+
+    ``_extract_discovered_tools`` reads fields via ``model_dump()`` (preferred)
+    or ``getattr``, so a plain dict does not work. This fake exposes the same
+    ``model_dump`` surface as the real model.
+    """
+
+    def __init__(self, **fields: Any) -> None:
+        self._fields = dict(fields)
+
+    def model_dump(self, exclude_none: bool = False) -> dict[str, Any]:
+        if exclude_none:
+            return {k: v for k, v in self._fields.items() if v is not None}
+        return dict(self._fields)
+
+
+class _FakeListToolsResult:
+    """Stand-in for the MCP SDK ``ListToolsResult`` object."""
+
+    def __init__(self, tools: list[Any]) -> None:
+        self.tools = tools
+
+
 def test_fingerprint_runtime_config_changes_with_content() -> None:
     config_a = MCPRuntimeConfig(
         servers={
@@ -80,6 +104,253 @@ def test_discovered_tool_dataclass_fields() -> None:
     )
     assert tool.server_name == "filesystem"
     assert tool.raw_name == "read_file"
+
+
+def test_extract_discovered_tools_sanitizes_non_standard_input_schema() -> None:
+    """MCP servers (e.g. mcp-gsheets) may return inputSchema in a TypeScript
+    schema-library format (Effect/Schema-style) instead of JSON Schema. The
+    runtime must sanitize it before exposing it to the rest of the platform,
+    otherwise LLM providers reject the request with a 400."""
+    raw_tools = _FakeListToolsResult(
+        tools=[
+            _FakeTool(
+                name="sheets_merge_cells",
+                description="Merge cells in a range",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "spreadsheetId": {
+                            "def": {"type": "string"},
+                            "type": "string",
+                            "format": None,
+                            "minLength": None,
+                            "maxLength": None,
+                        },
+                        "range": {
+                            "def": {"type": "string"},
+                            "type": "string",
+                            "format": None,
+                            "minLength": None,
+                            "maxLength": None,
+                        },
+                        "mergeType": {
+                            "def": {
+                                "type": "enum",
+                                "entries": {
+                                    "MERGE_ALL": "MERGE_ALL",
+                                    "MERGE_COLUMNS": "MERGE_COLUMNS",
+                                    "MERGE_ROWS": "MERGE_ROWS",
+                                },
+                            },
+                            "type": "enum",
+                            "enum": {
+                                "MERGE_ALL": "MERGE_ALL",
+                                "MERGE_COLUMNS": "MERGE_COLUMNS",
+                                "MERGE_ROWS": "MERGE_ROWS",
+                            },
+                            "options": [
+                                "MERGE_ALL",
+                                "MERGE_COLUMNS",
+                                "MERGE_ROWS",
+                            ],
+                        },
+                    },
+                    "required": ["spreadsheetId", "range", "mergeType"],
+                },
+            )
+        ]
+    )
+
+    discovered = runtime_mod._extract_discovered_tools("mcp-gsheets", raw_tools)
+    assert len(discovered) == 1
+    tool = discovered[0]
+    assert tool.raw_name == "sheets_merge_cells"
+    schema = tool.input_schema
+
+    # Top-level shape preserved.
+    assert schema["type"] == "object"
+    assert schema["required"] == ["spreadsheetId", "range", "mergeType"]
+
+    # Null-valued optional fields dropped from string properties.
+    spreadsheet_id = schema["properties"]["spreadsheetId"]
+    assert spreadsheet_id == {"type": "string"}
+
+    # Enum converted to type=string + enum list (from ``options``).
+    merge_type = schema["properties"]["mergeType"]
+    assert merge_type["type"] == "string"
+    assert merge_type["enum"] == ["MERGE_ALL", "MERGE_COLUMNS", "MERGE_ROWS"]
+
+    # No non-standard fields anywhere in the sanitized schema.
+    _assert_no_non_standard_fields(schema)
+
+
+def test_sanitize_input_schema_converts_enum_with_entries_only() -> None:
+    """When an enum has ``entries`` (dict) but no ``options`` list, the enum
+    values are taken from the dict keys."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "color": {
+                "type": "enum",
+                "entries": {"RED": "RED", "GREEN": "GREEN", "BLUE": "BLUE"},
+            }
+        },
+    }
+    sanitized = runtime_mod._sanitize_input_schema(schema)
+    color = sanitized["properties"]["color"]
+    assert color["type"] == "string"
+    assert color["enum"] == ["RED", "GREEN", "BLUE"]
+
+
+def test_sanitize_input_schema_unwraps_optional_inner_type() -> None:
+    """``type: "optional"`` with ``innerType`` is unwrapped to the inner schema,
+    preserving non-schema siblings like ``description``."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "nickname": {
+                "type": "optional",
+                "innerType": {"type": "string"},
+                "description": "Optional nickname",
+            }
+        },
+    }
+    sanitized = runtime_mod._sanitize_input_schema(schema)
+    nickname = sanitized["properties"]["nickname"]
+    assert nickname["type"] == "string"
+    assert nickname["description"] == "Optional nickname"
+    assert "innerType" not in nickname
+    assert "type" not in nickname or nickname["type"] == "string"
+
+
+def test_sanitize_input_schema_maps_shape_to_properties_and_element_to_items() -> None:
+    """``shape`` becomes ``properties`` and ``element`` becomes ``items``."""
+    schema = {
+        "type": "object",
+        "shape": {
+            "tags": {
+                "type": "array",
+                "element": {"type": "string"},
+            }
+        },
+    }
+    sanitized = runtime_mod._sanitize_input_schema(schema)
+    assert "shape" not in sanitized
+    assert "properties" in sanitized
+    tags = sanitized["properties"]["tags"]
+    assert tags["type"] == "array"
+    assert tags["items"] == {"type": "string"}
+    assert "element" not in tags
+
+
+def test_sanitize_input_schema_drops_non_standard_metadata() -> None:
+    """Effect/Schema numeric metadata (``checks``, ``isInt``, ``isFinite``,
+    ``minValue``, ``maxValue``) has no safe JSON Schema equivalent and is
+    dropped."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "ratio": {
+                "type": "number",
+                "checks": [{}, {}],
+                "isInt": False,
+                "isFinite": True,
+                "minValue": 0,
+                "maxValue": 1,
+            }
+        },
+    }
+    sanitized = runtime_mod._sanitize_input_schema(schema)
+    ratio = sanitized["properties"]["ratio"]
+    assert ratio == {"type": "number"}
+
+
+def test_sanitize_input_schema_preserves_already_valid_json_schema() -> None:
+    """A schema that is already valid JSON Schema draft 2020-12 passes through
+    unchanged (no regression)."""
+    schema = {
+        "type": "object",
+        "title": "Person",
+        "properties": {
+            "name": {"type": "string", "minLength": 1, "description": "Full name"},
+            "age": {"type": "integer", "minimum": 0, "maximum": 150},
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "uniqueItems": True,
+            },
+            "address": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string"},
+                    "zip": {"type": "string", "pattern": "^[0-9]{5}$"},
+                },
+                "required": ["city"],
+            },
+        },
+        "required": ["name", "age"],
+        "additionalProperties": False,
+    }
+    sanitized = runtime_mod._sanitize_input_schema(schema)
+    assert sanitized == schema
+
+
+def test_sanitize_input_schema_handles_non_dict_input() -> None:
+    """A non-dict inputSchema falls back to a permissive object schema."""
+    sanitized = runtime_mod._sanitize_input_schema("not a schema")
+    assert sanitized == {"type": "object", "properties": {}}
+
+
+def test_sanitize_input_schema_guards_against_cycles() -> None:
+    """A self-referential schema (malformed) does not blow the stack."""
+    cyclic: dict[str, Any] = {"type": "object", "properties": {}}
+    cyclic["properties"]["self"] = cyclic
+    sanitized = runtime_mod._sanitize_input_schema(cyclic)
+    # The cycle target becomes a permissive object schema instead of recursing
+    # forever.
+    assert sanitized["type"] == "object"
+    assert "properties" in sanitized
+
+
+def _assert_no_non_standard_fields(schema: Any) -> None:
+    """Recursively assert that no non-standard JSON Schema fields remain."""
+    forbidden_keys = {
+        "def",
+        "innerType",
+        "shape",
+        "element",
+        "entries",
+        "checks",
+        "isInt",
+        "isFinite",
+        "minValue",
+        "maxValue",
+        "options",
+    }
+    forbidden_types = {"enum", "optional"}
+
+    def visit(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                assert (
+                    key not in forbidden_keys
+                ), f"non-standard field {key!r} remains: {node}"
+                if key == "type":
+                    assert (
+                        value not in forbidden_types
+                    ), f"non-standard type {value!r} remains: {node}"
+                if key == "enum":
+                    assert isinstance(
+                        value, list
+                    ), f"enum must be a list, got {type(value).__name__}: {node}"
+                if key in ("format", "minLength", "maxLength") and value is None:
+                    assert False, f"null-valued optional field {key!r} remains: {node}"
+                visit(value)
+        elif isinstance(node, list):
+            for item in node:
+                visit(item)
+
+    visit(schema)
 
 
 def test_apply_oauth_tokens_to_runtime_config_adds_authorization_header() -> None:
@@ -194,7 +465,9 @@ def test_build_oauth_client_metadata_uses_crystal_lattice_defaults() -> None:
     assert str(metadata.client_uri).rstrip("/") == DEFAULT_OAUTH_CLIENT_URI
     assert metadata.software_id == DEFAULT_OAUTH_SOFTWARE_ID
     assert metadata.software_version == DEFAULT_OAUTH_SOFTWARE_VERSION
-    assert metadata.token_endpoint_auth_method == DEFAULT_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD
+    assert (
+        metadata.token_endpoint_auth_method == DEFAULT_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD
+    )
     assert [str(uri) for uri in metadata.redirect_uris] == [
         "crystal-lattice://action/connection/session/plugin/action"
     ]
@@ -267,7 +540,9 @@ def _oauth_pending(
     }
 
 
-def test_build_mcp_oauth_token_request_includes_public_client_secret_when_configured() -> None:
+def test_build_mcp_oauth_token_request_includes_public_client_secret_when_configured() -> (
+    None
+):
     token_data, headers, auth = build_mcp_oauth_token_request(
         pending_login=_oauth_pending(
             token_endpoint_auth_method="none",

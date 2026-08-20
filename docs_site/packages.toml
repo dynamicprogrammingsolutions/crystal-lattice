@@ -1,0 +1,122 @@
+version = 1
+
+[[package]]
+id = "core-python"
+title = "Core Python SDK"
+group = "Core and runtime"
+summary = "Build conversational applications with the functional Python SDK and plugin system."
+source = "core/python"
+destination = "packages/core-python"
+include_readme = true
+include_docs = true
+publish_development = true
+
+[[package]]
+id = "application-python"
+title = "Terminal and HTTP Application"
+group = "Core and runtime"
+summary = "Run Crystal Lattice through the terminal interface, HTTP API, and local connectivity features."
+source = "application/python"
+destination = "packages/application-python"
+include_readme = true
+include_docs = true
+publish_development = true
+
+[[package]]
+id = "frontend-sdk"
+title = "Frontend SDK"
+group = "Frontend SDKs and components"
+summary = "Integrate frontend clients with Crystal Lattice sessions, events, transports, and actions."
+source = "packages/frontend-sdk"
+destination = "packages/frontend-sdk"
+include_readme = true
+include_docs = true
+publish_development = true
+
+[[package]]
+id = "frontend-sdk-react"
+title = "Frontend SDK React"
+group = "Frontend SDKs and components"
+summary = "Use React bindings for the shared frontend SDK."
+source = "packages/frontend-sdk-react"
+destination = "packages/frontend-sdk-react"
+include_readme = true
+include_docs = false
+publish_development = false
+
+[[package]]
+id = "frontend-rn-components"
+title = "Frontend React Native Components"
+group = "Frontend SDKs and components"
+summary = "Build mobile and desktop interfaces with shared React Native components."
+source = "packages/frontend-rn-components"
+destination = "packages/frontend-rn-components"
+include_readme = true
+include_docs = true
+publish_development = true
+
+[[package]]
+id = "react-native-mac-text-view"
+title = "React Native macOS Text View"
+group = "Frontend SDKs and components"
+summary = "Render native macOS text content from React Native applications."
+source = "packages/react-native-mac-text-view"
+destination = "packages/react-native-mac-text-view"
+include_readme = true
+include_docs = false
+publish_development = false
+
+[[package]]
+id = "crystal-lattice-control-mobile"
+title = "Crystal Lattice Control Mobile"
+group = "Applications"
+summary = "Connect to Crystal Lattice sessions from the iOS and Android control application."
+source = "mobile/crystal-lattice-control-rn"
+destination = "packages/crystal-lattice-control-mobile"
+include_readme = true
+include_docs = true
+publish_development = true
+
+[[package]]
+id = "crystal-lattice-control-desktop"
+title = "Crystal Lattice Control Desktop"
+group = "Applications"
+summary = "Use the React Native macOS desktop control application."
+source = "desktop/crystal-lattice-control-desktop-rn"
+destination = "packages/crystal-lattice-control-desktop"
+include_readme = true
+include_docs = true
+publish_development = true
+
+[[package]]
+id = "tool-host-node"
+title = "Node Tool Host"
+group = "Services and integrations"
+summary = "Host JavaScript and Node-based tools through the shared tool protocol."
+source = "packages/tool-host-node"
+destination = "packages/tool-host-node"
+include_readme = true
+include_docs = false
+publish_development = false
+
+[[package]]
+id = "bridge-elixir"
+title = "Bridge Service"
+group = "Services and integrations"
+summary = "Pair remote clients with local Crystal Lattice servers across networks."
+source = "bridge-elixir"
+destination = "packages/bridge-elixir"
+include_readme = true
+include_docs = false
+publish_development = false
+
+[[package]]
+id = "cloud-orchestrator"
+title = "Cloud Orchestrator"
+group = "Services and integrations"
+summary = "Run and coordinate remotely hosted Crystal Lattice agents."
+source = "cloud-orchestrator"
+destination = "packages/cloud-orchestrator"
+include_readme = true
+include_docs = false
+publish_development = false

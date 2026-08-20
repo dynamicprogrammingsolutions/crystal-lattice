@@ -11,7 +11,7 @@ Runtime references (source of truth):
 
 - Loader / plugin source: `core/python/agent_app/plugin_sources/bash_tool.py`
 - Python proxy plugin: `core/python/agent_core/tool_hosts/bash_tool_plugin.py`
-- Config + file contract: `docs/plugins/application-config.md`
+- Config + file contract: `application/python/docs/configuration.md`
 
 Reference implementations:
 
@@ -568,4 +568,4 @@ Good things to verify:
 
 - `plugins/template-bash-tool`
 - `plugins/bash-read-line-range`
-- `docs/plugins/application-config.md`
+- `application/python/docs/configuration.md`
