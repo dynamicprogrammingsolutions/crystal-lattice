@@ -66,8 +66,9 @@ jobs:
 
       - name: Validate Xcode
         run: |
-          xcodebuild -version
-          xcodebuild -version | grep -Eq '^Xcode 26\.'
+          xcode_version="$(xcodebuild -version)"
+          printf '%s\n' "${xcode_version}"
+          grep -Eq '^Xcode 26\.' <<< "${xcode_version}"
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
