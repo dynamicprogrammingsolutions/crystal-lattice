@@ -4,13 +4,13 @@ Add a GitHub Actions workflow that runs verification and uploads iOS builds to T
 
 ## Requirements checklist
 
-- [ ] Add a GitHub Actions workflow for iOS TestFlight deployment.
-- [ ] Trigger manually with `workflow_dispatch`; optionally add tag-based release triggers after approval.
-- [ ] Install Node 20 dependencies, Ruby/bundler dependencies, and CocoaPods.
-- [ ] Run mobile verification before uploading.
-- [ ] Configure Apple authentication and signing through GitHub secrets.
-- [ ] Call the fastlane beta lane.
-- [ ] Document all required GitHub secrets and environment protections.
+- [x] Add a GitHub Actions workflow for iOS TestFlight deployment.
+- [x] Trigger manually with `workflow_dispatch`; optionally add tag-based release triggers after approval.
+- [x] Install Node 20 dependencies, Ruby/bundler dependencies, and CocoaPods.
+- [x] Run mobile verification before uploading.
+- [x] Configure Apple authentication and signing through GitHub secrets.
+- [x] Call the fastlane beta lane.
+- [x] Document all required GitHub secrets and environment protections.
 
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
 Depends On: tasks/20260614-ios-testflight-github-fastlane/070-fastlane-ios-testflight.md
@@ -120,16 +120,16 @@ environments for private repositories.
 
 ### Task checklist
 
-- [ ] Add CI-safe ephemeral keychain setup to fastlane.
-- [ ] Add the manual GitHub Actions iOS workflow.
-- [ ] Add safe build-only and explicit TestFlight-upload modes.
-- [ ] Configure Node, Ruby, Bundler, npm, CocoaPods, and Xcode validation.
-- [ ] Create and register a read-only signing-repository deploy key.
-- [ ] Configure required GitHub repository variables and secrets.
-- [ ] Validate workflow syntax, action pins, and secret handling.
-- [ ] Run the workflow in build-only mode from a GitHub branch where the
+- [x] Add CI-safe ephemeral keychain setup to fastlane.
+- [x] Add the manual GitHub Actions iOS workflow.
+- [x] Add safe build-only and explicit TestFlight-upload modes.
+- [x] Configure Node, Ruby, Bundler, npm, CocoaPods, and Xcode validation.
+- [x] Create and register a read-only signing-repository deploy key.
+- [x] Configure required GitHub repository variables and secrets.
+- [x] Validate workflow syntax, action pins, and secret handling.
+- [x] Run the workflow in build-only mode from a GitHub branch where the
       workflow is available.
-- [ ] Document operation, protection limitations, and secret rotation.
+- [x] Document operation, protection limitations, and secret rotation.
 
 ### Requirement verification
 
@@ -197,3 +197,68 @@ platform installed. The complete Xcode 26.6 installation has the required
 platform. The workflow therefore selects Xcode 26.6 and the Podfile patches
 React Native's bundled `fmt` header during every pod installation to disable the
 problematic consteval path.
+
+The fifth build-only run, `32412350634`, completed successfully on 2026-08-20
+in 17 minutes 53 seconds:
+
+- GitHub scheduled the workflow from `workflow_dispatch` on `main`.
+- The runner selected Xcode 26.6.
+- Node 20.20.2, Ruby 3.4.10, bundled CocoaPods 1.16.2, and fastlane 2.237.0
+  were installed from pinned configuration.
+- The Podfile applied the `fmt` consteval compatibility patch.
+- TypeScript, build-number tests, and all 26 Jest suites / 110 tests passed.
+- The read-only deploy key cloned the private signing repository.
+- match decrypted and installed the Apple Distribution certificate and App
+  Store profile into the ephemeral CI keychain.
+- fastlane selected build number `5` from the GitHub run number because App
+  Store Connect still had no `0.9.0` TestFlight build.
+- Xcode archived, signed, and exported `CrystalLattice.ipa`.
+- The explicit TestFlight upload step was skipped because
+  `upload_to_testflight` was false.
+- The workflow removed the temporary deploy-key file and completed successfully.
+
+## Completion Notes
+
+Task completed on 2026-08-20.
+
+The repository now has a manually dispatched `iOS TestFlight` workflow with a
+non-uploading signed-build default and an explicit internal-TestFlight upload
+mode. CI uses a pinned macOS/Xcode/Node/Ruby toolchain, runs mobile verification
+before release work, signs through an ephemeral keychain and read-only match
+repository access, serializes release runs, removes the temporary deploy key,
+and does not retain the generated IPA as a GitHub artifact.
+
+GitHub configuration completed:
+
+- Five non-sensitive `IOS_*` repository variables.
+- Five encrypted `IOS_*` repository secrets.
+- A verified, read-only deploy key scoped only to
+  `crystal-lattice-ios-signing`.
+
+Requirement evidence:
+
+- Workflow/security validation passed with `actionlint` and
+  `scripts/check_github_actions_security.py`.
+- Build-only run `32412350634` passed every setup, verification, signing,
+  archive, export, and cleanup step.
+- The upload branch is implemented as `bundle exec fastlane ios beta` but was
+  intentionally not executed; the first TestFlight upload remains task `090`.
+- Secrets were masked in workflow logs, and the `.p8`, match password, deploy
+  private key, temporary keychain, and IPA remain outside source control.
+
+Plan deviations and findings:
+
+- GitHub Free does not provide protected environments for this private
+  repository, so secrets are repository-level and the workflow remains
+  manual-only. Upgrade/migration guidance is documented in the mobile README.
+- The runner's default Xcode 26.6 exposes a React Native 0.82.1 bundled-`fmt`
+  consteval incompatibility. CocoaPods now applies a narrow compatibility patch
+  during installation.
+- Xcode 26.1.1 avoids the `fmt` issue but its hosted image installation lacks
+  the iOS 26.1 Interface Builder platform, so it is not used.
+
+Deferred work:
+
+- Task `090` will run the workflow with `upload_to_testflight = true`, verify
+  App Store Connect processing, and assign the resulting build to internal
+  testers.
