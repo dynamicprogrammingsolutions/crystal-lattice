@@ -229,6 +229,10 @@ identifier remains `com.dynamicprogrammingsolutions.crystallatticecontrolrn`.
 The `iOS TestFlight` workflow is manual-only. Open the repository's **Actions**
 tab, select **iOS TestFlight**, and choose **Run workflow**.
 
+The workflow selects Xcode 26.6 on the `macos-26` runner. CocoaPods applies the
+React Native `fmt` consteval compatibility patch during installation so the
+native dependency compiles with that Apple clang release.
+
 The workflow has two modes:
 
 - `upload_to_testflight = false` is the safe default. It verifies the mobile

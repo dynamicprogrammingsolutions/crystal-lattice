@@ -74,10 +74,11 @@ Add a manually dispatched GitHub Actions workflow with two explicit modes:
 - Explicit upload: verify, archive, and call `fastlane ios beta` to upload an
   internal TestFlight build.
 
-Use the GitHub-hosted `macos-26` arm64 runner and explicitly select its installed
-Xcode 26.1.1 toolchain, matching the locally verified Xcode 26.1 release family.
-Install Node 20, Ruby 3.4.10, the locked Bundler dependencies, npm dependencies,
-and CocoaPods dependencies from the owning mobile package.
+Use the GitHub-hosted `macos-26` arm64 runner and explicitly select its complete
+Xcode 26.6 installation. Install Node 20, Ruby 3.4.10, the locked Bundler
+dependencies, npm dependencies, and CocoaPods dependencies from the owning
+mobile package. During pod installation, disable the bundled React Native
+`fmt` dependency's consteval path to avoid its Apple clang 26.6 compile error.
 
 Create an ephemeral fastlane keychain on CI before match installs the Apple
 Distribution identity. Give CI read-only access to the separate signing
@@ -187,3 +188,12 @@ under the runner's default Xcode 26.6 because of consteval format-string errors.
 The same dependency graph archives successfully under the locally verified
 Xcode 26.1 toolchain. The workflow now explicitly selects Xcode 26.1.1, which is
 installed on the `macos-26` runner image, before validation and build.
+
+The fourth build-only run, `32410967637`, compiled all native dependencies with
+Xcode 26.1.1, confirming that the previous `fmt` errors were toolchain-specific.
+It then failed compiling `LaunchScreen.storyboard` because that archived Xcode
+installation on the hosted image does not have the iOS 26.1 Interface Builder
+platform installed. The complete Xcode 26.6 installation has the required
+platform. The workflow therefore selects Xcode 26.6 and the Podfile patches
+React Native's bundled `fmt` header during every pod installation to disable the
+problematic consteval path.
