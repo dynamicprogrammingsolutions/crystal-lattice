@@ -111,7 +111,11 @@ cloud cost, or a major obstacle to understanding the repository.
 - [x] `tasks/20260804-open-source-public-release/030-minimum-public-documentation-and-support.md`
   - COMPLETED on 2026-08-14: added early-release, contribution, support, and security guidance; structured issue/PR intake; and aligned and built the landing support route.
 - [ ] `tasks/20260804-open-source-public-release/040-minimum-ci-and-automation-hardening.md`
-- [ ] `tasks/20260804-open-source-public-release/050-lean-root-cleanup-and-archive.md`
+- [x] `tasks/20260804-open-source-public-release/050-lean-root-cleanup-and-archive.md`
+  - COMPLETED on 2026-08-20: archived the reviewed AGI export, historical root
+    plans and planning trees; removed scratch poems; moved shared test
+    environment support under `test/`; and verified links, docs, test
+    bootstraps, and preserved directories.
 - [ ] `tasks/20260804-open-source-public-release/060-publication-readiness-gate.md`
 - [ ] `tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md`
 - [ ] `tasks/20260804-open-source-public-release/080-post-publication-validation-and-early-adopter-intake.md`

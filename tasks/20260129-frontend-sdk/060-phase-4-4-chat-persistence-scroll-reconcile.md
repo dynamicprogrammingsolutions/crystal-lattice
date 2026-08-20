@@ -73,7 +73,8 @@ Current persistence wiring (for reference):
 
 ## References
 
-- Detailed plan: `plans/frontend-sdk/09-chat-persistence-scroll-and-reconcile.md`
+- Historical detailed plan:
+  `archive/plans/frontend-sdk/09-chat-persistence-scroll-and-reconcile.md`
 - Phase 4.5 (events/reducer/no reloads): `tasks/20260129-events-no-full-session/000-main.md`
 
 ## Implementation notes (what happened vs plan)

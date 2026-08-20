@@ -105,7 +105,7 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - Do not place new plugins here without explicit user consent.
 
 **Docs & scripts**
-- Root: `ARCHITECTURE.md`, `PROJECT_PLAN.md`, `TYPES_AND_PROTOCOLS.md`, `DEVELOPMENT.md`, `EXAMPLES.md`.
+- Root: `ARCHITECTURE.md`, `TYPES_AND_PROTOCOLS.md`, `DEVELOPMENT.md`, `EXAMPLES.md`.
 - Development hub: `docs/development/index.md`.
 - Reusable standards: `docs/development/standards/index.md`.
 - Crystal Lattice repository policy: `docs/development/repository/index.md`.
@@ -191,7 +191,8 @@ validation—not merely applying them—also read in full:
 **Auxiliary directories**
 - `evaluations/`: shared evaluation framework and benchmark suites.
 - `tasks/`: task handoff files used for planning and delegated follow-up work.
-- `plan/` and `plans/`: planning notes and older work records.
+- `test/`: repository-level shared test support and cross-cutting tests.
+- `archive/`: historical conversations, plans, notes, and diagnostics; not current guidance.
 - `artifacts/`, `build/`, `dist/`, `tmp/`: generated outputs, staging areas, and local scratch space.
 - `test_dir/`: ad hoc local scratch/test workspace.
 

@@ -413,6 +413,8 @@ authorizes proxied HTTP requests.
 - `bridge-elixir` - bridge service and Docker/HAProxy setup.
 - `plugins` - built-in plugin projects for the current runtime layout, plus templates and shared plugin docs.
 - `docs` - MkDocs/API reference docs.
+- `test` - repository-level shared test support and cross-cutting test areas.
+- `archive` - historical conversations, plans, notes, and diagnostics; not current guidance.
 
 ## Core SDK Examples
 

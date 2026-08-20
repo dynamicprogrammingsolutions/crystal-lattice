@@ -1,10 +1,18 @@
+> Archived historical plan. It is not current product or development guidance.
+> Start with the [repository README](../../README.md), current
+> [architecture](../../ARCHITECTURE.md), and
+> [development guidance](../../DEVELOPMENT.md). See the
+> [archive index](../README.md) for context.
+
 # AI Agent Platform - Project Plan
 
 This document outlines the project goals, roadmap, and implementation plan for the AI Agent Platform.
 
-**For detailed architecture and design principles, see [ARCHITECTURE.md](ARCHITECTURE.md)**
+**For detailed architecture and design principles, see
+[ARCHITECTURE.md](../../ARCHITECTURE.md).**
 
-**For type definitions and plugin protocols, see [TYPES_AND_PROTOCOLS.md](TYPES_AND_PROTOCOLS.md)**
+**For type definitions and plugin protocols, see
+[TYPES_AND_PROTOCOLS.md](../../TYPES_AND_PROTOCOLS.md).**
 
 ## Project Overview
 
@@ -193,7 +201,8 @@ The platform follows these core principles:
 - **Low-Level API**: Application layer handles tool execution and conversation flow
 - **Cross-Language Support**: Native performance with optional cross-language plugins
 
-**See [ARCHITECTURE.md](ARCHITECTURE.md) for complete architecture details, system layers, data flow, and design principles.**
+**See [ARCHITECTURE.md](../../ARCHITECTURE.md) for current architecture
+details.**
 
 ## Type System and Protocols
 
@@ -206,9 +215,12 @@ The platform defines clear protocols for:
 - **Tool Plugin**: Tool definition and execution
 - **Core SDK**: Application interface for agent operations
 
-**See [TYPES_AND_PROTOCOLS.md](TYPES_AND_PROTOCOLS.md) for complete type definitions, protocols, and the latest breaking changes.**
+**See [TYPES_AND_PROTOCOLS.md](../../TYPES_AND_PROTOCOLS.md) for current type
+and protocol documentation.**
 
-**See [PLUGIN_EXAMPLES.md](PLUGIN_EXAMPLES.md) for complete, runnable plugin implementations.**
+The historical `PLUGIN_EXAMPLES.md` reference no longer exists. See
+[EXAMPLES.md](../../EXAMPLES.md) and current
+[plugin documentation](../../plugins/docs/index.md).
 
 ## Example Usage
 

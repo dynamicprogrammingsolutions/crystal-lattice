@@ -1,3 +1,7 @@
+> Archived historical integration plan. It is not current implementation
+> guidance. See the [archive index](../README.md) and current
+> [application documentation](../../application/python/README.md).
+
 Here’s a concrete plan based on a deep dive into `../bonjour-example-1` and your current `ai-agent-platform` server.
 
 ---

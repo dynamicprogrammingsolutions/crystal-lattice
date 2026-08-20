@@ -1,4 +1,8 @@
 
+> Archived pre-selection naming notes. The current project name is Crystal
+> Lattice. See the [archive index](../README.md) and
+> [repository README](../../README.md).
+
 ### Potential Naming
 
 **Crystal Lattice**

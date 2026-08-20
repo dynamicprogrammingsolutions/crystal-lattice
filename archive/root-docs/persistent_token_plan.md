@@ -1,3 +1,7 @@
+> Archived historical pairing-token plan. It is not current protocol or
+> security guidance. See the [archive index](../README.md) and current
+> [bridge documentation](../../bridge-elixir/README.md).
+
 I’ll break this into protocol changes, bridge service, mobile app, and terminal app.
 
 ---

@@ -1,3 +1,7 @@
+> Archived historical implementation summary. It is not current implementation
+> guidance. See the [archive index](../README.md) and current
+> [application documentation](../../application/python/README.md).
+
 s a developer, I’ll keep it straightforward and clear!
 Here’s what I implemented for steps 3–5, and how to use it.
 

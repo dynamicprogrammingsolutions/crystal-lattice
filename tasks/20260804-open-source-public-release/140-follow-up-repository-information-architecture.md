@@ -16,11 +16,11 @@ Depends On: tasks/20260804-open-source-public-release/080-post-publication-valid
 
 ## Candidate scope
 
-- Root historical planning documents not handled by task `050`.
-- `plan/` and `plans/` consolidation or archival.
+- Root historical material not handled by task `050`.
 - Versioned historical task-guidance documents, while preserving active
   `agents/`.
-- Root ad hoc test scripts and sample files.
+- Remaining root ad hoc test scripts, sample files, and developer conveniences
+  not handled by task `050`.
 - Checked-in IDE/run configurations.
 - Archive indexing and retention criteria.
 
