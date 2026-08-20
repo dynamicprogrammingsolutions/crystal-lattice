@@ -1,4 +1,4 @@
-# Development guide for app & terminal features
+# Terminal and HTTP feature development
 
 This document captures the common patterns and background knowledge needed to add features similar to the session-slicing and `/delete` work.
 
@@ -135,17 +135,15 @@ Tests live alongside the relevant layers:
 
 - **Core and application layer tests**
   - Location: `core/python/tests` and `core/python/examples/tests`.
-  - Run:
-    - `cd core/python`
-    - `pip install -e ".[dev]"`
+  - Run from the repository root:
+    - `python -m pip install -e "core/python[dev]"`
     - `pytest core/python/tests -q`
   - When you change core slicing or application logic, add unit tests near existing tests that cover similar behavior.
 
 - **Terminal + server tests**
   - Location: `application/python/tests`.
-  - Run:
-    - `cd application/python`
-    - `pytest -q`
+  - Run from the repository root:
+    - `pytest application/python/tests -q`
   - Tests here should:
     - construct `TerminalApplication` and/or the server application,
     - exercise the public methods (e.g. delete APIs, helpers that append messages),

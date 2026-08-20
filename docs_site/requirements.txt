@@ -3,3 +3,4 @@ mkdocs-material>=9.5
 mkdocs-llmstxt
 mkdocstrings>=0.24
 mkdocstrings-python>=1.10
+tomli>=2.0; python_version < "3.11"

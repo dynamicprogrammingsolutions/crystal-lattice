@@ -77,6 +77,10 @@ Requirements:
   registered package-local README and `docs/` sources.
 - [ ] Package-local documentation changes trigger the documentation build
   workflow.
+- [ ] The documentation site is organized around the concrete needs of its
+  intended audiences so each audience can easily find the document or
+  first-success path it needs, without requiring public pages to label or
+  discuss those audience classifications explicitly.
 - [ ] Public documentation URLs affected by migration remain available through
   compatibility pages or redirects unless a breaking URL change is separately
   approved.
@@ -155,10 +159,17 @@ The work includes:
 11. A migration inventory for documentation deliberately left for future work.
 12. A minimal programmatic agent-evaluation library whose first consumers
     verify the documentation-standard instructions.
+13. A bounded, user-oriented information-architecture pass that may add,
+    rewrite, move, or restructure documentation when needed for clear entry
+    points and navigation. If that work proves substantially larger than the
+    bounded migration, it is split into separately approved follow-up tasks.
 
 ## Non-goals
 
 - Rewriting every README or long-form document.
+- Turning audience-oriented navigation into a project-wide documentation
+  rewrite. Limited new or revised entry-point documentation remains in scope,
+  and larger content work is split out when discovered.
 - Making every package fully documented in this task.
 - Creating empty `docs/` trees merely to satisfy a checklist.
 - Auditing every historical task, plan, example, or design claim.
@@ -731,9 +742,9 @@ It does not generally watch package-local README or `docs/` paths such as
 
 - [ ] `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
+- [x] `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
+- [x] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
@@ -766,7 +777,10 @@ The work is organized standards-first:
    using the standard and assembly pipeline. They can proceed in parallel after
    010 and 020.
 5. Subtask 060 updates navigation, compatibility paths, inbound links, and CI
-   triggers after migration destinations are known.
+   triggers after migration destinations are known. It also performs the
+   bounded audience-oriented information-architecture pass, creates or refines
+   Getting Started routes, and may propose separate follow-up tasks when the
+   required documentation work exceeds the approved bounded migration.
 6. Subtask 065 creates the concise contributor workflow after the terminology
    and document roles from 010 are established. It can proceed in parallel with
    most migration work.

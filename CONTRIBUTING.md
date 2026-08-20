@@ -12,7 +12,7 @@ its README and public development documentation:
 
 - [Development documentation](docs/development/index.md)
 - [Architecture](ARCHITECTURE.md)
-- [Core and application development](DEVELOPMENT.md)
+- [Application and terminal feature development](application/python/docs/development/terminal-and-http-features.md)
 - [Plugin authoring](plugins/docs/index.md)
 - [Terminal/server application](application/python/README.md)
 - [React Native mobile application](mobile/crystal-lattice-control-rn/README.md)

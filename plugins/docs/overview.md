@@ -1,7 +1,8 @@
-# Plugin Development
+# Plugin system overview
 
-This page is an older/general overview. For the current shared plugin docs, start at
-`plugins/docs/index.md`.
+This page provides a general map of plugin kinds, execution hooks, packaging,
+and registration. Start with the [shared plugin documentation](index.md), then
+use the focused guide for the plugin kind you are building.
 
 This guide explains how to build provider, provider extension, feature, and tool plugins for Crystal Lattice. It includes minimal examples and links to the full API reference generated from docstrings.
 
@@ -11,16 +12,16 @@ This guide explains how to build provider, provider extension, feature, and tool
   - Shared provider state: provider, provider extensions, and features receive and may update the same per-request state dict (tools keep their own state).
 
 See also
-- Reference → [Types & Protocols](../reference/agent_core/types.md)
-- Reference → [Provider Wrapper](../reference/agent_core/plugin/provider.md)
-- Reference → [AgentCore](../reference/agent_core/core.md)
-- Reference → [OpenAI-Compatible Provider](../reference/providers/openai_provider.md)
+- Reference → [Types & Protocols](/reference/agent_core/types/)
+- Reference → [Provider Wrapper](/reference/agent_core/plugin/provider/)
+- Reference → [AgentCore](/reference/agent_core/core/)
+- Reference → [OpenAI-Compatible Provider](/reference/providers/openai_provider/)
 
-Provider plugins (canonical guide): `plugins/docs/provider-plugins.md`.
-Tool plugins (canonical guide): `plugins/docs/tool-plugins.md`.
-Node tool plugins (canonical guide): `plugins/docs/node-tool-plugins.md`.
-Bash tool plugins (canonical guide): `plugins/docs/bash-tool-plugins.md`.
-Application plugins (current guide): `plugins/docs/application-plugins.md`.
+- [Provider plugins](provider-plugins.md)
+- [Tool plugins](tool-plugins.md)
+- [Node tool plugins](node-tool-plugins.md)
+- [Bash tool plugins](bash-tool-plugins.md)
+- [Application plugins](application-plugins.md)
 
 ## Provider Plugin
 
@@ -653,7 +654,8 @@ Important current limitation:
 So if you need advanced custom/freeform payload handling today, prefer an
 in-process Python tool.
 
-For the full Node host wire protocol, see `docs/reference/tool-host-protocol.md`.
+For the full Node host wire protocol, see the
+[tool host protocol](/reference/tool-host-protocol/).
 
 ## Packaging & Layout
 
@@ -698,7 +700,9 @@ If `entries` are provided, the loader does not auto-discover additional classes;
 
 ## Wiring Each Plugin Kind
 
-You can wire plugins via dotted paths, local paths, or Git installers. See also `docs/plugins/application-config.md` for the full configuration reference.
+You can wire plugins via dotted paths, local paths, or Git installers. See the
+[application configuration guide](/packages/application-python/configuration/)
+for the full configuration reference.
 
 - Providers (examples):
   - Dotted class: `"plugins.openai_provider.OpenAICompatibleProvider"`
@@ -758,4 +762,6 @@ session, finals = core.send_request(session, config)
 - Run example tests: `pytest core/python/examples/tests -qs`
 - Lint/format/typecheck: `ruff`, `black`, `pyright` per AGENTS.md
 
-For full method details and signatures, see the [Types & Protocols](../reference/agent_core/types.md) and [Provider Wrapper](../reference/agent_core/plugin/provider.md) references.
+For full method details and signatures, see the
+[Types & Protocols](/reference/agent_core/types/) and
+[Provider Wrapper](/reference/agent_core/plugin/provider/) references.

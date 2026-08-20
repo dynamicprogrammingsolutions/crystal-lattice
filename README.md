@@ -310,7 +310,7 @@ supported forms.
 - [plugins/docs/plugin-packaging-and-loading.md](plugins/docs/plugin-packaging-and-loading.md)
 - [plugins/docs/testing-and-validation.md](plugins/docs/testing-and-validation.md)
 - [plugins/docs/ui-elements.md](plugins/docs/ui-elements.md)
-- [docs/plugins/development.md](docs/plugins/development.md) - older/general plugin overview
+- [plugins/docs/overview.md](plugins/docs/overview.md) - general plugin-system overview
 
 ## Core Development Quickstart
 
@@ -346,7 +346,7 @@ pyright
 Contributor references:
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)
-- [DEVELOPMENT.md](DEVELOPMENT.md)
+- [Application and terminal feature development](application/python/docs/development/terminal-and-http-features.md)
 - [docs/api/core-sdk.md](docs/api/core-sdk.md)
 - [TYPES_AND_PROTOCOLS.md](TYPES_AND_PROTOCOLS.md)
 - [EXAMPLES.md](EXAMPLES.md)
@@ -502,7 +502,7 @@ Key docs:
 - [Crystal Lattice repository policy](docs/development/repository/index.md)
 - [docs/api/core-sdk.md](docs/api/core-sdk.md)
 - [plugins/docs/index.md](plugins/docs/index.md)
-- [docs/plugins/development.md](docs/plugins/development.md) - older/general plugin overview
+- [plugins/docs/overview.md](plugins/docs/overview.md) - general plugin-system overview
 - [docs/reference/agent_core](docs/reference/agent_core)
 - [application/python/README.md](application/python/README.md)
 - [mobile/crystal-lattice-control-rn/README.md](mobile/crystal-lattice-control-rn/README.md)

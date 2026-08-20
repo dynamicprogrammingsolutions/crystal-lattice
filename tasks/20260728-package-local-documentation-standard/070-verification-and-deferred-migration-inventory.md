@@ -38,6 +38,12 @@ silently expanding scope.
 - [ ] Every first-wave and investigate/classify page in the parent migration
   inventory has a recorded outcome and verification boundary.
 - [ ] Old source references and public route mappings are accounted for.
+- [ ] Headed desktop and mobile verification confirms each intended audience
+  can find its likely entry point and representative deep document without
+  knowing repository paths.
+- [ ] Breadcrumbs or equivalent visible paths, active left-navigation ancestry,
+  owning-index routes, search, and previous/next behavior work on
+  representative package and plugin deep pages.
 - [ ] Root `CONTRIBUTING.md` presents the approved concise six-step,
   risk-scaled workflow and short example prompts.
 - [ ] Human manual verification, independent AI review, human acceptance, and
@@ -101,16 +107,18 @@ Status: Draft
    trees.
 3. Run the normal MkDocs build and compare warnings with the baseline.
 4. Exercise representative old/new public paths and internal links.
-5. Inspect the rendered contributor workflow for readability, role clarity,
+5. Exercise audience-oriented journeys through Getting Started, packages,
+   plugin development, reference, and development documentation.
+6. Inspect the rendered contributor workflow for readability, role clarity,
    prompt concision, and human review gates.
-6. Run deterministic agent-evaluation tests and inspect the
+7. Run deterministic agent-evaluation tests and inspect the
    documentation-standard behavioral evidence or explicit not-run report.
-7. Verify canonical/bundled task-guidance parity and run affected deterministic
+8. Verify canonical/bundled task-guidance parity and run affected deterministic
    evaluation tests, including scope/decomposition coverage from subtask 069.
-8. Review all migration candidates and record final disposition.
-9. Create the concise deferred migration inventory.
-10. Map acceptance evidence to parent and subtask requirements.
-11. Identify any human review still needed and leave those requirements
+9. Review all migration candidates and record final disposition.
+10. Create the concise deferred migration inventory.
+11. Map acceptance evidence to parent and subtask requirements.
+12. Identify any human review still needed and leave those requirements
    incomplete.
 
 ### Implementation decisions and open questions
@@ -153,6 +161,7 @@ Status: Draft
 | Assembly correctness | Focused tests pass and generated package trees match registry and precedence rules. |
 | Site build | Normal MkDocs build exits successfully; warning comparison is recorded. |
 | Navigation and compatibility | Representative canonical pages and old routes resolve in built output. |
+| Audience journeys | Headed desktop/mobile checks demonstrate findable entry points and deep-page orientation for each intended audience without requiring public audience labels. |
 | Contributor workflow | Human inspection confirms the six-step guide is easy to follow, risk-scaled, role-clear, and keeps prompt examples separate from standing rules. |
 | Agent evaluation | Deterministic framework tests pass; every `DOCGEN-*` and `DOCREP-*` requirement maps to a gated behavioral consumer; exact artifacts are reviewed or the provider-dependent suite is explicitly reported as not run. |
 | Task guidance | Canonical/bundled parity check passes; specification/task semantics, concise-prompt cases, minimum requirement counts, and coherent subtask-decomposition evaluations pass their required checks. |

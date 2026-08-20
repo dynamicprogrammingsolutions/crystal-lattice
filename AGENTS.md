@@ -105,14 +105,14 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - Do not place new plugins here without explicit user consent.
 
 **Docs & scripts**
-- Root: `ARCHITECTURE.md`, `TYPES_AND_PROTOCOLS.md`, `DEVELOPMENT.md`, `EXAMPLES.md`.
+- Root: `ARCHITECTURE.md`, `TYPES_AND_PROTOCOLS.md`, `EXAMPLES.md`.
 - Development hub: `docs/development/index.md`.
 - Reusable standards: `docs/development/standards/index.md`.
 - Crystal Lattice repository policy: `docs/development/repository/index.md`.
 - Standards-maintenance specifications: `maintainer/specifications/`.
 - API docs: `docs/api/core-sdk.md`, `docs/reference/agent_core/*`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
-- Older/general plugin overview: `docs/plugins/development.md`.
+- General plugin overview: `plugins/docs/overview.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
 
 ## Documentation ownership and workflow
@@ -399,7 +399,7 @@ validation—not merely applying them—also read in full:
     verification, and documentation progress.
 - During the initial documentation migration, current legacy pages such as
   `TYPES_AND_PROTOCOLS.md`, `docs/api/core-sdk.md`,
-  `docs/reference/agent_core/*`, `DEVELOPMENT.md`, and
+  `docs/reference/agent_core/*` and
   `application/python/README.md` remain valid until their owning subtasks move
   them.
 - Changing examples or adding new ones:

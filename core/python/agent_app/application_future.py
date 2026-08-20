@@ -1959,7 +1959,7 @@ class AgentApplication:
             ...     print(err.get("type"), err.get("detail"))
 
         See also:
-            - docs/plugins/application-config.md (Troubleshooting)
+            - application/python/docs/configuration.md (Troubleshooting)
         """
 
         return list(self._config_errors)

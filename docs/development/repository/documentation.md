@@ -204,10 +204,11 @@ scope. If preparation fails, leave prepared and built trees unchanged, report
 the blocked command or dependency and the remaining action, and do not claim a
 refresh. Failure does not authorize a direct generated-file edit.
 
-The package registry introduced by the assembly subtask will declare public
-package IDs, titles, roots, destinations, included sources, and development-doc
-publication. Package `docs/index.md` is the preferred public landing page;
-README is the fallback.
+`docs_site/packages.toml` declares public package IDs, titles, catalog groups
+and summaries, roots, destinations, included sources, and development-doc
+publication. Preparation generates a grouped `/packages/` catalog from that
+registry. Package `docs/index.md` is the preferred public landing page; README
+is the fallback.
 
 Excluded from public output by default:
 

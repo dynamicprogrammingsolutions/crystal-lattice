@@ -1,4 +1,4 @@
-# Application Plugin Configuration
+# Application configuration
 
 This page explains how to configure plugins in the application. It covers the `plugins` block, spec formats (dotted, local path, Git), placeholders, policy, and ready-to-use examples.
 
@@ -220,8 +220,8 @@ This makes it possible to keep model- or provider-specific prompt routing in con
 
 For a complete example, see:
 
-- [Default configuration](../reference/default-config.md)
-- [feature-system-message](../built-in-plugins/feature-system-message/index.md)
+- [Default configuration](../agent_terminal_app/default_config/config.json)
+- [feature-system-message](../../../plugins/feature-system-message/README.md)
 
 ### Merge Order
 
@@ -580,10 +580,17 @@ for err in app.get_config_errors():
 ```
 
 ## See Also
-- [Plugin development](development.md) — authoring, packaging, and wiring guidelines
-- [Packaging and loading plugins](../plugin-development/plugin-packaging-and-loading.md) — packaging and loader behavior for local/git plugin packages
-- [codex-tools](../built-in-plugins/codex-tools/index.md) — Codex-style tool package quickstart
-- [gemini-tools](../built-in-plugins/gemini-tools/index.md) — Gemini-style tool package quickstart
-- [qwen-tools](../built-in-plugins/qwen-tools/index.md) — Qwen-style tool package quickstart
-- [grok-tools](../built-in-plugins/grok-tools/index.md) — Grok-style tool package quickstart
-- [Tool host protocol](../reference/tool-host-protocol.md) — the NDJSON tool host protocol
+- [Plugin system overview](../../../plugins/docs/overview.md) — plugin kinds,
+  packaging, wiring, and shared state
+- [Packaging and loading plugins](../../../plugins/docs/plugin-packaging-and-loading.md)
+  — packaging and loader behavior for local/Git plugin packages
+- [codex-tools](../../../plugins/codex-tools/README.md) — Codex-style tool
+  package quickstart
+- [gemini-tools](../../../plugins/gemini-tools/README.md) — Gemini-style tool
+  package quickstart
+- [qwen-tools](../../../plugins/qwen-tools/README.md) — Qwen-style tool package
+  quickstart
+- [grok-tools](../../../plugins/grok-tools/README.md) — Grok-style tool package
+  quickstart
+- [Tool host protocol](/reference/tool-host-protocol/) — the NDJSON tool host
+  protocol
