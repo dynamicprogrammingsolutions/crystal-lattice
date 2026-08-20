@@ -164,3 +164,17 @@ Cause: the step invoked `xcodebuild -version` a second time through a
 short-circuiting `grep` pipeline. After `grep` matched and closed the pipe,
 Xcode 26.6 aborted while writing its remaining output. The step now captures
 the version output once, prints it, and validates the captured string.
+
+The second build-only run, `32409753046`, passed toolchain setup, CocoaPods, and
+the complete mobile verification lane. It also confirmed that the read-only
+deploy key cloned the signing repository, match decrypted the repository, and
+the ephemeral keychain received the Apple Distribution certificate and App
+Store profile. The upload step was skipped as configured.
+
+The archive then failed because the application target inherited the
+project-level `iPhone Developer` identity for its Release configuration. On a
+clean runner Xcode consequently requested an iOS App Development profile even
+though match had installed the App Store profile. The app target now declares
+automatic signing for Debug and manual `Apple Distribution` signing with the
+named match App Store profile for Release. This target-level override does not
+force signing settings onto CocoaPods targets.
