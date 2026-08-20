@@ -74,9 +74,10 @@ Add a manually dispatched GitHub Actions workflow with two explicit modes:
 - Explicit upload: verify, archive, and call `fastlane ios beta` to upload an
   internal TestFlight build.
 
-Use the GitHub-hosted `macos-26` arm64 runner, whose current image provides
-Xcode 26.6. Install Node 20, Ruby 3.4.10, the locked Bundler dependencies, npm
-dependencies, and CocoaPods dependencies from the owning mobile package.
+Use the GitHub-hosted `macos-26` arm64 runner and explicitly select its installed
+Xcode 26.1.1 toolchain, matching the locally verified Xcode 26.1 release family.
+Install Node 20, Ruby 3.4.10, the locked Bundler dependencies, npm dependencies,
+and CocoaPods dependencies from the owning mobile package.
 
 Create an ephemeral fastlane keychain on CI before match installs the Apple
 Distribution identity. Give CI read-only access to the separate signing
@@ -178,3 +179,11 @@ though match had installed the App Store profile. The app target now declares
 automatic signing for Debug and manual `Apple Distribution` signing with the
 named match App Store profile for Release. This target-level override does not
 force signing settings onto CocoaPods targets.
+
+The third build-only run, `32410370824`, confirmed the Release signing fix:
+Xcode found the installed App Store profile and progressed into native
+compilation. It then failed while compiling React Native's `fmt` dependency
+under the runner's default Xcode 26.6 because of consteval format-string errors.
+The same dependency graph archives successfully under the locally verified
+Xcode 26.1 toolchain. The workflow now explicitly selects Xcode 26.1.1, which is
+installed on the `macos-26` runner image, before validation and build.
