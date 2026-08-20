@@ -70,9 +70,14 @@
     "bridge:logs": "cd bridge-elixir && docker-compose logs -f",
     "bridge:health": "curl -fsS http://localhost:4000/health",
 
-    "docs:serve": "mkdocs serve",
-    "docs:build": "mkdocs build",
+    "docs:serve": "cd docs_site && mkdocs serve",
+    "docs:build": "cd docs_site && mkdocs build",
     "docs:examples": "python scripts/generate_examples_md.py",
+
+    "site:build": "cd landing_page && npm run build",
+    "site:dev": "cd landing_page && npm run dev",
+    "site:preview": "cd landing_page && npm run preview",
+
     "roadmap:update": "python roadmaps/generate.py release && python roadmaps/sync.py push release --write",
 
     "install:core": "python -m pip install -e \"core/python[dev]\"",
