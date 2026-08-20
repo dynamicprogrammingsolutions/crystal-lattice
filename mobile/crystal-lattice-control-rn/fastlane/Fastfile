@@ -73,6 +73,10 @@ def sync_app_store_signing(api_key:, readonly:)
   }
 
   options[:git_branch] = ENV.fetch("MATCH_GIT_BRANCH", "main")
+  git_private_key = ENV["MATCH_GIT_PRIVATE_KEY"]
+  if git_private_key && !git_private_key.strip.empty?
+    options[:git_private_key] = git_private_key
+  end
 
   match(**options)
 end
@@ -99,6 +103,11 @@ def release_build_number(api_key)
 end
 
 def signed_archive(api_key)
+  setup_ci(
+    keychain_name: "crystal_lattice_ios_testflight",
+    timeout: 0,
+  ) if ENV["CI"]
+
   sync_app_store_signing(
     api_key: api_key,
     readonly: true_env?("MATCH_READONLY", default: true),

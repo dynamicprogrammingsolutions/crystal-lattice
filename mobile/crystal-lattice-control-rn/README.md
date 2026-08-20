@@ -224,6 +224,66 @@ local fastlane build does not modify the checked-in Xcode project version.
 The App Store listing is identified by numeric Apple ID `6798401926`; the bundle
 identifier remains `com.dynamicprogrammingsolutions.crystallatticecontrolrn`.
 
+### GitHub Actions TestFlight deployment
+
+The `iOS TestFlight` workflow is manual-only. Open the repository's **Actions**
+tab, select **iOS TestFlight**, and choose **Run workflow**.
+
+The workflow has two modes:
+
+- `upload_to_testflight = false` is the safe default. It verifies the mobile
+  package and creates a signed IPA on the ephemeral runner without uploading or
+  retaining it.
+- `upload_to_testflight = true` runs the same verification and calls
+  `fastlane ios beta` to upload an internal TestFlight build. An optional
+  changelog can be supplied in the dispatch form.
+
+Required repository variables:
+
+| Variable | Value |
+| --- | --- |
+| `IOS_APP_IDENTIFIER` | `com.dynamicprogrammingsolutions.crystallatticecontrolrn` |
+| `IOS_APPLE_TEAM_ID` | `73Q43R2PD4` |
+| `IOS_APP_STORE_APPLE_ID` | `6798401926` |
+| `IOS_MATCH_GIT_URL` | `git@github.com:dynamicprogrammingsolutions/crystal-lattice-ios-signing.git` |
+| `IOS_MATCH_GIT_BRANCH` | `main` |
+
+Required encrypted repository secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `IOS_APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID |
+| `IOS_APP_STORE_CONNECT_ISSUER_ID` | App Store Connect issuer ID |
+| `IOS_APP_STORE_CONNECT_KEY_CONTENT` | Base64-encoded `.p8` API private key |
+| `IOS_MATCH_PASSWORD` | Decrypts the match signing repository |
+| `IOS_MATCH_GIT_PRIVATE_KEY` | Read-only SSH deploy private key for the match repository |
+
+The matching public deploy key must be registered read-only on the private
+`crystal-lattice-ios-signing` repository. Do not reuse a personal SSH key or a
+deploy key with write access.
+
+The organization currently uses GitHub Free and this repository is private.
+Protected environments, environment secrets, and required deployment reviewers
+are therefore unavailable for this workflow. Current protections are:
+
+- Manual dispatch only; there are no push or tag triggers.
+- Repository write access is required to start the workflow.
+- Signing-repository access is read-only and limited to one repository.
+- Match is always read-only on CI.
+- GitHub serializes iOS runs so two signing/upload jobs cannot overlap.
+
+If the repository gains a GitHub plan that supports environments for private
+repositories, create a protected `ios-testflight` environment, move the five
+secrets into it, require an authorized reviewer, and attach the release job to
+that environment.
+
+To rotate credentials:
+
+1. Generate a replacement App Store Connect API key or signing deploy key.
+2. Replace the corresponding GitHub secret.
+3. Run the workflow with uploading disabled.
+4. Remove the superseded key only after the build-only run succeeds.
+
 ### Android
 
 **Option 1: Using CLI**
