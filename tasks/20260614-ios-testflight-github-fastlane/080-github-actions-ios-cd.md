@@ -62,3 +62,92 @@ Secrets to document depend on signing strategy, but likely include:
 - Workflow fails before upload if verification fails.
 - Workflow does not expose signing material or App Store Connect keys in logs.
 - Workflow uploads to TestFlight when secrets and App Store Connect app record are present.
+
+## Execution plan
+
+Status: Approved
+
+Add a manually dispatched GitHub Actions workflow with two explicit modes:
+
+- Safe default: verify and create a production-signed IPA on the ephemeral
+  runner without uploading it.
+- Explicit upload: verify, archive, and call `fastlane ios beta` to upload an
+  internal TestFlight build.
+
+Use the GitHub-hosted `macos-26` arm64 runner, whose current image provides
+Xcode 26.6. Install Node 20, Ruby 3.4.10, the locked Bundler dependencies, npm
+dependencies, and CocoaPods dependencies from the owning mobile package.
+
+Create an ephemeral fastlane keychain on CI before match installs the Apple
+Distribution identity. Give CI read-only access to the separate signing
+repository through a repository-specific SSH deploy key. Store the match
+password and App Store Connect API-key material as encrypted GitHub repository
+secrets, and store non-sensitive identifiers as repository variables.
+
+The `dynamicprogrammingsolutions` organization is currently on GitHub Free and
+the application repository is private. Protected environments, environment
+secrets, and required deployment reviewers are therefore not available for this
+repository. Use repository secrets now, keep the workflow manual-only, document
+the limitation, and recommend moving the secrets to a protected
+`ios-testflight` environment if the repository gains a plan supporting
+environments for private repositories.
+
+### Implementation decisions and open questions
+
+- Decision: do not add tag or push triggers yet.
+- Decision: default `upload_to_testflight` to `false`; task `090` will perform
+  the first explicit upload.
+- Decision: use a read-only deploy key limited to
+  `crystal-lattice-ios-signing`, not a broad personal access token.
+- Decision: use repository secrets because protected environments are
+  unavailable under the current GitHub plan/repository visibility.
+- Decision: do not upload the signed IPA as a GitHub artifact; the build-only
+  mode validates CI and then allows the ephemeral runner to discard it.
+- Decision: pin third-party workflow actions to reviewed commit SHAs.
+- Open operational decision: if the GitHub plan later changes, migrate all iOS
+  release secrets into a protected `ios-testflight` environment and require a
+  reviewer for the upload job.
+
+### Documentation
+
+- Extend the mobile TestFlight documentation with workflow inputs, required
+  variables/secrets, trigger steps, current protection limitations, and secret
+  rotation guidance.
+- Keep the first real upload and App Store Connect processing evidence in task
+  `090`.
+
+### Task checklist
+
+- [ ] Add CI-safe ephemeral keychain setup to fastlane.
+- [ ] Add the manual GitHub Actions iOS workflow.
+- [ ] Add safe build-only and explicit TestFlight-upload modes.
+- [ ] Configure Node, Ruby, Bundler, npm, CocoaPods, and Xcode validation.
+- [ ] Create and register a read-only signing-repository deploy key.
+- [ ] Configure required GitHub repository variables and secrets.
+- [ ] Validate workflow syntax, action pins, and secret handling.
+- [ ] Run the workflow in build-only mode from a GitHub branch where the
+      workflow is available.
+- [ ] Document operation, protection limitations, and secret rotation.
+
+### Requirement verification
+
+- Workflow requirement: GitHub recognizes the workflow and accepts a manual
+  dispatch.
+- Toolchain requirement: the build-only run reports Node 20, Ruby 3.4.10,
+  bundled CocoaPods 1.16.2, and Xcode 26.
+- Verification requirement: `ios verify` passes before either signed-build or
+  upload mode continues.
+- Secret/signing requirement: CI decrypts match assets through the read-only
+  deploy key and signs using an ephemeral keychain without exposing credentials.
+- Upload requirement: static inspection confirms the explicit upload branch
+  calls `fastlane ios beta`; task `090` records the first real upload.
+- Documentation requirement: maintainers have exact setup, trigger, rotation,
+  and plan-limitation instructions.
+
+### Additional implementation verification
+
+- Confirm the signing deploy key is read-only and scoped only to the signing
+  repository.
+- Confirm `.p8`, match password, private deploy key, IPA, and generated keychain
+  files are absent from source control and workflow logs.
+- Confirm workflow concurrency prevents overlapping iOS signing/deployment runs.
