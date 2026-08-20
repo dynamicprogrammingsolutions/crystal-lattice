@@ -151,3 +151,16 @@ environments for private repositories.
 - Confirm `.p8`, match password, private deploy key, IPA, and generated keychain
   files are absent from source control and workflow logs.
 - Confirm workflow concurrency prevents overlapping iOS signing/deployment runs.
+
+## Implementation Notes
+
+The first build-only workflow run, `32409621399`, started on 2026-08-20 and
+confirmed that GitHub recognized the workflow, resolved all required repository
+variables/secrets, and scheduled the `macos-26` runner with Xcode 26.6. It
+stopped in the Xcode validation step before dependency installation, signing,
+or upload.
+
+Cause: the step invoked `xcodebuild -version` a second time through a
+short-circuiting `grep` pipeline. After `grep` matched and closed the pipe,
+Xcode 26.6 aborted while writing its remaining output. The step now captures
+the version output once, prints it, and validates the captured string.
