@@ -18,9 +18,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import {
-  BridgeTransport,
   CloudTransport,
   FetchTransport,
+  createBridgeConnectionTransport,
   parseCloudConnectionLink,
   type KeyValueStore,
   loadConnections,
@@ -29,6 +29,8 @@ import {
   type AgentBackend,
   type BridgeServer,
   type BridgeConnectionRecord,
+  type BridgeConnectionTransport,
+  type BridgeTransportMode,
   type CloudConnectionRecord,
   type ConnectionRecord,
   type DiscoveryConnectionRecord,
@@ -93,6 +95,7 @@ const BRIDGE_HEARTBEAT_INTERVAL_MS = 15_000;
 const BRIDGE_HEARTBEAT_TIMEOUT_MS = 5_000;
 const PRIVACY_POLICY_URL = 'https://crystallattice.dev/privacy';
 const SUPPORT_URL = 'https://crystallattice.dev/support';
+const DEFAULT_BRIDGE_TRANSPORT_MODE: BridgeTransportMode = 'websocket';
 
 function openExternalUrl(url: string): void {
   void Linking.openURL(url).catch(() => {
@@ -125,12 +128,14 @@ function createHttpTransport(baseUrl: string): FetchTransport {
 
 function createBridgeTransport(options: {
   bridgeUrl: string;
+  mode?: BridgeTransportMode;
   serverId?: string | null;
   pairingToken?: string | null;
   debug?: boolean;
-}): BridgeTransport {
-  return new BridgeTransport({
+}): BridgeConnectionTransport {
+  return createBridgeConnectionTransport({
     bridgeUrl: options.bridgeUrl,
+    mode: options.mode ?? DEFAULT_BRIDGE_TRANSPORT_MODE,
     serverId: options.serverId,
     pairingToken: options.pairingToken,
     debug: options.debug ?? true,
@@ -179,6 +184,21 @@ function disconnectIfPossible(candidate: unknown): void {
   }
 }
 
+function isBridgeConnectionTransport(
+  candidate: unknown,
+): candidate is BridgeConnectionTransport {
+  return (
+    candidate != null &&
+    typeof candidate === 'object' &&
+    'connect' in candidate &&
+    typeof (candidate as any).connect === 'function' &&
+    'prepareForResume' in candidate &&
+    typeof (candidate as any).prepareForResume === 'function' &&
+    'getPairingToken' in candidate &&
+    typeof (candidate as any).getPairingToken === 'function'
+  );
+}
+
 function App(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
@@ -201,10 +221,13 @@ function App(): React.JSX.Element {
   const [manualPort, setManualPort] = useState('8080');
 
   const [bridgeUrl, setBridgeUrl] = useState('');
+  const [bridgeTransportMode, setBridgeTransportMode] =
+    useState<BridgeTransportMode>(DEFAULT_BRIDGE_TRANSPORT_MODE);
   const [bridgeServers, setBridgeServers] = useState<BridgeServer[]>([]);
   const [selectedBridgeServer, setSelectedBridgeServer] = useState<BridgeServer | null>(null);
   const [pairingCode, setPairingCode] = useState('');
-  const [connectingBridgeTransport, setConnectingBridgeTransport] = useState<BridgeTransport | null>(null);
+  const [connectingBridgeTransport, setConnectingBridgeTransport] =
+    useState<BridgeConnectionTransport | null>(null);
   const [cloudConnectionLink, setCloudConnectionLink] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
@@ -491,6 +514,7 @@ function App(): React.JSX.Element {
 
       const bridge = createBridgeTransport({
         bridgeUrl: bridgeRecord.bridgeUrl,
+        mode: bridgeRecord.transportMode ?? DEFAULT_BRIDGE_TRANSPORT_MODE,
         debug: true,
       });
       await bridge.connect();
@@ -502,6 +526,9 @@ function App(): React.JSX.Element {
       setBackend(null);
       setSelectedConnectionId(null);
       setBridgeUrl(bridgeRecord.bridgeUrl);
+      setBridgeTransportMode(
+        bridgeRecord.transportMode ?? DEFAULT_BRIDGE_TRANSPORT_MODE,
+      );
       setBridgeServers(servers);
       setConnectingBridgeTransport(bridge);
       setPairingCode('');
@@ -545,7 +572,10 @@ function App(): React.JSX.Element {
     });
 
     try {
-      if (!(transport instanceof BridgeTransport) || activeConnection?.kind !== 'bridge') {
+      if (
+        activeConnection?.kind !== 'bridge' ||
+        !isBridgeConnectionTransport(transport)
+      ) {
         return;
       }
 
@@ -822,6 +852,7 @@ function App(): React.JSX.Element {
       
       const bridge = createBridgeTransport({
         bridgeUrl,
+        mode: bridgeTransportMode,
         debug: true,
       });
       await bridge.connect();
@@ -902,6 +933,7 @@ function App(): React.JSX.Element {
         serverId: selectedBridgeServer.server_id,
         serverName: selectedBridgeServer.display_name,
         pairingToken: connectingBridgeTransport.getPairingToken(),
+        transportMode: bridgeTransportMode,
         lastUsedAt: Date.now(),
       };
       upsertConnection(record);
@@ -1018,6 +1050,7 @@ function App(): React.JSX.Element {
       </TouchableOpacity>
 
       <TouchableOpacity
+        testID="connection-method-bridge"
         style={[styles.button, styles.methodButton]}
         onPress={() => selectMethod('bridge')}>
         <Text style={styles.buttonText}>Bridge Service</Text>
@@ -1200,6 +1233,48 @@ function App(): React.JSX.Element {
             autoCorrect={false}
           />
 
+          <Text style={styles.bridgeModeLabel}>Transport (experimental)</Text>
+          <View style={styles.bridgeModeSelector}>
+            {(
+              [
+                ['websocket', 'WebSocket'],
+                ['http', 'HTTP'],
+                ['hybrid', 'Hybrid'],
+              ] as const
+            ).map(([mode, label]) => (
+              <TouchableOpacity
+                key={mode}
+                testID={`bridge-transport-mode-${mode}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${label} bridge transport${
+                  bridgeTransportMode === mode ? ' selected' : ''
+                }`}
+                accessibilityState={{
+                  selected: bridgeTransportMode === mode,
+                }}
+                style={[
+                  styles.bridgeModeButton,
+                  bridgeTransportMode === mode &&
+                    styles.bridgeModeButtonSelected,
+                ]}
+                onPress={() => setBridgeTransportMode(mode)}
+                disabled={isLoading}>
+                <Text
+                  style={[
+                    styles.bridgeModeButtonText,
+                    bridgeTransportMode === mode &&
+                      styles.bridgeModeButtonTextSelected,
+                  ]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.bridgeModeHint}>
+            WebSocket is the stable default. Hybrid keeps event polling on
+            WebSocket and sends all other requests over HTTP.
+          </Text>
+
           <TouchableOpacity
             style={[styles.button, styles.primaryButton]}
             onPress={connectToBridge}
@@ -1351,6 +1426,7 @@ function App(): React.JSX.Element {
 
         const bridge = createBridgeTransport({
           bridgeUrl: record.bridgeUrl,
+          mode: record.transportMode ?? DEFAULT_BRIDGE_TRANSPORT_MODE,
           serverId: record.serverId,
           pairingToken: record.pairingToken,
           debug: true,
@@ -1570,6 +1646,43 @@ const createStyles = (theme: Theme) =>
       marginBottom: 12,
       fontSize: 16,
       color: theme.text,
+    },
+    bridgeModeLabel: {
+      color: theme.text,
+      fontSize: 13,
+      fontWeight: '600',
+      marginBottom: 8,
+    },
+    bridgeModeSelector: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 8,
+    },
+    bridgeModeButton: {
+      flex: 1,
+      alignItems: 'center',
+      borderColor: theme.border,
+      borderRadius: 8,
+      borderWidth: 1,
+      paddingHorizontal: 8,
+      paddingVertical: 10,
+    },
+    bridgeModeButtonSelected: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    bridgeModeButtonText: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    bridgeModeButtonTextSelected: {
+      color: theme.textOnPrimary,
+    },
+    bridgeModeHint: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      marginBottom: 12,
     },
     section: {
       marginTop: 16,

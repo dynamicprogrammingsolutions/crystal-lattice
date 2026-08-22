@@ -4,17 +4,18 @@ Add opt-in HTTP-only and hybrid bridge transports while preserving the existing 
 
 ## Requirements checklist
 
-- [ ] Keep the existing `BridgeTransport`, its WebSocket wire messages, and its pairing/control/event/normal-request behavior fully intact and make WebSocket-only mode the default.
-- [ ] Expose explicit frontend bridge modes for WebSocket-only, HTTP-only, and hybrid operation without automatic request fallback between modes.
-- [ ] In hybrid mode, route only `GET /events` (with or without a query string) through the existing `BridgeTransport`; route discovery, pairing, resume/validation, and every other proxied backend request through HTTP.
-- [ ] Make HTTP-only mode complete: it must discover servers, pair, validate a saved pairing token, and proxy all backend requests—including `/events`—without opening a frontend WebSocket.
-- [ ] Preserve the existing SDK `Transport.request()` contract and the SDK-facing status/data/error behavior for JSON and text endpoints across all three modes.
-- [ ] Keep small control metadata on the Python server WebSocket, but transfer every request/response body selected for the new HTTP path as raw HTTP bytes, including a Python-to-bridge HTTP response upload path.
-- [ ] Support binary request and response bodies on the HTTP path without JSON text framing or base64 conversion.
+- [x] Keep the existing `BridgeTransport`, its WebSocket wire messages, and its pairing/control/event/normal-request behavior fully intact and make WebSocket-only mode the default.
+- [x] Expose explicit frontend bridge modes for WebSocket-only, HTTP-only, and hybrid operation without automatic request fallback between modes.
+- [x] In hybrid mode, route only `GET /events` (with or without a query string) through the existing `BridgeTransport`; route discovery, pairing, resume/validation, and every other proxied backend request through HTTP.
+- [x] Make HTTP-only mode complete: it must discover servers, pair, validate a saved pairing token, and proxy all backend requests—including `/events`—without opening a frontend WebSocket.
+- [x] Preserve the existing SDK `Transport.request()` contract and the SDK-facing status/data/error behavior for JSON and text endpoints across all three modes.
+- [x] Keep small control metadata on the Python server WebSocket, but transfer every request/response body selected for the new HTTP path as raw HTTP bytes, including a Python-to-bridge HTTP response upload path.
+- [x] Support binary request and response bodies on the HTTP path without JSON text framing or base64 conversion.
 - [ ] Bound, authenticate, time out, cancel, and clean up HTTP transfers safely across single-node and clustered bridge deployments.
-- [ ] Enable negotiated gzip for HTTP bridge responses, retain HTTP/2 at supported TLS edges, and allow Brotli at deployment edges that support it; do not require Brotli from the Phoenix origin.
-- [ ] Wire the mobile frontend through an opt-in mode factory so old saved connections remain WebSocket-only unless explicitly configured otherwise, and leave the permanent default switch out of this task.
-- [ ] Add unit, integration, clustered, and SDK-facing E2E evidence for all modes, path routing, large JSON, raw binary, compression, timeout/cancellation cleanup, and unchanged legacy WebSocket behavior.
+- [x] Enable negotiated gzip for HTTP bridge responses, retain HTTP/2 at supported TLS edges, and allow Brotli at deployment edges that support it; do not require Brotli from the Phoenix origin.
+- [x] Wire the mobile frontend through an opt-in mode factory so old saved connections remain WebSocket-only unless explicitly configured otherwise, and leave the permanent default switch out of this task.
+- [x] Add unit, integration, clustered, and SDK-facing E2E evidence for all modes, path routing, large JSON, raw binary, compression, timeout/cancellation cleanup, and unchanged legacy WebSocket behavior.
+- [x] A formal cross-package bridge-connectivity specification and package-owned current documentation accurately cover the existing bridge subsystem, the HTTP/hybrid extension, directly connected frontend/server/deployment responsibilities, live requirements and evidence, and explicit exclusions without reconstructing clearly separate systems.
 
 Parent Task: tasks/20260610-mobile-message-refresh-performance/000-main.md
 
@@ -178,21 +179,389 @@ Planned verification commands include:
 ### Task checklist
 
 - [x] After explicit user approval, change this plan status to `Approved` before implementation.
-- [ ] Capture the passing legacy WebSocket unit/E2E baseline and preserve existing `BridgeTransport` source and wire messages.
-- [ ] Add shared bridge mode/lifecycle types, URL derivation, and an explicit mode factory without changing `BridgeTransport`.
-- [ ] Add `HttpBridgeTransport` control, pairing-token validation, proxy, timeout/abort, JSON/text, and raw-binary behavior.
-- [ ] Add `HybridBridgeTransport` with exact event-only legacy routing and no automatic fallback.
-- [ ] Add versioned capabilities, discovery, pairing, resume, proxy, and transfer HTTP routes before body parsing.
-- [ ] Add dedicated frontend pairing authentication and short-lived signed transfer credentials.
-- [ ] Add the supervised, bounded, cluster-aware transfer coordinator and raw chunk backpressure protocol.
-- [ ] Add server-channel v2 request, response-init, and cancel metadata events while preserving legacy handlers.
-- [ ] Add Python v2 request-body download, local byte streaming, response upload, task tracking, cancellation, and HTTP-base override.
-- [ ] Add gzip origin configuration and update CloudFront/HAProxy edge settings without changing WebSocket compression behavior.
-- [ ] Add SDK unit tests for all modes, exact routing, token/errors, timeout/abort, parity, binary bodies, and no fallback.
-- [ ] Add Elixir route/coordinator/security/cleanup/compression tests.
-- [ ] Add Python byte-streaming, metadata-only WebSocket, cancellation, and legacy-regression tests.
-- [ ] Extend SDK-facing bridge E2E for HTTP-only, hybrid, large JSON, binary, compression, resume, and failure cleanup.
-- [ ] Add and run a multi-node HAProxy transfer E2E that crosses bridge nodes.
-- [ ] Add mobile opt-in mode persistence/factory wiring and migration/rollback tests while retaining the WebSocket default.
-- [ ] Update SDK, bridge protocol/deployment, terminal bridge, mobile rollout, and integration-test documentation.
-- [ ] Run the planned verification matrix, record blocked hosted/manual evidence separately, and leave the permanent default switch deferred.
+- [x] Capture the passing legacy WebSocket unit/E2E baseline and preserve existing `BridgeTransport` source and wire messages.
+- [x] Add shared bridge mode/lifecycle types, URL derivation, and an explicit mode factory without changing `BridgeTransport`.
+- [x] Add `HttpBridgeTransport` control, pairing-token validation, proxy, timeout/abort, JSON/text, and raw-binary behavior.
+- [x] Add `HybridBridgeTransport` with exact event-only legacy routing and no automatic fallback.
+- [x] Add versioned capabilities, discovery, pairing, resume, proxy, and transfer HTTP routes before body parsing.
+- [x] Add dedicated frontend pairing authentication and short-lived signed transfer credentials.
+- [x] Add the supervised, bounded, cluster-aware transfer coordinator and raw chunk backpressure protocol.
+- [x] Add server-channel v2 request, response-init, and cancel metadata events while preserving legacy handlers.
+- [x] Add Python v2 request-body download, local byte streaming, response upload, task tracking, cancellation, and HTTP-base override.
+- [x] Add gzip origin configuration and update CloudFront/HAProxy edge settings without changing WebSocket compression behavior.
+- [x] Add SDK unit tests for all modes, exact routing, token/errors, timeout/abort, parity, binary bodies, and no fallback.
+- [x] Add Elixir route/coordinator/security/cleanup/compression tests.
+- [x] Add Python byte-streaming, metadata-only WebSocket, cancellation, and legacy-regression tests.
+- [x] Extend SDK-facing bridge E2E for HTTP-only, hybrid, large JSON, binary, compression, resume, and failure cleanup.
+- [x] Add and run a multi-node HAProxy transfer E2E that crosses bridge nodes.
+- [x] Add mobile opt-in mode persistence/factory wiring and migration/rollback tests while retaining the WebSocket default.
+- [x] Update SDK, bridge protocol/deployment, terminal bridge, mobile rollout, and integration-test documentation.
+- [x] Run the planned verification matrix, record blocked hosted/manual evidence separately, and leave the permanent default switch deferred.
+
+## Implementation Notes
+
+Added during implementation.
+
+- The implementation is isolated on
+  `task/20260610-plain-http-bridge-large-payload-path` in the dedicated
+  worktree. The existing `BridgeTransport` source was not modified.
+- HTTP pairing uses an opaque signed request handle that binds the server,
+  client, owner node, and expiry. Transfer credentials bind request id, server,
+  direction, and expiry. The frontend pairing token uses
+  `X-Crystal-Bridge-Token`, leaving a proxied `Authorization` header intact.
+- A supervised per-request Elixir coordinator relays request-download and
+  response-upload chunks with acknowledgements, byte/concurrency limits,
+  monitors, timeout cancellation, and clustered PubSub attachment.
+- The Python bridge client handles v2 work in separately tracked tasks,
+  downloads request bodies, streams local HTTP with identity encoding, sends
+  only response metadata over WebSocket, and uploads raw response bytes.
+- The first real E2E exposed gzip on the internal request-body download.
+  Marking that internal response `Content-Encoding: identity` fixed the issue
+  while retaining negotiated gzip on frontend-facing proxy responses.
+- Post-merge local verification completed before the implementation commit:
+  - `mix test`: 52 tests passed, 4 existing skips.
+  - Python bridge and CLI environment suites: 50 passed with the worktree
+    explicitly first on `PYTHONPATH`.
+  - Frontend SDK default suite: 310 passed.
+  - Mobile Jest suite: 115 passed.
+  - Mobile TypeScript: passed.
+  - Local external-mode bridge E2E: 4 applicable tests passed, including
+    legacy large payload/concurrency, HTTP-only large JSON/binary/gzip/resume,
+    and hybrid event-only WebSocket routing.
+- Deferred verification:
+  - Physical-device iOS/Android network checks remain a rollout gate before
+    changing the compatibility default. Simulator checks are complete.
+  - `test_cli_environment_isolation.py` is included in the 50-test Python
+    result above.
+- Follow-up verification completed after commit `61140c0e`:
+  - The two-node Docker/HAProxy runner passed all three legacy registration,
+    discovery, and pairing cases.
+  - A new bridge-owned cluster E2E passed HTTP pairing and a 1.2 MB raw request
+    plus 900 KB raw response. It asserts from HAProxy logs that the proxy,
+    request-body download, and response-body upload for one transfer span
+    `bridge-node-1` and `bridge-node-2`.
+  - The SDK E2E passed all five cases in self-managed Docker mode, including
+    unchanged legacy large bodies, HTTP-only JSON/binary/gzip/resume/events,
+    hybrid event-only WebSocket routing, bridge restart/recovery, and legacy
+    concurrency.
+  - A fresh bridge image was built with the AWS CLI/CodeBuild path. The secure
+    EC2 + CloudFront SDK E2E passed all five cases, then removed its origin and
+    edge stacks. Only the pre-existing builder stack remains.
+  - The hosted CloudFront edge independently negotiated HTTP/2 for `/health`.
+    Its live AWS configuration reported HTTP/2, compression enabled, zero
+    default TTL, all supported methods, and forwarding for both custom bridge
+    headers plus `Authorization`.
+  - iOS and Android Detox release/E2E builds passed. A focused production-UI
+    test passed on the iPhone 17 Pro simulator and Medium Phone API 36.1
+    emulator, proving WebSocket default selection and explicit HTTP, hybrid,
+    and WebSocket rollback selection.
+  - The Docker SDK harness now bounds each startup health probe so a published
+    port that precedes Cowboy readiness cannot hang the test indefinitely.
+    External mode explicitly skips the self-managed restart case.
+- Coverage hardening remains proposed rather than claimed complete for the
+  broad transfer-safety requirement: independently assert request-size and
+  active-transfer bounds, peer disconnect cleanup, token/server mismatch,
+  old-bridge capability failure, and saved mobile mode/token reconstruction.
+- Documentation backfill completed after explicit approval:
+  - Added the cross-package `bridge-connectivity` specification with product,
+    technical, protocol, deployment/operations, frontend, and live
+    requirements pages.
+  - The specification covers the existing registration/discovery/pairing,
+    stateless pairing credential, ephemeral session, legacy WebSocket proxy,
+    HTTP/hybrid extension, clustered transfer, deployment edge, SDK, Python,
+    and mobile-host responsibilities as one subsystem.
+  - `BRG-001` is recorded as implemented/automated/documented.
+    `BRG-002`, `BRG-008`, `BRG-009`, and `BRG-013` retain explicit pending
+    verification where the focused negative/cleanup/persistence matrix is not
+    complete.
+  - Added package-owned bridge quickstart/protocol/architecture/testing,
+    frontend SDK user/implementation, Python server-adapter, and mobile-host
+    documentation.
+  - Replaced the stale bridge README with a concise current entry point,
+    classified `BRIDGE_PLAN.md` as a legacy document, and corrected directly
+    affected package maintainer guidance.
+  - `python docs_site/scripts/prepare_mkdocs_site.py` passed.
+  - `mkdocs build` passed. It emitted only existing site navigation and
+    `agent_core` API-doc warnings.
+  - A focused link check covered every changed documentation Markdown file;
+    every relative file target resolves. `git diff --check` passed.
+
+## Follow-up execution plan — Bridge specification and documentation backfill
+
+Status: Approved
+
+This plan was explicitly approved after the initial implementation and
+verification commits. It is a bounded backfill of the bridge-connectivity
+subsystem, not documentation of only the new HTTP mechanism and not a
+repository-wide reconstruction.
+
+### Outcome and ownership
+
+Create one cross-package target specification at
+`docs/development/specifications/bridge-connectivity/`. Cross-package ownership
+is required because the supported subsystem coordinates independently owned
+Elixir bridge, frontend SDK, Python server adapter, mobile host, and deployment
+edge behavior. Package documentation remains with each implementation owner.
+
+The formal specification covers:
+
+- bridge roles and end-to-end topology from frontend/app client through the
+  bridge and registered Python server to the local HTTP application;
+- server registration, cluster-visible discovery, identities, health,
+  pairing, durable credentials, resume, heartbeat, disconnect, takeover, and
+  recovery;
+- the existing WebSocket-only frontend path, legacy request/response and
+  chunking behavior, and its compatibility role;
+- explicit WebSocket, HTTP, and hybrid modes, exact event routing, and the
+  prohibition on automatic fallback;
+- the continuing Python server control WebSocket, HTTP v1 control/proxy API,
+  and v2 server control messages;
+- raw request download and response upload, backpressure, limits, timeout,
+  cancellation, cleanup, credentials, and header filtering;
+- single-node and clustered routing through PubSub and HAProxy without
+  affinity;
+- gzip, edge-dependent Brotli, HTTP/2, TLS termination, no-store behavior, and
+  deployment constraints;
+- SDK behavior, mobile persistence/migration/rollback, verification
+  boundaries, and gates before changing the default.
+
+### Bounded discovery and exclusions
+
+Derive claims from the directly connected current implementation, tests, and
+deployment definitions:
+
+- `bridge-elixir/lib/bridge/endpoint.ex`, socket/channels, registries, pairing
+  and session managers, pairing tokens, HTTP router/transfer/token modules,
+  configuration, Docker/HAProxy, and AWS edge definitions;
+- frontend SDK bridge transports, connection records, and bridge integration
+  harness/tests;
+- `application/python/agent_terminal_app/bridge_client.py` plus its lifecycle
+  wiring, CLI/environment configuration, and focused tests;
+- mobile bridge connection selection, saved records, lifecycle hosting, and
+  focused tests.
+
+Do not discover or document proxied application endpoint semantics, event
+payload/cadence or refresh orchestration, agent/provider/plugin/tool behavior,
+cloud orchestrator connectivity, direct HTTP/Bonjour beyond a brief connection
+method distinction, unrelated mobile UI, unwired desktop behavior, abandoned
+design history, or deployment internals unrelated to bridge connectivity.
+Label uncertainty rather than inferring unsupported behavior.
+
+### Specification structure and live requirements
+
+Create:
+
+- `index.md` for scope, ownership, relationships, documents, current owners,
+  and exclusions;
+- `product-spec.md` for supported workflows, explicit modes, compatibility,
+  rollout, and non-goals;
+- `technical-spec.md` for architecture, state/lifecycles, routing,
+  clustering, failure behavior, security, and verification boundaries;
+- `protocol.md` for the legacy Phoenix channel contract, HTTP v1 API, v2
+  server control events, headers, credentials, body lifecycle, and
+  compatibility;
+- `deployment-and-operations.md` for supported topology and edge/operations
+  constraints without duplicating command-oriented deployment guides;
+- `frontend-behavior.md` for SDK mode selection, routing, persistence,
+  lifecycle hosting, and rollback;
+- `requirements.md` with stable `BRG-*` IDs and separate implementation,
+  verification, documentation, and evidence state.
+
+Initial requirements:
+
+- `BRG-001`: While a server is registered through its bridge control
+  connection, the bridge maintains one cluster-visible server record keyed by
+  its stable `server_id` and containing supported display metadata. Every
+  bridge node exposes that record through supported discovery interfaces, the
+  record is removed when registration ends, and health retains the established
+  status, node, cluster-size, active-server, and active-session fields.
+- `BRG-002`: A frontend can pair with an available server by completing the
+  time-bounded code-verification flow and receiving a signed pairing credential
+  bound to server and client identity. While valid and the server is available,
+  the frontend can re-establish or validate access without another code through
+  either supported control transport. Invalid, expired, tampered, or
+  server-mismatched credentials do not grant access.
+- `BRG-003`: legacy WebSocket proxying, chunking, concurrency, and
+  compatibility;
+- `BRG-004`: explicit frontend modes;
+- `BRG-005`: exact hybrid event routing and no automatic fallback;
+- `BRG-006`: HTTP control/proxy API and v2 server control protocol;
+- `BRG-007`: raw streaming, binary behavior, and SDK response parity;
+- `BRG-008`: authentication, credential scope, header isolation, and replay
+  protection;
+- `BRG-009`: backpressure, atomic bounds, timeout, cancellation, and cleanup;
+- `BRG-010`: clustered operation without affinity;
+- `BRG-011`: disconnect, restart, takeover, and recovery;
+- `BRG-012`: compression, HTTP/2, TLS edges, and no-store behavior;
+- `BRG-013`: frontend persistence, migration defaults, token reuse, and
+  rollback;
+- `BRG-014`: verification and permanent-default rollout gates.
+
+Do not mark a requirement verified from implementation inspection alone.
+Record partial evidence in the evidence column and leave the whole requirement
+`Unverified` when its complete acceptance behavior is not covered. In
+particular, `BRG-009` remains in progress/unverified until the separate testing
+follow-up is complete.
+
+### Implementation decisions and open questions
+
+- Decision: the specification describes the existing bridge and the extension
+  as one subsystem; the HTTP path is not a standalone specification.
+- Decision: no separate ADRs initially. Material decisions are explicit in the
+  technical specification; add an ADR only if a credible alternative is later
+  reconsidered.
+- Decision: `BRIDGE_PLAN.md` is a legacy implementation plan, not a current
+  source of truth. Add a clear legacy-status pointer rather than rewriting its
+  historical content.
+- Decision: keep `PRODUCTION_DEPLOYMENT.md` as the current command-oriented
+  deployment guide for this task; link it from the new package docs rather
+  than moving it and creating URL/compatibility work.
+- Decision: README files remain concise entry points and do not expose task,
+  requirement-status, approval, or evidence vocabulary.
+- No unresolved requirement question remains for documentation execution.
+
+### Documentation
+
+Create/update current documentation:
+
+- `bridge-elixir/docs/index.md`
+- `bridge-elixir/docs/quickstart.md`
+- `bridge-elixir/docs/bridge-protocol.md`
+- `bridge-elixir/docs/development/index.md`
+- `bridge-elixir/docs/development/architecture.md`
+- `bridge-elixir/docs/development/testing.md`
+- `packages/frontend-sdk/docs/bridge-transports.md`
+- `packages/frontend-sdk/docs/development/bridge-transport-implementation.md`
+- `application/python/docs/development/bridge-server-adapter.md`
+- the bridge connection section of
+  `mobile/crystal-lattice-control-rn/docs/development/frontend-hosting.md`
+
+Update package/root indexes and README pointers. Keep exact wire details
+normative in the formal protocol page; package user pages provide
+audience-compatible current guidance and examples without redefining the
+target. Correct only stale README/legacy-plan claims encountered within this
+bounded surface.
+
+### Task checklist
+
+- [x] Inspect only the bounded implementation/test/deployment surface and
+  record verified bridge behavior.
+- [x] Create the cross-package specification documents and `BRG-*`
+  requirements.
+- [x] Create bridge package user/development docs and classify legacy/current
+  source ownership.
+- [x] Create/update SDK, Python adapter, and mobile-host documentation.
+- [x] Update owning indexes and concise README/legacy-plan pointers.
+- [x] Validate touched examples and protocol names against code/tests.
+- [x] Run documentation preparation, MkDocs build, and focused link/path
+  checks without editing generated output.
+- [x] Update requirement evidence and this task after verification.
+- [x] Commit the specification and current documentation together.
+
+### Requirement verification
+
+- Verify the new documentation requirement by checking that every formal and
+  current page is reachable from its owning index, has one clear authority,
+  accurately covers both legacy and new paths, and contains no excluded
+  subsystem reconstruction.
+- Verify `BRG-001` against registry/channel tests, HTTP and WebSocket discovery,
+  two-node integration evidence, and health shape.
+- Verify `BRG-002` only to the extent supported by legacy/HTTP pairing and
+  resume tests; leave it unverified if the complete negative credential matrix
+  is not yet covered.
+- Map every remaining `BRG-*` row to concrete code, tests, current docs, this
+  task, and delivery commits without treating the specification as evidence.
+
+### Additional implementation verification
+
+- `python docs_site/scripts/prepare_mkdocs_site.py`
+- `(cd docs_site && mkdocs build)`
+- focused relative-link and stale-path checks for newly added pages;
+- `git diff --check`;
+- inspection that `docs_site/prepared/` and `docs_site/dist/` remain generated
+  outputs and are not committed.
+
+## Follow-up execution plan — Transfer-safety hardening and focused coverage
+
+Status: Approved
+
+This plan closes the remaining transfer-safety requirement after the
+documentation backfill. It adds focused state/failure evidence and does not
+repeat the already passing large-payload, clustered, hosted, or simulator E2E
+matrix.
+
+### Scope and approach
+
+- Make the DynamicSupervisor child limit the authoritative atomic
+  active-transfer bound; the current count-before-start precheck is not atomic
+  under simultaneous starts.
+- Add Elixir coordinator/route tests for request-body limits, concurrent
+  saturation, duplicate/invalid attachment, wrong server/direction/request ID,
+  expired credentials, frontend/server/request-consumer/response-uploader
+  termination, and terminal coordinator cleanup.
+- Add SDK tests for old-bridge capability failure, HTTP-only operation with a
+  throwing WebSocket factory, pairing-token/server mismatch, and
+  representative non-2xx parity.
+- Add Python tests for cancellation during request download, local backend
+  streaming, response upload, bridge disconnect, supersession, and shutdown;
+  assert `_inflight_v2_tasks` cleanup.
+- Add a mobile component-level saved-connection reconstruction test for absent
+  mode, explicit HTTP/hybrid, pairing-token reuse, and rollback.
+- Reuse the existing five SDK E2E cases, one cross-node transfer E2E, one
+  secure hosted edge, and one focused native selector test; do not add
+  redundant payload permutations.
+
+Physical-device network checks and a bounded concurrent load/soak run remain
+rollout gates before changing the stable WebSocket default. They do not block
+the current opt-in implementation unless the default-switch scope is separately
+approved.
+
+### Implementation decisions and open questions
+
+- Decision: prefer deterministic unit/coordinator tests for terminal states and
+  cleanup because E2E cannot reliably observe supervised children or Python
+  task maps.
+- Decision: keep one representative large JSON and binary E2E per relevant
+  transport boundary.
+- Decision: hosted evidence uses one secure EC2/CloudFront deployment; static
+  template validation covers the parallel Fargate edge.
+- Decision: do not change the permanent default in this follow-up.
+- No unresolved requirement question remains for testing execution.
+
+### Documentation
+
+- Update `BRG-002`, `BRG-008`, `BRG-009`, `BRG-013`, and `BRG-014` live
+  evidence after tests pass.
+- Update bridge/SDK/mobile testing pages only for stable commands or coverage
+  boundaries; do not copy test implementation detail into user guides.
+
+### Task checklist
+
+- [ ] Make active-transfer admission atomic and add saturation evidence.
+- [ ] Add Elixir security, limit, peer-loss, and cleanup tests.
+- [ ] Add SDK capability/no-WebSocket/mismatch/error tests.
+- [ ] Add Python phase-specific cancellation and task-cleanup tests.
+- [ ] Add saved mobile mode/token reconstruction coverage.
+- [ ] Run focused suites, then the normal Elixir, Python bridge, SDK, and
+  mobile suites.
+- [ ] Rerun cluster/E2E only if a product path used by those boundaries changes.
+- [ ] Update requirement/task evidence and commit the hardening follow-up.
+
+### Requirement verification
+
+- Verify the remaining transfer-safety task requirement through deterministic
+  evidence that limits are atomic, credentials are scoped/rejected correctly,
+  every monitored peer failure reaches one terminal state, and no coordinator
+  or Python v2 task remains after completion, failure, cancellation, or
+  shutdown.
+- Verify the bridge documentation requirement remains accurate after any
+  admission or cleanup implementation changes.
+
+### Additional implementation verification
+
+- `cd bridge-elixir && mix test`
+- focused Python bridge transfer/cancellation tests with the worktree first on
+  `PYTHONPATH`;
+- `npm --workspace @crystal-lattice/frontend-sdk test`;
+- mobile focused component tests, normal Jest suite, and TypeScript check;
+- `git diff --check`.

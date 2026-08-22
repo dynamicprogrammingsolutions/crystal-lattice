@@ -791,11 +791,15 @@ export async function startBridgeDocker(): Promise<StartedBridge> {
 
   const healthUrl = 'http://127.0.0.1:4000/health';
   await waitForAsync(async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1_000);
     try {
-      const resp = await fetch(healthUrl);
+      const resp = await fetch(healthUrl, { signal: controller.signal });
       return resp.ok;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }, { timeoutMs: 60_000, intervalMs: 250 });
 

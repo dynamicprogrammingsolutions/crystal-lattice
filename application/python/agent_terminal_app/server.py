@@ -21,6 +21,7 @@ from fastapi import (  # type: ignore[reportMissingImports]
     Header,
     HTTPException,
     Request,
+    Response,
 )
 from fastapi.responses import JSONResponse  # type: ignore[reportMissingImports]
 
@@ -646,6 +647,18 @@ def get_api_hello() -> Dict[str, Any]:
 
 
 if _TEST_CONTROL_ENABLED:
+
+    @app.api_route("/__test/binary", methods=["GET", "PUT"])
+    async def _test_binary(
+        request: Request,
+        size: int = 0,
+    ) -> Response:
+        if request.method == "PUT":
+            payload = await request.body()
+        else:
+            bounded_size = max(0, min(size, 5 * 1024 * 1024))
+            payload = bytes(index % 251 for index in range(bounded_size))
+        return Response(content=payload, media_type="application/octet-stream")
 
     @app.get("/__test/sleep")
     def _test_sleep(ms: int = 0) -> Dict[str, Any]:

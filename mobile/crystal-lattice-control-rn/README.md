@@ -23,7 +23,8 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
 - **mDNS Library**: `react-native-zeroconf`
 - **WebSocket**: Native WebSocket API with polyfills
 - **Service Type**: `_http._tcp`
-- **Bridge Protocol**: Phoenix WebSocket protocol
+- **Bridge Protocol**: Phoenix WebSocket control with optional HTTP v1 proxy
+  transport
 
 ## Prerequisites
 
@@ -165,6 +166,7 @@ Build and run on iOS:
 
 ```bash
 npm run detox:build:ios
+npm run detox:test:bridge-transport:ios
 npm run detox:test:transcript:ios
 npm run detox:test:transcript-range:ios
 ```
@@ -173,6 +175,7 @@ Build and run on Android:
 
 ```bash
 npm run detox:build:android
+npm run detox:test:bridge-transport:android
 npm run detox:test:transcript:android
 npm run detox:test:transcript-range:android
 ```
@@ -256,12 +259,20 @@ without changing the production release manifest.
    - Enter bridge URL (default: `ws://localhost:4000/ws/websocket`)
      - For iOS device testing bridge on Mac: use Mac's IP address
      - Example: `ws://192.168.1.100:4000/ws/websocket`
+   - Select a transport. `WebSocket` is the stable default; `HTTP` and
+     `Hybrid` are experimental opt-ins.
    - Tap "Connect to Bridge"
    - Select a server from the list
    - Tap to request pairing
    - **Check the server terminal** for the 6-digit pairing code
    - Enter the code in the app
    - Tap "Submit Code"
+
+HTTP mode uses plain HTTP for pairing and all backend requests, including
+event polling. Hybrid mode uses plain HTTP for pairing and normal requests,
+while exact `GET /events` polling stays on the existing WebSocket transport.
+The selected mode is saved with the connection. Older saved connections have
+no mode field and continue to use WebSocket.
 
 4. **Make requests:**
    - Once connected, tap "GET /api/data" or "PUT /api/data"
@@ -522,11 +533,11 @@ mobile/crystal-lattice-control-rn/
 
 ## Related Documentation
 
+- [Mobile frontend hosting](docs/development/frontend-hosting.md)
+- [Bridge transport guide](../../packages/frontend-sdk/docs/bridge-transports.md)
 - [React Native Documentation](https://reactnative.dev/)
 - [react-native-zeroconf GitHub](https://github.com/balthazar/react-native-zeroconf)
-- [Project Root README](../README.md)
-- [Bonjour Explained](../BONJOUR_EXPLAINED.md)
-- [Troubleshooting Guide](../TROUBLESHOOTING.md)
+- [Project Root README](../../README.md)
 
 ## License
 

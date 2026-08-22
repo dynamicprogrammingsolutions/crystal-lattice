@@ -6,6 +6,7 @@ defmodule Bridge.Application do
     children = [
       {Phoenix.PubSub, name: Bridge.PubSub},
       {Task.Supervisor, name: Bridge.HttpProxyTaskSupervisor},
+      {DynamicSupervisor, strategy: :one_for_one, name: Bridge.HttpTransferSupervisor},
       {Cluster.Supervisor,
        [Application.get_env(:libcluster, :topologies), [name: Bridge.ClusterSupervisor]]},
       Bridge.ServerRegistry,
