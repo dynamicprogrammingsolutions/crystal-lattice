@@ -67,23 +67,26 @@ Configured in `config/config.exs`:
   transfer credentials (default `180`).
 - `BRIDGE_HTTP_MAX_BODY_BYTES` – maximum streamed request or response body
   size (default `104857600`).
-- `BRIDGE_MAX_PENDING_HTTP_TRANSFERS` – per-node active transfer bound
-  (default `128`).
+- `BRIDGE_MAX_PENDING_HTTP_TRANSFERS` – per-node transfer-admission limit
+  (default `128`). Keep independent edge/process capacity controls as well.
 - `BRIDGE_HTTP_COMPRESS_THRESHOLD_BYTES` – minimum viewer response size for
   Cowboy gzip (default `1024`).
 
-All bridge nodes must share `BRIDGE_TOKEN_SECRET` and the transfer-token salt
-when HTTP/hybrid clients are enabled. Edge proxies must forward
-`Authorization`, `X-Crystal-Bridge-Token`, query strings, and all supported
-HTTP methods without caching `/bridge/v1/*`. The provided secure CloudFront
-templates enable HTTP/2 and compression; the TLS HAProxy listener advertises
-`h2,http/1.1`. Origin gzip is portable, while Brotli depends on the selected
-edge.
+All bridge nodes must share `BRIDGE_TOKEN_SECRET`, `BRIDGE_TOKEN_SALT`, and
+`BRIDGE_HTTP_TRANSFER_TOKEN_SALT` when HTTP/hybrid clients are enabled. Edge
+proxies must forward `Authorization`, `X-Crystal-Bridge-Token`, query strings,
+and all supported HTTP methods without caching `/bridge/v1/*`. The provided
+secure CloudFront templates enable HTTP/2 and compression; the TLS HAProxy
+listener advertises `h2,http/1.1`. Origin gzip is portable, while Brotli
+depends on the selected edge.
+
+For current protocol details and environment defaults, see
+[`docs/bridge-protocol.md`](docs/bridge-protocol.md).
 
 ### TLS-related variables (for future internal TLS)
 
-These are **not used by default** but are referenced in `BRIDGE_PLAN.md` and in
-the example config snippet in `README.md`:
+These names are examples for a possible future implementation. They are not
+read by the current bridge:
 
 - `TLS_ENABLED` – if set to `true`/`1`, internal TLS could be enabled.
 - `TLS_CERT_PATH` – path to a certificate file inside the container.
@@ -426,8 +429,9 @@ The default compose file defines two nodes explicitly. To add more nodes you can
   etc., each with a unique `PORT` and IP in the custom `bridge_network`
   subnet, then add matching `server` lines in `haproxy.cfg` / `haproxy-ssl.cfg`.
 
-For more dynamic scaling, you’d typically move to a Kubernetes-based deployment
-with libcluster’s DNS or Kubernetes strategies (see `BRIDGE_PLAN.md`).
+For more dynamic scaling, use a deployment whose service discovery matches the
+configured libcluster strategy. The committed Fargate deployment uses DNS
+polling.
 
 ---
 
@@ -501,7 +505,8 @@ and require a `200` status code.
 
 6. **Centralize logs and metrics.**
    - Forward container logs to a centralized system (ELK, Loki, etc.).
-   - Consider adding Prometheus metrics in a future iteration (see `BRIDGE_PLAN.md`).
+   - Add metrics through an explicitly designed monitoring integration; the
+     current public monitoring contract is `/health`.
 
 ---
 
@@ -513,8 +518,7 @@ is **not wired up** in `config/runtime.exs`.
 
 If you decide you want the Elixir app itself to handle TLS, you would need to:
 
-1. **Decide on environment variables** (these are already mentioned in
-   `BRIDGE_PLAN.md`):
+1. **Decide on supported environment variables**, for example:
 
    ```bash
    TLS_ENABLED=true

@@ -15,7 +15,7 @@ Add opt-in HTTP-only and hybrid bridge transports while preserving the existing 
 - [x] Enable negotiated gzip for HTTP bridge responses, retain HTTP/2 at supported TLS edges, and allow Brotli at deployment edges that support it; do not require Brotli from the Phoenix origin.
 - [x] Wire the mobile frontend through an opt-in mode factory so old saved connections remain WebSocket-only unless explicitly configured otherwise, and leave the permanent default switch out of this task.
 - [x] Add unit, integration, clustered, and SDK-facing E2E evidence for all modes, path routing, large JSON, raw binary, compression, timeout/cancellation cleanup, and unchanged legacy WebSocket behavior.
-- [ ] A formal cross-package bridge-connectivity specification and package-owned current documentation accurately cover the existing bridge subsystem, the HTTP/hybrid extension, directly connected frontend/server/deployment responsibilities, live requirements and evidence, and explicit exclusions without reconstructing clearly separate systems.
+- [x] A formal cross-package bridge-connectivity specification and package-owned current documentation accurately cover the existing bridge subsystem, the HTTP/hybrid extension, directly connected frontend/server/deployment responsibilities, live requirements and evidence, and explicit exclusions without reconstructing clearly separate systems.
 
 Parent Task: tasks/20260610-mobile-message-refresh-performance/000-main.md
 
@@ -262,6 +262,29 @@ Added during implementation.
   broad transfer-safety requirement: independently assert request-size and
   active-transfer bounds, peer disconnect cleanup, token/server mismatch,
   old-bridge capability failure, and saved mobile mode/token reconstruction.
+- Documentation backfill completed after explicit approval:
+  - Added the cross-package `bridge-connectivity` specification with product,
+    technical, protocol, deployment/operations, frontend, and live
+    requirements pages.
+  - The specification covers the existing registration/discovery/pairing,
+    stateless pairing credential, ephemeral session, legacy WebSocket proxy,
+    HTTP/hybrid extension, clustered transfer, deployment edge, SDK, Python,
+    and mobile-host responsibilities as one subsystem.
+  - `BRG-001` is recorded as implemented/automated/documented.
+    `BRG-002`, `BRG-008`, `BRG-009`, and `BRG-013` retain explicit pending
+    verification where the focused negative/cleanup/persistence matrix is not
+    complete.
+  - Added package-owned bridge quickstart/protocol/architecture/testing,
+    frontend SDK user/implementation, Python server-adapter, and mobile-host
+    documentation.
+  - Replaced the stale bridge README with a concise current entry point,
+    classified `BRIDGE_PLAN.md` as a legacy document, and corrected directly
+    affected package maintainer guidance.
+  - `python docs_site/scripts/prepare_mkdocs_site.py` passed.
+  - `mkdocs build` passed. It emitted only existing site navigation and
+    `agent_core` API-doc warnings.
+  - A focused link check covered every changed documentation Markdown file;
+    every relative file target resolves. `git diff --check` passed.
 
 ## Follow-up execution plan — Bridge specification and documentation backfill
 
@@ -328,7 +351,7 @@ Label uncertainty rather than inferring unsupported behavior.
 
 Create:
 
-- `index.md` for scope, ownership, relationships, artifacts, current owners,
+- `index.md` for scope, ownership, relationships, documents, current owners,
   and exclusions;
 - `product-spec.md` for supported workflows, explicit modes, compatibility,
   rollout, and non-goals;
@@ -414,26 +437,26 @@ Create/update current documentation:
   `mobile/crystal-lattice-control-rn/docs/development/frontend-hosting.md`
 
 Update package/root indexes and README pointers. Keep exact wire details
-normative in the formal protocol artifact; package user pages provide
+normative in the formal protocol page; package user pages provide
 audience-compatible current guidance and examples without redefining the
 target. Correct only stale README/legacy-plan claims encountered within this
 bounded surface.
 
 ### Task checklist
 
-- [ ] Inspect only the bounded implementation/test/deployment surface and
+- [x] Inspect only the bounded implementation/test/deployment surface and
   record verified bridge behavior.
-- [ ] Create the cross-package specification artifacts and `BRG-*`
+- [x] Create the cross-package specification documents and `BRG-*`
   requirements.
-- [ ] Create bridge package user/development docs and classify legacy/current
+- [x] Create bridge package user/development docs and classify legacy/current
   source ownership.
-- [ ] Create/update SDK, Python adapter, and mobile-host documentation.
-- [ ] Update owning indexes and concise README/legacy-plan pointers.
-- [ ] Validate touched examples and protocol names against code/tests.
-- [ ] Run documentation preparation, MkDocs build, and focused link/path
+- [x] Create/update SDK, Python adapter, and mobile-host documentation.
+- [x] Update owning indexes and concise README/legacy-plan pointers.
+- [x] Validate touched examples and protocol names against code/tests.
+- [x] Run documentation preparation, MkDocs build, and focused link/path
   checks without editing generated output.
-- [ ] Update requirement evidence and this task after verification.
-- [ ] Commit the specification and current documentation together.
+- [x] Update requirement evidence and this task after verification.
+- [x] Commit the specification and current documentation together.
 
 ### Requirement verification
 

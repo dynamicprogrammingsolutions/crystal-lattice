@@ -22,6 +22,7 @@ package's `docs/development/`.
 - [Application runtime reload](specifications/application-runtime-reload/index.md)
 - [Sessions actions](specifications/sessions-actions/index.md)
 - [Chat transcript navigation](specifications/chat-transcript-navigation/index.md)
+- [Bridge connectivity](specifications/bridge-connectivity/index.md)
 
 These specifications define targets for portable behavior. Their requirements
 track implementation and verification, while package development pages

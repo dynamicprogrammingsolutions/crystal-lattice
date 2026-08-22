@@ -23,7 +23,8 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
 - **mDNS Library**: `react-native-zeroconf`
 - **WebSocket**: Native WebSocket API with polyfills
 - **Service Type**: `_http._tcp`
-- **Bridge Protocol**: Phoenix WebSocket protocol
+- **Bridge Protocol**: Phoenix WebSocket control with optional HTTP v1 proxy
+  transport
 
 ## Prerequisites
 
@@ -532,11 +533,11 @@ mobile/crystal-lattice-control-rn/
 
 ## Related Documentation
 
+- [Mobile frontend hosting](docs/development/frontend-hosting.md)
+- [Bridge transport guide](../../packages/frontend-sdk/docs/bridge-transports.md)
 - [React Native Documentation](https://reactnative.dev/)
 - [react-native-zeroconf GitHub](https://github.com/balthazar/react-native-zeroconf)
-- [Project Root README](../README.md)
-- [Bonjour Explained](../BONJOUR_EXPLAINED.md)
-- [Troubleshooting Guide](../TROUBLESHOOTING.md)
+- [Project Root README](../../README.md)
 
 ## License
 

@@ -35,26 +35,12 @@ Common categories:
 
 ## Bridge transport modes
 
-`createBridgeConnectionTransport()` supports three explicit modes:
+`createBridgeConnectionTransport()` supports WebSocket, HTTP, and hybrid
+operation. WebSocket is the compatibility default; HTTP and hybrid are
+explicit choices and never fall back automatically.
 
-- `websocket` is the compatibility default and returns the existing
-  `BridgeTransport` unchanged.
-- `http` uses the bridge HTTP v1 API for discovery, pairing, token validation,
-  event polling, and every proxied backend request. The frontend does not open
-  a WebSocket in this mode.
-- `hybrid` uses HTTP for discovery, pairing, validation, and normal backend
-  requests. Only exact `GET /events` requests (including query strings) use
-  the existing `BridgeTransport`.
-
-HTTP requests never fall back automatically to WebSocket. Recreate the
-connection with `mode: "websocket"` for an explicit rollback; automatic retry
-could duplicate non-idempotent writes.
-
-Both HTTP modes accept the existing `ws(s)://.../ws/websocket` bridge URL and
-derive the matching HTTP origin. Set `bridgeHttpBaseUrl` when a deployment uses
-different public HTTP and WebSocket origins. JSON and text preserve the
-standard `Transport` response contract, while non-text responses return an
-`ArrayBuffer` and binary request bodies are sent as raw bytes.
+See [Bridge transports](docs/bridge-transports.md) for pairing, mode routing,
+binary behavior, persistence, lifecycle, and rollback.
 
 ## License
 

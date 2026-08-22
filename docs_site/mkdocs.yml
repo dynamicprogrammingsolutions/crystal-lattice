@@ -76,6 +76,9 @@ plugins:
           - development/specifications/action-display/index.md: Action-display specification.
           - development/specifications/application-runtime-reload/index.md: Application runtime reload specification.
           - development/specifications/sessions-actions/index.md: Sessions-action specification.
+          - development/specifications/bridge-connectivity/index.md: Bridge-connectivity specification.
+          - development/specifications/bridge-connectivity/technical-spec.md: Bridge-connectivity technical contract.
+          - development/specifications/bridge-connectivity/protocol.md: Bridge-connectivity wire protocol.
         Guides:
           - plugins/development.md: General plugin authoring and packaging guide.
           - plugins/application-config.md: Application plugin configuration and examples.
@@ -135,6 +138,14 @@ nav:
       - Overview: development/specifications/sessions-actions/index.md
       - Technical: development/specifications/sessions-actions/technical-spec.md
       - Requirements: development/specifications/sessions-actions/requirements.md
+    - Bridge Connectivity:
+      - Overview: development/specifications/bridge-connectivity/index.md
+      - Product: development/specifications/bridge-connectivity/product-spec.md
+      - Technical: development/specifications/bridge-connectivity/technical-spec.md
+      - Protocol: development/specifications/bridge-connectivity/protocol.md
+      - Deployment and Operations: development/specifications/bridge-connectivity/deployment-and-operations.md
+      - Frontend Behavior: development/specifications/bridge-connectivity/frontend-behavior.md
+      - Requirements: development/specifications/bridge-connectivity/requirements.md
   - Guides:
     - Plugin Development: plugins/development.md
     - Application Configuration: plugins/application-config.md

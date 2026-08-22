@@ -444,6 +444,10 @@ the bridge and local response bodies are uploaded to it as raw HTTP byte
 streams; only status, headers, paths, and short-lived transfer credentials use
 the WebSocket.
 
+Maintainers can find lifecycle, legacy/v2 forwarding, header, cancellation,
+and test ownership details in
+[`docs/development/bridge-server-adapter.md`](docs/development/bridge-server-adapter.md).
+
 ### Bonjour + Bridge Together
 
 The simplest full-setup command:
