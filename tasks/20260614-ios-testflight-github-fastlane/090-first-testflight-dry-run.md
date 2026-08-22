@@ -7,9 +7,9 @@ Upload the first build to App Store Connect/TestFlight and validate install plus
 - [x] Create or verify the App Store Connect app record.
 - [x] Upload the first build using fastlane locally or GitHub Actions.
 - [x] Wait for Apple build processing to complete.
-- [ ] Add internal testers and install the build on a physical iPhone.
-- [ ] Validate launch, permissions, connection flows, sessions/messages, and attachment flows.
-- [ ] Record issues, fixes, and whether the build is suitable for external TestFlight preparation.
+- [x] Add internal testers and install the build on a physical iPhone.
+- [x] Validate launch, permissions, connection flows, sessions/messages, and attachment flows.
+- [x] Record issues, fixes, and whether the build is suitable for external TestFlight preparation.
 
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
 Depends On: tasks/20260614-ios-testflight-github-fastlane/080-github-actions-ios-cd.md
@@ -102,8 +102,8 @@ release-blocking defects before completing this task.
 - [x] Record the uploaded marketing version and build number.
 - [x] Confirm the processed build is available for internal testing.
 - [x] Provide internal tester enrollment and installation instructions.
-- [ ] Collect and record physical-iPhone core-flow results.
-- [ ] Record blockers or suitability for later external TestFlight work.
+- [x] Collect and record physical-iPhone core-flow results.
+- [x] Record blockers or suitability for later external TestFlight work.
 
 ### Requirement verification
 
@@ -227,3 +227,34 @@ did not require a separate export-compliance response during processing.
 15. Report the iPhone model, iOS version, each result as pass/fail/not
     applicable, and reproduction steps for every failure. Those results are
     required before this task and its parent checklist item can be completed.
+
+## Completion Notes
+
+Task completed on 2026-08-22.
+
+The first internal TestFlight dry run delivered Crystal Lattice Control
+`0.9.0 (6)` through GitHub Actions. Apple accepted and processed the build, an
+internal tester installed it through TestFlight on a physical iPhone, and the
+user confirmed that everything continued working as before.
+
+Requirement evidence:
+
+- App Store Connect app `6798401926` and bundle ID
+  `com.dynamicprogrammingsolutions.crystallatticecontrolrn` were resolved
+  successfully during the release.
+- GitHub Actions run `32417667636` built, signed, uploaded, and waited for
+  processing of `0.9.0 (6)`.
+- Apple processing and TestFlight changelog assignment completed successfully.
+- The user confirmed successful physical-iPhone installation and no regression
+  in the previously working launch, permission, connection, session/message,
+  attachment, file, and reconnect behavior.
+- No release-blocking issue was reported.
+
+Bridge and cloud testing were not applicable because the product does not
+currently operate a production bridge or public cloud-agent service. This does
+not block internal TestFlight completion.
+
+The build is suitable for continued internal testing. External TestFlight
+preparation remains blocked on the immediately testable App Review path in task
+`085`; the current self-hosted setup is not intended to be sufficient reviewer
+access for external Beta App Review.
