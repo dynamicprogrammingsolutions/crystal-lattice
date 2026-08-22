@@ -79,8 +79,8 @@ Rotate with an explicit re-pairing plan.
 | `BRIDGE_HTTP_COMPRESS_THRESHOLD_BYTES` | `1024` | Cowboy viewer gzip threshold. |
 | `BRIDGE_SERVER_ID_CONFLICT_POLICY` | `takeover` | `takeover` or `reject`. |
 
-The active HTTP transfer bound is not considered fully verified until
-admission is atomic under concurrent starts. See `BRG-009`.
+The HTTP transfer supervisor enforces the active limit atomically when starting
+temporary coordinator children.
 
 ## Compression
 

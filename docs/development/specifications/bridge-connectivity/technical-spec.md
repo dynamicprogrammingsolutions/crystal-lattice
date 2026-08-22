@@ -186,10 +186,10 @@ The Python adapter tracks each v2 request by request ID. A repeated request ID
 cancels the earlier task. Explicit cancel, WebSocket disconnect, server
 supersession, or shutdown cancels tracked work.
 
-The target requires atomic admission at the configured active-transfer limit.
-The current implementation performs a count-before-start check; the
-requirements table leaves the complete bound/cleanup requirement unverified
-until atomic admission and the focused peer-loss matrix are delivered.
+The transfer DynamicSupervisor applies the configured limit through
+`max_children`, making concurrent admission atomic. Transfer start translates
+the supervisor's saturation result to the stable `too_many_transfers` outcome
+used by the HTTP router's `429` response.
 
 ## Header and encoding boundaries
 

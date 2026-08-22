@@ -66,6 +66,37 @@ defmodule Bridge.HttpRouterTest do
     stop_server(server_id, server_pid)
   end
 
+  test "HTTP resume rejects server mismatch, invalid credentials, and unavailable servers" do
+    %{server_id: server_id, server_pid: server_pid} = register_server()
+    {:ok, pairing_token} = Bridge.PairingToken.issue(server_id, UUID.uuid4())
+
+    mismatch_conn =
+      json_conn(:post, "/bridge/v1/pairings/resume", %{server_id: "wrong-server"})
+      |> put_req_header("x-crystal-bridge-token", pairing_token)
+      |> Bridge.HttpRouter.call(@opts)
+
+    assert mismatch_conn.status == 409
+    assert Jason.decode!(mismatch_conn.resp_body)["error"] == "server_mismatch"
+
+    invalid_conn =
+      json_conn(:post, "/bridge/v1/pairings/resume", %{server_id: server_id})
+      |> put_req_header("x-crystal-bridge-token", pairing_token <> "tampered")
+      |> Bridge.HttpRouter.call(@opts)
+
+    assert invalid_conn.status == 401
+    assert Jason.decode!(invalid_conn.resp_body)["error"] == "invalid_pairing_token"
+
+    stop_server(server_id, server_pid)
+
+    unavailable_conn =
+      json_conn(:post, "/bridge/v1/pairings/resume", %{server_id: server_id})
+      |> put_req_header("x-crystal-bridge-token", pairing_token)
+      |> Bridge.HttpRouter.call(@opts)
+
+    assert unavailable_conn.status == 404
+    assert Jason.decode!(unavailable_conn.resp_body)["error"] == "server_not_found"
+  end
+
   test "HTTP proxy streams raw response bytes from the server upload" do
     %{server_id: server_id, server_pid: server_pid} = register_server()
     {:ok, pairing_token} = Bridge.PairingToken.issue(server_id, UUID.uuid4())
@@ -192,6 +223,34 @@ defmodule Bridge.HttpRouterTest do
     assert IO.iodata_to_binary(frontend_conn.resp_body) == ~s({"ok":true})
     assert upload_conn.status == 204
 
+    stop_server(server_id, server_pid)
+  end
+
+  test "transfer routes reject a credential for another request id" do
+    %{server_id: server_id, server_pid: server_pid} = register_server()
+    {:ok, pairing_token} = Bridge.PairingToken.issue(server_id, UUID.uuid4())
+
+    frontend_task =
+      Task.async(fn ->
+        conn(:get, "/bridge/v1/proxy/request-id-check")
+        |> put_req_header("x-crystal-bridge-token", pairing_token)
+        |> Bridge.HttpRouter.call(@opts)
+      end)
+
+    assert_receive {:server_message, {:http_request_v2, request}}, 1_000
+
+    mismatch_conn =
+      conn(:get, "/bridge/v1/transfers/wrong-request/request-body")
+      |> put_req_header(
+        "authorization",
+        "Bearer #{request.request_body_token}"
+      )
+      |> Bridge.HttpRouter.call(@opts)
+
+    assert mismatch_conn.status == 401
+    assert Jason.decode!(mismatch_conn.resp_body)["error"] == "invalid_transfer_token"
+
+    Task.shutdown(frontend_task, :brutal_kill)
     stop_server(server_id, server_pid)
   end
 

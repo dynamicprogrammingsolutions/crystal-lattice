@@ -52,6 +52,11 @@ import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
 import { PinnedActionsProvider } from './src/PinnedActionsContext';
 import { AnimatedSplashScreen } from './src/components/AnimatedSplashScreen';
 import { createActionDeepLinkHandler } from './src/actionDeepLinkRouting';
+import {
+  DEFAULT_BRIDGE_TRANSPORT_MODE,
+  getSavedBridgeTransportOptions,
+  resolveBridgeTransportMode,
+} from './src/bridgeConnection';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
@@ -95,7 +100,6 @@ const BRIDGE_HEARTBEAT_INTERVAL_MS = 15_000;
 const BRIDGE_HEARTBEAT_TIMEOUT_MS = 5_000;
 const PRIVACY_POLICY_URL = 'https://crystallattice.dev/privacy';
 const SUPPORT_URL = 'https://crystallattice.dev/support';
-const DEFAULT_BRIDGE_TRANSPORT_MODE: BridgeTransportMode = 'websocket';
 
 function openExternalUrl(url: string): void {
   void Linking.openURL(url).catch(() => {
@@ -514,7 +518,7 @@ function App(): React.JSX.Element {
 
       const bridge = createBridgeTransport({
         bridgeUrl: bridgeRecord.bridgeUrl,
-        mode: bridgeRecord.transportMode ?? DEFAULT_BRIDGE_TRANSPORT_MODE,
+        mode: resolveBridgeTransportMode(bridgeRecord),
         debug: true,
       });
       await bridge.connect();
@@ -526,9 +530,7 @@ function App(): React.JSX.Element {
       setBackend(null);
       setSelectedConnectionId(null);
       setBridgeUrl(bridgeRecord.bridgeUrl);
-      setBridgeTransportMode(
-        bridgeRecord.transportMode ?? DEFAULT_BRIDGE_TRANSPORT_MODE,
-      );
+      setBridgeTransportMode(resolveBridgeTransportMode(bridgeRecord));
       setBridgeServers(servers);
       setConnectingBridgeTransport(bridge);
       setPairingCode('');
@@ -1425,10 +1427,7 @@ function App(): React.JSX.Element {
         }
 
         const bridge = createBridgeTransport({
-          bridgeUrl: record.bridgeUrl,
-          mode: record.transportMode ?? DEFAULT_BRIDGE_TRANSPORT_MODE,
-          serverId: record.serverId,
-          pairingToken: record.pairingToken,
+          ...getSavedBridgeTransportOptions(record),
           debug: true,
         });
         try {

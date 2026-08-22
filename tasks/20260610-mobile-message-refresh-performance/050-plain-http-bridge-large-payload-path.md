@@ -11,7 +11,7 @@ Add opt-in HTTP-only and hybrid bridge transports while preserving the existing 
 - [x] Preserve the existing SDK `Transport.request()` contract and the SDK-facing status/data/error behavior for JSON and text endpoints across all three modes.
 - [x] Keep small control metadata on the Python server WebSocket, but transfer every request/response body selected for the new HTTP path as raw HTTP bytes, including a Python-to-bridge HTTP response upload path.
 - [x] Support binary request and response bodies on the HTTP path without JSON text framing or base64 conversion.
-- [ ] Bound, authenticate, time out, cancel, and clean up HTTP transfers safely across single-node and clustered bridge deployments.
+- [x] Bound, authenticate, time out, cancel, and clean up HTTP transfers safely across single-node and clustered bridge deployments.
 - [x] Enable negotiated gzip for HTTP bridge responses, retain HTTP/2 at supported TLS edges, and allow Brotli at deployment edges that support it; do not require Brotli from the Phoenix origin.
 - [x] Wire the mobile frontend through an opt-in mode factory so old saved connections remain WebSocket-only unless explicitly configured otherwise, and leave the permanent default switch out of this task.
 - [x] Add unit, integration, clustered, and SDK-facing E2E evidence for all modes, path routing, large JSON, raw binary, compression, timeout/cancellation cleanup, and unchanged legacy WebSocket behavior.
@@ -258,10 +258,22 @@ Added during implementation.
   - The Docker SDK harness now bounds each startup health probe so a published
     port that precedes Cowboy readiness cannot hang the test indefinitely.
     External mode explicitly skips the self-managed restart case.
-- Coverage hardening remains proposed rather than claimed complete for the
-  broad transfer-safety requirement: independently assert request-size and
-  active-transfer bounds, peer disconnect cleanup, token/server mismatch,
-  old-bridge capability failure, and saved mobile mode/token reconstruction.
+- Transfer-safety hardening completed:
+  - `Bridge.HttpTransferSupervisor` atomically enforces the configured
+    `max_children`; transfer start preserves the existing
+    `too_many_transfers`/HTTP 429 behavior.
+  - Elixir tests cover concurrent saturation, request/response limits,
+    invalid and duplicate attachment, token expiry/direction/request/server
+    scope, HTTP resume mismatch/invalid/unavailable cases, every monitored
+    peer loss, and coordinator removal.
+  - SDK tests cover old-bridge capability failure, HTTP-only operation with a
+    throwing WebSocket factory, and saved-token HTTP error parity.
+  - Python tests cancel real v2 work during request download, local stream
+    setup, and response upload through explicit cancel, bridge close, stop,
+    and supersession, then assert both task registries are empty.
+  - A shared mobile helper reconstructs absent/WebSocket/HTTP/hybrid saved
+    records with the same server identity and pairing token and is consumed by
+    `App.tsx`.
 - Documentation backfill completed after explicit approval:
   - Added the cross-package `bridge-connectivity` specification with product,
     technical, protocol, deployment/operations, frontend, and live
@@ -270,10 +282,9 @@ Added during implementation.
     stateless pairing credential, ephemeral session, legacy WebSocket proxy,
     HTTP/hybrid extension, clustered transfer, deployment edge, SDK, Python,
     and mobile-host responsibilities as one subsystem.
-  - `BRG-001` is recorded as implemented/automated/documented.
-    `BRG-002`, `BRG-008`, `BRG-009`, and `BRG-013` retain explicit pending
-    verification where the focused negative/cleanup/persistence matrix is not
-    complete.
+  - `BRG-001` through `BRG-013` are recorded with delivered implementation
+    and evidence. `BRG-014` intentionally retains the human rollout gate for a
+    separately approved permanent default switch.
   - Added package-owned bridge quickstart/protocol/architecture/testing,
     frontend SDK user/implementation, Python server-adapter, and mobile-host
     documentation.
@@ -537,15 +548,15 @@ approved.
 
 ### Task checklist
 
-- [ ] Make active-transfer admission atomic and add saturation evidence.
-- [ ] Add Elixir security, limit, peer-loss, and cleanup tests.
-- [ ] Add SDK capability/no-WebSocket/mismatch/error tests.
-- [ ] Add Python phase-specific cancellation and task-cleanup tests.
-- [ ] Add saved mobile mode/token reconstruction coverage.
-- [ ] Run focused suites, then the normal Elixir, Python bridge, SDK, and
+- [x] Make active-transfer admission atomic and add saturation evidence.
+- [x] Add Elixir security, limit, peer-loss, and cleanup tests.
+- [x] Add SDK capability/no-WebSocket/mismatch/error tests.
+- [x] Add Python phase-specific cancellation and task-cleanup tests.
+- [x] Add saved mobile mode/token reconstruction coverage.
+- [x] Run focused suites, then the normal Elixir, Python bridge, SDK, and
   mobile suites.
-- [ ] Rerun cluster/E2E only if a product path used by those boundaries changes.
-- [ ] Update requirement/task evidence and commit the hardening follow-up.
+- [x] Rerun cluster/E2E only if a product path used by those boundaries changes.
+- [x] Update requirement/task evidence and commit the hardening follow-up.
 
 ### Requirement verification
 
@@ -565,3 +576,46 @@ approved.
 - `npm --workspace @crystal-lattice/frontend-sdk test`;
 - mobile focused component tests, normal Jest suite, and TypeScript check;
 - `git diff --check`.
+
+## Completion Notes
+
+- Outcome:
+  - Existing and new frontends remain WebSocket-only by default and can select
+    WebSocket, HTTP, or hybrid explicitly.
+  - The existing `BridgeTransport` and legacy wire path remain intact.
+  - HTTP-routed requests use raw body transfer with versioned server control
+    metadata; hybrid sends only exact `GET /events` requests through the
+    legacy frontend path.
+  - Transfer admission, credentials, byte limits, backpressure, timeout,
+    cancellation, and cleanup have deterministic focused evidence.
+  - The bridge-connectivity specification and package-owned current docs cover
+    the existing subsystem and the opt-in extension within the approved
+    boundary.
+- Final verification:
+  - Elixir: 63 passed, 4 existing skips.
+  - Python bridge/CLI environment: 56 passed.
+  - Frontend SDK: 313 passed.
+  - Mobile: 119 passed; TypeScript passed.
+  - Two-node Docker/HAProxy: legacy registration/discovery/pairing/resume 3/3
+    and cross-node HTTP pairing plus large raw transfer passed.
+  - SDK E2E against the rebuilt two-node cluster: 4 applicable cases passed;
+    the external-mode self-managed restart case was intentionally skipped and
+    remains covered by the earlier five-case self-managed run.
+  - Documentation preparation and MkDocs build passed; generated output
+    remained ignored. Relative-link and `git diff --check` validation passed.
+- Deviations and findings:
+  - The first Docker wrapper run timed out during a silent cold build. A
+    visible retry showed Erlang selecting Docker's unreachable NAT64 address
+    for Hex even though IPv4 was available. The test image was built with
+    command-line-only IPv4 host mappings; no repository networking workaround
+    was added.
+  - The fresh Hex build reported advisories for the currently locked
+    `cowboy 2.17.0` and `cowlib 2.18.0`, including CVE-2026-65624,
+    CVE-2026-43969, CVE-2026-43971, CVE-2026-43966, and CVE-2026-59248.
+    Dependency remediation is separate security-maintenance scope.
+  - Docker containers, images, and generated build cache were removed after
+    verification; pre-existing Docker volumes were left untouched.
+- Deferred scope:
+  - Changing the permanent default, migrating existing records, physical-device
+    network validation, and a bounded load/soak run remain rollout work that
+    requires separate approval.

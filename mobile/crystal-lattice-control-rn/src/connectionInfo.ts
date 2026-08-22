@@ -1,8 +1,10 @@
 import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
 
+import { resolveBridgeTransportMode } from './bridgeConnection';
+
 export function getConnectionAdditionalInfo(record: ConnectionRecord): string {
   if (record.kind === 'bridge') {
-    const mode = record.transportMode ?? 'websocket';
+    const mode = resolveBridgeTransportMode(record);
     if (record.serverId.length > 0) {
       return `serverId: ${record.serverId} · transport: ${mode}`;
     }

@@ -87,10 +87,10 @@ npm --workspace crystal-lattice-control-rn test
 Use the mobile package's Detox bridge-transport scripts for both supported
 simulators when bridge connection UI or persistence changes.
 
-## Remaining focused hardening
+## Focused safety coverage
 
-The opt-in baseline has broad E2E evidence. Remaining work is intentionally
-focused on state that E2E cannot reliably inspect:
+The opt-in baseline combines broad E2E evidence with deterministic state tests
+that E2E cannot reliably inspect:
 
 - atomic active-transfer saturation;
 - request byte limits;

@@ -139,6 +139,74 @@ describe('HttpBridgeTransport', () => {
       'Request timeout after 5ms',
     );
   });
+
+  it('fails capability negotiation clearly against a bridge without HTTP v1', async () => {
+    const transport = new HttpBridgeTransport({
+      bridgeUrl: 'https://legacy-bridge.test',
+      fetchImpl: vi.fn(
+        async () => jsonResponse({ protocol_version: 0 }),
+      ) as unknown as typeof fetch,
+    });
+
+    await expect(transport.connect()).rejects.toThrow(
+      'Bridge does not support HTTP transport protocol v1',
+    );
+  });
+
+  it('never invokes the WebSocket factory in HTTP-only mode', async () => {
+    const wsFactory = vi.fn(() => {
+      throw new Error('HTTP-only mode opened a WebSocket');
+    });
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith('/bridge/v1/capabilities')) {
+        return jsonResponse({ protocol_version: 1 });
+      }
+      if (value.endsWith('/bridge/v1/pairings/resume')) {
+        return jsonResponse({ server_id: 'server-1' });
+      }
+      if (value.endsWith('/bridge/v1/proxy/events')) {
+        return jsonResponse({ events: [] });
+      }
+      throw new Error(`Unexpected URL ${value}`);
+    });
+    const transport = createBridgeConnectionTransport({
+      bridgeUrl: 'wss://bridge.test/ws/websocket',
+      mode: 'http',
+      serverId: 'server-1',
+      pairingToken: 'pairing-token',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      wsFactory,
+    });
+
+    await transport.connect();
+    await transport.request({ method: 'GET', path: '/events' });
+
+    expect(wsFactory).not.toHaveBeenCalled();
+  });
+
+  it('preserves an HTTP server-mismatch error during saved-token validation', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith('/bridge/v1/capabilities')) {
+        return jsonResponse({ protocol_version: 1 });
+      }
+      if (value.endsWith('/bridge/v1/pairings/resume')) {
+        return jsonResponse({ error: 'server_mismatch' }, 409);
+      }
+      throw new Error(`Unexpected URL ${value}`);
+    });
+    const transport = new HttpBridgeTransport({
+      bridgeUrl: 'https://bridge.test',
+      serverId: 'server-1',
+      pairingToken: 'pairing-token',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(transport.connect()).rejects.toThrow(
+      'HTTP 409 POST /bridge/v1/pairings/resume: server_mismatch',
+    );
+  });
 });
 
 describe('HybridBridgeTransport', () => {

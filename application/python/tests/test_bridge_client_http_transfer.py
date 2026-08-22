@@ -4,15 +4,21 @@ import asyncio
 import json
 from typing import Any, AsyncIterator, Dict, Optional
 
+import pytest
+
 from agent_terminal_app import bridge_client as bridge_mod
 
 
 class _DummyWs:
     def __init__(self) -> None:
         self.sent: list[Dict[str, Any]] = []
+        self.closed = False
 
     async def send(self, data: str) -> None:
         self.sent.append(json.loads(data))
+
+    async def close(self) -> None:
+        self.closed = True
 
 
 class _FakeResponse:
@@ -137,6 +143,74 @@ class _FakeLocalHttpClient:
         )
 
 
+class _BlockingResponse(_FakeResponse):
+    def __init__(self, entered: asyncio.Event) -> None:
+        super().__init__()
+        self.entered = entered
+
+    async def aiter_raw(self) -> AsyncIterator[bytes]:
+        self.entered.set()
+        await asyncio.Future()
+        if False:  # pragma: no cover - keeps this an async iterator
+            yield b""
+
+
+class _BlockingResponseContext:
+    def __init__(self, entered: asyncio.Event) -> None:
+        self.entered = entered
+
+    async def __aenter__(self) -> _FakeResponse:
+        self.entered.set()
+        await asyncio.Future()
+        raise AssertionError("unreachable")
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+class _PhaseBridgeHttpClient(_FakeBridgeHttpClient):
+    def __init__(self, phase: str, entered: asyncio.Event) -> None:
+        super().__init__()
+        self.phase = phase
+        self.entered = entered
+
+    def stream(self, method: str, url: str, headers=None) -> _ResponseContext:
+        if self.phase == "request_download":
+            assert method == "GET"
+            return _ResponseContext(_BlockingResponse(self.entered))
+        return super().stream(method, url, headers=headers)
+
+    async def put(self, url: str, headers=None, content=None) -> _FakeResponse:
+        if self.phase == "response_upload":
+            self.entered.set()
+            await asyncio.Future()
+        return await super().put(url, headers=headers, content=content)
+
+
+class _PhaseLocalHttpClient(_FakeLocalHttpClient):
+    def __init__(self, phase: str, entered: asyncio.Event) -> None:
+        super().__init__([b"response"])
+        self.phase = phase
+        self.entered = entered
+
+    def stream(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers=None,
+        content=None,
+    ) -> _ResponseContext | _BlockingResponseContext:
+        if self.phase == "local_stream":
+            return _BlockingResponseContext(self.entered)
+        return super().stream(
+            method,
+            url,
+            headers=headers,
+            content=content,
+        )
+
+
 def _make_client(**overrides: Any) -> bridge_mod.BridgeClient:
     config = bridge_mod.BridgeConfig(
         bridge_url="wss://bridge.example/ws/websocket",
@@ -227,5 +301,72 @@ def test_v2_cancel_cancels_the_matching_task() -> None:
         except asyncio.CancelledError:
             pass
         assert task.cancelled()
+
+    asyncio.run(_run())
+
+
+@pytest.mark.parametrize(
+    ("phase", "trigger"),
+    [
+        ("request_download", "cancel"),
+        ("local_stream", "bridge_close"),
+        ("response_upload", "stop"),
+        ("response_upload", "superseded"),
+    ],
+)
+def test_v2_phase_cancellation_cleans_task_registries(
+    monkeypatch,
+    phase: str,
+    trigger: str,
+) -> None:
+    async def _run() -> None:
+        entered = asyncio.Event()
+        bridge_http = _PhaseBridgeHttpClient(phase, entered)
+        local_http = _PhaseLocalHttpClient(phase, entered)
+        clients = iter([bridge_http, local_http])
+        monkeypatch.setattr(
+            bridge_mod.httpx,
+            "AsyncClient",
+            lambda *args, **kwargs: next(clients),
+        )
+
+        client = _make_client()
+        websocket = _DummyWs()
+        client._ws = websocket  # type: ignore[assignment]
+        payload = {
+            "request_id": "request-1",
+            "method": "POST",
+            "path": "/phase-cancellation",
+            "headers": {"content-type": "application/octet-stream"},
+            "request_body_present": phase == "request_download",
+            "request_body_path": "/bridge/v1/transfers/request-1/request-body",
+            "request_body_token": "request-token",
+            "response_body_path": "/bridge/v1/transfers/request-1/response-body",
+            "response_body_token": "response-token",
+        }
+
+        client._track_v2_http_task(payload)
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        task = client._inflight_v2_tasks["request-1"]
+
+        if trigger == "cancel":
+            client._handle_http_request_v2_cancel({"request_id": "request-1"})
+            await asyncio.gather(task, return_exceptions=True)
+        elif trigger == "bridge_close":
+            await client._close_ws()
+        elif trigger == "stop":
+            await client.stop()
+        elif trigger == "superseded":
+            await client._handle_superseded({"reason": "new_connection"})
+        else:  # pragma: no cover - parameter guard
+            raise AssertionError(f"Unexpected trigger {trigger}")
+
+        await asyncio.sleep(0)
+
+        assert task.cancelled()
+        assert "request-1" not in client._inflight_v2_tasks
+        assert task not in client._inflight_http_tasks
+        if trigger in {"bridge_close", "stop", "superseded"}:
+            assert websocket.closed is True
 
     asyncio.run(_run())

@@ -1,6 +1,6 @@
 # Bridge connectivity
 
-Status: Implemented opt-in baseline; focused transfer-safety hardening pending
+Status: Implemented and verified opt-in baseline; permanent default rollout deferred
 
 The bridge-connectivity specification defines how a remote Crystal Lattice
 frontend discovers, pairs with, and sends HTTP-shaped requests to a registered

@@ -39,10 +39,10 @@ Stable production test IDs on the bridge method and mode selectors support the
 focused iOS/Android Detox scenario.
 
 Current evidence covers default selection plus explicit HTTP, hybrid, and
-WebSocket rollback on both simulators. A focused component test for complete
-saved mode/token reconstruction remains before bridge transport safety is
-considered fully verified. Physical-device network checks are a gate before a
-separately approved default switch.
+WebSocket rollback on both simulators. A shared helper used by `App.tsx` has
+focused tests for absent, WebSocket, HTTP, and hybrid saved records while
+preserving the same server identity and pairing token. Physical-device network
+checks remain a gate before a separately approved default switch.
 
 The cross-package
 [bridge-connectivity frontend specification](../../../../docs/development/specifications/bridge-connectivity/frontend-behavior.md)

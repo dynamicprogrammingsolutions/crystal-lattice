@@ -4,17 +4,10 @@ defmodule Bridge.HttpTransfer do
   use GenServer
   require Logger
 
-  def start(options) do
-    max_transfers = positive_env("BRIDGE_MAX_PENDING_HTTP_TRANSFERS", 128)
-    active = DynamicSupervisor.count_children(Bridge.HttpTransferSupervisor).active
-
-    if active >= max_transfers do
-      {:error, :too_many_transfers}
-    else
-      DynamicSupervisor.start_child(
-        Bridge.HttpTransferSupervisor,
-        {__MODULE__, options}
-      )
+  def start(options, supervisor \\ Bridge.HttpTransferSupervisor) do
+    case DynamicSupervisor.start_child(supervisor, {__MODULE__, options}) do
+      {:error, :max_children} -> {:error, :too_many_transfers}
+      result -> result
     end
   end
 

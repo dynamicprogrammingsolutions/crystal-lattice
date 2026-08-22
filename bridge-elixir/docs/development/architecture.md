@@ -79,9 +79,10 @@ On failure it notifies peers and emits `http_request_v2_cancel`. On final
 frontend acknowledgement it tells the uploader to complete and stops
 normally.
 
-The current transfer admission path checks active children before starting a
-new temporary child. The formal target requires an atomic supervisor-enforced
-bound; focused hardening remains tracked in `BRG-009`.
+`Bridge.HttpTransferSupervisor` configures `max_children` from the active
+transfer limit. DynamicSupervisor admission is atomic, and
+`Bridge.HttpTransfer.start/1` translates saturation to the router's stable
+`too_many_transfers` result.
 
 ## Header and compression ownership
 

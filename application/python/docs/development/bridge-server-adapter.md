@@ -101,8 +101,9 @@ indexed by request ID in `_inflight_v2_tasks`.
   tasks and clear incomplete legacy chunk state.
 - Completion callbacks remove tasks from both collections.
 
-Focused hardening still needs phase-specific assertions for cancellation
-during request download, local streaming, and response upload.
+Phase-specific tests cancel work during request download, local stream setup,
+and response upload through explicit cancel, bridge close, stop, and
+supersession. Each asserts both task registries are empty afterward.
 
 ## Header boundary
 
