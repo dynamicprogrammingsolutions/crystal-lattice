@@ -32,6 +32,15 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/070-e2ee-implementation.md`
 - `tasks/20260821-modular-bridge-access-platform/140-hosted-access-grant-enforcement.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-connectivity/index.md`:
+  `BRG-015` through `BRG-018`
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-005`, `BAC-008` through `BAC-014`
+- `docs/development/specifications/bridge-e2ee/index.md`:
+  `BEE-002` through `BEE-008`
+
 ## Required reading
 
 - The complete mixed-transport task and implementation branch

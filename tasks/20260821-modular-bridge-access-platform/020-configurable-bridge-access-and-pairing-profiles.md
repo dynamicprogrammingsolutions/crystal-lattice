@@ -27,6 +27,12 @@ Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
 Depends On: `tasks/20260821-modular-bridge-access-platform/010-static-token-bridge-security.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-004`, `BAC-005`, `BAC-015`
+- `docs/development/specifications/bridge-connectivity/index.md`: `BRG-015`
+
 ## Required reading
 
 - `bridge-elixir/config/config.exs`

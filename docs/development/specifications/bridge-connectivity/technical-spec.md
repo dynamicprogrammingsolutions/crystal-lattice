@@ -232,3 +232,17 @@ The frontend does not replay a failed request through another transport.
 - One secure hosted edge owns real TLS/HTTP2 and edge configuration evidence.
 - Native tests own mobile mode selection and rollback, not protocol payload
   duplication.
+
+## Related access, E2EE, and operations extensions
+
+The access-control specification owns effective policy and provider meaning;
+this subsystem carries credentials and capabilities through WebSocket and HTTP
+without merging their namespaces.
+
+The E2EE specification owns encrypted application envelopes; this subsystem
+routes those envelopes as opaque bytes and preserves sequence, cancellation,
+backpressure, and terminal behavior.
+
+The deployment/operations contract owns connection/session/transfer metrics,
+graceful drain, and runtime-independent load validation. Commercial thresholds
+and production runtime selection remain outside this public specification.

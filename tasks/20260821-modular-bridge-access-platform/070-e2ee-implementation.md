@@ -31,6 +31,12 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/060-e2ee-protocol-and-threat-model.md`
 - `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-e2ee/index.md`:
+  `BEE-001` through `BEE-013`
+- `docs/development/specifications/bridge-connectivity/index.md`: `BRG-017`
+
 ## Required reading
 
 - Approved E2EE specification and security review from Task 060

@@ -23,6 +23,9 @@ package's `docs/development/`.
 - [Sessions actions](specifications/sessions-actions/index.md)
 - [Chat transcript navigation](specifications/chat-transcript-navigation/index.md)
 - [Bridge connectivity](specifications/bridge-connectivity/index.md)
+- [Bridge access control](specifications/bridge-access-control/index.md)
+- [Bridge end-to-end encryption](specifications/bridge-e2ee/index.md)
+- [Hosted bridge client experience](specifications/hosted-bridge-client-experience/index.md)
 
 These specifications define targets for portable behavior. Their requirements
 track implementation and verification, while package development pages

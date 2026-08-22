@@ -34,6 +34,15 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/160-mobile-login-purchase-and-subscription-ux.md`
 - Store/control-plane sandbox endpoints implementing the public contracts
 
+## Specifications and requirements
+
+- `docs/development/specifications/hosted-bridge-client-experience/index.md`:
+  `HBC-005` through `HBC-009`, `HBC-014`
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-008` through `BAC-013`
+- `docs/development/specifications/bridge-e2ee/index.md`:
+  `BEE-006`, `BEE-012`
+
 ## Required reading
 
 - Existing frontend SDK integration harness and provider selection

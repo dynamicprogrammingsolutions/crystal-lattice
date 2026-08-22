@@ -28,6 +28,11 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/080-authentik-client-identity-and-account-linking-contracts.md`
 - `tasks/20260821-modular-bridge-access-platform/130-production-quota-metering-contracts-and-bridge-hooks.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-008` through `BAC-010`, `BAC-013` through `BAC-016`
+
 ## Required reading
 
 - Bridge socket/channels, pairing token, session manager, server registry

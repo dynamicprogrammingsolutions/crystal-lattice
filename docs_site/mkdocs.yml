@@ -80,6 +80,11 @@ plugins:
           - development/specifications/bridge-connectivity/index.md: Bridge-connectivity specification.
           - development/specifications/bridge-connectivity/technical-spec.md: Bridge-connectivity technical contract.
           - development/specifications/bridge-connectivity/protocol.md: Bridge-connectivity wire protocol.
+          - development/specifications/bridge-access-control/index.md: Bridge access-control specification.
+          - development/specifications/bridge-access-control/technical-spec.md: Bridge access-control technical contract.
+          - development/specifications/bridge-e2ee/index.md: Bridge E2EE specification.
+          - development/specifications/bridge-e2ee/threat-model.md: Bridge E2EE threat model.
+          - development/specifications/hosted-bridge-client-experience/index.md: Hosted bridge client-experience specification.
         Guides:
           - plugin-development/overview.md: General plugin authoring and packaging guide.
           - packages/application-python/configuration.md: Application plugin configuration and examples.
@@ -227,4 +232,29 @@ nav:
         - Deployment and Operations: development/specifications/bridge-connectivity/deployment-and-operations.md
         - Frontend Behavior: development/specifications/bridge-connectivity/frontend-behavior.md
         - Requirements: development/specifications/bridge-connectivity/requirements.md
+      - Bridge Access Control:
+        - Overview: development/specifications/bridge-access-control/index.md
+        - Product: development/specifications/bridge-access-control/product-spec.md
+        - Technical: development/specifications/bridge-access-control/technical-spec.md
+        - Access Profiles: development/specifications/bridge-access-control/access-profiles.md
+        - Provider Contracts: development/specifications/bridge-access-control/provider-contracts.md
+        - Access Grants: development/specifications/bridge-access-control/access-grants.md
+        - Quota And Usage: development/specifications/bridge-access-control/quota-and-usage.md
+        - Requirements: development/specifications/bridge-access-control/requirements.md
+        - Decisions: development/specifications/bridge-access-control/decisions.md
+      - Bridge End-To-End Encryption:
+        - Overview: development/specifications/bridge-e2ee/index.md
+        - Product: development/specifications/bridge-e2ee/product-spec.md
+        - Threat Model: development/specifications/bridge-e2ee/threat-model.md
+        - Protocol: development/specifications/bridge-e2ee/protocol.md
+        - Key Lifecycle: development/specifications/bridge-e2ee/key-lifecycle.md
+        - Requirements: development/specifications/bridge-e2ee/requirements.md
+        - Decisions: development/specifications/bridge-e2ee/decisions.md
+      - Hosted Bridge Client Experience:
+        - Overview: development/specifications/hosted-bridge-client-experience/index.md
+        - Product: development/specifications/hosted-bridge-client-experience/product-spec.md
+        - Frontend Behavior: development/specifications/hosted-bridge-client-experience/frontend-behavior.md
+        - Technical: development/specifications/hosted-bridge-client-experience/technical-spec.md
+        - Requirements: development/specifications/hosted-bridge-client-experience/requirements.md
+        - Decisions: development/specifications/hosted-bridge-client-experience/decisions.md
   - Website: !ENV [PUBLIC_CRYSTAL_LATTICE_SITE_URL, "https://crystallattice.dev"]

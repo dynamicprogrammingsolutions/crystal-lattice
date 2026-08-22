@@ -33,6 +33,13 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/050-demo-connection-autoscaling-and-load-harness.md`
 - `tasks/20260821-modular-bridge-access-platform/170-mixed-transport-access-e2ee-and-metering-alignment.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-connectivity/index.md`: `BRG-019`
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-004`, `BAC-005`, `BAC-014`
+- `docs/development/specifications/bridge-e2ee/index.md`: `BEE-008`
+
 ## Required reading
 
 - `bridge-elixir/deploy/aws-fargate/`

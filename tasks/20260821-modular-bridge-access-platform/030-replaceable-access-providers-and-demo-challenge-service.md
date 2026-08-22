@@ -27,6 +27,11 @@ Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
 Depends On: `tasks/20260821-modular-bridge-access-platform/020-configurable-bridge-access-and-pairing-profiles.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-006`, `BAC-007`, `BAC-008`
+
 ## Required reading
 
 - `core/python/agent_core/types.py` and public plugin/Protocol style for

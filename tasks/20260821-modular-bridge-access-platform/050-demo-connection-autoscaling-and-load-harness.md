@@ -27,6 +27,10 @@ Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
 Depends On: `tasks/20260821-modular-bridge-access-platform/040-demo-entitlement-limits-and-client-integration.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-connectivity/index.md`: `BRG-020`
+
 ## Required reading
 
 - `bridge-elixir/lib/bridge/server_registry.ex`

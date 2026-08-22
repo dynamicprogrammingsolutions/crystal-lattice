@@ -30,6 +30,14 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/030-replaceable-access-providers-and-demo-challenge-service.md`
 - `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-004`, `BAC-005`, `BAC-007`, `BAC-009`, `BAC-011`, `BAC-012`,
+  `BAC-013`, `BAC-014`
+- `docs/development/specifications/bridge-connectivity/index.md`:
+  `BRG-015`, `BRG-018`
+
 ## Required reading
 
 - Mobile connection flow in `mobile/crystal-lattice-control-rn/App.tsx`
@@ -52,9 +60,9 @@ Minimum reusable enforcement boundaries:
 - idempotent usage reporting.
 
 The demo implementation may use simple persistent coordination, but bridge
-hooks and public schemas must permit a later distributed provider. Existing
-in-review HTTP transfer byte streams are the accounting source for HTTP and
-hybrid traffic; do not create a parallel transfer mechanism.
+hooks and public schemas must permit a later distributed provider. The merged
+HTTP transfer byte streams are the accounting source for HTTP and hybrid
+traffic; do not create a parallel transfer mechanism.
 
 Usage windows range from short injected test intervals to multi-day intervals
 and are not coupled to calendar months. End-to-end provider-replacement tests

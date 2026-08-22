@@ -31,6 +31,12 @@ Depends On:
 `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
 for final HTTP/hybrid integration when that work lands.
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-001`, `BAC-002`, `BAC-003`, `BAC-014`, `BAC-015`
+- `docs/development/specifications/bridge-connectivity/index.md`: `BRG-016`
+
 ## Required reading
 
 - `bridge-elixir/lib/bridge/socket.ex`
@@ -39,8 +45,9 @@ for final HTTP/hybrid integration when that work lands.
 - `bridge-elixir/lib/bridge/endpoint.ex`
 - `cloud-orchestrator/lib/cloud_orchestrator/router.ex`
 - `packages/frontend-sdk/src/transport/bridgeTransport.ts`
-- Mixed-transport worktree versions of `httpBridgeTransport.ts`,
-  `hybridBridgeTransport.ts`, and `bridge-elixir/lib/bridge/http_router.ex`
+- `packages/frontend-sdk/src/transport/httpBridgeTransport.ts`
+- `packages/frontend-sdk/src/transport/hybridBridgeTransport.ts`
+- `bridge-elixir/lib/bridge/http_router.ex`
 
 ## Supporting details
 

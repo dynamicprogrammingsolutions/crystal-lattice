@@ -85,7 +85,7 @@ enforcement before production providers are integrated.
 ## Required reading
 
 - `bridge-elixir/AGENTS.md`
-- `bridge-elixir/docs/index.md` when available on the active transport branch
+- `bridge-elixir/docs/index.md`
 - `packages/frontend-sdk/README.md`
 - `mobile/crystal-lattice-control-rn/AGENTS.md`
 - `application/python/AGENTS.md`
@@ -93,6 +93,17 @@ enforcement before production providers are integrated.
 - `tasks/20260516-auth-notifications-staged-rollout/030-authentik-auth-integration.md`
 - `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
 - `docs/development/repository/specifications.md`
+
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-connectivity/index.md`
+  (`BRG-015` through `BRG-020`)
+- `docs/development/specifications/bridge-access-control/index.md`
+  (`BAC-001` through `BAC-017`)
+- `docs/development/specifications/bridge-e2ee/index.md`
+  (`BEE-001` through `BEE-013`)
+- `docs/development/specifications/hosted-bridge-client-experience/index.md`
+  (`HBC-001` through `HBC-015`)
 
 ## Execution plan
 

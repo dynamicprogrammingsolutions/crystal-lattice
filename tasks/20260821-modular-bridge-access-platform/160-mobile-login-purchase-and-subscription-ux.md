@@ -34,6 +34,11 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/140-hosted-access-grant-enforcement.md`
 - Production store/control-plane contracts supplied through the public API
 
+## Specifications and requirements
+
+- `docs/development/specifications/hosted-bridge-client-experience/index.md`:
+  `HBC-002`, `HBC-003`, `HBC-005` through `HBC-013`
+
 ## Required reading
 
 - Mobile `AGENTS.md`, `README.md`, connection flow, deep links, and navigation

@@ -34,6 +34,13 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/220-public-sandbox-integration-harness.md`
 - Production launch approval supplied externally
 
+## Specifications and requirements
+
+- `docs/development/specifications/hosted-bridge-client-experience/index.md`:
+  `HBC-005` through `HBC-010`, `HBC-013`, `HBC-014`
+- `docs/development/specifications/bridge-e2ee/index.md`:
+  `BEE-012`, `BEE-013`
+
 ## Required reading
 
 - iOS TestFlight and Android Play release task packages

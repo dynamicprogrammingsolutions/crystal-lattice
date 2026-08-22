@@ -31,6 +31,13 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/080-authentik-client-identity-and-account-linking-contracts.md`
 - `tasks/20260821-modular-bridge-access-platform/140-hosted-access-grant-enforcement.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/hosted-bridge-client-experience/index.md`:
+  `HBC-002`, `HBC-004`, `HBC-010`, `HBC-011`
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-009`, `BAC-010`
+
 ## Required reading
 
 - `application/python/agent_terminal_app/bridge_client.py`

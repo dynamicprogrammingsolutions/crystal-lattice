@@ -107,9 +107,11 @@ failure terminates the stream rather than fabricating a second HTTP response.
 ## Security posture
 
 The pairing code is short-lived and attempt-limited. Durable pairing and
-transfer credentials are signed and expire. Frontend bridge authentication
-uses `X-Crystal-Bridge-Token`, leaving a caller's `Authorization` header
-available to the local application.
+transfer credentials are signed and expire. The current pairing-only HTTP
+baseline carries the pairing credential through `X-Crystal-Bridge-Token`,
+leaving a caller's `Authorization` header available to the local application.
+Planned deployment and external access credentials use distinct carriers
+defined by the related access-control and connectivity requirements.
 
 Hop-by-hop headers, bridge credentials, host, stale content length, and stale
 content encoding are not forwarded across inappropriate boundaries.

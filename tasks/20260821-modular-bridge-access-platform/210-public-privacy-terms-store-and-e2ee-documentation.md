@@ -35,6 +35,12 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/070-e2ee-implementation.md`
 - `tasks/20260821-modular-bridge-access-platform/160-mobile-login-purchase-and-subscription-ux.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-e2ee/index.md`: `BEE-013`
+- `docs/development/specifications/hosted-bridge-client-experience/index.md`:
+  `HBC-001`, `HBC-007`, `HBC-010`, `HBC-014`, `HBC-015`
+
 ## Required reading
 
 - `landing_page/src/content/pages/privacy.yaml`

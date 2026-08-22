@@ -30,6 +30,10 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/050-demo-connection-autoscaling-and-load-harness.md`
 - `tasks/20260821-modular-bridge-access-platform/180-public-aws-bridge-template-modularization.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-connectivity/index.md`: `BRG-020`
+
 ## Required reading
 
 - Existing bridge AWS smoke tests and frontend SDK integration harness

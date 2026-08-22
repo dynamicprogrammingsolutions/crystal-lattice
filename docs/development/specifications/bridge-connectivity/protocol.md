@@ -26,6 +26,23 @@ Replies use Phoenix `phx_reply` status/response envelopes. Server pushes have
 no caller request reference. Phoenix heartbeat uses topic `phoenix`, event
 `heartbeat`.
 
+## Access-control and E2EE layering
+
+The [bridge access-control specification](../bridge-access-control/index.md)
+defines which deployment, pairing, identity, entitlement, and quota
+credentials are required. This protocol owns their transport carrier and
+redaction boundaries.
+
+The [bridge E2EE specification](../bridge-e2ee/index.md) defines protected
+application envelopes. This protocol treats those envelopes as opaque bytes
+while retaining only the minimal routing/version/request/sequence metadata
+required by the selected transport.
+
+The current implemented baseline uses pairing-token authentication for
+frontend proxy access. Planned access profiles add deployment and external
+access credentials without reusing `X-Crystal-Bridge-Token`, transfer bearer
+tokens, or a caller's application `Authorization`.
+
 ## Server control channel
 
 The server connects with `type=server`, joins `server:<server_id>`, and sends:
@@ -117,11 +134,19 @@ No authentication. A compatible response identifies protocol version `1`,
 HTTP proxy support, body download/upload support, and `http`/`hybrid` modes.
 An opt-in frontend fails explicitly if version 1 is not advertised.
 
+The target response also carries the effective public access policy defined by
+BAC-004/BAC-005 and E2EE policy/version capability defined by BEE-008. It does
+not reveal secret values, account records, servers, sessions, commercial
+thresholds, or private provider configuration.
+
 ### Discovery
 
 `GET /bridge/v1/servers`
 
-No authentication. Returns:
+Discovery authorization follows the effective access profile. The current
+pairing-only baseline allows unauthenticated discovery; static-token and
+hosted-style profiles require their configured precondition before returning
+server records. Returns:
 
 ```json
 {
@@ -195,7 +220,9 @@ body as present.
 
 The bridge strips its path prefix and forwards the remaining path/query to the
 registered server. It preserves the caller's application `Authorization`
-header. JSON, text, and binary body bytes are opaque to the bridge.
+header. Deployment/access credentials are consumed by the bridge and never
+forwarded. JSON, text, binary, and future E2EE ciphertext body bytes are opaque
+to the bridge.
 
 Before response headers, errors are normal JSON HTTP errors. After a streamed
 response starts, later errors terminate that response stream.

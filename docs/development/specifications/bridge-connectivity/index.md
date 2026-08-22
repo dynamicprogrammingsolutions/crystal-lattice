@@ -1,6 +1,7 @@
 # Bridge connectivity
 
-Status: Implemented opt-in baseline; focused transfer-safety hardening pending
+Status: Implemented opt-in baseline; focused transfer-safety and planned
+access/E2EE extension work pending
 
 The bridge-connectivity specification defines how a remote Crystal Lattice
 frontend discovers, pairs with, and sends HTTP-shaped requests to a registered
@@ -33,6 +34,23 @@ The formal specification owns the portable target and requirement status.
 Package documentation describes the current implementation and operating
 commands without redefining this contract.
 
+## Related specifications
+
+- [Bridge access control](../bridge-access-control/index.md) owns credential
+  meaning, access profiles, pairing policy, subjects, grants, entitlement,
+  quota, and provider behavior.
+- [Bridge E2EE](../bridge-e2ee/index.md) owns authenticated key establishment,
+  protected fields, encrypted envelope semantics, key lifecycle, and security
+  review.
+- [Hosted bridge client experience](../hosted-bridge-client-experience/index.md)
+  owns login, subscription, server ownership, hosted connection, and
+  account-deletion presentation.
+
+Bridge connectivity owns how credentials, capabilities, opaque encrypted
+envelopes, and usage bytes cross WebSocket, HTTP, hybrid, cluster, and edge
+boundaries. It does not redefine their authorization, cryptographic, or
+commercial meaning.
+
 ## Scope
 
 The bridge-connectivity subsystem begins when a local server opens its bridge
@@ -59,6 +77,9 @@ The specification does not define:
 - cloud-orchestrator connectivity;
 - direct HTTP or Bonjour discovery beyond distinguishing them from the bridge;
 - mobile presentation outside bridge connection selection and lifecycle;
+- access-profile, entitlement, quota, and product-account semantics;
+- E2EE cryptographic algorithms, key lifecycle, and public security claims;
+- store purchase, subscription, and account-deletion behavior;
 - desktop behavior that is not wired to the new bridge modes;
 - historical or abandoned bridge designs.
 

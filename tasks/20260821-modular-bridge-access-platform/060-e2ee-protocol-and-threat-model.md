@@ -32,6 +32,11 @@ Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
 Depends On: `tasks/20260821-modular-bridge-access-platform/040-demo-entitlement-limits-and-client-integration.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-e2ee/index.md`:
+  `BEE-001` through `BEE-013`
+
 ## Required reading
 
 - Current bridge pairing, session, token, and mixed-transfer protocols
@@ -79,8 +84,9 @@ security review before implementation is approved.
 
 ### Documentation
 
-- Create the owning protocol/threat-model specification, test-vector reference,
-  key lifecycle, compatibility/migration, and security-review checklist.
+- Complete and maintain the owning protocol/threat-model specification,
+  test-vector reference, key lifecycle, compatibility/migration, and
+  security-review checklist.
 - Prepare precise future marketing text but do not publish it as current
   behavior before Task 070 completes.
 

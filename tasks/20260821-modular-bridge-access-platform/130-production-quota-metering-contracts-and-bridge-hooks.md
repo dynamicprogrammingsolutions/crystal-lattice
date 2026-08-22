@@ -31,6 +31,12 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/040-demo-entitlement-limits-and-client-integration.md`
 - `tasks/20260821-modular-bridge-access-platform/070-e2ee-implementation.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-011`, `BAC-012`, `BAC-013`, `BAC-016`
+- `docs/development/specifications/bridge-connectivity/index.md`: `BRG-018`
+
 ## Required reading
 
 - Demo limit implementation from Task 040

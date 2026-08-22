@@ -37,6 +37,8 @@ A public edge must:
 - forward query strings and all supported HTTP methods;
 - forward `Authorization`, `Content-Type`, `X-Crystal-Bridge-Token`, and
   `X-Crystal-Bridge-Body-Present`;
+- forward the selected deployment/access-grant credential carrier once
+  BRG-016 is implemented;
 - disable caching for control, proxy, and transfer traffic;
 - use timeouts compatible with long request/response streaming.
 
@@ -113,6 +115,39 @@ cluster aggregate.
 
 Load balancers should use `/health` for origin checks. HAProxy statistics can
 be exposed separately and must not be treated as a bridge API.
+
+## Metrics and scaling target
+
+The planned public operational surface publishes stable metrics for:
+
+- active frontend/app connections;
+- active registered-server connections;
+- active legacy sessions;
+- active HTTP transfers and pending requests;
+- request and response throughput;
+- reconnect, timeout, cancellation, and error counts;
+- CPU/memory saturation as runtime safety signals.
+
+A replaceable non-production scaling policy proves the metric boundary before a
+production AWS runtime is selected. Its reference rule is:
+
+```text
+desired =
+  clamp(
+    min_tasks,
+    ceil(active_connections / configured_connections_per_task),
+    max_tasks
+  )
+```
+
+The rule is deterministic under an injected clock and does not select EC2 or
+Fargate. Production thresholds and policy remain private/operator
+configuration.
+
+Bridge processes support graceful drain and shutdown. Validation covers
+scale-out, distribution of new connections, scale-in, reconnect/resume, abrupt
+node loss, cluster churn, and cleanup. Existing long-lived connections are not
+assumed to migrate during scale-out.
 
 ## Logging and credentials
 

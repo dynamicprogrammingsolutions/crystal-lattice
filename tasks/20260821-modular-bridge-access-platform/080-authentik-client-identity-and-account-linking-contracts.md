@@ -29,6 +29,13 @@ Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
 Depends On: `tasks/20260821-modular-bridge-access-platform/030-replaceable-access-providers-and-demo-challenge-service.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/hosted-bridge-client-experience/index.md`:
+  `HBC-002`, `HBC-003`, `HBC-011`
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-006`, `BAC-008`
+
 ## Required reading
 
 - Existing Authentik task and concept document under

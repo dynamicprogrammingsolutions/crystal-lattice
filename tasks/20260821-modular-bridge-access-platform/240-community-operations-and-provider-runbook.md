@@ -31,6 +31,15 @@ Depends On:
 - `tasks/20260821-modular-bridge-access-platform/180-public-aws-bridge-template-modularization.md`
 - `tasks/20260821-modular-bridge-access-platform/200-production-autoscaling-public-metrics-and-validation-tools.md`
 
+## Specifications and requirements
+
+- `docs/development/specifications/bridge-access-control/index.md`:
+  `BAC-004` through `BAC-017`
+- `docs/development/specifications/bridge-connectivity/index.md`:
+  `BRG-019`, `BRG-020`
+- `docs/development/specifications/bridge-e2ee/index.md`:
+  `BEE-008` through `BEE-010`
+
 ## Required reading
 
 - Bridge quickstart, protocol, deployment, and production-deployment docs
