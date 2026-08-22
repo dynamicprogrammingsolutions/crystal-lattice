@@ -1,0 +1,126 @@
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: Upload the signed build to internal TestFlight
+        required: true
+        type: boolean
+        default: false
+      changelog:
+        description: Optional TestFlight “What to Test” text for this build
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Verify, sign, and optionally upload
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      APP_IDENTIFIER: ${{ vars.IOS_APP_IDENTIFIER }}
+      APPLE_TEAM_ID: ${{ vars.IOS_APPLE_TEAM_ID }}
+      APP_STORE_APPLE_ID: ${{ vars.IOS_APP_STORE_APPLE_ID }}
+      MATCH_GIT_URL: ${{ vars.IOS_MATCH_GIT_URL }}
+      MATCH_GIT_BRANCH: ${{ vars.IOS_MATCH_GIT_BRANCH }}
+      MATCH_READONLY: "true"
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.IOS_APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.IOS_APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.IOS_APP_STORE_CONNECT_KEY_CONTENT }}
+      APP_STORE_CONNECT_KEY_CONTENT_BASE64: "true"
+      MATCH_PASSWORD: ${{ secrets.IOS_MATCH_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate release configuration
+        env:
+          MATCH_GIT_PRIVATE_KEY_CONTENT: ${{ secrets.IOS_MATCH_GIT_PRIVATE_KEY }}
+        run: |
+          test -n "${APP_IDENTIFIER}"
+          test -n "${APPLE_TEAM_ID}"
+          test -n "${APP_STORE_APPLE_ID}"
+          test -n "${MATCH_GIT_URL}"
+          test -n "${MATCH_GIT_BRANCH}"
+          test -n "${APP_STORE_CONNECT_KEY_ID}"
+          test -n "${APP_STORE_CONNECT_ISSUER_ID}"
+          test -n "${APP_STORE_CONNECT_KEY_CONTENT}"
+          test -n "${MATCH_PASSWORD}"
+          test -n "${MATCH_GIT_PRIVATE_KEY_CONTENT}"
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+
+      - name: Validate Xcode
+        run: |
+          xcode_version="$(xcodebuild -version)"
+          printf '%s\n' "${xcode_version}"
+          grep -Eq '^Xcode 26\.6$' <<< "${xcode_version}"
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/crystal-lattice-control-rn/package-lock.json
+
+      - name: Install JavaScript dependencies
+        working-directory: mobile/crystal-lattice-control-rn
+        run: npm ci
+
+      - name: Set up Ruby and Bundler
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1 at 2026-07-22
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+          working-directory: mobile/crystal-lattice-control-rn
+
+      - name: Install CocoaPods dependencies
+        working-directory: mobile/crystal-lattice-control-rn
+        run: bundle exec pod install --project-directory=ios
+
+      - name: Prepare read-only match deploy key
+        env:
+          MATCH_GIT_PRIVATE_KEY_CONTENT: ${{ secrets.IOS_MATCH_GIT_PRIVATE_KEY }}
+        run: |
+          key_path="${RUNNER_TEMP}/crystal-lattice-match-deploy-key"
+          install -m 600 /dev/null "${key_path}"
+          printf '%s\n' "${MATCH_GIT_PRIVATE_KEY_CONTENT}" > "${key_path}"
+          echo "MATCH_GIT_PRIVATE_KEY=${key_path}" >> "${GITHUB_ENV}"
+
+      - name: Verify mobile release
+        working-directory: mobile/crystal-lattice-control-rn
+        run: bundle exec fastlane ios verify
+
+      - name: Build signed IPA without uploading
+        if: inputs.upload_to_testflight == false
+        working-directory: mobile/crystal-lattice-control-rn
+        run: bundle exec fastlane ios build
+
+      - name: Upload internal TestFlight build
+        if: inputs.upload_to_testflight
+        working-directory: mobile/crystal-lattice-control-rn
+        env:
+          SKIP_MOBILE_VERIFICATION: "true"
+          TESTFLIGHT_CHANGELOG: ${{ inputs.changelog }}
+        run: bundle exec fastlane ios beta
+
+      - name: Remove temporary match deploy key
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/crystal-lattice-match-deploy-key"

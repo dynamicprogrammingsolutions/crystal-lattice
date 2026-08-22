@@ -25,6 +25,27 @@ Depends On: tasks/20260804-open-source-public-release/080-post-publication-valid
 - Automated action-SHA update tooling
 - Scheduled security and stale-dependency jobs
 
+## Known post-publication findings
+
+- The root workspace `npm audit` on August 14, 2026 reported 21 findings,
+  including two critical findings.
+- `npm audit --omit=dev` still reported one critical and eleven high findings
+  because npm auto-installs `react-native` for wildcard peer dependencies in
+  shared React Native workspace packages.
+- The critical `shell-quote` path is:
+  `frontend-rn-components`/`react-native-mac-text-view` peer dependency →
+  auto-installed `react-native` → `react-devtools-core` → `shell-quote`.
+- The audited React Native/Metro tree is contributor/test tooling in the root
+  workspace; it is not bundled into the Python CLI and peer dependencies are
+  not shipped inside the shared package.
+- The initial public CI workflow has no secrets, write token, signing material,
+  OIDC, or deployment environment, limiting the consequence of untrusted PR
+  code independently of this tooling finding.
+- Follow-up should evaluate removal of obsolete `@types/react-native`
+  dependencies, explicit peer/dev version constraints, safe lockfile
+  overrides, and coordinated React Native/Metro updates rather than applying an
+  unreviewed `npm audit fix --force`.
+
 ## Execution plan
 Status: Draft
 

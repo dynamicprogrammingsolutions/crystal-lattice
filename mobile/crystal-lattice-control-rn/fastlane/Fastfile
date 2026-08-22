@@ -1,0 +1,186 @@
+# frozen_string_literal: true
+
+require_relative "build_number"
+
+opt_out_usage
+default_platform(:ios)
+
+APP_IDENTIFIER = ENV.fetch(
+  "APP_IDENTIFIER",
+  "com.dynamicprogrammingsolutions.crystallatticecontrolrn",
+)
+APPLE_TEAM_ID = ENV.fetch("APPLE_TEAM_ID", "73Q43R2PD4")
+APP_STORE_APPLE_ID = ENV.fetch("APP_STORE_APPLE_ID", "6798401926")
+APP_ROOT = File.expand_path("..", __dir__)
+XCODE_PROJECT = File.join(APP_ROOT, "ios/CrystalLatticeControlRN.xcodeproj")
+XCODE_WORKSPACE = File.join(APP_ROOT, "ios/CrystalLatticeControlRN.xcworkspace")
+XCODE_SCHEME = "CrystalLatticeControlRN"
+OUTPUT_DIRECTORY = File.join(APP_ROOT, "build/ios")
+
+def true_env?(name, default: false)
+  value = ENV[name]
+  return default if value.nil? || value.strip.empty?
+
+  %w[1 true yes].include?(value.downcase)
+end
+
+def require_environment!(*names)
+  missing = names.select { |name| ENV[name].nil? || ENV[name].strip.empty? }
+  return if missing.empty?
+
+  UI.user_error!("Missing required environment variables: #{missing.join(', ')}")
+end
+
+def app_store_connect_key
+  require_environment!(
+    "APP_STORE_CONNECT_KEY_ID",
+    "APP_STORE_CONNECT_ISSUER_ID",
+  )
+
+  options = {
+    key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+    duration: 1_200,
+    in_house: false,
+  }
+
+  key_path = ENV["APP_STORE_CONNECT_KEY_PATH"]
+  if key_path && !key_path.strip.empty?
+    options[:key_filepath] = File.expand_path(key_path)
+  else
+    require_environment!("APP_STORE_CONNECT_KEY_CONTENT")
+    options[:key_content] = ENV.fetch("APP_STORE_CONNECT_KEY_CONTENT")
+    options[:is_key_content_base64] = true_env?(
+      "APP_STORE_CONNECT_KEY_CONTENT_BASE64",
+      default: true,
+    )
+  end
+
+  app_store_connect_api_key(**options)
+end
+
+def sync_app_store_signing(api_key:, readonly:)
+  require_environment!("MATCH_GIT_URL", "MATCH_PASSWORD")
+
+  options = {
+    type: "appstore",
+    app_identifier: [APP_IDENTIFIER],
+    team_id: APPLE_TEAM_ID,
+    git_url: ENV.fetch("MATCH_GIT_URL"),
+    readonly: readonly,
+    api_key: api_key,
+    shallow_clone: true,
+  }
+
+  options[:git_branch] = ENV.fetch("MATCH_GIT_BRANCH", "main")
+  git_private_key = ENV["MATCH_GIT_PRIVATE_KEY"]
+  if git_private_key && !git_private_key.strip.empty?
+    options[:git_private_key] = git_private_key
+  end
+
+  match(**options)
+end
+
+def marketing_version
+  get_version_number(
+    xcodeproj: XCODE_PROJECT,
+    target: XCODE_SCHEME,
+  )
+end
+
+def release_build_number(api_key)
+  CrystalLatticeBuildNumber.resolve(
+    env: ENV,
+    latest_build_number: lambda {
+      latest_testflight_build_number(
+        api_key: api_key,
+        app_identifier: APP_IDENTIFIER,
+        version: marketing_version,
+        initial_build_number: 0,
+      )
+    },
+  )
+end
+
+def signed_archive(api_key)
+  setup_ci(
+    keychain_name: "crystal_lattice_ios_testflight",
+    timeout: 0,
+  ) if ENV["CI"]
+
+  sync_app_store_signing(
+    api_key: api_key,
+    readonly: true_env?("MATCH_READONLY", default: true),
+  )
+
+  build_number = release_build_number(api_key)
+  UI.message("Archiving marketing version #{marketing_version} build #{build_number}")
+
+  build_app(
+    workspace: XCODE_WORKSPACE,
+    scheme: XCODE_SCHEME,
+    configuration: "Release",
+    clean: true,
+    # fastlane 2.237 validates the legacy name; Xcode 26 still accepts it as an
+    # alias for the current app-store-connect distribution method.
+    export_method: "app-store",
+    export_team_id: APPLE_TEAM_ID,
+    output_directory: OUTPUT_DIRECTORY,
+    output_name: "CrystalLattice.ipa",
+    buildlog_path: File.join(OUTPUT_DIRECTORY, "logs"),
+    derived_data_path: File.join(OUTPUT_DIRECTORY, "DerivedData"),
+    xcargs: [
+      "CURRENT_PROJECT_VERSION=#{build_number}",
+      "DEVELOPMENT_TEAM=#{APPLE_TEAM_ID}",
+    ].join(" "),
+    export_options: {
+      manageAppVersionAndBuildNumber: false,
+      uploadSymbols: true,
+    },
+  )
+end
+
+platform :ios do
+  desc "Run mobile verification required before an iOS release"
+  lane :verify do
+    Dir.chdir(APP_ROOT) do
+      sh("bundle", "exec", "ruby", "fastlane/spec/build_number_test.rb")
+      sh("npm", "run", "tsc")
+      sh("npm", "test", "--", "--runInBand")
+    end
+  end
+
+  desc "Create or update App Store signing assets in the private match repository"
+  lane :setup_signing do
+    api_key = app_store_connect_key
+    sync_app_store_signing(api_key: api_key, readonly: false)
+  end
+
+  desc "Create a signed App Store Connect IPA without uploading it"
+  lane :build do
+    signed_archive(app_store_connect_key)
+  end
+
+  desc "Verify, archive, and upload an internal TestFlight build"
+  lane :beta do
+    verify unless true_env?("SKIP_MOBILE_VERIFICATION")
+
+    api_key = app_store_connect_key
+    ipa_path = signed_archive(api_key)
+
+    upload_to_testflight(
+      api_key: api_key,
+      apple_id: APP_STORE_APPLE_ID,
+      app_identifier: APP_IDENTIFIER,
+      ipa: ipa_path,
+      changelog: ENV["TESTFLIGHT_CHANGELOG"],
+      distribute_external: false,
+      notify_external_testers: false,
+      skip_submission: true,
+      skip_waiting_for_build_processing: true_env?(
+        "SKIP_WAITING_FOR_BUILD_PROCESSING",
+        default: false,
+      ),
+    )
+  end
+end

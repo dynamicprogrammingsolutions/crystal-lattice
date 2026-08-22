@@ -19,8 +19,9 @@ Depends On: tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-pa
 | Field | Value |
 | --- | --- |
 | Platform | iOS |
-| App name | `Crystal Lattice` |
+| App name | `Crystal Lattice Control` |
 | Bundle ID | `com.dynamicprogrammingsolutions.crystallatticecontrolrn` |
+| Numeric Apple ID | `6798401926` |
 | SKU | `crystal-lattice-ios` |
 | Primary language | English (U.S.) |
 | Primary category | Developer Tools |
@@ -33,8 +34,10 @@ Depends On: tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-pa
 | Copyright | `2026 Dynamic Programming Solutions Kft.` |
 | Feedback email | `support@dynamicprogrammingsolutions.com` |
 
-The explicit App ID and App Store Connect app record do not yet exist and must
-be created by an Account Holder, Admin, or App Manager as applicable.
+The explicit App ID and App Store Connect app record were created successfully.
+The owner reported no Apple warning or error. Developer name is expected to
+default to the legal entity name but remains pending public or Apple Support
+confirmation.
 
 ## URLs
 
@@ -139,13 +142,14 @@ enabled. App previews are optional.
 
 ## Manual Account Actions
 
-1. Accept any pending Apple Developer/App Store Connect agreements.
-2. Register the explicit App ID.
-3. Create the App Store Connect app record with the fields above.
-4. Complete the current age-rating questionnaire.
-5. Enter the App Privacy answers from task `050`.
-6. Create an App Store Connect API key for fastlane.
-7. Complete reviewer access after task `085` before external testing.
+- [x] Accept any pending Apple Developer/App Store Connect agreements.
+- [x] Register the explicit App ID.
+- [x] Create the App Store Connect app record with the fields above.
+- [x] Save the Developer Tools and Productivity categories.
+- [x] Enter the App Privacy answers from task `050`.
+- [x] Confirm the exact accepted App Store app name.
+- [x] Create an App Store Connect API key for fastlane.
+- [ ] Complete reviewer access after task `085` before external testing.
 
 ## Implementation Notes
 
@@ -153,6 +157,20 @@ The automatic registration package was prepared on 2026-08-05. Apple-account
 changes were intentionally not performed. A later roadmap dependency correction
 made the internal registration package independent of external reviewer access;
 task `085` owns the external-review test path and reviewer instructions.
+
+Owner confirmation received on 2026-08-05:
+
+- Explicit App ID registered.
+- App Store Connect app record created.
+- Numeric Apple ID: `6798401926`.
+- Categories saved: Developer Tools and Productivity.
+- App Privacy saved.
+- No Apple warning or error reported.
+
+Owner confirmation received on 2026-08-19:
+
+- Exact App Store Connect name: `Crystal Lattice Control`.
+- App Store Connect API key created for fastlane.
 
 The identity/export declarations were verified in a successful Debug generic
 iOS Simulator build. The built app reports the expected display name, bundle

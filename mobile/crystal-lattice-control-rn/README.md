@@ -137,6 +137,157 @@ npx react-native run-ios --device "Your iPhone Name"
 ```
 This requires code signing to be configured in Xcode first (steps 2-3 above).
 
+## TestFlight with fastlane
+
+The iOS release workflow uses Ruby 3.4.10, Bundler, App Store Connect API-key
+authentication, and a private git-backed `fastlane match` repository.
+
+Install the pinned Ruby version with your preferred version manager, then run:
+
+```bash
+bundle install
+bundle exec fastlane lanes
+```
+
+Available lanes:
+
+```bash
+bundle exec fastlane ios verify
+bundle exec fastlane ios setup_signing
+bundle exec fastlane ios build
+bundle exec fastlane ios beta
+```
+
+- `verify` runs the build-number tests, TypeScript validation, and Jest.
+- `setup_signing` is a one-time or intentional maintenance operation that can
+  create/update the App Store certificate and provisioning profile in the
+  private match repository.
+- `build` synchronizes signing assets read-only and creates
+  `build/ios/CrystalLattice.ipa`.
+- `beta` verifies, archives, and uploads an internal TestFlight build.
+
+Copy `fastlane/.env.example` to `fastlane/.env` for local use and replace the
+placeholders. The local `.env`, fastlane reports, build directory, API private
+key, certificates, and provisioning profiles must not be committed.
+
+Required release variables:
+
+- `MATCH_GIT_URL`
+- `MATCH_PASSWORD`
+- `APP_STORE_CONNECT_KEY_ID`
+- `APP_STORE_CONNECT_ISSUER_ID`
+- Either `APP_STORE_CONNECT_KEY_PATH` or `APP_STORE_CONNECT_KEY_CONTENT`
+
+Git authentication for the private signing repository is supplied through
+standard match variables such as `MATCH_GIT_BASIC_AUTHORIZATION` or
+`MATCH_GIT_PRIVATE_KEY`.
+
+One-time credential setup:
+
+1. Create an empty private GitHub repository for signing assets, for example
+   `dynamicprogrammingsolutions/crystal-lattice-ios-signing`, initialized with a
+   `main` branch.
+2. In App Store Connect, open **Users and Access → Integrations → Team Keys**,
+   generate a key named `Crystal Lattice fastlane` with the **App Manager** role,
+   and download its `.p8` file. Apple only offers the private key download once.
+3. Record the key ID and issuer ID in a password manager.
+4. Generate a strong match encryption password, for example:
+
+   ```bash
+   openssl rand -base64 32
+   ```
+
+5. Copy `fastlane/.env.example` to the ignored `fastlane/.env`, set the signing
+   repository URL, match password, API key ID, issuer ID, and absolute `.p8`
+   filepath.
+6. Confirm that the local SSH key or other configured match git authentication
+   can clone the private signing repository.
+
+The first signing bootstrap should be run locally with write access:
+
+```bash
+cp fastlane/.env.example fastlane/.env
+MATCH_READONLY=false bundle exec fastlane ios setup_signing
+```
+
+Normal build and CI execution must use `MATCH_READONLY=true`.
+
+Build numbers are selected in this order:
+
+1. `IOS_BUILD_NUMBER`, when explicitly set.
+2. The greater of `GITHUB_RUN_NUMBER` and the latest TestFlight build plus one.
+3. The latest TestFlight build plus one when outside GitHub Actions.
+
+The archive receives the build number as an Xcode build-setting override, so a
+local fastlane build does not modify the checked-in Xcode project version.
+
+The App Store listing is identified by numeric Apple ID `6798401926`; the bundle
+identifier remains `com.dynamicprogrammingsolutions.crystallatticecontrolrn`.
+
+### GitHub Actions TestFlight deployment
+
+The `iOS TestFlight` workflow is manual-only. Open the repository's **Actions**
+tab, select **iOS TestFlight**, and choose **Run workflow**.
+
+The workflow selects Xcode 26.6 on the `macos-26` runner. CocoaPods applies the
+React Native `fmt` consteval compatibility patch during installation so the
+native dependency compiles with that Apple clang release.
+
+The workflow has two modes:
+
+- `upload_to_testflight = false` is the safe default. It verifies the mobile
+  package and creates a signed IPA on the ephemeral runner without uploading or
+  retaining it.
+- `upload_to_testflight = true` runs the same verification and calls
+  `fastlane ios beta` to upload an internal TestFlight build. An optional
+  changelog can be supplied in the dispatch form.
+
+Required repository variables:
+
+| Variable | Value |
+| --- | --- |
+| `IOS_APP_IDENTIFIER` | `com.dynamicprogrammingsolutions.crystallatticecontrolrn` |
+| `IOS_APPLE_TEAM_ID` | `73Q43R2PD4` |
+| `IOS_APP_STORE_APPLE_ID` | `6798401926` |
+| `IOS_MATCH_GIT_URL` | `git@github.com:dynamicprogrammingsolutions/crystal-lattice-ios-signing.git` |
+| `IOS_MATCH_GIT_BRANCH` | `main` |
+
+Required encrypted repository secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `IOS_APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID |
+| `IOS_APP_STORE_CONNECT_ISSUER_ID` | App Store Connect issuer ID |
+| `IOS_APP_STORE_CONNECT_KEY_CONTENT` | Base64-encoded `.p8` API private key |
+| `IOS_MATCH_PASSWORD` | Decrypts the match signing repository |
+| `IOS_MATCH_GIT_PRIVATE_KEY` | Read-only SSH deploy private key for the match repository |
+
+The matching public deploy key must be registered read-only on the private
+`crystal-lattice-ios-signing` repository. Do not reuse a personal SSH key or a
+deploy key with write access.
+
+The organization currently uses GitHub Free and this repository is private.
+Protected environments, environment secrets, and required deployment reviewers
+are therefore unavailable for this workflow. Current protections are:
+
+- Manual dispatch only; there are no push or tag triggers.
+- Repository write access is required to start the workflow.
+- Signing-repository access is read-only and limited to one repository.
+- Match is always read-only on CI.
+- GitHub serializes iOS runs so two signing/upload jobs cannot overlap.
+
+If the repository gains a GitHub plan that supports environments for private
+repositories, create a protected `ios-testflight` environment, move the five
+secrets into it, require an authorized reviewer, and attach the release job to
+that environment.
+
+To rotate credentials:
+
+1. Generate a replacement App Store Connect API key or signing deploy key.
+2. Replace the corresponding GitHub secret.
+3. Run the workflow with uploading disabled.
+4. Remove the superseded key only after the build-only run succeeds.
+
 ### Android
 
 **Option 1: Using CLI**

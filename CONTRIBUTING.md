@@ -87,6 +87,64 @@ owned by the changed package when installation, configuration, APIs, supported
 behavior, or contributor workflow changes. Do not edit generated documentation
 trees directly.
 
+## Required Pull Request Checks
+
+Public pull requests run four credential-free checks:
+
+- `Public CI / Repository checks`
+- `Public CI / Python unit tests`
+- `Public CI / Frontend package tests`
+- `Public CI / Landing and docs build`
+
+Run the relevant commands locally before opening a pull request.
+
+Repository and workflow checks:
+
+```bash
+git diff --check
+actionlint .github/workflows/*.yml
+python scripts/check_github_actions_security.py
+```
+
+Python unit tests:
+
+```bash
+python -m pip install \
+  -e "core/python[dev]" \
+  -e application/python \
+  -e "plugins/openai_responses[dev]" \
+  -e plugins/tool-compat-shared \
+  -e plugins/mcp-shared \
+  -e plugins/web-fetch-shared
+pytest core/python/tests -q -m "not integration"
+pytest application/python/tests -q -m "not integration and not docker"
+```
+
+Shared frontend package tests:
+
+```bash
+npm ci
+npm --workspace @crystal-lattice/frontend-sdk test
+npm --workspace @crystal-lattice/frontend-sdk-react test
+npm --workspace @crystal-lattice/frontend-rn-components test
+```
+
+Landing and documentation builds:
+
+```bash
+yarn --cwd landing_page install --frozen-lockfile
+yarn --cwd landing_page build
+python -m pip install -r docs_site/requirements.txt
+python docs_site/scripts/prepare_mkdocs_site.py
+(cd docs_site && mkdocs build)
+```
+
+Required public CI intentionally excludes hosted-provider tests, Docker/cloud
+integration, mobile/desktop native builds, native UI tests, signing, TestFlight,
+and deployment. Those checks still apply when a change crosses their boundary;
+run and report them explicitly rather than treating their absence from required
+CI as evidence that they are unnecessary.
+
 ## Pull Requests
 
 Keep pull requests focused enough to review and validate. In the description:
