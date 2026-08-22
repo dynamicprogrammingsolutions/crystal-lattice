@@ -5,22 +5,24 @@ protocols, persistence, and all supported transport modes.
 
 ## Requirements checklist
 
-- [ ] Mobile/desktop and terminal/server endpoints establish authenticated
-  encryption keys according to Task 060.
-- [ ] The bridge never receives plaintext protected request or response
-  content.
-- [ ] WebSocket, HTTP, and hybrid transports share compatible encrypted
-  envelopes and lifecycle behavior.
-- [ ] Streaming, large payloads, attachments, reconnect, resume, cancellation,
-  and errors remain functional.
-- [ ] Keys are stored in platform-appropriate secure storage and removed on
-  unpair, logout, account deletion, or explicit reset as specified.
-- [ ] Required/optional/disabled E2EE policies are capability-negotiated and
-  enforced.
-- [ ] Backward compatibility and migration behavior are explicit.
-- [ ] Security, interoperability, real-device, and end-to-end tests pass.
-- [ ] User documentation and marketing claims describe verified behavior and
-  metadata limitations accurately.
+### Functional requirements
+
+- [ ] **P1** — Clients and user servers establish authenticated encryption keys
+  and securely store, rotate, reset, and remove them according to the approved
+  protocol.
+- [ ] **P1** — E2EE works consistently across WebSocket, HTTP, hybrid,
+  streaming, large-payload, attachment, reconnect, resume, cancellation, and
+  error paths.
+- [ ] **P1** — Required, optional, and disabled E2EE policy is negotiated and
+  downgrade-protected, with explicit compatibility and migration behavior.
+
+### Non-functional requirements
+
+- [ ] **P1** — The bridge never receives plaintext protected request or
+  response content.
+- [ ] **P1** — The implementation remains interoperable across supported
+  clients and server runtimes and has no unresolved critical or high security
+  review finding.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 

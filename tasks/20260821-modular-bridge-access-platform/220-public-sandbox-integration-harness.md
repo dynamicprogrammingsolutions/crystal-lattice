@@ -6,22 +6,25 @@ hosted-style bridge access.
 
 ## Requirements checklist
 
-- [ ] The harness can target fake/local, external sandbox, and hosted test
-  environments without embedding credentials.
-- [ ] Apple and Google purchase fixtures and normalized events are sanitized
-  and legally redistributable.
-- [ ] Tests cover purchase, restore, renewal, cancellation, expiration, grace,
-  pending, refund/revocation, and cross-platform entitlement.
-- [ ] Hosted-style bridge access is proven after entitlement and denied after
-  revocation/expiry.
-- [ ] E2EE, pairing policy, quotas, and all transport modes can participate in
-  the same end-to-end scenario.
-- [ ] Real store/API tests require explicit environment gates and report skips
-  as not run.
-- [ ] Logs and reports redact credentials, transaction payloads, and personal
-  data.
-- [ ] Documentation distinguishes deterministic tests from real store sandbox
-  evidence.
+### Functional requirements
+
+- [ ] **P1** — The harness targets fake/local, external sandbox, and hosted test
+  environments through production adapters without embedding environment
+  credentials.
+- [ ] **P1** — Apple and Google purchase fixtures and normalized events are
+  sanitized and legally redistributable.
+- [ ] **P1** — The harness exercises complete purchase, restore, renewal,
+  cancellation, expiration, grace, pending, refund/revocation, and
+  cross-platform entitlement lifecycles and proves corresponding hosted-access
+  activation and denial.
+- [ ] **P1** — E2EE, pairing policy, quotas, and WebSocket, HTTP, and hybrid
+  transports participate in the same end-to-end scenarios.
+
+### Non-functional requirements
+
+- [ ] **P1** — Real store/API execution requires explicit environment gates,
+  reports gated skips as not run, and redacts credentials, transaction
+  payloads, and personal data from logs and reports.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 

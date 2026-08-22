@@ -6,21 +6,25 @@ replaceable hosted contracts.
 
 ## Requirements checklist
 
-- [ ] Users can sign in with Apple and Google and explicitly link identities.
-- [ ] Purchase UI uses store-returned localized products and prices.
-- [ ] iOS and Android purchase flows associate transactions with the current
-  canonical account and send them for server verification.
-- [ ] Restore/synchronize purchases reconstructs entitlement safely.
-- [ ] Subscription status covers active, trial, grace, billing issue, pending,
-  expired, revoked, and unavailable states.
-- [ ] Manage-subscription, logout, and account-deletion UX is platform-correct.
-- [ ] Direct and self-hosted connections remain usable without a hosted
-  subscription.
-- [ ] Hosted access requires current login, entitlement, policy, and E2EE.
-- [ ] Sensitive credentials use secure storage and do not leak into logs or
-  ordinary connection records.
-- [ ] Component, integration, native, sandbox, accessibility, and documentation
-  coverage is complete.
+### Functional requirements
+
+- [ ] **P1** — Users can sign in with Apple and Google and explicitly link
+  identities.
+- [ ] **P1** — Mobile purchase flows display store-provided localized products
+  and prices and associate completed purchases with the current canonical
+  account for server verification.
+- [ ] **P1** — Restore and entitlement synchronization reconstruct the account
+  subscription state and represent all supported lifecycle statuses.
+- [ ] **P1** — Manage-subscription, logout, and account-deletion UX is
+  platform-correct.
+- [ ] **P1** — Direct and self-hosted connections remain available without a
+  subscription, while hosted access requires current login, entitlement,
+  policy, and E2EE.
+
+### Non-functional requirements
+
+- [ ] **P1** — Sensitive credentials use secure storage and do not leak into
+  logs, diagnostics, or ordinary connection records.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 

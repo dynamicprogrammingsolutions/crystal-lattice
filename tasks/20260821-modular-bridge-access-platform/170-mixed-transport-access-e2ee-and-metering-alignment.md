@@ -6,21 +6,23 @@ transport contracts.
 
 ## Requirements checklist
 
-- [ ] WebSocket, HTTP, and hybrid modes share one effective access and
-  capability model.
-- [ ] Static tokens, provider grants, pairing state, and E2EE credentials have
-  distinct headers/envelopes and cannot overwrite backend authorization.
-- [ ] HTTP control/proxy/transfer and hybrid event paths enforce equivalent
-  subject, entitlement, quota, expiry, and E2EE decisions.
-- [ ] Raw request/response byte accounting is complete and idempotent.
-- [ ] Capability negotiation versioning preserves compatibility with older
-  WebSocket-only bridges and saved connections.
-- [ ] No automatic fallback duplicates non-idempotent requests.
-- [ ] Edge proxies forward required credentials without caching or logging
-  them.
-- [ ] Cluster tests exercise different-node control, transfer, and session
-  paths.
-- [ ] Protocol and SDK documentation define the combined contract.
+### Functional requirements
+
+- [ ] **P1** — WebSocket, HTTP, and hybrid paths use one capability and access
+  model and enforce equivalent identity, entitlement, quota, expiry, and E2EE
+  decisions.
+- [ ] **P1** — Static tokens, provider grants, pairing state, E2EE credentials,
+  and backend authorization use distinct headers or envelopes.
+- [ ] **P1** — Raw request and response byte accounting is complete and
+  idempotent across all transport modes.
+- [ ] **P1** — Transport versioning preserves compatible existing connections,
+  and a request is never automatically replayed over another transport after
+  it starts.
+
+### Non-functional requirements
+
+- [ ] **P1** — Edge proxies forward required credentials without caching,
+  logging, or forwarding bridge credentials to the local backend.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 

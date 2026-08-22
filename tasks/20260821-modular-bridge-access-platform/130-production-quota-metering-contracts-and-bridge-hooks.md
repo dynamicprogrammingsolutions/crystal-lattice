@@ -6,22 +6,23 @@ storage implementation.
 
 ## Requirements checklist
 
-- [ ] Public schemas cover server limits, concurrent sessions, concurrent
-  transfers, request/response size, and transfer-window allowances.
-- [ ] Session/transfer lease acquisition, renewal, release, and expiry are
-  explicit and idempotent.
-- [ ] Usage batches are idempotent, bounded, retryable, and compatible with
-  arbitrary quota windows.
-- [ ] Bridge hooks meter WebSocket, HTTP, and hybrid traffic consistently.
-- [ ] Provider outage and delayed usage reporting have bounded, documented
-  behavior.
-- [ ] Commercial thresholds and administrative override rules are not part of
-  the public defaults.
-- [ ] Demo and fake quota providers pass the same contract suite used by
-  hosted-style providers.
-- [ ] Protocol errors expose useful limit information without leaking account
+### Functional requirements
+
+- [ ] **P1** — Public schemas cover server limits, concurrent sessions,
+  concurrent transfers, request/response size, and transfer-window allowances.
+- [ ] **P1** — Session and transfer lease acquisition, renewal, release, and
+  expiry are explicit and idempotent.
+- [ ] **P1** — Usage is reported through bounded, idempotent, retryable batches
+  that meter WebSocket, HTTP, and hybrid traffic consistently across arbitrary
+  quota windows.
+- [ ] **P1** — Provider outage and delayed usage reporting have bounded,
+  explicit behavior.
+
+### Non-functional requirements
+
+- [ ] **P1** — Public quota behavior and errors expose actionable limit state
+  without exposing commercial thresholds, administrative policy, or account
   internals.
-- [ ] Maintainer and provider-author documentation is complete.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
@@ -45,6 +46,10 @@ Generalize the proven demo limits into versioned provider contracts and
 production-capable bridge hooks. Keep counters and commercial policy external,
 but ensure the bridge can reserve capacity and report usage without a
 per-chunk synchronous service call.
+
+Demo, fake, and hosted-style quota providers must pass the same reusable
+contract suite. Provider-author and maintainer documentation remains part of
+task delivery rather than a separate product requirement.
 
 ### Implementation decisions and open questions
 

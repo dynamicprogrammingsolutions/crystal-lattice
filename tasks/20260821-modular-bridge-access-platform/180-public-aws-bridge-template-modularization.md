@@ -7,22 +7,23 @@ assumptions.
 
 ## Requirements checklist
 
-- [ ] Public templates parameterize access profile, pairing policy, E2EE policy,
-  provider endpoints/JWKS, metrics, and quota/usage integration.
-- [ ] Secrets are referenced from AWS secret storage rather than exposed as
-  ordinary template parameters or command output.
-- [ ] Bridge tasks can run behind secure HTTPS/WSS edges with required headers,
-  no caching, and credential-log protections.
-- [ ] Public components remain usable for community static-token and demo
-  deployments without production services.
-- [ ] EC2 and Fargate remain replaceable runtime choices at component
-  boundaries.
-- [ ] Multi-node clustering, health, graceful shutdown, and metrics hooks are
-  represented consistently.
-- [ ] Templates and scripts are idempotent, guarded, testable, and clean up
-  safely.
-- [ ] Existing public deployment profiles retain documented migration paths.
-- [ ] Public AWS documentation covers cost-bearing resources and cleanup.
+### Functional requirements
+
+- [ ] **P1** — Public AWS components support configurable access, pairing,
+  E2EE, providers/JWKS, metrics, quotas, usage, and community profiles without
+  coupling to one hosted service or runtime.
+- [ ] **P1** — Bridge deployments run behind secure HTTPS/WSS edges with the
+  headers, cache policy, health, clustering, graceful-shutdown, and metrics
+  hooks required by the public bridge contracts.
+- [ ] **P2** — EC2 and Fargate remain replaceable runtime choices at public
+  component boundaries.
+
+### Non-functional requirements
+
+- [ ] **P1** — Secrets are referenced from AWS secret storage and are not
+  exposed as ordinary template parameters, command output, or logs.
+- [ ] **P1** — Templates and scripts are idempotent, explicitly guarded, and
+  clean up safely.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
@@ -48,6 +49,9 @@ Refactor the public templates into reusable edge, bridge-service, metrics, and
 configuration components. Move secrets to managed references, expose provider
 contracts without embedding a particular hosted service, and preserve guarded
 real-AWS smoke tests.
+
+Existing public deployment profiles retain documented migration paths, and the
+public AWS documentation identifies cost-bearing resources and cleanup.
 
 ### Implementation decisions and open questions
 

@@ -5,22 +5,28 @@ the relay can route traffic without reading user request or response content.
 
 ## Requirements checklist
 
-- [ ] The threat model identifies protected content, visible metadata, trusted
-  endpoints, compromised components, replay, impersonation, and key-loss risks.
-- [ ] The protocol authenticates the mobile/desktop client and user's server
-  during key establishment without treating the six-digit pairing code as key
-  material.
-- [ ] HTTP method, path/query, forwarded headers, request body, response
-  status/headers/body, and content-bearing errors are encrypted.
-- [ ] Only a minimal versioned routing envelope remains visible to the bridge.
-- [ ] The design supports WebSocket, HTTP, hybrid, streaming, chunking,
-  reconnect, multiple devices, and key rotation.
-- [ ] Key storage and deletion behavior is defined for iOS, Android, desktop,
-  and terminal/server runtimes.
-- [ ] Cryptographic algorithms and libraries are established, maintained, and
-  interoperable across required languages.
-- [ ] Test vectors and an independent security-review plan are included.
-- [ ] Marketing language is bounded to what the final protocol can prove.
+### Functional requirements
+
+- [ ] **P1** — The protocol authenticates the mobile/desktop client and user's
+  server during key establishment without treating the six-digit pairing code
+  as encryption key material.
+- [ ] **P1** — The protocol encrypts application request, response, header,
+  path/query, body, and content-bearing error data while exposing only the
+  minimal versioned routing metadata required by the bridge.
+- [ ] **P1** — The protocol defines interoperable key and session lifecycle
+  behavior for WebSocket, HTTP, hybrid, streaming, chunking, reconnect,
+  multiple devices, rotation, secure storage, reset, and deletion.
+
+### Non-functional requirements
+
+- [ ] **P1** — The threat model identifies protected content, visible metadata,
+  trusted endpoints, compromised components, replay, impersonation, and
+  key-loss risks.
+- [ ] **P1** — The protocol uses established, maintained, cross-language
+  cryptographic algorithms and libraries and includes machine-verifiable test
+  vectors.
+- [ ] **P1** — Independent security review finds no unresolved critical or high
+  issue in the protocol before implementation is approved.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
@@ -46,6 +52,9 @@ The visible envelope may include protocol version, routing/session identifier,
 request identifier, sequence/chunk information, ciphertext length, and
 delivery flags. It must not expose application paths, prompts, attachments,
 headers, model/provider selections, or response contents.
+
+Public and marketing language must remain bounded to the behavior and metadata
+limitations the reviewed protocol can prove.
 
 ## Execution plan
 

@@ -6,19 +6,22 @@ short-lived access grants can be replaced independently of bridge transport.
 
 ## Requirements checklist
 
-- [ ] Public contracts separate identity, entitlement, limit selection, access
-  grants, and provider availability from bridge routing.
-- [ ] A non-production demo provider grants a configurable first-use trial.
-- [ ] Five correct arithmetic answers grant a base access tier.
-- [ ] Ten correct arithmetic answers grant a higher-limit access tier.
-- [ ] Grant duration and usage-window duration are independently configurable.
-- [ ] Access grants are signed, audience-bound, expiring, tamper-resistant, and
-  consumable without a provider call for every proxied request.
-- [ ] The demo provider is blocked in production unless an explicit test-only
-  override is set.
-- [ ] A fake replacement provider passes the same public contract tests.
-- [ ] Documentation shows how another implementation can replace the demo
-  provider without changing bridge/client protocols.
+### Functional requirements
+
+- [ ] **P1** — Identity, entitlement, limit selection, access-grant issuance,
+  and provider availability are replaceable independently of bridge routing.
+- [ ] **P1** — The non-production demo provider issues configurable first-use
+  trial access and challenge-earned base and higher-limit access tiers.
+- [ ] **P1** — Access-grant duration and usage-window duration are
+  independently configurable.
+
+### Non-functional requirements
+
+- [ ] **P1** — Access grants are signed, audience-bound, expiring,
+  tamper-resistant, and usable without a provider call for every proxied
+  request.
+- [ ] **P1** — Production configuration rejects the demo provider unless an
+  explicit unsafe test-only override is set.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
@@ -41,6 +44,10 @@ authentication. It may recognize a single configured demo subject and issue:
 - a 24-hour default first-use trial;
 - a base grant after five correct simple arithmetic answers;
 - a higher-limit grant after ten correct answers.
+
+A fake replacement provider must pass the same public contract suite, and the
+provider-author documentation must show how another implementation replaces the
+demo service without changing bridge or client protocols.
 
 Tests use injected clocks and short durations. Demo defaults for servers,
 concurrent sessions, and transfer allowance are configuration examples, not

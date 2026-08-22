@@ -5,19 +5,23 @@ require or disable pairing when another authentication mechanism is active.
 
 ## Requirements checklist
 
-- [ ] The bridge supports explicit `local-open` and `static-token` profiles.
-- [ ] Pairing can be required or disabled when the selected profile supplies
-  another authentication mechanism.
-- [ ] Unsafe combinations fail startup instead of silently weakening access.
-- [ ] HTTP and WebSocket capability negotiation report the same effective
-  transport, authentication, pairing, entitlement, limits, and E2EE policy.
-- [ ] Mobile and SDK clients use capabilities to show or skip pairing rather
-  than relying on hardcoded deployment assumptions.
-- [ ] Existing saved connections remain compatible and receive explicit errors
-  when their deployment policy changes.
-- [ ] Every supported profile/pairing combination has automated transport and
-  client evidence.
-- [ ] Deployment and client documentation explains each profile's trust model.
+### Functional requirements
+
+- [ ] **P1** — The bridge supports validated `local-open` and `static-token`
+  profiles, including configurable pairing when another authentication
+  mechanism is active, and rejects unsafe or incomplete configurations at
+  startup.
+- [ ] **P1** — HTTP and WebSocket capability negotiation expose the same
+  effective transport, authentication, pairing, entitlement, limits, and E2EE
+  policy.
+- [ ] **P1** — Mobile and SDK clients use negotiated capabilities when creating
+  or restoring connections, including pairing UI and explicit errors when a
+  saved connection no longer matches deployment policy.
+
+### Non-functional requirements
+
+- [ ] **P1** — Profile selection cannot silently weaken authentication or
+  pairing because of missing, unknown, or invalid configuration.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 

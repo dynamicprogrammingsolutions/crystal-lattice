@@ -8,27 +8,25 @@ services.
 
 ## Requirements checklist
 
-- [ ] A bridge deployment can require a static deployment token across
-  WebSocket, HTTP, and hybrid transport paths.
-- [ ] Deployments can select supported access profiles and can require or
-  disable pairing when another authentication mechanism is active.
-- [ ] Identity, entitlement, limits, usage reporting, and scaling policy have
-  public replaceable contracts with working non-production implementations.
-- [ ] A demo profile proves trial access, challenge-earned access, tiered
-  limits, expiration, and enforcement before production providers are
-  integrated.
-- [ ] Hosted bridge content is end-to-end encrypted between the frontend and
-  the user's server before production launch.
-- [ ] Public clients can consume normalized identity, access-grant,
-  entitlement, quota, and ownership contracts without depending on a
-  particular hosted implementation.
-- [ ] The mixed WebSocket/HTTPS bridge transports apply authentication, E2EE,
-  usage metering, and limits consistently.
-- [ ] Public AWS deployment components expose the configuration, metrics, and
-  lifecycle hooks needed by community and hosted deployments.
-- [ ] Public documentation accurately explains secure deployment, provider
-  replacement, E2EE, and current limitations without exposing private
-  operational context.
+### Functional requirements
+
+- [ ] **P1** — Bridge deployments support explicit, validated access profiles
+  covering static-token authentication and configurable pairing policy across
+  WebSocket, HTTP, and hybrid transports.
+- [ ] **P1** — Public replaceable identity, entitlement, quota, usage, and
+  scaling contracts are proven by working non-production implementations.
+- [ ] **P1** — Public clients and bridge transports consume and enforce the
+  same normalized identity, access-grant, entitlement, ownership, quota,
+  E2EE, and usage contracts.
+- [ ] **P2** — Public AWS deployment components expose the configuration,
+  metrics, and lifecycle hooks needed by community and hosted deployments.
+
+### Non-functional requirements
+
+- [ ] **P1** — Hosted bridge content is end-to-end encrypted between the
+  frontend and the user's server before production launch.
+- [ ] **P1** — Public documentation and contracts preserve the public/private
+  implementation boundary and do not expose private operational context.
 
 ## Subtasks
 
@@ -79,6 +77,10 @@ entitlement administration, private infrastructure composition, fraud
 operations, and customer-support tooling are supplied by a separately operated
 hosted service. Public code communicates with that service only through
 versioned, documented contracts and public keys.
+
+The demo profile is the required proof that the replaceable contracts support
+trial access, challenge-earned access, tiered limits, expiration, and
+enforcement before production providers are integrated.
 
 ## Required reading
 

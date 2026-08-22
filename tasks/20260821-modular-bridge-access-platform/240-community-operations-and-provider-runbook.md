@@ -6,19 +6,23 @@ bridge platform.
 
 ## Requirements checklist
 
-- [ ] Operators can deploy local-open, static-token, and demo profiles with
-  explicit security warnings and expected results.
-- [ ] Provider implementers can attach identity, entitlement, quota, usage, and
-  grant services through the public contracts.
-- [ ] Runbooks cover token/key rotation, E2EE reset, backups, restore, upgrades,
-  compatibility, metrics, draining, and cleanup.
-- [ ] Troubleshooting distinguishes transport, authentication, pairing,
-  entitlement, limits, E2EE, provider, and local-backend failures.
-- [ ] Public operational examples contain no private hosted topology,
-  credentials, thresholds, or customer-support procedures.
-- [ ] Commands and expected outputs are validated by tests or smoke scripts.
-- [ ] AWS and non-AWS community paths remain documented.
-- [ ] Security and data-retention responsibilities are explicit.
+### Functional requirements
+
+- [ ] **P1** — Community operators can deploy supported profiles and attach
+  replacement identity, entitlement, quota, usage, and access-grant services
+  through the public contracts.
+- [ ] **P2** — Runbooks cover token/key rotation, E2EE reset, backups, restore,
+  upgrades, compatibility, metrics, draining, cleanup, and troubleshooting
+  across transport, authentication, pairing, entitlement, quota, E2EE,
+  provider, and local-backend failures.
+- [ ] **P3** — Validated commands and expected results cover supported AWS and
+  non-AWS community deployments.
+
+### Non-functional requirements
+
+- [ ] **P1** — Public operations guidance excludes private hosted topology,
+  credentials, commercial thresholds, and customer-support procedures and
+  clearly assigns security and data-retention responsibilities.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 

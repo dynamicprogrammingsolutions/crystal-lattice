@@ -6,21 +6,22 @@ production AWS runtime or scaling policy.
 
 ## Requirements checklist
 
-- [ ] Bridge nodes publish active app connections, active server connections,
-  active sessions, pending requests/transfers, throughput, and relevant
-  saturation metrics.
-- [ ] A replaceable demo scaling policy computes desired capacity from
-  configurable connection thresholds, minimum, and maximum capacity.
-- [ ] A local simulator and load harness can exercise scale-out, steady-state,
-  scale-in, reconnect, and task-loss scenarios without production providers.
-- [ ] Demo scaling decisions are observable and deterministic under an
-  injected clock.
-- [ ] The policy is explicitly non-production and does not hardcode EC2 or
-  Fargate.
-- [ ] Public AWS tests can optionally consume the metrics and demo policy.
-- [ ] Tests verify metric cleanup and no negative/leaked counts after failures.
-- [ ] Documentation explains the metric semantics and policy replacement
-  boundary.
+### Functional requirements
+
+- [ ] **P1** — Bridge nodes publish active app connections, active server
+  connections, active sessions, pending requests/transfers, throughput, and
+  relevant saturation metrics.
+- [ ] **P1** — A replaceable, runtime-independent demo scaling policy computes
+  observable and deterministic desired capacity from configurable metrics,
+  thresholds, minimum capacity, and maximum capacity.
+- [ ] **P1** — A local load harness exercises scale-out, steady state,
+  scale-in, reconnect, and node-loss scenarios without production providers.
+
+### Non-functional requirements
+
+- [ ] **P1** — Connection, session, request, and transfer metrics return to
+  correct values after completion, cancellation, failure, reconnect, and node
+  loss.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
@@ -51,6 +52,10 @@ desired =
 The implementation should also report CPU/memory and transfer pressure, but
 the simple rule exists to prove metric and policy replacement. It does not
 establish production capacity values.
+
+The policy is explicitly non-production and does not select EC2 or Fargate.
+Optional guarded public AWS exercises belong to additional implementation
+verification rather than the minimum requirements.
 
 ## Execution plan
 

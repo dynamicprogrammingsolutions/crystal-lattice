@@ -6,24 +6,22 @@ WebSocket, HTTP, and hybrid transports.
 
 ## Requirements checklist
 
-- [ ] Mobile and terminal/server clients can obtain and refresh demo access
-  grants through trial or arithmetic challenge flows.
-- [ ] The bridge enforces demo entitlement expiry, registered-server limits,
-  concurrent-session limits, concurrent-transfer limits, and transfer-window
-  allowances.
-- [ ] Five- and ten-question tiers visibly produce different effective limits.
-- [ ] Usage windows can be configured from short test intervals to multi-day
-  intervals and are not coupled to calendar months.
-- [ ] Pairing-required and pairing-disabled deployments both work with the demo
-  provider.
-- [ ] Limit and entitlement behavior is consistent across WebSocket, HTTP, and
-  hybrid request paths.
-- [ ] Credentials are stored securely and do not appear in ordinary connection
-  persistence or logs.
-- [ ] End-to-end tests prove provider replacement does not change transport
-  protocols.
-- [ ] User and maintainer documentation covers the complete demo workflow and
-  all denial states.
+### Functional requirements
+
+- [ ] **P1** — Mobile and terminal/server clients obtain and refresh demo trial
+  or challenge access grants.
+- [ ] **P1** — The demo provider and bridge enforce entitlement expiration and
+  configurable server, session, transfer, request-size, and data-window limits,
+  with visibly different base and higher-limit tiers.
+- [ ] **P1** — Demo-provider access works with pairing required and pairing
+  disabled.
+
+### Non-functional requirements
+
+- [ ] **P1** — Entitlement and limit enforcement is equivalent across
+  WebSocket, HTTP, and hybrid transports.
+- [ ] **P1** — Demo credentials and grants use secure storage and do not appear
+  in ordinary connection persistence or logs.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
@@ -57,6 +55,10 @@ The demo implementation may use simple persistent coordination, but bridge
 hooks and public schemas must permit a later distributed provider. Existing
 in-review HTTP transfer byte streams are the accounting source for HTTP and
 hybrid traffic; do not create a parallel transfer mechanism.
+
+Usage windows range from short injected test intervals to multi-day intervals
+and are not coupled to calendar months. End-to-end provider-replacement tests
+must prove that changing providers does not change transport protocols.
 
 ## Execution plan
 

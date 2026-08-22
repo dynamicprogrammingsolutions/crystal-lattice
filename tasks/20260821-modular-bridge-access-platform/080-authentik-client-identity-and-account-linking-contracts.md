@@ -6,20 +6,24 @@ implementation.
 
 ## Requirements checklist
 
-- [ ] Mobile uses OIDC Authorization Code with PKCE through a system browser.
-- [ ] Terminal/server supports an appropriate public-client flow, including
-  device authorization for headless use.
-- [ ] Apple and Google identities can link explicitly to one product account.
-- [ ] Email can be added later without changing canonical account or billing
-  identity schemas.
-- [ ] Clients use stable product account IDs rather than email as ownership or
-  billing keys.
-- [ ] Access/refresh credentials use secure platform storage and rotation.
-- [ ] Login, logout, identity linking, account switching, token expiry, and
-  provider errors have tested public behavior.
-- [ ] Production tenant secrets and environment-specific configuration are not
-  committed to the public repository.
-- [ ] Public docs explain configuration and identity-linking safety.
+### Functional requirements
+
+- [ ] **P1** — Mobile and terminal/server clients support appropriate OIDC
+  public-client flows, including mobile Authorization Code with PKCE and
+  terminal device authorization for headless use.
+- [ ] **P1** — Apple and Google identities link explicitly to stable product
+  accounts, and email is not used as an ownership or billing key.
+- [ ] **P1** — Login, logout, account switching, identity conflicts, token
+  expiration, provider cancellation, and provider failures have explicit
+  client behavior.
+
+### Non-functional requirements
+
+- [ ] **P1** — Access and refresh credentials use secure platform storage,
+  rotation, and removal behavior.
+- [ ] **P1** — Production tenant secrets and environment-specific private
+  configuration are not committed to the public repository or exposed through
+  client diagnostics.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
@@ -40,7 +44,8 @@ product account UUID and billing-link UUID. Identity linking is explicit and
 authenticated; matching email alone never merges accounts.
 
 Initial login providers are Apple and Google. Email is deferred while the
-many-to-one identity-link model preserves a compatible future path.
+many-to-one identity-link model preserves a compatible future path without
+changing canonical account or billing identity schemas.
 
 ## Execution plan
 

@@ -6,21 +6,20 @@ E2EE requirements without importing hosted account or billing code.
 
 ## Requirements checklist
 
-- [ ] App and server grants validate signature, issuer, audience, time, subject
-  type, and unique identifier.
-- [ ] Server registration and visibility are bound to normalized account
-  ownership claims.
-- [ ] `bridge_access` or equivalent entitlement is required where configured.
-- [ ] Pairing-required and pairing-disabled policies are both enforceable.
-- [ ] Pairing tokens and resumed sessions are bound to the authenticated
-  subject/account and cannot cross accounts.
-- [ ] Long-lived WebSocket connections reauthenticate or close when grants
-  expire.
-- [ ] Revocation takes effect within the documented bounded interval.
-- [ ] WebSocket, HTTP, hybrid, and E2EE paths return consistent authorization
-  errors.
-- [ ] Self-hosted local/static-token deployments remain independent of hosted
-  services.
+### Functional requirements
+
+- [ ] **P1** — App and server grants validate signature, issuer, audience,
+  time, subject type, and unique identifier before protected access.
+- [ ] **P1** — Server registration, discovery, pairing, resume, and request
+  access enforce account ownership, entitlement, pairing policy, and subject
+  isolation.
+- [ ] **P1** — Long-lived connections reauthenticate or close when grants
+  expire or are revoked within the documented bound.
+
+### Non-functional requirements
+
+- [ ] **P1** — WebSocket, HTTP, hybrid, and E2EE paths enforce equivalent
+  authorization decisions and return consistent authorization errors.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
@@ -43,6 +42,10 @@ Add a hosted-style access profile that consumes only public signed grants and
 provider contracts. Bind identity to every server/session/pairing boundary,
 enforce expiry on long-lived connections, and retain local/static-token
 profiles without hosted dependencies.
+
+Hosted-grant enforcement is active only in the selected hosted-style profile.
+Self-hosted local and static-token profiles remain the regression baseline and
+must not acquire a hosted-service runtime dependency.
 
 ### Implementation decisions and open questions
 

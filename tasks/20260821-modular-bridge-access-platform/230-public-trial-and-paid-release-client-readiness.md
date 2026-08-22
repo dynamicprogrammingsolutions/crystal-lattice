@@ -6,21 +6,25 @@ production E2EE, limits, and hosted services are ready.
 
 ## Requirements checklist
 
-- [ ] Mobile clients present the approved monthly product and localized price
-  from the native store.
-- [ ] The public introductory trial is shown only when the store reports the
-  applicable offer and the hosted service permits access.
-- [ ] Trial, paid, grace, billing issue, cancellation, expiration, refund, and
-  restore states produce accurate UX.
-- [ ] Hosted access requires production E2EE, entitlement, and configured
-  limits while free direct/self-hosted modes remain available.
-- [ ] Store review notes and public support paths explain how reviewers can test
-  the hosted bridge.
-- [ ] Versioning, build, signing, TestFlight, and Play internal-track workflows
-  remain compatible.
-- [ ] Accessibility, localization, privacy links, terms, and manage-subscription
-  actions are complete.
-- [ ] Public documentation does not claim launch before production approval.
+### Functional requirements
+
+- [ ] **P1** — Mobile clients display the approved localized monthly product
+  and present the introductory offer only when store and hosted-service
+  eligibility permit it.
+- [ ] **P1** — Trial, paid, grace, billing issue, cancellation, expiration,
+  refund, and restore states produce accurate UX.
+- [ ] **P1** — Hosted access requires production E2EE, entitlement, and
+  configured limits while free direct/self-hosted modes remain available.
+- [ ] **P1** — Store reviewers can test the hosted service through
+  release-compatible TestFlight and Play workflows with complete review and
+  support guidance.
+- [ ] **P1** — Accessibility, localization, privacy links, terms, and
+  manage-subscription actions are complete.
+
+### Non-functional requirements
+
+- [ ] **P1** — Public release claims and product presentation are enabled only
+  after production approval.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 

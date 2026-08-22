@@ -6,22 +6,27 @@ accurately without exposing private operational material.
 
 ## Requirements checklist
 
-- [ ] Privacy content describes account identifiers, identity providers,
-  subscription status, server/device metadata, security logs, relay processing,
-  retention, deletion, and subprocessors at the public level.
-- [ ] Terms describe the hosted service, recurring subscription, cancellation,
-  refunds, acceptable use, fair use, availability, and account deletion.
-- [ ] E2EE claims state exactly what is encrypted, endpoint scope, visible
-  metadata, key/reset limitations, and verification status.
-- [ ] Landing and mobile pages distinguish free direct/self-hosted connections
-  from paid hosted bridge access.
-- [ ] App Store and Play metadata/data disclosures align with implemented
-  behavior.
-- [ ] Support and account-deletion URLs provide complete user-facing workflows.
-- [ ] No page exposes task phases, private infrastructure, fraud controls,
-  internal thresholds, or unpublished security findings.
-- [ ] Documentation validation and landing-page tests cover changed links and
-  claims.
+### Functional requirements
+
+- [ ] **P1** — Privacy content describes account identifiers, identity
+  providers, subscription status, server/device metadata, security logs, relay
+  processing, retention, deletion, and subprocessors at the public level.
+- [ ] **P1** — Terms describe the hosted service, recurring subscription,
+  cancellation, refunds, acceptable use, fair use, availability, and account
+  deletion.
+- [ ] **P1** — E2EE claims state exactly what is encrypted, endpoint scope,
+  visible metadata, key/reset limitations, and verification status.
+- [ ] **P1** — Landing/mobile product pages and App Store/Play disclosures
+  distinguish free direct/self-hosted access from paid hosted access and match
+  implemented data behavior.
+- [ ] **P1** — Support and account-deletion URLs provide complete user-facing
+  workflows.
+
+### Non-functional requirements
+
+- [ ] **P1** — Public pages do not expose task phases, private infrastructure,
+  fraud controls, internal thresholds, customer data, or unpublished security
+  findings.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 

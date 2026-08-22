@@ -6,20 +6,24 @@ discovery, pairing, resume, or request proxying.
 
 ## Requirements checklist
 
-- [ ] A configured static token protects app and server access over WebSocket,
-  HTTP, and hybrid transports.
-- [ ] The deployment token is distinct from pairing-token signing secrets,
-  pairing tokens, transfer tokens, and future account access grants.
-- [ ] Missing or incorrect tokens fail before any protected bridge operation.
-- [ ] Health and minimal capability discovery remain usable without exposing
-  servers, sessions, secrets, or account data.
-- [ ] Mobile and terminal/server clients can supply and securely persist the
-  deployment token.
-- [ ] Tokens are compared safely and are excluded from URLs, logs, errors,
-  debug timelines, and ordinary connection records.
-- [ ] Existing explicitly open local deployments remain compatible.
-- [ ] User and maintainer documentation covers configuration, rotation, and the
-  token taxonomy.
+### Functional requirements
+
+- [ ] **P1** — When static-token protection is configured, app and server
+  clients must provide the correct deployment token before using protected
+  bridge operations over WebSocket, HTTP, or hybrid transports; a missing or
+  incorrect token is rejected before any protected operation or side effect.
+- [ ] **P1** — Unauthenticated health and minimal capability discovery remain
+  available while server, session, secret, and account data remain protected.
+- [ ] **P1** — Mobile and terminal/server clients can configure and reuse the
+  deployment token for WebSocket, HTTP, and hybrid connections.
+
+### Non-functional requirements
+
+- [ ] **P1** — The deployment token is compared using timing-safe mechanisms
+  and is excluded from URLs, logs, errors, debug timelines, backend-forwarded
+  headers, and ordinary connection records.
+- [ ] **P1** — Persisted deployment tokens use credential-appropriate secure
+  storage and are removed when the saved credential or connection is deleted.
 
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
@@ -43,6 +47,12 @@ for final HTTP/hybrid integration when that work lands.
 The cloud orchestrator already protects configured control routes with
 `Authorization: Bearer <token>` and constant-time comparison. The bridge needs
 equivalent deployment protection at both of its public transport boundaries.
+
+The deployment access token is distinct from pairing-token signing secrets,
+pairing tokens, transfer tokens, and future account access grants. Static-token
+protection is opt-in in this task; existing explicitly open local deployments
+remain the compatibility baseline until Task 020 makes profile selection
+explicit.
 
 The mixed transport reserves `X-Crystal-Bridge-Token` for the app/server
 pairing token and preserves the caller's ordinary `Authorization` header for
