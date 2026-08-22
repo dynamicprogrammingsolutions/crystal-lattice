@@ -10,6 +10,7 @@ import html
 import io
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -23,31 +24,31 @@ from roadmap_config import (
 )
 
 
-FIELDS = (
+REQUIRED_FIELDS = (
     "task",
     "external_id",
     "internal_id",
-    "title",
-    "purpose",
     "priority",
     "status",
     "declared_dependencies",
     "inferred_dependencies",
-    "notes",
 )
+SEMANTIC_FIELDS = frozenset(REQUIRED_FIELDS)
+PRESENTATION_FIELDS = ("readiness", "blocking_dependencies")
 PRIORITIES = {"must have", "should have", "good to have"}
 STATUSES = {"pending", "in progress", "review", "done"}
-DATED_TASK_DIR_RE = re.compile(
-    r"^tasks/(?P<date>\d{8})-(?P<slug>[^/]+)/"
-    r"(?P<number>\d{3})-(?P<name>[^/]+)\.md$"
-)
-DATED_TASK_DIRECTORY_RE = re.compile(
-    r"^tasks/(?P<date>\d{8})-(?P<slug>[^/]+)$"
-)
-DATED_STANDALONE_RE = re.compile(
-    r"^tasks/(?P<date>\d{8})-(?P<slug>[^/]+)\.md$"
+DATED_NAME_RE = re.compile(r"^(?P<date>\d{8})-(?P<slug>.+)$")
+NUMBERED_MARKDOWN_RE = re.compile(
+    r"^(?P<number>\d{3})-(?P<name>.+)\.md$"
 )
 INTERNAL_ID_RE = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)*$")
+READINESS_LINK_COLORS = {
+    "done": "#188038",
+    "active": "#A64B00",
+    "ready": "#1967D2",
+    "queued": "#7B1FA2",
+    "blocked": "#5F6368",
+}
 
 
 class RoadmapError(ValueError):
@@ -69,13 +70,11 @@ class Row:
     task: str
     external_id: str
     internal_id: str
-    title: str
-    purpose: str
     priority: str
     status: str
     declared_dependencies: tuple[str, ...]
     inferred_dependencies: tuple[str, ...]
-    notes: str
+    fields: tuple[tuple[str, str], ...]
     task_kind: str
     link_target: str | None
     previous_internal_id: str
@@ -84,12 +83,24 @@ class Row:
     def display_id(self) -> str:
         return self.internal_id
 
+    def field_value(self, name: str) -> str:
+        for field_name, value in self.fields:
+            if field_name == name:
+                return value
+        return ""
+
 
 @dataclass(frozen=True)
 class NormalizedRoadmap:
+    headers: tuple[str, ...]
     rows: list[Row]
     text: str
     changed: bool
+    warnings: tuple[str, ...] = ()
+
+
+def arbitrary_headers(headers: Iterable[str]) -> tuple[str, ...]:
+    return tuple(header for header in headers if header not in SEMANTIC_FIELDS)
 
 
 def _split_dependencies(value: str) -> tuple[str, ...]:
@@ -138,7 +149,12 @@ def _safe_repository_path(value: str, repo_root: Path) -> tuple[str, Path]:
     return relative.as_posix(), resolved
 
 
-def classify_task(value: str, repo_root: Path) -> TaskIdentity:
+def classify_task(
+    value: str,
+    repo_root: Path,
+    *,
+    task_directory_entry: str = "000-main.md",
+) -> TaskIdentity:
     task = value.strip()
     if not task:
         raise RoadmapError("task must not be empty")
@@ -147,24 +163,25 @@ def classify_task(value: str, repo_root: Path) -> TaskIdentity:
         normalized, resolved = _safe_repository_path(task, repo_root)
         if not resolved.is_file():
             raise RoadmapError(f"task Markdown file does not exist: {normalized}")
-        dated_subtask = DATED_TASK_DIR_RE.fullmatch(normalized)
-        if dated_subtask:
+        parent_match = DATED_NAME_RE.fullmatch(resolved.parent.name)
+        file_match = NUMBERED_MARKDOWN_RE.fullmatch(resolved.name)
+        if parent_match and file_match:
             return TaskIdentity(
                 normalized=normalized,
                 kind="markdown",
                 link_target=normalized,
-                date=dated_subtask.group("date"),
-                slug=dated_subtask.group("slug"),
-                number=dated_subtask.group("number"),
+                date=parent_match.group("date"),
+                slug=parent_match.group("slug"),
+                number=file_match.group("number"),
             )
-        dated_standalone = DATED_STANDALONE_RE.fullmatch(normalized)
-        if dated_standalone:
+        standalone_match = DATED_NAME_RE.fullmatch(resolved.stem)
+        if standalone_match:
             return TaskIdentity(
                 normalized=normalized,
                 kind="markdown",
                 link_target=normalized,
-                date=dated_standalone.group("date"),
-                slug=dated_standalone.group("slug"),
+                date=standalone_match.group("date"),
+                slug=standalone_match.group("slug"),
             )
         return TaskIdentity(
             normalized=normalized,
@@ -174,33 +191,33 @@ def classify_task(value: str, repo_root: Path) -> TaskIdentity:
         )
 
     normalized_slashes = task.rstrip("/")
-    if normalized_slashes == "tasks" or normalized_slashes.startswith("tasks/"):
-        normalized, resolved = _safe_repository_path(
-            normalized_slashes, repo_root
-        )
-        if not resolved.is_dir():
-            raise RoadmapError(f"task directory does not exist: {normalized}")
-        main_task = resolved / "000-main.md"
-        if not main_task.is_file():
+    normalized, resolved = _safe_repository_path(
+        normalized_slashes, repo_root
+    )
+    if resolved.is_dir():
+        entry_path = resolved / task_directory_entry
+        if not entry_path.is_file():
             raise RoadmapError(
-                f"task directory has no 000-main.md: {normalized}"
+                f"task directory has no {task_directory_entry}: {normalized}"
             )
-        dated_directory = DATED_TASK_DIRECTORY_RE.fullmatch(normalized)
+        directory_match = DATED_NAME_RE.fullmatch(resolved.name)
         return TaskIdentity(
             normalized=normalized,
             kind="directory",
-            link_target=(Path(normalized) / "000-main.md").as_posix(),
+            link_target=(Path(normalized) / task_directory_entry).as_posix(),
             date=(
-                dated_directory.group("date")
-                if dated_directory is not None
+                directory_match.group("date")
+                if directory_match is not None
                 else None
             ),
             slug=(
-                dated_directory.group("slug")
-                if dated_directory is not None
+                directory_match.group("slug")
+                if directory_match is not None
                 else resolved.name
             ),
         )
+    if "/" in normalized_slashes:
+        raise RoadmapError(f"task directory does not exist: {normalized}")
 
     return TaskIdentity(
         normalized=task,
@@ -244,14 +261,41 @@ def _parse_records(
     source: str,
     *,
     source_name: str,
-) -> list[dict[str, str]]:
+) -> tuple[tuple[str, ...], list[dict[str, str]]]:
     reader = csv.DictReader(source.splitlines())
     if reader.fieldnames is None:
         raise RoadmapError(f"{source_name}: CSV has no header")
-    if tuple(reader.fieldnames) != FIELDS:
+    headers = tuple(reader.fieldnames)
+    if any(not header.strip() for header in headers):
+        raise RoadmapError(f"{source_name}: CSV headers must not be empty")
+    duplicate_headers = _find_duplicates(headers)
+    if duplicate_headers:
         raise RoadmapError(
-            f"{source_name}: CSV header must be exactly:\n" + ",".join(FIELDS)
+            f"{source_name}: duplicate CSV headers: "
+            + ", ".join(sorted(duplicate_headers))
         )
+    header_keys = {header.casefold() for header in headers}
+    missing = [
+        field for field in REQUIRED_FIELDS if field.casefold() not in header_keys
+    ]
+    if missing:
+        raise RoadmapError(
+            f"{source_name}: CSV is missing required headers: "
+            + ", ".join(missing)
+        )
+    reserved = [
+        field for field in PRESENTATION_FIELDS if field.casefold() in header_keys
+    ]
+    if reserved:
+        raise RoadmapError(
+            f"{source_name}: CSV uses reserved presentation headers: "
+            + ", ".join(reserved)
+        )
+    if any(field not in headers for field in REQUIRED_FIELDS):
+        raise RoadmapError(
+            f"{source_name}: required headers must use exact lowercase names"
+        )
+
     records: list[dict[str, str]] = []
     for line_number, raw in enumerate(reader, start=2):
         extra_values = raw.get(None)
@@ -259,8 +303,8 @@ def _parse_records(
             raise RoadmapError(
                 f"{source_name}:{line_number}: CSV row has unexpected extra columns"
             )
-        values = {field: (raw.get(field) or "").strip() for field in FIELDS}
-        for required in ("task", "title", "purpose", "priority", "status"):
+        values = {header: (raw.get(header) or "").strip() for header in headers}
+        for required in ("task", "priority", "status"):
             if not values[required]:
                 raise RoadmapError(
                     f"{source_name}:{line_number}: {required} must not be empty"
@@ -278,16 +322,27 @@ def _parse_records(
         records.append(values)
     if not records:
         raise RoadmapError(f"{source_name}: CSV contains no task rows")
-    return records
+    return headers, records
 
 
 def _generate_rows(
+    headers: tuple[str, ...],
     records: list[dict[str, str]],
     *,
     repo_root: Path,
-) -> list[Row]:
-    identities = [classify_task(record["task"], repo_root) for record in records]
-    duplicate_tasks = _find_duplicates(identity.normalized for identity in identities)
+    task_directory_entry: str,
+) -> tuple[list[Row], tuple[str, ...]]:
+    identities = [
+        classify_task(
+            record["task"],
+            repo_root,
+            task_directory_entry=task_directory_entry,
+        )
+        for record in records
+    ]
+    duplicate_tasks = _find_duplicates(
+        identity.normalized for identity in identities
+    )
     if duplicate_tasks:
         raise RoadmapError(
             "duplicate task identity: " + ", ".join(sorted(duplicate_tasks))
@@ -298,7 +353,9 @@ def _generate_rows(
     ]
     candidates = [
         _candidate_internal_id(identity, external_id)
-        for identity, external_id in zip(identities, external_ids, strict=True)
+        for identity, external_id in zip(
+            identities, external_ids, strict=True
+        )
     ]
     candidate_counts: dict[str, int] = {}
     for candidate in candidates:
@@ -350,7 +407,7 @@ def _generate_rows(
             f"ambiguous previous internal ID {alias!r}: {canonical}"
         )
 
-    def resolve(token: str, owner_index: int) -> str:
+    def resolve(token: str, owner_index: int) -> str | None:
         key = token.casefold()
         target_index = canonical_map.get(key)
         if target_index is None:
@@ -360,7 +417,10 @@ def _generate_rows(
         if target_index is None:
             target_index = task_map.get(key)
         if target_index is None:
-            normalized_external = _normalize_external_id(token)
+            try:
+                normalized_external = _normalize_external_id(token)
+            except RoadmapError:
+                normalized_external = ""
             external_matches = external_map.get(
                 normalized_external.casefold(), []
             )
@@ -374,48 +434,65 @@ def _generate_rows(
             if external_matches:
                 target_index = external_matches[0]
         if target_index is None:
-            raise RoadmapError(f"unknown dependency alias {token!r}")
+            return None
         if target_index == owner_index:
             raise RoadmapError(
                 f"{internal_ids[owner_index]} cannot depend on itself"
             )
         return internal_ids[target_index]
 
+    warnings: list[str] = []
+
+    def dependencies(
+        raw_value: str,
+        *,
+        owner_index: int,
+        field: str,
+    ) -> tuple[str, ...]:
+        resolved: list[str] = []
+        for token in _split_dependencies(raw_value):
+            dependency = resolve(token, owner_index)
+            if dependency is None:
+                warnings.append(
+                    f"{internal_ids[owner_index]}: removed missing "
+                    f"{field} dependency {token!r}"
+                )
+                continue
+            resolved.append(dependency)
+        return tuple(resolved)
+
+    custom_headers = arbitrary_headers(headers)
     rows: list[Row] = []
     for index, (record, identity, external_id, internal_id) in enumerate(
         zip(records, identities, external_ids, internal_ids, strict=True)
     ):
-        declared = tuple(
-            resolve(token, index)
-            for token in _split_dependencies(
-                record["declared_dependencies"]
-            )
-        )
-        inferred = tuple(
-            resolve(token, index)
-            for token in _split_dependencies(
-                record["inferred_dependencies"]
-            )
-        )
         rows.append(
             Row(
                 task=identity.normalized,
                 external_id=external_id,
                 internal_id=internal_id,
-                title=record["title"],
-                purpose=record["purpose"],
                 priority=record["priority"],
                 status=record["status"],
-                declared_dependencies=declared,
-                inferred_dependencies=inferred,
-                notes=record["notes"],
+                declared_dependencies=dependencies(
+                    record["declared_dependencies"],
+                    owner_index=index,
+                    field="declared",
+                ),
+                inferred_dependencies=dependencies(
+                    record["inferred_dependencies"],
+                    owner_index=index,
+                    field="inferred",
+                ),
+                fields=tuple(
+                    (header, record[header]) for header in custom_headers
+                ),
                 task_kind=identity.kind,
                 link_target=identity.link_target,
                 previous_internal_id=record["internal_id"].strip(),
             )
         )
     _validate_rows(rows)
-    return rows
+    return rows, tuple(warnings)
 
 
 def _validate_rows(rows: list[Row]) -> None:
@@ -457,33 +534,30 @@ def _validate_rows(rows: list[Row]) -> None:
                 )
 
 
-def rows_to_csv_text(rows: list[Row]) -> str:
+def _row_values(row: Row) -> dict[str, str]:
+    values = {
+        "task": row.task,
+        "external_id": row.external_id,
+        "internal_id": row.internal_id,
+        "priority": row.priority,
+        "status": row.status,
+        "declared_dependencies": ";".join(row.declared_dependencies),
+        "inferred_dependencies": ";".join(row.inferred_dependencies),
+    }
+    values.update(row.fields)
+    return values
+
+
+def rows_to_csv_text(headers: tuple[str, ...], rows: list[Row]) -> str:
     buffer = io.StringIO(newline="")
     writer = csv.DictWriter(
         buffer,
-        fieldnames=FIELDS,
+        fieldnames=headers,
         lineterminator="\n",
     )
     writer.writeheader()
     for row in rows:
-        writer.writerow(
-            {
-                "task": row.task,
-                "external_id": row.external_id,
-                "internal_id": row.internal_id,
-                "title": row.title,
-                "purpose": row.purpose,
-                "priority": row.priority,
-                "status": row.status,
-                "declared_dependencies": ";".join(
-                    row.declared_dependencies
-                ),
-                "inferred_dependencies": ";".join(
-                    row.inferred_dependencies
-                ),
-                "notes": row.notes,
-            }
-        )
+        writer.writerow(_row_values(row))
     return buffer.getvalue()
 
 
@@ -492,14 +566,31 @@ def normalize_csv_text(
     *,
     source_name: str,
     repo_root: Path,
+    task_directory_entry: str = "000-main.md",
 ) -> NormalizedRoadmap:
-    records = _parse_records(source, source_name=source_name)
-    rows = _generate_rows(records, repo_root=repo_root.resolve())
-    text = rows_to_csv_text(rows)
-    return NormalizedRoadmap(rows=rows, text=text, changed=text != source)
+    headers, records = _parse_records(source, source_name=source_name)
+    rows, warnings = _generate_rows(
+        headers,
+        records,
+        repo_root=repo_root.resolve(),
+        task_directory_entry=task_directory_entry,
+    )
+    text = rows_to_csv_text(headers, rows)
+    return NormalizedRoadmap(
+        headers=headers,
+        rows=rows,
+        text=text,
+        changed=text != source,
+        warnings=warnings,
+    )
 
 
-def normalize_csv(path: Path, *, repo_root: Path) -> NormalizedRoadmap:
+def normalize_csv(
+    path: Path,
+    *,
+    repo_root: Path,
+    task_directory_entry: str = "000-main.md",
+) -> NormalizedRoadmap:
     try:
         source = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -508,11 +599,21 @@ def normalize_csv(path: Path, *, repo_root: Path) -> NormalizedRoadmap:
         source,
         source_name=str(path),
         repo_root=repo_root,
+        task_directory_entry=task_directory_entry,
     )
 
 
-def _read_rows(csv_path: Path, repo_root: Path) -> list[Row]:
-    return normalize_csv(csv_path, repo_root=repo_root).rows
+def _read_rows(
+    csv_path: Path,
+    repo_root: Path,
+    *,
+    task_directory_entry: str = "000-main.md",
+) -> list[Row]:
+    return normalize_csv(
+        csv_path,
+        repo_root=repo_root,
+        task_directory_entry=task_directory_entry,
+    ).rows
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -548,14 +649,22 @@ def _roadmap_title(stem: str) -> str:
     return " ".join(rendered)
 
 
-def _id_reference(row: Row, output_path: Path, repo_root: Path) -> str:
-    label = row.internal_id
+def _id_reference(
+    row: Row,
+    readiness: str,
+    output_path: Path,
+    repo_root: Path,
+) -> str:
+    label = html.escape(row.internal_id)
+    color = READINESS_LINK_COLORS.get(readiness)
+    style = f' style="color:{color}"' if color else ""
     if row.link_target is None:
-        return label
+        return f"<span{style}>{label}</span>" if style else label
     relative = os.path.relpath(
         repo_root / row.link_target, output_path.parent
     )
-    return f"[{label}]({Path(relative).as_posix()})"
+    href = html.escape(Path(relative).as_posix(), quote=True)
+    return f'<a{style} href="{href}">{label}</a>'
 
 
 def _dependency_reference(
@@ -623,11 +732,29 @@ def derive_readiness(rows: list[Row]) -> dict[str, tuple[str, tuple[str, ...]]]:
 
 
 def render_markdown(
-    csv_path: Path, rows: list[Row], repo_root: Path
+    csv_path: Path,
+    rows: list[Row],
+    repo_root: Path,
+    headers: tuple[str, ...],
 ) -> str:
     output_path = csv_path.with_suffix(".md")
     title = _roadmap_title(csv_path.stem)
     by_id = {row.internal_id.casefold(): row for row in rows}
+    readiness = derive_readiness(rows)
+    custom_headers = arbitrary_headers(headers)
+    display_headers = (
+        "Order",
+        "ID",
+        *custom_headers,
+        "Dependencies",
+        "External ID",
+        "Priority",
+        "Status",
+    )
+    legend = " · ".join(
+        f'<span style="color:{color}">{name}</span>'
+        for name, color in READINESS_LINK_COLORS.items()
+    )
     lines = [
         f"# {title}",
         "",
@@ -638,8 +765,10 @@ def render_markdown(
         "Tasks without a dependency relationship may proceed in parallel. "
         "List position is the current priority recommendation.",
         "",
-        "| Order | ID | Task | Purpose | Dependencies | External ID | Priority | Status | Notes |",
-        "|---:|---|---|---|---|---|---|---|---|",
+        f"ID colors: {legend}.",
+        "",
+        "| " + " | ".join(_markdown_text(name) for name in display_headers) + " |",
+        "|---:|" + "---|" * (len(display_headers) - 1),
     ]
     for order, row in enumerate(rows, start=1):
         dependencies = [
@@ -660,14 +789,20 @@ def render_markdown(
             )
             for key in row.inferred_dependencies
         )
+        state = readiness[row.internal_id.casefold()][0]
+        custom_values = tuple(
+            _markdown_text(row.field_value(header))
+            if row.field_value(header)
+            else "—"
+            for header in custom_headers
+        )
         lines.append(
             "| "
             + " | ".join(
                 (
                     str(order),
-                    _id_reference(row, output_path, repo_root),
-                    _markdown_text(row.title),
-                    _markdown_text(row.purpose),
+                    _id_reference(row, state, output_path, repo_root),
+                    *custom_values,
                     ", ".join(dependencies) if dependencies else "—",
                     (
                         f"`{_markdown_text(row.external_id)}`"
@@ -676,7 +811,6 @@ def render_markdown(
                     ),
                     _markdown_text(row.priority),
                     _markdown_text(row.status),
-                    _markdown_text(row.notes) if row.notes else "—",
                 )
             )
             + " |"
@@ -684,16 +818,32 @@ def render_markdown(
     return "\n".join(lines) + "\n"
 
 
+def _print_warnings(warnings: tuple[str, ...]) -> None:
+    for warning in warnings:
+        print(f"roadmap warning: {warning}", file=sys.stderr)
+
+
 def generate(
     csv_path: Path,
     *,
     repo_root: Path,
+    task_directory_entry: str = "000-main.md",
     check: bool = False,
 ) -> Path:
     csv_path = csv_path.resolve()
     repo_root = repo_root.resolve()
-    normalized = normalize_csv(csv_path, repo_root=repo_root)
-    rendered = render_markdown(csv_path, normalized.rows, repo_root)
+    normalized = normalize_csv(
+        csv_path,
+        repo_root=repo_root,
+        task_directory_entry=task_directory_entry,
+    )
+    _print_warnings(normalized.warnings)
+    rendered = render_markdown(
+        csv_path,
+        normalized.rows,
+        repo_root,
+        normalized.headers,
+    )
     output_path = csv_path.with_suffix(".md")
 
     if check:
@@ -721,7 +871,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        help="named roadmap config; defaults to roadmaps/config.json",
+        help="named roadmap config; defaults beside this script",
     )
     parser.add_argument(
         "--check",
@@ -732,15 +882,65 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _direct_csv_path(value: str) -> Path | None:
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    if path.suffix.lower() == ".csv" or path.exists():
+        return path.resolve()
+    return None
+
+
+def _discover_repository_root(csv_path: Path) -> Path:
+    override = os.environ.get("ROADMAP_REPOSITORY_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
+    try:
+        completed = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(csv_path.parent),
+                "rev-parse",
+                "--show-toplevel",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return Path.cwd().resolve()
+    return Path(completed.stdout.strip()).resolve()
+
+
 def main() -> int:
     args = _parse_args()
-    repo_root = Path(__file__).resolve().parent.parent
     try:
-        registry = load_registry(args.config)
-        csv_path = resolve_csv_argument(args.roadmap, registry)
+        direct_path = (
+            _direct_csv_path(args.roadmap)
+            if args.config is None
+            else None
+        )
+        if direct_path is not None:
+            csv_path = direct_path
+            repo_root = _discover_repository_root(csv_path)
+            task_directory_entry = os.environ.get(
+                "ROADMAP_TASK_DIRECTORY_ENTRY",
+                "000-main.md",
+            )
+            if Path(task_directory_entry).name != task_directory_entry:
+                raise RoadmapError(
+                    "ROADMAP_TASK_DIRECTORY_ENTRY must be a file name"
+                )
+        else:
+            registry = load_registry(args.config)
+            csv_path = resolve_csv_argument(args.roadmap, registry)
+            repo_root = registry.repository_root
+            task_directory_entry = registry.task_directory_entry
         output = generate(
             csv_path,
             repo_root=repo_root,
+            task_directory_entry=task_directory_entry,
             check=args.check,
         )
     except (RoadmapError, RoadmapConfigError) as exc:

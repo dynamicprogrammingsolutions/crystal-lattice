@@ -20,6 +20,26 @@ prepare platform boundaries that a later Linux host can reuse.
 - [ ] Existing macOS behavior and tests remain supported throughout the extraction and Windows implementation.
 - [ ] Current user and maintainer documentation explains supported Windows installation, development, testing, release, and platform differences.
 
+## Roadmap status updates
+
+Roadmap:
+[Open Source and iOS Release](../../roadmaps/open-source-and-ios-release.md)
+
+Instructions:
+[Updating a roadmap through CSV](../../roadmaps/docs/updating-roadmaps.md)
+
+Do not read the linked roadmap or instructions, inspect roadmap state, or
+update the roadmap as part of routine task execution or completion. Do so only
+when the user explicitly requests a roadmap status update, for example:
+“update the task status in the roadmap as per the instructions in the main
+task.”
+
+That explicit request authorizes reading the linked files, updating the
+authored CSV and generated Markdown, and synchronizing the configured Google
+Sheet as required by the instructions. It does not authorize unrelated roadmap
+changes. If the user limits the request to local files, do not mutate the
+sheet.
+
 ## Subtasks
 
 - [ ] `tasks/20260820-windows-desktop-target/010-windows-compatibility-architecture-spike.md`

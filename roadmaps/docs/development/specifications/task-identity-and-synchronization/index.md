@@ -25,15 +25,27 @@ The target:
 - stores dependencies canonically as internal IDs;
 - accepts useful aliases during editing and rewrites them canonically;
 - updates references when regenerated IDs change;
+- preserves ordered arbitrary source columns;
+- removes references to deleted rows with warnings;
 - converges CSV, generated Markdown, and Google Sheets on one normalized table.
 
 ## Current contract
 
-The implemented CSV and synchronized Google Sheet use:
+The implemented CSV and synchronized Google Sheet require:
 
-```csv
-task,external_id,internal_id,title,purpose,priority,status,declared_dependencies,inferred_dependencies,notes
+```text
+task
+external_id
+internal_id
+priority
+status
+declared_dependencies
+inferred_dependencies
 ```
+
+Every other source header is an arbitrary ordered field. Generated readiness
+and blocking-dependency columns follow the dynamic source width in Google
+Sheets.
 
 The previous `key`/`main_id` schema was migrated together across the local CSV,
 generated Markdown, and Google Sheet. The package README describes the current
@@ -47,7 +59,8 @@ commands and editing workflow.
 - Make dependency references short, unique, deterministic, and mechanically
   maintainable.
 - Allow spreadsheet edits without leaving stale IDs or mixed dependency forms.
-- Preserve strict dependency ordering and dry-run-first synchronization.
+- Preserve strict dependency ordering, deletion-tolerant cleanup warnings, and
+  dry-run-first synchronization.
 
 ## Non-goals
 
@@ -66,7 +79,7 @@ commands and editing workflow.
 
 ```text
 task:
-tasks/20260804-open-source-public-release/040-minimum-ci-and-automation-hardening.md
+work/20260804-example/040-hardening.md
 
 external_id:
 CL-368
@@ -75,19 +88,19 @@ internal_id:
 CL-368-040
 ```
 
-The generated task title links directly to the Markdown file.
+The generated ID links directly to the Markdown file.
 
 ### Task directory
 
 ```text
 task:
-tasks/20260804-open-source-public-release
+work/20260804-example
 
 internal_id:
 0804-OS
 ```
 
-The generated task title links to `000-main.md` inside the directory.
+The generated ID links to the configured entry file inside the directory.
 
 ### Free task name
 
@@ -99,7 +112,7 @@ internal_id:
 WEB-IOS
 ```
 
-The generated task title has no repository link.
+The generated ID has no repository link.
 
 ### Regenerated reference
 

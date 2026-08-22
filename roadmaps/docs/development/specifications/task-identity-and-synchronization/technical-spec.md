@@ -2,23 +2,35 @@
 
 ## Data model
 
-The normalized CSV and Google Sheets column order is:
+Every normalized CSV and Google Sheet contains these semantic headers:
 
-```csv
-task,external_id,internal_id,title,purpose,priority,status,declared_dependencies,inferred_dependencies,notes
+```text
+task
+external_id
+internal_id
+priority
+status
+declared_dependencies
+inferred_dependencies
 ```
+
+They may appear in any source-column order. Every other nonempty,
+case-insensitively unique header is an ordered arbitrary field preserved
+through CSV normalization, Markdown generation, push, and pull.
+`readiness` and `blocking_dependencies` are reserved generated presentation
+headers.
 
 | Column | Authority and constraints |
 |---|---|
 | `task` | Authored identity. Required and unique case-insensitively after path normalization. |
 | `external_id` | Optional authored identifier. May be shared by multiple tasks. |
 | `internal_id` | Generated and persisted identifier. Required after normalization and unique case-insensitively. |
-| `title` | Required authored display title. |
-| `purpose` | Required authored roadmap-level outcome. |
 | `priority` | `must have`, `should have`, or `good to have`. |
 | `status` | `pending`, `in progress`, `review`, or `done`. |
 | Dependency columns | Authored aliases on input; canonical internal IDs after normalization. |
-| `notes` | Optional authored context. |
+
+Fields such as `title`, `purpose`, `notes`, or `owner` are examples of arbitrary
+fields and have no special parser behavior.
 
 `task` replaces the current `key` as row identity. `external_id` replaces the
 external-identifier part of `main_id`. `internal_id` replaces generated display
@@ -39,13 +51,13 @@ Rules:
 - reject traversal outside the repository;
 - require an existing regular Markdown file;
 - preserve the normalized repository-relative path in the CSV;
-- link the generated Markdown task title directly to the file.
+- link the generated Markdown ID directly to the file.
 
 A free name ending in `.md` is therefore interpreted as a path and must exist.
 
 ### Task-directory path
 
-A repository-relative value under `tasks/` without a `.md` suffix is a task
+Any existing repository-relative directory without a `.md` suffix is a task
 directory.
 
 Rules:
@@ -53,12 +65,10 @@ Rules:
 - accept an optional trailing slash and normalize it away;
 - reject absolute paths and traversal outside the repository;
 - require an existing directory;
-- require an existing regular `000-main.md`;
+- require the configured task-directory entry file, defaulting to
+  `000-main.md`;
 - preserve the normalized directory path in the CSV;
-- link the generated Markdown task title to `<task>/000-main.md`.
-
-A free name beginning with `tasks/` is therefore interpreted as a task path and
-must satisfy these rules.
+- link the generated Markdown ID to that entry file.
 
 ### Free task name
 
@@ -89,10 +99,11 @@ Canonical internal IDs:
 
 ### Dated task directories
 
-For:
+For a dated parent directory and numbered Markdown filename at any repository
+path:
 
 ```text
-tasks/YYYYMMDD-<slug>/<NNN>-<subtask>.md
+<any path>/YYYYMMDD-<slug>/<NNN>-<subtask>.md
 ```
 
 the base is:
@@ -122,10 +133,10 @@ external_id CL-368                       -> CL-368
 
 ### Dated standalone Markdown
 
-For:
+For a dated standalone Markdown filename at any repository path:
 
 ```text
-tasks/YYYYMMDD-<slug>.md
+<any path>/YYYYMMDD-<slug>.md
 ```
 
 use normalized `external_id` when present. Otherwise use `MMDD-XX` from the
@@ -184,12 +195,12 @@ Resolve each semicolon-separated dependency token in this order:
 4. unique external ID.
 
 Then rewrite the dependency cell as semicolon-separated canonical internal
-IDs, preserving the authored dependency order and removing no intentional
-dependency.
+IDs, preserving the authored dependency order. An alias that matches no
+current row is removed with a warning so deleting completed historical rows
+does not invalidate the remaining roadmap.
 
 Reject:
 
-- unknown aliases;
 - self-dependencies;
 - duplicate dependencies;
 - a token present in both declared and inferred dependencies;
@@ -216,9 +227,10 @@ It:
 3. generates canonical internal IDs;
 4. resolves dependency aliases;
 5. rewrites dependency cells to canonical internal IDs;
-6. validates schema, uniqueness, statuses, priorities, and ordering;
-7. rewrites the CSV only when its normalized representation differs;
-8. generates Markdown from the normalized rows.
+6. removes missing dependency references with warnings;
+7. validates schema, uniqueness, statuses, priorities, and ordering;
+8. rewrites the CSV only when its normalized representation differs;
+9. generates Markdown from the normalized rows.
 
 The CSV rewrite uses a temporary file and same-directory atomic replacement.
 
@@ -233,6 +245,7 @@ It fails when:
 - task values are not normalized;
 - internal IDs are stale;
 - dependencies are not canonical;
+- dependencies reference removed rows and require cleanup;
 - the normalized CSV differs;
 - generated Markdown differs.
 
@@ -242,20 +255,22 @@ Every generated roadmap contains a prominent pointer to
 `roadmaps/docs/updating-roadmaps.md`, allowing an agent that receives only the
 generated Markdown to find the focused update workflow.
 
-The `ID` cell uses the canonical internal ID as the link caption:
+The `ID` cell uses the canonical internal ID as the link caption and colors it
+from derived readiness:
 
 ```text
 Caption: CL-368-040
 Target: tasks/20260804-open-source-public-release/040-minimum-ci-and-automation-hardening.md
 ```
 
-The task title is rendered in a separate `Task` column. A task-directory ID
-links to `000-main.md`. A free-name ID renders without a link.
+Task-file and task-directory IDs link to their resolved targets. A free-name ID
+renders as colored inline text without a link.
 
 The generated column order is:
 
 ```text
-Order, ID, Task, Purpose, Dependencies, External ID, Priority, Status, Notes
+Order, ID, <arbitrary fields in source order>, Dependencies,
+External ID, Priority, Status
 ```
 
 Repeated external IDs are shown as entered and do not affect link uniqueness.
@@ -299,14 +314,18 @@ reported as a synchronization blocker.
 The focused CSV workflow and synchronization workflow are documented
 separately under `roadmaps/docs/`.
 
+When the user explicitly requests a sheet-first update, the authorized sequence
+is pull dry run, pull write, local CSV update, regeneration and verification,
+push dry run, push write, then status and pull dry-run verification.
+
 ### Derived presentation
 
-Columns A–J remain the synchronized authored roadmap table. Synchronization
-owns:
+The authored source begins at column A and has the dynamic CSV width.
+Synchronization owns the next two columns:
 
 ```text
-K readiness
-L blocking_dependencies
+<first column after the source> readiness
+<next column>                   blocking_dependencies
 ```
 
 Readiness uses:
@@ -322,16 +341,18 @@ Readiness uses:
 The blocking-dependencies cell lists canonical internal IDs separated by
 semicolons.
 
-Synchronization manages whole-row conditional-formatting rules over A–L:
+Synchronization derives the status and readiness column letters from the
+actual header positions and manages whole-row conditional formatting through
+the presentation columns:
 
-- `=$G2="done"`: light green;
-- `=$K2="ready"`: light blue;
-- `=$K2="queued"`: light purple;
-- `=OR($G2="in progress",$G2="review")`: light orange.
+- status `done`: light green;
+- readiness `ready`: light blue;
+- readiness `queued`: light purple;
+- status `in progress` or `review`: light orange.
 
 No roadmap rule formats `blocked` or other values. Existing roadmap-owned rules
-are recognized by exact formula and A–L range before replacement; unrelated
-rules are preserved.
+are recognized by formula shape and full-row range before replacement;
+unrelated rules are preserved.
 
 ### Status
 

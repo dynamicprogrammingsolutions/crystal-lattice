@@ -31,12 +31,16 @@ class RoadmapTarget:
     spreadsheet_id: str
     spreadsheet_title: str
     sheet: str
+    repository_root: Path | None = None
+    task_directory_entry: str = "000-main.md"
 
 
 @dataclass(frozen=True)
 class Registry:
     path: Path
     env_file: Path
+    repository_root: Path
+    task_directory_entry: str
     google_sheets: GoogleSheetsSettings
     roadmaps: dict[str, RoadmapTarget]
 
@@ -53,8 +57,7 @@ def configured_registry_path(path: Path | None = None) -> Path:
 def _load_dotenv(path: Path) -> dict[str, str]:
     if not path.is_file():
         raise RoadmapConfigError(
-            f"roadmap environment file is missing: {path}; "
-            "copy roadmaps/.env.example to roadmaps/.env"
+            f"roadmap environment file is missing: {path}"
         )
     values: dict[str, str] = {}
     for line_number, raw_line in enumerate(
@@ -149,6 +152,28 @@ def load_registry(path: Path | None = None) -> Registry:
     env_file = env_file.resolve()
     environment = _resolved_environment(env_file)
 
+    repository_root_value = _required_string(
+        data.get("repository_root", "."),
+        field="repository_root",
+        environment=environment,
+    )
+    repository_root = Path(repository_root_value).expanduser()
+    if not repository_root.is_absolute():
+        repository_root = config_path.parent / repository_root
+    repository_root = repository_root.resolve()
+    if not repository_root.is_dir():
+        raise RoadmapConfigError("configured repository_root is missing")
+
+    task_directory_entry = _required_string(
+        data.get("task_directory_entry", "000-main.md"),
+        field="task_directory_entry",
+        environment=environment,
+    )
+    if Path(task_directory_entry).name != task_directory_entry:
+        raise RoadmapConfigError(
+            "task_directory_entry must be a file name without directories"
+        )
+
     raw_sheets = data.get("google_sheets")
     if not isinstance(raw_sheets, dict):
         raise RoadmapConfigError("google_sheets must be an object")
@@ -157,7 +182,10 @@ def load_registry(path: Path | None = None) -> Registry:
         field="google_sheets.credentials_file",
         environment=environment,
     )
-    credentials_file = Path(credentials_value).expanduser().resolve()
+    credentials_file = Path(credentials_value).expanduser()
+    if not credentials_file.is_absolute():
+        credentials_file = config_path.parent / credentials_file
+    credentials_file = credentials_file.resolve()
     if not credentials_file.is_file():
         raise RoadmapConfigError(
             "configured Google application credentials file is missing"
@@ -203,11 +231,15 @@ def load_registry(path: Path | None = None) -> Registry:
                 field=f"roadmaps.{key}.sheet",
                 environment=environment,
             ),
+            repository_root=repository_root,
+            task_directory_entry=task_directory_entry,
         )
 
     return Registry(
         path=config_path,
         env_file=env_file,
+        repository_root=repository_root,
+        task_directory_entry=task_directory_entry,
         google_sheets=google_sheets,
         roadmaps=targets,
     )
