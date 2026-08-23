@@ -45,7 +45,11 @@ Important rules:
 - `priority`, `status`, and both dependency columns are semantic fields.
 - Every other column is arbitrary and is preserved in CSV order through
   Markdown and Google Sheets. The current roadmap includes `main_task`,
-  `title`, `purpose`, and `notes`.
+  `completed_at`, `title`, `purpose`, and `notes`.
+- `completed_at` is manually maintained as `YYYY-MM-DD`. When marking a row
+  done, use the user-confirmed completion date or the strongest matching
+  completion commit; do not overwrite an existing date merely because a later
+  follow-up commit touched the task.
 - Dependencies use internal IDs after normalization.
 - Dependency input may temporarily use an old internal ID, exact task value, or
   unique external ID; generation rewrites it to the canonical internal ID.
@@ -53,7 +57,6 @@ Important rules:
   matching internal ID.
 - If a referenced row was deleted, generation removes the now-missing
   dependency and prints a warning. Review every warning before synchronization.
-- All `done` rows stay at the top.
 - Every represented dependency must appear above its dependent row.
 - Priority is `must have`, `should have`, or `good to have`.
 - Status is `pending`, `in progress`, `review`, or `done`.

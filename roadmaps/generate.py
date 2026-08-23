@@ -496,16 +496,10 @@ def _generate_rows(
 
 
 def _validate_rows(rows: list[Row]) -> None:
-    seen_non_done = False
     positions = {
         row.internal_id.casefold(): index for index, row in enumerate(rows)
     }
     for index, row in enumerate(rows):
-        if row.status == "done":
-            if seen_non_done:
-                raise RoadmapError("all done rows must be at the top")
-        else:
-            seen_non_done = True
         overlap = {
             value.casefold() for value in row.declared_dependencies
         } & {value.casefold() for value in row.inferred_dependencies}

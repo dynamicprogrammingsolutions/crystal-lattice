@@ -256,7 +256,7 @@ class RoadmapGeneratorTests(unittest.TestCase):
             rendered,
         )
 
-    def test_rejects_done_row_after_non_done_row(self) -> None:
+    def test_preserves_done_row_after_non_done_row(self) -> None:
         csv_path = self._write_csv(
             [
                 self._row(status="pending"),
@@ -267,10 +267,10 @@ class RoadmapGeneratorTests(unittest.TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(
-            generate.RoadmapError, "done rows must be at the top"
-        ):
-            generate.generate(csv_path, repo_root=self.root)
+        generate.generate(csv_path, repo_root=self.root)
+        rows = list(csv.DictReader(csv_path.read_text().splitlines()))
+
+        self.assertEqual([row["status"] for row in rows], ["pending", "done"])
 
     def test_rejects_dependency_that_appears_later(self) -> None:
         csv_path = self._write_csv(

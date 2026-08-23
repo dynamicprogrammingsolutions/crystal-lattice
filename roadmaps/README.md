@@ -94,9 +94,10 @@ generated Markdown, push, and pull. `readiness` and
 | `declared_dependencies` | Semicolon-separated dependency aliases declared by task files; normalized to internal IDs. |
 | `inferred_dependencies` | Semicolon-separated dependency aliases established by roadmap analysis; normalized to internal IDs. |
 
-For example, the current release roadmap uses arbitrary `main_task`, `title`,
-`purpose`, and `notes` fields. Those names have no special meaning to the
-scripts.
+For example, the current release roadmap uses arbitrary `main_task`,
+`completed_at`, `title`, `purpose`, and `notes` fields. `completed_at` is a
+manually maintained ISO date for completed rows. Those names have no special
+meaning to the scripts.
 
 Dependencies are always tasks. Approval, timing, feedback, credentials, and
 other conditions belong in `notes` unless a task exists to represent them.
@@ -161,7 +162,6 @@ all resolvable references automatically.
 ## Ordering rules
 
 - Rows are emitted exactly in CSV order. The generator never sorts them.
-- All `done` rows must be at the top of the CSV.
 - Every resolved dependency must appear above its dependent row.
 - A dependency whose row was removed is deleted during normalization with a
   warning. This supports intentionally deleting completed historical rows.
