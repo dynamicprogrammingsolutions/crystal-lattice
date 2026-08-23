@@ -275,6 +275,13 @@ Release.
   - core fast suite: 465 passed, 26 deselected, 1 xfailed
   - application fast suite: 329 passed, 90 deselected
   - release/installer script tests: 12 passed
+- 2026-08-23: Pre-tag workflow run `32661290455` built and smoke-tested
+  all attempted archives, but GitHub rejected every `actions/upload-artifact`
+  step because the repository artifact quota was full.
+- 2026-08-23: Deleted 34 obsolete CLI workflow artifacts totaling about
+  2.19 GiB. GitHub quota accounting did not refresh immediately, so the
+  workflow was changed to upload tag-build archives directly to a draft GitHub
+  Release. Manual dispatch now builds/smoke-tests without storing archives.
 
 ## Completion Notes
 

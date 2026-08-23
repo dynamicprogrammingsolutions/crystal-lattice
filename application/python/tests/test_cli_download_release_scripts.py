@@ -9,6 +9,7 @@ RELEASE_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "release.sh"
 PROMOTE_SCRIPT = (
     ROOT / "deploy" / "aws-cli-downloads" / "promote-github-release.sh"
 )
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release-crystal-lattice-cli.yml"
 RELEASE_SHA = "a" * 40
 
 
@@ -409,3 +410,14 @@ def test_promote_script_dry_run_does_not_require_downloaded_assets(
     assert "publish-assets.sh" in result.stdout
     assert "Promotion dry run completed" in result.stdout
     assert not list(assets_dir.iterdir())
+
+
+def test_release_workflow_uses_draft_release_instead_of_actions_artifacts() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "actions/upload-artifact" not in workflow
+    assert "actions/download-artifact" not in workflow
+    assert "gh release create" in workflow
+    assert "gh release upload" in workflow
+    assert "gh release edit" in workflow
+    assert "gh release download" in workflow

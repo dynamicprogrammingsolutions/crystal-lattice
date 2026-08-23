@@ -1076,8 +1076,10 @@ Manual dry run:
 gh workflow run release-crystal-lattice-cli.yml
 ```
 
-Manual runs execute tests, build every platform archive, smoke-test the
-archives, and upload workflow artifacts. They do not publish a GitHub Release.
+Manual runs execute tests, build every platform archive, and smoke-test the
+archives. They do not store Actions artifacts or publish a GitHub Release.
+Tag-triggered builds upload each archive directly to a draft GitHub Release;
+the publish job verifies all four assets before making the release public.
 
 Local workflow validation:
 
@@ -1101,8 +1103,7 @@ act workflow_dispatch \
 ```
 
 `act` can validate the Linux-shaped workflow path locally. It cannot prove the
-native macOS or Windows runners, and `actions/upload-artifact` may require
-GitHub's hosted runtime token even after the local build and smoke test pass.
+native macOS or Windows runners or the GitHub Release upload path.
 
 Official releases are created by pushing a tag that matches the CLI package
 version:

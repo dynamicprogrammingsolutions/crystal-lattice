@@ -234,6 +234,12 @@ deploy/aws-cli-downloads/release.sh \
 The script validates the local version and tag, then lets GitHub Actions run
 the official matrix build. It does not build all release archives locally.
 
+The workflow avoids GitHub Actions artifact storage. On a release tag it first
+creates a draft GitHub Release, each matrix job uploads its smoke-tested archive
+directly to that draft, and the publish job verifies the four expected names
+before publishing the release. `workflow_dispatch` runs build and smoke-test
+the matrix without storing archives.
+
 The selected `--profile` must match the repository variables configured with
 `configure-github-actions-vars.sh`. The release script refuses to create a tag
 when the selected stack outputs and GitHub variables differ. It also requires:

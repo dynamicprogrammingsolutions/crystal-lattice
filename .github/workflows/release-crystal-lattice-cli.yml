@@ -64,11 +64,39 @@ jobs:
       - name: Run application tests
         run: pytest application/python/tests -q -m "not integration and not docker"
 
+  prepare-release:
+    name: Prepare Draft GitHub Release
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: cli-release
+    permissions:
+      contents: write
+    steps:
+      - name: Create draft release for tag builds
+        if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub Release already exists for $GITHUB_REF_NAME"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --draft \
+              --generate-notes
+          fi
+
   build:
     name: Build ${{ matrix.target }}
-    needs: test
+    needs:
+      - test
+      - prepare-release
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -153,12 +181,14 @@ jobs:
       - name: Smoke-test release archive
         run: python scripts/smoke_test_crystal_lattice_python_runtime_archive.py "$CRYSTAL_RELEASE_ARCHIVE"
 
-      - name: Upload release archive artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: crystal-lattice-cli-${{ matrix.target }}
-          path: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
-          if-no-files-found: error
+      - name: Upload archive to draft GitHub Release
+        if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" "$CRYSTAL_RELEASE_ARCHIVE" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
 
   publish:
     name: Publish GitHub Release
@@ -171,18 +201,40 @@ jobs:
       # Required only to create or update the GitHub Release.
       contents: write
     steps:
-      - name: Download release archive artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          path: release-assets
-          pattern: crystal-lattice-cli-*
-          merge-multiple: true
-
-      - name: Publish release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          files: release-assets/*
-          generate_release_notes: true
+      - name: Verify assets and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#crystal-lattice-cli-v}"
+          expected=(
+            "crystal-lattice-python-runtime-v${version}-darwin-amd64.tar.gz"
+            "crystal-lattice-python-runtime-v${version}-darwin-arm64.tar.gz"
+            "crystal-lattice-python-runtime-v${version}-linux-amd64.tar.gz"
+            "crystal-lattice-python-runtime-v${version}-windows-amd64.zip"
+          )
+          mapfile -t actual < <(
+            gh release view "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json assets \
+              --jq '.assets[].name' |
+              sort
+          )
+          if [ "${#actual[@]}" -ne "${#expected[@]}" ]; then
+            printf 'Expected %s release assets, found %s:\n' \
+              "${#expected[@]}" "${#actual[@]}" >&2
+            printf '  %s\n' "${actual[@]}" >&2
+            exit 1
+          fi
+          for name in "${expected[@]}"; do
+            printf '%s\n' "${actual[@]}" | grep -Fxq "$name" || {
+              echo "Missing GitHub Release asset: $name" >&2
+              exit 1
+            }
+          done
+          gh release edit "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false \
+            --latest
 
   publish-downloads:
     name: Publish Downloads
@@ -215,12 +267,15 @@ jobs:
           role-to-assume: ${{ secrets.CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Download release archive artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          path: release-assets
-          pattern: crystal-lattice-cli-*
-          merge-multiple: true
+      - name: Download GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release-assets
+          gh release download "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir release-assets \
+            --pattern "crystal-lattice-python-runtime-v${GITHUB_REF_NAME#crystal-lattice-cli-v}-*"
 
       - name: Publish downloads
         env:
