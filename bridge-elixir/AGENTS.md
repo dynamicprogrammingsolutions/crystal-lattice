@@ -107,6 +107,13 @@ bridge-connectivity specification for the maintained cross-package contract.
   - Multi‑node cluster with HAProxy load balancing.
   - Nodes use libcluster Gossip to form a cluster.
 
+- `deploy/remote-docker/`
+  - Reusable single-node remote Docker deployment.
+  - Takes host-specific access, public URL, and the stable signing secret from
+    environment variables supplied by a gitignored local wrapper.
+  - Preserves an explicit Compose project identity and validates both origin
+    and public HTTP v1 capability endpoints.
+
 - `PRODUCTION_DEPLOYMENT.md`
   - Detailed instructions for single‑node and clustered Docker deployments
     (with optional TLS at HAProxy or Nginx).

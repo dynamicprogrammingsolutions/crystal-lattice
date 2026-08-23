@@ -8,6 +8,7 @@ Start here:
 
 - [Quickstart](quickstart.md)
 - [Bridge protocol guide](bridge-protocol.md)
+- [Remote Docker deployment](remote-docker-deployment.md)
 - [Production deployment](../PRODUCTION_DEPLOYMENT.md)
 
 Maintainer documentation:

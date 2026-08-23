@@ -102,29 +102,28 @@ the code base to support these.
 This is the simplest way to run the bridge: one container, one HTTP endpoint.
 Use this for development, labs, or small internal deployments.
 
-### 3.0. Copying `bridge-elixir` to the server (rsync)
+### 3.0. Deploying to a remote Docker host
 
-For a simple test or single-node deployment, a common pattern is:
-
-1. Develop locally.
-2. `rsync` the `bridge-elixir` directory to your server.
-3. Run the Docker Compose commands on the server.
-
-From the **repository root on your local machine**, run:
+Prefer the reusable remote deployment command over incremental `rsync`. It
+uploads a clean source bundle, preserves an explicit Compose project identity,
+passes the stable pairing-token secret, and verifies the origin and public
+capability endpoints:
 
 ```bash
-cd /path/to/ai-agent-platform
-
-# Replace user@server with your SSH user and hostname/IP.
-rsync -av --exclude '_build'  --exclude 'deps'  bridge-elixir/ user@server:~/bridge-elixir/
+BRIDGE_REMOTE=user@server \
+BRIDGE_PUBLIC_URL=https://bridge.example.com \
+BRIDGE_TOKEN_SECRET=replace-with-a-stable-random-secret \
+BRIDGE_BIND_HOST=127.0.0.1 \
+./bridge-elixir/deploy/remote-docker/deploy.sh
 ```
 
-Then SSH into the server and continue with the Docker commands below:
+Put concrete host access and the stable secret in a gitignored local wrapper.
+See [Remote Docker deployment](docs/remote-docker-deployment.md) for the full
+configuration and hosted E2E options.
 
-```bash
-ssh user@server
-cd ~/bridge-elixir
-```
+For a manual trusted-network deployment, copy a clean checkout rather than
+overlaying an existing remote source directory. Removed source files left by
+incremental copies can otherwise remain in later Docker build contexts.
 
 ### 3.1. Single node, HTTP only (no TLS)
 
@@ -194,7 +193,15 @@ Let’s Encrypt.
        proxy_set_header Upgrade $http_upgrade;
        proxy_set_header Connection "upgrade";
        proxy_set_header Host $host;
+       proxy_pass_request_headers on;
+       proxy_cache off;
+       proxy_request_buffering off;
+       proxy_buffering off;
+       proxy_read_timeout 180s;
+       proxy_send_timeout 180s;
      }
+
+     client_max_body_size 110m;
    }
    ```
 

@@ -72,6 +72,19 @@ Docker mode covers five production-adapter cases:
 Optional AWS scripts and external mode are documented in
 `packages/frontend-sdk/src/integration/__tests__/README.md`.
 
+For a remote single-node deployment:
+
+```bash
+BRIDGE_E2E_MODE=external \
+BRIDGE_E2E_URL=wss://bridge.example.com/ws/websocket \
+npm --workspace @crystal-lattice/frontend-sdk run integration:bridge
+```
+
+External mode leaves the deployment running and intentionally skips the
+self-managed bridge-restart case. It still covers legacy large payloads,
+HTTP-only raw and JSON bodies, gzip, resume, event polling, hybrid routing,
+and concurrent legacy requests.
+
 ## Focused package suites
 
 ```bash
