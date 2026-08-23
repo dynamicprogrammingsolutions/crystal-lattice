@@ -14,8 +14,8 @@ Add a maintainer-facing script that validates release state, creates/pushes the 
 - [x] Report GitHub Release URL when available.
 - [x] Run or print `smoke.sh` command for the configured download profile.
 - [x] Document release orchestration in the README.
-- [ ] Test in no-op/dry-run mode.
-- [ ] Test against the testing profile before any production use.
+- [x] Test in no-op/dry-run mode.
+- [x] Test against the testing profile before any production use.
 
 Parent Task: `tasks/20260617-cli-download-domain-release-automation/000-main.md`
 
@@ -206,10 +206,10 @@ Run the corrected script in stages:
 - [x] Print the GitHub Release URL after successful publication.
 - [x] Add focused orchestration-script tests.
 - [x] Run local syntax/lint/tests.
-- [ ] Run a successful testing-profile dry run for the approved version.
-- [ ] Create/push the approved release tag and watch the correct workflow run.
-- [ ] Run the emitted testing-domain smoke command.
-- [ ] Record evidence and mark this subtask complete.
+- [x] Run a successful testing-profile dry run for the approved version.
+- [x] Create/push the approved release tag and watch the correct workflow run.
+- [x] Run the emitted testing-domain smoke command.
+- [x] Record evidence and mark this subtask complete.
 
 ### Requirement verification
 
@@ -237,10 +237,28 @@ Run the corrected script in stages:
 - 2026-08-23: `release.sh` now verifies profile-specific GitHub variables, the
   OIDC secret, clean synchronized `main`, discovers the tag run by SHA, watches
   the concrete run ID with `--exit-status`, and prints the GitHub Release URL.
-- 2026-08-23: Nine focused release/promotion script tests passed.
+- 2026-08-23: Eleven focused release/promotion/OIDC workflow tests passed.
+- 2026-08-23: The approved dry run printed tag
+  `crystal-lattice-cli-v0.1.1`, commit `7caaa64f`, the concrete testing URL,
+  tag push commands, run discovery, `gh run watch <run-id> --exit-status`, and
+  the testing smoke command.
+- 2026-08-23: The real script created and pushed the tag, discovered run
+  `32666529964`, and correctly propagated its initial OIDC publication failure.
+  The tag and release were not moved or deleted; the failed job was rerun after
+  configuration correction and the workflow completed successfully.
 
 ## Completion Notes
 
 Added during completion on 2026-06-18.
 
 The release orchestration script exists and is documented. A real release/tag flow was intentionally not run after the live installer smoke found a macOS runtime portability issue.
+
+Completion update added on 2026-08-23:
+
+- Dry-run and real tag creation were validated for `0.1.1`.
+- The script selected the tag-triggered run by release SHA and watched run
+  `32666529964` with failure propagation.
+- The initial AWS publication failure demonstrated the documented recovery
+  boundary: the immutable tag and successful GitHub Release were retained, and
+  only the failed job was rerun after the OIDC configuration fix.
+- Testing-domain `smoke.sh --profile test --version 0.1.1` passed.

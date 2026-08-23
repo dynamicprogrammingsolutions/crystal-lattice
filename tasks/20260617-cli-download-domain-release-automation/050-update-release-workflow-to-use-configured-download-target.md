@@ -230,16 +230,16 @@ Release.
 
 - [x] Resolve the authoritative `main` history and establish a clean release worktree.
 - [x] Obtain approval for the new release version.
-- [ ] Create and push the release commit on `main`.
-- [ ] Verify or create the `cli-release` GitHub environment.
+- [x] Create and push the release commit on `main`.
+- [x] Verify or create the `cli-release` GitHub environment.
 - [x] Run local workflow validation and fast tests.
-- [ ] Run a green `workflow_dispatch` matrix on the exact release commit.
-- [ ] Switch GitHub release variables/secrets to the testing profile and verify them.
-- [ ] Create the release tag through subtask 060.
-- [ ] Verify the tag-triggered GitHub Release and OIDC download publication jobs.
-- [ ] Run and record testing-domain smoke verification.
-- [ ] Restore and verify production GitHub release configuration.
-- [ ] Record final evidence and mark this subtask complete.
+- [x] Run a green `workflow_dispatch` matrix on the exact release commit.
+- [x] Switch GitHub release variables/secrets to the testing profile and verify them.
+- [x] Create the release tag through subtask 060.
+- [x] Verify the tag-triggered GitHub Release and OIDC download publication jobs.
+- [x] Run and record testing-domain smoke verification.
+- [x] Restore and verify production GitHub release configuration.
+- [x] Record final evidence and mark this subtask complete.
 
 ### Requirement verification
 
@@ -291,6 +291,10 @@ Release.
   `crystal-lattice-cli-v*` tags and adds the environment subject to the IAM
   trust. Future manual dispatch jobs do not attach the release environment;
   only the tag-gated AWS publish job remains environment-scoped.
+- 2026-08-23: After the test role/environment update, rerunning only the failed
+  job completed tag run `32666529964` successfully.
+- 2026-08-23: Testing-domain full installer smoke passed for `0.1.1`;
+  invalidation `IA4VIBTM5M4OY08L9325ML8WCK` completed for the workflow publish.
 
 ## Completion Notes
 
@@ -305,3 +309,22 @@ Workflow dispatch run `27745015177` on `main` tested the uv-managed Python runti
 Final update added during completion on 2026-06-18:
 
 Workflow dispatch run `27746631545` passed all tests and all four matrix build/archive-smoke jobs from `main`. Artifacts from that run were manually published to the testing download domain because `workflow_dispatch` intentionally skips tag-only publish jobs. The remaining workflow validation is a real tag-triggered publish path, including GitHub Release publication and OIDC upload through `publish-downloads`.
+
+Completion update added on 2026-08-23:
+
+- Released `crystal-lattice-cli-v0.1.1` from commit
+  `7caaa64f31af94fca0d7b2a089c81d49d1c1ed0e`.
+- Pre-tag workflow-dispatch run `32662372280` passed tests and all four
+  build/archive-smoke jobs.
+- Tag-triggered run `32666529964` passed tests, all four platform builds,
+  GitHub Release publication, and OIDC publication to the testing download
+  domain after the environment/IAM trust correction.
+- GitHub Release:
+
+  ```text
+  https://github.com/dynamicprogrammingsolutions/crystal-lattice/releases/tag/crystal-lattice-cli-v0.1.1
+  ```
+
+- The workflow now uploads tag-build archives directly to a draft GitHub
+  Release, avoiding GitHub Actions artifact-storage quota.
+- Production GitHub variables/secrets were restored and verified after testing.

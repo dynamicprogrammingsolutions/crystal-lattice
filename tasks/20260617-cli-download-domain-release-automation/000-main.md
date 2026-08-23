@@ -8,12 +8,12 @@ Create a reproducible AWS/GitHub deployment path for Crystal Lattice CLI downloa
 - [x] `tasks/20260617-cli-download-domain-release-automation/020-add-download-domain-infra-bootstrap.md`
 - [x] `tasks/20260617-cli-download-domain-release-automation/030-add-domain-aware-installer-upload.md`
 - [x] `tasks/20260617-cli-download-domain-release-automation/040-add-github-oidc-role-and-vars-setup.md`
-- [ ] `tasks/20260617-cli-download-domain-release-automation/050-update-release-workflow-to-use-configured-download-target.md`
-  - Workflow dispatch run `27746631545` passed; tag-triggered publish still needs validation.
-- [ ] `tasks/20260617-cli-download-domain-release-automation/060-add-release-orchestration-script.md`
-  - Script exists; full release orchestration still needs tag/publish validation after the workflow is green.
-- [ ] `tasks/20260617-cli-download-domain-release-automation/070-add-promote-existing-github-release-script.md`
-  - Script exists; existing GitHub Release assets for `0.1.0` used older names, so promotion was not used for the live test.
+- [x] `tasks/20260617-cli-download-domain-release-automation/050-update-release-workflow-to-use-configured-download-target.md`
+  - Tag-triggered `0.1.1` release and OIDC testing-domain publication passed.
+- [x] `tasks/20260617-cli-download-domain-release-automation/060-add-release-orchestration-script.md`
+  - Dry-run, tag creation, exact-run discovery/watch, and failure propagation were validated.
+- [x] `tasks/20260617-cli-download-domain-release-automation/070-add-promote-existing-github-release-script.md`
+  - The `0.1.1` GitHub Release was promoted to testing and production with matching assets and smoke tests.
 - [x] `tasks/20260617-cli-download-domain-release-automation/080-add-smoke-tests-and-domain-cutover-docs.md`
   - Testing-domain and production-domain public installer smoke passed; production website/docs were updated and deployed.
 - [ ] `tasks/20260617-cli-download-domain-release-automation/090-add-aws-and-real-device-cli-install-lab.md`

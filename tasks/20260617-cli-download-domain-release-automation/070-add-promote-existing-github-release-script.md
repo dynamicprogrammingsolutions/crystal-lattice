@@ -13,7 +13,7 @@ Add a script that promotes already-built GitHub Release assets to the selected t
 - [x] Invalidate CloudFront.
 - [x] Reuse or call `publish-assets.sh` for local asset upload.
 - [x] Document promotion flow in the README.
-- [ ] Test promotion against the testing domain.
+- [x] Test promotion against the testing domain.
 - [x] Document production promotion from test-validated artifacts.
 
 Parent Task: `tasks/20260617-cli-download-domain-release-automation/000-main.md`
@@ -200,15 +200,15 @@ objects downloaded through both domains.
 - [x] Fix promotion dry-run so it succeeds without downloaded assets.
 - [x] Add focused promotion-script tests.
 - [x] Run local syntax/lint/tests.
-- [ ] Run successful testing-profile promotion dry run.
-- [ ] Run idempotent real promotion to testing and inspect kept assets.
-- [ ] Run testing-domain smoke verification.
-- [ ] Restore/confirm production GitHub repository configuration.
-- [ ] Run production-profile promotion dry run.
-- [ ] Promote the same GitHub Release to production.
-- [ ] Run production-domain smoke verification.
-- [ ] Compare GitHub/test/prod asset hashes.
-- [ ] Record evidence and mark this subtask complete.
+- [x] Run successful testing-profile promotion dry run.
+- [x] Run idempotent real promotion to testing and inspect kept assets.
+- [x] Run testing-domain smoke verification.
+- [x] Restore/confirm production GitHub repository configuration.
+- [x] Run production-profile promotion dry run.
+- [x] Promote the same GitHub Release to production.
+- [x] Run production-domain smoke verification.
+- [x] Compare GitHub/test/prod asset hashes.
+- [x] Record evidence and mark this subtask complete.
 
 ### Requirement verification
 
@@ -238,6 +238,21 @@ objects downloaded through both domains.
   commands without validating an intentionally empty asset directory.
 - 2026-08-23: Focused dry-run coverage passed as part of the nine release and
   promotion script tests.
+- 2026-08-23: Testing and production dry runs passed. Real promotion downloaded
+  exactly four current `0.1.1` assets and published them first to testing, then
+  production.
+- 2026-08-23: Full installer smoke passed on both domains. Testing invalidation
+  `IA4YQSLTQOKLY6EB13ZF2ZK5WV` and production invalidation
+  `I8UEXRNLJ7325HCQFQOBT9241E` completed for the promotion publishes.
+- 2026-08-23: SHA-256 values matched across separate GitHub Release downloads,
+  testing S3 downloads, and production S3 downloads:
+
+  ```text
+  7077dd445e4ba5811f01b3a15c5faa87d8111c5a4d11bc6e9ea24f9cc7e1a682  darwin-amd64
+  8c468f40e6bd3b6701d65a3da9fb9dc68176f5bdb804b61b014deb5cedbbf206  darwin-arm64
+  052f0bc91763dbe0c1524dca72b3fdce39ba50f02d48788869948c5d81547f88  linux-amd64
+  2b1f59d7b9eed2354e880bf48c17299885562c3a8c2cbcf6b82f0fc7a6b83c2f  windows-amd64
+  ```
 
 ## Completion Notes
 
@@ -263,3 +278,15 @@ no assets match the file pattern
 ```
 
 The production endpoint was populated with the validated workflow-dispatch artifacts via `publish-assets.sh` instead. The README now documents this fallback for old releases whose GitHub Release asset names do not match the current runtime archive names.
+
+Completion update added on 2026-08-23:
+
+- `promote-github-release.sh --dry-run` now succeeds without requiring files
+  that were intentionally not downloaded.
+- The `0.1.1` GitHub Release was promoted idempotently to testing and then to
+  production.
+- `latest.txt`, domain-specific installers, all four archive URLs, CloudFront
+  invalidations, and full current-platform installer smoke were verified on
+  both domains.
+- Production GitHub variables/secrets were restored before production
+  promotion and remain the canonical configuration for future tag releases.
