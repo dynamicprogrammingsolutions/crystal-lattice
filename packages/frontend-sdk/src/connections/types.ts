@@ -1,3 +1,5 @@
+import type { BridgeTransportMode } from '../transport/bridgeConnectionTransport';
+
 export type ConnectionKind = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
 export interface BaseConnectionRecord {
@@ -26,6 +28,7 @@ export interface BridgeConnectionRecord extends BaseConnectionRecord {
   serverId: string;
   serverName: string;
   pairingToken: string | null;
+  transportMode?: BridgeTransportMode;
 }
 
 export interface CloudConnectionRecord extends BaseConnectionRecord {

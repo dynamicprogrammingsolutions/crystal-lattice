@@ -63,11 +63,30 @@ Configured in `config/config.exs`:
 - `PAIRING_CODE_TTL` – seconds before a pairing code expires (default `300`).
 - `MAX_PAIRING_ATTEMPTS` – max code submissions per client (default `3`).
 - `SESSION_TIMEOUT` – seconds before an inactive session is cleaned up (default `3600`).
+- `BRIDGE_HTTP_TRANSFER_TOKEN_TTL_SECONDS` – lifetime of one-time HTTP body
+  transfer credentials (default `180`).
+- `BRIDGE_HTTP_MAX_BODY_BYTES` – maximum streamed request or response body
+  size (default `104857600`).
+- `BRIDGE_MAX_PENDING_HTTP_TRANSFERS` – per-node transfer-admission limit
+  (default `128`). Keep independent edge/process capacity controls as well.
+- `BRIDGE_HTTP_COMPRESS_THRESHOLD_BYTES` – minimum viewer response size for
+  Cowboy gzip (default `1024`).
+
+All bridge nodes must share `BRIDGE_TOKEN_SECRET`, `BRIDGE_TOKEN_SALT`, and
+`BRIDGE_HTTP_TRANSFER_TOKEN_SALT` when HTTP/hybrid clients are enabled. Edge
+proxies must forward `Authorization`, `X-Crystal-Bridge-Token`, query strings,
+and all supported HTTP methods without caching `/bridge/v1/*`. The provided
+secure CloudFront templates enable HTTP/2 and compression; the TLS HAProxy
+listener advertises `h2,http/1.1`. Origin gzip is portable, while Brotli
+depends on the selected edge.
+
+For current protocol details and environment defaults, see
+[`docs/bridge-protocol.md`](docs/bridge-protocol.md).
 
 ### TLS-related variables (for future internal TLS)
 
-These are **not used by default** but are referenced in `BRIDGE_PLAN.md` and in
-the example config snippet in `README.md`:
+These names are examples for a possible future implementation. They are not
+read by the current bridge:
 
 - `TLS_ENABLED` – if set to `true`/`1`, internal TLS could be enabled.
 - `TLS_CERT_PATH` – path to a certificate file inside the container.
@@ -83,29 +102,28 @@ the code base to support these.
 This is the simplest way to run the bridge: one container, one HTTP endpoint.
 Use this for development, labs, or small internal deployments.
 
-### 3.0. Copying `bridge-elixir` to the server (rsync)
+### 3.0. Deploying to a remote Docker host
 
-For a simple test or single-node deployment, a common pattern is:
-
-1. Develop locally.
-2. `rsync` the `bridge-elixir` directory to your server.
-3. Run the Docker Compose commands on the server.
-
-From the **repository root on your local machine**, run:
+Prefer the reusable remote deployment command over incremental `rsync`. It
+uploads a clean source bundle, preserves an explicit Compose project identity,
+passes the stable pairing-token secret, and verifies the origin and public
+capability endpoints:
 
 ```bash
-cd /path/to/ai-agent-platform
-
-# Replace user@server with your SSH user and hostname/IP.
-rsync -av --exclude '_build'  --exclude 'deps'  bridge-elixir/ user@server:~/bridge-elixir/
+BRIDGE_REMOTE=user@server \
+BRIDGE_PUBLIC_URL=https://bridge.example.com \
+BRIDGE_TOKEN_SECRET=replace-with-a-stable-random-secret \
+BRIDGE_BIND_HOST=127.0.0.1 \
+./bridge-elixir/deploy/remote-docker/deploy.sh
 ```
 
-Then SSH into the server and continue with the Docker commands below:
+Put concrete host access and the stable secret in a gitignored local wrapper.
+See [Remote Docker deployment](docs/remote-docker-deployment.md) for the full
+configuration and hosted E2E options.
 
-```bash
-ssh user@server
-cd ~/bridge-elixir
-```
+For a manual trusted-network deployment, copy a clean checkout rather than
+overlaying an existing remote source directory. Removed source files left by
+incremental copies can otherwise remain in later Docker build contexts.
 
 ### 3.1. Single node, HTTP only (no TLS)
 
@@ -175,7 +193,15 @@ Let’s Encrypt.
        proxy_set_header Upgrade $http_upgrade;
        proxy_set_header Connection "upgrade";
        proxy_set_header Host $host;
+       proxy_pass_request_headers on;
+       proxy_cache off;
+       proxy_request_buffering off;
+       proxy_buffering off;
+       proxy_read_timeout 180s;
+       proxy_send_timeout 180s;
      }
+
+     client_max_body_size 110m;
    }
    ```
 
@@ -410,8 +436,9 @@ The default compose file defines two nodes explicitly. To add more nodes you can
   etc., each with a unique `PORT` and IP in the custom `bridge_network`
   subnet, then add matching `server` lines in `haproxy.cfg` / `haproxy-ssl.cfg`.
 
-For more dynamic scaling, you’d typically move to a Kubernetes-based deployment
-with libcluster’s DNS or Kubernetes strategies (see `BRIDGE_PLAN.md`).
+For more dynamic scaling, use a deployment whose service discovery matches the
+configured libcluster strategy. The committed Fargate deployment uses DNS
+polling.
 
 ---
 
@@ -485,7 +512,8 @@ and require a `200` status code.
 
 6. **Centralize logs and metrics.**
    - Forward container logs to a centralized system (ELK, Loki, etc.).
-   - Consider adding Prometheus metrics in a future iteration (see `BRIDGE_PLAN.md`).
+   - Add metrics through an explicitly designed monitoring integration; the
+     current public monitoring contract is `/health`.
 
 ---
 
@@ -497,8 +525,7 @@ is **not wired up** in `config/runtime.exs`.
 
 If you decide you want the Elixir app itself to handle TLS, you would need to:
 
-1. **Decide on environment variables** (these are already mentioned in
-   `BRIDGE_PLAN.md`):
+1. **Decide on supported environment variables**, for example:
 
    ```bash
    TLS_ENABLED=true

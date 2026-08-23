@@ -11,6 +11,8 @@ defmodule Bridge.Endpoint do
 
   plug(Plug.Logger)
 
+  plug(Bridge.HttpRouter)
+
   plug(Plug.Parsers,
     parsers: [:json],
     pass: ["*/*"],

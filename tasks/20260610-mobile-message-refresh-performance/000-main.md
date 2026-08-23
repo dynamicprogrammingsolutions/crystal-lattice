@@ -8,7 +8,7 @@ Break the mobile message refresh slowdown into separable fixes. The first priori
 - [ ] `tasks/20260610-mobile-message-refresh-performance/020-message-list-frontend-projection.md`
 - [ ] `tasks/20260610-mobile-message-refresh-performance/030-session-metadata-ui-schema-invalidation-events.md`
 - [ ] `tasks/20260610-mobile-message-refresh-performance/040-frontend-refresh-orchestration.md`
-- [ ] `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
+- [x] `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
 
 ## Roadmap status updates
 

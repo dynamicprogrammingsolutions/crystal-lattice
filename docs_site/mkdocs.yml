@@ -77,6 +77,9 @@ plugins:
           - development/specifications/action-display/index.md: Action-display specification.
           - development/specifications/application-runtime-reload/index.md: Application runtime reload specification.
           - development/specifications/sessions-actions/index.md: Sessions-action specification.
+          - development/specifications/bridge-connectivity/index.md: Bridge-connectivity specification.
+          - development/specifications/bridge-connectivity/technical-spec.md: Bridge-connectivity technical contract.
+          - development/specifications/bridge-connectivity/protocol.md: Bridge-connectivity wire protocol.
         Guides:
           - plugin-development/overview.md: General plugin authoring and packaging guide.
           - packages/application-python/configuration.md: Application plugin configuration and examples.
@@ -216,4 +219,12 @@ nav:
         - Technical: development/specifications/chat-transcript-navigation/technical-spec.md
         - Frontend Behavior: development/specifications/chat-transcript-navigation/frontend-behavior.md
         - Requirements: development/specifications/chat-transcript-navigation/requirements.md
+      - Bridge Connectivity:
+        - Overview: development/specifications/bridge-connectivity/index.md
+        - Product: development/specifications/bridge-connectivity/product-spec.md
+        - Technical: development/specifications/bridge-connectivity/technical-spec.md
+        - Protocol: development/specifications/bridge-connectivity/protocol.md
+        - Deployment and Operations: development/specifications/bridge-connectivity/deployment-and-operations.md
+        - Frontend Behavior: development/specifications/bridge-connectivity/frontend-behavior.md
+        - Requirements: development/specifications/bridge-connectivity/requirements.md
   - Website: !ENV [PUBLIC_CRYSTAL_LATTICE_SITE_URL, "https://crystallattice.dev"]

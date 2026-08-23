@@ -25,12 +25,14 @@ Resources:
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
           CachedMethods: [GET, HEAD, OPTIONS]
-          Compress: false
+          Compress: true
           ForwardedValues:
             QueryString: true
             Headers:
               - Authorization
               - Content-Type
+              - X-Crystal-Bridge-Token
+              - X-Crystal-Bridge-Body-Present
               - Sec-WebSocket-Key
               - Sec-WebSocket-Version
               - Sec-WebSocket-Protocol
@@ -40,6 +42,7 @@ Resources:
           MinTTL: 0
           DefaultTTL: 0
           MaxTTL: 0
+        HttpVersion: http2
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
 
