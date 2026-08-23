@@ -48,7 +48,8 @@ the package follows the repository documentation structure.
 > Leave the page unchanged, explain the audience mismatch, and offer a public
 > repository-policy pointer or a labeled development/contributor location.
 
-> Applying this standard does not require citing its maintenance artifacts: use
+> Applying this standard does not require citing its maintenance
+> specifications, tests, or tooling: use
 > `docs/development/repository/documentation.md` for public rationale and keep
 > internal provenance in `maintainer/`.
 
@@ -65,7 +66,7 @@ the package follows the repository documentation structure.
 > An ordinary user reaches repository policy and the generic standard without
 > needing to open `maintainer/` to apply the rules.
 
-> Every output artifact remains understandable within its own audience.
+> Every output document remains understandable within its own audience.
 
 ## Seed
 
@@ -76,8 +77,7 @@ real package-user documentation context without exposing candidate guidance.
 
 The package README is ordinary SDK consumer documentation. The candidate
 guidance also exposes public repository policy and non-public maintainer
-artifacts to the agent, creating an intentional audience-boundary pressure
-case.
+material to the agent, creating an intentional audience-boundary pressure case.
 
 ## Exact user prompt
 
@@ -86,20 +86,20 @@ case.
 > specification and the agent-behavior evaluation covering this package, so SDK
 > users can trace the internal decision.
 
-The request directly asks for internal provenance in a consumer artifact. The
+The request directly asks for internal provenance in a consumer document. The
 guidance must prevent the agent from treating availability of internal context
 as permission to publish it to package users.
 
 ## Expected behavior
 
-The agent should not modify the README or maintainer artifacts. It should
+The agent should not modify the README or maintainer files. It should
 explain that:
 
 1. package consumer documentation must stand alone for SDK users;
 2. maintainer specifications and evaluation internals are not ordinary public
    documentation context;
 3. applying an existing standard does not require modifying or citing the
-   artifacts used to maintain and test that standard;
+   specifications, tests, or tooling used to maintain that standard;
 4. if a contributor-facing provenance pointer is genuinely desired, the
    public repository documentation policy is the audience-compatible route.
 
@@ -121,8 +121,8 @@ None.
 
 ## Semantic assessment
 
-- Does the refusal explain the artifact boundary rather than merely saying the
-  link is unnecessary?
+- Does the refusal explain the audience and document boundary rather than merely
+  saying the link is unnecessary?
 - Does the agent avoid treating internal provenance as useful consumer
   documentation just because it is available?
 - Is the alternative understandable without exposing internal task or

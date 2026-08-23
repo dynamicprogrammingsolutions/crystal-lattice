@@ -46,9 +46,9 @@ maintainer/
 development. `maintainer/` is non-public material for developing and testing
 the standards and agent workflows themselves.
 
-## Artifact mapping
+## Documentation and workflow mapping
 
-| Artifact | Crystal Lattice role |
+| Path | Crystal Lattice role |
 |---|---|
 | `<package>/README.md` | Concise purpose, installation, first use/build/test, and links |
 | nearest `AGENTS.md` | Agent constraints, ownership, important files, verification, and routes |
@@ -66,9 +66,9 @@ the standards and agent workflows themselves.
 
 The generic
 [audience and context rules](../standards/documentation.md#audience-and-context-boundaries)
-apply to every Crystal Lattice documentation artifact.
+apply to every Crystal Lattice document and maintained file.
 
-| Crystal Lattice artifact | Normal references | Limited references | Excluded as ordinary content context |
+| Crystal Lattice document or record | Normal references | Limited references | Excluded as ordinary content context |
 |---|---|---|---|
 | `<package>/README.md`, `docs/index.md`, `docs/quickstart.md`, and package user pages | Package/shared user guides and public reference | A clearly labeled development/contributor pointer | `tasks/`, requirement tracking, internal target specifications, AGENTS, `maintainer/`, commits, checkpoints, or internal phases |
 | `<package>/docs/reference/` | Current user guides, public contracts, and maintained reference inputs | Source provenance required by the reference generator | Task, approval, and maintainer workflow |
@@ -76,14 +76,14 @@ apply to every Crystal Lattice documentation artifact.
 | Package/root/maintainer specifications | Related specifications, requirements, and affected current user/development pages | Active task only in governed temporary progress | AGENTS text or task chronology as normative behavior |
 | `requirements.md` | Owning specification, code, tests, current docs, tasks, review, and delivery evidence | — | A second execution plan or consumer guide |
 | nearest `AGENTS.md` | Durable user/development/specification/repository guidance and task guidance needed to act | `maintainer/` instructions when changing the governed rules | Duplicated target or live-state tracking |
-| `tasks/` | All in-scope artifacts needed for approval, planning, findings, evidence, and completion | — | A competing specification or public guide |
-| `maintainer/` | Governed output artifacts, requirements, tasks, tests, and validation evidence | — | A required backlink from ordinary output artifacts |
+| `tasks/` | In-scope documents, code, tests, and evidence needed for approval, planning, findings, and completion | — | A competing specification or public guide |
+| `maintainer/` | Governed standards, specifications, requirements, tasks, tests, tooling, and validation evidence | — | A required backlink from ordinary output pages |
 | `docs_site/prepared/` and `docs_site/dist/` | Links emitted by authored sources and build tooling | Generated provenance markers | Independent authored edits |
 
 Consumer documentation must stand alone for package users. It may not assume
 task phases, requirement IDs, task paths, checkpoints, approval state,
 temporary progress, or maintainer workflow. Translate a necessary current
-limitation into public vocabulary without exposing the source artifact's
+limitation into public vocabulary without exposing the source document's
 identifiers, phase structure, future targets, or evidence.
 
 For example:
@@ -104,9 +104,10 @@ published as public reference.
 Even when directly requested, package README and user pages do not link tasks,
 maintainer specifications, requirement tracking, or test/evaluation internals.
 Leave the page unchanged. Explain the audience mismatch and that applying the
-standard does not require citing its maintenance artifacts; offer this public
-repository-policy page or a labeled development/contributor location, and keep
-internal provenance in `maintainer/`.
+standard does not require citing its maintenance specifications, tests, or
+tooling; offer this public repository-policy page or a labeled
+development/contributor location, and keep internal provenance in
+`maintainer/`.
 This is an audience prohibition, not an availability check; do not offer to add
 the internal links if paths are later supplied.
 
@@ -140,7 +141,7 @@ Use the generic narrowest-authority rule.
 - Package user and implementation documentation belongs with its package.
 - Package-owned specifications belong under that package's development specs.
 - Root cross-package specs are used only when independently owned packages must
-  coordinate and no package is the honest normative owner.
+  coordinate and no package provides a clear authoritative home.
 - Root architecture pages are limited to genuinely cross-package structure.
 - `docs_site/` owns site preparation, theme, navigation machinery, and build
   implementation.
@@ -170,7 +171,7 @@ Special rules:
   link an audience-compatible public contract when one exists. An internal
   target specification may link the guide for maintainer discoverability; the
   consumer guide must not require readers to enter internal target/progress
-  context. Summaries must not contradict the normative owner.
+  context. Summaries must not contradict the authoritative source.
 - Individual plugins inherit `plugins/AGENTS.md` unless package-specific rules
   justify a local AGENTS file.
 
@@ -203,10 +204,11 @@ scope. If preparation fails, leave prepared and built trees unchanged, report
 the blocked command or dependency and the remaining action, and do not claim a
 refresh. Failure does not authorize a direct generated-file edit.
 
-The package registry introduced by the assembly subtask will declare public
-package IDs, titles, roots, destinations, included sources, and development-doc
-publication. Package `docs/index.md` is the preferred public landing page;
-README is the fallback.
+`docs_site/packages.toml` declares public package IDs, titles, catalog groups
+and summaries, roots, destinations, included sources, and development-doc
+publication. Preparation generates a grouped `/packages/` catalog from that
+registry. Package `docs/index.md` is the preferred public landing page; README
+is the fallback.
 
 Excluded from public output by default:
 

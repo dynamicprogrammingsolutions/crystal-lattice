@@ -77,6 +77,10 @@ Requirements:
   registered package-local README and `docs/` sources.
 - [ ] Package-local documentation changes trigger the documentation build
   workflow.
+- [ ] The documentation site is organized around the concrete needs of its
+  intended audiences so each audience can easily find the document or
+  first-success path it needs, without requiring public pages to label or
+  discuss those audience classifications explicitly.
 - [ ] Public documentation URLs affected by migration remain available through
   compatibility pages or redirects unless a breaking URL change is separately
   approved.
@@ -90,6 +94,26 @@ Requirements:
   migration inventory with likely ownership and rationale, without creating
   placeholder documentation.
 
+## Roadmap status updates
+
+Roadmap:
+[Open Source and iOS Release](../../roadmaps/open-source-and-ios-release.md)
+
+Instructions:
+[Updating a roadmap through CSV](../../roadmaps/docs/updating-roadmaps.md)
+
+Do not read the linked roadmap or instructions, inspect roadmap state, or
+update the roadmap as part of routine task execution or completion. Do so only
+when the user explicitly requests a roadmap status update, for example:
+“update the task status in the roadmap as per the instructions in the main
+task.”
+
+That explicit request authorizes reading the linked files, updating the
+authored CSV and generated Markdown, and synchronizing the configured Google
+Sheet as required by the instructions. It does not authorize unrelated roadmap
+changes. If the user limits the request to local files, do not mutate the
+sheet.
+
 ## Specification and requirement mapping
 
 The documentation meta-specification defines the documentation-system target.
@@ -100,13 +124,13 @@ task and the subtasks:
 | Workstream | Requirement IDs |
 |---|---|
 | Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
-| Generic reusable standards | `DOCGEN-001`–`DOCGEN-005` |
-| Crystal Lattice repository policy and package profiles | `DOCREP-001`–`DOCREP-005` |
+| Generic reusable standards | `DOCGEN-001`–`DOCGEN-010` |
+| Crystal Lattice repository policy and package profiles | `DOCREP-001`–`DOCREP-007` |
 | Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-018` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
 | Contributor workflow, task guidance, and maintainer-owned evaluation | `DOCFLOW-001`–`DOCFLOW-004` |
-| Build, links, evidence, and final verification | `DOCVAL-001`–`DOCVAL-005` |
+| Build, links, evidence, and final verification | `DOCVAL-001`–`DOCVAL-009` |
 
 ## Scope
 
@@ -135,10 +159,17 @@ The work includes:
 11. A migration inventory for documentation deliberately left for future work.
 12. A minimal programmatic agent-evaluation library whose first consumers
     verify the documentation-standard instructions.
+13. A bounded, user-oriented information-architecture pass that may add,
+    rewrite, move, or restructure documentation when needed for clear entry
+    points and navigation. If that work proves substantially larger than the
+    bounded migration, it is split into separately approved follow-up tasks.
 
 ## Non-goals
 
 - Rewriting every README or long-form document.
+- Turning audience-oriented navigation into a project-wide documentation
+  rewrite. Limited new or revised entry-point documentation remains in scope,
+  and larger content work is split out when discovered.
 - Making every package fully documented in this task.
 - Creating empty `docs/` trees merely to satisfy a checklist.
 - Auditing every historical task, plan, example, or design claim.
@@ -288,7 +319,7 @@ merely because it contains documentation.
 
 ## Documentation roles
 
-| Artifact | Audience | Purpose |
+| Document or record | Audience | Purpose |
 |---|---|---|
 | `README.md` | First-time package visitor | Shortest useful path: purpose, installation, basic use/build/test, and pointers |
 | `AGENTS.md` | Agents and contributors | Development constraints, ownership boundaries, important files, verification commands, and documentation pointers |
@@ -402,7 +433,7 @@ development.
   specification and requirement changes.
 - A task links to relevant requirement identifiers.
 - Requirements link to the implementing task and final delivery reference.
-- Implementation steps are not copied into both artifacts.
+- Implementation steps are not copied into both documents.
 
 ### Tests against specifications
 
@@ -711,13 +742,14 @@ It does not generally watch package-local README or `docs/` paths such as
 
 - [ ] `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
+- [x] `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
+- [x] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
 
 ## Execution plan
@@ -745,15 +777,21 @@ The work is organized standards-first:
    using the standard and assembly pipeline. They can proceed in parallel after
    010 and 020.
 5. Subtask 060 updates navigation, compatibility paths, inbound links, and CI
-   triggers after migration destinations are known.
+   triggers after migration destinations are known. It also performs the
+   bounded audience-oriented information-architecture pass, creates or refines
+   Getting Started routes, and may propose separate follow-up tasks when the
+   required documentation work exceeds the approved bounded migration.
 6. Subtask 065 creates the concise contributor workflow after the terminology
-   and artifact roles from 010 are established. It can proceed in parallel with
+   and document roles from 010 are established. It can proceed in parallel with
    most migration work.
 7. Subtask 068 aligns and synchronizes `TASKS-v7` after the documentation
    standard and contributor workflow are defined. It may adopt the committed
    agent-evaluation framework while 015 continues non-blocking refinements, and
    it owns moving the existing task-guidance evaluator.
-8. Subtask 070 performs final verification after migration, contributor
+8. Subtask 069 uses the migrated evaluator to verify minimum sufficient
+   requirements and coherent single-task/subtask decomposition. Guidance
+   changes are baseline-first and preserve exact model/reasoning profiles.
+9. Subtask 070 performs final verification after migration, contributor
    workflow, and task-guidance alignment are complete.
 
 Existing content should be moved with minimal editorial changes. Verification
@@ -816,13 +854,14 @@ Required new or updated documentation includes:
 - [ ] 060: Update navigation, compatibility paths, repository links, and build triggers.
 - [ ] 065: Create the concise AI-assisted contributor workflow and prompt examples.
 - [ ] 068: Align specifications/tasks guidance and synchronize canonical/bundled `TASKS-v7`.
+- [ ] 069: Verify and refine task-guidance scope discipline and subtask decomposition.
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.
 
 ### Requirement verification
 
 | Requirement group | Acceptance evidence |
 |---|---|
-| Canonical documentation structure and profiles | Root development documentation describes each artifact, package profile, ownership rule, and incremental adoption rule; initial package entry points conform without filler. |
+| Canonical documentation structure and profiles | Root development documentation describes each document role, package profile, ownership rule, and incremental adoption rule; initial package entry points conform without filler. |
 | Agent routing and update behavior | Root `AGENTS.md` points to the full standard and clearly distinguishes README, user docs, development docs, specifications, root cross-package docs, and generated site output. |
 | Specification and requirement conventions | Generic standard and repository policy define target product/technical specifications, live requirements, stable IDs, evidence fields, task-owned approval, current-doc behavior, package refinements, and proportional use. |
 | Agent-evaluation framework | Deterministic package tests verify the minimal program/environment/run API, complete environment substitution, Crystal Lattice lower-layer customization, continuation, caching, workspace isolation, canonical/raw artifacts, and failure preservation without required evaluation-specific abstractions. |

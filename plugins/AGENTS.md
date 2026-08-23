@@ -16,7 +16,7 @@ What you'll find here:
 For plugin authoring guidance, see:
 
 - `plugins/docs/index.md` (current plugin docs entrypoint)
-- `docs/plugins/development.md` (older/general overview)
+- `plugins/docs/overview.md` (general plugin-system overview)
 
 ## Testing Pattern
 

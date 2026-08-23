@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -38,16 +39,20 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: E4
 _kcf = importlib.import_module("kimi_tools.kimi_compaction_feature")
 _COMPACTION_METADATA_KEY = _kcf._COMPACTION_METADATA_KEY
 _COMPACTION_PREFIX = _kcf._COMPACTION_PREFIX
+_GENERIC_COMPACTION_SYSTEM_PROMPT = _kcf._GENERIC_COMPACTION_SYSTEM_PROMPT
 _KIMI_COMPACTION_PROMPT = _kcf._KIMI_COMPACTION_PROMPT
 KimiCompactionFeature = _kcf.KimiCompactionFeature
 build_compact_summary_text = _kcf.build_compact_summary_text
 build_compacted_session = _kcf.build_compacted_session
 build_compaction_prompt = _kcf.build_compaction_prompt
-build_compaction_request_session = _kcf.build_compaction_request_session
-build_compaction_session = _kcf.build_compaction_session
+build_kimi_compaction_request_session = _kcf.build_kimi_compaction_request_session
 extract_summary_sections = _kcf.extract_summary_sections
 extract_summary_text = _kcf.extract_summary_text
 validate_summary_text = _kcf.validate_summary_text
+_get_compaction_config = _kcf._get_compaction_config
+_get_effective_compaction_config = _kcf._get_effective_compaction_config
+_is_compaction_enabled = _kcf._is_compaction_enabled
+_merge_request_config = _kcf._merge_request_config
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +82,18 @@ def _core_and_config() -> tuple[AgentCore, dict]:
     return core, {"provider": "echo_openai_like", "model": "test-model"}
 
 
+def _core_and_config_with_compaction() -> tuple[AgentCore, dict]:
+    core, config = _core_and_config()
+    config = {
+        **config,
+        "compaction": {
+            "enabled": True,
+            "type": "kimi",
+        },
+    }
+    return core, config
+
+
 # ---------------------------------------------------------------------------
 # Prompt tests
 # ---------------------------------------------------------------------------
@@ -96,6 +113,22 @@ class TestBuildCompactionPrompt:
     def test_default_prompt_matches_constant(self) -> None:
         assert build_compaction_prompt() == _KIMI_COMPACTION_PROMPT
 
+    def test_default_prompt_matches_pinned_kimi_cli_prompt_hash(self) -> None:
+        """Keep parity coverage when the sibling kimi-cli checkout is absent."""
+        digest = hashlib.sha256(build_compaction_prompt().encode("utf-8")).hexdigest()
+        assert (
+            digest == "24753a19a3c0dfabc5545a103666a559cc7dd8caa963715fdc6ca7dd787a0e0a"
+        )
+
+    def test_default_prompt_matches_kimi_cli_compact_md(self) -> None:
+        """The prompt body must match kimi-cli/src/kimi_cli/prompts/compact.md exactly."""
+        kimi_cli_root = ROOT.parent / "kimi-cli"
+        compact_md = kimi_cli_root / "src/kimi_cli/prompts/compact.md"
+        if not compact_md.exists():
+            pytest.skip("kimi-cli compact.md not available in sibling repo")
+        expected = compact_md.read_text(encoding="utf-8")
+        assert build_compaction_prompt() == expected
+
     def test_custom_instructions_appended(self) -> None:
         prompt = build_compaction_prompt("Focus on database changes")
         assert "Focus on database changes" in prompt
@@ -108,9 +141,7 @@ class TestBuildCompactionPrompt:
 
     def test_prompt_override_with_instructions_appends_instructions(self) -> None:
         custom = "Custom prompt"
-        prompt = build_compaction_prompt(
-            "Focus on testing", prompt_override=custom
-        )
+        prompt = build_compaction_prompt("Focus on testing", prompt_override=custom)
         assert prompt.startswith(custom)
         assert "Focus on testing" in prompt
 
@@ -121,6 +152,14 @@ class TestBuildCompactionPrompt:
     def test_whitespace_instructions_ignored(self) -> None:
         prompt = build_compaction_prompt("   ")
         assert prompt == _KIMI_COMPACTION_PROMPT
+
+    def test_custom_instructions_in_same_text_block(self) -> None:
+        """Custom instructions must be appended in the same text block as the prompt."""
+        prompt = build_compaction_prompt("Preserve all discussions about the database")
+        assert "User's Custom Compaction Instruction" in prompt
+        assert "Preserve all discussions about the database" in prompt
+        # The custom instruction block is separated from the prompt by \n\n
+        assert "**User's Custom Compaction Instruction:**" in prompt
 
 
 # ---------------------------------------------------------------------------
@@ -215,96 +254,309 @@ class TestValidateSummaryText:
 
 
 # ---------------------------------------------------------------------------
-# Session building tests
+# Kimi compaction request session builder tests
 # ---------------------------------------------------------------------------
 
 
-class TestBuildCompactionSession:
-    def test_appends_prompt_to_last_user_message(self) -> None:
+class TestBuildKimiCompactionRequestSession:
+    def test_request_session_has_generic_compactor_system_prompt(self) -> None:
         session = _make_session(has_system=False)
-        prompt = "Compact this conversation"
-        result = build_compaction_session(session, prompt_text=prompt)
-        assert result.messages[-1].role == "user"
-        assert result.messages[-1].content.endswith(prompt)
-        assert result.session_id == session.session_id
-
-    def test_adds_new_user_message_when_last_is_assistant(self) -> None:
-        messages = [
-            Message(role="user", content="Hello"),
-            Message(role="assistant", content="Hi there"),
-        ]
-        session = Session(session_id="test", messages=messages)
-        result = build_compaction_session(session, prompt_text="Compact")
-        assert result.messages[-1].role == "user"
-        assert result.messages[-1].content == "Compact"
-
-    def test_strips_native_history_from_metadata(self) -> None:
-        messages = [
-            Message(role="user", content="Hello"),
-            Message(role="assistant", content="Hi"),
-        ]
-        session = Session(
-            session_id="test",
-            messages=messages,
-            metadata={
-                "native_messages": [{"role": "user", "content": "Hello"}],
-                "native_messages_integrity": "sha256:abc",
-                "other_key": "preserved",
-            },
+        result, _compact, _preserved = build_kimi_compaction_request_session(
+            session, prompt_text="Compact this"
         )
-        result = build_compaction_session(session, prompt_text="Compact")
-        assert "native_messages" not in result.metadata
-        assert "native_messages_integrity" not in result.metadata
-        assert result.metadata.get("other_key") == "preserved"
+        assert result is not None
+        assert len(result.messages) == 2
+        assert result.messages[0].role == "system"
+        assert result.messages[0].content == _GENERIC_COMPACTION_SYSTEM_PROMPT
+        assert result.messages[1].role == "user"
 
+    def test_synthetic_message_uses_message_n_block_format(self) -> None:
+        session = _make_session(has_system=False)
+        result, compact_indices, _preserved = build_kimi_compaction_request_session(
+            session, prompt_text="Compact this"
+        )
+        assert result is not None
+        synthetic = result.messages[1].content
+        # With default max_preserved_messages=2, the last 2 messages
+        # (user(4), assistant(5)) are preserved. Compactable range is [0, 4).
+        assert "## Message 1\nRole: user\nContent:\nAnswer exactly ONE." in synthetic
+        assert "## Message 2\nRole: assistant\nContent:\nONE" in synthetic
+        assert "## Message 3\nRole: user\nContent:\nAnswer exactly TWO." in synthetic
+        assert "## Message 4\nRole: assistant\nContent:\nTWO" in synthetic
+        # Preserved messages are NOT in the synthetic message
+        assert "Answer exactly THREE." not in synthetic
+        assert "\nTHREE" not in synthetic
+        # Compact indices are the first 4
+        assert compact_indices == [0, 1, 2, 3]
 
-class TestBuildCompactionRequestSession:
-    @pytest.mark.parametrize(
-        ("has_system", "start", "end", "end_inclusive", "expected_roles"),
-        [
-            # Full range, no system
-            (False, None, None, False, ["user", "assistant", "user", "assistant", "user", "assistant", "user"]),
-            # Partial range, no system
-            (False, 0, 3, False, ["user", "assistant", "user"]),
-            # Partial range, no system
-            (False, 1, 4, False, ["assistant", "user", "assistant", "user"]),
-            # Full range, with system
-            (True, None, None, False, [
-                "system", "user", "assistant", "user", "assistant", "user", "assistant", "user",
-            ]),
-            # Partial range, with system (system preserved)
-            (True, 0, 4, False, ["system", "user", "assistant", "user"]),
-            # Partial range, with system
-            (True, 2, 5, False, ["system", "assistant", "user", "assistant", "user"]),
-        ],
-    )
-    def test_builds_correct_request_session(
+    def test_synthetic_message_appends_prompt_at_end(self) -> None:
+        session = _make_session(has_system=False)
+        result, _compact, _preserved = build_kimi_compaction_request_session(
+            session, prompt_text="COMPACT_PROMPT_BODY"
+        )
+        assert result is not None
+        synthetic = result.messages[1].content
+        assert synthetic.endswith("\nCOMPACT_PROMPT_BODY")
+
+    def test_text_only_filtering_drops_media_and_think_parts(self) -> None:
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    {"type": "text", "text": "Analyze these files:"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/png;base64,IMG"},
+                    },
+                    {"type": "think", "think": "internal reasoning"},
+                ],
+            ),
+            Message(role="assistant", content="I can see the files."),
+            Message(role="user", content="What's your conclusion?"),
+            Message(role="assistant", content="All good."),
+        ]
+        session = Session(session_id="multipart", messages=messages)
+        result, _compact, _preserved = build_kimi_compaction_request_session(
+            session, prompt_text="PROMPT", max_preserved_messages=2
+        )
+        assert result is not None
+        synthetic = result.messages[1].content
+        # Text content is included
+        assert "Analyze these files:" in synthetic
+        assert "I can see the files." in synthetic
+        # Media and think parts are dropped
+        assert "data:image/png" not in synthetic
+        assert "internal reasoning" not in synthetic
+
+    def test_text_tool_message_keeps_text_but_drops_structured_result(self) -> None:
+        messages = [
+            Message(
+                role="tool",
+                content="Visible tool result",
+                tool_result={"type": "provider_native", "secret": "structured payload"},
+            ),
+            Message(role="assistant", content="Old response"),
+            Message(role="user", content="Latest question"),
+            Message(role="assistant", content="Latest response"),
+        ]
+        session = Session(session_id="tool-text", messages=messages)
+        result, _compact, _preserved = build_kimi_compaction_request_session(
+            session, prompt_text="PROMPT"
+        )
+        assert result is not None
+        synthetic = result.messages[1].content
+        assert "Role: tool\nContent:\nVisible tool result" in synthetic
+        assert "structured payload" not in synthetic
+
+    def test_preserved_tail_with_default_max_preserved_messages(self) -> None:
+        session = _make_session(has_system=False)
+        result, compact_indices, preserved_indices = (
+            build_kimi_compaction_request_session(session, prompt_text="PROMPT")
+        )
+        assert result is not None
+        # Last 2 user/assistant messages preserved
+        assert preserved_indices == [4, 5]
+        assert compact_indices == [0, 1, 2, 3]
+
+    def test_noop_when_too_few_user_assistant_messages(self) -> None:
+        messages = [
+            Message(role="user", content="Only one"),
+        ]
+        session = Session(session_id="short", messages=messages)
+        result, compact_indices, preserved_indices = (
+            build_kimi_compaction_request_session(
+                session, prompt_text="PROMPT", max_preserved_messages=2
+            )
+        )
+        assert result is None
+        assert compact_indices == []
+        assert preserved_indices == []
+
+    def test_noop_when_only_preserved_messages_exist(self) -> None:
+        messages = [
+            Message(role="user", content="Latest question"),
+            Message(role="assistant", content="Latest reply"),
+        ]
+        session = Session(session_id="preserved-only", messages=messages)
+        result, compact_indices, preserved_indices = (
+            build_kimi_compaction_request_session(
+                session, prompt_text="PROMPT", max_preserved_messages=2
+            )
+        )
+        assert result is None
+        assert compact_indices == []
+        assert preserved_indices == []
+
+    def test_explicit_end_compacts_exactly_selected_range(self) -> None:
+        session = _make_session(has_system=False)
+        result, compact_indices, preserved_indices = (
+            build_kimi_compaction_request_session(
+                session, prompt_text="PROMPT", start=0, end=3
+            )
+        )
+        assert result is not None
+        # Explicit end → no preserved tail
+        assert preserved_indices == []
+        assert compact_indices == [0, 1, 2]
+        synthetic = result.messages[1].content
+        assert "## Message 1\nRole: user\nContent:\nAnswer exactly ONE." in synthetic
+        assert "## Message 2\nRole: assistant\nContent:\nONE" in synthetic
+        assert "## Message 3\nRole: user\nContent:\nAnswer exactly TWO." in synthetic
+        # Messages after the range are NOT in the synthetic message
+        assert "TWO" not in synthetic.replace("Answer exactly TWO.", "")
+        assert "THREE" not in synthetic
+
+    def test_leading_system_message_is_in_request_but_preserved_in_session(
         self,
-        has_system: bool,
-        start: int | None,
-        end: int | None,
-        end_inclusive: bool,
-        expected_roles: list[str],
     ) -> None:
-        session = _make_session(has_system)
-        prompt = "Compact this"
-        result, target_indices, request_indices = build_compaction_request_session(
-            session, prompt_text=prompt, start=start, end=end, end_inclusive=end_inclusive
+        session = _make_session(has_system=True)
+        result, compact_indices, preserved_indices = (
+            build_kimi_compaction_request_session(session, prompt_text="PROMPT")
         )
-        assert [message.role for message in result.messages] == expected_roles
-        assert result.messages[-1].content.endswith(prompt)
-        if has_system:
-            assert result.messages[0].role == "system"
-            assert 0 not in target_indices
-        else:
-            assert all(message.role != "system" for message in result.messages)
+        assert result is not None
+        # The system message is not deleted from the platform session.
+        assert 0 not in compact_indices
+        assert compact_indices == [1, 2, 3, 4]
+        # Last 2 user/assistant messages preserved
+        assert preserved_indices == [5, 6]
+        # Request session uses generic compactor system prompt, not the agent's
+        assert result.messages[0].content == _GENERIC_COMPACTION_SYSTEM_PROMPT
+        assert result.messages[0].content != "System prompt"
+        # Upstream SimpleCompaction includes the original system message in the
+        # numbered transcript given to the compactor.
+        synthetic = result.messages[1].content
+        assert "## Message 1\nRole: system\nContent:\nSystem prompt" in synthetic
+        assert "## Message 2\nRole: user\nContent:\nAnswer exactly ONE." in synthetic
+
+    def test_explicit_end_with_leading_system_includes_system_in_request(self) -> None:
+        session = _make_session(has_system=True)
+        result, compact_indices, preserved_indices = (
+            build_kimi_compaction_request_session(
+                session, prompt_text="PROMPT", start=0, end=4
+            )
+        )
+        assert result is not None
+        # System (index 0) is preserved in the final session while [1, 4) is
+        # replaced by the summary.
+        assert compact_indices == [1, 2, 3]
+        assert preserved_indices == []
+        synthetic = result.messages[1].content
+        assert "## Message 1\nRole: system\nContent:\nSystem prompt" in synthetic
+        assert "## Message 2\nRole: user\nContent:\nAnswer exactly ONE." in synthetic
+        assert "## Message 3\nRole: assistant\nContent:\nONE" in synthetic
+        assert "## Message 4\nRole: user\nContent:\nAnswer exactly TWO." in synthetic
 
     def test_raises_on_empty_range(self) -> None:
         session = _make_session(has_system=False)
         with pytest.raises(ValueError, match="range selects no messages"):
-            build_compaction_request_session(
-                session, prompt_text="Compact", start=0, end=0
+            build_kimi_compaction_request_session(
+                session, prompt_text="PROMPT", start=0, end=0
             )
+
+    def test_raises_when_range_selects_only_system(self) -> None:
+        session = _make_session(has_system=True)
+        with pytest.raises(ValueError, match="range selects no compactable messages"):
+            build_kimi_compaction_request_session(
+                session, prompt_text="PROMPT", start=0, end=1
+            )
+
+    def test_custom_max_preserved_messages(self) -> None:
+        session = _make_session(has_system=False)
+        result, compact_indices, preserved_indices = (
+            build_kimi_compaction_request_session(
+                session, prompt_text="PROMPT", max_preserved_messages=3
+            )
+        )
+        assert result is not None
+        # Last 3 user/assistant messages preserved: assistant(3), user(4), assistant(5)
+        # Wait: backward scan from 5: assistant(5)→1, user(4)→2, assistant(3)→3
+        # preserve_start = 3
+        assert preserved_indices == [3, 4, 5]
+        assert compact_indices == [0, 1, 2]
+
+    @pytest.mark.parametrize("max_preserved_messages", [0, -1])
+    def test_nonpositive_max_preserved_messages_is_noop_like_kimi_cli(
+        self,
+        max_preserved_messages: int,
+    ) -> None:
+        session = _make_session(has_system=False)
+        result, compact_indices, preserved_indices = (
+            build_kimi_compaction_request_session(
+                session,
+                prompt_text="PROMPT",
+                max_preserved_messages=max_preserved_messages,
+            )
+        )
+        assert result is None
+        assert compact_indices == []
+        assert preserved_indices == []
+
+
+# ---------------------------------------------------------------------------
+# Merged request config tests
+# ---------------------------------------------------------------------------
+
+
+class TestMergeRequestConfig:
+    def test_disable_all_tools_set_unconditionally(self) -> None:
+        config = {"provider": "echo", "model": "test"}
+        compaction_cfg = {
+            "settings_overrides": {},
+            "compaction_model": None,
+        }
+        merged = _merge_request_config(config, compaction_cfg)
+        assert merged["disable_all_tools"] is True
+
+    def test_settings_overrides_are_applied_without_enabling_tools(self) -> None:
+        config = {"provider": "echo", "model": "test"}
+        compaction_cfg = {
+            "settings_overrides": {"temperature": 0.1, "model": "override-model"},
+            "compaction_model": None,
+        }
+        merged = _merge_request_config(config, compaction_cfg)
+        assert merged["disable_all_tools"] is True
+        assert merged["temperature"] == 0.1
+        assert merged["model"] == "override-model"
+
+    def test_settings_overrides_cannot_reenable_tools(self) -> None:
+        merged = _merge_request_config(
+            {"provider": "echo", "model": "test"},
+            {
+                "settings_overrides": {"disable_all_tools": False},
+                "compaction_model": None,
+            },
+        )
+        assert merged["disable_all_tools"] is True
+
+    def test_compaction_model_overrides_model(self) -> None:
+        config = {"provider": "echo", "model": "test"}
+        compaction_cfg = {
+            "settings_overrides": {},
+            "compaction_model": "kimi-compaction-model",
+        }
+        merged = _merge_request_config(config, compaction_cfg)
+        assert merged["model"] == "kimi-compaction-model"
+        assert merged["disable_all_tools"] is True
+
+    def test_compaction_model_takes_precedence_over_settings_overrides_model(
+        self,
+    ) -> None:
+        config = {"provider": "echo", "model": "test"}
+        compaction_cfg = {
+            "settings_overrides": {"model": "override-model"},
+            "compaction_model": "kimi-compaction-model",
+        }
+        merged = _merge_request_config(config, compaction_cfg)
+        assert merged["model"] == "kimi-compaction-model"
+
+    def test_blank_compaction_model_ignored(self) -> None:
+        config = {"provider": "echo", "model": "test"}
+        compaction_cfg = {
+            "settings_overrides": {},
+            "compaction_model": "  ",
+        }
+        merged = _merge_request_config(config, compaction_cfg)
+        assert merged["model"] == "test"
 
 
 # ---------------------------------------------------------------------------
@@ -313,115 +565,312 @@ class TestBuildCompactionRequestSession:
 
 
 class TestBuildCompactedSession:
-    @pytest.mark.parametrize(
-        (
-            "has_system",
-            "start",
-            "end",
-            "end_inclusive",
-            "expected_roles",
-            "expected_leading_contents",
-            "expected_trailing_contents",
-        ),
-        [
-            # Full range, no system → summary replaces everything
-            (
-                False, None, None, False,
-                ["user"],
-                [],
-                [],
-            ),
-            # Partial range, no system → summary + preserved tail
-            (
-                False, 0, 3, False,
-                ["user", "assistant", "user", "assistant"],
-                [],
-                ["TWO", "Answer exactly THREE.", "THREE"],
-            ),
-            # Partial range, no system → summary + preserved tail
-            (
-                False, 1, 4, False,
-                ["user", "user", "user", "assistant"],
-                ["Answer exactly ONE."],
-                ["Answer exactly THREE.", "THREE"],
-            ),
-            # Full range, with system → system preserved, summary replaces rest
-            (
-                True, None, None, False,
-                ["system", "user"],
-                ["System prompt"],
-                [],
-            ),
-            # Partial range, with system → system + leading + summary + tail
-            (
-                True, 0, 4, False,
-                ["system", "user", "assistant", "user", "assistant"],
-                ["System prompt"],
-                ["TWO", "Answer exactly THREE.", "THREE"],
-            ),
-            # Partial range, with system
-            (
-                True, 2, 5, False,
-                ["system", "user", "user", "user", "assistant"],
-                ["System prompt", "Answer exactly ONE."],
-                ["Answer exactly THREE.", "THREE"],
-            ),
-        ],
-    )
-    def test_compacted_session_replaces_only_selected_range_and_preserves_system_invariant(
-        self,
-        has_system: bool,
-        start: int | None,
-        end: int | None,
-        end_inclusive: bool,
-        expected_roles: list[str],
-        expected_leading_contents: list[str],
-        expected_trailing_contents: list[str],
-    ) -> None:
+    def test_compacted_session_replaces_compact_indices_with_summary(self) -> None:
         core, config = _core_and_config()
-        session = _make_session(has_system)
-        summary_text = (
-            "Previous context has been compacted. Here is the compaction output:\n\n"
-            "<current_focus>Testing</current_focus>\n"
-            "<environment>Python</environment>\n"
-            "<completed_tasks>None</completed_tasks>\n"
-            "<active_issues>None</active_issues>\n"
-            "<code_state>\n\n<file>\ntest.py\n**Summary:** test\n</file>\n</code_state>\n"
+        session = _make_session(has_system=False)
+        summary_text = build_compact_summary_text(
+            "<current_focus>Testing</current_focus>"
+            "<environment>Python</environment>"
+            "<completed_tasks>None</completed_tasks>"
+            "<active_issues>None</active_issues>"
+            "<code_state>\n\n<file>\ntest.py\n</file>\n</code_state>"
             "<important_context>None</important_context>"
         )
-
+        compact_indices = [0, 1, 2, 3]
         compacted = build_compacted_session(
             core,
             session,
             config,
             summary_text,
-            start=start,
-            end=end,
-            end_inclusive=end_inclusive,
+            compact_indices=compact_indices,
         )
+        # [user: summary, user(4), assistant(5)]
+        assert [message.role for message in compacted.messages] == [
+            "user",
+            "user",
+            "assistant",
+        ]
+        assert compacted.messages[0].content == summary_text
+        assert compacted.messages[1].content == "Answer exactly THREE."
+        assert compacted.messages[2].content == "THREE"
 
-        assert [message.role for message in compacted.messages] == expected_roles
-        if has_system:
-            assert compacted.messages[0].role == "system"
-            assert compacted.messages[0].content == "System prompt"
-            assert sum(1 for message in compacted.messages if message.role == "system") == 1
-        else:
-            assert all(message.role != "system" for message in compacted.messages)
-
-        summary_index = next(
-            idx
-            for idx, message in enumerate(compacted.messages)
-            if message.content == summary_text
+    def test_compacted_session_with_explicit_range(self) -> None:
+        core, config = _core_and_config()
+        session = _make_session(has_system=False)
+        summary_text = build_compact_summary_text(
+            "<current_focus>Testing</current_focus>"
+            "<environment>Python</environment>"
+            "<completed_tasks>None</completed_tasks>"
+            "<active_issues>None</active_issues>"
+            "<code_state>x</code_state>"
+            "<important_context>None</important_context>"
         )
-        assert compacted.messages[summary_index].content == summary_text
-        assert [message.content for message in compacted.messages[:summary_index]] == (
-            expected_leading_contents
+        compact_indices = [0, 1, 2]
+        compacted = build_compacted_session(
+            core,
+            session,
+            config,
+            summary_text,
+            compact_indices=compact_indices,
         )
-        trailing = compacted.messages[summary_index + 1 :]
-        assert [message.content for message in trailing] == expected_trailing_contents
+        # [user: summary, assistant(3), user(4), assistant(5)]
+        assert [message.role for message in compacted.messages] == [
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+        ]
+        assert compacted.messages[0].content == summary_text
+        assert compacted.messages[1].content == "TWO"
+        assert compacted.messages[2].content == "Answer exactly THREE."
+        assert compacted.messages[3].content == "THREE"
 
-        summary_metadata = compacted.messages[summary_index].metadata or {}
+    def test_compacted_session_preserves_leading_system(self) -> None:
+        core, config = _core_and_config()
+        session = _make_session(has_system=True)
+        summary_text = build_compact_summary_text(
+            "<current_focus>Testing</current_focus>"
+            "<environment>Python</environment>"
+            "<completed_tasks>None</completed_tasks>"
+            "<active_issues>None</active_issues>"
+            "<code_state>x</code_state>"
+            "<important_context>None</important_context>"
+        )
+        compact_indices = [1, 2, 3, 4]
+        compacted = build_compacted_session(
+            core,
+            session,
+            config,
+            summary_text,
+            compact_indices=compact_indices,
+        )
+        # [system, user: summary, user(5), assistant(6)]
+        assert [message.role for message in compacted.messages] == [
+            "system",
+            "user",
+            "user",
+            "assistant",
+        ]
+        assert compacted.messages[0].content == "System prompt"
+        assert compacted.messages[1].content == summary_text
+        assert compacted.messages[2].content == "Answer exactly THREE."
+        assert compacted.messages[3].content == "THREE"
+
+    def test_compacted_session_with_explicit_range_and_system(self) -> None:
+        core, config = _core_and_config()
+        session = _make_session(has_system=True)
+        summary_text = build_compact_summary_text(
+            "<current_focus>Testing</current_focus>"
+            "<environment>Python</environment>"
+            "<completed_tasks>None</completed_tasks>"
+            "<active_issues>None</active_issues>"
+            "<code_state>x</code_state>"
+            "<important_context>None</important_context>"
+        )
+        compact_indices = [1, 2, 3]
+        compacted = build_compacted_session(
+            core,
+            session,
+            config,
+            summary_text,
+            compact_indices=compact_indices,
+        )
+        # [system, user: summary, assistant(4), user(5), assistant(6)]
+        assert [message.role for message in compacted.messages] == [
+            "system",
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+        ]
+        assert compacted.messages[0].content == "System prompt"
+        assert compacted.messages[1].content == summary_text
+        assert compacted.messages[2].content == "TWO"
+        assert compacted.messages[3].content == "Answer exactly THREE."
+        assert compacted.messages[4].content == "THREE"
+
+    def test_summary_message_has_compaction_metadata(self) -> None:
+        core, config = _core_and_config()
+        session = _make_session(has_system=False)
+        summary_text = build_compact_summary_text(
+            "<current_focus>Testing</current_focus>"
+            "<environment>Python</environment>"
+            "<completed_tasks>None</completed_tasks>"
+            "<active_issues>None</active_issues>"
+            "<code_state>x</code_state>"
+            "<important_context>None</important_context>"
+        )
+        compacted = build_compacted_session(
+            core,
+            session,
+            config,
+            summary_text,
+            compact_indices=[0, 1, 2, 3],
+        )
+        summary_metadata = compacted.messages[0].metadata or {}
         assert summary_metadata[_COMPACTION_METADATA_KEY]["is_compact_summary"] is True
+
+
+# ---------------------------------------------------------------------------
+# Build compact summary text tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildCompactSummaryText:
+    def test_wraps_prefix_with_system_tags(self) -> None:
+        summary_body = (
+            "<current_focus>Task X</current_focus>"
+            "<environment>Python</environment>"
+            "<completed_tasks>None</completed_tasks>"
+            "<active_issues>None</active_issues>"
+            "<code_state>\n\n<file>\ntest.py\n</file>\n</code_state>"
+            "<important_context>None</important_context>"
+        )
+        result = build_compact_summary_text(summary_body)
+        assert result.startswith(
+            "<system>Previous context has been compacted. Here is the compaction output:</system>"
+        )
+        assert summary_body in result
+
+    def test_strips_whitespace_from_summary(self) -> None:
+        result = build_compact_summary_text(
+            "  <current_focus>x</current_focus>"
+            "<environment>x</environment>"
+            "<completed_tasks>x</completed_tasks>"
+            "<active_issues>x</active_issues>"
+            "<code_state>x</code_state>"
+            "<important_context>x</important_context>  "
+        )
+        assert result.startswith(
+            "<system>Previous context has been compacted. Here is the compaction output:</system>"
+        )
+        assert not result.endswith("  ")
+
+    def test_summary_body_follows_system_prefix_on_new_line(self) -> None:
+        result = build_compact_summary_text("<current_focus>x</current_focus>")
+        assert "</system>\n<current_focus>" in result
+
+
+# ---------------------------------------------------------------------------
+# Enablement tests
+# ---------------------------------------------------------------------------
+
+
+class TestIsCompactionEnabled:
+    def test_enabled_true_and_type_kimi(self) -> None:
+        assert (
+            _is_compaction_enabled({"compaction": {"enabled": True, "type": "kimi"}})
+            is True
+        )
+
+    def test_enabled_false(self) -> None:
+        assert (
+            _is_compaction_enabled({"compaction": {"enabled": False, "type": "kimi"}})
+            is False
+        )
+
+    def test_wrong_type(self) -> None:
+        assert (
+            _is_compaction_enabled({"compaction": {"enabled": True, "type": "gemini"}})
+            is False
+        )
+
+    def test_missing_compaction_block(self) -> None:
+        assert _is_compaction_enabled({}) is False
+
+    def test_compaction_block_not_dict(self) -> None:
+        assert _is_compaction_enabled({"compaction": "kimi"}) is False
+
+    def test_base_config_not_dict(self) -> None:
+        assert _is_compaction_enabled(None) is False
+
+    def test_enabled_must_be_true_not_truthy(self) -> None:
+        assert (
+            _is_compaction_enabled({"compaction": {"enabled": "true", "type": "kimi"}})
+            is False
+        )
+
+
+class TestGetCompactionConfig:
+    def test_defaults_when_no_compaction_block(self) -> None:
+        cfg = _get_compaction_config({})
+        assert cfg["max_preserved_messages"] == 2
+        assert cfg["prompt"] is None
+        assert cfg["settings_overrides"] == {}
+        assert cfg["compaction_model"] is None
+        assert cfg["enabled"] is False
+        assert cfg["type"] is None
+
+    def test_reads_values_from_compaction_block(self) -> None:
+        base = {
+            "compaction": {
+                "enabled": True,
+                "type": "kimi",
+                "max_preserved_messages": 5,
+                "compaction_model": "kimi-k2",
+                "prompt": "Custom prompt",
+                "settings_overrides": {"temperature": 0.2},
+            }
+        }
+        cfg = _get_compaction_config(base)
+        assert cfg["max_preserved_messages"] == 5
+        assert cfg["compaction_model"] == "kimi-k2"
+        assert cfg["prompt"] == "Custom prompt"
+        assert cfg["settings_overrides"] == {"temperature": 0.2}
+        assert cfg["enabled"] is True
+        assert cfg["type"] == "kimi"
+
+    def test_invalid_max_preserved_messages_falls_back_to_default(self) -> None:
+        base = {"compaction": {"max_preserved_messages": "two"}}
+        cfg = _get_compaction_config(base)
+        assert cfg["max_preserved_messages"] == 2
+
+    def test_negative_max_preserved_messages_is_retained_for_noop(self) -> None:
+        base = {"compaction": {"max_preserved_messages": -1}}
+        cfg = _get_compaction_config(base)
+        assert cfg["max_preserved_messages"] == -1
+
+    def test_blank_prompt_treated_as_none(self) -> None:
+        base = {"compaction": {"prompt": "  "}}
+        cfg = _get_compaction_config(base)
+        assert cfg["prompt"] is None
+
+    def test_blank_compaction_model_treated_as_none(self) -> None:
+        base = {"compaction": {"compaction_model": "  "}}
+        cfg = _get_compaction_config(base)
+        assert cfg["compaction_model"] is None
+
+    def test_settings_overrides_not_dict_uses_empty_dict(self) -> None:
+        base = {"compaction": {"settings_overrides": "not a dict"}}
+        cfg = _get_compaction_config(base)
+        assert cfg["settings_overrides"] == {}
+
+
+class TestGetEffectiveCompactionConfig:
+    def test_top_level_session_model_override_wins(self) -> None:
+        base = {
+            "compaction": {
+                "enabled": True,
+                "type": "kimi",
+                "compaction_model": "agent-model",
+            }
+        }
+        effective = _get_effective_compaction_config(
+            base,
+            {**base, "compaction_model": "session-model"},
+        )
+        assert effective["compaction_model"] == "session-model"
+
+    def test_agent_compaction_model_is_used_without_session_override(self) -> None:
+        base = {
+            "compaction": {
+                "enabled": True,
+                "type": "kimi",
+                "compaction_model": "agent-model",
+            }
+        }
+        effective = _get_effective_compaction_config(base, base)
+        assert effective["compaction_model"] == "agent-model"
 
 
 # ---------------------------------------------------------------------------
@@ -430,17 +879,18 @@ class TestBuildCompactedSession:
 
 
 class TestKimiCompactionFeature:
-    def test_feature_schema_includes_expected_keys(self) -> None:
+    def test_config_schema_is_empty(self) -> None:
         feature = KimiCompactionFeature()
         schema = feature.get_config_schema()
-        assert "compaction_model" in schema
-        assert "kimi_compaction_prompt" in schema
-        assert "kimi_compaction_settings_overrides" in schema
+        assert schema == {}
 
-    def test_feature_ui_elements_include_compaction_model_and_message_action(self) -> None:
+    def test_feature_ui_elements_include_compaction_model_and_message_action(
+        self,
+    ) -> None:
         feature = KimiCompactionFeature()
         elements = feature.get_ui_elements(
-            models=[{"id": "moonshot-v1", "name": "Moonshot V1"}]
+            config={"compaction": {"enabled": True, "type": "kimi"}},
+            models=[{"id": "moonshot-v1", "name": "Moonshot V1"}],
         )
         compaction_model = next(
             element
@@ -462,9 +912,14 @@ class TestKimiCompactionFeature:
         assert message_action["action_id"] == "compact_conversation"
         assert message_action["fixed_params"] == {"start": 0, "end_inclusive": True}
 
-    def test_feature_ui_elements_fall_back_to_text_when_models_are_unavailable(self) -> None:
+    def test_feature_ui_elements_fall_back_to_text_when_models_are_unavailable(
+        self,
+    ) -> None:
         feature = KimiCompactionFeature()
-        elements = feature.get_ui_elements(models=[])
+        elements = feature.get_ui_elements(
+            config={"compaction": {"enabled": True, "type": "kimi"}},
+            models=[],
+        )
         compaction_model = next(
             element
             for element in elements
@@ -473,6 +928,30 @@ class TestKimiCompactionFeature:
         )
         assert compaction_model["type"] == "text"
         assert "options" not in compaction_model
+
+    def test_feature_ui_elements_empty_when_compaction_disabled(self) -> None:
+        feature = KimiCompactionFeature()
+        elements = feature.get_ui_elements(
+            config={"compaction": {"enabled": False, "type": "kimi"}},
+            models=[{"id": "moonshot-v1", "name": "Moonshot V1"}],
+        )
+        assert elements == []
+
+    def test_feature_ui_elements_empty_when_type_not_kimi(self) -> None:
+        feature = KimiCompactionFeature()
+        elements = feature.get_ui_elements(
+            config={"compaction": {"enabled": True, "type": "gemini"}},
+            models=[{"id": "moonshot-v1", "name": "Moonshot V1"}],
+        )
+        assert elements == []
+
+    def test_feature_ui_elements_returned_when_config_is_none(self) -> None:
+        feature = KimiCompactionFeature()
+        elements = feature.get_ui_elements(
+            config=None,
+            models=[{"id": "moonshot-v1", "name": "Moonshot V1"}],
+        )
+        assert len(elements) > 0
 
     def test_feature_actions_include_compact_conversation(self) -> None:
         feature = KimiCompactionFeature()
@@ -543,7 +1022,7 @@ class TestKimiCompactionFeature:
         assert "error" in result
         assert result["error"]["type"] == "missing_core"
 
-    def test_execute_action_returns_error_for_invalid_range(self) -> None:
+    def test_execute_action_returns_disabled_when_compaction_not_enabled(self) -> None:
         feature = KimiCompactionFeature()
         core, config = _core_and_config()
         session = _make_session(has_system=False)
@@ -551,44 +1030,153 @@ class TestKimiCompactionFeature:
             "compact_conversation",
             session,
             [],
-            {"start": 0, "end": 0},
+            {},
             {"core": core, "config": config},
+            {},
+        )
+        assert "error" in result
+        assert result["error"]["type"] == "disabled"
+
+    def test_execute_action_returns_disabled_when_type_not_kimi(self) -> None:
+        feature = KimiCompactionFeature()
+        core, config = _core_and_config()
+        config = {**config, "compaction": {"enabled": True, "type": "gemini"}}
+        session = _make_session(has_system=False)
+        result = feature.execute_action(
+            "compact_conversation",
+            session,
+            [],
+            {},
+            {"core": core, "config": config},
+            {},
+        )
+        assert "error" in result
+        assert result["error"]["type"] == "disabled"
+
+    def test_execute_action_returns_invalid_range_for_empty_range(self) -> None:
+        feature = KimiCompactionFeature()
+        core, config = _core_and_config_with_compaction()
+        session = _make_session(has_system=False)
+        result = feature.execute_action(
+            "compact_conversation",
+            session,
+            [],
+            {"start": 0, "end": 0},
+            {"core": core, "config": config, "base_config": config},
             {},
         )
         assert "error" in result
         assert result["error"]["type"] == "invalid_range"
 
-
-# ---------------------------------------------------------------------------
-# Build compact summary text tests
-# ---------------------------------------------------------------------------
-
-
-class TestBuildCompactSummaryText:
-    def test_wraps_summary_with_prefix(self) -> None:
-        summary_body = (
-            "<current_focus>Task X</current_focus>"
-            "<environment>Python</environment>"
-            "<completed_tasks>None</completed_tasks>"
-            "<active_issues>None</active_issues>"
-            "<code_state>\n\n<file>\ntest.py\n</file>\n</code_state>"
-            "<important_context>None</important_context>"
+    def test_execute_action_returns_noop_when_too_few_for_preserved_tail(self) -> None:
+        feature = KimiCompactionFeature()
+        core, config = _core_and_config_with_compaction()
+        session = Session(
+            session_id="short",
+            messages=[
+                Message(role="user", content="Hi"),
+                Message(role="assistant", content="Hello"),
+            ],
         )
-        result = build_compact_summary_text(summary_body)
-        assert result.startswith(_COMPACTION_PREFIX)
-        assert summary_body in result
-
-    def test_strips_whitespace_from_summary(self) -> None:
-        result = build_compact_summary_text(
-            "  <current_focus>x</current_focus>"
-            "<environment>x</environment>"
-            "<completed_tasks>x</completed_tasks>"
-            "<active_issues>x</active_issues>"
-            "<code_state>x</code_state>"
-            "<important_context>x</important_context>  "
+        result = feature.execute_action(
+            "compact_conversation",
+            session,
+            [],
+            {},
+            {"core": core, "config": config, "base_config": config},
+            {},
         )
-        assert result.startswith(_COMPACTION_PREFIX)
-        assert not result.endswith("  ")
+        # Session has 2 messages, but _MIN_COMPACTABLE_MESSAGE_COUNT is 3
+        assert "error" in result
+        assert result["error"]["type"] == "not_enough_messages"
+
+    def test_execute_action_returns_noop_when_only_preserved_tail_exists(self) -> None:
+        """A session with a leading system + 2 user/assistant messages passes
+        the ``_MIN_COMPACTABLE_MESSAGE_COUNT`` check but yields no compactable
+        range after preserved-tail, so the builder returns no-op.
+        """
+        feature = KimiCompactionFeature()
+        core, config = _core_and_config_with_compaction()
+        session = Session(
+            session_id="system-plus-two",
+            messages=[
+                Message(role="system", content="System prompt"),
+                Message(role="user", content="Hi"),
+                Message(role="assistant", content="Hello"),
+            ],
+        )
+        result = feature.execute_action(
+            "compact_conversation",
+            session,
+            [],
+            {},
+            {"core": core, "config": config, "base_config": config},
+            {},
+        )
+        assert result.get("status") == "noop"
+
+    def test_execute_action_uses_corrected_request_contract(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        feature = KimiCompactionFeature()
+        core, base_config = _core_and_config_with_compaction()
+        effective_config = {
+            **base_config,
+            "compaction_model": "session-compaction-model",
+            "compaction": {
+                **base_config["compaction"],
+                "settings_overrides": {"disable_all_tools": False},
+            },
+        }
+        session = _make_session(has_system=True)
+        captured: dict = {}
+
+        def fake_run_compaction_request(
+            request_core,
+            request_session,
+            request_config,
+            context=None,
+        ) -> str:
+            captured["core"] = request_core
+            captured["session"] = request_session
+            captured["config"] = request_config
+            captured["context"] = context
+            return (
+                "<current_focus>Testing</current_focus>"
+                "<environment>Python</environment>"
+                "<completed_tasks>None</completed_tasks>"
+                "<active_issues>None</active_issues>"
+                "<code_state>Current</code_state>"
+                "<important_context>None</important_context>"
+            )
+
+        monkeypatch.setattr(
+            _kcf, "_run_compaction_request", fake_run_compaction_request
+        )
+
+        result = feature.execute_action(
+            "compact_conversation",
+            session,
+            [],
+            {},
+            {
+                "core": core,
+                "config": effective_config,
+                "base_config": base_config,
+            },
+            {},
+        )
+
+        assert result["message"] == "Compacted conversation."
+        request_session = captured["session"]
+        assert request_session.messages[0].content == _GENERIC_COMPACTION_SYSTEM_PROMPT
+        assert (
+            "## Message 1\nRole: system\nContent:\nSystem prompt"
+            in request_session.messages[1].content
+        )
+        assert captured["config"]["model"] == "session-compaction-model"
+        assert captured["config"]["disable_all_tools"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -606,8 +1194,6 @@ class TestPluginRegistration:
             in payload["entries"]
         )
         assert (
-            payload["kinds"][
-                "kimi_tools.kimi_compaction_feature.KimiCompactionFeature"
-            ]
+            payload["kinds"]["kimi_tools.kimi_compaction_feature.KimiCompactionFeature"]
             == "features"
         )

@@ -23,7 +23,7 @@ Internal implementation does not need to copy Claude Code literally, but the pub
 - `investigation/scripts/`
   - repeatable Claude CLI harnesses used to capture real behavior
 - `investigation/fixtures/`
-  - normalized committed source-of-truth artifacts for schemas and result formatting
+  - normalized committed source-of-truth files for schemas and result formatting
 - `investigation/notes/`
   - human-readable implementation notes derived from fixtures
 - `system_messages/claude/`

@@ -93,6 +93,110 @@ def _raw_session_text(run) -> str:
     return json.dumps(_raw_session(run)).lower()
 
 
+def _raw_evidence(run) -> list[dict[str, object]]:
+    path = run.artifact_dir / "raw/evidence.json"
+    if not path.is_file():
+        return []
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _evidence_value(run, kind: str) -> object | None:
+    for item in reversed(_raw_evidence(run)):
+        if item.get("kind") == kind:
+            return item.get("value")
+    return None
+
+
+def _tool_messages(run) -> list[dict[str, object]]:
+    messages = _raw_session(run).get("messages")
+    if not isinstance(messages, list):
+        return []
+    return [
+        message
+        for message in messages
+        if isinstance(message, dict) and message.get("role") == "tool"
+    ]
+
+
+def _first_mutation_tool_index(run) -> int | None:
+    mutation_shell_markers = (
+        "apply_patch",
+        "sed -i",
+        "tee ",
+        "cat >",
+        "cat <<",
+        "write_text(",
+        "touch ",
+        "mkdir ",
+        "mv ",
+        "cp ",
+        "rm ",
+    )
+    for index, message in enumerate(_tool_messages(run)):
+        metadata = message.get("metadata")
+        metadata_value = metadata if isinstance(metadata, dict) else {}
+        tool_name = str(metadata_value.get("tool_name", "")).lower()
+        if tool_name in {"write_file", "apply_patch"}:
+            return index
+        if tool_name != "shell":
+            continue
+        display = metadata_value.get("display")
+        display_value = display if isinstance(display, dict) else {}
+        command = str(display_value.get("content", "")).lower()
+        if any(marker in command for marker in mutation_shell_markers):
+            return index
+    return None
+
+
+def _complete_read_positions(
+    run,
+    relative_paths: tuple[str, ...],
+) -> dict[str, int | None]:
+    if run.workspace is None:
+        raise AssertionError("run has no workspace")
+    messages = _tool_messages(run)
+    positions: dict[str, int | None] = {}
+    for relative in relative_paths:
+        expected = run.workspace.joinpath(relative).read_text(encoding="utf-8").strip()
+        position = None
+        for index, message in enumerate(messages):
+            metadata = message.get("metadata")
+            metadata_value = metadata if isinstance(metadata, dict) else {}
+            tool_name = str(metadata_value.get("tool_name", "")).lower()
+            if tool_name not in {"read_file", "shell"}:
+                continue
+            if expected and expected in str(message.get("content", "")):
+                position = index
+                break
+        positions[relative] = position
+    return positions
+
+
+def _placement_communication_is_proportionate(response: str) -> bool:
+    lower = response.lower()
+    if _contains_any(
+        lower,
+        (
+            "honest owner",
+            "honest normative owner",
+            "documentation owner",
+        ),
+    ):
+        return False
+    return not any(
+        re.search(pattern, lower)
+        for pattern in (
+            r"(?:which|what) package .*\\?",
+            r"where should .*\\?",
+            r"confirm (?:the )?(?:owner|placement|location)",
+            r"please confirm .*?(?:owner|placement|location)",
+        )
+    )
+
+
 @pytest.fixture(scope="session")
 def harness() -> Iterator[DocumentationEvaluationHarness]:
     profile = selected_profile()
@@ -203,16 +307,35 @@ def test_02_generated_output_correction(
             "blocked refresh reported",
             _contains_any(
                 response,
-                ("unavailable", "not available", "missing", "cannot", "could not", "blocked"),
+                (
+                    "unavailable",
+                    "not available",
+                    "missing",
+                    "cannot",
+                    "could not",
+                    "blocked",
+                    "no such file",
+                    "does not contain",
+                    "not present",
+                ),
             )
             and _contains_any(response, ("generat", "prepar", "refresh")),
             "expected unavailable generation and remaining refresh action",
         ),
         AssertionFinding(
             "completion remains honest",
-            _contains_any(
+            (
+                "unchanged" in response
+                and _contains_any(response, ("prepared", "generated"))
+            )
+            or _contains_any(
                 response,
-                ("not regenerated", "not refreshed", "could not regenerate", "unable to"),
+                (
+                    "not regenerated",
+                    "not refreshed",
+                    "could not regenerate",
+                    "unable to",
+                ),
             ),
             "expected explicit statement that generated output was not refreshed",
         ),
@@ -309,6 +432,8 @@ def _seed_08(harness: DocumentationEvaluationHarness):
         "packages/label-utils/src/labels.py",
         "packages/label-utils/tests/test_labels.py",
     }
+    assert _tool_command_observed(run, "pytest")
+    assert "passed" in _raw_session_text(run)
     return run
 
 
@@ -397,6 +522,7 @@ def test_04_package_owned_refinement(
         "mobile/example-app/docs/development/specifications",
     )
     rendered = "\n".join(file_text(run, path) for path in mobile_specs).lower()
+    response = require_run_value(run).response
     findings = basic_run_findings(run) + (
         AssertionFinding(
             "mobile specification created",
@@ -430,6 +556,11 @@ def test_04_package_owned_refinement(
             ),
             repr(run.changed_paths),
         ),
+        AssertionFinding(
+            "placement communication is proportionate",
+            _placement_communication_is_proportionate(response),
+            response,
+        ),
     )
     record_review(
         run,
@@ -458,6 +589,7 @@ def test_05_normative_owner_and_discoverability(
     )
     readme = file_text(run, "packages/event-sdk/README.md").lower()
     index = file_text(run, "packages/event-sdk/docs/index.md").lower()
+    publishing = file_text(run, "packages/event-sdk/docs/publishing.md").lower()
     current_docs = "\n".join(
         file_text(run, path)
         for path in matching_paths(run, "packages/event-sdk/docs")
@@ -465,15 +597,25 @@ def test_05_normative_owner_and_discoverability(
     ).lower()
     consumer_text = f"{readme}\n{current_docs}"
     paths = set(run.changed_paths)
+    response = require_run_value(run).response
+    requirements = file_text(
+        run,
+        "packages/event-sdk/docs/development/specifications/"
+        "event-lifecycle/requirements.md",
+    ).lower()
     findings = basic_run_findings(run) + (
         AssertionFinding(
             "package discovery improved",
             (
                 re.search(r"\bretr(?:y|ies|ied|ying)\b", readme) is not None
-                or "publishing.md" in readme
+                and "retry" in index
             )
-            and "retry" in index,
-            "README and docs index should route to retry lifecycle",
+            or (
+                ("docs/index.md" in readme or "user documentation" in readme)
+                and "publishing.md" in index
+                and "retr" in publishing
+            ),
+            "expected a direct retry route or README → docs index → publishing",
         ),
         AssertionFinding(
             "implemented lifecycle explained",
@@ -501,18 +643,22 @@ def test_05_normative_owner_and_discoverability(
             "consumer docs should use package-user vocabulary",
         ),
         AssertionFinding(
-            "normative target not duplicated",
-            not any(
-                "event-lifecycle/technical-spec.md" in path
-                or "event-lifecycle/requirements.md" in path
-                for path in paths
-            ),
-            repr(run.changed_paths),
+            "authoritative target not rewritten",
+            not any("event-lifecycle/technical-spec.md" in path for path in paths)
+            and "event-002" in requirements
+            and "not started" in requirements
+            and "pending" in requirements,
+            f"paths={run.changed_paths!r}\nrequirements={requirements}",
         ),
         AssertionFinding(
             "implementation unchanged",
             not any(path.startswith("packages/event-sdk/src/") for path in paths),
             repr(run.changed_paths),
+        ),
+        AssertionFinding(
+            "placement communication is proportionate",
+            _placement_communication_is_proportionate(response),
+            response,
         ),
     )
     record_review(
@@ -553,8 +699,17 @@ def test_06_substantial_specification_approval(
         ),
         AssertionFinding(
             "proposal is concrete",
-            all(term in response for term in ("owner", "scope", "artifact")),
-            "expected owner, scope, and artifacts",
+            all(term in response for term in ("owner", "scope"))
+            and _contains_any(
+                response,
+                (
+                    "file",
+                    "document",
+                    "specification",
+                    "requirements",
+                ),
+            ),
+            "expected owner, scope, and proposed specification files",
         ),
         AssertionFinding(
             "overlap considered",
@@ -767,6 +922,11 @@ def test_09_task_authorized_new_specification(
         AssertionFinding(
             "no duplicate approval request",
             "please approve" not in response and "need your approval" not in response,
+            run.value.response,
+        ),
+        AssertionFinding(
+            "placement communication is proportionate",
+            _placement_communication_is_proportionate(run.value.response),
             run.value.response,
         ),
         AssertionFinding(
@@ -1259,6 +1419,11 @@ def test_16_failed_generated_refresh(
                     "still contains the old typo",
                     "stale",
                     "remains unchanged",
+                    "left the generated output unchanged",
+                    "left generated output unchanged",
+                    "left the prepared output unchanged",
+                    "prepared output remains unchanged",
+                    "left the generated file unchanged",
                     "did not claim a refresh",
                 ),
             ),
@@ -1336,6 +1501,10 @@ def test_17_public_package_profile(
             "quickstart" in docs_index
             and (
                 _contains_any(readme, ("quickstart", "quick start"))
+                or (
+                    ("docs/index.md" in readme or "documentation" in readme)
+                    and "quickstart.md" in docs_index
+                )
                 or (
                     "first use" in readme
                     and "publish" in readme
@@ -1566,49 +1735,31 @@ def test_19_apply_versus_maintain_boundary(
         ),
         AssertionFinding(
             "application and maintenance contexts distinguished",
-            (
-                re.search(r"\b(?:apply|applying|application)\b", response) is not None
-                and _contains_any(
-                    response,
-                    (
-                        "maintain",
-                        "maintenance",
-                        "changing the standard",
-                        "standards-maintenance",
-                    ),
-                )
+            _contains_any(
+                response,
+                (
+                    "package user",
+                    "sdk user",
+                    "consumer documentation",
+                    "consumer-facing",
+                    "public package readme",
+                    "package-user documentation",
+                    "user-facing sdk",
+                ),
             )
-            or (
-                _contains_any(
-                    response,
-                    (
-                        "consumer documentation",
-                        "consumer-facing",
-                        "package user pages",
-                        "public package readme",
-                        "sdk users",
-                    ),
-                )
-                and _contains_any(
-                    response,
-                    (
-                        "standards-maintenance",
-                        "maintenance artifacts",
-                        "internal decision",
-                        "internal rationale",
-                    ),
-                )
-                and _contains_any(
-                    response,
-                    (
-                        "maintainer or package development",
-                        "maintainer or development",
-                            "development/maintainer",
-                            "development or maintainer",
-                        "package development page",
-                        "development documentation",
-                    ),
-                )
+            and _contains_any(
+                response,
+                (
+                    "standards-maintenance",
+                    "maintenance files",
+                    "maintenance material",
+                    "maintenance specifications",
+                    "maintainer",
+                    "development documentation",
+                    "contributor",
+                    "internal rationale",
+                    "internal decision",
+                ),
             ),
             run.value.response,
         ),
@@ -1647,6 +1798,244 @@ def test_19_apply_versus_maintain_boundary(
     record_review(
         run,
         spec_file="19-apply-versus-maintain-boundary.md",
+        findings=findings,
+    )
+    assert_findings(findings)
+
+
+@pytest.mark.extended
+@pytest.mark.requirements("DOCREP-007", "DOCVAL-009")
+def test_20_routed_guidance_reading(
+    harness: DocumentationEvaluationHarness,
+) -> None:
+    run = harness.branch(
+        test_id="20-routed-guidance-reading",
+        spec_file="20-routed-guidance-reading.md",
+        parent=_seed_04(harness),
+        fixture_id="event-retry",
+        guidance_instruction_paths=("AGENTS.md",),
+    )
+    required_reads = (
+        "docs/development/repository/index.md",
+        "docs/development/standards/index.md",
+        "docs/development/repository/documentation.md",
+        "docs/development/standards/documentation.md",
+    )
+    positions = _complete_read_positions(run, required_reads)
+    first_mutation = _first_mutation_tool_index(run)
+    injection = _evidence_value(
+        run,
+        "documentation_standard.guidance_injection",
+    )
+    injection_value = injection if isinstance(injection, dict) else {}
+    tool_output_parts: list[str] = []
+    for message in _tool_messages(run):
+        metadata = message.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        display = metadata.get("display")
+        if isinstance(display, dict):
+            tool_output_parts.append(str(display.get("content", "")))
+    tool_output = "\n".join(tool_output_parts).lower()
+    paths = set(run.changed_paths)
+    quickstart = (
+        file_text(run, "packages/event-sdk/docs/quickstart.md").lower()
+        if file_exists(run, "packages/event-sdk/docs/quickstart.md")
+        else ""
+    )
+    public_text = "\n".join(
+        file_text(run, path).lower()
+        for path in matching_paths(run, "packages/event-sdk/docs")
+        if "/development/" not in path
+    )
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "routing-only guidance injected",
+            injection_value.get("paths") == ["AGENTS.md"],
+            repr(injection_value),
+        ),
+        AssertionFinding(
+            "routed pages read completely",
+            all(position is not None for position in positions.values()),
+            repr(positions),
+        ),
+        AssertionFinding(
+            "routed pages read before mutation",
+            first_mutation is not None
+            and all(
+                position is not None and position < first_mutation
+                for position in positions.values()
+            ),
+            f"reads={positions!r}, first_mutation={first_mutation!r}",
+        ),
+        AssertionFinding(
+            "maintainer-only routing not followed",
+            "# documentation and specification standard" not in tool_output
+            and "# documentation and specification standard requirements"
+            not in tool_output,
+            tool_output,
+        ),
+        AssertionFinding(
+            "package-local documentation only",
+            bool(paths)
+            and all(path.startswith("packages/event-sdk/") for path in paths)
+            and not any(
+                path.startswith(
+                    ("packages/event-sdk/src/", "packages/event-sdk/tests/")
+                )
+                for path in paths
+            ),
+            repr(run.changed_paths),
+        ),
+        AssertionFinding(
+            "user and maintainer routes completed",
+            (
+                bool(quickstart)
+                or (
+                    "first use"
+                    in file_text(run, "packages/event-sdk/README.md").lower()
+                    and "publish"
+                    in file_text(run, "packages/event-sdk/README.md").lower()
+                )
+                or (
+                    "get started"
+                    in file_text(run, "packages/event-sdk/docs/index.md").lower()
+                    and "publish"
+                    in file_text(run, "packages/event-sdk/docs/index.md").lower()
+                )
+            )
+            and file_exists(run, "packages/event-sdk/docs/development/index.md"),
+            (
+                quickstart
+                or file_text(run, "packages/event-sdk/README.md")
+                + "\n"
+                + file_text(run, "packages/event-sdk/docs/index.md")
+            ),
+        ),
+        AssertionFinding(
+            "public pages remain current",
+            "replay_failed" not in public_text
+            and "phase " not in public_text
+            and "development/specifications" not in public_text,
+            public_text,
+        ),
+    )
+    record_review(
+        run,
+        spec_file="20-routed-guidance-reading.md",
+        findings=findings,
+    )
+    assert_findings(findings)
+
+
+@pytest.mark.extended
+@pytest.mark.requirements(
+    "DOCGEN-008",
+    "DOCGEN-009",
+    "DOCGEN-010",
+    "DOCVAL-009",
+)
+def test_21_explicit_specification_layout_override(
+    harness: DocumentationEvaluationHarness,
+) -> None:
+    run = harness.branch(
+        test_id="21-explicit-specification-layout-override",
+        spec_file="21-explicit-specification-layout-override.md",
+        parent=_seed_05(harness),
+        fixture_id="batch-sync",
+        branch_variant="approved-task-single-decisions",
+    )
+    paths = set(run.changed_paths)
+    specs = matching_paths(
+        run,
+        "packages/batch-sdk/docs/development/specifications",
+    )
+    decision_files = tuple(path for path in specs if path.endswith("/decisions.md"))
+    decision_directories = tuple(path for path in specs if "/decisions/" in path)
+    rendered = "\n".join(file_text(run, path) for path in specs).lower()
+    indexes = "\n".join(
+        file_text(run, path).lower() for path in specs if path.endswith("/index.md")
+    )
+    response = require_run_value(run).response
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "package specification created",
+            bool(specs),
+            repr(specs),
+        ),
+        AssertionFinding(
+            "single decisions file honored",
+            len(decision_files) == 1 and not decision_directories,
+            f"files={decision_files!r}, directory_files={decision_directories!r}",
+        ),
+        AssertionFinding(
+            "decision file indexed",
+            "decisions.md" in indexes,
+            indexes,
+        ),
+        AssertionFinding(
+            "required specification content retained",
+            all(
+                term in rendered
+                for term in (
+                    "conflict",
+                    "migration",
+                    "compatibility",
+                    "recovery",
+                    "transport",
+                    "persistence",
+                )
+            ),
+            rendered,
+        ),
+        AssertionFinding(
+            "requirements pending",
+            "not started" in rendered
+            and "unverified" in rendered
+            and "pending" in rendered,
+            rendered,
+        ),
+        AssertionFinding(
+            "concrete specification terminology",
+            not re.search(
+                r"(?mi)^#+\s+(?:specification\s+)?artifacts?\s*:?\s*$",
+                rendered,
+            )
+            and not any(
+                phrase in rendered
+                for phrase in (
+                    "artifact role",
+                    "artifact set",
+                    "artifact tree",
+                    "documentation artifact",
+                    "output artifact",
+                    "specification artifact",
+                    "work-tracking artifact",
+                )
+            ),
+            rendered,
+        ),
+        AssertionFinding(
+            "no implementation or current README mutation",
+            not any(
+                path.startswith("packages/batch-sdk/src/")
+                or path == "packages/batch-sdk/README.md"
+                for path in paths
+            ),
+            repr(run.changed_paths),
+        ),
+        AssertionFinding(
+            "no duplicate approval or ownership jargon",
+            _placement_communication_is_proportionate(response)
+            and "please approve" not in response.lower()
+            and "need your approval" not in response.lower()
+            and "mandatory directory" not in response.lower(),
+            response,
+        ),
+    )
+    record_review(
+        run,
+        spec_file="21-explicit-specification-layout-override.md",
         findings=findings,
     )
     assert_findings(findings)

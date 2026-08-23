@@ -1,0 +1,187 @@
+name: Public CI
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  repository-checks:
+    name: Repository checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check changed-file whitespace
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            git diff --check HEAD^ HEAD
+          else
+            git diff --check
+          fi
+
+      - name: Parse workflow YAML
+        run: |
+          ruby -e '
+            require "yaml"
+            Dir[".github/workflows/*.{yml,yaml}"].sort.each do |path|
+              YAML.safe_load(File.read(path), aliases: true)
+              puts "Parsed #{path}"
+            end
+          '
+
+      - name: Parse primary manifests
+        run: |
+          python3 - <<'PY'
+          import json
+          import tomllib
+          from pathlib import Path
+
+          json_paths = [
+              Path("package.json"),
+              Path("application/python/agent_terminal_app/default_config/config.json"),
+              Path("mobile/crystal-lattice-control-rn/package.json"),
+              Path("desktop/crystal-lattice-control-desktop-rn/package.json"),
+              Path("landing_page/package.json"),
+              Path("packages/frontend-sdk/package.json"),
+              Path("packages/frontend-sdk-react/package.json"),
+              Path("packages/frontend-rn-components/package.json"),
+          ]
+          toml_paths = [
+              Path("core/python/pyproject.toml"),
+              Path("application/python/pyproject.toml"),
+              Path("plugins/openai_responses/pyproject.toml"),
+              Path("plugins/openrouter/pyproject.toml"),
+          ]
+
+          for path in json_paths:
+              json.loads(path.read_text(encoding="utf-8"))
+              print(f"Parsed {path}")
+          for path in toml_paths:
+              tomllib.loads(path.read_text(encoding="utf-8"))
+              print(f"Parsed {path}")
+          PY
+
+      - name: Validate Actions security boundaries
+        run: python3 scripts/check_github_actions_security.py
+
+  python-unit-tests:
+    name: Python unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install \
+            -e "core/python[dev]" \
+            -e application/python \
+            -e "plugins/openai_responses[dev]" \
+            -e plugins/tool-compat-shared \
+            -e plugins/mcp-shared \
+            -e plugins/web-fetch-shared
+
+      - name: Run core unit tests
+        run: pytest core/python/tests -q -m "not integration"
+
+      - name: Run application unit tests
+        run: pytest application/python/tests -q -m "not integration and not docker"
+
+  frontend-package-tests:
+    name: Frontend package tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test frontend SDK
+        run: npm --workspace @crystal-lattice/frontend-sdk test
+
+      - name: Test React bindings
+        run: npm --workspace @crystal-lattice/frontend-sdk-react test
+
+      - name: Test shared React Native components
+        run: npm --workspace @crystal-lattice/frontend-rn-components test
+
+  landing-and-docs-build:
+    name: Landing and docs build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: yarn
+          cache-dependency-path: landing_page/yarn.lock
+
+      - name: Build landing site
+        run: |
+          yarn --cwd landing_page install --frozen-lockfile
+          yarn --cwd landing_page build
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: docs_site/requirements.txt
+
+      - name: Build documentation site
+        run: |
+          python -m pip install -r docs_site/requirements.txt
+          python docs_site/scripts/prepare_mkdocs_site.py
+          (cd docs_site && mkdocs build)

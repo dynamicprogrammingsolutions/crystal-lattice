@@ -619,3 +619,23 @@ approved.
   - Changing the permanent default, migrating existing records, physical-device
     network validation, and a bounded load/soak run remain rollout work that
     requires separate approval.
+
+## Post-completion follow-up
+
+- Merged local `develop` at `237e2e44` into the task branch.
+- Resolved the documentation-site navigation conflict by retaining the newer
+  package catalog and consolidated Development section, then adding the
+  bridge-connectivity specification under Development → Specifications.
+- Enabled publication of the Bridge Service's package-owned `docs/` and
+  `docs/development/` pages through `docs_site/packages.toml`.
+- Replaced the atomic-admission test's ad-hoc linked DynamicSupervisor cleanup
+  with ExUnit-managed supervision. This removes a teardown race exposed by the
+  main worktree's newer Elixir without changing bridge runtime behavior.
+- Post-merge verification:
+  - Elixir: 63 passed, 4 existing skips.
+  - Python bridge/CLI environment: 56 passed.
+  - Frontend SDK: 313 passed.
+  - Mobile: 119 passed; TypeScript passed.
+  - Documentation-site tests: 15 passed.
+  - Documentation preparation and MkDocs build passed with existing
+    navigation/reference warnings.

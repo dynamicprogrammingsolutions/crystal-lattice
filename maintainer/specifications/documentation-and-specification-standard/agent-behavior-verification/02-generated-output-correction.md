@@ -11,7 +11,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 [DOCGEN-001](../requirements.md#L19-L21):
 
-> A package-neutral documentation standard defines profiles, artifact roles,
+> A package-neutral documentation standard defines profiles, document roles,
 > ownership, source-of-truth, incremental adoption, and generated-output
 > boundaries without Crystal Lattice-specific paths or package names.
 
@@ -24,7 +24,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 [DOCREP-006](../requirements.md#L31-L38):
 
 > Repository policy maps generic audience roles to exact Crystal Lattice
-> artifacts and defines prohibited reference directions including generated
+> documents and defines prohibited reference directions including generated
 > output.
 
 [DOCVAL-007–DOCVAL-008](../requirements.md#L69-L80):
@@ -42,7 +42,7 @@ that an unavailable compliant workflow does not authorize a direct fallback.
 
 [Technical architecture](../technical-spec.md#L3-L15):
 
-> The generic standards and repository policy are output artifacts governed by
+> The generic standards and repository policy are output pages governed by
 > this meta-specification. They do not link back to the meta-specification.
 
 [Technical publication target](../technical-spec.md#L301-L313):
@@ -52,7 +52,7 @@ that an unavailable compliant workflow does not authorize a direct fallback.
 
 [Boundary preservation target](../technical-spec.md#L194-L215):
 
-> A blocked operation does not expand task scope, change artifact ownership, or
+> A blocked operation does not expand task scope, change document ownership, or
 > authorize bypassing a source-of-truth, audience, validation, or publication
 > boundary.
 
@@ -77,7 +77,7 @@ that an unavailable compliant workflow does not authorize a direct fallback.
 > Generated documentation belongs with the maintained source that produces it;
 > the generated destination remains output.
 
-[Generated output and blocker behavior](../../../../docs/development/standards/documentation.md#L235-L259):
+[Generated output and blocker behavior](../../../../docs/development/standards/documentation.md#L243-L267):
 
 > Generated output is never edited directly. If a generated page is wrong,
 > change its maintained source or generator.
@@ -102,7 +102,7 @@ that an unavailable compliant workflow does not authorize a direct fallback.
 
 ### Assertion relationship
 
-The source-file correction proves that the agent found the normative owner.
+The source-file correction proves that the agent found the authoritative source.
 Mutation telemetry rejects direct writes to prepared output. The unchanged
 prepared tree and response assertions distinguish safe partial progress from a
 boundary-breaking fallback and false completion claim.

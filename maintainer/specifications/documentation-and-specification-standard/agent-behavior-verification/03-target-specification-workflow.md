@@ -12,7 +12,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 > A package-neutral specification standard defines target specifications, live
 > requirements, work-tracked approval, current public/maintainer docs,
-> proportional artifacts, evidence, and simple spec-first commits.
+> proportional specification files, evidence, and simple spec-first commits.
 
 ### Target specification
 
@@ -35,7 +35,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > and current documentation. The spec and code are committed together or in
 > two adjacent commits, while requirements show the live transition.
 
-[Technical artifact authority](../technical-spec.md#L123-L144):
+[Technical source authority](../technical-spec.md):
 
 > | Specification | Intended target behavior and design |
 > | Requirements | Live implementation, verification, documentation, and
@@ -47,25 +47,24 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 ### Authored guidance under test
 
-[Four artifact roles](../../../../docs/development/standards/specifications.md#L7-L17):
+[Four sources of truth](../../../../docs/development/standards/specifications.md):
 
 > Specification: intended target behavior and design.
 
 > Requirements: live implementation, verification, documentation, and evidence
 > state.
 
-> Work-tracking artifact: approval, execution scope, plan, findings, and
-> completion.
+> Work item: approval, execution scope, plan, findings, and completion.
 
 > A specification is not evidence that its target currently exists.
 
-[Proportional artifacts](../../../../docs/development/standards/specifications.md#L63-L89):
+[Proportional specification files](../../../../docs/development/standards/specifications.md):
 
 > The set is proportional.
 
 > Requirements normalize target outcomes and track live state.
 
-> Do not create empty artifacts merely to complete the shape.
+> Do not create empty files merely to complete the shape.
 
 [Specification as target](../../../../docs/development/standards/specifications.md#L91-L117):
 
@@ -81,7 +80,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 
 [Approval and requirements](../../../../docs/development/standards/specifications.md#L126-L152):
 
-> The repository's work-tracking artifact records approval by default.
+> The repository's work item records approval by default.
 > Specifications do not require a mandatory approval or implementation status.
 
 > Requirements use stable identifiers and keep implementation, verification,
@@ -101,7 +100,7 @@ Quoted sentences are review aids; linked sources remain authoritative.
 > Draft, deferred, or target-only behavior belongs in specifications and
 > requirements, not in current guides.
 
-[Crystal Lattice artifact mapping](../../../../docs/development/repository/specifications.md#L51-L69):
+[Crystal Lattice source mapping](../../../../docs/development/repository/specifications.md):
 
 > Approval and execution: `tasks/` task and execution plan.
 
@@ -141,7 +140,7 @@ should:
 - implement and test the change;
 - update live requirements independently across implementation,
   verification, documentation, and evidence;
-- keep approval and execution in the work-tracking artifact;
+- keep approval and execution in the work item;
 - update user and implementation documentation to current behavior;
 - avoid treating the specification as proof that implementation exists;
 - keep an ordinary small spec-first change in the same commit-sized work
@@ -251,7 +250,7 @@ It scores:
 - target versus current-state separation;
 - requirement-ledger accuracy;
 - specification-first sequencing;
-- proportionality of artifacts;
+- proportionality of specification files;
 - compatibility and failure-behavior clarity;
 - evidence quality.
 

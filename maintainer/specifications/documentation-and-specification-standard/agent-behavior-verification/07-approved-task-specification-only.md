@@ -12,7 +12,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > A package-neutral specification standard defines target specifications, live
 > requirements, work-tracked approval, current public/maintainer docs,
-> proportional artifacts, evidence, and simple spec-first commits.
+> proportional specification files, evidence, and simple spec-first commits.
 
 [DOCVAL-008](../requirements.md#L80-L80):
 

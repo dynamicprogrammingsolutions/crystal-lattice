@@ -10,6 +10,26 @@ Break the mobile message refresh slowdown into separable fixes. The first priori
 - [ ] `tasks/20260610-mobile-message-refresh-performance/040-frontend-refresh-orchestration.md`
 - [x] `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
 
+## Roadmap status updates
+
+Roadmap:
+[Open Source and iOS Release](../../roadmaps/open-source-and-ios-release.md)
+
+Instructions:
+[Updating a roadmap through CSV](../../roadmaps/docs/updating-roadmaps.md)
+
+Do not read the linked roadmap or instructions, inspect roadmap state, or
+update the roadmap as part of routine task execution or completion. Do so only
+when the user explicitly requests a roadmap status update, for example:
+“update the task status in the roadmap as per the instructions in the main
+task.”
+
+That explicit request authorizes reading the linked files, updating the
+authored CSV and generated Markdown, and synchronizing the configured Google
+Sheet as required by the instructions. It does not authorize unrelated roadmap
+changes. If the user limits the request to local files, do not mutate the
+sheet.
+
 ## Background
 
 Manual message reload in the React Native mobile app can become slow for large sessions due to an accumulation of smaller issues:

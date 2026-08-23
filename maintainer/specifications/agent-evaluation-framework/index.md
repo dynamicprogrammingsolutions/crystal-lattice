@@ -20,7 +20,7 @@ documentation and specification standards defined by:
 - [Its live requirements](../documentation-and-specification-standard/requirements.md)
 - [Its agent-behavior verification scenarios](../documentation-and-specification-standard/agent-behavior-verification/index.md)
 
-Artifacts:
+Specification documents:
 
 - [Product specification](product-spec.md)
 - [Technical specification](technical-spec.md)

@@ -8,6 +8,31 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+def disable_fmt_consteval
+  fmt_header = File.join(
+    __dir__,
+    'Pods',
+    'fmt',
+    'include',
+    'fmt',
+    'base.h'
+  )
+  return unless File.exist?(fmt_header)
+
+  enabled = '#  define FMT_USE_CONSTEVAL 1'
+  disabled = '#  define FMT_USE_CONSTEVAL 0'
+  contents = File.read(fmt_header)
+
+  if contents.include?(enabled)
+    File.write(fmt_header, contents.gsub(enabled, disabled))
+    Pod::UI.puts 'Disabled fmt consteval for Apple clang compatibility'.yellow
+  elsif contents.include?(disabled)
+    Pod::UI.puts 'fmt consteval compatibility patch already applied'.yellow
+  else
+    raise "Could not locate FMT_USE_CONSTEVAL definitions in #{fmt_header}"
+  end
+end
+
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
@@ -30,5 +55,6 @@ target 'CrystalLatticeControlRN' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+    disable_fmt_consteval
   end
 end

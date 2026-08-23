@@ -9,6 +9,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+TEST_SUPPORT = ROOT / "test"
+if str(TEST_SUPPORT) not in sys.path:
+    sys.path.insert(0, str(TEST_SUPPORT))
 CORE_PY = ROOT / "core" / "python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))

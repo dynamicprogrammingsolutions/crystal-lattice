@@ -30,8 +30,16 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 5. Open repository **Settings → Actions → General**.
 6. Set default workflow permissions to **Read repository contents and packages**.
 7. Disable **Allow GitHub Actions to create and approve pull requests**.
-8. Require approval for workflows from outside collaborators.
-9. Review allowed Actions policy and approved immutable action references.
+8. Require approval for first-time outside contributors before their workflows
+   run.
+9. Confirm fork workflows receive neither repository secrets nor write tokens.
+10. Change the allowed-actions policy to selected actions:
+    - allow GitHub-owned actions;
+    - allow `aws-actions/configure-aws-credentials`;
+    - allow `softprops/action-gh-release`;
+    - add a future action repository only when a reviewed, SHA-pinned workflow
+      actually needs it.
+11. Require actions to be pinned to a full-length commit SHA.
 
 ### Change visibility
 
@@ -52,7 +60,11 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 4. Require at least one approval.
 5. Dismiss stale approvals when new commits are pushed.
 6. Require resolution of review conversations.
-7. Add the stable checks from task `040` as required checks.
+7. Add these stable checks from task `040` as required checks:
+   - `Public CI / Repository checks`
+   - `Public CI / Python unit tests`
+   - `Public CI / Frontend package tests`
+   - `Public CI / Landing and docs build`
 8. Block force pushes.
 9. Block branch deletion.
 10. Keep bypass access limited to repository administrators for emergency use.
@@ -71,12 +83,15 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 ### Protect deployments
 
 1. Create or update environment `production-sites`.
-2. Restrict it to `main` and approved release references.
+2. Restrict it to `main`.
 3. Add a required reviewer if supported.
 4. Create or update environment `cli-release`.
-5. Restrict it to release tags and add approval.
+5. Restrict it to tags matching `crystal-lattice-cli-v*` and add a required
+   reviewer if supported.
 6. Reserve `testflight` for the later iOS workflow.
-7. Confirm pull-request jobs cannot access these environments or secrets.
+7. Move or scope static-site deployment secrets to `production-sites` and CLI
+   publication secrets to `cli-release` where supported.
+8. Confirm pull-request jobs cannot access these environments or secrets.
 
 ### Complete repository presentation
 
@@ -107,6 +122,12 @@ activating the `main` ruleset.
 - Keep Discussions disabled initially.
 - Do not enable expensive or noisy optional automation until task `130`.
 - Use protected environments for production authority.
+- Require the four stable `Public CI` checks on `main`.
+- Permit only GitHub-owned actions plus the currently required AWS credentials
+  and GitHub Release action repositories.
+- Require full-SHA action references; version comments remain informational.
+- A later TestFlight workflow must add its reviewed action repositories to the
+  selected-action allowlist rather than broadening the policy generally.
 
 ### Documentation
 

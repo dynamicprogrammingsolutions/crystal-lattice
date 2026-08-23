@@ -11,6 +11,11 @@ def pytest_configure() -> None:
     if root_str not in sys.path:
         sys.path.insert(0, root_str)
 
+    test_support = root / "test"
+    test_support_str = str(test_support)
+    if test_support_str not in sys.path:
+        sys.path.insert(0, test_support_str)
+
     # Ensure this plugin package's src/ is importable.
     src = Path(__file__).resolve().parents[1] / "src"
     src_str = str(src)

@@ -7,7 +7,7 @@ Assemble the metadata and review information required to register the app and su
 - [x] Prepare app identity fields: name, bundle ID, SKU, primary language, category, age rating inputs, copyright.
 - [x] Prepare support URL, marketing URL, and privacy policy URL.
 - [x] Prepare TestFlight beta app description, what-to-test text, feedback email, and review notes.
-- [ ] Prepare Apple reviewer testing instructions, including how to access a usable backend/bridge/cloud environment.
+- [x] Internal TestFlight instructions are actionable, while external Apple reviewer instructions are explicitly assigned to the App Review runtime task.
 - [x] Confirm export compliance/encryption answers for network communication.
 - [x] Identify screenshots/app previews needed for eventual App Store release, even if not needed for initial internal TestFlight.
 
@@ -19,8 +19,9 @@ Depends On: tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-pa
 | Field | Value |
 | --- | --- |
 | Platform | iOS |
-| App name | `Crystal Lattice` |
+| App name | `Crystal Lattice Control` |
 | Bundle ID | `com.dynamicprogrammingsolutions.crystallatticecontrolrn` |
+| Numeric Apple ID | `6798401926` |
 | SKU | `crystal-lattice-ios` |
 | Primary language | English (U.S.) |
 | Primary category | Developer Tools |
@@ -33,8 +34,10 @@ Depends On: tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-pa
 | Copyright | `2026 Dynamic Programming Solutions Kft.` |
 | Feedback email | `support@dynamicprogrammingsolutions.com` |
 
-The explicit App ID and App Store Connect app record do not yet exist and must
-be created by an Account Holder, Admin, or App Manager as applicable.
+The explicit App ID and App Store Connect app record were created successfully.
+The owner reported no Apple warning or error. Developer name is expected to
+default to the legal entity name but remains pending public or Apple Support
+confirmation.
 
 ## URLs
 
@@ -99,8 +102,10 @@ accept Apple's calculated rating.
 ## Reviewer Access Status
 
 The first build is internal-only, so internal testers can use their own
-self-hosted environment. External TestFlight review still needs an immediately
-testable review path. That work belongs to
+self-hosted environment. This registration package is complete enough for the
+internal TestFlight path without waiting for external-review access. External
+TestFlight review still needs an immediately testable review path. That work
+belongs to
 `tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md`.
 Do not submit for external TestFlight review until that task supplies actionable
 reviewer instructions.
@@ -137,19 +142,35 @@ enabled. App previews are optional.
 
 ## Manual Account Actions
 
-1. Accept any pending Apple Developer/App Store Connect agreements.
-2. Register the explicit App ID.
-3. Create the App Store Connect app record with the fields above.
-4. Complete the current age-rating questionnaire.
-5. Enter the App Privacy answers from task `050`.
-6. Create an App Store Connect API key for fastlane.
-7. Complete reviewer access after task `085` before external testing.
+- [x] Accept any pending Apple Developer/App Store Connect agreements.
+- [x] Register the explicit App ID.
+- [x] Create the App Store Connect app record with the fields above.
+- [x] Save the Developer Tools and Productivity categories.
+- [x] Enter the App Privacy answers from task `050`.
+- [x] Confirm the exact accepted App Store app name.
+- [x] Create an App Store Connect API key for fastlane.
+- [ ] Complete reviewer access after task `085` before external testing.
 
 ## Implementation Notes
 
 The automatic registration package was prepared on 2026-08-05. Apple-account
-changes were intentionally not performed. The reviewer-access checklist remains
-open until the external-review test path is implemented.
+changes were intentionally not performed. A later roadmap dependency correction
+made the internal registration package independent of external reviewer access;
+task `085` owns the external-review test path and reviewer instructions.
+
+Owner confirmation received on 2026-08-05:
+
+- Explicit App ID registered.
+- App Store Connect app record created.
+- Numeric Apple ID: `6798401926`.
+- Categories saved: Developer Tools and Productivity.
+- App Privacy saved.
+- No Apple warning or error reported.
+
+Owner confirmation received on 2026-08-19:
+
+- Exact App Store Connect name: `Crystal Lattice Control`.
+- App Store Connect API key created for fastlane.
 
 The identity/export declarations were verified in a successful Debug generic
 iOS Simulator build. The built app reports the expected display name, bundle
@@ -161,5 +182,6 @@ passed as recorded in task `050`.
 
 - A product/account owner can create or complete the App Store Connect app record from this package without guessing.
 - TestFlight metadata is written in review-ready prose.
-- Reviewer access instructions are actionable.
+- Internal tester instructions are actionable, and external reviewer
+  instructions have a clear owner and remain a gate for external review.
 - Any Apple-account-only fields that cannot be completed by the agent are listed with owner/action required.

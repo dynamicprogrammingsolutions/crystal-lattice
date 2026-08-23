@@ -29,7 +29,6 @@ Provide an immediately testable Crystal Lattice experience that satisfies App Re
 
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
 Depends On: tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-page-compliance.md
-Depends On: tasks/20260614-ios-testflight-github-fastlane/060-app-store-connect-registration-package.md
 Depends On: tasks/20260729-staged-application-config-and-full-reload.md
 
 ## App Review Rationale

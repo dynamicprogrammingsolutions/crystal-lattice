@@ -12,11 +12,11 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > A package-neutral specification standard defines target specifications, live
 > requirements, work-tracked approval, current public/maintainer docs,
-> proportional artifacts, evidence, and simple spec-first commits.
+> proportional specification files, evidence, and simple spec-first commits.
 
 ### Target specification
 
-[Technical artifact authority](../technical-spec.md#L123-L144):
+[Technical source authority](../technical-spec.md):
 
 > Specifications are updated before implementation. They are not proof that the
 > target is currently available.

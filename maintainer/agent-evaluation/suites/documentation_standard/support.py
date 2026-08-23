@@ -31,8 +31,8 @@ SPEC_ROOT = (
 )
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
 BASELINE_GUIDANCE_REVISION = "3a62b6fc"
-GUIDANCE_INJECTION_VERSION = "v5"
-PROFILE_CONFIG_VERSION = "v4"
+GUIDANCE_INJECTION_VERSION = "v6"
+PROFILE_CONFIG_VERSION = "v5"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
 PLUGIN_RUNTIME_CONSTRAINTS = PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
 FIXTURE_REVISIONS = {
@@ -40,11 +40,11 @@ FIXTURE_REVISIONS = {
     "report-export": "v3",
     "mobile-composer": "v1",
     "event-retry": "v5",
-    "batch-sync": "v1",
-    "path-policy": "v2",
-    "slug-utils": "v2",
-    "label-utils": "v2",
-    "sync-engine": "v2",
+    "batch-sync": "v2",
+    "path-policy": "v3",
+    "slug-utils": "v3",
+    "label-utils": "v3",
+    "sync-engine": "v3",
 }
 SYNTHETIC_SRC_CONFTEST = """import sys
 from pathlib import Path
@@ -100,6 +100,7 @@ PROFILES = {
         model="glm-5.2:cloud",
         hosted=False,
         plugin_fragments=(
+            "/codex-tools",
             "/feature-request-options",
             "/feature-system-message",
             "/reference-openai-compatible-provider",
@@ -112,6 +113,7 @@ PROFILES = {
         hosted=True,
         auth_mode="chatgpt",
         plugin_fragments=(
+            "/codex-tools",
             "/feature-request-options",
             "/feature-system-message",
             "/openai_responses",
@@ -123,6 +125,7 @@ PROFILES = {
 EVALUATION_TOOL_PLUGINS = (
     "plugins.file_reader_tool.FileReaderTool",
     "plugins.file_writer_tool.FileWriterTool",
+    "codex_tools.shell_tool.ShellArrayTool",
 )
 GUIDANCE_FEATURE_PLUGIN = (
     "suites.documentation_standard.guidance_feature."
@@ -191,13 +194,19 @@ class GuidanceSource:
             "injection_version": GUIDANCE_INJECTION_VERSION,
         }
 
-    def context_message(self) -> str:
+    def context_message(
+        self,
+        paths: tuple[str, ...] | None = None,
+    ) -> str:
+        selected_paths = paths or CANDIDATE_GUIDANCE_PATHS
         lines = [
             "Repository guidance for the next task follows.",
             "Treat it as project instructions, not as the task itself.",
             "Each section is the exact content of the named repository file.",
         ]
-        for relative in CANDIDATE_GUIDANCE_PATHS:
+        for relative in selected_paths:
+            if relative not in CANDIDATE_GUIDANCE_PATHS:
+                raise ValueError(f"unsupported guidance instruction path: {relative}")
             content = self.read_bytes(relative).decode("utf-8")
             lines.extend(
                 (
@@ -440,6 +449,7 @@ class DocumentationEvaluationHarness:
         branch_variant: str = "base",
         prompt_heading: str = "## Exact user prompt",
         cache: bool = True,
+        guidance_instruction_paths: tuple[str, ...] | None = None,
     ) -> Run[TurnValue]:
         key = f"branch:{test_id}:{branch_variant}"
         if key in self._runs:
@@ -455,12 +465,16 @@ class DocumentationEvaluationHarness:
         cache_key = None
         if cache:
             cache_variant_suffix = f":{cache_variant}" if cache_variant else ""
+            instruction_paths = (
+                guidance_instruction_paths or CANDIDATE_GUIDANCE_PATHS
+            )
             cache_key = (
                 f"documentation-standard:{self.profile.name}:{test_id}:"
                 f"{self.guidance.name}:{self.guidance.sha256()}:"
                 f"{_sha256_text(prompt)}:"
                 f"{branch_variant}:{fixture_revision(fixture_id)}:"
-                f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}"
+                f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}:"
+                f"{_sha256_text(json.dumps(instruction_paths))}"
                 f"{cache_variant_suffix}"
             )
         run = self.evaluation.run(
@@ -470,6 +484,7 @@ class DocumentationEvaluationHarness:
                 prompt,
                 guidance=self.guidance,
                 inject_guidance=True,
+                guidance_instruction_paths=guidance_instruction_paths,
             ),
             continue_from=parent,
             workspace=workspace,
@@ -528,6 +543,7 @@ class DocumentationEvaluationHarness:
         *,
         guidance: GuidanceSource | None,
         inject_guidance: bool = False,
+        guidance_instruction_paths: tuple[str, ...] | None = None,
     ) -> TurnValue:
         if context.workspace is None:
             raise ValueError("missing evaluation workspace")
@@ -555,8 +571,13 @@ class DocumentationEvaluationHarness:
             "documentation_standard.guidance",
             guidance.metadata() if guidance is not None else None,
         )
+        injected_paths = (
+            guidance_instruction_paths or CANDIDATE_GUIDANCE_PATHS
+            if guidance is not None and inject_guidance
+            else ()
+        )
         if guidance is not None and inject_guidance:
-            guidance_message = guidance.context_message()
+            guidance_message = guidance.context_message(injected_paths)
             if self.profile.auth_mode == "chatgpt":
                 context.config[GUIDANCE_CONFIG_KEY] = guidance_message
                 injection_strategy = "late_feature_endpoint_instructions"
@@ -593,6 +614,7 @@ class DocumentationEvaluationHarness:
                 "strategy": injection_strategy,
                 "role": injection_role,
                 "position": injection_position,
+                "paths": list(injected_paths),
             },
         )
         context.services.record(
@@ -891,6 +913,20 @@ def _project_config_for_profile(
             )
         )
     ]
+    for agent in agents.values():
+        if not isinstance(agent, dict):
+            continue
+        agent_plugins = agent.get("plugins")
+        if not isinstance(agent_plugins, list):
+            continue
+        for item in agent_plugins:
+            if (
+                isinstance(item, str)
+                and item.startswith(("path:", "bash:", "node:"))
+                and any(fragment in item for fragment in profile.plugin_fragments)
+                and item not in selected_plugins
+            ):
+                selected_plugins.append(item)
     missing_fragments = [
         fragment
         for fragment in profile.plugin_fragments
@@ -905,6 +941,7 @@ def _project_config_for_profile(
         )
     projected_agent = {
         **selected,
+        "shell_tool_mode": "shell",
         "plugins": [GUIDANCE_FEATURE_PLUGIN, *EVALUATION_TOOL_PLUGINS],
     }
     projection = {
@@ -1268,7 +1305,7 @@ Defines request delivery, retryable transport errors, and idempotency keys.
 Defines durable record encoding, schema migration, and recovery boundaries.
 """,
     }
-    if branch_variant == "approved-task":
+    if branch_variant in {"approved-task", "approved-task-single-decisions"}:
         files["tasks/batch-offline-sync.md"] = """# Batch offline synchronization
 
 Status: Approved
@@ -1283,6 +1320,11 @@ Status: Approved
 
 Specification and requirements are authorized. Do not implement the protocol.
 """
+        if branch_variant == "approved-task-single-decisions":
+            files["tasks/batch-offline-sync.md"] += """
+Record material decisions in one `decisions.md` file. Do not create a
+`decisions/` directory or separate decision-record files.
+"""
     elif branch_variant != "base":
         raise KeyError(f"unknown batch-sync variant: {branch_variant}")
     _write_synthetic_fixture(workspace, files)
@@ -1294,6 +1336,10 @@ def _fixture_path_policy(workspace: Path, branch_variant: str) -> None:
     _write_synthetic_fixture(
         workspace,
         {
+            ".gitignore": """__pycache__/
+*.pyc
+.pytest_cache/
+""",
             "packages/path-policy/README.md": """# path-policy
 
 `normalize_path("~/file", home=...)` resolves against the supplied home.
@@ -1347,6 +1393,10 @@ def _fixture_slug_utils(workspace: Path, branch_variant: str) -> None:
     _write_synthetic_fixture(
         workspace,
         {
+            ".gitignore": """__pycache__/
+*.pyc
+.pytest_cache/
+""",
             "packages/slug-utils/README.md": """# slug-utils
 
 Internal slug and cache helpers.
@@ -1374,6 +1424,10 @@ def _fixture_label_utils(workspace: Path, branch_variant: str) -> None:
     _write_synthetic_fixture(
         workspace,
         {
+            ".gitignore": """__pycache__/
+*.pyc
+.pytest_cache/
+""",
             "packages/label-utils/README.md": """# label-utils
 
 `normalize_label(value)` preserves surrounding whitespace.
@@ -1419,6 +1473,10 @@ def _fixture_sync_engine(workspace: Path, branch_variant: str) -> None:
     _write_synthetic_fixture(
         workspace,
         {
+            ".gitignore": """__pycache__/
+*.pyc
+.pytest_cache/
+""",
             "packages/sync-engine/README.md": """# sync-engine
 
 Sync v2 currently supports Phase 1 local change capture.
@@ -1542,11 +1600,13 @@ def _commit_fixture(workspace: Path) -> None:
     status = _git(workspace, "status", "--short", "--untracked-files=all")
     if not status.strip():
         return
-    _git(workspace, "config", "user.name", "Agent Evaluation")
-    _git(workspace, "config", "user.email", "agent-eval@example.invalid")
     _git(workspace, "add", "-A")
     env = {
         **os.environ,
+        "GIT_AUTHOR_NAME": "Agent Evaluation",
+        "GIT_AUTHOR_EMAIL": "agent-eval@example.invalid",
+        "GIT_COMMITTER_NAME": "Agent Evaluation",
+        "GIT_COMMITTER_EMAIL": "agent-eval@example.invalid",
         "GIT_AUTHOR_DATE": "2026-08-08T00:00:00+00:00",
         "GIT_COMMITTER_DATE": "2026-08-08T00:00:00+00:00",
     }

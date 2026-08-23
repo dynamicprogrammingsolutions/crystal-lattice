@@ -76,6 +76,10 @@ The landing build reads these build-time environment variables:
 - `PUBLIC_CRYSTAL_LATTICE_DOCS_URL`: docs URL used by website navigation and
   calls to action.
 
+The visible desktop and mobile **Docs** navigation links use
+`PUBLIC_CRYSTAL_LATTICE_DOCS_URL`, stay in the current tab, and do not link to
+the repository README. The footer also provides a documentation route.
+
 Both default to the future production domains:
 
 ```text
@@ -98,6 +102,11 @@ PUBLIC_CRYSTAL_LATTICE_SITE_URL=http://localhost:4321 \
 PUBLIC_CRYSTAL_LATTICE_DOCS_URL=http://localhost:8001 \
 yarn dev
 ```
+
+The reproducible two-site Playwright check is documented in
+`../docs_site/README.md`. It builds and serves the landing and documentation
+sites with matching local URLs, follows the visible Docs link, and verifies the
+generated package catalog and package routes.
 
 ## Production (Docker + nginx)
 

@@ -12,12 +12,32 @@ Prepare the Crystal Lattice Control React Native iOS app for TestFlight registra
 - [x] `tasks/20260614-ios-testflight-github-fastlane/040-ios-identity-metadata.md`
 - [x] `tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-page-compliance.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/060-app-store-connect-registration-package.md`
-- [ ] `tasks/20260614-ios-testflight-github-fastlane/070-fastlane-ios-testflight.md`
-- [ ] `tasks/20260614-ios-testflight-github-fastlane/080-github-actions-ios-cd.md`
+- [x] `tasks/20260614-ios-testflight-github-fastlane/070-fastlane-ios-testflight.md`
+- [x] `tasks/20260614-ios-testflight-github-fastlane/080-github-actions-ios-cd.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/090-first-testflight-dry-run.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/100-external-testflight-readiness.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/110-deployment-runbook.md`
+
+## Roadmap status updates
+
+Roadmap:
+[Open Source and iOS Release](../../roadmaps/open-source-and-ios-release.md)
+
+Instructions:
+[Updating a roadmap through CSV](../../roadmaps/docs/updating-roadmaps.md)
+
+Do not read the linked roadmap or instructions, inspect roadmap state, or
+update the roadmap as part of routine task execution or completion. Do so only
+when the user explicitly requests a roadmap status update, for example:
+“update the task status in the roadmap as per the instructions in the main
+task.”
+
+That explicit request authorizes reading the linked files, updating the
+authored CSV and generated Markdown, and synchronizing the configured Google
+Sheet as required by the instructions. It does not authorize unrelated roadmap
+changes. If the user limits the request to local files, do not mutate the
+sheet.
 
 ## Context
 

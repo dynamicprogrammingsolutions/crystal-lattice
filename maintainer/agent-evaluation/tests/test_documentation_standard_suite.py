@@ -21,6 +21,7 @@ from suites.documentation_standard.support import (
     completed_tool_call_ids,
     extract_blockquote,
     fixture_revision,
+    _commit_fixture,
     _project_config_for_profile,
     EVALUATION_TOOL_PLUGINS,
     GUIDANCE_CONFIG_KEY,
@@ -55,6 +56,56 @@ def test_baseline_guidance_is_pinned_and_distinct() -> None:
     assert baseline.sha256() != candidate_guidance_sha256()
     agents = baseline.read_bytes("AGENTS.md").decode("utf-8")
     assert "Preserve artifact and audience boundaries" not in agents
+
+
+def test_documentation_guidance_uses_concrete_terminology() -> None:
+    paths = (
+        "AGENTS.md",
+        "docs/index.md",
+        "docs/development/standards/index.md",
+        "docs/development/standards/documentation.md",
+        "docs/development/standards/specifications.md",
+        "docs/development/repository/index.md",
+        "docs/development/repository/documentation.md",
+        "docs/development/repository/specifications.md",
+        "maintainer/specifications/documentation-and-specification-standard/index.md",
+        "maintainer/specifications/documentation-and-specification-standard/product-spec.md",
+        "maintainer/specifications/documentation-and-specification-standard/technical-spec.md",
+        "maintainer/specifications/documentation-and-specification-standard/requirements.md",
+    )
+    prohibited_phrases = (
+        "artifact audience",
+        "artifact boundary",
+        "artifact mapping",
+        "artifact role",
+        "artifact set",
+        "artifact tree",
+        "authored artifact",
+        "destination artifact",
+        "documentation artifact",
+        "expected artifact",
+        "output artifact",
+        "proportional artifact",
+        "source artifact",
+        "specification artifact",
+        "work-tracking artifact",
+    )
+
+    for path in paths:
+        text = REPOSITORY_ROOT.joinpath(path).read_text().lower()
+        matches = tuple(phrase for phrase in prohibited_phrases if phrase in text)
+        assert not matches, f"{path}: generic umbrella terminology {matches!r}"
+
+    index_paths = (
+        "docs/development/specifications/chat-transcript-navigation/index.md",
+        "plugins/openai_responses/docs/development/specifications/native-compaction/index.md",
+        "plugins/kimi-tools/docs/development/specifications/kimi-compaction-parity/index.md",
+        "maintainer/specifications/documentation-and-specification-standard/index.md",
+        "maintainer/specifications/agent-evaluation-framework/index.md",
+    )
+    for path in index_paths:
+        lines = REPOSITORY_ROOT.joinpath(path).read_text().splitlines()
+        assert "Artifacts:" not in lines, path
 
 
 def test_explicit_guidance_source_participates_in_workspace_fingerprint(
@@ -324,11 +375,50 @@ def test_profile_config_projection_excludes_other_agent_tool_stacks(
         GUIDANCE_FEATURE_PLUGIN,
         *EVALUATION_TOOL_PLUGINS,
     ]
+    assert projected["agents"]["codex-openai"]["shell_tool_mode"] == "shell"
+    assert any("codex-tools" in item for item in projected["plugins"])
     assert projected["providers"] == {"openai": {}, "ollama": {}}
     assert projected["mixins"] == {"shared": {}}
     assert projected["application"] == {"setting": True}
     assert "plugin-cache/gpt/" in projected["plugin_cache_dir"]
-    assert projected["plugin_cache_dir"].endswith("-v4")
+    assert projected["plugin_cache_dir"].endswith("-v5")
+
+
+def test_profile_projection_reuses_path_plugin_from_agent_definition(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "config.json"
+    source.write_text(
+        json.dumps(
+            {
+                "plugins": [
+                    "path:/plugins/feature-request-options",
+                    "path:/plugins/feature-system-message",
+                    "path:/plugins/openai_responses",
+                    "path:/plugins/chatgpt-auth-app",
+                ],
+                "agents": {
+                    "codex-openai": {
+                        "provider": "openai",
+                        "plugins": ["path:/plugins/codex-tools"],
+                    }
+                },
+            }
+        )
+    )
+
+    target = _project_config_for_profile(
+        source,
+        artifact_root=tmp_path / "artifacts",
+        profile=PROFILES["gpt"],
+    )
+    projected = json.loads(target.read_text())
+
+    assert "path:/plugins/codex-tools" in projected["plugins"]
+    assert projected["agents"]["codex-openai"]["shell_tool_mode"] == "shell"
+    assert "codex_tools.shell_tool.ShellArrayTool" in (
+        projected["agents"]["codex-openai"]["plugins"]
+    )
 
 
 def test_plugin_runtime_constraints_pin_validated_openai_sdk() -> None:
@@ -390,6 +480,19 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "to `packages/event-sdk/README.md` that links the "
         "standards-maintenance specification and the agent-behavior evaluation "
         "covering this package, so SDK users can trace the internal decision."
+    )
+    routed_reading = extract_blockquote(
+        SPEC_ROOT / "20-routed-guidance-reading.md",
+        "## Exact user prompt",
+    )
+    assert routed_reading == public_profile
+    layout_override = extract_blockquote(
+        SPEC_ROOT / "21-explicit-specification-layout-override.md",
+        "## Exact user prompt",
+    )
+    assert layout_override == (
+        "Please complete the approved offline-synchronization specification "
+        "task. Do not implement the protocol."
     )
 
 
@@ -594,8 +697,8 @@ def test_fixture_revision_participates_in_workspace_fingerprint() -> None:
         candidate_guidance=False,
     )
 
-    assert fixture_revision("slug-utils") == "v2"
-    assert factory.fingerprint()["fixture_revision"] == "v2"
+    assert fixture_revision("slug-utils") == "v3"
+    assert factory.fingerprint()["fixture_revision"] == "v3"
     assert fixture_revision("js-single-file-tool") == "v4"
     assert fixture_revision("event-retry") == "v5"
 
@@ -635,3 +738,79 @@ def test_batch_approved_task_variant_adds_authorization(tmp_path: Path) -> None:
     task = workspace.joinpath("tasks/batch-offline-sync.md")
     assert task.is_file()
     assert "Status: Approved" in task.read_text(encoding="utf-8")
+
+
+def test_batch_single_decisions_variant_records_exact_layout(tmp_path: Path) -> None:
+    workspace = tmp_path / "batch-single-decisions"
+    workspace.mkdir()
+    workspace.joinpath(".git").write_text("fixture\n", encoding="utf-8")
+
+    apply_fixture(workspace, "batch-sync", "approved-task-single-decisions")
+
+    task = workspace.joinpath("tasks/batch-offline-sync.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Status: Approved" in task
+    assert "one `decisions.md` file" in task
+    assert "Do not create a" in task
+    assert "`decisions/` directory" in task
+    assert fixture_revision("batch-sync") == "v2"
+
+
+def test_fixture_commit_does_not_change_linked_repository_identity(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    subprocess.run(["git", "init"], cwd=source, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Original User"],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "original@example.com"],
+        cwd=source,
+        check=True,
+    )
+    source.joinpath("tracked.txt").write_text("initial\n", encoding="utf-8")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+    )
+
+    worktree = tmp_path / "worktree"
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(worktree), "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+    )
+    worktree.joinpath("fixture.txt").write_text("fixture\n", encoding="utf-8")
+
+    _commit_fixture(worktree)
+
+    assert subprocess.run(
+        ["git", "config", "--local", "--get", "user.name"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == "Original User"
+    assert subprocess.run(
+        ["git", "config", "--local", "--get", "user.email"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == "original@example.com"
+    assert subprocess.run(
+        ["git", "show", "-s", "--format=%an <%ae>"],
+        cwd=worktree,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == "Agent Evaluation <agent-eval@example.invalid>"

@@ -11,9 +11,10 @@ Seeds are guidance-neutral. Branches select an explicit guidance source:
 - another name plus `AGENT_EVAL_GUIDANCE_DIR`: files from an explicit directory.
 
 Each seed prompt names the exact bounded files needed for its reusable
-investigation. Do not make seeds depend on directory listing, globbing, shell
-access, or filename guessing: the minimal profiles intentionally expose only
-file read/write tools.
+investigation. Do not make seeds depend on broad directory discovery or
+filename guessing. Profiles expose file read/write plus an allowlisted array
+shell so scenarios can run focused tests and approved generators; exact paths
+keep seed setup fast and reproducible.
 
 The guidance source name, revision, file hashes, and combined hash participate
 in workspace/cache identity and are recorded with the run. After restoring the
@@ -40,6 +41,11 @@ For new guidance-clarity cases:
 
 A baseline that already passes can provide robustness evidence, but cannot show
 that candidate wording fixed a regression.
+
+Test 20 uses a routing-only variation: root AGENTS guidance is injected while
+the routed standard pages remain ordinary workspace files. Ordered tool
+evidence then shows whether those pages were read in full before the first
+mutation.
 
 ## Run GLM-5.2
 
@@ -83,8 +89,8 @@ Use `AGENT_EVAL_GUIDANCE_VARIANT=candidate` for the paired candidate run.
 The current suite collects:
 
 - 13 routine consumers;
-- 6 extended consumers;
-- 19 total behavioral consumers over 9 reusable guidance-neutral seeds.
+- 8 extended consumers;
+- 21 total behavioral consumers over 9 reusable guidance-neutral seeds.
 
 ## Run a custom wording variant
 
@@ -117,9 +123,9 @@ application settings, and direct in-process feature plugins, but includes only
 the selected profile's global path-based provider, instruction/request, and
 authentication packages. The selected agent definition remains intact,
 except that its broad agent-specific tool bundle is replaced by the core
-`FileReaderTool` and `FileWriterTool`. Those tools preserve real allowlisted
-repository reads and mutations without MCP, web, image, skill, or shell
-dependencies that are unrelated to documentation-guidance comprehension.
+`FileReaderTool`, `FileWriterTool`, and the existing `codex-tools` array shell.
+All three use the isolated workspace and allowlist. MCP, web, image, skills,
+and unrelated tool bundles remain disabled.
 Other agents and their tool packages are absent. Each profile also gets a
 separate plugin cache.
 

@@ -812,21 +812,29 @@ The review produces a concrete keep/remove/replace/add proposal with run
 evidence. It does not alter the approved specification or implemented suite
 until the user approves the proposed changes.
 
-The first calibrated documentation-standard proposal keeps all seeds and
-scenarios while separating execution frequency:
+The first calibrated documentation-standard proposal kept all seeds and
+scenarios while separating execution frequency. The approved August 18
+extension retains the nine seeds and expands the target to 21 scenarios:
 
-- **Routine:** Tests 01–07, 10, 11, 13, and the premature-current-documentation
-  pressure case.
-- **Extended:** Tests 08, 09, 12, 14, and the failed-generation pressure case,
-  in addition to the routine group when a complete run is requested.
+- **Routine:** Tests 01–07, 10, 11, 13, 15, 17, and 18.
+- **Extended:** Tests 08, 09, 12, 14, 16, and 19–21, in addition to the routine
+  group when a complete run is requested.
 
 Ordinary guidance changes run the routine group on the lower-cost supported
 model and use a second-model sentinel set for quickstart quality, generated
 output, package ownership, substantial-specification approval, and
 current/audience boundaries. Material changes and final behavioral
-verification run all scenarios on at least one supported model. A complete
-second-model matrix is used only when the change or observed variance justifies
-its cost.
+verification run all 21 scenarios on at least one supported model. The August
+18 extension additionally uses focused second-model sentinels for changed
+profile/boundary behavior, routed reading, and explicit layout overrides. A
+complete second-model matrix is used only when the change or observed variance
+justifies its cost.
+
+The routing-read consumer uses a scenario-specific guidance delivery mode:
+applicable AGENTS content is injected, while routed standard pages remain
+filesystem inputs whose complete reads and order relative to mutation are
+observable. The explicit-layout consumer reuses the batch-synchronization seed
+and an approved task that requires one `decisions.md` file.
 
 Scenario specifications, executable selection, and the exact sentinel set
 remain reviewable task-owned decisions. Changes based on later run evidence

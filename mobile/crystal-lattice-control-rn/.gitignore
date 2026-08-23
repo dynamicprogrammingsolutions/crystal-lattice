@@ -1,3 +1,8 @@
 artifacts/detox/
 artifacts/notification-visual/
 ios/.xcode.env.local
+fastlane/.env
+fastlane/Preview.html
+fastlane/report.xml
+fastlane/screenshots/
+fastlane/test_output/

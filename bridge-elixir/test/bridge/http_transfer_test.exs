@@ -125,15 +125,8 @@ defmodule Bridge.HttpTransferTest do
   end
 
   test "active transfer admission is atomic at the supervisor child limit" do
-    {:ok, supervisor} =
-      DynamicSupervisor.start_link(
-        strategy: :one_for_one,
-        max_children: 1
-      )
-
-    on_exit(fn ->
-      if Process.alive?(supervisor), do: Supervisor.stop(supervisor)
-    end)
+    supervisor =
+      start_supervised!({DynamicSupervisor, strategy: :one_for_one, max_children: 1})
 
     server_pid = relay_to(self())
 

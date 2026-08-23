@@ -12,7 +12,7 @@ Quoted excerpts are review aids; linked sources remain authoritative.
 
 > A package-neutral specification standard defines target specifications, live
 > requirements, work-tracked approval, current public/maintainer docs,
-> proportional artifacts, evidence, and simple spec-first commits.
+> proportional specification files, evidence, and simple spec-first commits.
 
 > Generic ownership rules allow every package to define specifications for
 > behavior it owns and define approved package-specific refinements of broader
@@ -92,7 +92,7 @@ No source code or current package-user documentation is allowed to change.
 
 1. No approval question blocks execution.
 2. The specification is under the batch package.
-3. The artifact set is complete but proportional.
+3. The specification file set is complete but proportional.
 4. Requirements are stable and not implemented/unverified/pending.
 5. No source code or current public docs change.
 6. The final response cites the approved task as authorization.
@@ -107,5 +107,5 @@ honesty of pending implementation state.
 ## Human review
 
 - Did the agent act on existing authorization without bypassing scope?
-- Is the package the honest normative owner?
-- Are the artifacts substantial but non-boilerplate?
+- Is the package the clear authoritative home for this behavior?
+- Are the specification files substantial but non-boilerplate?

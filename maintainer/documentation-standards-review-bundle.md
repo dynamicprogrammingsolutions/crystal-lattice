@@ -34,5 +34,5 @@ directory last, in this order:
 2. `seed-*.md`, sorted by seed number
 3. two-digit test pages, sorted by test number
 
-Keep this page synchronized when an applied guidance artifact, governing
+Keep this page synchronized when an applied guidance page, governing
 specification, seed, or consumer scenario is added, removed, or renamed.

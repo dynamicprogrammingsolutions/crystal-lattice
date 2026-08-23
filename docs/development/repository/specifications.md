@@ -12,7 +12,7 @@ Package-owned targets:
 <package>/docs/development/specifications/<capability>/
 ```
 
-Cross-package targets with no honest package owner:
+Cross-package targets with no clear package home:
 
 ```text
 docs/development/specifications/<capability>/
@@ -27,7 +27,7 @@ maintainer/specifications/<capability>/
 `maintainer/specifications/` intentionally omits `docs/development/` because
 the whole maintainer domain is development-only.
 
-## Ownership
+## Scope
 
 The generic ownership rules apply to every package.
 
@@ -37,15 +37,15 @@ The generic ownership rules apply to every package.
 - A package that defines a shared abstraction may own its canonical
   specification even when several packages consume it.
 - Root cross-package specifications are reserved for coordination without an
-  honest package owner.
+  clear package home.
 
 Before creating a substantial specification, an agent presents the proposed
-owner, scope, justification, relationship to existing contracts, and expected
-artifacts. User approval is required unless the active approved task already
-authorizes creation.
+owning package or shared scope, behavior scope, justification, relationship to
+existing contracts, and expected specification files. User approval is
+required unless the active approved task already authorizes creation.
 
-A direct creation request is not separate approval of an owner/scope/overlap
-proposal that has not yet been presented.
+A direct creation request is not separate approval of an owning-scope,
+behavior-scope, and overlap proposal that has not yet been presented.
 
 A package refinement links the broader contract and relevant requirement IDs.
 It may add or strengthen package requirements but may not silently weaken or
@@ -55,7 +55,7 @@ contradict the broader target. Approved exceptions are linked from both scopes.
 
 Crystal Lattice uses:
 
-| Artifact | Repository implementation |
+| Source | Repository implementation |
 |---|---|
 | Specification | Package, root cross-package, or maintainer specification |
 | Requirements | `requirements.md` with stable IDs and live state |
@@ -76,7 +76,7 @@ approval, or temporary-progress context. When a current limitation from a
 specification matters to users, translate it into package-user vocabulary and
 omit target-only plans and internal identifiers.
 
-## Artifact set
+## Specification file set
 
 A substantial specification normally uses:
 
@@ -95,6 +95,10 @@ index declares their role.
 
 Small changes may update an existing spec or remain task-only when no durable
 target is justified.
+
+The illustrated tree is a default. Follow an explicit approved alternative,
+such as one `decisions.md` file, when required content, traceability,
+discoverability, and source-of-truth boundaries remain intact.
 
 ## Requirement IDs
 

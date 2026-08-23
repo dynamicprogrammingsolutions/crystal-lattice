@@ -4,13 +4,13 @@ This standard defines a package-neutral model for target specifications,
 live-state requirements, work tracking, current documentation, and evidence. A
 repository policy should map these concepts to exact paths and local workflow.
 
-## Four artifact roles
+## Four sources of truth
 
-| Artifact | Responsibility |
+| Source | Responsibility |
 |---|---|
 | Specification | Intended target behavior and design |
 | Requirements | Live implementation, verification, documentation, and evidence state |
-| Work-tracking artifact | Approval, execution scope, plan, findings, and completion |
+| Work item | Approval, execution scope, plan, findings, and completion |
 | User and implementation documentation | Current supported behavior and current implementation |
 
 A specification is not evidence that its target currently exists. Requirements
@@ -35,20 +35,20 @@ worth preserving.
 
 Before creating a substantial new specification, the implementer should propose:
 
-- its owner and scope;
+- its owning package or shared scope and behavior scope;
 - why existing specifications are insufficient;
 - whether it defines, refines, or implements another contract;
-- the expected artifacts and requirements;
+- the expected specification files and requirements;
 - overlap and duplication risks.
 
 Creation requires user approval unless the active work item already authorizes
 the specification.
 
 A direct request to create a substantial specification does not replace this
-proposal and confirmation when its owner, scope, and overlap have not already
-been approved.
+proposal and confirmation when its owning scope, behavior scope, and overlap
+have not already been approved.
 
-## Specification ownership
+## Specification scope
 
 Any package may define specifications for behavior it owns.
 
@@ -58,13 +58,13 @@ Any package may define specifications for behavior it owns.
 3. A shared abstraction is normally specified with the package that defines it,
    even when several packages use it.
 4. A cross-package specification is appropriate when independently owned
-   packages must coordinate and no package is the honest normative owner.
+   packages must coordinate and no package provides a clear authoritative home.
 
 A refinement may add or strengthen requirements, define platform behavior, and
 select an allowed fallback. It must not silently weaken or contradict the
 broader contract. Approved exceptions are linked from both scopes.
 
-## Proportional artifacts
+## Proportional specification files
 
 A substantial capability commonly uses:
 
@@ -89,8 +89,18 @@ The set is proportional:
 
 Additional contract pages are allowed when they make a substantial domain
 clearer, such as frontend behavior, protocol, persistence, or migration. The
-index declares their role. Do not create empty artifacts merely to complete the
+index declares their role. Do not create empty files merely to complete the
 shape.
+
+## Terminology in specification files
+
+Follow the
+[terminology rules for authored content](documentation.md#terminology-in-authored-content).
+
+Name each source or record directly: specification, requirements, work item,
+decision record, current documentation, source code, or test. Specification
+indexes should label linked files by their purpose—for example,
+“Specification documents”—rather than using a generic umbrella heading.
 
 ## Specification as target
 
@@ -129,7 +139,7 @@ No single version-directory format is required. A versioned approach must:
 
 ## Approval and progress
 
-The repository's work-tracking artifact records approval by default.
+The repository's work item records approval by default.
 Specifications do not require a mandatory approval or implementation status.
 A domain may define stricter rules when external governance requires them.
 
@@ -201,7 +211,7 @@ keeps the table readable.
 
 A deferred requirement records its reason, dependency or revisit trigger, and
 owning future work when known. It does not count toward the active work item's
-completion unless that work explicitly requires the deferral artifact.
+completion unless that work explicitly requires the deferral record.
 
 ## Relationship to work tracking
 
@@ -259,3 +269,11 @@ Current guides also exclude the specification's internal tracking vocabulary.
 Do not copy phase names, requirement IDs, task paths, approval state, temporary
 progress, or evidence notation into user documentation. Translate a necessary
 current limitation into user-domain language and omit future plans.
+
+## Layout defaults and explicit requests
+
+The illustrated file layout is a recommended default, not a mandatory
+schema. Honor an explicit approved alternative when required content,
+traceability, discoverability, and audience, ownership, and source-of-truth
+boundaries remain intact; do not request duplicate confirmation merely because
+the requested shape differs.

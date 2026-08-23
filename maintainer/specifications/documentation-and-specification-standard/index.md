@@ -2,14 +2,16 @@
 
 This specification defines the target documentation structure, specification
 workflow, repository policy, agent routing, publication behavior, migration,
-audience/reference boundaries, blocked-workflow behavior, and validation rules.
+audience/reference boundaries, blocked-workflow behavior, proportional routed
+reading, placement communication, explicit safe layout overrides, and
+validation rules.
 
 It governs two user-facing output layers:
 
 - reusable, package-neutral standards under `docs/development/standards/`;
 - Crystal Lattice repository policy under `docs/development/repository/`.
 
-It also governs related operational artifacts such as root `AGENTS.md`,
+It also governs related operational files such as root `AGENTS.md`,
 `CONTRIBUTING.md`, task guidance, documentation-site assembly, and standards
 validation.
 
@@ -18,7 +20,7 @@ exist or behave as described. Current implementation, verification, and
 documentation state is recorded in
 [requirements.md](requirements.md).
 
-Artifacts:
+Specification documents:
 
 - [Product specification](product-spec.md)
 - [Technical specification](technical-spec.md)

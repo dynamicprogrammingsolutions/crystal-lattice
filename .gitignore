@@ -113,6 +113,7 @@ celerybeat.pid
 
 # Environments
 .env
+roadmaps/.env
 .sshaccess
 .venv
 env/
@@ -328,6 +329,7 @@ temp/
 
 # AGI conversation files (keep templates, ignore instances)
 conversation_*.agi.json
+!archive/conversations/conversation_ai-agent-architecture_2025-11-16-1202.agi.json
 
 # Local plugin development
 plugins/local/

@@ -14,20 +14,102 @@
 
 """Kimi-style compaction feature plugin.
 
-This plugin provides manual context compaction using Kimi CLI's priority-based
-compression prompt format. It operates at the core level, using layered context
-to access LLM capabilities.
+This plugin provides manual context compaction that targets parity with
+``kimi-cli``'s ``SimpleCompaction`` for the compaction request shape, system
+prompt, tool suppression, preserved-tail behavior, summary injection format,
+prompt body, and enablement enforcement.
 
-The compaction prompt asks the model to compress conversation context according
-to specific priorities (current task state, errors & solutions, code evolution,
-system context, design decisions, TODO items) and produce a structured summary
-with sections: <current_focus>, <environment>, <completed_tasks>,
-<active_issues>, <code_state>, <important_context>.
+Manual actions
+--------------
 
-Configuration is agent-level with explicit enablement control. The plugin is
-only active when the agent's compaction config has:
-- enabled: true
-- type: "kimi"
+Two session actions are exposed:
+
+- ``compact_conversation`` — compact the full history or an explicit
+  ``start``/``end`` range.
+- ``compact_up_to_here`` — compact the prefix ending at an anchor message
+  (message-anchored, explicit ``end``).
+
+Compaction request
+------------------
+
+The compaction request session contains exactly two messages:
+
+1. ``system``: ``"You are a helpful assistant that compacts conversation
+   context."`` (a generic compactor prompt, not the agent's normal system
+   message).
+2. ``user``: a single synthetic message built from the compactable range.
+
+The synthetic user message flattens each message in the compactable prefix,
+including a selected leading agent system message, into:
+
+::
+
+    ## Message N
+    Role: <role>
+    Content:
+    <text-only content>
+
+followed by ``\n<compaction prompt>``. Only text content is included.
+Structured tool-call and tool-result payloads, media parts, and think parts are
+dropped; textual content from any message role is retained.
+
+The merged compaction request config sets ``disable_all_tools: True``
+after all configurable request overrides so no tool schemas are serialized
+into the request payload.
+
+Preserved tail
+--------------
+
+When no explicit ``end`` is supplied, the last ``max_preserved_messages``
+user/assistant messages (default 2) are preserved verbatim and excluded from
+the synthetic compaction message. If fewer than ``max_preserved_messages``
+user/assistant messages exist in the compactable range, the action returns a
+no-op result instead of forcing compaction with no preserved tail.
+
+When an explicit ``end`` is supplied (including ``compact_up_to_here``), the
+selected range is compacted exactly and preserved-tail does not apply.
+
+Compacted session
+-----------------
+
+The compacted session replaces the compacted range with one user message whose
+content is:
+
+::
+
+    <system>Previous context has been compacted. Here is the compaction output:</system>
+    <structured summary body>
+
+The structured summary body uses ``kimi-cli``'s required XML-style sections:
+``<current_focus>``, ``<environment>``, ``<completed_tasks>``,
+``<active_issues>``, ``<code_state>``, and ``<important_context>``. The prompt
+requests those sections, but a non-empty unstructured model response is
+retained rather than rejected, matching ``kimi-cli``. No assistant
+acknowledgment message is added. Preserved-tail messages, if any, follow the
+summary user message unchanged.
+
+Enablement
+----------
+
+The plugin is only active when the agent's ``compaction`` config block has:
+
+::
+
+    compaction:
+      enabled: true
+      type: "kimi"
+      max_preserved_messages: 2   # optional, default 2
+      compaction_model: null      # optional, overrides the request model
+      prompt: null                # optional, overrides the compaction prompt
+      settings_overrides: {}      # optional, merged into the compaction request config
+
+When ``config`` is provided to ``get_ui_elements`` and compaction is not
+enabled, ``get_ui_elements`` returns ``[]``. When ``execute_action`` is called
+and compaction is not enabled, it returns an error with ``type: "disabled"``.
+
+Deviations from ``kimi-cli`` (auto-compaction, checkpoint/context rewrite,
+D-Mail) are documented in the specification under
+``plugins/kimi-tools/docs/development/specifications/kimi-compaction-parity/``.
 
 Dependencies:
     agent_core (core SDK)
@@ -42,15 +124,11 @@ from agent_core import Message, Session
 
 
 # ---------------------------------------------------------------------------
-# Kimi-style compaction prompt (adapted from kimi-cli/src/kimi_cli/prompts/compact.md)
+# Kimi-style compaction prompt (verbatim from kimi-cli/src/kimi_cli/prompts/compact.md)
 # ---------------------------------------------------------------------------
 
-_KIMI_COMPACTION_PROMPT = """CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.
-
-- Do NOT use ReadFile, WriteFile, StrReplaceFile, Glob, Grep, Shell, FetchURL, ReadMediaFile, WebSearch, or ANY other tool.
-- You already have all the context you need in the conversation above.
-- Tool calls will be REJECTED and will waste your only turn — you will fail the task.
-- Your entire response must be plain text following the structured format below.
+_KIMI_COMPACTION_PROMPT = """
+---
 
 The above is a list of messages in an agent conversation. You are now given a task to compact this conversation context according to specific priorities and rules.
 
@@ -122,16 +200,17 @@ The above is a list of messages in an agent conversation. You are now given a ta
 - [Any crucial information not covered above]
 - ...more...
 </important_context>
+"""
 
-REMINDER: Do NOT call any tools. Respond with plain text only following the structured format above. Tool calls will be rejected and you will fail the task."""
-
-_COMPACTION_PREFIX = "Previous context has been compacted. Here is the compaction output:"
+_COMPACTION_PREFIX = (
+    "Previous context has been compacted. Here is the compaction output:"
+)
+_GENERIC_COMPACTION_SYSTEM_PROMPT = (
+    "You are a helpful assistant that compacts conversation context."
+)
 _COMPACTION_METADATA_KEY = "kimi_compaction"
-_COMPACTION_MODEL_KEY = "compaction_model"
-_PROMPT_KEY = "kimi_compaction_prompt"
-_SETTINGS_OVERRIDES_KEY = "kimi_compaction_settings_overrides"
-_MAX_PRESERVED_MESSAGES_KEY = "max_preserved_messages"
 _MIN_COMPACTABLE_MESSAGE_COUNT = 3
+_DEFAULT_MAX_PRESERVED_MESSAGES = 2
 _REQUIRED_SUMMARY_SECTIONS = [
     "<current_focus>",
     "<environment>",
@@ -156,12 +235,104 @@ def _strip_native_history(metadata: Any) -> Dict[str, Any]:
     return sanitized
 
 
-def _merge_request_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    merged = dict(config)
-    overrides = config.get(_SETTINGS_OVERRIDES_KEY)
-    if isinstance(overrides, dict):
-        merged.update(overrides)
-    compaction_model = config.get(_COMPACTION_MODEL_KEY)
+def _rebuild_context(context: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not isinstance(context, dict):
+        return context
+    return {
+        key: value for key, value in context.items() if key not in {"core", "config"}
+    }
+
+
+def _is_compaction_enabled(base_config: Any) -> bool:
+    """Return ``True`` only when ``compaction.enabled`` is ``True`` and ``compaction.type`` is ``"kimi"``."""
+    if not isinstance(base_config, dict):
+        return False
+    compaction_cfg = base_config.get("compaction")
+    if not isinstance(compaction_cfg, dict):
+        return False
+    enabled = compaction_cfg.get("enabled", False)
+    compaction_type = compaction_cfg.get("type")
+    return enabled is True and compaction_type == "kimi"
+
+
+def _get_compaction_config(base_config: Any) -> Dict[str, Any]:
+    """Extract compaction settings from the agent ``compaction`` block with defaults."""
+    if not isinstance(base_config, dict):
+        base_config = {}
+    compaction_cfg = base_config.get("compaction")
+    if not isinstance(compaction_cfg, dict):
+        compaction_cfg = {}
+
+    max_preserved = compaction_cfg.get(
+        "max_preserved_messages", _DEFAULT_MAX_PRESERVED_MESSAGES
+    )
+    if not isinstance(max_preserved, int):
+        max_preserved = _DEFAULT_MAX_PRESERVED_MESSAGES
+
+    prompt_val = compaction_cfg.get("prompt")
+    prompt: Optional[str]
+    if isinstance(prompt_val, str) and prompt_val.strip():
+        prompt = prompt_val.strip()
+    else:
+        prompt = None
+
+    overrides_val = compaction_cfg.get("settings_overrides")
+    settings_overrides: Dict[str, Any]
+    if isinstance(overrides_val, dict):
+        settings_overrides = dict(overrides_val)
+    else:
+        settings_overrides = {}
+
+    compaction_model_val = compaction_cfg.get("compaction_model")
+    compaction_model: Optional[str]
+    if isinstance(compaction_model_val, str) and compaction_model_val.strip():
+        compaction_model = compaction_model_val.strip()
+    else:
+        compaction_model = None
+
+    return {
+        "enabled": compaction_cfg.get("enabled", False),
+        "type": compaction_cfg.get("type"),
+        "max_preserved_messages": max_preserved,
+        "prompt": prompt,
+        "settings_overrides": settings_overrides,
+        "compaction_model": compaction_model,
+    }
+
+
+def _get_effective_compaction_config(
+    base_config: Any,
+    request_config: Any,
+) -> Dict[str, Any]:
+    """Resolve agent compaction settings plus the session model override.
+
+    Agent-owned compaction settings live under ``base_config["compaction"]``.
+    The existing configuration UI writes ``compaction_model`` as a top-level
+    per-session override, which is present only in the effective request config.
+    Preserve that public UI behavior while keeping the agent configuration
+    block as the source for the remaining compaction settings.
+    """
+    compaction_cfg = _get_compaction_config(base_config)
+    if not isinstance(request_config, dict):
+        return compaction_cfg
+
+    model_override = request_config.get("compaction_model")
+    if not isinstance(model_override, str) or not model_override.strip():
+        return compaction_cfg
+    return {
+        **compaction_cfg,
+        "compaction_model": model_override.strip(),
+    }
+
+
+def _merge_request_config(
+    config: Dict[str, Any],
+    compaction_cfg: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Merge compaction overrides while keeping all tools disabled."""
+    settings_overrides = compaction_cfg.get("settings_overrides") or {}
+    merged = {**config, **settings_overrides, "disable_all_tools": True}
+    compaction_model = compaction_cfg.get("compaction_model")
     if isinstance(compaction_model, str) and compaction_model.strip():
         merged["model"] = compaction_model.strip()
     return merged
@@ -172,6 +343,11 @@ def build_compaction_prompt(
     *,
     prompt_override: str | None = None,
 ) -> str:
+    """Build the compaction prompt text, optionally with custom instructions.
+
+    Custom instructions are appended in the same text block, matching
+    ``kimi-cli``'s ``SimpleCompaction.prepare`` custom-instruction handling.
+    """
     prompt_text = (
         prompt_override.strip()
         if isinstance(prompt_override, str) and prompt_override.strip()
@@ -189,6 +365,7 @@ def build_compaction_prompt(
 
 
 def _message_text(content: Any) -> str:
+    """Extract plain text from message content (str or multipart list)."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -200,36 +377,6 @@ def _message_text(content: Any) -> str:
                     parts.append(text)
         return "".join(parts)
     return str(content)
-
-
-def build_compaction_session(
-    session: Session,
-    *,
-    prompt_text: str,
-) -> Session:
-    messages = list(session.messages)
-    if (
-        messages
-        and messages[-1].role == "user"
-        and isinstance(messages[-1].content, str)
-    ):
-        previous = messages[-1]
-        separator = "" if previous.content.endswith("\n") else "\n"
-        messages[-1] = Message(
-            role=previous.role,
-            content=f"{previous.content}{separator}{prompt_text}",
-            metadata=previous.metadata,
-            multipart_content=previous.multipart_content,
-            tool_result=previous.tool_result,
-        )
-    else:
-        messages.append(Message(role="user", content=prompt_text, metadata={}))
-
-    return Session(
-        session_id=session.session_id,
-        messages=messages,
-        metadata=_strip_native_history(session.metadata),
-    )
 
 
 def _normalize_slice_bounds(
@@ -264,13 +411,35 @@ def _has_leading_system_message(session: Session) -> bool:
     return bool(session.messages) and session.messages[0].role == "system"
 
 
-def _resolve_compaction_indices(
+def build_kimi_compaction_request_session(
     session: Session,
     *,
-    start: int | None,
-    end: int | None,
+    prompt_text: str,
+    start: int | None = None,
+    end: int | None = None,
     end_inclusive: bool = False,
-) -> tuple[List[int], List[int]]:
+    max_preserved_messages: int = _DEFAULT_MAX_PRESERVED_MESSAGES,
+) -> tuple[Optional[Session], List[int], List[int]]:
+    """Build the Kimi-shaped compaction request session.
+
+    Returns ``(request_session, compact_indices, preserved_indices)``.
+
+    - ``request_session`` is a :class:`Session` with exactly two messages:
+      ``[system: generic compactor prompt, user: synthetic message]``. It is
+      ``None`` when compaction is a no-op (fewer than
+      ``max_preserved_messages`` user/assistant messages in the compactable
+      range and no explicit ``end`` was supplied).
+    - ``compact_indices`` are the indices to remove from the original session.
+    - ``preserved_indices`` are the preserved-tail indices (empty when an
+      explicit ``end`` is supplied).
+
+    A selected leading system message is included in the synthetic request,
+    matching ``kimi-cli``, but is excluded from ``compact_indices`` so the
+    platform keeps it in the final session. When ``end`` is ``None``, the last
+    ``max_preserved_messages`` user/assistant messages are preserved verbatim.
+    When ``end`` is supplied, the selected non-system range is compacted exactly
+    and preserved-tail does not apply.
+    """
     start_idx, end_idx = _normalize_slice_bounds(
         len(session.messages),
         start,
@@ -278,42 +447,57 @@ def _resolve_compaction_indices(
         end_inclusive=end_inclusive,
     )
     has_leading_system = _has_leading_system_message(session)
-    selected_indices = list(range(start_idx, end_idx))
-    target_indices = [
-        idx for idx in selected_indices if not (has_leading_system and idx == 0)
-    ]
-    if not target_indices:
+    if has_leading_system and start_idx == 0:
+        compact_start = 1
+    else:
+        compact_start = start_idx
+    compact_end = end_idx
+
+    if compact_start >= compact_end:
         raise ValueError("range selects no compactable messages")
-    request_indices = list(target_indices)
-    if has_leading_system and 0 not in request_indices:
-        request_indices = [0, *request_indices]
-    return target_indices, request_indices
 
+    explicit_end = end is not None
+    preserved_indices: List[int] = []
 
-def build_compaction_request_session(
-    session: Session,
-    *,
-    prompt_text: str,
-    start: int | None = None,
-    end: int | None = None,
-    end_inclusive: bool = False,
-) -> tuple[Session, List[int], List[int]]:
-    target_indices, request_indices = _resolve_compaction_indices(
-        session,
-        start=start,
-        end=end,
-        end_inclusive=end_inclusive,
-    )
+    if not explicit_end:
+        if max_preserved_messages <= 0:
+            return None, [], []
+        n_preserved = 0
+        preserve_start = compact_end
+        for index in range(compact_end - 1, compact_start - 1, -1):
+            role = session.messages[index].role
+            if role in {"user", "assistant"}:
+                n_preserved += 1
+                if n_preserved == max_preserved_messages:
+                    preserve_start = index
+                    break
+        if n_preserved < max_preserved_messages:
+            return None, [], []
+        compact_end = preserve_start
+        preserved_indices = list(range(preserve_start, end_idx))
+
+    compact_indices = list(range(compact_start, compact_end))
+    if not compact_indices:
+        return None, [], []
+
+    request_indices = list(range(start_idx, compact_end))
+    parts: List[str] = []
+    for offset, idx in enumerate(request_indices):
+        msg = session.messages[idx]
+        parts.append(f"## Message {offset + 1}\nRole: {msg.role}\nContent:\n")
+        parts.append(_message_text(msg.content))
+    parts.append(f"\n{prompt_text}")
+    synthetic_content = "".join(parts)
+
     request_session = Session(
         session_id=session.session_id,
-        messages=[session.messages[idx] for idx in request_indices],
+        messages=[
+            Message(role="system", content=_GENERIC_COMPACTION_SYSTEM_PROMPT),
+            Message(role="user", content=synthetic_content),
+        ],
         metadata=_strip_native_history(session.metadata),
     )
-    return (
-        build_compaction_session(request_session, prompt_text=prompt_text),
-        target_indices,
-        request_indices,
-    )
+    return request_session, compact_indices, preserved_indices
 
 
 def _collect_final_messages_from_stream(
@@ -338,7 +522,9 @@ def _run_compaction_request(
     config: Dict[str, Any],
     context: Dict[str, Any] | None = None,
 ) -> str:
-    final_messages = _collect_final_messages_from_stream(core, session, config, context=context)
+    final_messages = _collect_final_messages_from_stream(
+        core, session, config, context=context
+    )
     for message in reversed(final_messages):
         if message.get("role") != "assistant":
             continue
@@ -358,9 +544,7 @@ def extract_summary_text(response_text: str) -> str:
     the first <current_focus> and the last </important_context>.
     If no structured sections are found, we fall back to the full text.
     """
-    # Try to find the structured output between the section tags
     first_section = None
-    last_section_end = None
 
     for tag in _REQUIRED_SUMMARY_SECTIONS:
         match = re.search(re.escape(tag), response_text)
@@ -368,23 +552,22 @@ def extract_summary_text(response_text: str) -> str:
             first_section = match.start()
 
     if first_section is not None:
-        # Find the closing tag of the last section
         last_close = re.search(r"</important_context>", response_text)
         if last_close:
             return response_text[first_section : last_close.end()].strip()
 
-    # Fallback: return the full text stripped
     text = response_text.strip()
     if not text:
-        raise ValueError(
-            "[kimi_compaction] empty response from compaction request"
-        )
+        raise ValueError("[kimi_compaction] empty response from compaction request")
     return text
 
 
 def extract_summary_sections(summary_text: str) -> List[str]:
     """Extract section tag names from the summary text."""
-    return re.findall(r"<(current_focus|environment|completed_tasks|active_issues|code_state|important_context)>", summary_text)
+    return re.findall(
+        r"<(current_focus|environment|completed_tasks|active_issues|code_state|important_context)>",
+        summary_text,
+    )
 
 
 def validate_summary_text(summary_text: str) -> None:
@@ -399,14 +582,15 @@ def validate_summary_text(summary_text: str) -> None:
 
 
 def build_compact_summary_text(summary_text: str) -> str:
-    """Wrap the compaction output with the kimi-cli prefix.
+    """Wrap the compaction output with the ``kimi-cli`` ``<system>…</system>`` prefix.
 
-    Matches the kimi-cli's SimpleCompaction output format: a single user
-    message starting with ``_COMPACTION_PREFIX`` followed by the LLM's
-    structured XML sections.
+    Matches ``kimi-cli``'s ``SimpleCompaction`` output format: a single user
+    message whose content starts with
+    ``<system>Previous context has been compacted. Here is the compaction
+    output:</system>`` followed by the LLM's structured XML sections.
     """
     cleaned = summary_text.strip()
-    return f"{_COMPACTION_PREFIX}\n\n{cleaned}"
+    return f"<system>{_COMPACTION_PREFIX}</system>\n{cleaned}"
 
 
 def _summary_message_metadata(summary_text: str) -> Dict[str, Any]:
@@ -418,15 +602,6 @@ def _summary_message_metadata(summary_text: str) -> Dict[str, Any]:
             "summary_sections": extract_summary_sections(summary_text),
         }
     }
-
-
-def _leading_system_message_count(session: Session) -> int:
-    count = 0
-    for message in session.messages:
-        if message.role != "system":
-            break
-        count += 1
-    return count
 
 
 def _native_messages_from_session(session: Session) -> List[Dict[str, Any]]:
@@ -441,44 +616,35 @@ def _native_messages_from_session(session: Session) -> List[Dict[str, Any]]:
     return [item for item in native if isinstance(item, dict)]
 
 
-def _rebuild_context(context: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    if not isinstance(context, dict):
-        return context
-    return {
-        key: value for key, value in context.items() if key not in {"core", "config"}
-    }
-
-
 def build_compacted_session(
     core: Any,
     session: Session,
     config: Dict[str, Any],
     summary_text: str,
     *,
-    start: int | None = None,
-    end: int | None = None,
-    end_inclusive: bool = False,
+    compact_indices: List[int],
     context: Optional[Dict[str, Any]] = None,
 ) -> Session:
+    """Build the compacted session by replacing ``compact_indices`` with the summary.
+
+    1. Rebuild native history via ``core.rebuild_native_history``.
+    2. Remove ``compact_indices`` via ``core.slice_session``.
+    3. Insert the summary user message at the position of the first removed
+       message.
+    4. Leave preserved-tail messages (messages after ``compact_indices``) in
+       place.
+    """
     rebuilt = core.rebuild_native_history(
         session,
         config,
         context=_rebuild_context(context),
     )
-    target_indices, _request_indices = _resolve_compaction_indices(
-        rebuilt,
-        start=start,
-        end=end,
-        end_inclusive=end_inclusive,
-    )
-    remove_indices = list(target_indices)
     session_after_delete = core.slice_session(
         rebuilt,
         config,
-        remove_indices=remove_indices,
+        remove_indices=list(compact_indices),
     )
-
-    insert_after = target_indices[0] - 1
+    insert_after = compact_indices[0] - 1
     compacted = core.add_message(
         session_after_delete,
         "user",
@@ -499,24 +665,9 @@ def build_compacted_session(
 class KimiCompactionFeature:
     """Feature-level plugin implementing Kimi-style context compaction.
 
-    This plugin operates at the core level, using the layered context approach:
-    - Layer 1 (core): Uses ``context["core"]`` for session/message operations
-    - Layer 2 (app): Optionally uses ``context.get("app")`` for enhanced features
-
-    Configuration is read from the agent config under the ``compaction`` key:
-
-    .. code-block:: yaml
-
-        compaction:
-          enabled: false          # Must be true to enable
-          type: null              # Must be "kimi" for this plugin
-          compaction_model: null  # Optional model override for compaction requests
-          prompt: null            # Custom prompt override
-          settings_overrides: {}  # Model/params for compaction requests
-          max_preserved_messages: 2  # Messages to preserve at end (for default range)
-
-    The plugin is only active when both ``enabled`` is true and ``type`` is
-    ``"kimi"``.
+    See the module docstring for the full description of the compaction request
+    shape, preserved-tail behavior, summary injection format, and enablement
+    enforcement.
     """
 
     name = "kimi_compaction"
@@ -533,30 +684,8 @@ class KimiCompactionFeature:
     # ------------------------------------------------------------------
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {
-            _COMPACTION_MODEL_KEY: {
-                "type": "string",
-                "required": False,
-                "default": "",
-                "description": (
-                    "Optional model used for Kimi compaction. Leave empty to use "
-                    "the normal request model."
-                ),
-            },
-            _PROMPT_KEY: {
-                "type": "string",
-                "required": False,
-                "description": "Optional override for the Kimi compaction prompt.",
-            },
-            _SETTINGS_OVERRIDES_KEY: {
-                "type": "object",
-                "required": False,
-                "description": (
-                    "Optional request settings overrides applied only to the "
-                    "internal compaction request."
-                ),
-            },
-        }
+        """Return empty schema — config is read from the agent ``compaction`` block."""
+        return {}
 
     def init(
         self,
@@ -620,7 +749,10 @@ class KimiCompactionFeature:
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        _ = config, tags
+        _ = tags
+        if config is not None and not _is_compaction_enabled(config):
+            return []
+
         model_options: List[Dict[str, str]] = []
         for model in models or []:
             if not isinstance(model, dict):
@@ -643,7 +775,7 @@ class KimiCompactionFeature:
             {
                 "ui_type": "config",
                 "type": "dropdown" if use_dropdown else "text",
-                "key": _COMPACTION_MODEL_KEY,
+                "key": "compaction_model",
                 "label": "Compaction model",
                 "placeholder": "Use current model",
                 **({"options": model_options} if use_dropdown else {}),
@@ -790,11 +922,27 @@ class KimiCompactionFeature:
                 },
             }
 
+        base_config = context.get("base_config")
+        if not isinstance(base_config, dict):
+            base_config = (
+                context.get("config") if isinstance(context.get("config"), dict) else {}
+            )
+        if not _is_compaction_enabled(base_config):
+            return {
+                "native_messages": list(native_messages),
+                "error": {
+                    "type": "disabled",
+                    "message": "Kimi compaction is not enabled for this agent.",
+                },
+            }
+
         request_config = context.get("config")
         if not isinstance(request_config, dict):
-            request_config = (
-                state.get("config") if isinstance(state.get("config"), dict) else {}
-            )
+            request_config = base_config
+        compaction_cfg = _get_effective_compaction_config(
+            base_config,
+            request_config,
+        )
         prepared_session = context["core"].rebuild_native_history(
             session,
             request_config,
@@ -806,12 +954,29 @@ class KimiCompactionFeature:
         end_inclusive = params.get("end_inclusive", False)
         start_int = start_raw if isinstance(start_raw, int) else None
         end_int = end_raw if isinstance(end_raw, int) else None
+
+        instructions = params.get("instructions")
+        instructions_text = (
+            instructions.strip() if isinstance(instructions, str) else None
+        )
+        prompt_override = compaction_cfg.get("prompt")
+        prompt_text = build_compaction_prompt(
+            instructions_text,
+            prompt_override=(
+                prompt_override if isinstance(prompt_override, str) else None
+            ),
+        )
+
         try:
-            target_indices, _request_indices = _resolve_compaction_indices(
-                prepared_session,
-                start=start_int,
-                end=end_int,
-                end_inclusive=bool(end_inclusive),
+            request_session, compact_indices, _preserved_indices = (
+                build_kimi_compaction_request_session(
+                    prepared_session,
+                    prompt_text=prompt_text,
+                    start=start_int,
+                    end=end_int,
+                    end_inclusive=bool(end_inclusive),
+                    max_preserved_messages=compaction_cfg["max_preserved_messages"],
+                )
             )
         except ValueError as exc:
             return {
@@ -821,39 +986,18 @@ class KimiCompactionFeature:
                     "message": str(exc),
                 },
             }
-        if len(target_indices) < _MIN_COMPACTABLE_MESSAGE_COUNT:
+
+        if request_session is None:
             return {
                 "native_messages": list(native_messages),
-                "error": {
-                    "type": "not_enough_messages",
-                    "message": "Not enough messages to compact.",
-                },
+                "status": "noop",
+                "message": "Not enough messages to compact after preserving tail.",
             }
 
-        instructions = params.get("instructions")
-        instructions_text = (
-            instructions.strip() if isinstance(instructions, str) else None
-        )
-        prompt_override = request_config.get(_PROMPT_KEY)
-        prompt_text = build_compaction_prompt(
-            instructions_text,
-            prompt_override=(
-                prompt_override if isinstance(prompt_override, str) else None
-            ),
-        )
-        compaction_session, _target_indices, _request_indices = (
-            build_compaction_request_session(
-                prepared_session,
-                prompt_text=prompt_text,
-                start=start_int,
-                end=end_int,
-                end_inclusive=bool(end_inclusive),
-            )
-        )
         compaction_response = _run_compaction_request(
             context["core"],
-            compaction_session,
-            _merge_request_config(request_config),
+            request_session,
+            _merge_request_config(request_config, compaction_cfg),
             context=context,
         )
         summary_body = extract_summary_text(compaction_response)
@@ -863,9 +1007,7 @@ class KimiCompactionFeature:
             prepared_session,
             request_config,
             summary_text,
-            start=start_int,
-            end=end_int,
-            end_inclusive=bool(end_inclusive),
+            compact_indices=compact_indices,
             context=context,
         )
         compacted_native = _native_messages_from_session(compacted_session)
@@ -888,8 +1030,7 @@ __all__ = [
     "build_compact_summary_text",
     "build_compacted_session",
     "build_compaction_prompt",
-    "build_compaction_request_session",
-    "build_compaction_session",
+    "build_kimi_compaction_request_session",
     "extract_summary_sections",
     "extract_summary_text",
     "validate_summary_text",
