@@ -735,15 +735,26 @@ def render_markdown(
     title = _roadmap_title(csv_path.stem)
     by_id = {row.internal_id.casefold(): row for row in rows}
     readiness = derive_readiness(rows)
-    custom_headers = arbitrary_headers(headers)
+    status_index = headers.index("status")
+    leading_custom_headers = tuple(
+        header
+        for index, header in enumerate(headers)
+        if header not in SEMANTIC_FIELDS and index < status_index
+    )
+    trailing_custom_headers = tuple(
+        header
+        for index, header in enumerate(headers)
+        if header not in SEMANTIC_FIELDS and index > status_index
+    )
     display_headers = (
         "Order",
         "ID",
-        *custom_headers,
+        *leading_custom_headers,
         "Dependencies",
         "External ID",
         "Priority",
         "Status",
+        *trailing_custom_headers,
     )
     legend = " · ".join(
         f'<span style="color:{color}">{name}</span>'
@@ -784,11 +795,17 @@ def render_markdown(
             for key in row.inferred_dependencies
         )
         state = readiness[row.internal_id.casefold()][0]
-        custom_values = tuple(
+        leading_custom_values = tuple(
             _markdown_text(row.field_value(header))
             if row.field_value(header)
             else "—"
-            for header in custom_headers
+            for header in leading_custom_headers
+        )
+        trailing_custom_values = tuple(
+            _markdown_text(row.field_value(header))
+            if row.field_value(header)
+            else "—"
+            for header in trailing_custom_headers
         )
         lines.append(
             "| "
@@ -796,7 +813,7 @@ def render_markdown(
                 (
                     str(order),
                     _id_reference(row, state, output_path, repo_root),
-                    *custom_values,
+                    *leading_custom_values,
                     ", ".join(dependencies) if dependencies else "—",
                     (
                         f"`{_markdown_text(row.external_id)}`"
@@ -805,6 +822,7 @@ def render_markdown(
                     ),
                     _markdown_text(row.priority),
                     _markdown_text(row.status),
+                    *trailing_custom_values,
                 )
             )
             + " |"

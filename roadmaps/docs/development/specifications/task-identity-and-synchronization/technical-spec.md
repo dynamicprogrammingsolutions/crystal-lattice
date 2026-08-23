@@ -269,8 +269,8 @@ renders as colored inline text without a link.
 The generated column order is:
 
 ```text
-Order, ID, <arbitrary fields in source order>, Dependencies,
-External ID, Priority, Status
+Order, ID, <arbitrary fields before status>, Dependencies,
+External ID, Priority, Status, <arbitrary fields after status>
 ```
 
 Repeated external IDs are shown as entered and do not affect link uniqueness.
@@ -295,8 +295,8 @@ credentials or spreadsheet IDs. Exported process values override dotenv values.
 
 Read-only status and dry-run push/pull commands do not require mutation
 authority. Before an agent runs `push --write`, `pull --write`, or
-`npm run roadmap:update`, it must summarize the direction and expected changes,
-offer the update, and obtain explicit user approval.
+`npm run roadmap:release:update`, it must summarize the direction and expected
+changes, offer the update, and obtain explicit user approval.
 
 A main task may link the roadmap and focused update guide while forbidding
 routine roadmap reads. A direct user request to update task status according to

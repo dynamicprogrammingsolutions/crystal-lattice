@@ -31,11 +31,11 @@ This applies to:
 ```bash
 python roadmaps/sync.py push release --write
 python roadmaps/sync.py pull release --write
-npm run roadmap:update
+npm run roadmap:release:update
 ```
 
-`npm run roadmap:update` regenerates local Markdown and writes the local CSV to
-Google Sheets, so it also requires explicit approval.
+`npm run roadmap:release:update` regenerates local Markdown and writes the
+release CSV to Google Sheets, so it also requires explicit approval.
 
 When such an explicitly requested roadmap update is made and synchronization
 is already configured and reachable, the agent must perform and verify the

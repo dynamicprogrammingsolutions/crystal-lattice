@@ -91,6 +91,22 @@ class RoadmapGeneratorTests(unittest.TestCase):
         self.assertNotIn("title", generate.REQUIRED_FIELDS)
         self.assertNotIn("purpose", generate.REQUIRED_FIELDS)
 
+    def test_arbitrary_field_after_status_renders_after_status(self) -> None:
+        headers = list(HEADERS)
+        headers.insert(headers.index("status") + 1, "finished on")
+        csv_path = self._write_csv(
+            [self._row(**{"finished on": "2026-01-02"})],
+            headers=tuple(headers),
+        )
+
+        rendered = generate.generate(
+            csv_path,
+            repo_root=self.root,
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("| Priority | Status | finished on |", rendered)
+        self.assertIn("| must have | done | 2026-01-02 |", rendered)
+
     def test_task_paths_are_portable_outside_tasks_directory(self) -> None:
         csv_path = self._write_csv(
             [self._row(task="work/20260101-sample-project")]

@@ -116,7 +116,7 @@ After the sheet is reflected locally:
 3. inspect dependency-cleanup warnings and the generated Markdown;
 4. run the local verification commands above;
 5. inspect `python roadmaps/sync.py push release`;
-6. run `npm run roadmap:update`;
+6. run `npm run roadmap:release:update`;
 7. finish with status and pull dry-run verification.
 
 If the initial pull would overwrite unrelated local roadmap work, or either
@@ -140,7 +140,7 @@ If the dry-run difference contains only the intended roadmap update and
 normalization, apply it:
 
 ```bash
-npm run roadmap:update
+npm run roadmap:release:update
 ```
 
 Then verify:

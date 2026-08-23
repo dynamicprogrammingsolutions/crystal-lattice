@@ -42,15 +42,34 @@ Then regenerate the `release` Markdown roadmap and update its configured Google
 Sheet:
 
 ```bash
-npm run roadmap:update
+npm run roadmap:release:update
 ```
 
-The npm command runs:
+The scoped npm command runs:
 
 ```bash
 python roadmaps/generate.py release
 python roadmaps/sync.py push release --write
 ```
+
+Root npm scripts for this specific roadmap are:
+
+| Script | Operation |
+|---|---|
+| `roadmap:release:generate` | Normalize the release CSV and regenerate Markdown. |
+| `roadmap:release:check` | Check local CSV normalization and generated Markdown without writing. |
+| `roadmap:release:test` | Run the generic roadmap unit tests. |
+| `roadmap:release:status` | Compare normalized local data with the configured sheet. |
+| `roadmap:release:push` | Preview a local-to-sheet update. |
+| `roadmap:release:push:write` | Apply and verify a local-to-sheet update. |
+| `roadmap:release:pull` | Preview a sheet-to-local update. |
+| `roadmap:release:pull:write` | Apply and verify a sheet-to-local update. |
+| `roadmap:release:update` | Generate locally and push the release roadmap. |
+| `roadmap:release:verify` | Run local checks/tests plus status and pull dry runs. |
+
+The `release` segment is intentional: these scripts are integration shortcuts
+for `open-source-and-ios-release.csv`, not generic commands for every configured
+roadmap.
 
 For a read-only setup check:
 
