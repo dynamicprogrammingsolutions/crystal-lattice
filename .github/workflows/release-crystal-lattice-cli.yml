@@ -69,7 +69,6 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    environment: cli-release
     permissions:
       contents: write
     steps:
@@ -196,7 +195,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: cli-release
     permissions:
       # Required only to create or update the GitHub Release.
       contents: write

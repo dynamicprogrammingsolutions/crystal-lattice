@@ -10,6 +10,10 @@ PROMOTE_SCRIPT = (
     ROOT / "deploy" / "aws-cli-downloads" / "promote-github-release.sh"
 )
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release-crystal-lattice-cli.yml"
+OIDC_TEMPLATE = ROOT / "deploy" / "aws-cli-downloads" / "github-oidc-role.yaml"
+CONFIGURE_GITHUB_SCRIPT = (
+    ROOT / "deploy" / "aws-cli-downloads" / "configure-github-actions-vars.sh"
+)
 RELEASE_SHA = "a" * 40
 
 
@@ -421,3 +425,14 @@ def test_release_workflow_uses_draft_release_instead_of_actions_artifacts() -> N
     assert "gh release upload" in workflow
     assert "gh release edit" in workflow
     assert "gh release download" in workflow
+    assert workflow.count("environment: cli-release") == 1
+
+
+def test_release_oidc_configuration_restricts_environment_to_release_tags() -> None:
+    template = OIDC_TEMPLATE.read_text(encoding="utf-8")
+    configure_script = CONFIGURE_GITHUB_SCRIPT.read_text(encoding="utf-8")
+
+    assert "environment:${GitHubEnvironment}" in template
+    assert 'GITHUB_ENVIRONMENT="cli-release"' in configure_script
+    assert 'GITHUB_TAG_PATTERN="crystal-lattice-cli-v*"' in configure_script
+    assert '"tag|$GITHUB_TAG_PATTERN"' in configure_script

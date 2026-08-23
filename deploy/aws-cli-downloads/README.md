@@ -163,7 +163,11 @@ The role trusts release tags matching:
 refs/tags/crystal-lattice-cli-v*
 ```
 
-It also trusts one branch for workflow testing, defaulting to `main`.
+It also trusts the `cli-release` GitHub environment and one branch for workflow
+testing, defaulting to `main`. The GitHub configuration script restricts the
+environment to tags matching `crystal-lattice-cli-v*`; this restriction is
+required because environment-scoped OIDC tokens use an environment subject
+instead of the tag ref subject.
 
 Preview GitHub variable/secret updates:
 
@@ -191,6 +195,14 @@ CLI_DOWNLOADS_PREFIX
 CLI_DOWNLOADS_BASE_URL
 CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID
 CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME
+```
+
+It also creates or updates the `cli-release` environment and requires its only
+deployment branch policy to be:
+
+```text
+type: tag
+name: crystal-lattice-cli-v*
 ```
 
 For production, run the same commands with `--profile prod` after the

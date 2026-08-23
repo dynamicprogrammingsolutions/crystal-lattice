@@ -282,6 +282,15 @@ Release.
   2.19 GiB. GitHub quota accounting did not refresh immediately, so the
   workflow was changed to upload tag-build archives directly to a draft GitHub
   Release. Manual dispatch now builds/smoke-tests without storing archives.
+- 2026-08-23: Pre-tag run `32662372280` passed tests, draft-release preparation,
+  and all four build/archive-smoke jobs on commit `7caaa64f`.
+- 2026-08-23: Tag run `32666529964` created and published the `0.1.1` GitHub
+  Release with all four current assets. `Publish Downloads` failed because the
+  environment-scoped OIDC subject did not match the role's tag-ref trust.
+- 2026-08-23: The reproducible fix restricts `cli-release` to
+  `crystal-lattice-cli-v*` tags and adds the environment subject to the IAM
+  trust. Future manual dispatch jobs do not attach the release environment;
+  only the tag-gated AWS publish job remains environment-scoped.
 
 ## Completion Notes
 

@@ -12,6 +12,7 @@ ROLE_NAME=""
 GITHUB_OWNER="dynamicprogrammingsolutions"
 GITHUB_REPO="crystal-lattice"
 GITHUB_BRANCH="main"
+GITHUB_ENVIRONMENT="cli-release"
 
 usage() {
   cat <<'USAGE'
@@ -26,6 +27,7 @@ Options:
   --github-owner OWNER         GitHub owner/org. Default: dynamicprogrammingsolutions.
   --github-repo REPO           GitHub repo name. Default: crystal-lattice.
   --github-branch BRANCH       Branch trusted for workflow testing. Release tags are always trusted.
+  --github-environment NAME    Environment trusted for release publishing. Default: cli-release.
   --help, -h                   Show this help.
 USAGE
   usage_common
@@ -39,6 +41,7 @@ while [ "$#" -gt 0 ]; do
     --github-owner) GITHUB_OWNER="$2"; shift 2 ;;
     --github-repo) GITHUB_REPO="$2"; shift 2 ;;
     --github-branch) GITHUB_BRANCH="$2"; shift 2 ;;
+    --github-environment) GITHUB_ENVIRONMENT="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) args+=("$1"); shift ;;
   esac
@@ -92,6 +95,7 @@ aws --region "$REGION" cloudformation deploy \
     GitHubOwner="$GITHUB_OWNER" \
     GitHubRepo="$GITHUB_REPO" \
     GitHubBranch="$GITHUB_BRANCH" \
+    GitHubEnvironment="$GITHUB_ENVIRONMENT" \
     RoleName="$ROLE_NAME" \
     CreateOidcProvider="$create_oidc_provider" \
     ExistingOidcProviderArn="$oidc_provider_arn" \
@@ -116,4 +120,5 @@ echo "ROLE_NAME=$ROLE_NAME"
 echo "OIDC_PROVIDER_ARN=$oidc_provider_arn"
 echo "GITHUB_REPOSITORY=${GITHUB_OWNER}/${GITHUB_REPO}"
 echo "GITHUB_BRANCH=$GITHUB_BRANCH"
+echo "GITHUB_ENVIRONMENT=$GITHUB_ENVIRONMENT"
 echo "GITHUB_TAG_PATTERN=refs/tags/crystal-lattice-cli-v*"
