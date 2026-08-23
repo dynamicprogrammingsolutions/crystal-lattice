@@ -13,6 +13,9 @@ WATCH=0
 DRY_RUN=0
 ALLOW_DIRTY=0
 SKIP_TESTS=0
+WORKFLOW_NAME="release-crystal-lattice-cli.yml"
+RUN_DISCOVERY_ATTEMPTS="${CLI_RELEASE_RUN_DISCOVERY_ATTEMPTS:-24}"
+RUN_DISCOVERY_INTERVAL_SECONDS="${CLI_RELEASE_RUN_DISCOVERY_INTERVAL_SECONDS:-5}"
 
 usage() {
   cat <<'USAGE'
@@ -94,6 +97,121 @@ run_or_print() {
   fi
 }
 
+read_github_variable() {
+  local name="$1"
+  gh variable list \
+    --repo "$REPO" \
+    --json name,value \
+    --jq ".[] | select(.name == \"$name\") | .value" |
+    head -n 1
+}
+
+validate_github_download_config() {
+  if ! stack_exists; then
+    echo "Download stack does not exist for profile $PROFILE: $STACK_NAME" >&2
+    exit 1
+  fi
+
+  local expected_region expected_bucket expected_prefix expected_base_url
+  local expected_distribution secret_name
+  expected_region="$REGION"
+  expected_bucket="$(stack_output DownloadsBucket)"
+  expected_prefix="$(stack_output DownloadsPrefix)"
+  expected_base_url="$(stack_output DownloadsBaseUrl)"
+  expected_distribution="$(stack_output DownloadsCloudFrontDistributionId)"
+
+  local mismatches=0
+  local name expected actual
+  while IFS='|' read -r name expected; do
+    actual="$(read_github_variable "$name")"
+    if [ "$actual" != "$expected" ]; then
+      echo "GitHub variable $name does not match profile $PROFILE." >&2
+      echo "  expected: $expected" >&2
+      echo "  actual:   ${actual:-<unset>}" >&2
+      mismatches=1
+    fi
+  done <<EOF
+AWS_REGION|$expected_region
+CLI_DOWNLOADS_BUCKET|$expected_bucket
+CLI_DOWNLOADS_PREFIX|$expected_prefix
+CLI_DOWNLOADS_BASE_URL|$expected_base_url
+CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID|$expected_distribution
+EOF
+
+  [ "$mismatches" -eq 0 ] || {
+    echo "Run configure-github-actions-vars.sh for profile $PROFILE before releasing." >&2
+    exit 1
+  }
+
+  secret_name="$(
+    gh secret list \
+      --repo "$REPO" \
+      --json name \
+      --jq '.[] | select(.name == "CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME") | .name' |
+      head -n 1
+  )"
+  if [ "$secret_name" != "CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME" ]; then
+    echo "GitHub secret CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME is not configured." >&2
+    exit 1
+  fi
+}
+
+validate_release_commit() {
+  local branch release_sha remote_main_sha
+  branch="$(git branch --show-current)"
+  if [ "$branch" != "main" ]; then
+    echo "Release tags must be created from main; current branch is ${branch:-<detached>}." >&2
+    exit 1
+  fi
+
+  release_sha="$(git rev-parse HEAD)"
+  remote_main_sha="$(
+    git ls-remote origin refs/heads/main |
+      awk 'NR == 1 {print $1}'
+  )"
+  if [ -z "$remote_main_sha" ]; then
+    echo "Could not resolve origin/main." >&2
+    exit 1
+  fi
+  if [ "$release_sha" != "$remote_main_sha" ]; then
+    echo "Release commit must exactly match origin/main." >&2
+    echo "  local HEAD:  $release_sha" >&2
+    echo "  origin/main: $remote_main_sha" >&2
+    exit 1
+  fi
+  printf '%s\n' "$release_sha"
+}
+
+find_release_run_id() {
+  local release_sha="$1"
+  local attempt run_id
+  attempt=1
+  while [ "$attempt" -le "$RUN_DISCOVERY_ATTEMPTS" ]; do
+    run_id="$(
+      gh run list \
+        --repo "$REPO" \
+        --workflow "$WORKFLOW_NAME" \
+        --event push \
+        --commit "$release_sha" \
+        --limit 10 \
+        --json databaseId,headBranch \
+        --jq ".[] | select(.headBranch == \"$tag\") | .databaseId" |
+        head -n 1
+    )"
+    if [ -n "$run_id" ]; then
+      printf '%s\n' "$run_id"
+      return 0
+    fi
+    sleep "$RUN_DISCOVERY_INTERVAL_SECONDS"
+    attempt=$((attempt + 1))
+  done
+  echo "Timed out waiting for the tag-triggered release workflow for $tag ($release_sha)." >&2
+  return 1
+}
+
+release_sha="$(validate_release_commit)"
+validate_github_download_config
+
 if [ "$SKIP_TESTS" -eq 0 ]; then
   run_or_print python -m pip install -e "core/python[dev]" -e application/python -e "plugins/openai_responses[dev]"
   run_or_print pytest core/python/tests -q -m "not integration"
@@ -109,7 +227,7 @@ else
 fi
 
 if [ "$PUSH_TAG" -eq 1 ]; then
-  run_or_print git tag "$tag"
+  run_or_print git tag "$tag" "$release_sha"
   run_or_print git push origin "$tag"
 else
   echo "Tag not pushed. Pass --push-tag to create and push $tag."
@@ -117,13 +235,18 @@ fi
 
 if [ "$WATCH" -eq 1 ]; then
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "DRY RUN: gh run list --repo $REPO --workflow release-crystal-lattice-cli.yml --limit 5"
-    echo "DRY RUN: gh run watch --repo $REPO"
+    echo "DRY RUN: discover tag-triggered run for $tag at $release_sha"
+    echo "DRY RUN: gh run watch <run-id> --repo $REPO --exit-status"
+    echo "DRY RUN: gh release view $tag --repo $REPO --json url --jq .url"
   else
-    echo "Waiting briefly for GitHub Actions to register the release workflow..."
-    sleep 10
-    gh run list --repo "$REPO" --workflow release-crystal-lattice-cli.yml --limit 5
-    gh run watch --repo "$REPO"
+    echo "Waiting for GitHub Actions to register the release workflow..."
+    run_id="$(find_release_run_id "$release_sha")"
+    echo "Release workflow run ID: $run_id"
+    gh run watch "$run_id" --repo "$REPO" --exit-status
+    release_url="$(
+      gh release view "$tag" --repo "$REPO" --json url --jq '.url'
+    )"
+    echo "GitHub Release: $release_url"
   fi
 fi
 

@@ -61,16 +61,25 @@ if [ "$DRY_RUN" -eq 1 ]; then
   printf 'DRY RUN:'
   printf ' %q' gh release download "$tag" --repo "$REPO" --dir "$work_dir" --pattern "crystal-lattice-python-runtime-v${VERSION}-*"
   printf '\n'
-else
-  gh release download "$tag" --repo "$REPO" --dir "$work_dir" --pattern "crystal-lattice-python-runtime-v${VERSION}-*"
+  printf 'DRY RUN: ALLOW_AWS_DEPLOY=1'
+  printf ' %q' "$SCRIPT_DIR/publish-assets.sh" \
+    --profile "$PROFILE" \
+    --stack-name "$STACK_NAME" \
+    --region "$REGION" \
+    --assets-dir "$work_dir" \
+    --version "$VERSION"
+  printf '\n'
+  echo "Promotion dry run completed for $tag to profile $PROFILE."
+  exit 0
 fi
 
-publish_args=(--profile "$PROFILE" --stack-name "$STACK_NAME" --region "$REGION" --assets-dir "$work_dir" --version "$VERSION")
-if [ "$DRY_RUN" -eq 1 ]; then
-  publish_args+=(--dry-run)
-  "$SCRIPT_DIR/publish-assets.sh" "${publish_args[@]}"
-else
-  ALLOW_AWS_DEPLOY=1 "$SCRIPT_DIR/publish-assets.sh" "${publish_args[@]}"
-fi
+gh release download "$tag" --repo "$REPO" --dir "$work_dir" --pattern "crystal-lattice-python-runtime-v${VERSION}-*"
+
+ALLOW_AWS_DEPLOY=1 "$SCRIPT_DIR/publish-assets.sh" \
+  --profile "$PROFILE" \
+  --stack-name "$STACK_NAME" \
+  --region "$REGION" \
+  --assets-dir "$work_dir" \
+  --version "$VERSION"
 
 echo "Promoted $tag to profile $PROFILE."

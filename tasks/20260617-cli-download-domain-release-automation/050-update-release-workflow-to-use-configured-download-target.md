@@ -119,6 +119,163 @@ Verify on the testing domain:
 - all expected archives are present after release publish
 - CloudFront invalidation was created
 
+## Execution plan
+
+Status: Approved
+
+Complete this subtask as the first part of one coordinated release campaign
+covering subtasks 050, 060, and 070. The campaign should create one new CLI
+release, publish it to the testing download domain through the tag-triggered
+workflow, validate it, promote the same GitHub Release to production, and then
+restore GitHub's default release target to production.
+
+Execution must start from a clean, synchronized `main` worktree. The current
+local `main` and `origin/main` histories are divergent, so the release commit
+and tag target must be resolved before any version bump or tag operation.
+
+Use a new patch version because `crystal-lattice-cli-v0.1.0` already exists and
+contains legacy asset names. The recommended release is `0.1.1`, subject to
+human confirmation.
+
+Before creating a release commit:
+
+1. Reconcile the intended `main` history and verify the selected release commit
+   is pushed to `origin/main`.
+2. Update `application/python/pyproject.toml` to the approved new version and
+   update version-specific public documentation where it represents the
+   current release rather than an illustrative example.
+3. Verify the source installer default, Git Bash support, and release workflow
+   changes are present in the release commit.
+4. Verify the test and production CloudFormation stacks and OIDC roles still
+   exist and record their outputs.
+5. Record the current production GitHub variables and confirm the
+   `CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME` secret exists.
+6. Explicitly create or inspect the `cli-release` GitHub environment. It is
+   currently not returned by the repository environments API. Configure it
+   without an approval gate for this validation unless the user requests a
+   protected release approval.
+
+Validate the exact release commit before tagging:
+
+1. Run `actionlint .github/workflows/release-crystal-lattice-cli.yml`.
+2. Run the workflow's local fast test commands.
+3. Trigger a `workflow_dispatch` run for the exact release commit on `main`.
+4. Require the test job and all four build/archive-smoke jobs to pass.
+5. Confirm both publish jobs are skipped because the run is not tag-triggered.
+
+Prepare the testing publish target:
+
+1. Run `configure-github-actions-vars.sh --profile test --dry-run`.
+2. Apply `configure-github-actions-vars.sh --profile test`.
+3. Read back all non-secret repository variables and confirm they point to:
+
+   ```text
+   https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli
+   ```
+
+4. Confirm the OIDC secret exists and the test role trusts the release-tag
+   pattern.
+5. Pause other CLI releases during the temporary repository-variable switch.
+
+Create the real release through the corrected `release.sh` flow from subtask
+060. Verify the tag-triggered run itself, not only the resulting files:
+
+1. The event is `push` and the ref is the new CLI release tag.
+2. Tag/version validation passes.
+3. All four matrix jobs pass.
+4. `Publish GitHub Release` passes and creates a release containing exactly the
+   four current runtime archive names.
+5. `Publish Downloads` passes using GitHub OIDC.
+6. The testing bucket receives `install.sh`, `latest.txt`, and all four
+   archives under the configured prefix.
+7. The testing installer defaults to the testing base URL.
+8. `latest.txt` contains the new release tag.
+9. `smoke.sh --profile test --version <version>` passes.
+10. Record the workflow run URL, release URL, S3 object evidence, and
+    CloudFront invalidation ID.
+
+Restore the production GitHub variables immediately after testing validation,
+including on recoverable failure paths. Read them back and confirm the base URL,
+bucket, distribution, prefix, and region point to production. Do not create
+another tag merely to publish production; subtask 070 promotes the same GitHub
+Release.
+
+### Implementation decisions and open questions
+
+- Requirement question: confirm the new public CLI version. Recommendation:
+  `0.1.1`, because `0.1.0` already exists and cannot validate the current asset
+  naming.
+- Requirement question: decide which divergent `main` history is authoritative
+  before execution. No release tag should be created until local `main` and
+  `origin/main` are reconciled and the chosen release commit is pushed.
+- Implementation decision: temporarily switch repository-level GitHub
+  variables/secrets to the testing profile for the tag release, then restore
+  production after validation. This preserves the existing workflow contract
+  without introducing a second release workflow or profile encoded in the tag.
+- Implementation decision: create or verify the `cli-release` environment
+  explicitly before tagging so deployment behavior is known rather than
+  relying on implicit environment creation.
+
+### Documentation
+
+- Update `deploy/aws-cli-downloads/README.md` with the exact test-target switch,
+  read-back checks, production restoration command, and release recovery
+  procedure.
+- Update this task with the workflow run URL, GitHub Release URL, release tag,
+  testing-domain smoke evidence, and restored production variable evidence.
+- Update current-version user documentation only where the displayed version
+  is intended to identify the latest release.
+
+### Task checklist
+
+- [x] Resolve the authoritative `main` history and establish a clean release worktree.
+- [x] Obtain approval for the new release version.
+- [ ] Create and push the release commit on `main`.
+- [ ] Verify or create the `cli-release` GitHub environment.
+- [x] Run local workflow validation and fast tests.
+- [ ] Run a green `workflow_dispatch` matrix on the exact release commit.
+- [ ] Switch GitHub release variables/secrets to the testing profile and verify them.
+- [ ] Create the release tag through subtask 060.
+- [ ] Verify the tag-triggered GitHub Release and OIDC download publication jobs.
+- [ ] Run and record testing-domain smoke verification.
+- [ ] Restore and verify production GitHub release configuration.
+- [ ] Record final evidence and mark this subtask complete.
+
+### Requirement verification
+
+- Workflow configuration requirements: `actionlint`, workflow inspection, and
+  the exact-commit `workflow_dispatch` run.
+- Matrix preservation: four successful target jobs in the tag-triggered run.
+- GitHub Release publication: release URL plus four correctly named assets.
+- Configured download publication: successful OIDC job plus GitHub variable
+  read-back and testing S3/domain checks.
+- Installer/latest/archive publication: testing-domain content inspection and
+  `smoke.sh --profile test --version <version>`.
+- CloudFront invalidation: recorded invalidation ID from the publication path.
+
+### Additional implementation verification
+
+- Verify the tag points to the same SHA as the pre-tag green dispatch run.
+- Verify no release job used the production bucket while repository variables
+  were intentionally set to testing.
+- Verify production repository variables are restored after the campaign.
+
+## Implementation Notes
+
+- 2026-08-23: The user approved execution on the dedicated `main` worktree and
+  approved version `0.1.1`.
+- 2026-08-23: Local `main` and `origin/main` were verified at
+  `a9abe07f1a22dd5cc86fe594e5397f5709bb64c7` before release changes began.
+- 2026-08-23: Release preparation exposed a cancellation race where a request
+  could be cancelled between early-cancellation inspection and live
+  cancellation registration. Registration/cleanup are now synchronized, and
+  active-provider cancellation tests wait for the provider's active marker.
+- 2026-08-23: Local release validation passed:
+  - `actionlint .github/workflows/release-crystal-lattice-cli.yml`
+  - core fast suite: 465 passed, 26 deselected, 1 xfailed
+  - application fast suite: 329 passed, 90 deselected
+  - release/installer script tests: 12 passed
+
 ## Completion Notes
 
 Added during completion on 2026-06-18.

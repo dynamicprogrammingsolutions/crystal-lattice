@@ -118,6 +118,127 @@ Verify:
 - CloudFront invalidation was created
 - `smoke.sh` passes on the testing domain
 
+## Execution plan
+
+Status: Approved
+
+Finish and validate promotion after subtask 050 creates a new GitHub Release
+with the current `crystal-lattice-python-runtime-v<version>-...` asset names.
+The existing `0.1.0` release cannot satisfy this test because its assets use
+the legacy naming scheme.
+
+Correct dry-run behavior first. The current implementation prints the
+`gh release download` command, leaves the assets directory empty, then invokes
+`publish-assets.sh --dry-run`, which fails while validating missing files.
+Change dry-run so it prints the intended GitHub download and publish commands
+without requiring files that were deliberately not downloaded. Preserve full
+asset validation for every real promotion.
+
+Add focused tests for:
+
+- dry-run exits successfully and prints the normalized tag, asset pattern,
+  selected profile, stack, version, and publish command
+- dry-run does not call AWS or modify `latest.txt`
+- real-mode preparation rejects missing archives
+- release download failure propagates
+- all four current asset names are required
+- `--keep-assets-dir` preserves downloaded files for inspection
+- test and production profiles resolve to their respective domain/stack
+
+After the new tag-triggered release has published to the testing domain:
+
+1. Run a promotion dry run against testing.
+2. Run a real, idempotent promotion of the same GitHub Release back to testing
+   with `--keep-assets-dir`.
+3. Inspect the downloaded directory and verify exactly the four expected
+   runtime archives.
+4. Verify testing `install.sh`, `latest.txt`, archive URLs, content types, and
+   CloudFront invalidation.
+5. Run `smoke.sh --profile test --version <version>`.
+
+Then promote the exact same GitHub Release to production:
+
+1. Confirm GitHub repository variables have been restored to production so
+   future tag releases use the canonical target.
+2. Run a production promotion dry run and review the bucket/domain/version.
+3. Run the real production promotion with explicit version and repository.
+4. Verify production `latest.txt`, installer default, all four archives, and
+   CloudFront invalidation.
+5. Run `smoke.sh --profile prod --version <version>`.
+6. Verify the public website installer still resolves through the production
+   domain.
+
+The testing and production publishes must use byte-identical GitHub Release
+assets. Record hashes from the kept asset directory and compare them with the
+objects downloaded through both domains.
+
+### Implementation decisions and open questions
+
+- Requirement question: promotion depends on the approved new release version
+  from subtask 050; recommendation remains `0.1.1`.
+- Implementation decision: validate promotion with the new release rather than
+  adding compatibility for the legacy `0.1.0` asset names. Legacy compatibility
+  is not required to prove the current release path.
+- Implementation decision: make dry-run non-mutating and successful without
+  downloading assets; real mode remains responsible for complete asset
+  validation.
+- Implementation decision: perform an idempotent real promotion to testing
+  before production so the script itself, not only `publish-assets.sh`, is
+  validated against the testing domain.
+
+### Documentation
+
+- Correct the README's dry-run description and include the test→production
+  promotion sequence.
+- Document that legacy `0.1.0` cannot be promoted with the current filename
+  contract.
+- Record kept asset hashes, testing and production smoke results, invalidation
+  evidence, and final `latest.txt` values in this task.
+
+### Task checklist
+
+- [x] Fix promotion dry-run so it succeeds without downloaded assets.
+- [x] Add focused promotion-script tests.
+- [x] Run local syntax/lint/tests.
+- [ ] Run successful testing-profile promotion dry run.
+- [ ] Run idempotent real promotion to testing and inspect kept assets.
+- [ ] Run testing-domain smoke verification.
+- [ ] Restore/confirm production GitHub repository configuration.
+- [ ] Run production-profile promotion dry run.
+- [ ] Promote the same GitHub Release to production.
+- [ ] Run production-domain smoke verification.
+- [ ] Compare GitHub/test/prod asset hashes.
+- [ ] Record evidence and mark this subtask complete.
+
+### Requirement verification
+
+- GitHub release download: kept asset directory and `gh release view` evidence.
+- Four-archive validation: exact filename inventory and successful real
+  promotion.
+- Domain-correct installer/latest/archive upload: content inspection through
+  both public domains.
+- CloudFront invalidation: recorded invalidation IDs for test and production.
+- Dry-run behavior: successful non-mutating focused test and command output.
+- Testing-domain promotion: real promotion plus `smoke.sh --profile test`.
+- Production promotion: real promotion plus `smoke.sh --profile prod`.
+
+### Additional implementation verification
+
+- Compare SHA-256 hashes for all four archives across the kept GitHub assets,
+  testing domain, and production domain.
+- Verify `latest.txt` changes only after reviewed real promotion commands.
+- Verify no legacy `crystal-lattice-cli-v0.1.0-*` asset is accepted as a
+  substitute for the current runtime archive contract.
+
+## Implementation Notes
+
+- 2026-08-23: Execution approved with release version `0.1.1`; implementation
+  started after the release workflow/orchestration fixes.
+- 2026-08-23: Promotion dry-run now prints the GitHub download and real publish
+  commands without validating an intentionally empty asset directory.
+- 2026-08-23: Focused dry-run coverage passed as part of the nine release and
+  promotion script tests.
+
 ## Completion Notes
 
 Added during completion on 2026-06-18.

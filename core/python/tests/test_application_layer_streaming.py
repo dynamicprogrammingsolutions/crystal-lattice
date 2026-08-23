@@ -321,6 +321,62 @@ def test_cancel_request_and_resume(tmp_path: Path) -> None:
     assert "request_cancelled" not in kinds2
 
 
+def test_cancel_request_during_registration_is_not_lost(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import agent_app.application_future as application_future
+
+    config_path = _make_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    request_id = "registration-race"
+    constructor_entered = threading.Event()
+    allow_constructor = threading.Event()
+    registered: dict[str, object] = {}
+    original_cancellation = application_future.RequestCancellation
+
+    class BlockingRequestCancellation(original_cancellation):
+        def __init__(self, *, cancelled: bool = False) -> None:
+            constructor_entered.set()
+            assert allow_constructor.wait(timeout=5)
+            super().__init__(cancelled=cancelled)
+
+    monkeypatch.setattr(
+        application_future,
+        "RequestCancellation",
+        BlockingRequestCancellation,
+    )
+
+    register_thread = threading.Thread(
+        target=lambda: registered.setdefault(
+            "cancellation",
+            app._register_request_cancellation(request_id),
+        )
+    )
+    register_thread.start()
+    assert constructor_entered.wait(timeout=5)
+
+    cancel_thread = threading.Thread(target=lambda: app.cancel_request(request_id))
+    cancel_thread.start()
+    time.sleep(0.05)
+    assert cancel_thread.is_alive()
+
+    allow_constructor.set()
+    register_thread.join(timeout=5)
+    cancel_thread.join(timeout=5)
+    assert not register_thread.is_alive()
+    assert not cancel_thread.is_alive()
+
+    cancellation = registered["cancellation"]
+    assert isinstance(cancellation, original_cancellation)
+    assert cancellation.is_cancelled()
+    app._clear_request_cancellation(request_id)
+
+
 def test_failure_then_resume(tmp_path: Path) -> None:
     from tests.dummy_provider import reset_failing_dummy_provider_state
 
@@ -512,11 +568,12 @@ def test_cancel_request_interrupts_silent_running_provider(tmp_path: Path) -> No
 
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        if any(ev.get("type") == "request_started" for ev in events):
+        provider_state = get_cancellable_blocking_provider_state()
+        if request_id in provider_state["active"]:
             break
         time.sleep(0.05)
     else:
-        raise AssertionError("request_started was not emitted before cancellation")
+        raise AssertionError("provider was not active before cancellation")
 
     app.cancel_request(request_id)
 
@@ -632,11 +689,12 @@ def test_cancel_request_interrupts_non_streaming_provider_call(tmp_path: Path) -
 
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        if any(ev.get("type") == "request_started" for ev in events):
+        provider_state = get_cancellable_blocking_provider_state()
+        if request_id in provider_state["active"]:
             break
         time.sleep(0.05)
     else:
-        raise AssertionError("request_started was not emitted before cancellation")
+        raise AssertionError("provider was not active before cancellation")
 
     app.cancel_request(request_id)
 
