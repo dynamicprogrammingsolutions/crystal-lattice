@@ -23,6 +23,7 @@ package's `docs/development/`.
 - [Sessions actions](specifications/sessions-actions/index.md)
 - [Chat transcript navigation](specifications/chat-transcript-navigation/index.md)
 - [Bridge connectivity](specifications/bridge-connectivity/index.md)
+- [Frontend connection lifecycle and offline continuity](specifications/frontend-connection-lifecycle/index.md)
 
 These specifications define targets for portable behavior. Their requirements
 track implementation and verification, while package development pages
