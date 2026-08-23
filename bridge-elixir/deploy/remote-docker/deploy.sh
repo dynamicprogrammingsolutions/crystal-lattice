@@ -120,6 +120,7 @@ cleanup() {
 trap cleanup EXIT
 
 COPYFILE_DISABLE=1 tar \
+  --no-xattrs \
   --exclude '.git' \
   --exclude '.DS_Store' \
   --exclude '.env' \
