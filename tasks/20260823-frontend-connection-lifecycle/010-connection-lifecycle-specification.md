@@ -189,3 +189,33 @@ Follow-up verification:
   notices/warnings;
 - focused `git diff --check`, requirement-ID uniqueness, terminology, and
   prepared-source discoverability inspection — passed.
+
+### Mobile multi-open target refinement — 2026-08-23
+
+The user approved moving visible mobile multiple-open behavior from a deferred
+extension into the active target. `mobile-ux.md` now defines:
+
+- several simultaneously Open rows with one independent focus;
+- per-runtime lifecycle, event, notification, and foreground isolation;
+- explicit Close-to-offline behavior without silent runtime replacement;
+- deep-link lookup across open runtimes;
+- cache/session/draft restoration while focus changes;
+- offline-first process restart without automatically reopening every prior
+  runtime;
+- multi-open and failure-isolation acceptance sequences.
+
+`FCL-023` tracks this mobile user-visible outcome. The mobile package
+refinement maps it to `MCL-010`–`MCL-013`, and implementation is assigned to
+`tasks/20260823-frontend-connection-lifecycle/060-mobile-multiple-open-connections.md`.
+
+The root index also records the approved mobile and desktop package technical
+refinements created under subtasks 015 and 017.
+
+Follow-up verification:
+
+- `pytest docs_site/tests/test_prepare_mkdocs_site.py -q` — 15 passed;
+- `python docs_site/scripts/prepare_mkdocs_site.py` — completed;
+- `(cd docs_site && mkdocs build)` — completed with existing repository
+  notices/warnings;
+- unique `FCL-*`/`MCL-*`/`DCL-*` IDs, task structure, links, terminology, and
+  prepared package reachability — passed.

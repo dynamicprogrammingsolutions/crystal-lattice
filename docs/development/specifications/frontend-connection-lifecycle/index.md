@@ -44,6 +44,15 @@ The shared specification owns portable outcomes and coordination. Each
 frontend retains platform-specific presentation and native lifecycle
 integration.
 
+Package technical refinements:
+
+- `mobile/crystal-lattice-control-rn/docs/development/specifications/connection-lifecycle/`
+- `desktop/crystal-lattice-control-desktop-rn/docs/development/specifications/connection-lifecycle/`
+
+Those refinements map this contract to each application host, native
+lifecycle, persistence boundary, and platform verification. They do not
+redefine the product or portable UX.
+
 ## Scope
 
 The target covers:

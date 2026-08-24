@@ -55,6 +55,29 @@ Depends On: `tasks/20260823-frontend-connection-lifecycle/010-connection-lifecyc
   this task set, but one real compatibility consumer is required for the new
   shared helper.
 
+## Plan review notes
+
+- **Review 2026-08-23:** The expanded Draft plan remains useful and is retained
+  after adding package host specifications, final mobile multi-open behavior,
+  and full desktop follow-up tasks.
+- The limited desktop manual-hook migration remains the correct real consumer:
+  it proves shared multi-runtime behavior and fixes close/cancel authority
+  without absorbing the desktop Connections/Sessions/tab/editor UX owned by
+  task 070.
+- This task provides the architecture required by `MCL-001`–`MCL-005`,
+  `MCL-010`, and `DCL-001`–`DCL-005`, but it does not by itself complete those
+  package requirements.
+- Visible mobile multi-open behavior remains task 060. Desktop
+  follow-active-tab, status convergence presentation, editor UX, and native
+  tests remain task 070. Complete mobile/desktop drafts remain tasks 050/080.
+- The completing agent should preserve the current injectable adapter,
+  controlled interactive-attempt lease, CloudTransport consistency, and
+  deterministic race matrix unless implementation discovery identifies a
+  material contract conflict.
+- Package refinements:
+  - `mobile/crystal-lattice-control-rn/docs/development/specifications/connection-lifecycle/`
+  - `desktop/crystal-lattice-control-desktop-rn/docs/development/specifications/connection-lifecycle/`
+
 ## Execution plan
 Status: Draft
 
@@ -244,6 +267,9 @@ because this work does not change provider behavior.
   and route it from the package development index. Document current state
   ownership, adapter injection, attempt authority, redacted errors, and test
   entry points without copying the cross-package target.
+- Link the mobile and desktop package refinements from implementation mapping
+  where host-consumer boundaries need clarification; do not copy their
+  requirements.
 - Update desktop development documentation only for the delivered manual-hook
   consumption and its continued connection-kind limitation.
 - Do not create frontend-sdk-react documentation unless that package changes.

@@ -1,8 +1,8 @@
 # Durable composer drafts
 
-Make the complete composed message—text, attachment state, and uncertain-send
-recovery—durable per connection/session and protected from ordinary cache
-eviction.
+Define shared complete-draft primitives and adopt them in mobile so text,
+attachment state, and uncertain-send recovery are durable per
+connection/session and protected from ordinary cache eviction.
 
 ## Requirements checklist
 
@@ -26,7 +26,10 @@ eviction.
 
 Parent Task: `tasks/20260823-frontend-connection-lifecycle/000-main.md`
 
-Depends On: `tasks/20260823-frontend-connection-lifecycle/040-mobile-offline-workspace-and-cache-access.md`
+Depends On:
+
+- `tasks/20260823-frontend-connection-lifecycle/015-mobile-connection-host-specification.md`
+- `tasks/20260823-frontend-connection-lifecycle/040-mobile-offline-workspace-and-cache-access.md`
 
 ## Supporting details
 
@@ -41,6 +44,10 @@ Depends On: `tasks/20260823-frontend-connection-lifecycle/040-mobile-offline-wor
   draft-only session vulnerable.
 - Existing uncertain-send behavior uses an idempotency key in memory and must
   remain compatible.
+- Desktop consumes the shared draft primitives later in task 080; desktop
+  `MacTextView`, warm-pane, attachment, and native behavior are outside this
+  task.
+- Mobile package requirements: `MCL-007`, `MCL-009`, `MCL-012`–`MCL-013`.
 
 ## Execution plan
 Status: Draft
@@ -66,6 +73,11 @@ approved local-data deletion.
 Persist uncertain-send content and idempotency/status recovery. Do not add
 automatic offline sending.
 
+Deliver shared schema/controller/storage behavior with frontend-neutral tests,
+then integrate mobile private-file and composer behavior. Do not add desktop
+UI integration merely to prove the shared API; task 080 is the real desktop
+consumer.
+
 ### Implementation decisions and open questions
 
 - **Recommendation:** Store draft metadata in the shared key-value schema and
@@ -89,6 +101,8 @@ automatic offline sending.
 - Update mobile user docs for restored drafts, offline composition,
   persistence errors, and explicit discard after delivery.
 - Update mobile development docs for attachment ownership and cleanup.
+- Update mobile package requirement evidence; leave desktop `DCL-*` incomplete
+  until task 080.
 - Document schema migration as current behavior only when implemented.
 
 ### Task checklist
@@ -123,6 +137,8 @@ automatic offline sending.
   cleanup boundaries.
 - `FCL-011`: duplicate session IDs under different connections retain isolated
   draft revisions and attachments.
+- `MCL-007`, `MCL-009`, `MCL-012`–`MCL-013`: package evidence covers
+  hydration, complete mobile drafts, deletion, and native selectors.
 
 ### Additional implementation verification
 

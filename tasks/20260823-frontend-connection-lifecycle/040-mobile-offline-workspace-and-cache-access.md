@@ -24,12 +24,16 @@ while a runtime is closed, unavailable, reconnecting, or under repair.
 
 Parent Task: `tasks/20260823-frontend-connection-lifecycle/000-main.md`
 
-Depends On: `tasks/20260823-frontend-connection-lifecycle/030-mobile-connection-race-and-cancellation-cleanup.md`
+Depends On:
+
+- `tasks/20260823-frontend-connection-lifecycle/015-mobile-connection-host-specification.md`
+- `tasks/20260823-frontend-connection-lifecycle/030-mobile-connection-race-and-cancellation-cleanup.md`
 
 ## Supporting details
 
 - Normative requirements: `FCL-002`, `FCL-009`, `FCL-011`,
   `FCL-014`–`FCL-015`, `FCL-020`–`FCL-021`.
+- Mobile package requirements: `MCL-006`–`MCL-009`, `MCL-012`–`MCL-013`.
 - `ConnectedRoot` already accepts nullable backends and can render selected
   cached sessions/messages, but mobile cannot reliably select an unreachable
   saved connection.
@@ -70,9 +74,9 @@ remote deletion.
   may begin opening but open failure does not undo focus.
 - **Decision:** Offline compose remains available, but automatic send queueing
   is excluded.
-- **Question for plan approval:** Whether explicit Close should leave the
-  connection focused by default. Recommendation: yes, because Close means
-  runtime closure and the product target preserves workspace continuity.
+- **Decision:** Explicit Close leaves the connection focused by default because
+  Close means runtime closure and the product target preserves workspace
+  continuity.
 
 ### Documentation
 
@@ -80,6 +84,7 @@ remote deletion.
   freshness, action availability, and local-data controls after delivery.
 - Update mobile development docs for hydration/store ownership and offline
   backend gating.
+- Update `MCL-*` evidence for host persistence/offline behavior.
 - Update requirement evidence only for complete verified outcomes.
 
 ### Task checklist
@@ -113,6 +118,9 @@ remote deletion.
   destructive action and its confirmation.
 - `FCL-021`: native/component checks cover offline indicators and disabled
   action accessibility.
+- `MCL-006`–`MCL-008`, `MCL-012`–`MCL-013`: package evidence covers
+  workspace persistence, hydration, offline surfaces, deletion scopes, and
+  native selectors.
 
 ### Additional implementation verification
 

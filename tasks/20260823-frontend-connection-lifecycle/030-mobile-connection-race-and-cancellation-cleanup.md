@@ -24,11 +24,15 @@ connection-driven navigation across all supported connection kinds.
 
 Parent Task: `tasks/20260823-frontend-connection-lifecycle/000-main.md`
 
-Depends On: `tasks/20260823-frontend-connection-lifecycle/020-shared-connection-lifecycle-controller.md`
+Depends On:
+
+- `tasks/20260823-frontend-connection-lifecycle/015-mobile-connection-host-specification.md`
+- `tasks/20260823-frontend-connection-lifecycle/020-shared-connection-lifecycle-controller.md`
 
 ## Supporting details
 
-- Normative requirements: `FCL-001`–`FCL-013`, `FCL-021`.
+- Normative requirements: `FCL-001`–`FCL-013`, `FCL-021`;
+  `MCL-001`–`MCL-006`, `MCL-011`–`MCL-014`.
 - Current bridge repair awaits connection/server discovery before clearing and
   replacing global state, so a late repair can disrupt a newer connection.
 - Current wizard cancellation clears visible fields without logically
@@ -52,6 +56,8 @@ components.
 Make connection selection focus-aware but keep full offline presentation in
 subtask 040. Opening creates and validates a candidate; mobile's initial
 one-runtime policy closes the old runtime only after successful promotion.
+That policy is an intermediate compatibility state and does not complete
+`FCL-023`/`MCL-010`; task 060 removes it after offline/draft foundations.
 
 Bridge repair carries the original connection ID and updates that record after
 authoritative pairing. Cancel invalidates the attempt, disconnects temporary
@@ -78,6 +84,8 @@ updates only its owning runtime status.
 
 - Update mobile development documentation with the current lifecycle host,
   controller boundary, repair ownership, and test entry points.
+- Map delivered host evidence into the mobile package requirements without
+  restating the root mobile UX.
 - Update mobile user guidance only for delivered visible status/cancel/repair
   behavior.
 - Update `FCL-*` and affected `BRG-013` evidence only when behavior is
@@ -111,6 +119,10 @@ updates only its owning runtime status.
   navigate, clear B, or apply A's credential to B.
 - `FCL-011`: same session IDs under two connection IDs retain independent
   components, callbacks, and cached state.
+- `MCL-001`–`MCL-005`: package evidence covers host/controller wiring,
+  factories, wizard authority, stable-ID repair, and one-runtime foreground
+  recovery.
+- `MCL-014`: bridge mode/default/no-fallback compatibility remains intact.
 
 ### Additional implementation verification
 

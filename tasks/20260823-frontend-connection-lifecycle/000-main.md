@@ -11,6 +11,9 @@ semantics.
 - [x] A cross-package living specification defines the target user experience,
   portable frontend behavior, technical lifecycle contract, persistence and
   offline contract, stable requirements, and material design decisions.
+- [x] Mobile and desktop package refinements define host/native ownership,
+  package requirements, and platform verification without duplicating the
+  root UX contracts.
 - [ ] Saved connections, focused workspaces, live runtimes, and in-progress
   attempts behave as independent state, with authoritative cancellation and
   non-destructive candidate promotion.
@@ -23,6 +26,12 @@ semantics.
 - [ ] Text and attachment drafts survive normal navigation, connection
   changes, application lifecycle changes, and process restart without ordinary
   cache eviction silently deleting them.
+- [ ] Mobile exposes several independently open runtimes while one
+  connection/session workspace is focused, with isolated lifecycle,
+  notifications, deep links, caches, and drafts.
+- [ ] Desktop preserves several open runtimes and cached tabs while adding
+  authoritative connection controls, deterministic focus/tab behavior,
+  offline composition, and complete draft continuity.
 - [ ] Automated and native acceptance evidence covers the important lifecycle,
   offline, and draft boundaries without repeating shared race cases for every
   transport kind.
@@ -32,14 +41,15 @@ semantics.
 
 ## Scope and sequencing
 
-The immediate program establishes a shared multi-runtime-capable lifecycle
-model, adopts it in mobile, exposes existing caches offline, and completes
-draft durability. Mobile may initially retain a one-open-runtime policy.
+The program establishes package refinements and a shared
+multi-runtime-capable lifecycle model, adopts it through an intermediate
+one-runtime mobile migration, exposes existing caches offline, completes draft
+durability, enables final mobile multi-open behavior, and converges the current
+desktop multi-open workspace on the same contract.
 
 The following remain target behavior but are not separate approved
 implementation work in this task set:
 
-- exposing several open runtimes simultaneously in the mobile UI;
 - automatic offline send queues;
 - broad automatic reconnect/backoff policy;
 - complete desktop migration to all connection kinds;
@@ -68,10 +78,15 @@ sheet.
 ## Subtasks
 
 - [x] `tasks/20260823-frontend-connection-lifecycle/010-connection-lifecycle-specification.md`
+- [x] `tasks/20260823-frontend-connection-lifecycle/015-mobile-connection-host-specification.md`
+- [x] `tasks/20260823-frontend-connection-lifecycle/017-desktop-connection-host-specification.md`
 - [ ] `tasks/20260823-frontend-connection-lifecycle/020-shared-connection-lifecycle-controller.md`
 - [ ] `tasks/20260823-frontend-connection-lifecycle/030-mobile-connection-race-and-cancellation-cleanup.md`
 - [ ] `tasks/20260823-frontend-connection-lifecycle/040-mobile-offline-workspace-and-cache-access.md`
 - [ ] `tasks/20260823-frontend-connection-lifecycle/050-durable-composer-drafts.md`
+- [ ] `tasks/20260823-frontend-connection-lifecycle/060-mobile-multiple-open-connections.md`
+- [ ] `tasks/20260823-frontend-connection-lifecycle/070-desktop-connection-workspace-ux.md`
+- [ ] `tasks/20260823-frontend-connection-lifecycle/080-desktop-durable-composer-drafts.md`
 
 ## Supporting details
 
@@ -92,22 +107,32 @@ sheet.
 - **Decision:** The existing bridge-connectivity specification continues to
   own pairing, resume, transport modes, routing, and wire behavior.
 - **Decision:** The shared runtime model supports multiple open connections
-  even while mobile presentation initially permits one.
+  while mobile presentation uses one runtime only as an intermediate migration
+  state.
+- **Decision:** Root UX/portable behavior remains authoritative; mobile and
+  desktop package specifications own host/native technical refinements.
+- **Decision:** Desktop initially remains manual-direct-only while its current
+  multi-runtime workspace adopts the shared lifecycle.
 
 ## Execution plan
 Status: Draft
 
 Execute the specification and implementation through the listed subtasks.
-Subtask 010 is complete under the user's explicit specification-creation
-request. Remaining implementation waits for separate approval of its Draft
-plan.
+Subtask 010 and the package specification subtasks are documentation work
+authorized by the user. Software implementation waits for separate approval of
+each Draft plan.
 
 The shared lifecycle foundation establishes connection identity, operation
 authority, candidate promotion, normalized lifecycle outcomes, and
 connection-kind adapters. Mobile then adopts that foundation before offline
 workspace and complete draft behavior are layered on it. This order prevents
 offline and draft callbacks from being built on ambiguous connection/session
-ownership.
+ownership. Final mobile multi-open behavior follows those foundations.
+
+Desktop's limited manual-hook migration proves the shared controller in
+subtask 020. Full desktop connection/workspace UX proceeds independently after
+that foundation, while complete desktop drafts wait for the shared draft
+schema delivered with mobile.
 
 Verification is risk-scaled:
 
@@ -129,9 +154,12 @@ Verification is risk-scaled:
 - **Decided:** Candidate validation precedes replacement closure.
 - **Decided:** Drafts are protected state, not ordinary expendable message
   cache.
-- **Deferred product extension:** Mobile presentation of several concurrently
-  open runtimes will receive separate work after the shared model and one-open
-  mobile adoption are verified.
+- **Decided:** Mobile presentation of several concurrently open runtimes is
+  required after the shared model, one-runtime migration, offline workspace,
+  and complete drafts are verified.
+- **Decided:** Desktop follow-active-tab synchronizes connection/session when
+  enabled and preserves independent Sessions focus when disabled.
+- **Decided:** Desktop bridge/cloud/Bonjour UI remains deferred.
 - **Implementation decision for subtask 050:** Select the concrete
   app-managed attachment storage mechanism when that Draft plan is approved;
   the required outcome already excludes ephemeral picker access as the sole
@@ -141,6 +169,8 @@ Verification is risk-scaled:
 
 - Keep target behavior and live status in
   `docs/development/specifications/frontend-connection-lifecycle/`.
+- Keep mobile/desktop host targets and package evidence in their package
+  connection-lifecycle specifications.
 - Update package development pages when the shared SDK, mobile, or desktop
   implementation changes.
 - Update package user documentation only for delivered behavior and without
@@ -151,10 +181,14 @@ Verification is risk-scaled:
 ### Task checklist
 
 - [x] Create the approved cross-package specification and stable requirements.
+- [x] Complete and validate mobile/desktop package refinements.
 - [ ] Approve and execute the shared lifecycle-controller subtask.
 - [ ] Approve and execute mobile lifecycle adoption and race corrections.
 - [ ] Approve and execute offline workspace/cache behavior.
-- [ ] Approve and execute complete durable draft behavior.
+- [ ] Approve and execute shared/mobile durable draft behavior.
+- [ ] Approve and execute mobile multiple-open behavior.
+- [ ] Approve and execute desktop connection/workspace behavior.
+- [ ] Approve and execute desktop complete draft behavior.
 - [ ] Reconcile requirement evidence and current documentation after each
   implementation delivery.
 - [ ] Complete final cross-package verification and human checkpoints.
@@ -173,6 +207,14 @@ Verification is risk-scaled:
   and deletion-boundary evidence.
 - Draft continuity: verify `FCL-011`, `FCL-014`, and `FCL-016`–`FCL-020`
   through storage/controller tests and production composer relaunch evidence.
+- Mobile multi-open: verify `FCL-023` and `MCL-010`–`MCL-013` through
+  independent-runtime, focus switching, failure isolation, and native
+  lifecycle evidence.
+- Desktop workspace: verify `FCL-022`, `DCL-001`–`DCL-008`, and
+  `DCL-012`–`DCL-016` through shared-consumer, panel/tab, editor, and macOS
+  evidence.
+- Desktop drafts: verify `DCL-009`–`DCL-012`, `DCL-015` through warm-pane,
+  offline composer, relaunch, and uncertain-send evidence.
 
 ### Additional implementation verification
 
@@ -188,3 +230,8 @@ Verification is risk-scaled:
 
 - 2026-08-23: The specification subtask was executed under the user's explicit
   request. No software implementation subtask has been approved.
+- 2026-08-23: User approved package host refinements and task expansion for
+  mobile multi-open plus desktop workspace/drafts. Software plans remain Draft.
+- 2026-08-23: Mobile and desktop package specification subtasks completed with
+  documentation preparation tests/build and unique `MCL-*`/`DCL-*`
+  requirements.

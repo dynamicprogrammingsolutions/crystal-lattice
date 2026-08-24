@@ -28,11 +28,12 @@ evidence without promoting the complete requirement to verified.
 | FCL-020 | Closing, forgetting credentials, clearing cached server content, discarding drafts, and deleting a saved connection are distinct operations whose confirmation states exactly which local data is removed. | In progress | Unverified | Pending | Existing close/delete paths differ by frontend; mobile delete removes caches/drafts while saying only that server data is unaffected. |
 | FCL-021 | Connection status, errors, primary actions, cancellation, repair, offline state, and persistence failure are accessible without color-only meaning and expose stable production selectors needed by native tests. | In progress | Unverified | Pending | Existing connection controls have partial labels/selectors; no complete lifecycle accessibility acceptance coverage was found. |
 | FCL-022 | Desktop keeps the focused Sessions connection and active Chat tab as explicit state: when follow-active-tab is enabled, selecting a tab focuses its owning connection and selects its session; when disabled, the Sessions panel remains independently focused without changing the active Chat tab. | In progress | Unverified | Pending | Desktop represents both identities, but selecting a tab changes only `activeTabId`; the follow helper acts only when Sessions already shows the tab's connection. |
+| FCL-023 | Mobile exposes several independently open connection runtimes while one workspace is focused; switching focus preserves each connection's selected session and draft, background activity remains scoped, closing one runtime leaves its workspace offline, and no other runtime is silently closed. | Not started | Unverified | Pending | The shared target is multi-runtime-capable, but current mobile owns one global transport/backend and the staged mobile adoption initially retains one runtime. |
 
 ## Requirement groups and implementing work
 
 - Lifecycle foundation: `FCL-001`–`FCL-008`, `FCL-012`–`FCL-013`
-- Mobile connection behavior: `FCL-001`–`FCL-011`, `FCL-021`
+- Mobile connection behavior: `FCL-001`–`FCL-013`, `FCL-021`, `FCL-023`
 - Offline workspace and cache: `FCL-002`, `FCL-009`, `FCL-011`,
   `FCL-014`–`FCL-015`, `FCL-020`
 - Draft continuity: `FCL-011`, `FCL-014`, `FCL-016`–`FCL-020`

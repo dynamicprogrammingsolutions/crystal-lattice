@@ -51,9 +51,10 @@ The application distinguishes:
   unsaved wizard;
 - **cache and draft state**: permits offline continuity.
 
-Mobile may initially keep at most one established runtime open. That policy
-does not collapse focus and runtime state. During candidate validation the
-previous runtime remains usable until the candidate is promoted.
+The migration may initially keep at most one established runtime open, but the
+final mobile target permits several user-opened runtimes. Focus remains one
+independent workspace choice. During candidate validation every existing
+runtime remains usable until the candidate is promoted or cancelled.
 
 ## Launch and restoration
 
@@ -251,12 +252,98 @@ save/promote the candidate
     ↓
 focus/navigate only if the initiating user intent is still current
     ↓
-close the replaced runtime if the one-runtime policy requires it
+retain other user-opened runtimes
 ```
 
 Candidate failure disposes only candidate-owned resources. If connection B is
 focused while its opening fails, B remains focusable offline and previously
 open connection A remains available when the user focuses it again.
+
+An intermediate one-runtime compatibility policy may close the previously
+open runtime after promotion. That policy is not the final multi-open mobile
+behavior and does not change focus, cache, session, or draft identity.
+
+## Multiple open connections
+
+### Connection list and focus
+
+The Connections screen may show several Open rows while exactly one connection
+is focused:
+
+```text
+┌─────────────────────────────────────────┐
+│ ✓ Ireland Server                  Open  │
+│   Bridge · Hybrid                 [Close]│
+├─────────────────────────────────────────┤
+│   Office Mac                     Open  │
+│   Direct HTTP                     [Close]│
+├─────────────────────────────────────────┤
+│   Home Server                   Closed  │
+│   Bridge · WebSocket              [Open]│
+└─────────────────────────────────────────┘
+```
+
+Opening a connection does not automatically close another. Focusing a row:
+
+- changes the Sessions workspace to that connection;
+- restores its selected session and Messages workspace;
+- does not open a Closed runtime unless an explicit combined Open action is
+  invoked;
+- does not close or suspend another runtime;
+- does not transfer cache, draft, or navigation state.
+
+Closing the focused runtime leaves that connection focused offline. Closing an
+unfocused runtime leaves the current workspace unchanged.
+
+### Runtime isolation
+
+Every open runtime has independent:
+
+- attempt generation and cancellation;
+- transport/backend resources;
+- foreground recovery;
+- availability/error status;
+- event stream and application notifications;
+- cache invalidation and refresh effects.
+
+Failure or repair of A cannot interrupt B. A connection-level display from an
+unfocused runtime retains its connection label and does not take focus.
+
+### Application lifecycle
+
+Backgrounding prepares or disconnects each stateful runtime according to its
+adapter. Foregrounding starts independent recovery for the runtimes that were
+user-open within the current application process.
+
+After process restart, the frontend restores saved/focused workspaces, caches,
+and drafts first. It does not automatically reopen every previously open
+runtime unless a later explicit product setting defines and communicates that
+policy. Users can reopen saved rows independently.
+
+If a platform resource limit prevents another runtime from opening, the UI
+reports the limit and offers an explicit choice of a runtime to close. It does
+not silently close one.
+
+### Deep links and background activity
+
+A connection-targeted deep link resolves against any matching open runtime,
+not only the focused one. Any focus/session navigation remains an explicit
+current deep-link action.
+
+Notifications and refresh invalidations from open unfocused runtimes remain
+connection-scoped. They may update caches or present through their owning
+portable behavior without changing focus.
+
+### Multi-open acceptance
+
+1. Open A and B.
+2. Focus A and select one of its sessions.
+3. Receive events or notifications from B.
+4. Verify A remains focused and B's update remains labeled/scoped to B.
+5. Focus B and verify its selected session and draft restore.
+6. Close B and verify B remains focused offline while A stays Open.
+7. Focus A and verify its runtime and workspace were not reconstructed or
+   disturbed.
 
 ## Competing attempts and navigation
 
@@ -675,14 +762,22 @@ positions or visible copy. At minimum, native tests can select:
 3. Reopen the runtime and verify current server actions become available
    without replacing navigation.
 
+### Multiple open failure isolation
+
+1. Open connections A and B.
+2. Focus A and open an A session.
+3. Make B unavailable.
+4. Verify B transitions to Unavailable while A remains Open and focused.
+5. Retry B and verify its attempt does not disable A's Chat or navigation.
+
 ## Deferred and unchanged behavior
 
 The mobile target described here does not itself:
 
-- expose several established runtimes simultaneously in the mobile UI;
 - automatically queue or send offline messages;
 - automatically replay failed mutations;
 - define broad reconnect/backoff timing;
+- automatically reopen every previously open runtime after process restart;
 - change bridge WebSocket, HTTP, or hybrid routing/defaults;
 - replace bottom navigation;
 - redesign transcript content or viewport controls;
@@ -697,7 +792,7 @@ cache, navigation, or draft identity.
 - State, authority, cancellation, and candidate promotion:
   `FCL-001`–`FCL-005`
 - Status, adapters, app lifecycle, and navigation:
-  `FCL-006`–`FCL-013`
+  `FCL-006`–`FCL-013`, `FCL-023`
 - Hydration, cache, and offline continuity:
   `FCL-014`–`FCL-015`
 - Draft durability and destructive actions:
