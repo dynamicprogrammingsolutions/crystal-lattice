@@ -2,6 +2,9 @@
 
 Short description: Add a `/action` slash command to the terminal app for invoking application-level plugin actions.
 
+SUPERSEDED BY:
+`tasks/20260824-plugin-driven-cli-and-interactive-terminal-commands.md`
+
 ## Goal
 
 Provide a CLI interface for invoking application plugin actions, similar to how the mobile/desktop frontends expose session actions and message actions via their UI.

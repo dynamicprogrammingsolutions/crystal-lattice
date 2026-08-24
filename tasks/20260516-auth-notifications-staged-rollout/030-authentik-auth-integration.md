@@ -2,6 +2,10 @@
 
 Add authentik-based login and identity-aware authorization on top of the existing pairing-first notification and bridge design, without forcing a redesign of notification delivery.
 
+SUPERSEDED BY:
+`tasks/20260824-os-level-notification-delivery/020-community-authentik-bridge-identity.md`
+and its public modular bridge dependencies.
+
 ## Requirements checklist
 
 - [ ] Define the authentik deployment and subdomain layout.

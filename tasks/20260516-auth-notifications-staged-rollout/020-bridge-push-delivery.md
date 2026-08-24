@@ -2,6 +2,11 @@
 
 Add APNs/FCM-backed remote push delivery through the bridge while keeping notification production on the laptop/server and preserving direct-IP/local-polling behavior from Stage 1.
 
+SUPERSEDED BY:
+
+- `tasks/20260824-os-level-notification-delivery/030-account-and-device-notification-routing.md`
+- `tasks/20260824-os-level-notification-delivery/040-bridge-apns-fcm-push-delivery.md`
+
 ## Requirements checklist
 
 - [ ] Define how the mobile app registers push tokens and how the bridge stores them.

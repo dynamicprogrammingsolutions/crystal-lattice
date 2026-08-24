@@ -1,6 +1,11 @@
 # MCP OAuth Shared Runtime And Actions
 Add OAuth support for HTTP MCP servers in the shared MCP runtime and expose MCP login actions through the MCP runtime application plugin.
 
+SUPERSEDED BY:
+
+- `tasks/20260611-mcp-oauth-action-deeplinks/015-mcp-auth-required-no-hang-and-login-flow.md`
+- `tasks/20260611-mcp-oauth-action-deeplinks/040-mcp-auth-required-session-notifications.md`
+
 ## Requirements checklist
 
 - [ ] Extend MCP server config to describe OAuth-backed HTTP MCP servers.

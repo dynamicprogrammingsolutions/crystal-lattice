@@ -348,6 +348,9 @@ Progress update during completion:
 
 ## Follow-Up: MCP Login UX On Generic Session Notifications
 
+CONTINUED BY:
+`tasks/20260611-mcp-oauth-action-deeplinks/040-mcp-auth-required-session-notifications.md`
+
 This follow-up should consume the generic platform feature planned in:
 
 `tasks/20260619-generic-session-notifications/000-main.md`

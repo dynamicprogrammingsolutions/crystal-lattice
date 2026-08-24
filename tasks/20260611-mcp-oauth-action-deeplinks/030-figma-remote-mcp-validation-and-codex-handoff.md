@@ -8,11 +8,12 @@ Validate the new MCP OAuth flow against Figma remote MCP as far as possible, doc
 - [ ] Verify that unauthenticated Figma startup reports an authentication-required state rather than a generic failure.
 - [ ] Verify that successful login enables MCP tool discovery, if a real login can be completed.
 - [ ] Document any Figma-specific OAuth limitations or required callback URI registration.
-- [ ] Update `tasks/20260605-mobile-oauth-login-flows` with a handoff note to reuse generic action deep links and action-dialog selection.
+- [ ] Record provider-login handoff guidance in
+  `tasks/20260824-provider-login-notifications-and-deep-link-ux.md`.
 - [ ] Add final docs or README notes for configuring OAuth-backed HTTP MCP servers.
 
 Parent Task: `tasks/20260611-mcp-oauth-action-deeplinks/000-main.md`
-Depends On: `tasks/20260611-mcp-oauth-action-deeplinks/020-mcp-oauth-shared-runtime-and-actions.md`
+Depends On: `tasks/20260611-mcp-oauth-action-deeplinks/015-mcp-auth-required-no-hang-and-login-flow.md`
 
 ## Figma target
 
@@ -61,12 +62,14 @@ crystal-lattice://action/mcp_runtime_app/mcp_complete_login?code=...&state=...
 
 ## Codex handoff
 
-After the shared framework work exists, update the existing Codex task files so they do not redesign callback routing:
+After provider validation, record any reusable callback restrictions or
+provider behavior in:
 
-- `tasks/20260605-mobile-oauth-login-flows/040-frontend-app-link-routing-and-action-resume.md`
-  - Note that generic action deep links now exist or are planned in this MCP task.
-- `tasks/20260605-mobile-oauth-login-flows/050-complete-codex-browser-login-flow.md`
-  - Note that Codex browser login should use the same action-dialog selection and deep-link action routing.
+`tasks/20260824-provider-login-notifications-and-deep-link-ux.md`
+
+Codex and Claude login must reuse the generic action-dialog selection and
+deep-link action routing rather than adding provider-specific frontend
+callback handling.
 
 Codex should be able to use a callback route like:
 

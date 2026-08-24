@@ -13,11 +13,22 @@ Create a generic platform feature for persistent, evented session notifications 
 - [x] `tasks/20260619-generic-session-notifications/040-stage-1-dummy-plugin-integration-tests.md`
   — `COMPLETED VIA tasks/20260729-staged-application-config-and-full-reload.md`
 - [ ] `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`
-  — `PAUSED BEFORE STAGE E BY tasks/20260802-openai-responses-background-compaction.md`
+  — COMPLETED STAGES A–D; REMAINING HISTORY AND INTERACTION SCOPE SPLIT
+  INTO THE TASKS BELOW.
+- [ ] `tasks/20260619-generic-session-notifications/046-notification-history-and-safe-replay.md`
+  — SPLIT FROM THE REMAINING HISTORY/REPLAY SCOPE OF `045`.
 - [ ] `tasks/20260619-generic-session-notifications/050-stage-2-interaction-flow-design.md`
+  — SUPERSEDED BY
+  `tasks/20260824-interactive-notifications-and-request-suspension/000-main.md`.
 - [ ] `tasks/20260619-generic-session-notifications/060-stage-2a-backend-wait-only.md`
+  — SUPERSEDED BY
+  `tasks/20260824-interactive-notifications-and-request-suspension/020-wait-only-interaction-execution.md`.
 - [ ] `tasks/20260619-generic-session-notifications/070-stage-2a-sdk-and-rn-tests.md`
+  — SUPERSEDED BY
+  `tasks/20260824-interactive-notifications-and-request-suspension/040-frontend-and-native-interaction-ux.md`.
 - [ ] `tasks/20260619-generic-session-notifications/080-stage-2b-real-suspend.md`
+  — SUPERSEDED BY
+  `tasks/20260824-interactive-notifications-and-request-suspension/030-durable-suspend-and-continue.md`.
 
 ## Background
 
@@ -75,7 +86,10 @@ MCP work should depend on Stage 1 of this task. The MCP-specific follow-up detai
 ## Dependencies
 
 - Stage 1 (010–040) has no new task dependencies.
-- Stage 2 (050–080) depends on `tasks/20260717-tool-call-interceptor-capability.md` for the blocking-via-tool-call flow. The interceptor task provides the pre-execution hook; this task provides the interaction lifecycle and notification substrate. The two tasks are independent in implementation; the combined user flow (request → tool call → interceptor blocks + emits notification → user responds → interceptor passes through) is proven in Stage 2a/2b of this task.
+- The original Stage 2 files (050–080) are superseded by
+  `tasks/20260824-interactive-notifications-and-request-suspension/`, which
+  depends on the revised
+  `tasks/20260717-tool-call-interceptor-capability.md`.
 
 ## Active Stage 1 overlap
 

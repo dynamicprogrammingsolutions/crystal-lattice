@@ -5,11 +5,21 @@ Add generic mobile action-deep-link handling and action-dialog selection capabil
 
 - [x] `tasks/20260611-mcp-oauth-action-deeplinks/010-generic-action-deeplinks-and-dialog-select.md`
   - SHARED CAPABILITY: Provides generic frontend/backend building blocks that `tasks/20260605-mobile-oauth-login-flows/000-main.md` should reuse for Codex login.
+- [x] `tasks/20260611-mcp-oauth-action-deeplinks/015-mcp-auth-required-no-hang-and-login-flow.md`
+  - DELIVERED: Bounded MCP startup, auth-required classification, active
+    status/check actions, OAuth login/callback, token reuse, and real-backend
+    integration coverage.
 - [ ] `tasks/20260611-mcp-oauth-action-deeplinks/020-mcp-oauth-shared-runtime-and-actions.md`
-  - DEPENDS ON `tasks/20260611-mcp-oauth-action-deeplinks/010-generic-action-deeplinks-and-dialog-select.md`
+  - SUPERSEDED BY
+    `tasks/20260611-mcp-oauth-action-deeplinks/015-mcp-auth-required-no-hang-and-login-flow.md`
+    and
+    `tasks/20260611-mcp-oauth-action-deeplinks/040-mcp-auth-required-session-notifications.md`
 - [ ] `tasks/20260611-mcp-oauth-action-deeplinks/030-figma-remote-mcp-validation-and-codex-handoff.md`
-  - DEPENDS ON `tasks/20260611-mcp-oauth-action-deeplinks/020-mcp-oauth-shared-runtime-and-actions.md`
-  - HANDOFF TO `tasks/20260605-mobile-oauth-login-flows/000-main.md`
+  - DEPENDS ON `tasks/20260611-mcp-oauth-action-deeplinks/015-mcp-auth-required-no-hang-and-login-flow.md`
+  - HANDOFF TO `tasks/20260824-provider-login-notifications-and-deep-link-ux.md`
+- [ ] `tasks/20260611-mcp-oauth-action-deeplinks/040-mcp-auth-required-session-notifications.md`
+  - DEPENDS ON `tasks/20260611-mcp-oauth-action-deeplinks/015-mcp-auth-required-no-hang-and-login-flow.md`
+  - CONSUMES `tasks/20260619-generic-session-notifications/040-stage-1-dummy-plugin-integration-tests.md`
 
 ## Related tasks
 

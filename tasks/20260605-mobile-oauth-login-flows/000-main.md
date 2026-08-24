@@ -28,6 +28,22 @@ Build a mobile-friendly login selection and OAuth handoff flow for Codex first, 
   - DEPENDS ON `tasks/20260605-mobile-oauth-login-flows/060-claude-browser-login-adaptation.md`
   - DEPENDS ON `tasks/20260605-mobile-oauth-login-flows/070-copilot-shared-ux-and-cli-alignment.md`
 
+## Approved supersession
+
+This Codex-first plan predates delivered generic action deep links, action
+dialog selection, current ChatGPT device-code actions, plugin-contributed
+top-level commands, and the decision to add a real direct Claude provider.
+
+Its remaining product scope is superseded by:
+
+- `tasks/20260824-plugin-driven-cli-and-interactive-terminal-commands.md`
+- `tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md`
+- `tasks/20260824-provider-login-notifications-and-deep-link-ux.md`
+
+Provider-specific evidence and useful supporting facts remain historical input.
+Copilot work remains deferred until a concrete provider implementation is
+planned.
+
 ## Reference implementation
 
 Checked-out working reference repo: `../pi`

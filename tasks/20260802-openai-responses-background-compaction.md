@@ -40,6 +40,20 @@ orchestration out of the FastAPI adapter into shared application-layer code.
 - [ ] Existing user-visible send behavior and compatibility are preserved
   after request orchestration moves out of FastAPI.
 
+## Approved scope split
+
+The delivered background compaction, request coordination, managed-process,
+notification, cancellation, and refresh work remains in this task.
+
+Selectable no-message continuation and its remaining request-parity
+requirements are continued by:
+
+`SPLIT INTO: tasks/20260824-openai-responses-compact-and-continue.md`
+
+The original task should be reconciled and closed after its delivered
+requirements and remaining base verification are recorded independently from
+the optional continuation feature.
+
 ## Scope
 
 In scope:
