@@ -2,7 +2,7 @@
 
 Create and implement a durable cross-package connection lifecycle that makes
 asynchronous connection work deterministic, keeps cached workspaces available
-offline, preserves composed messages, and supports a future mobile
+offline, preserves composed messages, and delivers a mobile
 multiple-open-connection UX without changing existing bridge transport
 semantics.
 

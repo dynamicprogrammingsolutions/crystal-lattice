@@ -173,10 +173,10 @@ is not implied.
 
 ## Mobile refinement
 
-Mobile may present one focused workspace through bottom navigation and may
-initially enforce one open runtime. Its connection screen still uses
-per-connection state and candidate promotion so a future multi-open UI does
-not require changing cache identity or operation authority.
+Mobile presents one focused workspace through bottom navigation. It may use
+one open runtime during an intermediate migration, while the final target
+allows several independently open runtimes without changing cache identity,
+focus, or operation authority.
 
 The connection wizard may occupy the Connections tab, but Sessions and
 Messages remain available for the focused cached workspace.

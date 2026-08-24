@@ -783,9 +783,9 @@ The mobile target described here does not itself:
 - redesign transcript content or viewport controls;
 - require exact visual styling from the illustrative wireframes.
 
-The underlying lifecycle state remains capable of several open runtimes so
-future mobile multi-open presentation does not require changing connection,
-cache, navigation, or draft identity.
+The final mobile multi-open presentation uses the same connection, cache,
+navigation, and draft identities established by the staged lifecycle
+migration.
 
 ## Requirement coverage
 
