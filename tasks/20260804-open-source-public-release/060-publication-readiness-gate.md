@@ -652,3 +652,50 @@ the public CI boundary does not invoke roadmap generation and public roadmap
 documentation already describes its optional local configuration. It may be
 reassessed as post-publication tooling work if early contributors need to edit
 the roadmap.
+
+### August 24, 2026: critical npm advisory remediation
+
+The credential-free candidate install reported critical npm advisories and the
+gate treated them as blockers until their dependency paths and supported fixes
+were understood.
+
+Findings:
+
+- root `shell-quote` `1.8.3` was reachable through
+  `react-native` → `react-devtools-core`;
+- mobile and desktop also locked `shell-quote` `1.8.3`;
+- mobile and desktop React Native CLI `20.0.0` locked
+  `fast-xml-parser` `4.5.3`;
+- root Vitest `1.6.1` has a critical advisory for its optional UI server.
+
+Remediation:
+
+- updated root `shell-quote` to `1.10.0` within the existing parent range;
+- updated the three explicitly pinned mobile and desktop React Native community
+  CLI packages from `20.0.0` to the supported same-major `20.2.0`;
+- refreshed both app lockfiles to `fast-xml-parser` `5.11.0` and
+  `shell-quote` `1.10.0`;
+- did not change React Native, React Native macOS, native projects, application
+  runtime APIs, or release identifiers.
+
+Verification:
+
+- root, mobile, and desktop `npm audit --omit=dev --package-lock-only` now
+  report zero critical advisories;
+- root shared package tests passed: `313`, `20`, and `7` tests;
+- mobile clean install and React Native configuration passed;
+- all `119` mobile Jest tests passed;
+- desktop clean install and React Native configuration passed;
+- all `105` desktop Jest tests passed.
+
+The remaining full-audit Vitest critical advisory is not a publication blocker:
+it applies to the optional Vitest UI server, while repository scripts and
+Public CI use non-server `vitest run`. A major Vitest/test-stack upgrade is
+deferred to expanded dependency-security work.
+
+Remaining high advisories are transitive React Native, Metro, and related
+build/development tooling. They are not loaded by the shipped mobile JavaScript
+application as server endpoints, and public pull-request CI has a read-only
+token, no repository secrets, and no protected environment. They remain
+visible for task `130` dependency-security prioritization rather than being
+silently treated as resolved.
