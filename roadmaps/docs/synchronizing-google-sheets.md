@@ -8,9 +8,10 @@ Google Sheet.
 Reading synchronization state and producing dry-run diffs are non-mutating:
 
 ```bash
-python roadmaps/sync.py status release
-python roadmaps/sync.py push release
-python roadmaps/sync.py pull release
+ROADMAP_KEY=product
+python roadmaps/sync.py status "$ROADMAP_KEY"
+python roadmaps/sync.py push "$ROADMAP_KEY"
+python roadmaps/sync.py pull "$ROADMAP_KEY"
 ```
 
 Before an agent runs any command with `--write`, it must:
@@ -29,13 +30,14 @@ the roadmap, and an explicit local-only limitation forbids the sheet write.
 This applies to:
 
 ```bash
-python roadmaps/sync.py push release --write
-python roadmaps/sync.py pull release --write
-npm run roadmap:release:update
+python roadmaps/sync.py push "$ROADMAP_KEY" --write
+python roadmaps/sync.py pull "$ROADMAP_KEY" --write
+npm run "roadmap:${ROADMAP_KEY}:update"
 ```
 
-`npm run roadmap:release:update` regenerates local Markdown and writes the
-release CSV to Google Sheets, so it also requires explicit approval.
+The scoped `roadmap:release:update` or `roadmap:product:update` command
+regenerates local Markdown and writes that roadmap CSV to Google Sheets, so it
+also requires explicit approval.
 
 When such an explicitly requested roadmap update is made and synchronization
 is already configured and reachable, the agent must perform and verify the
@@ -61,6 +63,7 @@ Fill:
 ```dotenv
 GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
 ROADMAP_RELEASE_SPREADSHEET_ID=your-google-spreadsheet-id
+ROADMAP_PRODUCT_SPREADSHEET_ID=your-google-spreadsheet-id
 ```
 
 The real `.env` is ignored and must not be committed.
@@ -70,15 +73,17 @@ The real `.env` is ignored and must not be committed.
 Use `push` when the local CSV is authoritative:
 
 ```bash
-python roadmaps/sync.py push release
-python roadmaps/sync.py push release --write
+ROADMAP_KEY=product
+python roadmaps/sync.py push "$ROADMAP_KEY"
+python roadmaps/sync.py push "$ROADMAP_KEY" --write
 ```
 
 Use `pull` when the Google Sheet is authoritative:
 
 ```bash
-python roadmaps/sync.py pull release
-python roadmaps/sync.py pull release --write
+ROADMAP_KEY=product
+python roadmaps/sync.py pull "$ROADMAP_KEY"
+python roadmaps/sync.py pull "$ROADMAP_KEY" --write
 ```
 
 Push and pull are dry runs without `--write`. Pull validates and normalizes
@@ -129,9 +134,10 @@ before replacement.
 After an approved write:
 
 ```bash
-python roadmaps/generate.py --check release
-python roadmaps/sync.py status release
-python roadmaps/sync.py pull release
+ROADMAP_KEY=product
+python roadmaps/generate.py --check "$ROADMAP_KEY"
+python roadmaps/sync.py status "$ROADMAP_KEY"
+python roadmaps/sync.py pull "$ROADMAP_KEY"
 ```
 
 The expected final state is:

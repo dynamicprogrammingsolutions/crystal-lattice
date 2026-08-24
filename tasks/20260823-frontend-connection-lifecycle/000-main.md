@@ -57,7 +57,10 @@ implementation work in this task set:
 
 ## Roadmap status updates
 
-Roadmap:
+Primary roadmap:
+[Product Development Roadmap](../../roadmaps/product-development-roadmap.md)
+
+Release-overlap roadmap:
 [Open Source and iOS Release](../../roadmaps/open-source-and-ios-release.md)
 
 Instructions:
@@ -71,9 +74,11 @@ task.”
 
 That explicit request authorizes reading the linked files, updating the
 authored CSV and generated Markdown, and synchronizing the configured Google
-Sheet as required by the instructions. It does not authorize unrelated roadmap
-changes. If the user limits the request to local files, do not mutate the
-sheet.
+Sheets as required by the instructions. Every represented subtask is updated
+in the product roadmap. Subtasks `010`, `015`, `020`, `030`, `040`, `050`, and
+`060` are also updated in the release-overlap roadmap. The request does not
+authorize unrelated roadmap changes. If the user limits the request to local
+files, do not mutate either sheet.
 
 ## Subtasks
 

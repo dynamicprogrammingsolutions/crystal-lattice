@@ -13,6 +13,12 @@
       "spreadsheet_id": "${env:ROADMAP_RELEASE_SPREADSHEET_ID}",
       "spreadsheet_title": "Roadmap roadmaps/open-source-and-ios-release.md",
       "sheet": "Sheet1"
+    },
+    "product": {
+      "csv": "product-development-roadmap.csv",
+      "spreadsheet_id": "${env:ROADMAP_PRODUCT_SPREADSHEET_ID}",
+      "spreadsheet_title": "Product development roadmap",
+      "sheet": "Sheet1"
     }
   }
 }

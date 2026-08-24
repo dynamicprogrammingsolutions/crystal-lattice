@@ -28,6 +28,7 @@ class RoadmapConfigTests(unittest.TestCase):
                 (
                     f"GOOGLE_APPLICATION_CREDENTIALS={self.credential}",
                     "ROADMAP_SHEET_ID=sheet-from-dotenv",
+                    "ROADMAP_PRODUCT_SHEET_ID=product-sheet-from-dotenv",
                     "",
                 )
             ),
@@ -57,6 +58,14 @@ class RoadmapConfigTests(unittest.TestCase):
                             ),
                             "spreadsheet_title": "Roadmap",
                             "sheet": "Sheet1",
+                        },
+                        "product": {
+                            "csv": "product.csv",
+                            "spreadsheet_id": (
+                                "${env:ROADMAP_PRODUCT_SHEET_ID}"
+                            ),
+                            "spreadsheet_title": "Product roadmap",
+                            "sheet": "Product",
                         }
                     },
                 }
@@ -79,6 +88,10 @@ class RoadmapConfigTests(unittest.TestCase):
             self.credential.resolve(),
         )
         self.assertEqual(registry.google_sheets.timeout_seconds, 45)
+        self.assertEqual(
+            roadmap_config.resolve_target("product", registry).spreadsheet_id,
+            "product-sheet-from-dotenv",
+        )
 
     def test_exported_environment_overrides_dotenv(self) -> None:
         with patch.dict(

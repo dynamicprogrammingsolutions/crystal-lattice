@@ -27,11 +27,10 @@ mutate Google Sheets.
 
 ## Edit the source CSV
 
-For the release roadmap, edit:
-
-```text
-roadmaps/open-source-and-ios-release.csv
-```
+| Named roadmap | Authored source |
+|---|---|
+| `release` | `roadmaps/open-source-and-ios-release.csv` |
+| `product` | `roadmaps/product-development-roadmap.csv` |
 
 Important rules:
 
@@ -67,13 +66,16 @@ Run:
 
 ```bash
 python roadmaps/generate.py release
+python roadmaps/generate.py product
 ```
 
 Ordinary generation may rewrite the CSV to normalize task values, internal
-IDs, and dependency references. It also regenerates:
+IDs, and dependency references. Each command also regenerates its matching
+Markdown:
 
 ```text
 roadmaps/open-source-and-ios-release.md
+roadmaps/product-development-roadmap.md
 ```
 
 Review both files after generation.
@@ -88,6 +90,7 @@ Run:
 
 ```bash
 python roadmaps/generate.py --check release
+python roadmaps/generate.py --check product
 python -m unittest discover -s roadmaps/tests -p 'test_*.py'
 ```
 
@@ -100,23 +103,25 @@ If the user explicitly asks to synchronize from the sheet before updating,
 perform the complete round trip. That request authorizes the scoped initial
 pull and final push unless the user limits it to local files.
 
-First confirm that the CSV and generated Markdown have no unrelated local
-changes that the pull would overwrite. Then inspect and apply the pull:
+First confirm that the selected CSV and generated Markdown have no unrelated
+local changes that the pull would overwrite. Set `ROADMAP_KEY` to `release` or
+`product`, then inspect and apply the pull:
 
 ```bash
-python roadmaps/sync.py status release
-python roadmaps/sync.py pull release
-python roadmaps/sync.py pull release --write
+ROADMAP_KEY=product
+python roadmaps/sync.py status "$ROADMAP_KEY"
+python roadmaps/sync.py pull "$ROADMAP_KEY"
+python roadmaps/sync.py pull "$ROADMAP_KEY" --write
 ```
 
 After the sheet is reflected locally:
 
 1. update the CSV;
-2. run `python roadmaps/generate.py release`;
+2. run `python roadmaps/generate.py "$ROADMAP_KEY"`;
 3. inspect dependency-cleanup warnings and the generated Markdown;
 4. run the local verification commands above;
 5. inspect `python roadmaps/sync.py push release`;
-6. run `npm run roadmap:release:update`;
+6. run the matching `npm run "roadmap:${ROADMAP_KEY}:update"`;
 7. finish with status and pull dry-run verification.
 
 If the initial pull would overwrite unrelated local roadmap work, or either
@@ -132,22 +137,23 @@ been synchronized and verified.
 First inspect the proposed push:
 
 ```bash
-python roadmaps/sync.py status release
-python roadmaps/sync.py push release
+ROADMAP_KEY=product
+python roadmaps/sync.py status "$ROADMAP_KEY"
+python roadmaps/sync.py push "$ROADMAP_KEY"
 ```
 
 If the dry-run difference contains only the intended roadmap update and
 normalization, apply it:
 
 ```bash
-npm run roadmap:release:update
+npm run "roadmap:${ROADMAP_KEY}:update"
 ```
 
 Then verify:
 
 ```bash
-python roadmaps/sync.py status release
-python roadmaps/sync.py pull release
+python roadmaps/sync.py status "$ROADMAP_KEY"
+python roadmaps/sync.py pull "$ROADMAP_KEY"
 ```
 
 If the dry run reveals unrelated remote edits, stop and ask the user how to

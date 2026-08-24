@@ -11,7 +11,12 @@ Each roadmap has two files:
 - `<name>.md` is generated from the CSV and must not be edited directly.
 
 `config.json` assigns short names to roadmap CSV files and optional Google
-Sheets destinations. The initial roadmap is named `release`.
+Sheets destinations.
+
+| Key | Authored CSV | Purpose |
+|---|---|---|
+| `release` | `open-source-and-ios-release.csv` | Public/open-source and application-release readiness |
+| `product` | `product-development-roadmap.csv` | Cross-package product development and UX work |
 
 Roadmap documentation starts at [`docs/index.md`](docs/index.md). It separates
 the focused CSV-editing workflow from Google Sheets synchronization and
@@ -36,6 +41,7 @@ Set these values in `roadmaps/.env`:
 ```dotenv
 GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
 ROADMAP_RELEASE_SPREADSHEET_ID=your-google-spreadsheet-id
+ROADMAP_PRODUCT_SPREADSHEET_ID=your-google-spreadsheet-id
 ```
 
 Then regenerate the `release` Markdown roadmap and update its configured Google
@@ -71,11 +77,24 @@ The `release` segment is intentional: these scripts are integration shortcuts
 for `open-source-and-ios-release.csv`, not generic commands for every configured
 roadmap.
 
+Equivalent `roadmap:product:*` scripts operate on
+`product-development-roadmap.csv` and its configured sheet:
+
+```bash
+npm run roadmap:product:generate
+npm run roadmap:product:check
+npm run roadmap:product:status
+npm run roadmap:product:update
+npm run roadmap:product:verify
+```
+
 For a read-only setup check:
 
 ```bash
 python roadmaps/generate.py --check release
 python roadmaps/sync.py status release
+python roadmaps/generate.py --check product
+python roadmaps/sync.py status product
 ```
 
 Roadmaps are deliberately selective. They may retain a few recently completed
