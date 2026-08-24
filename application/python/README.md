@@ -1077,9 +1077,10 @@ gh workflow run release-crystal-lattice-cli.yml
 ```
 
 Manual runs execute tests, build every platform archive, and smoke-test the
-archives. They do not store Actions artifacts or publish a GitHub Release.
-Tag-triggered builds upload each archive directly to a draft GitHub Release;
-the publish job verifies all four assets before making the release public.
+archives. They do not store Actions artifacts or publish a GitHub Release. On a
+release tag, each read-only matrix job stores its archive as a one-day Actions
+artifact. One protected publish job downloads and verifies all four archives,
+uploads them to the GitHub Release, and makes the release public.
 
 Local workflow validation:
 

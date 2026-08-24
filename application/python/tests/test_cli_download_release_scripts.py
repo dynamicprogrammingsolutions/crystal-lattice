@@ -6,9 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 RELEASE_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "release.sh"
-PROMOTE_SCRIPT = (
-    ROOT / "deploy" / "aws-cli-downloads" / "promote-github-release.sh"
-)
+PROMOTE_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "promote-github-release.sh"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release-crystal-lattice-cli.yml"
 OIDC_TEMPLATE = ROOT / "deploy" / "aws-cli-downloads" / "github-oidc-role.yaml"
 CONFIGURE_GITHUB_SCRIPT = (
@@ -416,16 +414,27 @@ def test_promote_script_dry_run_does_not_require_downloaded_assets(
     assert not list(assets_dir.iterdir())
 
 
-def test_release_workflow_uses_draft_release_instead_of_actions_artifacts() -> None:
+def test_release_workflow_uses_single_writer_artifact_handoff() -> None:
     workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
-    assert "actions/upload-artifact" not in workflow
-    assert "actions/download-artifact" not in workflow
+    assert "prepare-release:" not in workflow
+    assert (
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in workflow
+    )
+    assert (
+        "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093" in workflow
+    )
+    assert "retention-days: 1" in workflow
+    assert "compression-level: 0" in workflow
+    assert workflow.count("contents: write") == 1
     assert "gh release create" in workflow
     assert "gh release upload" in workflow
     assert "gh release edit" in workflow
     assert "gh release download" in workflow
-    assert workflow.count("environment: cli-release") == 1
+    assert workflow.count("environment: cli-release") == 2
+    assert workflow.index("actions/download-artifact") < workflow.index(
+        "gh release upload"
+    )
 
 
 def test_release_oidc_configuration_restricts_environment_to_release_tags() -> None:

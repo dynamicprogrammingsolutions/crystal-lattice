@@ -328,3 +328,37 @@ Completion update added on 2026-08-23:
 - The workflow now uploads tag-build archives directly to a draft GitHub
   Release, avoiding GitHub Actions artifact-storage quota.
 - Production GitHub variables/secrets were restored and verified after testing.
+
+## Post-completion follow-up
+
+### August 24, 2026: restore the Public CI least-privilege contract
+
+The open-source publication readiness gate found that current `main` failed
+Public CI because the completed direct-to-draft release design granted
+`contents: write` to `prepare-release` and every matrix `build` job, while the
+repository Actions security validator intentionally authorizes that permission
+only for the final release publisher.
+
+The owner authorized this post-completion correction and continuation of the
+publication gate.
+
+- [x] Remove GitHub Release write authority from the matrix build jobs.
+- [x] Remove the separate privileged draft-release preparation job.
+- [x] Transfer tag-build archives through one-day Actions artifacts using the
+  repository's existing SHA-pinned upload/download actions.
+- [x] Give only the protected final `publish` job `contents: write`.
+- [x] Keep manual dispatch builds free of artifact storage and publication.
+- [x] Add focused regression assertions for the single-writer boundary.
+- [x] Update current maintainer documentation for the corrected flow.
+- [x] Run local workflow/security and focused behavior verification.
+- [ ] Commit and push the correction to `main`.
+- [ ] Require green Public CI on the exact correction commit.
+
+Local verification:
+
+- `actionlint .github/workflows/release-crystal-lattice-cli.yml`
+- `python scripts/check_github_actions_security.py`
+- workflow YAML parsing with Ruby
+- focused release automation tests: `11 passed`
+- Ruff and Black checks for the changed Python test
+- `git diff --check`

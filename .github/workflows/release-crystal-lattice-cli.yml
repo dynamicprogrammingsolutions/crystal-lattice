@@ -64,38 +64,11 @@ jobs:
       - name: Run application tests
         run: pytest application/python/tests -q -m "not integration and not docker"
 
-  prepare-release:
-    name: Prepare Draft GitHub Release
-    needs: test
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - name: Create draft release for tag builds
-        if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "GitHub Release already exists for $GITHUB_REF_NAME"
-          else
-            gh release create "$GITHUB_REF_NAME" \
-              --repo "$GITHUB_REPOSITORY" \
-              --verify-tag \
-              --draft \
-              --generate-notes
-          fi
-
   build:
     name: Build ${{ matrix.target }}
-    needs:
-      - test
-      - prepare-release
+    needs: test
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -180,14 +153,15 @@ jobs:
       - name: Smoke-test release archive
         run: python scripts/smoke_test_crystal_lattice_python_runtime_archive.py "$CRYSTAL_RELEASE_ARCHIVE"
 
-      - name: Upload archive to draft GitHub Release
+      - name: Upload release archive
         if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "$GITHUB_REF_NAME" "$CRYSTAL_RELEASE_ARCHIVE" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: crystal-lattice-cli-${{ matrix.target }}
+          path: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
 
   publish:
     name: Publish GitHub Release
@@ -195,11 +169,19 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: cli-release
     permissions:
       # Required only to create or update the GitHub Release.
       contents: write
     steps:
-      - name: Verify assets and publish release
+      - name: Download release archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: crystal-lattice-cli-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create and publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -210,21 +192,57 @@ jobs:
             "crystal-lattice-python-runtime-v${version}-linux-amd64.tar.gz"
             "crystal-lattice-python-runtime-v${version}-windows-amd64.zip"
           )
-          mapfile -t actual < <(
+
+          mapfile -t local_assets < <(
+            find release-assets -maxdepth 1 -type f -printf '%f\n' |
+              sort
+          )
+          if [ "${#local_assets[@]}" -ne "${#expected[@]}" ]; then
+            printf 'Expected %s downloaded archives, found %s:\n' \
+              "${#expected[@]}" "${#local_assets[@]}" >&2
+            printf '  %s\n' "${local_assets[@]}" >&2
+            exit 1
+          fi
+
+          release_paths=()
+          for name in "${expected[@]}"; do
+            printf '%s\n' "${local_assets[@]}" | grep -Fxq "$name" || {
+              echo "Missing downloaded release archive: $name" >&2
+              exit 1
+            }
+            release_paths+=("release-assets/$name")
+          done
+
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub Release already exists for $GITHUB_REF_NAME"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --draft \
+              --generate-notes
+          fi
+
+          gh release upload "$GITHUB_REF_NAME" \
+            "${release_paths[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
+
+          mapfile -t published_assets < <(
             gh release view "$GITHUB_REF_NAME" \
               --repo "$GITHUB_REPOSITORY" \
               --json assets \
               --jq '.assets[].name' |
               sort
           )
-          if [ "${#actual[@]}" -ne "${#expected[@]}" ]; then
+          if [ "${#published_assets[@]}" -ne "${#expected[@]}" ]; then
             printf 'Expected %s release assets, found %s:\n' \
-              "${#expected[@]}" "${#actual[@]}" >&2
-            printf '  %s\n' "${actual[@]}" >&2
+              "${#expected[@]}" "${#published_assets[@]}" >&2
+            printf '  %s\n' "${published_assets[@]}" >&2
             exit 1
           fi
           for name in "${expected[@]}"; do
-            printf '%s\n' "${actual[@]}" | grep -Fxq "$name" || {
+            printf '%s\n' "${published_assets[@]}" | grep -Fxq "$name" || {
               echo "Missing GitHub Release asset: $name" >&2
               exit 1
             }
