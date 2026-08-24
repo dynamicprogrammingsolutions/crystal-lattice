@@ -194,6 +194,11 @@ message workspace. Closing a runtime leaves its tabs available from cache.
 Closing while an open attempt is pending supersedes that attempt so a late
 success cannot reopen the connection.
 
+The screen-level desktop contract, including the multi-column shell,
+connection/runtime controls, focused-connection and active-tab policy, cached
+tabs, offline composition, and native macOS behavior, is defined in
+[Desktop connection and offline UX](desktop-ux.md).
+
 ## Accessibility and testability
 
 Connection rows, statuses, primary actions, wizard cancellation, repair

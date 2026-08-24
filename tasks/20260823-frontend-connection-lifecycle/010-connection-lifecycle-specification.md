@@ -163,3 +163,29 @@ Follow-up verification:
   notices/warnings;
 - focused `git diff --check`, terminology scan, and prepared-source
   discoverability inspection — passed.
+
+### Desktop UX refinement — 2026-08-23
+
+At the user's request, the specification gained a dedicated screen-level
+desktop refinement:
+
+- `docs/development/specifications/frontend-connection-lifecycle/desktop-ux.md`
+
+The page preserves the existing multi-open, focused Sessions, persistent-tab,
+cached Chat, display-rail, and native-window/popover model while defining
+authoritative cancellation, runtime convergence, follow-active-tab behavior,
+candidate editing, offline composition, complete draft continuity,
+destructive-action clarity, accessibility, and native acceptance behavior.
+
+`FCL-022` was added to track the desktop-specific focused-connection and
+active-tab policy. The specification index and portable desktop section link
+the refinement.
+
+Follow-up verification:
+
+- `pytest docs_site/tests/test_prepare_mkdocs_site.py -q` — 15 passed;
+- `python docs_site/scripts/prepare_mkdocs_site.py` — completed;
+- `(cd docs_site && mkdocs build)` — completed with existing repository
+  notices/warnings;
+- focused `git diff --check`, requirement-ID uniqueness, terminology, and
+  prepared-source discoverability inspection — passed.

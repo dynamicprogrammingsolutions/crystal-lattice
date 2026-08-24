@@ -27,6 +27,7 @@ evidence without promoting the complete requirement to verified.
 | FCL-019 | Append/send clears only the acknowledged submitted draft revision; uncertain acknowledgement retains submitted content and idempotent recovery without erasing newer edits. | In progress | Unverified | Pending | Mobile has in-memory idempotent uncertain-send recovery, but draft revisions and durable recovery are not implemented. |
 | FCL-020 | Closing, forgetting credentials, clearing cached server content, discarding drafts, and deleting a saved connection are distinct operations whose confirmation states exactly which local data is removed. | In progress | Unverified | Pending | Existing close/delete paths differ by frontend; mobile delete removes caches/drafts while saying only that server data is unaffected. |
 | FCL-021 | Connection status, errors, primary actions, cancellation, repair, offline state, and persistence failure are accessible without color-only meaning and expose stable production selectors needed by native tests. | In progress | Unverified | Pending | Existing connection controls have partial labels/selectors; no complete lifecycle accessibility acceptance coverage was found. |
+| FCL-022 | Desktop keeps the focused Sessions connection and active Chat tab as explicit state: when follow-active-tab is enabled, selecting a tab focuses its owning connection and selects its session; when disabled, the Sessions panel remains independently focused without changing the active Chat tab. | In progress | Unverified | Pending | Desktop represents both identities, but selecting a tab changes only `activeTabId`; the follow helper acts only when Sessions already shows the tab's connection. |
 
 ## Requirement groups and implementing work
 
@@ -35,6 +36,8 @@ evidence without promoting the complete requirement to verified.
 - Offline workspace and cache: `FCL-002`, `FCL-009`, `FCL-011`,
   `FCL-014`–`FCL-015`, `FCL-020`
 - Draft continuity: `FCL-011`, `FCL-014`, `FCL-016`–`FCL-020`
+- Desktop workspace behavior: `FCL-002`–`FCL-006`, `FCL-009`–`FCL-012`,
+  `FCL-014`–`FCL-022`
 
 Primary work tracking:
 
