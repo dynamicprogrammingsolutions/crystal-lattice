@@ -1,12 +1,18 @@
 # Change GitHub Visibility And Apply Immediate Security Settings
 
-Perform the manual GitHub administration required to make the approved
-repository commit public without leaving `main`, Actions, security intake, or
-deployment credentials unnecessarily exposed.
+Perform the manual GitHub administration required to make the actively
+developed repository and its current remote refs public without leaving
+`main`, Actions, security intake, or deployment credentials unnecessarily
+exposed.
 
 ## Requirements checklist
 
-- [ ] The approved publication candidate is the repository state made public.
+- [ ] The tested readiness-baseline changes are integrated into the actual
+  current `main`, and every remote ref added or changed since the baseline has
+  passed the required delta review.
+- [ ] All branches, tags, pull-request refs, and reachable history present on
+  GitHub at the visibility change are treated as publication scope; future
+  pushed refs are public by default.
 - [ ] `main` is protected by a ruleset or branch protection requiring pull requests and required checks.
 - [ ] Force pushes and deletion of `main` are blocked.
 - [ ] Default Actions token permissions are read-only and Actions cannot approve pull requests.
@@ -22,64 +28,77 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 
 ### Before changing visibility
 
-1. Confirm task `060` is `GO` and record the approved commit SHA.
-2. Pause merges and direct pushes.
-3. Confirm no production deployment workflow is currently running.
-4. Confirm required repository secrets are stored only in GitHub settings, not
+1. Confirm task `060` is `GO` and record its tested readiness-baseline SHA and
+   remote-ref inventory.
+2. Confirm active development continues throughout the process and use
+   baseline-plus-delta checks instead of stopping branch activity.
+3. Inventory current GitHub branches, tags, pull-request refs, releases, and
+   their tip SHAs, and compare them with task `060`.
+4. Scan every new or changed remote ref and its newly reachable commits with
+   the task `060` secret/privacy checks.
+5. Re-run affected legal, documentation, dependency, workflow, build, or test
+   checks when the delta touches those boundaries.
+6. Confirm no production deployment workflow is currently running.
+7. Confirm required repository secrets are stored only in GitHub settings, not
    in files.
-5. Open repository **Settings → Actions → General**.
-6. Set default workflow permissions to **Read repository contents and packages**.
-7. Disable **Allow GitHub Actions to create and approve pull requests**.
-8. Require approval for first-time outside contributors before their workflows
+8. Open repository **Settings → Actions → General**.
+9. Set default workflow permissions to **Read repository contents and packages**.
+10. Disable **Allow GitHub Actions to create and approve pull requests**.
+11. Require approval for first-time outside contributors before their workflows
    run.
-9. Confirm fork workflows receive neither repository secrets nor write tokens.
-10. Change the allowed-actions policy to selected actions:
+12. Confirm fork workflows receive neither repository secrets nor write tokens.
+13. Change the allowed-actions policy to selected actions:
     - allow GitHub-owned actions;
     - allow `aws-actions/configure-aws-credentials`;
     - allow `ruby/setup-ruby`;
     - add a future action repository only when a reviewed, SHA-pinned workflow
       actually needs it.
-11. Require actions to be pinned to a full-length commit SHA.
-12. Create or update environment `production-sites`.
-13. Restrict `production-sites` to `main` and add a required reviewer if
+14. Require actions to be pinned to a full-length commit SHA.
+15. Create or update environment `production-sites`.
+16. Restrict `production-sites` to `main` and add a required reviewer if
     supported.
-14. Confirm environment `cli-release` is restricted to tags matching
+17. Confirm environment `cli-release` is restricted to tags matching
     `crystal-lattice-cli-v*`; add a required reviewer if supported.
-15. Create or update environment `testflight`.
-16. Restrict `testflight` to `main` and add a required reviewer if supported.
-17. Move or scope static-site deployment secrets to `production-sites`, CLI
+18. Create or update environment `testflight`.
+19. Restrict `testflight` to `main` and add a required reviewer if supported.
+20. Move or scope static-site deployment secrets to `production-sites`, CLI
     publication secrets to `cli-release`, and iOS signing/upload secrets to
     `testflight` where supported.
-18. Confirm pull-request jobs cannot access any protected environment or
+21. Confirm pull-request jobs cannot access any protected environment or
     publication secret.
 
-### Publish and validate the approved candidate while still private
+### Integrate and validate the current repository while still private
 
-1. Confirm the approved task `060` candidate SHA has not changed.
-2. Advance `main` to that exact candidate commit while the repository is still
-   private.
-3. Expect exactly:
+1. Integrate the tested readiness-baseline changes into the current `main`
+   without discarding newer approved development.
+2. Record the actual `main` SHA that will be public at the transition.
+3. Refresh the full remote-ref inventory. If another branch, tag, or
+   pull-request ref changed during setup, scan that delta before continuing.
+4. Expect exactly:
    - `Public CI`;
    - `Deploy Static Sites`.
-4. Do not manually dispatch TestFlight or CLI release and do not create a
+5. Do not manually dispatch TestFlight or CLI release and do not create a
    release tag.
-5. Require all four Public CI jobs to pass on the candidate SHA.
-6. Require the static-site build, artifact handoff, protected deployment, and
+6. Require all four Public CI jobs to pass on the actual current `main` SHA.
+7. Require the static-site build, artifact handoff, protected deployment, and
    both AWS deployments to pass.
-7. If GitHub still reports stale artifact-storage quota, any protected
+8. If GitHub still reports stale artifact-storage quota, any protected
    environment is unavailable, or either expected workflow fails, stop with the
    repository private and return to task `060` or the owning deployment task.
-8. Verify all of these live routes return successfully:
+9. Verify all of these live routes return successfully:
    - `https://crystallattice.dev/`
    - `https://crystallattice.dev/privacy`
    - `https://crystallattice.dev/support`
    - `https://crystallattice.dev/mobile`
    - `https://docs.crystallattice.dev/`
-9. Verify the live Claude Tools documentation contains the candidate's
+10. Verify the live Claude Tools documentation contains the reviewed
    public-behavior/Apache provenance and no longer contains the superseded
    statement that normalized fixtures are subject to Anthropic's terms.
-10. Refresh the workflow, artifact, deployment, release, and repository-setting
-    inventories. Continue only when no workflow is active or queued.
+11. Refresh the workflow, artifact, deployment, release, repository-setting,
+    and remote-ref inventories immediately before visibility changes. If refs
+    changed again, review the new delta while development continues.
+12. Continue only when no workflow is active or queued and every current remote
+    ref is covered by the baseline plus reviewed deltas.
 
 ### Change visibility
 
@@ -162,9 +181,12 @@ activating the `main` ruleset.
 - Permit only GitHub-owned actions plus the currently required AWS credentials
   and Ruby setup action repositories.
 - Require full-SHA action references; version comments remain informational.
-- Push and deploy the approved candidate while the repository remains private;
-  visibility changes only after candidate CI and live legal/support surfaces
-  pass.
+- Integrate the readiness-baseline changes with current development while the
+  repository remains private; visibility changes only after current-tip CI,
+  remote-ref delta review, and live legal/support surfaces pass.
+- Keep branches active during publication. Use a baseline-plus-delta model for
+  every remote branch, tag, and pull-request ref.
+- Local-only branches are outside GitHub publication scope until pushed.
 - Stop before visibility if artifact quota prevents the static-site handoff.
 - The current TestFlight workflow is manual-only and its release job uses the
   protected `testflight` environment.
@@ -178,7 +200,8 @@ activating the `main` ruleset.
 
 - [ ] Apply pre-visibility Actions settings.
 - [ ] Protect production, CLI release, and TestFlight environments.
-- [ ] Advance private `main` to the approved candidate and validate expected workflows.
+- [ ] Scan all remote-ref changes since task `060`.
+- [ ] Integrate baseline changes into current private `main` and validate expected workflows.
 - [ ] Verify live landing, support, privacy, mobile, and corrected docs content.
 - [ ] Change visibility to public.
 - [ ] Protect `main`.
@@ -190,7 +213,9 @@ activating the `main` ruleset.
 ### Requirement verification
 
 - GitHub settings/API inspection confirms public visibility and protections.
-- Private pre-visibility workflow runs prove the approved candidate and current
+- Private pre-visibility workflow runs prove the actual current `main` and
   static-site deployment path before public exposure.
+- Remote-ref inventory and delta scans cover all branches, tags,
+  pull-request refs, and newly reachable commits present at publication.
 - A test pull request cannot deploy, publish, or read protected secrets.
 - Private vulnerability reporting and public Issues are accessible.
