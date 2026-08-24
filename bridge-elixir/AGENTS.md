@@ -18,31 +18,43 @@ The **bridge** is a distributed Elixir/Phoenix service that lets:
   - Send abstract HTTP requests (method/path/headers/body) through the bridge
     to the chosen server.
 
-High‑level data flow:
+High-level data flow:
 
 ```text
-[Python server] --WebSocket--> [Bridge node(s)] <--WebSocket-- [Mobile app]
-                   |                               ^
-                   +-- Phoenix.PubSub + clustering +
+[Frontend] --WebSocket or HTTP--> [Bridge node(s)] --WebSocket control--> [Python server]
+                                      |                                      |
+                                      +-- Phoenix.PubSub + clustering -------+
+                                                                             |
+                                                                    [local HTTP app]
 ```
 
-The bridge itself is **HTTP‑agnostic**; it forwards serialized HTTP requests
-and responses between paired clients using Phoenix channels.
+The bridge treats proxied application paths and bodies as opaque. The legacy
+frontend path serializes HTTP-shaped requests through Phoenix channels. The
+opt-in HTTP path keeps metadata on the Python server WebSocket and transfers
+body bytes through HTTP endpoints.
 
 ---
 
 ## 2. Key Components
 
-See also `README.md` and `BRIDGE_PLAN.md` for more detail.
+See `docs/index.md` for current package documentation and the root
+bridge-connectivity specification for the maintained cross-package contract.
+`BRIDGE_PLAN.md` is a legacy planning artifact.
 
 - `lib/bridge/endpoint.ex`
   - Phoenix endpoint that exposes:
     - WebSocket socket at `/ws` (e.g. `ws://bridge-host:4000/ws/websocket`).
+    - HTTP `/bridge/v1/*` routes for control, proxying, and raw transfers.
     - HTTP `/health` endpoint for status and health checks.
   - Configured in `config/config.exs` under `:bridge, Bridge.Endpoint`.
 
+- `lib/bridge/http_router.ex`
+  - Runs before JSON parsing so it can consume raw request bytes.
+  - Owns HTTP capability, discovery, pairing, resume, proxy, and transfer
+    routes.
+
 - `lib/bridge/router.ex`
-  - Minimal Plug router; currently only `GET /health`.
+  - Owns `GET /health`.
 
 - `lib/bridge/socket.ex`
   - Defines the Phoenix socket and channels.
@@ -52,8 +64,8 @@ See also `README.md` and `BRIDGE_PLAN.md` for more detail.
   - Channel for "server" clients (Python servers, etc.).
   - Handles:
     - `phx_join` / `register` events.
-    - Receiving `http_response` messages from servers.
-    - Relaying pairing and HTTP request messages from apps via PubSub.
+    - Receiving legacy responses and v2 response metadata from servers.
+    - Relaying pairing, legacy requests, v2 metadata, and cancellation.
 
 - `lib/bridge/app_channel.ex`
   - Channel for "app" clients (mobile, desktop).
@@ -61,7 +73,7 @@ See also `README.md` and `BRIDGE_PLAN.md` for more detail.
     - `list_servers` – enumerates registered servers.
     - `pair_request` – generate 6‑digit code and notify the server.
     - `pair_submit` – validate code and create a session.
-    - `http_request` – send request to the server associated with a session.
+    - Legacy full and chunked HTTP-shaped request messages.
 
 - `lib/bridge/server_registry.ex`
   - Tracks active servers across the cluster.
@@ -72,8 +84,14 @@ See also `README.md` and `BRIDGE_PLAN.md` for more detail.
   - Enforces TTL and rate limits.
 
 - `lib/bridge/session_manager.ex`
-  - Manages pairing sessions between app and server.
-  - Associates a `session_id` with both sides for HTTP proxying.
+  - Manages ephemeral legacy pairing sessions between app and server.
+
+- `lib/bridge/pairing_token.ex`, `persistent_pairing_manager.ex`
+  - Stateless signed logical-pairing credentials.
+
+- `lib/bridge/http_transfer.ex`, `http_transfer_token.ex`
+  - Supervised raw-byte transfer coordination, backpressure, limits,
+    cancellation, and signed direction-scoped transfer credentials.
 
 - `config/config.exs`
   - Base configuration: endpoint port, logger format, libcluster gossip setup,
@@ -88,6 +106,13 @@ See also `README.md` and `BRIDGE_PLAN.md` for more detail.
 - `docker-compose.yml`, `haproxy.cfg`
   - Multi‑node cluster with HAProxy load balancing.
   - Nodes use libcluster Gossip to form a cluster.
+
+- `deploy/remote-docker/`
+  - Reusable single-node remote Docker deployment.
+  - Takes host-specific access, public URL, and the stable signing secret from
+    environment variables supplied by a gitignored local wrapper.
+  - Preserves an explicit Compose project identity and validates both origin
+    and public HTTP v1 capability endpoints.
 
 - `PRODUCTION_DEPLOYMENT.md`
   - Detailed instructions for single‑node and clustered Docker deployments
@@ -124,26 +149,43 @@ Do not change these without coordinating updates to those clients.
 
 ### 3.2. Message protocol
 
-The JSON message types are documented in `BRIDGE_PLAN.md` and `README.md` and
-include:
+The maintained message contract is documented in `docs/bridge-protocol.md`
+and the root bridge-connectivity protocol specification. It includes:
 
 - From servers:
   - `register`
-  - `http_response`
+  - legacy `http_response*`
+  - `http_response_v2_init`
 - From apps:
   - `list_servers`
   - `pair_request`
   - `pair_submit`
-  - `http_request`
+  - `resume_session`
+  - legacy `http_request*`
 - Bridge‑originated events:
   - `pairing_requested`
   - `paired`
+  - `http_request_v2`
+  - `http_request_v2_cancel`
+  - `superseded`
 
 Treat these as a stable public protocol. If you need to add a new field or
 message type, do so in a backwards‑compatible way and update the docs + Python
 and mobile clients.
 
-### 3.3. HTTP `/health`
+### 3.3. HTTP bridge protocol
+
+HTTP and hybrid frontends rely on versioned `/bridge/v1/*` routes for
+capability negotiation, discovery, pairing, resume validation, proxying, and
+server body transfer.
+
+- Frontends authenticate proxy requests with `X-Crystal-Bridge-Token`.
+- Server body-transfer routes use short-lived bearer credentials.
+- Keep application `Authorization` available to the local backend.
+- Keep proxy/transfer bodies raw and outside JSON/WebSocket frames.
+- Do not add automatic fallback or replay to the WebSocket path.
+
+### 3.4. HTTP `/health`
 
 Used by HAProxy, Docker tests, and external monitoring.
 
@@ -212,13 +254,15 @@ scripts in `scripts/`).
 
 ## 5. Change Guidelines
 
-- Keep the bridge **stateless with respect to HTTP semantics** – it should only
-  forward requests/responses; HTTP routing and business logic belong in the
-  Python server (or other backend servers) that connect as "servers".
+- Keep the bridge **opaque with respect to application semantics**. It may
+  implement transport-level HTTP routing, streaming, authentication, limits,
+  and header filtering, but application routing and business logic belong in
+  the registered server.
 
 - Maintain backwards compatibility of:
   - WebSocket endpoints and query params.
-  - Message types and fields documented in `BRIDGE_PLAN.md`.
+  - Legacy messages documented in the maintained protocol.
+  - Versioned HTTP v1 routes and v2 server control events.
   - `/health` endpoint shape.
 
 - Clustering:

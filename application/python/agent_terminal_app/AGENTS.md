@@ -19,8 +19,8 @@ This package contains the **application layer for end-users**:
   ways**:
   - Direct HTTP by IP/hostname + port.
   - Bonjour/mDNS discovery on the local network.
-  - A bridge service (Elixir/Phoenix) reachable over WebSockets with a pairing
-    flow.
+  - A bridge service with a Phoenix server-control WebSocket and
+    WebSocket/HTTP/hybrid frontend paths.
 
 When working in this directory, you are primarily wiring UX (HTTP + terminal)
 to the core engine, not changing core algorithms.
@@ -63,12 +63,12 @@ to the core engine, not changing core algorithms.
     teardown.
 
 - `bridge_client.py`
-  - WebSocket client for the Elixir bridge service.
-  - Speaks the Phoenix channel protocol to:
+  - Registered-server adapter for the Elixir bridge service.
+  - Speaks the Phoenix control protocol to:
     - Register this server instance.
     - Handle pairing requests and responses.
-    - Proxy abstract HTTP requests from the bridge to the local FastAPI
-      endpoints (`/api/*`, `/sessions/*`, etc.).
+    - Proxy legacy text requests and versioned HTTP raw-byte transfers to the
+      local FastAPI endpoints (`/api/*`, `/sessions/*`, etc.).
   - Treat it as an integration layer; do not add application/business logic
     here (it should live in `server.py` / `app_core.py`).
 
@@ -98,8 +98,9 @@ to the core engine, not changing core algorithms.
 - The React Native demo app talks to this server via:
   - Direct IP/port: `http://<host>:<port>/api/data` and `/sessions` endpoints.
   - Bonjour: discovers `_http._tcp` service advertised by `bonjour.py`.
-  - Bridge: sends `http_request` messages to the Elixir bridge, which are
-    proxied by `bridge_client.py` to this HTTP server.
+  - Bridge: uses the selected frontend path; `bridge_client.py` receives
+    legacy requests or v2 metadata/body transfers and proxies them to this HTTP
+    server.
 
 When modifying endpoints, keep their semantics backward compatible for the
 mobile integration unless explicitly updating the mobile app at the same time.

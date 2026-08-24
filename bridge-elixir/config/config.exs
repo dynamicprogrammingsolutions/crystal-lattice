@@ -1,7 +1,14 @@
 import Config
 
 config :bridge, Bridge.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT") || "4000")],
+  http: [
+    port: String.to_integer(System.get_env("PORT") || "4000"),
+    compress: true,
+    protocol_options: [
+      compress_threshold:
+        String.to_integer(System.get_env("BRIDGE_HTTP_COMPRESS_THRESHOLD_BYTES") || "1024")
+    ]
+  ],
   server: true,
   pubsub_server: Bridge.PubSub
 
@@ -23,7 +30,8 @@ cluster_topologies =
         bridge: [
           strategy: Cluster.Strategy.DNSPoll,
           config: [
-            polling_interval: String.to_integer(System.get_env("BRIDGE_CLUSTER_POLL_MS") || "5000"),
+            polling_interval:
+              String.to_integer(System.get_env("BRIDGE_CLUSTER_POLL_MS") || "5000"),
             query: System.get_env("BRIDGE_CLUSTER_DNS_NAME") || "bridge.local",
             node_basename: System.get_env("BRIDGE_CLUSTER_NODE_BASENAME") || "bridge"
           ]
@@ -55,6 +63,10 @@ config :bridge,
     System.get_env("BRIDGE_TOKEN_SECRET") ||
       "crystal-lattice-local-dev-pairing-token-secret",
   pairing_token_salt: System.get_env("BRIDGE_TOKEN_SALT") || "pairing-token-v1",
+  http_transfer_token_salt:
+    System.get_env("BRIDGE_HTTP_TRANSFER_TOKEN_SALT") || "http-transfer-token-v1",
+  http_transfer_token_ttl_seconds:
+    String.to_integer(System.get_env("BRIDGE_HTTP_TRANSFER_TOKEN_TTL_SECONDS") || "180"),
   pairing_token_ttl_seconds:
     String.to_integer(System.get_env("BRIDGE_PAIRING_TOKEN_TTL_SECONDS") || "2592000")
 

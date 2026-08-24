@@ -54,6 +54,7 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
       <View style={styles.headerRow}>
         <Text style={styles.title}>Connections</Text>
         <TouchableOpacity
+          testID="connections-new-connection"
           style={[styles.button, styles.primaryButton]}
           onPress={onNewConnection}
         >

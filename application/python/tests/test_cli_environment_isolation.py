@@ -32,6 +32,7 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "bridge_display_name": None,
         "bridge_location": None,
         "bridge_local_http_base": None,
+        "bridge_http_base": None,
         "bridge_server_id": None,
         "bridge_exit_on_superseded": False,
         "bridge_local_guard": False,
@@ -541,6 +542,35 @@ def test_bridge_local_http_base_uses_effective_host_and_port(monkeypatch) -> Non
     assert config is not None
     assert config.bridge is not None
     assert config.bridge.local_http_base == "http://0.0.0.0:8090"
+
+
+def test_bridge_http_base_cli_override_is_kept_separate_from_local_base(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("BRIDGE_HTTP_BASE_URL", raising=False)
+    monkeypatch.delenv("BRIDGE_LOCAL_HTTP_BASE", raising=False)
+    monkeypatch.delenv("SERVER_HOST", raising=False)
+    monkeypatch.delenv("SERVER_PORT", raising=False)
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url="wss://bridge.example/ws/websocket",
+    )
+    config = _build_server_integration_config(
+        _args(
+            enable_bridge=True,
+            bridge_http_base="https://bridge-http.example/prefix",
+        ),
+        server_mod=server_mod,
+        profile=profile,
+        effective_host="127.0.0.1",
+        effective_port=8090,
+    )
+    assert config is not None
+    assert config.bridge is not None
+    assert config.bridge.bridge_http_base == "https://bridge-http.example/prefix"
+    assert config.bridge.local_http_base == "http://127.0.0.1:8090"
 
 
 # ---------------------------------------------------------------------------

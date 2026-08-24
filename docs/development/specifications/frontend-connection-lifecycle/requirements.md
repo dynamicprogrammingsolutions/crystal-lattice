@@ -1,0 +1,41 @@
+# Frontend connection lifecycle requirements
+
+These requirements track current implementation relative to the target
+specification. Partial implementation and partial tests are recorded as
+evidence without promoting the complete requirement to verified.
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| FCL-001 | A saved connection has one stable frontend identity across open, close, edit, reconnect, and repair; its caches, workspace, and drafts remain under that identity. | In progress | Unverified | Pending | Shared records have stable IDs, but mobile bridge repair can create a new record; `packages/frontend-sdk/src/connections/types.ts`; mobile `App.tsx`. |
+| FCL-002 | Saved state, focused workspace, live runtime, and in-progress attempt are represented independently, so focusing cached content does not require network success. | In progress | Unverified | Pending | Desktop separates focus and open runtime; mobile still uses one selected/global runtime and normally focuses only after connection success. |
+| FCL-003 | Only the current authoritative operation may promote, repair, close, report, or navigate a connection, and authority is rechecked after every asynchronous boundary. | Not started | Unverified | Pending | Current mobile and desktop connection completion paths do not carry operation identity or generation. |
+| FCL-004 | Cancelling or superseding an attempt reaches a terminal state, disposes temporary resources, and prevents every later result, alert, status, credential, or navigation effect from that attempt. | Not started | Unverified | Pending | Mobile wizard cancellation clears presentation state but does not abort/invalidate the operation or disconnect its temporary bridge transport. |
+| FCL-005 | Candidate connection validation is non-destructive: failure or cancellation preserves any previously usable runtime, and replacement closure occurs only after authoritative promotion. | Not started | Unverified | Pending | Mobile saved-connection selection disconnects the current transport before validating the candidate. |
+| FCL-006 | Frontends expose portable per-connection lifecycle status and error categories with applicable Open, Close, Cancel, Retry, Edit, Re-pair, or Browse offline actions. | In progress | Unverified | Pending | Desktop has Closed/Connecting/Open/Error rows for direct records; mobile has global loading and blocking raw-error alerts. |
+| FCL-007 | Direct, discovery, bridge, and cloud implementations conform to one lifecycle adapter outcome contract while retaining transport-specific mechanics and treating non-success validation responses as failures. | In progress | Unverified | Pending | All transport kinds exist, but no shared lifecycle adapter exists and cloud response error semantics differ from direct/bridge transports. |
+| FCL-008 | Backgrounding and foreground revalidation preserve focus, caches, and drafts; recovery is connection-scoped, generation-safe, and cannot navigate. | In progress | Unverified | Pending | Mobile bridge foreground recovery exists but uses a global in-flight flag and lacks a stale-operation guard. |
+| FCL-009 | A saved connection can be focused while closed or unavailable, and cached sessions/messages remain navigable with freshness and offline state. | In progress | Unverified | Pending | Mobile screens can render selected cached data with no backend but failed selection does not focus another saved connection; desktop exposes focused offline cache. |
+| FCL-010 | Network failure, timeout, repair discovery, background lifecycle, and superseded completion never change current focus, selected session, or navigation unless an authoritative explicit user intent requested it. | Not started | Unverified | Pending | Mobile connection selection navigates after an internally handled attempt, and late repair can clear newer state. |
+| FCL-011 | Session selection, controllers, subscriptions, cache writes, drafts, and component identity are scoped by both connection ID and session ID. | In progress | Unverified | Pending | Caches are scoped correctly; mobile selected session and chat key are not connection-scoped; desktop tabs use both IDs. |
+| FCL-012 | The runtime model permits several connections to remain open while one workspace is focused; closing one runtime retains its saved record, cached workspace, tabs, and drafts. | In progress | Unverified | Pending | Desktop supports multiple direct runtimes and tabs but close-during-open can be reversed by late completion; mobile has one global runtime. |
+| FCL-013 | Connection-targeted deep links and background actions resolve against the matching open runtime and apply focus/navigation only as an explicit current intent. | In progress | Unverified | Pending | Mobile queues links but resolves a backend only for the selected connection. |
+| FCL-014 | Persistent connection, workspace, cache, and draft stores expose hydration and cannot overwrite stored state with initial empty state; edits during hydration merge deterministically. | In progress | Unverified | Pending | Shared/mobile message-cache hydration is guarded; mobile saved-connections and sessions-cache persistence lacks the same explicit barrier. |
+| FCL-015 | Cached sessions and messages retain freshness/invalidation state, failed refresh preserves prior content, and offline presentation does not claim cached data is authoritative. | In progress | Unverified | Pending | Both frontends store load timestamps and retain portions of cached data; complete portable status and failure behavior is unverified. |
+| FCL-016 | Composer text is durably scoped per connection/session during editing and restored after navigation, backgrounding, and process restart; persistence failure is visible. | In progress | Unverified | Pending | Mobile stores text on blur/inactive/unmount paths and desktop debounces edits; mobile can lose active focused edits and both hooks swallow storage failure. |
+| FCL-017 | A session draft durably preserves attachment order, placement, metadata, usable content references, and recovery status in addition to text. | Not started | Unverified | Pending | Mobile attachment drafts are component state and the shared cache schema stores only `composeText`. |
+| FCL-018 | Ordinary cache eviction never silently removes a non-empty draft, and storage pressure requiring draft removal becomes an explicit user decision. | Not started | Unverified | Pending | Mobile message eviction treats draft-only entries with `lastLoadedAt == null` as the oldest candidates. |
+| FCL-019 | Append/send clears only the acknowledged submitted draft revision; uncertain acknowledgement retains submitted content and idempotent recovery without erasing newer edits. | In progress | Unverified | Pending | Mobile has in-memory idempotent uncertain-send recovery, but draft revisions and durable recovery are not implemented. |
+| FCL-020 | Closing, forgetting credentials, clearing cached server content, discarding drafts, and deleting a saved connection are distinct operations whose confirmation states exactly which local data is removed. | In progress | Unverified | Pending | Existing close/delete paths differ by frontend; mobile delete removes caches/drafts while saying only that server data is unaffected. |
+| FCL-021 | Connection status, errors, primary actions, cancellation, repair, offline state, and persistence failure are accessible without color-only meaning and expose stable production selectors needed by native tests. | In progress | Unverified | Pending | Existing connection controls have partial labels/selectors; no complete lifecycle accessibility acceptance coverage was found. |
+
+## Requirement groups and implementing work
+
+- Lifecycle foundation: `FCL-001`–`FCL-008`, `FCL-012`–`FCL-013`
+- Mobile connection behavior: `FCL-001`–`FCL-011`, `FCL-021`
+- Offline workspace and cache: `FCL-002`, `FCL-009`, `FCL-011`,
+  `FCL-014`–`FCL-015`, `FCL-020`
+- Draft continuity: `FCL-011`, `FCL-014`, `FCL-016`–`FCL-020`
+
+Primary work tracking:
+
+- `tasks/20260823-frontend-connection-lifecycle/000-main.md`

@@ -20,6 +20,3 @@
 # Environment
 .env
 .envrc
-
-# Mix lockfile
-/mix.lock

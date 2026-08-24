@@ -42,12 +42,21 @@ Important rules:
 - `external_id` is optional and may be shared by multiple rows.
 - `internal_id` is generated. Do not choose it manually as an enduring
   identifier.
+- `priority`, `status`, and both dependency columns are semantic fields.
+- Every other column is arbitrary and is preserved in CSV order through
+  Markdown and Google Sheets. The current roadmap includes `main_task`,
+  `completed_at`, `title`, `purpose`, and `notes`.
+- `completed_at` is manually maintained as `YYYY-MM-DD`. When marking a row
+  done, use the user-confirmed completion date or the strongest matching
+  completion commit; do not overwrite an existing date merely because a later
+  follow-up commit touched the task.
 - Dependencies use internal IDs after normalization.
 - Dependency input may temporarily use an old internal ID, exact task value, or
   unique external ID; generation rewrites it to the canonical internal ID.
 - A shared external ID is ambiguous as a dependency and must be replaced by one
   matching internal ID.
-- All `done` rows stay at the top.
+- If a referenced row was deleted, generation removes the now-missing
+  dependency and prints a warning. Review every warning before synchronization.
 - Every represented dependency must appear above its dependent row.
 - Priority is `must have`, `should have`, or `good to have`.
 - Status is `pending`, `in progress`, `review`, or `done`.
@@ -85,6 +94,35 @@ python -m unittest discover -s roadmaps/tests -p 'test_*.py'
 Check mode is read-only and fails if either the CSV requires normalization or
 the generated Markdown is stale.
 
+## When the user requests a sheet-first update
+
+If the user explicitly asks to synchronize from the sheet before updating,
+perform the complete round trip. That request authorizes the scoped initial
+pull and final push unless the user limits it to local files.
+
+First confirm that the CSV and generated Markdown have no unrelated local
+changes that the pull would overwrite. Then inspect and apply the pull:
+
+```bash
+python roadmaps/sync.py status release
+python roadmaps/sync.py pull release
+python roadmaps/sync.py pull release --write
+```
+
+After the sheet is reflected locally:
+
+1. update the CSV;
+2. run `python roadmaps/generate.py release`;
+3. inspect dependency-cleanup warnings and the generated Markdown;
+4. run the local verification commands above;
+5. inspect `python roadmaps/sync.py push release`;
+6. run `npm run roadmap:release:update`;
+7. finish with status and pull dry-run verification.
+
+If the initial pull would overwrite unrelated local roadmap work, or either
+dry run exposes unrelated differences, stop and ask the user instead of
+discarding or overwriting those changes.
+
 ## Complete configured synchronization
 
 When the roadmap target and Google credentials are already configured, a
@@ -102,7 +140,7 @@ If the dry-run difference contains only the intended roadmap update and
 normalization, apply it:
 
 ```bash
-npm run roadmap:update
+npm run roadmap:release:update
 ```
 
 Then verify:

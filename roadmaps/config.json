@@ -1,6 +1,8 @@
 {
   "version": 1,
   "env_file": ".env",
+  "repository_root": "..",
+  "task_directory_entry": "000-main.md",
   "google_sheets": {
     "credentials_file": "${env:GOOGLE_APPLICATION_CREDENTIALS}",
     "timeout_seconds": 30

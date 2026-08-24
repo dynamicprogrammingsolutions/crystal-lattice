@@ -114,6 +114,25 @@ defmodule Bridge.ServerChannel do
   end
 
   @impl true
+  def handle_in("http_response_v2_init", params, socket) do
+    %{
+      "request_id" => request_id,
+      "status" => status,
+      "headers" => headers
+    } = params
+
+    server_id = socket.assigns[:server_id]
+
+    Phoenix.PubSub.broadcast(
+      Bridge.PubSub,
+      Bridge.HttpTransfer.topic(request_id),
+      {:http_response_v2_init, server_id, %{"status" => status, "headers" => headers}}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info({:superseded, server_id, _new_pid}, socket) do
     push(socket, "superseded", %{server_id: server_id, reason: "new_connection"})
     {:stop, :normal, socket}
@@ -161,6 +180,18 @@ defmodule Bridge.ServerChannel do
   @impl true
   def handle_info({:http_request_end, request}, socket) do
     push(socket, "http_request_end", request)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:http_request_v2, request}, socket) do
+    push(socket, "http_request_v2", request)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:http_request_v2_cancel, payload}, socket) do
+    push(socket, "http_request_v2_cancel", payload)
     {:noreply, socket}
   end
 

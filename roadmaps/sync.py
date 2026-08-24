@@ -9,6 +9,7 @@ import difflib
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -21,9 +22,9 @@ from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2 import service_account
 
 from generate import (
-    FIELDS,
+    PRESENTATION_FIELDS,
+    REQUIRED_FIELDS,
     NormalizedRoadmap,
-    Row,
     RoadmapError,
     derive_readiness,
     normalize_csv,
@@ -39,60 +40,79 @@ from roadmap_config import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets"
+MANAGED_SHEET_COLORS = (
+    (0.85, 0.92, 0.83),
+    (0.99, 0.90, 0.80),
+    (0.85, 0.92, 0.97),
+    (217 / 255, 210 / 255, 233 / 255),
+)
 
 
 class RoadmapSyncError(RuntimeError):
     """Raised when remote synchronization cannot proceed safely."""
 
 
-def rows_to_matrix(rows: list[Row]) -> list[list[str]]:
-    matrix = [list(FIELDS)]
-    for row in rows:
-        matrix.append(
-            [
-                row.task,
-                row.external_id,
-                row.internal_id,
-                row.title,
-                row.purpose,
-                row.priority,
-                row.status,
-                ";".join(row.declared_dependencies),
-                ";".join(row.inferred_dependencies),
-                row.notes,
-            ]
-        )
-    return matrix
+def column_letter(index: int) -> str:
+    if index < 0:
+        raise ValueError("column index must not be negative")
+    value = index + 1
+    letters = ""
+    while value:
+        value, remainder = divmod(value - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
+def csv_text_to_matrix(text: str) -> list[list[str]]:
+    return [list(row) for row in csv.reader(io.StringIO(text))]
+
+
+def rows_to_matrix(roadmap: NormalizedRoadmap) -> list[list[str]]:
+    return csv_text_to_matrix(roadmap.text)
 
 
 def normalize_matrix(values: Any) -> list[list[str]]:
     if not isinstance(values, list):
         raise RoadmapSyncError("Google Sheets values response is not an array")
+    if not values:
+        return []
+    if not isinstance(values[0], list):
+        raise RoadmapSyncError("Google Sheets row is not an array")
+    width = len(values[0])
     matrix: list[list[str]] = []
     for raw_row in values:
         if not isinstance(raw_row, list):
             raise RoadmapSyncError("Google Sheets row is not an array")
-        row = [
-            "" if value is None else str(value)
-            for value in raw_row[: len(FIELDS)]
-        ]
-        row.extend([""] * (len(FIELDS) - len(row)))
+        row = ["" if value is None else str(value) for value in raw_row[:width]]
+        row.extend([""] * (width - len(row)))
         matrix.append(row)
     while matrix and not any(cell for cell in matrix[-1]):
         matrix.pop()
     return matrix
 
 
+def _validate_source_header(header: list[str]) -> None:
+    if not header or any(not value for value in header):
+        raise RoadmapSyncError("remote roadmap header contains an empty cell")
+    lowered = [value.casefold() for value in header]
+    if len(lowered) != len(set(lowered)):
+        raise RoadmapSyncError("remote roadmap header contains duplicates")
+    missing = [
+        field for field in REQUIRED_FIELDS if field.casefold() not in lowered
+    ]
+    if missing:
+        raise RoadmapSyncError(
+            "remote roadmap is missing required headers: "
+            + ",".join(missing)
+        )
+
+
 def matrix_to_csv_text(matrix: list[list[str]]) -> str:
     if not matrix:
         raise RoadmapSyncError("remote roadmap is uninitialized")
-    if tuple(matrix[0]) != FIELDS:
-        raise RoadmapSyncError(
-            "remote header must be exactly: " + ",".join(FIELDS)
-        )
+    _validate_source_header(matrix[0])
     return matrix_to_unchecked_csv_text(matrix)
 
 
@@ -115,6 +135,7 @@ def validate_csv_text(
         text,
         source_name=f"Google Sheet for {target.key}",
         repo_root=repo_root,
+        task_directory_entry=target.task_directory_entry,
     )
 
 
@@ -135,9 +156,10 @@ def unified_diff(
     )
 
 
-def _sheet_range(sheet: str, cells: str) -> str:
+def _sheet_range(sheet: str, cells: str | None = None) -> str:
     escaped = sheet.replace("'", "''")
-    return f"'{escaped}'!{cells}"
+    quoted = f"'{escaped}'"
+    return f"{quoted}!{cells}" if cells else quoted
 
 
 def _sheet_titles(payload: dict[str, Any]) -> list[str]:
@@ -154,6 +176,65 @@ def _sheet_titles(payload: dict[str, Any]) -> list[str]:
         ):
             titles.append(properties["title"])
     return titles
+
+
+def _split_sheet_values(values: Any) -> list[list[str]]:
+    matrix = normalize_matrix(values)
+    if not matrix:
+        return []
+    header = matrix[0]
+    lowered = [value.casefold() for value in header]
+    presentation = [value.casefold() for value in PRESENTATION_FIELDS]
+    if len(header) >= 2 and lowered[-2:] == presentation:
+        width = len(header) - 2
+    else:
+        if any(value in lowered for value in presentation):
+            raise RoadmapSyncError(
+                "reserved presentation headers must be the final two columns"
+            )
+        width = len(header)
+    source = [row[:width] for row in matrix]
+    while source and not any(source[-1]):
+        source.pop()
+    if source:
+        _validate_source_header(source[0])
+    return source
+
+
+def _formula_is_managed(formula: Any) -> bool:
+    if not isinstance(formula, str):
+        return False
+    column = r"\$[A-Z]+2"
+    patterns = (
+        rf'^={column}="done"$',
+        rf'^={column}="ready"$',
+        rf'^={column}="queued"$',
+        rf'^=OR\({column}="in progress",{column}="review"\)$',
+        rf'^=OR\({column}="pending",{column}="ready"\)$',
+    )
+    return any(re.fullmatch(pattern, formula) for pattern in patterns)
+
+
+def _format_has_managed_color(boolean_rule: dict[str, Any]) -> bool:
+    cell_format = boolean_rule.get("format")
+    if not isinstance(cell_format, dict):
+        return False
+    color = cell_format.get("backgroundColor")
+    if not isinstance(color, dict):
+        style = cell_format.get("backgroundColorStyle")
+        color = style.get("rgbColor") if isinstance(style, dict) else None
+    if not isinstance(color, dict):
+        return False
+    actual = tuple(
+        float(color.get(component, 0.0))
+        for component in ("red", "green", "blue")
+    )
+    return any(
+        all(abs(found - expected) < 0.02 for found, expected in zip(
+            actual, managed, strict=True
+        ))
+        for managed in MANAGED_SHEET_COLORS
+    )
 
 
 class GoogleSheetsClient:
@@ -247,16 +328,16 @@ class GoogleSheetsClient:
             for sheet in sheets:
                 if not isinstance(sheet, dict):
                     continue
-                properties = sheet.get("properties")
+                sheet_properties = sheet.get("properties")
                 if (
-                    isinstance(properties, dict)
-                    and properties.get("title") == target.sheet
+                    isinstance(sheet_properties, dict)
+                    and sheet_properties.get("title") == target.sheet
                 ):
                     self._sheet_metadata[target.key] = sheet
                     break
 
-    def get_values(self, target: RoadmapTarget) -> list[list[str]]:
-        range_name = quote(_sheet_range(target.sheet, "A:J"), safe="")
+    def _get_raw_values(self, target: RoadmapTarget) -> list[list[str]]:
+        range_name = quote(_sheet_range(target.sheet), safe="")
         payload = self._request_json(
             "GET",
             f"{SHEETS_API}/{target.spreadsheet_id}/values/{range_name}",
@@ -266,13 +347,91 @@ class GoogleSheetsClient:
                 "valueRenderOption": "UNFORMATTED_VALUE",
             },
         )
-        return normalize_matrix(payload.get("values", []))
+        values = payload.get("values", [])
+        if not isinstance(values, list):
+            raise RoadmapSyncError(
+                "Google Sheets values response is not an array"
+            )
+        return values
+
+    def get_values(self, target: RoadmapTarget) -> list[list[str]]:
+        return _split_sheet_values(self._get_raw_values(target))
+
+    def _sheet_id_and_grid(self, target: RoadmapTarget) -> tuple[int, int, int]:
+        sheet = self._sheet_metadata.get(target.key)
+        if not isinstance(sheet, dict):
+            raise RoadmapSyncError("spreadsheet metadata is unavailable")
+        properties = sheet.get("properties")
+        if not isinstance(properties, dict):
+            raise RoadmapSyncError("sheet properties are unavailable")
+        sheet_id = properties.get("sheetId")
+        grid = properties.get("gridProperties")
+        if not isinstance(sheet_id, int) or not isinstance(grid, dict):
+            raise RoadmapSyncError("sheet grid metadata is unavailable")
+        rows = grid.get("rowCount", 0)
+        columns = grid.get("columnCount", 0)
+        if not isinstance(rows, int) or not isinstance(columns, int):
+            raise RoadmapSyncError("sheet grid dimensions are unavailable")
+        return sheet_id, rows, columns
+
+    def _ensure_grid_size(
+        self,
+        target: RoadmapTarget,
+        *,
+        rows: int,
+        columns: int,
+    ) -> None:
+        sheet_id, current_rows, current_columns = self._sheet_id_and_grid(target)
+        if rows <= current_rows and columns <= current_columns:
+            return
+        self._request_json(
+            "POST",
+            f"{SHEETS_API}/{target.spreadsheet_id}:batchUpdate",
+            operation="grid resize",
+            payload={
+                "requests": [
+                    {
+                        "updateSheetProperties": {
+                            "properties": {
+                                "sheetId": sheet_id,
+                                "gridProperties": {
+                                    "rowCount": max(rows, current_rows),
+                                    "columnCount": max(columns, current_columns),
+                                },
+                            },
+                            "fields": (
+                                "gridProperties.rowCount,"
+                                "gridProperties.columnCount"
+                            ),
+                        }
+                    }
+                ]
+            },
+        )
 
     def update_values(
         self,
         target: RoadmapTarget,
         values: list[list[str]],
     ) -> None:
+        width = len(values[0]) if values else 0
+        self._ensure_grid_size(
+            target,
+            rows=max(len(values), 1),
+            columns=max(width + 2, 1),
+        )
+        whole_sheet = quote(_sheet_range(target.sheet), safe="")
+        self._request_json(
+            "POST",
+            (
+                f"{SHEETS_API}/{target.spreadsheet_id}/values/"
+                f"{whole_sheet}:clear"
+            ),
+            operation="values clear",
+            payload={},
+        )
+        if not values:
+            return
         range_name = quote(_sheet_range(target.sheet, "A1"), safe="")
         self._request_json(
             "PUT",
@@ -282,29 +441,18 @@ class GoogleSheetsClient:
             payload={"majorDimension": "ROWS", "values": values},
         )
 
-    def clear_rows(
+    def get_presentation(
         self,
         target: RoadmapTarget,
         *,
-        first_row: int,
-        last_row: int,
-    ) -> None:
+        source_width: int,
+    ) -> list[list[str]]:
+        start = column_letter(source_width)
+        end = column_letter(source_width + 1)
         range_name = quote(
-            _sheet_range(target.sheet, f"A{first_row}:J{last_row}"),
+            _sheet_range(target.sheet, f"{start}:{end}"),
             safe="",
         )
-        self._request_json(
-            "POST",
-            (
-                f"{SHEETS_API}/{target.spreadsheet_id}/values/"
-                f"{range_name}:clear"
-            ),
-            operation="trailing-row clear",
-            payload={},
-        )
-
-    def get_presentation(self, target: RoadmapTarget) -> list[list[str]]:
-        range_name = quote(_sheet_range(target.sheet, "K:L"), safe="")
         payload = self._request_json(
             "GET",
             f"{SHEETS_API}/{target.spreadsheet_id}/values/{range_name}",
@@ -335,39 +483,28 @@ class GoogleSheetsClient:
     def _conditional_format_requests(
         self,
         target: RoadmapTarget,
+        *,
+        headers: tuple[str, ...],
     ) -> list[dict[str, Any]]:
-        sheet = self._sheet_metadata.get(target.key)
-        if not isinstance(sheet, dict):
-            raise RoadmapSyncError("spreadsheet metadata is unavailable")
-        properties = sheet.get("properties")
-        if not isinstance(properties, dict):
-            raise RoadmapSyncError("sheet properties are unavailable")
-        sheet_id = properties.get("sheetId")
-        if not isinstance(sheet_id, int):
-            raise RoadmapSyncError("numeric sheet ID is unavailable")
-
+        sheet_id, _rows, _columns = self._sheet_id_and_grid(target)
+        status_column = column_letter(headers.index("status"))
+        readiness_column = column_letter(len(headers))
+        end_column = len(headers) + len(PRESENTATION_FIELDS)
         formulas_and_colors = (
-            ('=$G2="done"', (0.85, 0.92, 0.83)),
+            (f'=${status_column}2="done"', (0.85, 0.92, 0.83)),
             (
-                '=OR($G2="in progress",$G2="review")',
+                (
+                    f'=OR(${status_column}2="in progress",'
+                    f'${status_column}2="review")'
+                ),
                 (0.99, 0.90, 0.80),
             ),
+            (f'=${readiness_column}2="ready"', (0.85, 0.92, 0.97)),
             (
-                '=$K2="ready"',
-                (0.85, 0.92, 0.97),
-            ),
-            (
-                '=$K2="queued"',
-                (
-                    217 / 255,
-                    210 / 255,
-                    233 / 255,
-                ),
+                f'=${readiness_column}2="queued"',
+                (217 / 255, 210 / 255, 233 / 255),
             ),
         )
-        owned_formulas = {
-            formula for formula, _color in formulas_and_colors
-        } | {'=OR($G2="pending",$K2="ready")'}
 
         def is_owned(rule: Any) -> bool:
             if not isinstance(rule, dict):
@@ -382,7 +519,9 @@ class GoogleSheetsClient:
             if not isinstance(values, list) or not values:
                 return False
             formula = values[0].get("userEnteredValue")
-            if formula not in owned_formulas:
+            if not _formula_is_managed(formula):
+                return False
+            if not _format_has_managed_color(boolean_rule):
                 return False
             ranges = rule.get("ranges")
             if not isinstance(ranges, list):
@@ -392,12 +531,16 @@ class GoogleSheetsClient:
                 and cell_range.get("sheetId", sheet_id) == sheet_id
                 and cell_range.get("startRowIndex") == 1
                 and cell_range.get("startColumnIndex") == 0
-                and cell_range.get("endColumnIndex") == 12
                 for cell_range in ranges
             )
 
         requests_payload: list[dict[str, Any]] = []
-        existing = sheet.get("conditionalFormats", [])
+        sheet = self._sheet_metadata.get(target.key, {})
+        existing = (
+            sheet.get("conditionalFormats", [])
+            if isinstance(sheet, dict)
+            else []
+        )
         if isinstance(existing, list):
             for index in reversed(range(len(existing))):
                 if is_owned(existing[index]):
@@ -420,7 +563,7 @@ class GoogleSheetsClient:
                                     "sheetId": sheet_id,
                                     "startRowIndex": 1,
                                     "startColumnIndex": 0,
-                                    "endColumnIndex": 12,
+                                    "endColumnIndex": end_column,
                                 }
                             ],
                             "booleanRule": {
@@ -448,18 +591,42 @@ class GoogleSheetsClient:
     def update_presentation(
         self,
         target: RoadmapTarget,
-        rows: list[Row],
+        roadmap: NormalizedRoadmap,
     ) -> None:
-        readiness = derive_readiness(rows)
-        values = [["readiness", "blocking_dependencies"]]
+        readiness = derive_readiness(roadmap.rows)
+        values = [list(PRESENTATION_FIELDS)]
         values.extend(
             [
                 readiness[row.internal_id.casefold()][0],
                 ";".join(readiness[row.internal_id.casefold()][1]),
             ]
-            for row in rows
+            for row in roadmap.rows
         )
-        range_name = quote(_sheet_range(target.sheet, "K1"), safe="")
+        source_width = len(roadmap.headers)
+        self._ensure_grid_size(
+            target,
+            rows=len(values),
+            columns=source_width + len(PRESENTATION_FIELDS),
+        )
+        start = column_letter(source_width)
+        end = column_letter(source_width + 1)
+        presentation_range = quote(
+            _sheet_range(target.sheet, f"{start}:{end}"),
+            safe="",
+        )
+        self._request_json(
+            "POST",
+            (
+                f"{SHEETS_API}/{target.spreadsheet_id}/values/"
+                f"{presentation_range}:clear"
+            ),
+            operation="presentation clear",
+            payload={},
+        )
+        range_name = quote(
+            _sheet_range(target.sheet, f"{start}1"),
+            safe="",
+        )
         self._request_json(
             "PUT",
             f"{SHEETS_API}/{target.spreadsheet_id}/values/{range_name}",
@@ -468,40 +635,10 @@ class GoogleSheetsClient:
             payload={"majorDimension": "ROWS", "values": values},
         )
 
-        sheet = self._sheet_metadata.get(target.key, {})
-        properties = (
-            sheet.get("properties") if isinstance(sheet, dict) else None
+        formatting_requests = self._conditional_format_requests(
+            target,
+            headers=roadmap.headers,
         )
-        grid = (
-            properties.get("gridProperties")
-            if isinstance(properties, dict)
-            else None
-        )
-        row_count = (
-            grid.get("rowCount")
-            if isinstance(grid, dict)
-            and isinstance(grid.get("rowCount"), int)
-            else len(values)
-        )
-        if row_count > len(values):
-            trailing_range = quote(
-                _sheet_range(
-                    target.sheet,
-                    f"K{len(values) + 1}:L{row_count}",
-                ),
-                safe="",
-            )
-            self._request_json(
-                "POST",
-                (
-                    f"{SHEETS_API}/{target.spreadsheet_id}/values/"
-                    f"{trailing_range}:clear"
-                ),
-                operation="presentation trailing-row clear",
-                payload={},
-            )
-
-        formatting_requests = self._conditional_format_requests(target)
         if formatting_requests:
             self._request_json(
                 "POST",
@@ -510,7 +647,10 @@ class GoogleSheetsClient:
                 payload={"requests": formatting_requests},
             )
 
-        read_back = self.get_presentation(target)
+        read_back = self.get_presentation(
+            target,
+            source_width=source_width,
+        )
         expected = [[str(cell) for cell in row] for row in values]
         if read_back != expected:
             raise RoadmapSyncError(
@@ -518,12 +658,24 @@ class GoogleSheetsClient:
             )
 
 
+def _repo_root(target: RoadmapTarget) -> Path:
+    return (
+        target.repository_root.resolve()
+        if target.repository_root is not None
+        else target.csv_path.parent.resolve()
+    )
+
+
 def _local_state(
     target: RoadmapTarget,
 ) -> tuple[NormalizedRoadmap, str, list[list[str]]]:
-    normalized = normalize_csv(target.csv_path, repo_root=REPO_ROOT)
+    normalized = normalize_csv(
+        target.csv_path,
+        repo_root=_repo_root(target),
+        task_directory_entry=target.task_directory_entry,
+    )
     source = target.csv_path.read_text(encoding="utf-8")
-    return normalized, source, rows_to_matrix(normalized.rows)
+    return normalized, source, rows_to_matrix(normalized)
 
 
 def _print_diff(
@@ -568,6 +720,11 @@ def _atomic_write(path: Path, content: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _print_warnings(label: str, warnings: tuple[str, ...]) -> None:
+    for warning in warnings:
+        print(f"{label} warning: {warning}")
+
+
 def synchronize(
     *,
     action: str,
@@ -575,11 +732,14 @@ def synchronize(
     sheets: Any,
     write: bool,
 ) -> None:
+    repo_root = _repo_root(target)
     local, local_source, local_matrix = _local_state(target)
+    _print_warnings("local roadmap", local.warnings)
     local_markdown = render_markdown(
         target.csv_path,
         local.rows,
-        REPO_ROOT,
+        repo_root,
+        local.headers,
     )
     markdown_path = target.csv_path.with_suffix(".md")
     current_markdown = (
@@ -600,17 +760,18 @@ def synchronize(
             remote = validate_csv_text(
                 remote_raw_text,
                 target=target,
-                repo_root=REPO_ROOT,
+                repo_root=repo_root,
             )
         except RoadmapError as exc:
             print(f"Remote roadmap is invalid or requires migration: {exc}")
             return
+        _print_warnings("Google Sheet", remote.warnings)
         differences: list[str] = []
         if local.changed:
             differences.append("local CSV requires normalization")
         if remote.changed:
             differences.append("Google Sheet requires normalization")
-        if rows_to_matrix(local.rows) != rows_to_matrix(remote.rows):
+        if rows_to_matrix(local) != rows_to_matrix(remote):
             differences.append("normalized task data differs")
         if current_markdown != local_markdown:
             differences.append("generated Markdown is stale")
@@ -621,11 +782,11 @@ def synchronize(
         return
 
     if action == "push":
-        remote_matches = normalize_matrix(local_matrix) == remote_matrix
+        remote_matches = local_matrix == remote_matrix
         markdown_matches = current_markdown == local_markdown
         if not local.changed and remote_matches and markdown_matches:
             if write:
-                sheets.update_presentation(target, local.rows)
+                sheets.update_presentation(target, local)
                 print(
                     "Local CSV and Google Sheet are synchronized; "
                     "presentation refreshed."
@@ -663,21 +824,14 @@ def synchronize(
             _atomic_write(target.csv_path, local.text)
         if not markdown_matches:
             _atomic_write(markdown_path, local_markdown)
-        previous_rows = len(remote_matrix)
         if not remote_matches:
             sheets.update_values(target, local_matrix)
-            if previous_rows > len(local_matrix):
-                sheets.clear_rows(
-                    target,
-                    first_row=len(local_matrix) + 1,
-                    last_row=previous_rows,
-                )
         read_back = sheets.get_values(target)
-        if read_back != normalize_matrix(local_matrix):
+        if read_back != local_matrix:
             raise RoadmapSyncError(
                 "Google Sheets read-back does not match the local CSV"
             )
-        sheets.update_presentation(target, local.rows)
+        sheets.update_presentation(target, local)
         print("Local files and Google Sheet normalized; read-back verified.")
         return
 
@@ -689,14 +843,16 @@ def synchronize(
         remote = validate_csv_text(
             remote_raw_text,
             target=target,
-            repo_root=REPO_ROOT,
+            repo_root=repo_root,
         )
+        _print_warnings("Google Sheet", remote.warnings)
         pulled_markdown = render_markdown(
             target.csv_path,
             remote.rows,
-            REPO_ROOT,
+            repo_root,
+            remote.headers,
         )
-        normalized_remote_matrix = rows_to_matrix(remote.rows)
+        normalized_remote_matrix = rows_to_matrix(remote)
         if (
             local.text == remote.text
             and current_markdown == pulled_markdown
@@ -704,7 +860,7 @@ def synchronize(
             and not remote.changed
         ):
             if write:
-                sheets.update_presentation(target, remote.rows)
+                sheets.update_presentation(target, remote)
                 print(
                     "Local files match Google Sheets; presentation refreshed."
                 )
@@ -730,7 +886,7 @@ def synchronize(
         if markdown_diff:
             print(markdown_diff)
         if remote.changed:
-            print("Google Sheet IDs or dependencies require normalization.")
+            print("Google Sheet requires normalization.")
         if not write:
             print(
                 "Dry run only; pass --write to update local files and "
@@ -741,19 +897,17 @@ def synchronize(
         _atomic_write(markdown_path, pulled_markdown)
         if remote.changed:
             sheets.update_values(target, normalized_remote_matrix)
-            if len(remote_matrix) > len(normalized_remote_matrix):
-                sheets.clear_rows(
-                    target,
-                    first_row=len(normalized_remote_matrix) + 1,
-                    last_row=len(remote_matrix),
-                )
         read_back = sheets.get_values(target)
-        if read_back != normalize_matrix(normalized_remote_matrix):
+        if read_back != normalized_remote_matrix:
             raise RoadmapSyncError(
                 "Google Sheets read-back does not match normalized pull data"
             )
-        sheets.update_presentation(target, remote.rows)
-        verified = normalize_csv(target.csv_path, repo_root=REPO_ROOT)
+        sheets.update_presentation(target, remote)
+        verified = normalize_csv(
+            target.csv_path,
+            repo_root=repo_root,
+            task_directory_entry=target.task_directory_entry,
+        )
         if verified.changed:
             raise RoadmapSyncError("local CSV remains noncanonical after pull")
         print(
@@ -770,7 +924,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        help="named roadmap config; defaults to roadmaps/config.json",
+        help="named roadmap config; defaults beside this script",
     )
     parser.add_argument("action", choices=("status", "push", "pull"))
     parser.add_argument("roadmap", help="named roadmap key")

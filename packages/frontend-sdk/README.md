@@ -33,6 +33,15 @@ Common categories:
 - Cloud orchestrator e2e: `npm run integration:cloud`, `npm run integration:cloud:profiles`
 - AWS-backed e2e and maintenance commands: run only when intentionally working on those deployments
 
+## Bridge transport modes
+
+`createBridgeConnectionTransport()` supports WebSocket, HTTP, and hybrid
+operation. WebSocket is the compatibility default; HTTP and hybrid are
+explicit choices and never fall back automatically.
+
+See [Bridge transports](docs/bridge-transports.md) for pairing, mode routing,
+binary behavior, persistence, lifecycle, and rollback.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

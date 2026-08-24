@@ -1,5 +1,11 @@
 # Bridge Service - Detailed Implementation Plan
 
+> Legacy planning document: this file records an early implementation design
+> and contains stale current-state assumptions. Use
+> [`docs/index.md`](docs/index.md) for current bridge documentation and the
+> [bridge-connectivity specification](../docs/development/specifications/bridge-connectivity/index.md)
+> for the maintained architecture, protocol, requirements, and evidence.
+
 ## Overview
 An Elixir-based distributed bridge service that enables communication between local servers and mobile apps across different networks by acting as a relay/proxy.
 
