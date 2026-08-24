@@ -136,3 +136,30 @@ Verification performed:
 No software behavior or current package-user claim was changed. Implementation
 of `FCL-*` requirements remains with Draft subtasks 020–050 and requires
 separate approval.
+
+## Post-completion follow-up
+
+### Mobile UX refinement — 2026-08-23
+
+At the user's request, the specification gained a dedicated screen-level
+mobile refinement:
+
+- `docs/development/specifications/frontend-connection-lifecycle/mobile-ux.md`
+
+The page translates the product and portable contracts into concrete mobile
+navigation, connection-row, wizard, bridge repair, offline Sessions/Messages,
+composer, destructive-action, accessibility, and acceptance-sequence
+behavior. Its wireframes are explicitly illustrative while state, actions,
+ownership, navigation, recovery, and accessibility remain normative.
+
+The specification index and portable mobile section link the refinement. No
+`FCL-*` target or live implementation status changed.
+
+Follow-up verification:
+
+- `pytest docs_site/tests/test_prepare_mkdocs_site.py -q` — 15 passed;
+- `python docs_site/scripts/prepare_mkdocs_site.py` — completed;
+- `(cd docs_site && mkdocs build)` — completed with existing repository
+  notices/warnings;
+- focused `git diff --check`, terminology scan, and prepared-source
+  discoverability inspection — passed.

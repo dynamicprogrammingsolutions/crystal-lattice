@@ -181,6 +181,10 @@ not require changing cache identity or operation authority.
 The connection wizard may occupy the Connections tab, but Sessions and
 Messages remain available for the focused cached workspace.
 
+The screen-level mobile contract, including illustrative layouts, state/action
+tables, connection switching, repair, offline screens, and composer behavior,
+is defined in [Mobile connection and offline UX](mobile-ux.md).
+
 ## Desktop refinement
 
 Desktop may retain several open runtimes and several session tabs. Focusing a

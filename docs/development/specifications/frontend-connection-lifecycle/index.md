@@ -17,6 +17,7 @@ Specification documents:
 
 - [Product behavior and target user experience](product-spec.md)
 - [Portable frontend behavior](frontend-behavior.md)
+- [Mobile connection and offline UX](mobile-ux.md)
 - [Technical contract](technical-spec.md)
 - [Persistence and offline continuity](persistence-and-offline.md)
 - [Requirements and evidence](requirements.md)
