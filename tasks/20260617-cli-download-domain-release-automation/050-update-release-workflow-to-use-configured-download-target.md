@@ -351,8 +351,8 @@ publication gate.
 - [x] Add focused regression assertions for the single-writer boundary.
 - [x] Update current maintainer documentation for the corrected flow.
 - [x] Run local workflow/security and focused behavior verification.
-- [ ] Commit and push the correction to `main`.
-- [ ] Require green Public CI on the exact correction commit.
+- [x] Commit and push the correction to `main`.
+- [x] Require green Public CI on the exact correction commit.
 
 Local verification:
 
@@ -362,3 +362,15 @@ Local verification:
 - focused release automation tests: `11 passed`
 - Ruff and Black checks for the changed Python test
 - `git diff --check`
+
+Delivery and hosted verification:
+
+- The correction was committed and pushed with concurrent roadmap status work
+  in commit `1ea4e6f030001e67ebd70e7cbff78c27f8aed65e`.
+- Public CI run `32697863899` passed on that exact commit:
+  - Repository checks
+  - Python unit tests
+  - Frontend package tests
+  - Landing and docs build
+- No release workflow, release tag, download publication, or TestFlight run was
+  triggered by the correction.
