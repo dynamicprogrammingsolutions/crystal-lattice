@@ -5,13 +5,13 @@ visibility.
 
 ## Requirements checklist
 
-- [ ] Mandatory subtasks `010` through `050` are complete with evidence.
-- [ ] A clean clone passes the agreed minimum build/test/documentation checks.
-- [ ] The root presentation, license, support, security, and issue paths are coherent.
-- [ ] No unresolved critical legal, security, privacy, cost, or newcomer-understanding blocker remains.
-- [ ] Existing GitHub Actions logs/artifacts have been reviewed for public exposure.
+- [x] Mandatory subtasks `010` through `050` are complete with evidence.
+- [x] A clean clone passes the agreed minimum build/test/documentation checks.
+- [x] The root presentation, license, support, security, and issue paths are coherent.
+- [x] No unresolved critical legal, security, privacy, cost, or newcomer-understanding blocker remains.
+- [x] Existing GitHub Actions logs/artifacts have been reviewed for public exposure.
 - [ ] The owner explicitly approves the candidate commit and publication timing.
-- [ ] A rollback and collaborator communication plan exists for any required history rewrite or publication problem.
+- [x] A rollback and collaborator communication plan exists for any required history rewrite or publication problem.
 
 Parent Task: tasks/20260804-open-source-public-release/000-main.md
 Depends On: tasks/20260804-open-source-public-release/010-sensitive-data-and-history-release-gate.md
@@ -403,16 +403,16 @@ the `GO` until the affected gate checks are rerun.
 
 ### Task checklist
 
-- [ ] Wait for active workflows and resolve/route current mandatory failures.
-- [ ] Freeze and approve source branch/commit inventory.
-- [ ] Construct the clean publication candidate merge commit.
-- [ ] Confirm predecessor completion and later-change validity.
-- [ ] Repeat sensitive-data and history scans against publication refs.
-- [ ] Run all four minimum Public CI boundaries in an isolated clone.
-- [ ] Review public-facing repository, support, security, privacy, and issue paths.
-- [ ] Review Actions logs/artifacts/releases/deployments since task `010`.
-- [ ] Prepare the exact task `070` settings and expected-workflow handoff.
-- [ ] Record rollback and collaborator communication procedures.
+- [x] Wait for active workflows and resolve/route current mandatory failures.
+- [x] Freeze and approve source branch/commit inventory.
+- [x] Construct the clean publication candidate merge commit.
+- [x] Confirm predecessor completion and later-change validity.
+- [x] Repeat sensitive-data and history scans against publication refs.
+- [x] Run all four minimum Public CI boundaries in an isolated clone.
+- [x] Review public-facing repository, support, security, privacy, and issue paths.
+- [x] Review Actions logs/artifacts/releases/deployments since task `010`.
+- [x] Prepare the exact task `070` settings and expected-workflow handoff.
+- [x] Record rollback and collaborator communication procedures.
 - [ ] Present candidate SHA, evidence, decision, and timing for owner approval.
 - [ ] Declare final `GO` or `NO-GO`.
 
@@ -699,3 +699,263 @@ application as server endpoints, and public pull-request CI has a read-only
 token, no repository secrets, and no protected environment. They remain
 visible for task `130` dependency-security prioritization rather than being
 silently treated as resolved.
+
+### August 24, 2026: final candidate validation evidence
+
+#### Sensitive-data and history results
+
+Pinned tools were downloaded from official releases outside the repository and
+verified against their published checksums:
+
+- Gitleaks `8.30.1`
+- TruffleHog `3.96.0`
+
+The audit mirror included:
+
+- all `31` remote branch heads plus the local publication-candidate branch;
+- both release tags;
+- all `12` GitHub pull-request heads.
+
+Final history results match task `010`'s accepted baseline:
+
+- Gitleaks: three findings
+  - the known notification-cache storage-key false positive;
+  - two expired and revoked historical JWTs in the removed ChatGPT auth file.
+- TruffleHog:
+  - zero verified credentials;
+  - the same two unverified historical JWT findings.
+
+Final exported-tree results:
+
+- Gitleaks: only the known notification-cache storage-key false positive;
+- TruffleHog: zero findings;
+- zero tracked `.crystal` runtime-session JSON files;
+- zero private-key, signing-key, certificate, or mobile-provisioning files;
+- zero scanner reports or backup bundles;
+- no current ChatGPT auth file;
+- no `.xcode.env.local`;
+- archived AGI SHA-256 remains
+  `1f972b29bd94d4721848bbe635a049fa23186686d1a636b52700893eb82ae93b`.
+
+TruffleHog's Lob detector in the pinned version misclassified ordinary
+40-character `test_` fixture identifiers as verified Lob credentials. All
+`127` exported-tree matches used that exact fixture shape across tests and task
+documentation. The result was reproduced, classified against upstream issue
+`trufflesecurity/trufflehog#5171` and its fix, retained locally for audit, and
+excluded for the final TruffleHog passes. No other detector reported a current
+finding.
+
+The retained user-home paths remain within the owner-accepted task,
+evaluation, fixture, and reference-system-message material. No personal email
+address is present in the current tree.
+
+#### Clean-clone build and test results
+
+The credential-free `--no-local` clone:
+
+- checked out the exact candidate;
+- contained no `.env` or `.xcode.env.local`;
+- used isolated Python `3.11.12` environments;
+- passed the complete Public CI boundary.
+
+Results:
+
+- Repository checks:
+  - merge-range and candidate-change whitespace checks passed;
+  - all workflow YAML parsed;
+  - primary JSON/TOML manifests parsed;
+  - Actions security validator passed;
+  - actionlint passed.
+- Python:
+  - core: `465 passed`, `26 deselected`, `1 expected xfail`;
+  - application: `339 passed`, `90 deselected`, `6 warnings`.
+- Shared frontend:
+  - frontend SDK: `313 passed`;
+  - React bindings: `20 passed`;
+  - shared React Native components: `7 passed`.
+- Mobile dependency-remediation verification:
+  - clean install and React Native config passed;
+  - `119` Jest tests passed.
+- Desktop dependency-remediation verification:
+  - clean install and React Native config passed;
+  - `105` Jest tests passed.
+- Landing:
+  - dependency install and Astro production build passed;
+  - `/`, `/privacy`, `/support`, `/mobile`, and `/terms` were generated.
+- Documentation:
+  - preparation passed;
+  - non-strict MkDocs production build passed.
+- Roadmap:
+  - authoritative-CSV normalization/check passed when explicitly supplied the
+    ignored local registry environment;
+  - all `35` roadmap tests passed.
+
+#### Public presentation and hosted-output review
+
+The candidate contains and coherently links:
+
+- root `README.md`;
+- `LICENSE`, `LICENSING.md`, and `NOTICE`;
+- `CONTRIBUTING.md`;
+- `SUPPORT.md`;
+- `SECURITY.md`;
+- bug and feature issue forms;
+- issue chooser security/support routing;
+- pull-request template;
+- archive index and historical labels.
+
+All `63` relative links in the root onboarding, contribution, support,
+security, licensing, notice, and archive entry files resolve. The missing root
+code of conduct remains optional task `110` scope.
+
+Live routes return HTTP `200`:
+
+- `https://crystallattice.dev/`
+- `https://crystallattice.dev/privacy`
+- `https://crystallattice.dev/support`
+- `https://crystallattice.dev/mobile`
+- `https://docs.crystallattice.dev/`
+
+The privacy page states an August 5, 2026 effective date and the support page
+routes normal requests, public issues, and private security reports correctly.
+
+The live Claude Tools docs are stale and still contain the superseded statement
+that normalized fixtures are subject to Anthropic's terms. The candidate-built
+page contains the corrected public-behavior/Apache provenance and no
+superseded statement. Task `070` now requires successful private candidate
+deployment and live verification before visibility changes.
+
+GitHub discussion/output evidence:
+
+- public Issues: zero;
+- issue comments API: one PR-associated issue comment;
+- pull requests: `12`;
+- pull-request review comments: `4`;
+- issue/PR bodies and comments: zero Gitleaks or TruffleHog findings and no
+  email/private-key shape;
+- Actions runs since August 4, 2026: `29`;
+- accessible run logs: `29`;
+- unavailable run logs: zero;
+- run-log Gitleaks findings: zero;
+- run-log TruffleHog findings: zero;
+- credential-shaped unredacted values: zero;
+- normal GitHub masking markers: `27`;
+- retained Actions artifacts: zero.
+
+Published releases:
+
+- `crystal-lattice-cli-v0.1.0`: four platform assets;
+- `crystal-lattice-cli-v0.1.1`: four platform assets.
+
+Both tag trees exclude the historical auth file and runtime-session JSON. The
+new `0.1.1` workflow and logs were included in hosted-output scanning.
+
+#### GitHub settings and task `070` handoff
+
+Current private settings remain intentionally unapplied task `070` work:
+
+- repository description, homepage, and topics are unset;
+- `main` is unprotected;
+- rulesets are unavailable while private on the current plan;
+- Actions allows all actions;
+- full-SHA policy enforcement is disabled;
+- default workflow token permission is write;
+- Actions may approve pull requests;
+- `production-sites` is absent;
+- `cli-release` exists with a release-tag branch policy;
+- security/dependency features remain disabled or unavailable while private.
+
+The candidate now attaches:
+
+- static deployment to `production-sites`;
+- GitHub and AWS CLI release publication to `cli-release`;
+- TestFlight release/signing to `testflight`.
+
+The Actions security validator now requires each exact workflow/job/environment
+triple in addition to rejecting unauthorized environments. Its previous regex
+did not recognize scalar environment names; the candidate corrects that
+validation gap.
+
+Task `070` must, before advancing private `main`:
+
+- set read-only default Actions permissions;
+- disable Actions pull-request approval;
+- restrict allowed actions to GitHub-owned actions,
+  `aws-actions/configure-aws-credentials`, and `ruby/setup-ruby`;
+- require full-SHA references;
+- create/protect `production-sites` for `main`;
+- confirm/protect `cli-release` for `crystal-lattice-cli-v*`;
+- create/protect `testflight` for `main`;
+- apply reviewers and secret scoping where supported.
+
+Then, while the repository remains private, task `070` must advance `main` to
+the exact approved candidate and require:
+
+- all four Public CI jobs to pass;
+- static-site build and artifact handoff to pass;
+- protected AWS deployment to both landing/docs targets to pass;
+- live landing/privacy/support/mobile/docs routes to pass;
+- live Claude Tools docs to contain the corrected provenance;
+- no workflow to remain active or queued.
+
+The latest static deployment failure was caused by GitHub artifact-storage
+quota recalculation after cleanup, not a candidate build failure. The current
+artifact inventory is zero. If the private candidate run still reports quota
+failure, task `070` must stop before visibility and return to deployment
+remediation.
+
+Expected candidate-advance workflows:
+
+- Public CI;
+- Deploy Static Sites.
+
+Forbidden without separate explicit action:
+
+- TestFlight;
+- CLI release;
+- release tag;
+- provider API or new cloud workload.
+
+#### Rollback and collaborator communication
+
+No history rewrite is planned or authorized.
+
+Task `070` rollback/incident procedure:
+
+1. Before visibility, snapshot current visibility, default branch, Actions
+   policy, environments, rules, security features, collaborators, releases,
+   runs, deployments, and candidate SHA.
+2. If private candidate CI/deployment fails, cancel unexpected runs where safe,
+   leave the repository private, correct the owning issue, rebuild the
+   candidate, and rerun task `060`.
+3. If an unexpected workflow starts during transition, cancel it, disable the
+   affected workflow/environment as needed, and confirm no publication or
+   infrastructure mutation occurred.
+4. If a credential is exposed, revoke/rotate it immediately, preserve redacted
+   evidence, review access logs and scope, and do not rewrite history without a
+   new owner decision.
+5. If a serious problem is discovered after visibility, return the repository
+   to private if GitHub permits and the owner chooses it, disable affected
+   publication paths, notify collaborators, and open a controlled correction.
+6. Treat any already copied public content as non-retractable; returning to
+   private does not erase forks, clones, caches, or downloads.
+
+Prepared collaborator message:
+
+> Crystal Lattice will be shared as an early-stage open-source project at the
+> approved candidate commit and time. Please use GitHub Issues for
+> non-sensitive bugs and feature feedback, the support route for setup
+> questions, and the private SECURITY.md process for vulnerabilities or
+> sensitive reports. Please do not announce the repository broadly until the
+> immediate anonymous-clone and workflow checks in task 080 are complete.
+
+The message is prepared only. It has not been sent.
+
+#### Gate decision pending owner approval
+
+Technical gate result: proposed `GO`.
+
+No unresolved mandatory blocker remains in the candidate. Visibility is still
+blocked until the owner explicitly approves the final candidate SHA and
+publication timing. Task `070` must also complete its private candidate
+push/deploy/live-content checkpoint before changing visibility.

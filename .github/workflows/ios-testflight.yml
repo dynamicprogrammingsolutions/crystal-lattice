@@ -30,6 +30,7 @@ jobs:
     name: Verify, sign, and optionally upload
     runs-on: macos-26
     timeout-minutes: 90
+    environment: testflight
     env:
       APP_IDENTIFIER: ${{ vars.IOS_APP_IDENTIFIER }}
       APPLE_TEAM_ID: ${{ vars.IOS_APPLE_TEAM_ID }}

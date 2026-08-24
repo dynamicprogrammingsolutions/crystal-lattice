@@ -36,10 +36,50 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 10. Change the allowed-actions policy to selected actions:
     - allow GitHub-owned actions;
     - allow `aws-actions/configure-aws-credentials`;
-    - allow `softprops/action-gh-release`;
+    - allow `ruby/setup-ruby`;
     - add a future action repository only when a reviewed, SHA-pinned workflow
       actually needs it.
 11. Require actions to be pinned to a full-length commit SHA.
+12. Create or update environment `production-sites`.
+13. Restrict `production-sites` to `main` and add a required reviewer if
+    supported.
+14. Confirm environment `cli-release` is restricted to tags matching
+    `crystal-lattice-cli-v*`; add a required reviewer if supported.
+15. Create or update environment `testflight`.
+16. Restrict `testflight` to `main` and add a required reviewer if supported.
+17. Move or scope static-site deployment secrets to `production-sites`, CLI
+    publication secrets to `cli-release`, and iOS signing/upload secrets to
+    `testflight` where supported.
+18. Confirm pull-request jobs cannot access any protected environment or
+    publication secret.
+
+### Publish and validate the approved candidate while still private
+
+1. Confirm the approved task `060` candidate SHA has not changed.
+2. Advance `main` to that exact candidate commit while the repository is still
+   private.
+3. Expect exactly:
+   - `Public CI`;
+   - `Deploy Static Sites`.
+4. Do not manually dispatch TestFlight or CLI release and do not create a
+   release tag.
+5. Require all four Public CI jobs to pass on the candidate SHA.
+6. Require the static-site build, artifact handoff, protected deployment, and
+   both AWS deployments to pass.
+7. If GitHub still reports stale artifact-storage quota, any protected
+   environment is unavailable, or either expected workflow fails, stop with the
+   repository private and return to task `060` or the owning deployment task.
+8. Verify all of these live routes return successfully:
+   - `https://crystallattice.dev/`
+   - `https://crystallattice.dev/privacy`
+   - `https://crystallattice.dev/support`
+   - `https://crystallattice.dev/mobile`
+   - `https://docs.crystallattice.dev/`
+9. Verify the live Claude Tools documentation contains the candidate's
+   public-behavior/Apache provenance and no longer contains the superseded
+   statement that normalized fixtures are subject to Anthropic's terms.
+10. Refresh the workflow, artifact, deployment, release, and repository-setting
+    inventories. Continue only when no workflow is active or queued.
 
 ### Change visibility
 
@@ -82,16 +122,12 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 
 ### Protect deployments
 
-1. Create or update environment `production-sites`.
-2. Restrict it to `main`.
-3. Add a required reviewer if supported.
-4. Create or update environment `cli-release`.
-5. Restrict it to tags matching `crystal-lattice-cli-v*` and add a required
-   reviewer if supported.
-6. Reserve `testflight` for the later iOS workflow.
-7. Move or scope static-site deployment secrets to `production-sites` and CLI
-   publication secrets to `cli-release` where supported.
-8. Confirm pull-request jobs cannot access these environments or secrets.
+1. Recheck that `production-sites`, `cli-release`, and `testflight` retained
+   their branch/tag restrictions and reviewer rules through the visibility
+   change.
+2. Confirm the static-site, CLI release, and TestFlight jobs are the only jobs
+   attached to those environments.
+3. Confirm pull-request jobs cannot access these environments or secrets.
 
 ### Complete repository presentation
 
@@ -124,10 +160,14 @@ activating the `main` ruleset.
 - Use protected environments for production authority.
 - Require the four stable `Public CI` checks on `main`.
 - Permit only GitHub-owned actions plus the currently required AWS credentials
-  and GitHub Release action repositories.
+  and Ruby setup action repositories.
 - Require full-SHA action references; version comments remain informational.
-- A later TestFlight workflow must add its reviewed action repositories to the
-  selected-action allowlist rather than broadening the policy generally.
+- Push and deploy the approved candidate while the repository remains private;
+  visibility changes only after candidate CI and live legal/support surfaces
+  pass.
+- Stop before visibility if artifact quota prevents the static-site handoff.
+- The current TestFlight workflow is manual-only and its release job uses the
+  protected `testflight` environment.
 
 ### Documentation
 
@@ -137,15 +177,20 @@ activating the `main` ruleset.
 ### Task checklist
 
 - [ ] Apply pre-visibility Actions settings.
+- [ ] Protect production, CLI release, and TestFlight environments.
+- [ ] Advance private `main` to the approved candidate and validate expected workflows.
+- [ ] Verify live landing, support, privacy, mobile, and corrected docs content.
 - [ ] Change visibility to public.
 - [ ] Protect `main`.
 - [ ] Enable immediate security features.
-- [ ] Protect deploy/release environments.
+- [ ] Recheck deploy/release environment protection after visibility changes.
 - [ ] Set repository presentation metadata.
 - [ ] Verify through logged-out and API checks.
 
 ### Requirement verification
 
 - GitHub settings/API inspection confirms public visibility and protections.
+- Private pre-visibility workflow runs prove the approved candidate and current
+  static-site deployment path before public exposure.
 - A test pull request cannot deploy, publish, or read protected secrets.
 - Private vulnerability reporting and public Issues are accessible.
