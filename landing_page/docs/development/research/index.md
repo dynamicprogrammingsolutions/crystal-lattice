@@ -16,6 +16,11 @@ updates.
   confidence, privacy, pilot, and content-promotion rules.
 - [Evidence index](evidence-index.md): authoritative local inputs and initial
   external source routes.
+- [Visual communication and reproducible assets](visual-communication-and-reproducible-assets.md):
+  visual proof hypotheses and the retained reproducible asset-pipeline model.
+- [Initial planning discussion retention map](discussion-retention-map.md):
+  where important planning points are stored, partially retained, or
+  intentionally omitted.
 
 Retained normalized records, manifests, datasets, and review ledgers belong
 under `landing_page/research/`. Disposable raw responses, browser output,

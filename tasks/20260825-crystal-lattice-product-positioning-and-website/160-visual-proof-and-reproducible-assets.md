@@ -44,10 +44,13 @@ Depends On: `tasks/20260825-crystal-lattice-product-positioning-and-website/150-
    verification boundaries.
 4. `landing_page/docs/development/specifications/product-website-content/content-spec.md:238-274`
    — proof and progressive-revision target.
-5. `landing_page/docs/development/content-system.md:79-88` and
+5. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:1-265`
+   — retained visual hypotheses, reproducible asset-pipeline requirements,
+   automation boundaries, review, and freshness rules.
+6. `landing_page/docs/development/content-system.md:79-88` and
    `landing_page/docs/development/content-system.md:127-148` — current public
    asset and build/verification behavior.
-6. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
+7. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
    `mobile/crystal-lattice-control-rn/docs/development/index.md:1-3`,
    `desktop/crystal-lattice-control-desktop-rn/docs/development/index.md:1-5`,
    and
