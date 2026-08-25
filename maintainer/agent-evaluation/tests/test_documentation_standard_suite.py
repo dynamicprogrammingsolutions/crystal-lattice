@@ -21,6 +21,7 @@ from suites.documentation_standard.support import (
     completed_tool_call_ids,
     extract_blockquote,
     fixture_revision,
+    _commit_fixture,
     _project_config_for_profile,
     EVALUATION_TOOL_PLUGINS,
     GUIDANCE_CONFIG_KEY,
@@ -754,3 +755,62 @@ def test_batch_single_decisions_variant_records_exact_layout(tmp_path: Path) -> 
     assert "Do not create a" in task
     assert "`decisions/` directory" in task
     assert fixture_revision("batch-sync") == "v2"
+
+
+def test_fixture_commit_does_not_change_linked_repository_identity(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    subprocess.run(["git", "init"], cwd=source, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Original User"],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "original@example.com"],
+        cwd=source,
+        check=True,
+    )
+    source.joinpath("tracked.txt").write_text("initial\n", encoding="utf-8")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+    )
+
+    worktree = tmp_path / "worktree"
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(worktree), "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+    )
+    worktree.joinpath("fixture.txt").write_text("fixture\n", encoding="utf-8")
+
+    _commit_fixture(worktree)
+
+    assert subprocess.run(
+        ["git", "config", "--local", "--get", "user.name"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == "Original User"
+    assert subprocess.run(
+        ["git", "config", "--local", "--get", "user.email"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == "original@example.com"
+    assert subprocess.run(
+        ["git", "show", "-s", "--format=%an <%ae>"],
+        cwd=worktree,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == "Agent Evaluation <agent-eval@example.invalid>"

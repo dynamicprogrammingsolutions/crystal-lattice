@@ -83,6 +83,24 @@ Depends On:
 - `tasks/20260619-generic-session-notifications/040-stage-1-dummy-plugin-integration-tests.md`
 - `tasks/20260730-runtime-notification-specification-documentation/000-main.md`
 
+## Approved scope split
+
+Stages A–D and their completion evidence remain in this task.
+
+The unfinished scope is continued by:
+
+- `SPLIT INTO:
+  tasks/20260619-generic-session-notifications/046-notification-history-and-safe-replay.md`
+  for history queries, production history UI, filtering, and safe replay;
+- `SPLIT INTO:
+  tasks/20260824-interactive-notifications-and-request-suspension/000-main.md`
+  for interaction records, wait-only execution, durable suspension, and
+  frontend interaction UX.
+
+The new tasks must reuse the notification stores, revisions, events, display,
+attention, retention, and history contracts delivered here rather than
+introducing parallel infrastructure.
+
 ## Accepted product decisions
 
 ### Same-authority persistence

@@ -107,8 +107,8 @@ summary = "Pair remote clients with local Crystal Lattice servers across network
 source = "bridge-elixir"
 destination = "packages/bridge-elixir"
 include_readme = true
-include_docs = false
-publish_development = false
+include_docs = true
+publish_development = true
 
 [[package]]
 id = "cloud-orchestrator"

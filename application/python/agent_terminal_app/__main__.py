@@ -528,6 +528,9 @@ def _build_server_integration_config(
                 computer_name=socket.gethostname() or "localhost",
                 location=location,
                 local_http_base=local_http_base,
+                bridge_http_base=getattr(args, "bridge_http_base", None)
+                or os.getenv("BRIDGE_HTTP_BASE_URL")
+                or None,
                 ws_max_size_bytes=_parse_optional_int_env(
                     os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024
                 ),
@@ -923,6 +926,15 @@ def main() -> None:  # pragma: no cover - manual execution only
         help=(
             "Base URL of the local HTTP server as seen from the bridge "
             "(default: http://<SERVER_HOST>:<SERVER_PORT>)."
+        ),
+    )
+    parser.add_argument(
+        "--bridge-http-base",
+        type=str,
+        default=None,
+        help=(
+            "Public HTTP origin used by the server for bridge v2 body "
+            "downloads/uploads (default: derived from --bridge-url)."
         ),
     )
     parser.add_argument(

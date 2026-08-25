@@ -1,6 +1,9 @@
 # CLI Login Commands Via Plugin Actions
 Add CLI and slash-command entry points that call plugin actions instead of duplicating provider-specific login logic.
 
+SUPERSEDED BY:
+`tasks/20260824-plugin-driven-cli-and-interactive-terminal-commands.md`
+
 ## Requirements checklist
 
 - [ ] Confirm the current application-plugin command hook and how terminal frontends consume it.

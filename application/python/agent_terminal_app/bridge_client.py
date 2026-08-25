@@ -28,6 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 import asyncio
 import json
@@ -65,6 +66,7 @@ class BridgeConfig:
     computer_name: str
     location: Optional[str]
     local_http_base: str
+    bridge_http_base: Optional[str] = None
 
     ws_max_size_bytes: Optional[int] = 16 * 1024 * 1024
     http_timeout_seconds: float = 120.0
@@ -114,6 +116,7 @@ class BridgeClient:
         # Chunked HTTP request buffering keyed by request_id.
         self._chunked_requests: Dict[str, Dict[str, Any]] = {}
         self._inflight_http_tasks: set[asyncio.Task[Any]] = set()
+        self._inflight_v2_tasks: Dict[str, asyncio.Task[Any]] = {}
         self._ws_send_lock = asyncio.Lock()
 
         self._local_lock_path: Optional[Path] = None
@@ -249,6 +252,11 @@ class BridgeClient:
 
         await asyncio.gather(*tasks, return_exceptions=True)
         self._inflight_http_tasks.difference_update(tasks)
+        self._inflight_v2_tasks = {
+            request_id: task
+            for request_id, task in self._inflight_v2_tasks.items()
+            if task not in tasks
+        }
 
     def _track_http_task(
         self,
@@ -270,6 +278,37 @@ class BridgeClient:
                 log.error(
                     "Bridge HTTP task failed event=%s request_id=%s: %s",
                     event,
+                    request_id,
+                    exc,
+                    exc_info=(type(exc), exc, exc.__traceback__),
+                )
+
+        task.add_done_callback(_done)
+
+    def _track_v2_http_task(self, payload: Dict[str, Any]) -> None:
+        request_id = payload.get("request_id")
+        if not isinstance(request_id, str) or not request_id:
+            return
+
+        existing = self._inflight_v2_tasks.pop(request_id, None)
+        if existing is not None:
+            existing.cancel()
+
+        task = asyncio.create_task(self._handle_http_request_v2(payload))
+        self._inflight_v2_tasks[request_id] = task
+        self._inflight_http_tasks.add(task)
+
+        def _done(done_task: asyncio.Task[Any]) -> None:
+            self._inflight_http_tasks.discard(done_task)
+            if self._inflight_v2_tasks.get(request_id) is done_task:
+                self._inflight_v2_tasks.pop(request_id, None)
+            try:
+                done_task.result()
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:  # pragma: no cover - defensive logging
+                log.error(
+                    "Bridge HTTP v2 task failed request_id=%s: %s",
                     request_id,
                     exc,
                     exc_info=(type(exc), exc, exc.__traceback__),
@@ -380,6 +419,10 @@ class BridgeClient:
                             event=event,
                             request_id=prepared.get("request_id"),
                         )
+                elif event == "http_request_v2":
+                    self._track_v2_http_task(payload)
+                elif event == "http_request_v2_cancel":
+                    self._handle_http_request_v2_cancel(payload)
                 elif event == "superseded":
                     await self._handle_superseded(payload)
                     break
@@ -482,6 +525,246 @@ class BridgeClient:
             response.get("headers") or {},
             response.get("body") or "",
         )
+
+    def _handle_http_request_v2_cancel(self, payload: Dict[str, Any]) -> None:
+        request_id = payload.get("request_id")
+        if not isinstance(request_id, str) or not request_id:
+            return
+        task = self._inflight_v2_tasks.get(request_id)
+        if task is not None:
+            task.cancel()
+
+    async def _handle_http_request_v2(self, payload: Dict[str, Any]) -> None:
+        """Execute a v2 bridge request without sending body bytes over WebSocket."""
+
+        request_id = payload.get("request_id")
+        method = (payload.get("method") or "GET").upper()
+        path = payload.get("path") or "/"
+        headers = payload.get("headers") or {}
+        request_body_present = payload.get("request_body_present") is True
+
+        if not isinstance(request_id, str) or not request_id:
+            return
+
+        request_body_path = payload.get("request_body_path")
+        request_body_token = payload.get("request_body_token")
+        response_body_path = payload.get("response_body_path")
+        response_body_token = payload.get("response_body_token")
+
+        if (
+            not isinstance(response_body_path, str)
+            or not isinstance(response_body_token, str)
+            or (
+                request_body_present
+                and (
+                    not isinstance(request_body_path, str)
+                    or not isinstance(request_body_token, str)
+                )
+            )
+        ):
+            log.warning("Invalid bridge HTTP v2 metadata request_id=%s", request_id)
+            return
+
+        bridge_timeout = httpx.Timeout(self.config.http_timeout_seconds)
+
+        try:
+            async with httpx.AsyncClient(timeout=bridge_timeout) as bridge_http:
+                if request_body_present:
+                    assert isinstance(request_body_path, str)
+                    assert isinstance(request_body_token, str)
+                    async with bridge_http.stream(
+                        "GET",
+                        self._bridge_http_url(request_body_path),
+                        headers={"Authorization": f"Bearer {request_body_token}"},
+                    ) as request_body_response:
+                        request_body_response.raise_for_status()
+                        await self._proxy_http_v2_local_response(
+                            bridge_http=bridge_http,
+                            request_id=request_id,
+                            method=method,
+                            path=path,
+                            headers=headers,
+                            request_content=request_body_response.aiter_raw(),
+                            response_body_path=response_body_path,
+                            response_body_token=response_body_token,
+                        )
+                else:
+                    await self._proxy_http_v2_local_response(
+                        bridge_http=bridge_http,
+                        request_id=request_id,
+                        method=method,
+                        path=path,
+                        headers=headers,
+                        request_content=None,
+                        response_body_path=response_body_path,
+                        response_body_token=response_body_token,
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.exception(
+                "Bridge HTTP v2 request failed request_id=%s method=%s path=%s",
+                request_id,
+                method,
+                path,
+            )
+            await self._send_http_v2_error_response(
+                request_id=request_id,
+                response_body_path=response_body_path,
+                response_body_token=response_body_token,
+                error=exc,
+            )
+
+    async def _proxy_http_v2_local_response(
+        self,
+        *,
+        bridge_http: httpx.AsyncClient,
+        request_id: str,
+        method: str,
+        path: str,
+        headers: Dict[str, Any],
+        request_content: Any,
+        response_body_path: str,
+        response_body_token: str,
+    ) -> None:
+        outgoing_headers = self._http_v2_request_headers(headers)
+
+        async with httpx.AsyncClient(
+            timeout=self.config.http_timeout_seconds
+        ) as local_http:
+            async with local_http.stream(
+                method,
+                self._local_http_url(path),
+                headers=outgoing_headers,
+                content=request_content,
+            ) as local_response:
+                response_headers = self._http_v2_response_headers(
+                    dict(local_response.headers)
+                )
+                await self._send_http_v2_response_init(
+                    request_id,
+                    local_response.status_code,
+                    response_headers,
+                )
+
+                upload_response = await bridge_http.put(
+                    self._bridge_http_url(response_body_path),
+                    headers={"Authorization": f"Bearer {response_body_token}"},
+                    content=local_response.aiter_raw(),
+                )
+                upload_response.raise_for_status()
+
+    async def _send_http_v2_response_init(
+        self,
+        request_id: str,
+        status: int,
+        headers: Dict[str, str],
+    ) -> None:
+        async with self._ws_send_lock:
+            if self._ws is None:
+                raise RuntimeError("Bridge WebSocket is not connected")
+            message = self._phoenix_message(
+                f"server:{self.config.server_id}",
+                "http_response_v2_init",
+                {
+                    "request_id": request_id,
+                    "status": status,
+                    "headers": headers,
+                },
+            )
+            await self._ws.send(message)
+
+    async def _send_http_v2_error_response(
+        self,
+        *,
+        request_id: str,
+        response_body_path: str,
+        response_body_token: str,
+        error: Exception,
+    ) -> None:
+        if self._ws is None:
+            return
+
+        body = json.dumps({"error": str(error)}).encode("utf-8")
+        try:
+            await self._send_http_v2_response_init(
+                request_id,
+                502,
+                {"content-type": "application/json"},
+            )
+            async with httpx.AsyncClient(
+                timeout=self.config.http_timeout_seconds
+            ) as bridge_http:
+                response = await bridge_http.put(
+                    self._bridge_http_url(response_body_path),
+                    headers={"Authorization": f"Bearer {response_body_token}"},
+                    content=body,
+                )
+                response.raise_for_status()
+        except Exception:
+            log.debug(
+                "Unable to upload bridge HTTP v2 error response request_id=%s",
+                request_id,
+                exc_info=True,
+            )
+
+    def _bridge_http_url(self, path: str) -> str:
+        base = self.config.bridge_http_base or _derive_bridge_http_base(
+            self.config.bridge_url
+        )
+        normalized_path = path if path.startswith("/") else f"/{path}"
+        return base.rstrip("/") + normalized_path
+
+    def _local_http_url(self, path: str) -> str:
+        normalized_path = path if path.startswith("/") else f"/{path}"
+        return self.config.local_http_base.rstrip("/") + normalized_path
+
+    def _http_v2_request_headers(self, headers: Dict[str, Any]) -> Dict[str, str]:
+        blocked = {
+            "host",
+            "content-length",
+            "transfer-encoding",
+            "connection",
+            "keep-alive",
+            "proxy-authenticate",
+            "proxy-authorization",
+            "te",
+            "trailer",
+            "upgrade",
+            "accept-encoding",
+        }
+        outgoing: Dict[str, str] = {}
+        if isinstance(headers, dict):
+            for key, value in headers.items():
+                if (
+                    isinstance(key, str)
+                    and isinstance(value, str)
+                    and key.lower() not in blocked
+                ):
+                    outgoing[key] = value
+        outgoing["Accept-Encoding"] = "identity"
+        return outgoing
+
+    def _http_v2_response_headers(self, headers: Dict[str, Any]) -> Dict[str, str]:
+        blocked = {
+            "content-length",
+            "content-encoding",
+            "transfer-encoding",
+            "connection",
+            "keep-alive",
+            "proxy-authenticate",
+            "proxy-authorization",
+            "te",
+            "trailer",
+            "upgrade",
+        }
+        return {
+            key: value
+            for key, value in headers.items()
+            if isinstance(key, str)
+            and isinstance(value, str)
+            and key.lower() not in blocked
+        }
 
     async def _handle_http_request_init(self, payload: Dict[str, Any]) -> None:
         if self._ws is None:  # pragma: no cover - defensive
@@ -925,6 +1208,9 @@ def create_bridge_client_from_env() -> Optional[BridgeClient]:
                               seen from this process
                               (default: ``http://127.0.0.1:<PORT>`` where
                               PORT comes from ``SERVER_PORT`` or ``8000``).
+        BRIDGE_HTTP_BASE_URL  Optional public HTTP origin for v2 body
+                              transfers. By default it is derived from
+                              ``BRIDGE_URL``.
 
         BRIDGE_EXIT_ON_SUPERSEDED
                               Exit the current process if the bridge
@@ -965,6 +1251,7 @@ def create_bridge_client_from_env() -> Optional[BridgeClient]:
         computer_name=computer_name,
         location=location,
         local_http_base=local_http_base,
+        bridge_http_base=os.getenv("BRIDGE_HTTP_BASE_URL") or None,
         ws_max_size_bytes=_parse_optional_int(
             os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024
         ),
@@ -991,6 +1278,26 @@ def create_bridge_client_from_env() -> Optional[BridgeClient]:
     )
 
     return BridgeClient(cfg)
+
+
+def _derive_bridge_http_base(bridge_url: str) -> str:
+    parsed = urlsplit(bridge_url)
+    if parsed.scheme not in {"ws", "wss", "http", "https"}:
+        raise ValueError(f"Unsupported bridge URL scheme: {parsed.scheme!r}")
+
+    scheme = {
+        "ws": "http",
+        "wss": "https",
+        "http": "http",
+        "https": "https",
+    }[parsed.scheme]
+    path = parsed.path.rstrip("/")
+    if path.endswith("/ws/websocket"):
+        path = path[: -len("/ws/websocket")]
+    elif path.endswith("/ws"):
+        path = path[: -len("/ws")]
+
+    return urlunsplit((scheme, parsed.netloc, path, "", "")).rstrip("/")
 
 
 def _parse_optional_int(

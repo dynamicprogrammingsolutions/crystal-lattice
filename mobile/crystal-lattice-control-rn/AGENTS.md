@@ -13,7 +13,8 @@ These guidelines apply to everything under `mobile/crystal-lattice-control-rn/`.
 - **Entry point**: `App.tsx`
   - Handles connection method selection (manual IP, Bonjour discovery, bridge).
   - Owns the active SDK `Transport` + `AgentBackend` instances.
-  - Creates a `RestAgentBackend` over either `FetchTransport` (direct HTTP) or `BridgeTransport` (Phoenix/WebSocket proxy).
+  - Creates a `RestAgentBackend` over either `FetchTransport` (direct HTTP) or
+    a mode-selected `BridgeConnectionTransport` (WebSocket, HTTP, or hybrid).
   - On successful connect, renders `src/ConnectedRoot.tsx`.
 - **Main navigation**: `src/ConnectedRoot.tsx`
   - Bottom tab navigation with three tabs: `Connection`, `Sessions`, `Messages`.
@@ -89,8 +90,12 @@ refer to `application/python/agent_terminal_app/event_rendering.py` and the core
 - Connection methods are enumerated as `ConnectionMethod = 'manual' | 'discovery' | 'bridge'`.
 - `App.tsx` constructs an SDK `Transport` and an `AgentBackend`:
   - Direct connections: `FetchTransport({ baseUrl })`
-  - Bridge connections: `BridgeTransport({ bridgeUrl, serverId, pairingToken })`
+  - Bridge connections:
+    `createBridgeConnectionTransport({ bridgeUrl, mode, serverId, pairingToken })`
   - Backend implementation: `new RestAgentBackend({ transport })`
+- Bridge connection records keep an optional `transportMode`; absence means
+  WebSocket. HTTP and hybrid remain experimental opt-ins with no automatic
+  fallback.
 - `App.tsx` passes the ready `backend` (and `transport` for generic health checks) into `ConnectedRoot`.
 
 **Connected navigation shell** (`src/ConnectedRoot.tsx`):

@@ -1,15 +1,27 @@
-version: '3.8'
-
 services:
   bridge:
     build: .
     container_name: bridge-single
     environment:
-      - MIX_ENV=prod
-      - PORT=4000
-      # Optional tuning:
-      # - PAIRING_CODE_TTL=300
-      # - MAX_PAIRING_ATTEMPTS=3
-      # - SESSION_TIMEOUT=3600
+      MIX_ENV: prod
+      PORT: "4000"
+      BRIDGE_CLUSTER_STRATEGY: "${BRIDGE_CLUSTER_STRATEGY:-none}"
+      BRIDGE_TOKEN_SECRET: "${BRIDGE_TOKEN_SECRET:-crystal-lattice-local-dev-pairing-token-secret}"
+      BRIDGE_TOKEN_SALT: "${BRIDGE_TOKEN_SALT:-pairing-token-v1}"
+      BRIDGE_HTTP_TRANSFER_TOKEN_SALT: "${BRIDGE_HTTP_TRANSFER_TOKEN_SALT:-http-transfer-token-v1}"
+      BRIDGE_HTTP_TIMEOUT_MS: "${BRIDGE_HTTP_TIMEOUT_MS:-120000}"
+      BRIDGE_HTTP_MAX_BODY_BYTES: "${BRIDGE_HTTP_MAX_BODY_BYTES:-104857600}"
+      BRIDGE_MAX_PENDING_HTTP_TRANSFERS: "${BRIDGE_MAX_PENDING_HTTP_TRANSFERS:-128}"
+      BRIDGE_HTTP_COMPRESS_THRESHOLD_BYTES: "${BRIDGE_HTTP_COMPRESS_THRESHOLD_BYTES:-1024}"
+      PAIRING_CODE_TTL: "${PAIRING_CODE_TTL:-300}"
+      MAX_PAIRING_ATTEMPTS: "${MAX_PAIRING_ATTEMPTS:-3}"
+      SESSION_TIMEOUT: "${SESSION_TIMEOUT:-3600}"
     ports:
-      - "4000:4000"
+      - "${BRIDGE_BIND_HOST:-0.0.0.0}:${BRIDGE_PORT:-4000}:4000"
+    restart: "${BRIDGE_RESTART_POLICY:-unless-stopped}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s

@@ -135,6 +135,7 @@ docs_site/prepared/
 docs_site/dist/
 docs/plugin-development/
 docs/built-in-plugins/
+landing_page/artifacts/
 
 # mypy
 .mypy_cache/

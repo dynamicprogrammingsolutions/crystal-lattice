@@ -2,6 +2,9 @@
 
 Add a notification record model and a polling endpoint on the laptop/server so the mobile app can fetch notification-only data directly or through the bridge before remote push is introduced.
 
+SUPERSEDED BY:
+`tasks/20260824-os-level-notification-delivery/010-local-network-os-notifications.md`
+
 ## Requirements checklist
 
 - [ ] Define a notification record schema that can survive later push and login work.

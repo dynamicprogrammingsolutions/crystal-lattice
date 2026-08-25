@@ -8,6 +8,29 @@ Create a staged implementation plan for local polling notifications, remote push
 - [ ] `tasks/20260516-auth-notifications-staged-rollout/020-bridge-push-delivery.md`
 - [ ] `tasks/20260516-auth-notifications-staged-rollout/030-authentik-auth-integration.md`
 
+## Approved supersession
+
+The three product goals remain valid but their contracts and ownership have
+changed. They are superseded by the public task set:
+
+- local network OS notifications:
+  `tasks/20260824-os-level-notification-delivery/010-local-network-os-notifications.md`;
+- community self-deployed Authentik identity:
+  `tasks/20260824-os-level-notification-delivery/020-community-authentik-bridge-identity.md`;
+- account/device routing:
+  `tasks/20260824-os-level-notification-delivery/030-account-and-device-notification-routing.md`;
+- bridge APNs/FCM delivery:
+  `tasks/20260824-os-level-notification-delivery/040-bridge-apns-fcm-push-delivery.md`.
+
+The old concept documents remain historical research. The replacement uses
+current Crystal notification/attention contracts and public modular bridge
+identity/access grants. It has no private hosted-service dependency.
+
+The old direct Authentik-JWT cloud requirement is retired from this
+notification task. Future cloud access must consume normalized public
+identity/access grants through cloud-owned work rather than depend directly on
+an Authentik tenant.
+
 ## Purpose
 
 This task directory captures the current product and architecture decisions made during research:

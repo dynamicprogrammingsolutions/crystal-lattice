@@ -2,6 +2,21 @@
 
 Static marketing site for Crystal Lattice. Built with Astro and deployed as a pre-rendered HTML + assets bundle served by nginx.
 
+## Documentation
+
+- [`docs/index.md`](docs/index.md) maps the package documentation.
+- [`docs/development/index.md`](docs/development/index.md) routes current
+  content-system documentation, product-website content targets, and research
+  knowledge.
+- [`AGENTS.md`](AGENTS.md) defines website-specific content, claim, research,
+  visual, and verification boundaries.
+
+Current public copy is authored under `src/content/`. Target content belongs in
+the package-owned specification, research findings belong under
+`docs/development/research/`, retained normalized research evidence belongs
+under `research/`, and disposable output belongs under the ignored
+`artifacts/` directory.
+
 ## Packages
 
 | Package | Version | Purpose |
@@ -14,6 +29,10 @@ Static marketing site for Crystal Lattice. Built with Astro and deployed as a pr
 
 ```
 landing_page/
+├── AGENTS.md
+├── docs/                   # Package docs, development knowledge, specifications
+├── research/               # Retained normalized website research evidence
+├── artifacts/              # Ignored raw research, previews, and draft captures
 ├── src/
 │   ├── pages/              # One file = one route
 │   │   ├── index.astro     # /

@@ -1600,11 +1600,13 @@ def _commit_fixture(workspace: Path) -> None:
     status = _git(workspace, "status", "--short", "--untracked-files=all")
     if not status.strip():
         return
-    _git(workspace, "config", "user.name", "Agent Evaluation")
-    _git(workspace, "config", "user.email", "agent-eval@example.invalid")
     _git(workspace, "add", "-A")
     env = {
         **os.environ,
+        "GIT_AUTHOR_NAME": "Agent Evaluation",
+        "GIT_AUTHOR_EMAIL": "agent-eval@example.invalid",
+        "GIT_COMMITTER_NAME": "Agent Evaluation",
+        "GIT_COMMITTER_EMAIL": "agent-eval@example.invalid",
         "GIT_AUTHOR_DATE": "2026-08-08T00:00:00+00:00",
         "GIT_COMMITTER_DATE": "2026-08-08T00:00:00+00:00",
     }

@@ -35,9 +35,9 @@ fi
 
 # Check Python dependencies
 echo "🐍 Checking Python dependencies..."
-if ! python3 -c "import websockets" 2>/dev/null; then
-    echo "📦 Installing websockets..."
-    pip install -q websockets
+if ! python3 -c "import httpx, websockets" 2>/dev/null; then
+    echo "📦 Installing integration dependencies..."
+    python3 -m pip install -q -r requirements.txt
 fi
 echo "✅ Python dependencies ready"
 echo ""
@@ -81,6 +81,9 @@ echo "=================================="
 echo ""
 
 BRIDGE_URL=ws://localhost:4000/ws/websocket python3 test_docker.py
+BRIDGE_URL=ws://localhost:4000/ws/websocket \
+BRIDGE_HTTP_BASE_URL=http://localhost:4000 \
+python3 test_http_cluster.py
 
 exit_code=$?
 
