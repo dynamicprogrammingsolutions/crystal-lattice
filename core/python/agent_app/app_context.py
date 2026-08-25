@@ -36,6 +36,8 @@ class ApplicationContext:
         config: Optional[Mapping[str, Any]] = None,
         extra: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
+        # ``config`` remains accepted for source compatibility. AgentCore
+        # installs its authoritative effective config after this handoff.
         blocked = {
             "core",
             "config",
@@ -62,7 +64,6 @@ class ApplicationContext:
             else {}
         )
         filtered_extra["base_config"] = dict(base_config)
-        filtered_extra["config"] = dict(config if config is not None else base_config)
         return merge_context_layers(
             builder="application",
             call_path="core_handoff",
@@ -180,6 +181,8 @@ class ApplicationContext:
         config: Optional[Mapping[str, Any]] = None,
         extra: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
+        # ``config`` remains accepted for source compatibility. AgentCore
+        # installs its authoritative tool config after this handoff.
         return merge_context_layers(
             builder="application",
             call_path="tool",
@@ -190,7 +193,6 @@ class ApplicationContext:
                 "session_id": session.session_id,
                 "request_id": request_id,
                 "base_config": dict(base_config),
-                "config": dict(config if config is not None else base_config),
                 "notification_sink": NotificationSink(
                     self._generic_layer["app"],
                     session.session_id,

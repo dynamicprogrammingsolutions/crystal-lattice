@@ -9,6 +9,17 @@ def _context_logger():
     return get_logger("context_helper")
 
 
+def _context_values_equal(owned: Any, candidate: Any) -> bool:
+    """Return whether two context values match without risking merge failure."""
+
+    if owned is candidate:
+        return True
+    try:
+        return bool(owned == candidate)
+    except Exception:
+        return False
+
+
 def merge_context_layers(
     *,
     builder: str,
@@ -22,7 +33,8 @@ def merge_context_layers(
     Precedence rules:
     - specific-layer keys override generic-layer keys
     - caller-provided extra keys are additive only
-    - caller clashes with owned keys are ignored with a warning
+    - equal caller repetitions of owned keys are ignored without a warning
+    - differing caller clashes with owned keys are ignored with a warning
     """
 
     result: Dict[str, Any] = {}
@@ -54,6 +66,8 @@ def merge_context_layers(
             if not isinstance(key, str):
                 continue
             if key in reserved_keys:
+                if _context_values_equal(result[key], value):
+                    continue
                 _context_logger().warning(
                     "context_reserved_key_clash_external",
                     builder=builder,
