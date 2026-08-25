@@ -205,6 +205,7 @@ exploratory.
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/170-validated-website-release-and-product-integration.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/180-production-measurement-and-iteration.md`
+- [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/190-managed-remote-access-paid-launch-website.md`
 
 ## Execution plan
 
@@ -224,7 +225,9 @@ Only after the source research and early-user evidence are available should
 the work select a primary positioning architecture, run proposition and CTA
 experiments, finalize page briefs, create production visual proof, and deliver
 the larger validated release. Production measurement then drives bounded
-iteration.
+iteration. The production paid managed remote-access offer receives a separate
+website launch gate after public bridge clients, policy/security, measurement,
+and owner-confirmed hosted-service readiness are complete.
 
 Each substantive rewrite updates the content specification first when the
 intended target changes, updates requirements, implements through the current
@@ -264,6 +267,8 @@ authority required for the remote mutation.
 - [ ] Select and test the primary positioning and page architecture.
 - [ ] Produce visual proof and the validated website release.
 - [ ] Establish production measurement and iteration.
+- [ ] Publish the managed remote-access paid offer only after its public and
+      hosted-service release gates pass.
 - [ ] Add the approved task sequence to the requested roadmap in a separate
       user-authorized step.
 
@@ -280,5 +285,7 @@ authority required for the remote mutation.
   proposition and architecture.
 - Release integration: production routes and downloads match current owning
   release sources.
+- Paid offer: public price, trial, purchase, E2EE, privacy, support, and free
+  connection choices match approved production behavior.
 - Quality: accessibility, responsive, build, link, visual, privacy, and
   measurement checks pass at the relevant boundaries.

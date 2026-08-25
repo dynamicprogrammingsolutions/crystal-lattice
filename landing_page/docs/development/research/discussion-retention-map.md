@@ -40,6 +40,7 @@ facts remain owned by implementation packages and accepted verification.
 - [Task 160 — visual proof and reproducible assets](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md)
 - [Task 170 — validated website release](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/170-validated-website-release-and-product-integration.md)
 - [Task 180 — production measurement and iteration](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/180-production-measurement-and-iteration.md)
+- [Task 190 — managed remote-access paid launch website](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/190-managed-remote-access-paid-launch-website.md)
 
 ## Product Category, Audience, and Value
 
@@ -73,7 +74,7 @@ facts remain owned by implementation packages and accepted verification.
 | Direct local-network mobile connection and bridge-based remote connection are different paths. | Retained | [positioning baseline](positioning-and-product-baseline.md); [content specification](../specifications/product-website-content/content-spec.md); task 110 | The normal public explanation is explicit. |
 | The bridge is Crystal Lattice-specific remote connectivity, not the runtime itself. | Retained | [positioning baseline](positioning-and-product-baseline.md); task 110 | The runtime is not marketed as self-hosted infrastructure. |
 | First-party mobile access makes phone control important but insufficient as a standalone differentiator. | Retained | [positioning baseline](positioning-and-product-baseline.md); tasks 080 and 110 | Current competitor details must be refreshed. |
-| A future paid service should preserve local and user-operated bridge paths and sell managed convenience/integration. | Retained | [content specification](../specifications/product-website-content/content-spec.md); task 110 | Identity, E2EE, notification, entitlement, purchase, quota, and reliability claims remain owned by their product tasks. |
+| A future paid service should preserve local and user-operated bridge paths and sell managed convenience/integration. | Retained | [content specification](../specifications/product-website-content/content-spec.md); tasks 110 and 190 | Identity, E2EE, notification, entitlement, purchase, quota, and reliability claims remain owned by their product tasks. |
 | Generic networking tools should not be presented as direct coding-agent competitors. | Retained | task 110 | They may be studied only as workaround substitutes affecting willingness to pay. |
 
 ## Website Content and Progressive Delivery
@@ -125,7 +126,7 @@ facts remain owned by implementation packages and accepted verification.
 | Product naming architecture. | Partially retained | Product/service relationship and naming decisions are assigned to tasks 110 and 130. | Final labels for the platform, Control clients, and managed service are not approved. |
 | Early-user sample and interview design. | Partially retained | Participant patterns, evidence distinctions, privacy, and outputs are in task 100. | Recruitment channels, sample size, compensation, and recording remain approval-dependent. |
 | Website measurement. | Partially retained | Measurement requirement, evidence boundaries, candidate approaches, and privacy dependency are in task 180. | No tool, event set, consent model, or retention period is approved. |
-| Roadmap integration. | Partially retained | The main task records that roadmap placement is a separate authorized step. | No roadmap file has been modified because the user explicitly deferred that action. |
+| Roadmap integration. | Retained | The release roadmap contains the staged website/research sequence and paid-launch gate. | Roadmap maturity differs for internal testing, external review, broad mobile release, all-platform release, and paid managed remote access. |
 | Internationalization and localized acquisition. | Partially retained | Task 060 permits market/language expansion based on pilot yield and release relevance. | No locale set or localization requirement is approved because demand and release priorities are unknown. |
 | Social proof, testimonials, and community acquisition. | Partially retained | Proof and early-user research are retained in tasks 100, 150, and 160. | No testimonial, public user quote, community channel, or consented proof has been collected. |
 
@@ -144,7 +145,7 @@ facts remain owned by implementation packages and accepted verification.
 | Complete raw web pages, discussion threads, API responses, browser state, and full interview transcripts. | Not retained in Git | Copyright, privacy, security, context-size, and source-of-truth boundaries require minimized normalized evidence and ignored/private raw storage. | Research method and each research task |
 | Full content-system specification and mandatory technical-spec page. | Not retained | Current YAML/Markdown/Astro behavior is simple enough for one development page. A specification is created only if delivered complexity justifies it. | Future separately approved content-system work |
 | Landing package registration in the generated documentation-site catalog. | Not retained | Publication of website development/research pages needs a separate audience and navigation decision. Package README routing is currently sufficient. | Future documentation/publication task |
-| Final hosted-bridge pricing, tiers, free allowance, or payment claims. | Not retained | No approved willingness-to-pay evidence or production commercial service exists. | Task 110 and owning bridge-commercial work |
+| Final hosted-bridge pricing, tiers, free allowance, or payment claims. | Not retained until approved current behavior exists | No approved willingness-to-pay evidence or production commercial service exists yet. Task 190 publishes only the later approved current values. | Tasks 110 and 190 plus owning bridge-commercial work |
 | Final visual storyboard or production screenshots. | Not retained as current output | Visual concepts and the reproducible pipeline are retained, but approved briefs and current product states must precede production assets. | Tasks 150 and 160 |
 | Current volatile competitor details as permanent facts. | Not retained | They can change quickly and must be refreshed with dates and direct sources during task 080. | Task 080 |
 
