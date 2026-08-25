@@ -46,6 +46,9 @@
     "mobile:test:integration": "cd mobile/crystal-lattice-control-rn && npm run test:components:integration",
     "mobile:tsc": "cd mobile/crystal-lattice-control-rn && npm run tsc",
     "mobile:lint": "cd mobile/crystal-lattice-control-rn && npm run lint",
+    "mobile:ios:version:bump-patch": "perl -pi -e 's/(MARKETING_VERSION = \\d+\\.\\d+\\.)(\\d+);/$1 . ($2 + 1) . \";\"/ge' mobile/crystal-lattice-control-rn/ios/CrystalLatticeControlRN.xcodeproj/project.pbxproj",
+    "mobile:ios:testflight:start": "gh workflow run ios-testflight.yml -r main -f upload_to_testflight=true",
+    "mobile:ios:testflight:watch": "gh run watch \"$(gh run list -w ios-testflight.yml -b main -L 1 --json databaseId -q '.[0].databaseId')\" --compact --exit-status",
 
     "desktop:install": "cd desktop/crystal-lattice-control-desktop-rn && npm install",
     "desktop:pod-install": "cd desktop/crystal-lattice-control-desktop-rn && npm run pod-install",
