@@ -140,7 +140,7 @@ exploratory.
   Markdown, Astro, section, asset, build, and rendering behavior. Required for
   rewrite or implementation tasks; research tasks need it only when a
   recommendation depends on current presentation capability.
-- `landing_page/README.md:1-137` — package build, preview, public URL, and
+- `landing_page/README.md:1-136` — package build, preview, public URL, and
   documentation routes.
 - `tasks/20260611-landing-page-positioning-update/000-main.md:1-140` and
   `tasks/20260611-landing-page-positioning-update/resources/6421366435434d79a999bbd9a4a1e812-website-content-brainstorm.md:25-190`
@@ -189,6 +189,7 @@ exploratory.
 
 - [x] `tasks/20260825-crystal-lattice-product-positioning-and-website/010-website-documentation-and-content-specification-foundation.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md`
+- [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/040-research-foundation.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/050-built-in-feature-opportunity-mining.md`
@@ -213,7 +214,8 @@ Status: Draft
 
 Keep the current website useful throughout the program. Establish package-local
 documentation and target ownership first, audit current product and
-compatibility truth, then publish a release-safe early-user rewrite.
+compatibility truth, integrate a truthful and performant early visual baseline,
+then publish a release-safe early-user rewrite.
 
 After the research foundation is approved, built-in feature mining, search,
 community, and competitor research may proceed in parallel. Their accepted
@@ -261,6 +263,8 @@ authority required for the remote mutation.
       research, evidence, and ignored-output boundaries.
 - [ ] Audit current product, compatibility, account, provider, and
       application-feature truth.
+- [ ] Integrate the current visual baseline and establish the reusable
+      browser-side asset foundation.
 - [ ] Publish the release-safe early-user website.
 - [ ] Complete source research and the first evidence-informed rewrite.
 - [ ] Complete early-user and remote-access research and the second rewrite.
@@ -285,6 +289,8 @@ authority required for the remote mutation.
   proposition and architecture.
 - Release integration: production routes and downloads match current owning
   release sources.
+- Visual baseline: every retained early visual is accurate, readable,
+  accessible, optimized, and traceable to a reviewed source.
 - Paid offer: public price, trial, purchase, E2EE, privacy, support, and free
   connection choices match approved production behavior.
 - Quality: accessibility, responsive, build, link, visual, privacy, and

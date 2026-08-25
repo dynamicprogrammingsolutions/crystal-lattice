@@ -1,0 +1,56 @@
+---
+interface Props {
+  src: string;
+  srcDark?: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  loading?: "eager" | "lazy";
+  decoding?: "async" | "auto" | "sync";
+  fetchpriority?: "high" | "low" | "auto";
+  class?: string;
+  dataKind?: string;
+}
+
+const {
+  src,
+  srcDark,
+  alt,
+  width,
+  height,
+  loading = "lazy",
+  decoding = "async",
+  fetchpriority,
+  class: className,
+  dataKind,
+} = Astro.props;
+const isThemed = Boolean(srcDark);
+---
+
+<img
+  src={isThemed ? undefined : src}
+  data-theme-light-src={isThemed ? src : undefined}
+  data-theme-dark-src={isThemed ? srcDark : undefined}
+  alt={alt}
+  width={width}
+  height={height}
+  loading={loading}
+  decoding={decoding}
+  fetchpriority={fetchpriority}
+  class={className}
+  data-kind={dataKind}
+/>
+{isThemed && (
+  <noscript>
+    <img
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      loading={loading}
+      decoding={decoding}
+      class={className}
+      data-kind={dataKind}
+    />
+  </noscript>
+)}

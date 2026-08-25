@@ -18,7 +18,11 @@ maintainable refresh workflow.
       enter `landing_page/public/`.
 
 Parent Task: `tasks/20260825-crystal-lattice-product-positioning-and-website/000-main.md`
-Depends On: `tasks/20260825-crystal-lattice-product-positioning-and-website/150-website-information-architecture-and-content-briefs.md`
+
+Depends On:
+
+- `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md`
+- `tasks/20260825-crystal-lattice-product-positioning-and-website/150-website-information-architecture-and-content-briefs.md`
 
 ## Candidate proof
 
@@ -40,17 +44,21 @@ Depends On: `tasks/20260825-crystal-lattice-product-positioning-and-website/150-
 2. `tasks/20260825-crystal-lattice-product-positioning-and-website/150-website-information-architecture-and-content-briefs.md:1-115`
    plus its approved page briefs, claim/proof matrix, visual requirements, and
    completion manifest. Stop if incomplete.
-3. `landing_page/AGENTS.md:41-97` — claim, source, research/privacy, visual, and
+3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-216`
+   plus its visual manifest, asset review, validation/optimization workflow,
+   accepted public baseline, and completion evidence. Reuse rather than
+   reconstruct its technical foundation.
+4. `landing_page/AGENTS.md:41-97` — claim, source, research/privacy, visual, and
    verification boundaries.
-4. `landing_page/docs/development/specifications/product-website-content/content-spec.md:238-274`
+5. `landing_page/docs/development/specifications/product-website-content/content-spec.md:238-274`
    — proof and progressive-revision target.
-5. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:1-265`
+6. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:1-265`
    — retained visual hypotheses, reproducible asset-pipeline requirements,
    automation boundaries, review, and freshness rules.
-6. `landing_page/docs/development/content-system.md:79-88` and
+7. `landing_page/docs/development/content-system.md:79-88` and
    `landing_page/docs/development/content-system.md:127-148` — current public
    asset and build/verification behavior.
-7. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
+8. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
    `mobile/crystal-lattice-control-rn/docs/development/index.md:1-3`,
    `desktop/crystal-lattice-control-desktop-rn/docs/development/index.md:1-5`,
    and
@@ -69,6 +77,9 @@ Depends On: `tasks/20260825-crystal-lattice-product-positioning-and-website/150-
   verification remains necessary where automation cannot prove presentation.
 - Sanitized deterministic sessions, files, settings, notifications, and
   connections are required.
+- Task 025 establishes only an early baseline and reusable technical
+  foundation. Its accepted images are not automatically the final visual set;
+  task-150 briefs determine what this task must retain, replace, or add.
 - Screenshot-generation mechanics are documented as current implementation
   only after they exist.
 
@@ -87,6 +98,8 @@ landing_page/research/160-visual-proof-and-reproducible-assets/
 
 Implementation outputs:
 
+- reuse, extension, or explicit migration of the task-025 manifest,
+  validation, optimization, and browser-capture workflow;
 - capture scripts, fixtures, demo plugins, and tests in their owning packages;
 - approved optimized files under `landing_page/public/`;
 - `landing_page/docs/development/visual-content-and-screenshot-generation.md`
@@ -116,10 +129,11 @@ Disposable output:
 
 Status: Draft
 
-Create a visual manifest from approved briefs before capture. Build or reuse
-deterministic demo plugins, sessions, files, notifications, and connection
-states. Use Detox/mobile automation, macOS production-root testing, browser
-capture, or focused manual capture according to the boundary being proven.
+Create the final visual manifest from approved briefs by extending or
+explicitly migrating the task-025 foundation. Build or reuse deterministic
+demo plugins, sessions, files, notifications, and connection states. Use
+Detox/mobile automation, macOS production-root testing, browser capture, or
+focused manual capture according to the boundary being proven.
 
 Keep drafts and generated intermediates under ignored package artifacts.
 Review content, privacy, cropping, readability, alt text, light/dark behavior,
@@ -129,6 +143,8 @@ device framing, compression, and freshness before promoting files to
 ### Implementation decisions and open questions
 
 - Decision: no production visual is created merely to fill layout space.
+- Decision: task-025 assets remain provisional until an approved task-150
+  claim/proof brief selects them.
 - Recommendation: automate high-churn UI captures and source diagrams in a
   maintainable text/vector format.
 - Open questions: exact visual set, video/GIF policy, device frames, visual
@@ -145,6 +161,7 @@ device framing, compression, and freshness before promoting files to
 ### Task checklist
 
 - [ ] Create and approve the visual manifest.
+- [ ] Review and reuse or migrate the task-025 asset-pipeline foundation.
 - [ ] Prepare sanitized deterministic demo states.
 - [ ] Implement or reuse capture automation.
 - [ ] Capture mobile, desktop, browser, and diagrams.

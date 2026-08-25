@@ -52,7 +52,7 @@ Parent Task: `tasks/20260825-crystal-lattice-product-positioning-and-website/000
 5. `docs/development/standards/specifications.md:1-215` and
    `docs/development/repository/specifications.md:1-180` — proportional
    specification, requirements, task, and current-documentation rules.
-6. `landing_page/README.md:1-137` and
+6. `landing_page/README.md:1-136` and
    `landing_page/src/content/pageTypes.ts:1-220` — current package entry point
    and content shapes used to bound the initial documentation.
 

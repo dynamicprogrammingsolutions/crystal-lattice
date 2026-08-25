@@ -1,5 +1,6 @@
 ---
 import type { MobileHeroSection } from "../../content/pageTypes";
+import ThemedImage from "../ThemedImage.astro";
 
 interface Props {
   section: MobileHeroSection;
@@ -8,6 +9,7 @@ interface Props {
 const { section } = Astro.props;
 const platforms = Array.isArray(section.platforms) ? section.platforms : [];
 const buttons = Array.isArray(section.storeButtons) ? section.storeButtons : [];
+const image = section.image?.src ? section.image : null;
 const icons14: Record<string, string> = {
   apple: `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>`,
   android: `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.341l1.26 2.183a.5.5 0 0 1-.183.683.5.5 0 0 1-.683-.183l-1.276-2.21A7.99 7.99 0 0 1 12 17a7.99 7.99 0 0 1-4.641-1.186l-1.276 2.21a.5.5 0 0 1-.683.183.5.5 0 0 1-.183-.683l1.26-2.183C4.948 13.9 4 11.837 4 9.5h16c0 2.337-.948 4.4-2.477 5.841zM8.5 12a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm7 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zM6.225 5.985l-1.26-2.183a.5.5 0 0 1 .866-.5l1.276 2.21A7.99 7.99 0 0 1 12 4a7.99 7.99 0 0 1 4.893 1.512l1.276-2.21a.5.5 0 0 1 .866.5l-1.26 2.183C19.052 7.1 20 9.163 20 11.5H4c0-2.337.948-4.4 2.225-5.515z"/></svg>`,
@@ -23,8 +25,13 @@ const storeBtnDisabled = `${storeBtnBase} cursor-default opacity-[0.72]`;
 ---
 
 <section class="overflow-hidden pt-[4.5rem] pb-14">
-  <div class="mx-auto grid max-w-[1100px] grid-cols-[1fr_380px] items-center gap-16 px-6 max-[860px]:grid-cols-1 max-[860px]:text-center">
-    <div class="flex flex-col gap-5 max-[860px]:items-center">
+  <div class:list={[
+    "mx-auto items-center px-6",
+    image
+      ? "grid max-w-[1100px] grid-cols-[1fr_380px] gap-16 max-[860px]:grid-cols-1 max-[860px]:text-center"
+      : "flex max-w-[760px] justify-center text-center",
+  ]}>
+    <div class:list={["flex flex-col gap-5 max-[860px]:items-center", !image && "items-center"]}>
       <p class="text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.label}</p>
       <h1 class="text-[clamp(2rem,5vw,3.25rem)] font-bold leading-[1.1] tracking-[-0.03em] text-fg" set:html={section.titleHtml}></h1>
       <p class="max-w-[480px] text-base leading-[1.65] text-fg-4 max-[860px]:mx-auto">{section.subtitle}</p>
@@ -63,28 +70,27 @@ const storeBtnDisabled = `${storeBtnBase} cursor-default opacity-[0.72]`;
       <p class="text-[0.8125rem] text-fg-5">{section.note}</p>
     </div>
 
-    <div class="flex items-center justify-center max-[860px]:order-first" data-phone-col>
-      <div class="relative flex items-center justify-center p-8">
-        <div class="pointer-events-none absolute left-[-5%] top-[8%] h-[200px] w-[200px] animate-[blob1_10s_ease-in-out_infinite] rounded-full bg-[#6366f1] opacity-[0.28] blur-[52px]"></div>
-        <div class="pointer-events-none absolute bottom-[5%] right-[-8%] h-[160px] w-[160px] animate-[blob2_13s_ease-in-out_infinite] rounded-full bg-[#8b5cf6] opacity-[0.28] blur-[52px]"></div>
-        <div class="pointer-events-none absolute left-[38%] top-[52%] h-[130px] w-[130px] animate-[blob3_9s_ease-in-out_infinite] rounded-full bg-[#06b6d4] opacity-[0.28] blur-[52px]"></div>
-        <div class="relative z-[1] w-full max-w-[280px] max-[860px]:max-w-[240px]">
-          <img
-            src={section.image.src}
-            alt={section.image.alt}
-            class:list={["h-auto w-full", section.image.srcDark ? "block dark:hidden" : "block"]}
-            onerror="this.closest('[data-phone-col]').style.display='none';"
-          />
-          {section.image.srcDark && (
-            <img
-              src={section.image.srcDark}
-              alt={section.image.alt}
-              class="hidden h-auto w-full dark:block"
+    {image && (
+      <div class="flex items-center justify-center max-[860px]:order-first" data-phone-col>
+        <div class="relative flex items-center justify-center p-8">
+          <div class="pointer-events-none absolute left-[-5%] top-[8%] h-[200px] w-[200px] animate-[blob1_10s_ease-in-out_infinite] rounded-full bg-[#6366f1] opacity-[0.28] blur-[52px]"></div>
+          <div class="pointer-events-none absolute bottom-[5%] right-[-8%] h-[160px] w-[160px] animate-[blob2_13s_ease-in-out_infinite] rounded-full bg-[#8b5cf6] opacity-[0.28] blur-[52px]"></div>
+          <div class="pointer-events-none absolute left-[38%] top-[52%] h-[130px] w-[130px] animate-[blob3_9s_ease-in-out_infinite] rounded-full bg-[#06b6d4] opacity-[0.28] blur-[52px]"></div>
+          <div class="relative z-[1] w-full max-w-[280px] max-[860px]:max-w-[240px]">
+            <ThemedImage
+              src={image.src}
+              srcDark={image.srcDark}
+              alt={image.alt}
+              width={image.width}
+              height={image.height}
+              decoding="async"
+              fetchpriority="high"
+              class="block h-auto w-full"
               onerror="this.closest('[data-phone-col]').style.display='none';"
             />
-          )}
+          </div>
         </div>
       </div>
-    </div>
+    )}
   </div>
 </section>

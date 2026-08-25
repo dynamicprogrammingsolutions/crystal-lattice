@@ -37,10 +37,6 @@ sections:
         sub: "Available today"
         name: "Run from source"
     note: "Requires Crystal Lattice running on your computer"
-    image:
-      src: "/cl-mobile-frame.png"
-      srcDark: "/cl-mobile-frame-dark.png"
-      alt: "Crystal Lattice mobile app"
 
   - type: mobileFeatures
     id: features

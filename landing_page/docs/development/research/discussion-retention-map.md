@@ -24,6 +24,7 @@ facts remain owned by implementation packages and accepted verification.
 - [Main task](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/000-main.md)
 - [Task 010 — documentation and content-specification foundation](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/010-website-documentation-and-content-specification-foundation.md)
 - [Task 020 — current product and compatibility baseline](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md)
+- [Task 025 — current visual baseline and asset-pipeline foundation](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md)
 - [Task 030 — release-safe early-user website](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md)
 - [Task 040 — research foundation](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/040-research-foundation.md)
 - [Task 050 — built-in feature opportunity mining](../../../../tasks/20260825-crystal-lattice-product-positioning-and-website/050-built-in-feature-opportunity-mining.md)
@@ -103,7 +104,7 @@ facts remain owned by implementation packages and accepted verification.
 | Explain local process, clients, and optional bridge connectivity separately. | Retained | [visual communication and reproducible assets](visual-communication-and-reproducible-assets.md); task 160 | Security labels remain current-product-dependent. |
 | Use a configured-agent composition visual rather than relying only on a model-name table. | Retained | [visual communication and reproducible assets](visual-communication-and-reproducible-assets.md); task 160 | It may show model/provider, instructions, tools, native behavior, and application UI. |
 | Demonstrate session organization and transparency through real workbench states. | Retained | [visual communication and reproducible assets](visual-communication-and-reproducible-assets.md); task 160 | Feature selection follows research and page briefs. |
-| Reproducible asset pipeline. | Retained | [Reproducible Asset Pipeline](visual-communication-and-reproducible-assets.md#reproducible-asset-pipeline); task 160 | Preserves visual manifests, deterministic demo state, automation boundaries, source diagrams, draft/production separation, review, and freshness triggers. |
+| Reproducible asset pipeline. | Retained | [Reproducible Asset Pipeline](visual-communication-and-reproducible-assets.md#reproducible-asset-pipeline); tasks 025 and 160 | Task 025 establishes the early browser-side foundation; task 160 extends it for the final approved visual set. |
 
 ## Research Method and Task Handoffs
 

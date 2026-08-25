@@ -40,7 +40,7 @@ long-term page architecture.
 1. `tasks/20260825-crystal-lattice-product-positioning-and-website/000-main.md:8-186`
    — shared requirements, approved content/research decisions, handoff rules,
    output rules, and public boundaries.
-2. `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md:1-118`
+2. `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md:1-128`
    plus its completion notes and deployed/current outputs — starting public
    website baseline. Stop if incomplete.
 3. `tasks/20260825-crystal-lattice-product-positioning-and-website/050-built-in-feature-opportunity-mining.md:1-128`,
@@ -57,9 +57,9 @@ long-term page architecture.
    — live requirement state to update.
 6. `landing_page/docs/development/content-system.md:7-148` — current authoring,
    rendering, asset, and verification behavior.
-7. `landing_page/src/content/pages/home.yaml:1-452` and the current content
+7. `landing_page/src/content/pages/home.yaml:1-441` and the current content
    files changed by
-   `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md:1-118`
+   `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md:1-128`
    — implementation starting point.
 
 ## Known facts and supporting details

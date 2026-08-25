@@ -63,8 +63,7 @@ landing_page/
 │
 ├── public/                 # Copied as-is to dist/
 │   ├── icon.svg            # Favicon and nav logo (light theme)
-│   ├── icon_dark.svg       # Favicon and nav logo (dark theme)
-│   └── cl-mobile-frame.png # Phone mockup image on /mobile
+│   └── icon_dark.svg       # Favicon and nav logo (dark theme)
 │
 ├── Dockerfile              # Multi-stage build: Node (yarn build) → nginx:alpine
 ├── nginx.conf              # Serves dist/ with long-cache headers on /_astro/

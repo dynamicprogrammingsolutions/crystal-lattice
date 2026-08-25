@@ -1,5 +1,6 @@
 ---
 import SectionShell from "./SectionShell.astro";
+import ThemedImage from "./ThemedImage.astro";
 import type { FeatureShowcaseSection } from "../content/pageTypes";
 
 interface Props {
@@ -19,17 +20,21 @@ const visual = section.visual && typeof section.visual === "object" ? section.vi
     {body.map((paragraph) => <p class="mb-3 text-[0.9375rem] leading-relaxed text-fg-4">{paragraph}</p>)}
   </div>
 
-  <div class="grid grid-cols-4 gap-5 max-[960px]:grid-cols-2 max-[560px]:grid-cols-1">
+  <div class="grid grid-cols-2 gap-6 max-[700px]:grid-cols-1">
     {items.map((item) => (
       <article class="flex min-h-full flex-col gap-4 rounded-xl border border-line bg-raised p-5">
         {item.media && (
           item.media.src && item.media.status !== "placeholder-needed" ? (
-            <Fragment>
-              <img src={item.media.src} alt={item.media.alt ?? item.title} class:list={["aspect-[3/4] w-full rounded-lg border border-line object-cover", item.media.srcDark ? "block dark:hidden" : "block"]} />
-              {item.media.srcDark && (
-                <img src={item.media.srcDark} alt={item.media.alt ?? item.title} class="hidden aspect-[3/4] w-full rounded-lg border border-line object-cover dark:block" />
-              )}
-            </Fragment>
+            <ThemedImage
+              src={item.media.src}
+              srcDark={item.media.srcDark}
+              alt={item.media.alt ?? item.title}
+              width={item.media.width}
+              height={item.media.height}
+              loading="lazy"
+              decoding="async"
+              class="block aspect-[3/4] w-full rounded-lg border border-line bg-white object-cover"
+            />
           ) : (
             <div class="flex aspect-[3/4] flex-col justify-center gap-1.5 rounded-lg border border-dashed border-line-strong bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] p-4">
               <span class="font-mono text-xs text-accent-pale">{item.media.kind ?? "feature"}</span>
@@ -51,7 +56,16 @@ const visual = section.visual && typeof section.visual === "object" ? section.vi
           <p class="max-w-[560px] text-sm leading-snug text-fg-4">{visual.alt}</p>
         </div>
       ) : (
-        <img src={visual.src} alt={visual.alt ?? section.title} class="block aspect-video w-full rounded-lg border border-line object-cover" />
+        <ThemedImage
+          src={visual.src}
+          srcDark={visual.srcDark}
+          alt={visual.alt ?? section.title}
+          width={visual.width}
+          height={visual.height}
+          loading="lazy"
+          decoding="async"
+          class="block aspect-video w-full rounded-lg border border-line object-cover"
+        />
       )}
     </div>
   )}

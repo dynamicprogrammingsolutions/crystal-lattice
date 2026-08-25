@@ -47,7 +47,7 @@ Depends On:
 6. `landing_page/docs/development/content-system.md:7-148` — current content
    implementation and verification boundaries.
 7. Current content files and production routes delivered by
-   `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md:1-118`
+   `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md:1-128`
    and
    `tasks/20260825-crystal-lattice-product-positioning-and-website/090-first-evidence-informed-website-update.md:1-114`.
 

@@ -79,11 +79,6 @@ sections:
     note: >-
       Automatic discovery uses the local network. If your phone is outside that
       network, use the bridge section below.
-    visual:
-      kind: "connectionDiagram"
-      src: "/connection-diagram.jpg"
-      srcDark: "/connection-diagram-dark.jpg"
-      alt: "Desktop and phone on the same Wi-Fi network, connected peer-to-peer over the LAN and sharing the same Crystal Lattice session."
 
   - type: actionGuide
     id: bridge
@@ -123,11 +118,6 @@ sections:
               --bridge-url wss://<your-cloudfront-domain>/ws/websocket
         - label: "Pair from the phone"
           text: "Open Crystal Lattice Control, choose Bridge Service, enter the bridge URL, select your computer, and enter the pairing code."
-    visual:
-      kind: "bridgeDiagram"
-      src: "/bridge-diagram.png"
-      srcDark: "/bridge-diagram-dark.png"
-      alt: "Phone pairing with your computer through a self-hosted bridge when they are on different networks, using a pairing code."
 
   - type: featureMatrix
     id: model-native-harnesses
@@ -178,8 +168,8 @@ sections:
     body:
       - >-
         Some capabilities are not generic chat settings. Reasoning effort,
-        verbosity, web search, prompt caching, native compaction, attachment
-        handling, usage, and cost metadata depend on the provider path.
+        verbosity, usage, token counts, cache information, duration, and cost
+        metadata depend on the provider path.
       - >-
         Crystal Lattice lets provider and feature plugins expose those controls
         and outputs directly to the UI, so native behavior is visible instead of
@@ -189,30 +179,20 @@ sections:
         description: "Expose model-specific controls when the provider supports them."
         media:
           kind: "screenshot"
-          src: "/provider-reasoning.png"
-          srcDark: "/provider-reasoning-dark.png"
-          alt: "Provider-native reasoning effort and verbosity controls in the UI."
-      - title: "Web search and citations"
-        description: "Show search/citation behavior through provider extensions where available."
+          src: "/provider-reasoning.webp"
+          srcDark: "/provider-reasoning-dark.webp"
+          alt: "Session settings showing reasoning enabled, medium reasoning effort, and medium verbosity."
+          width: 1000
+          height: 1315
+      - title: "Usage and cost transparency"
+        description: "Surface token, cache, duration, and cost metadata when the provider supplies it."
         media:
           kind: "screenshot"
-          src: "/provider-web-search.png"
-          srcDark: "/provider-web-search-dark.png"
-          alt: "Provider web search and citation behavior surfaced in the UI."
-      - title: "Prompt caching and compaction"
-        description: "Keep long sessions practical with provider-native cache and compaction controls."
-        media:
-          kind: "screenshot"
-          src: "/provider-caching.png"
-          srcDark: "/provider-caching-dark.png"
-          alt: "Provider-native prompt caching and compaction controls in the UI."
-      - title: "Usage, cost, and attachments"
-        description: "Surface metadata, generated assets, and attachment handling in the UI."
-        media:
-          kind: "screenshot"
-          src: "/provider-usage-cost.png"
-          srcDark: "/provider-usage-cost-dark.png"
-          alt: "Usage, cost metadata, and attachment handling surfaced in the UI."
+          src: "/provider-usage-cost.webp"
+          srcDark: "/provider-usage-cost-dark.webp"
+          alt: "A session message with visible input, cached, output, cost, and duration metadata."
+          width: 940
+          height: 1334
 
   - type: featureCodeShowcase
     id: everything-replaceable
@@ -329,33 +309,34 @@ sections:
     title: "Treat sessions as workspaces, not disposable chats."
     body:
       - >-
-        Agent work is more than a transcript. Built-in session plugins turn
-        conversations into durable workspaces with titles, pinned state,
-        summaries, snapshots, attachments, ordering, and session actions.
+        Agent work is more than a transcript. Built-in session plugins add
+        reusable actions, checkpoints, settings, and other controls to the
+        session workflow.
       - >-
         The workbench is plugin-driven too: built-in plugins provide the default
         behavior, and your own plugins can add or replace workflow actions.
     gallery:
-      - title: "Session list"
-        description: "Titles, pinned state, ordering, message counts, and timestamps."
-        src: "/session-list-workbench.png"
-        srcDark: "/session-list-workbench-dark.png"
       - title: "Chat actions"
         description: "Message and session actions exposed by plugins."
-        src: "/chat-actions-workbench.png"
-        srcDark: "/chat-actions-workbench-dark.png"
+        src: "/chat-actions-workbench.webp"
+        srcDark: "/chat-actions-workbench-dark.webp"
+        alt: "Session actions menu listing settings, plugins, snapshots, copy, delete, title, and other plugin-provided actions."
+        width: 693
+        height: 1400
       - title: "Snapshots"
         description: "Create, inspect, select, and restore session checkpoints."
-        src: "/session-snapshots-workbench.png"
-        srcDark: "/session-snapshots-workbench-dark.png"
-      - title: "Attachments"
-        description: "Preserve generated assets and session-owned files."
-        src: "/session-attachments-workbench.png"
-        srcDark: "/session-attachments-workbench-dark.png"
+        src: "/session-snapshots-workbench.webp"
+        srcDark: "/session-snapshots-workbench-dark.webp"
+        alt: "Snapshots dialog with Create, Select, Restore, and Delete controls over a session."
+        width: 693
+        height: 1400
       - title: "Settings and plugins"
         description: "Per-session controls from plugin UI schema."
-        src: "/session-settings-plugins.png"
-        srcDark: "/session-settings-plugins-dark.png"
+        src: "/session-settings-plugins.webp"
+        srcDark: "/session-settings-plugins-dark.webp"
+        alt: "Session settings showing model, reasoning, verbosity, caching, web-search, and format controls contributed by plugins."
+        width: 693
+        height: 1400
 
   - type: promptBlock
     id: build-plugin

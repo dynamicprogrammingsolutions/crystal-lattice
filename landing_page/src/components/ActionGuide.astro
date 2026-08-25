@@ -1,6 +1,7 @@
 ---
 import ShellCommand from "./ShellCommand.astro";
 import SectionShell from "./SectionShell.astro";
+import ThemedImage from "./ThemedImage.astro";
 import type { ActionGuideSection } from "../content/pageTypes";
 
 interface Props {
@@ -40,22 +41,17 @@ const visual = section.visual && typeof section.visual === "object" ? section.vi
       </div>
       {visual && (
         visual.src && visual.status !== "placeholder-needed" ? (
-          <Fragment>
-            <img
-              src={visual.src}
-              alt={visual.alt ?? visual.desktop ?? section.action?.title ?? ""}
-              class:list={["m-6 w-[calc(100%-3rem)] rounded-lg border border-line object-contain", visual.srcDark ? "block dark:hidden" : "block"]}
-              data-kind={visual.kind}
-            />
-            {visual.srcDark && (
-              <img
-                src={visual.srcDark}
-                alt={visual.alt ?? visual.desktop ?? section.action?.title ?? ""}
-                class="m-6 hidden w-[calc(100%-3rem)] rounded-lg border border-line object-contain dark:block"
-                data-kind={visual.kind}
-              />
-            )}
-          </Fragment>
+          <ThemedImage
+            src={visual.src}
+            srcDark={visual.srcDark}
+            alt={visual.alt ?? visual.desktop ?? section.action?.title ?? ""}
+            width={visual.width}
+            height={visual.height}
+            loading="lazy"
+            decoding="async"
+            class="m-6 block w-[calc(100%-3rem)] rounded-lg border border-line object-contain"
+            dataKind={visual.kind}
+          />
         ) : (
           <div class="m-6 flex min-h-[150px] flex-col justify-center gap-3 rounded-lg border border-dashed border-line-strong bg-[color-mix(in_srgb,var(--accent)_7%,transparent)] p-5" data-kind={visual.kind}>
             <span class="font-mono text-xs text-accent-pale">{visual.kind}</span>

@@ -31,6 +31,8 @@ export type MediaPlaceholder = {
   src?: string;
   srcDark?: string;
   alt?: string;
+  width?: number;
+  height?: number;
   desktop?: string;
 };
 
@@ -127,6 +129,9 @@ export type ScreenshotGallerySection = SectionBase<"screenshotGallery"> & {
     description: string;
     src: string;
     srcDark?: string;
+    alt?: string;
+    width?: number;
+    height?: number;
     status?: string;
   }>;
 };
@@ -166,10 +171,12 @@ export type MobileHeroSection = SectionBase<"mobileHero"> & {
   }>;
   storeButtons?: StoreButton[];
   note?: string;
-  image: {
+  image?: {
     src: string;
     srcDark?: string;
     alt: string;
+    width?: number;
+    height?: number;
   };
 };
 
