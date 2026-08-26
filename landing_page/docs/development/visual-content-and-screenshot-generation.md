@@ -1,90 +1,380 @@
-# Visual Content and Screenshot Generation
+# Visual Content and Screenshot Generation Architecture
 
-The landing package maintains approved screenshots as reproducible,
-theme-aware derivatives rather than editing production images directly.
+This page describes the current implementation of the landing package visual
+asset system.
 
-The current workflow has four separate boundaries:
+Developers adding assets, builds, commands, lifecycle callbacks, or captures
+should start with the consumer guide:
 
-```text
-source capture or generation
-        │
-        ▼
-reviewed source master
-        │
-        ▼
-optimized public derivative
-        │
-        ▼
-browser presentation verification
-```
+- [Visual assets](../visual-assets.md)
 
-Capturing a source never automatically changes a reviewed source or public
-website file.
+This page focuses on ownership, execution, extension, and safety boundaries.
 
-## Maintained Files
+## Responsibilities
 
-The executable asset catalog is:
+The visual asset system owns:
 
-```text
-visual_assets/config.mjs
-```
+- executable asset registration;
+- CLI command registration;
+- asset selection;
+- direct asset-command execution;
+- lifecycle composition;
+- process and ignored-path services;
+- prepared durable mutations;
+- reports;
+- reviewed-source and public-derivative generation;
+- website content bindings;
+- browser presentation checks.
 
-It uses ordinary JavaScript functions to define:
+It does not own:
 
-- asset and variant IDs;
-- current product claims and freshness triggers;
-- reviewed source paths;
-- source provenance;
-- replaceable pipelines;
-- public output paths;
-- dimensions, byte ceilings, and SHA-256 expectations;
-- content-file bindings;
-- aggregate budgets.
+- product truth for the represented feature;
+- mobile or desktop production UI behavior;
+- native fixture implementation;
+- provider credentials;
+- final page briefs or visual selection;
+- deployment.
 
-Reviewed source masters are stored under:
+## Module Layout
 
 ```text
-visual_assets/sources/
+landing_page/
+├── visual_assets/
+│   ├── config.mjs
+│   └── sources/
+├── scripts/
+│   └── visual-assets/
+│       ├── api.mjs
+│       ├── cli.mjs
+│       ├── runner.mjs
+│       ├── selection.mjs
+│       ├── validation.mjs
+│       ├── operations.mjs
+│       ├── lifecycle/
+│       │   └── image.mjs
+│       └── producers/
+│           └── detox.mjs
+├── tests/
+│   ├── visual-assets/
+│   └── visual/
+└── artifacts/
+    └── visual-assets/
 ```
 
-They are sanitized, maintained inputs and are not deployed by Astro.
+`visual_assets/config.mjs` is the composition root. It defines the supported
+commands and assets.
 
-Optimized website files are stored under:
+`scripts/visual-assets/` provides reusable infrastructure and implementations.
+It does not register specific website assets.
 
-```text
-public/
-```
+## Catalog Construction
 
-Generated candidates, capture output, reports, Playwright results, and review
-screenshots are stored under the ignored directory:
-
-```text
-artifacts/visual-assets/
-```
-
-## Programmatic Pipeline Contract
-
-Every configured variant provides a pipeline with:
+`defineVisualAssets` accepts:
 
 ```js
-async run(context) {
-  // Produce context.candidatePath from context.sourcePath.
+defineVisualAssets({
+  config,
+  commands,
+  assets,
+});
+```
+
+It:
+
+- rejects unknown common keys;
+- requires at least one asset;
+- requires at least one command;
+- validates command callbacks;
+- validates unique asset IDs;
+- builds the asset index;
+- exposes command names to the CLI;
+- dispatches catalog commands.
+
+The CLI does not maintain a separate command list. It reads:
+
+```js
+catalog.commandNames
+```
+
+Adding a catalog command therefore does not require a CLI or runner change.
+
+## Asset Construction
+
+`defineAsset` accepts:
+
+```js
+defineAsset({
+  id,
+  metadata,
+  config,
+  commands,
+  lifecycle,
+});
+```
+
+It:
+
+- rejects unknown common keys;
+- requires `id`;
+- validates command and lifecycle callbacks;
+- requires at least one command or lifecycle callback;
+- provides `hasCommand` and `runCommand`;
+- provides `hasLifecycle` and `runLifecycle`;
+- injects the asset, metadata, and opaque config into callbacks.
+
+`config` is intentionally opaque to the API and runner. Its structure belongs
+to the assigned callbacks.
+
+`metadata` is non-operational. Catalog commands may include it in reports, but
+the runner does not interpret claims, provenance, or freshness triggers.
+
+## CLI Dispatch
+
+The CLI performs only three architecture-specific operations:
+
+1. import the catalog;
+2. verify that the requested command exists;
+3. pass the command and raw arguments to the runner.
+
+Conceptually:
+
+```js
+if (!catalog.hasCommand(command)) {
+  throw new Error(catalogUsage());
+}
+
+await executeVisualAssets({
+  catalog,
+  command,
+  args,
+  repositoryRoot,
+  landingRoot,
+});
+```
+
+Argument meaning belongs to the selected catalog command. Current selection
+helpers understand asset IDs, `--all`, and `--variant`; a custom command may
+interpret other raw arguments without changing CLI dispatch.
+
+## Runner Boundary
+
+The runner creates a command context and invokes:
+
+```js
+await catalog.execute(command, commandContext);
+```
+
+It does not interpret:
+
+- image variants;
+- sources;
+- build pipelines;
+- public outputs;
+- dimensions;
+- hashes;
+- capture producers;
+- content bindings;
+- asset-specific configuration keys.
+
+Those concepts are implemented by catalog commands and asset callbacks.
+
+## Command Context
+
+Catalog commands receive services for:
+
+- raw command arguments;
+- asset selection;
+- sequential selected-asset iteration;
+- asset description;
+- prepared-effect application;
+- report writing;
+- repository, package, and ignored output roots;
+- a command-local cache.
+
+The current selection helper supports:
+
+```text
+<asset-id> ...
+--all
+--variant <name>
+```
+
+Catalog commands decide whether:
+
+- no selection means all assets;
+- explicit selection is required;
+- extra arguments are allowed;
+- unsupported assets are skipped or rejected.
+
+## Asset Context
+
+Selected assets receive:
+
+- the defined asset;
+- opaque asset config;
+- metadata;
+- selected variant name;
+- whether `--all` was used;
+- repository, package, and ignored output roots;
+- process execution;
+- ignored-path construction;
+- command-local cache;
+- direct-command and lifecycle helpers.
+
+Important helpers include:
+
+```js
+assetContext.hasCommand(name)
+assetContext.runCommand(name, input)
+
+assetContext.hasLifecycle(name)
+assetContext.runLifecycle(name, input)
+
+assetContext.requireLifecycles(names)
+assetContext.unsupported(name)
+```
+
+`unsupported(name)` skips the asset for an `--all` operation and rejects an
+explicitly selected unsupported asset.
+
+## Catalog Commands
+
+Catalog commands are complete CLI-visible workflows.
+
+The current catalog defines:
+
+- `list`;
+- `inspect`;
+- `check`;
+- `update`;
+- `capture`;
+- `promote-source`.
+
+Each command explicitly chooses:
+
+- direct asset command;
+- composed lifecycle stages;
+- unsupported behavior.
+
+There is no runner-level precedence rule between direct commands and
+lifecycle callbacks.
+
+For example, `check`:
+
+1. runs `commands.check` when present;
+2. otherwise requires the image-check lifecycle;
+3. validates the asset definition;
+4. builds candidates;
+5. inspects candidates;
+6. validates candidates strictly;
+7. compares public derivatives;
+8. applies catalog-level budgets;
+9. writes the report.
+
+The complete ordering is visible in `visual_assets/config.mjs`.
+
+## Direct Asset Commands
+
+A direct asset command implements the complete asset-local part of a catalog
+command:
+
+```js
+commands: {
+  check: checkGeneratedDiagram,
 }
 ```
 
-The context provides:
+The callback receives the asset context plus:
 
-- the asset and variant;
-- reviewed source and candidate paths;
-- repository, package, and ignored output roots;
-- a process runner;
-- an ignored-path helper.
+```js
+{
+  asset,
+  metadata,
+  config,
+  input,
+}
+```
 
-The generic runner does not know whether a pipeline uses ImageMagick,
-Playwright, a diagram renderer, another program, or unique custom code.
+The catalog command determines how the returned value participates in global
+budgets, reports, or durable mutation.
 
-`scripts/visual-assets/operations.mjs` provides the currently reusable
-ImageMagick elements:
+Direct commands are appropriate for:
+
+- unique generators;
+- external tools with their own lifecycle;
+- formats that do not use image inspection;
+- command-specific behavior that cannot reuse shared stages.
+
+## Lifecycle Composition
+
+Lifecycle callbacks are smaller asset-local stages:
+
+```js
+lifecycle: {
+  validateDefinition,
+  buildCandidate,
+  inspectCandidate,
+  validateCandidate,
+  comparePublished,
+  preparePublication,
+}
+```
+
+Lifecycle names are not registered in the runner or API. A name is meaningful
+because a catalog command calls it.
+
+This allows catalog commands to define more than one lifecycle sequence:
+
+- inspection uses non-strict validation;
+- checking adds public comparison;
+- update replaces comparison with prepared publication;
+- capture and source promotion use separate optional stages.
+
+An asset can define both direct commands and lifecycle callbacks. The catalog
+command explicitly decides which path to use.
+
+## Current Image Lifecycle
+
+`lifecycle/image.mjs` owns the current reviewed-image configuration shape:
+
+```js
+config: {
+  presentation,
+  contentBindings,
+  variants,
+}
+```
+
+Each variant currently contains:
+
+```js
+{
+  source,
+  provenance,
+  output,
+  build,
+  expected,
+}
+```
+
+The image lifecycle implements:
+
+- `describe`;
+- `validateDefinition`;
+- `buildCandidate`;
+- `inspectCandidate`;
+- `validateCandidate`;
+- `comparePublished`;
+- `preparePublication`;
+- optional `capture`;
+- optional `prepareSourcePromotion`.
+
+The generic runner never reads this configuration.
+
+## Programmatic Builds
+
+`operations.mjs` provides ordinary JavaScript functions for building an
+ImageMagick command:
 
 - trim;
 - resize;
@@ -92,316 +382,188 @@ ImageMagick elements:
 - sRGB normalization;
 - metadata removal;
 - WebP encoding;
-- custom programmatic ImageMagick arguments.
+- custom argument callbacks.
 
-These are JavaScript functions rather than a declarative pipeline language.
-A pipeline may use them, define a unique operation, or implement its complete
-`run(context)` method directly.
-
-## Source Types
-
-`reviewedFile(path)` identifies a maintained source master.
-
-`capturedSource({ reviewed, candidate })` identifies both:
-
-- the reviewed source used by `inspect`, `update`, and `check`;
-- an ignored candidate produced by an explicit `capture` command.
-
-Normal verification never invokes a capture producer. This keeps ordinary
-builds and CI independent of simulators, credentials, providers, and expensive
-source-generation workflows.
-
-## Current Source Provenance
-
-The current source masters came from the author-preserving imported revision:
-
-```text
-e88aa46ee8d6bd0969c63c78f8e152f1fd938974
-```
-
-That revision is recorded as provenance in the executable catalog. It is not
-needed to run the asset workflow; all maintained source files are present in
-the current checkout.
-
-## Requirements
-
-Install package dependencies:
-
-```bash
-yarn install
-```
-
-Image transformation requires:
-
-- ImageMagick 7 with the `magick` command;
-- Node.js supported by the landing package.
-
-Install the Playwright Chromium browser once when no installed browser channel
-is selected:
-
-```bash
-npx playwright install chromium
-```
-
-Set `PLAYWRIGHT_CHANNEL` to use an installed browser channel such as `chrome`
-instead.
-
-## List Assets
-
-Show every asset, variant, source type, public output, and pipeline:
-
-```bash
-yarn visual-assets:list
-```
-
-## Inspect Candidates
-
-Generate ignored candidates without requiring them to match the current
-dimensions, hashes, or byte ceilings:
-
-```bash
-yarn visual-assets:inspect provider-reasoning
-yarn visual-assets:inspect provider-reasoning --variant dark
-yarn visual-assets:inspect
-```
-
-With no asset selection, `inspect` processes the complete catalog.
-
-The report is written to:
-
-```text
-artifacts/visual-assets/reports/inspect.json
-```
-
-Use this command when evaluating a changed source or pipeline. Review the
-candidate appearance, dimensions, bytes, and SHA-256 before updating the
-maintained expectations.
-
-## Update Public Derivatives
-
-Updating is an explicit mutation and requires an asset or `--all`:
-
-```bash
-yarn visual-assets:update provider-reasoning
-yarn visual-assets:update provider-reasoning --variant dark
-yarn visual-assets:update --all
-```
-
-The command:
-
-1. reads the reviewed source master;
-2. executes the configured programmatic pipeline;
-3. checks maintained dimensions, byte ceilings, and SHA-256;
-4. validates the corresponding content-file binding;
-5. copies the approved candidate to its declared `public/` path.
-
-It does not capture a source, change copy, select a visual, or update
-expectations automatically.
-
-## Verify Current Derivatives
-
-Regenerate candidates and compare them byte-for-byte with `public/`:
-
-```bash
-yarn visual-assets:check
-yarn visual-assets:check provider-reasoning
-yarn visual-assets:check provider-reasoning --variant dark
-```
-
-With no selection, `check` verifies the complete catalog.
-
-The check fails when:
-
-- a reviewed source is missing;
-- a pipeline does not create its candidate;
-- dimensions, bytes, or SHA-256 differ from expectations;
-- an active-theme budget is exceeded;
-- a public derivative is missing or differs from its candidate;
-- a configured content binding has stale paths, alternative text, or
-  dimensions.
-
-`check` never invokes Detox or another capture producer.
-
-## Capture and Promote a Source
-
-Assets with `capturedSource` support an explicit two-step source update.
-
-Generate ignored candidates:
-
-```bash
-yarn visual-assets:capture mobile-hero
-yarn visual-assets:capture mobile-hero --variant dark
-```
-
-The candidate remains under an `artifacts/` directory. It does not replace the
-reviewed source.
-
-After human review, promote the candidate:
-
-```bash
-yarn visual-assets:promote-source mobile-hero --variant dark
-```
-
-Promotion copies the already-generated candidate to the configured reviewed
-source path. It does not generate or update the public derivative. Run
-`visual-assets:inspect` and `visual-assets:update` afterward.
-
-Both capture and promotion require an explicit asset or `--all`.
-
-## Detox Producers
-
-`scripts/visual-assets/producers/detox.mjs` provides a reusable source producer.
-It runs a package-owned Detox scenario and exposes one or more named output
-files:
+`imageMagickPipeline` returns the common:
 
 ```js
-const mobileCapture = detoxCapture({
-  id: "mobile-showcase",
-  projectDirectory: "mobile/crystal-lattice-control-rn",
-  command: [
-    "yarn",
-    "detox",
-    "test",
-    "e2e/website-visual-capture.e2e.ts",
-    "--configuration",
-    "ios.sim.release",
-  ],
-  outputs: {
-    heroLight:
-      "mobile/crystal-lattice-control-rn/artifacts/website/hero-light.png",
-    heroDark:
-      "mobile/crystal-lattice-control-rn/artifacts/website/hero-dark.png",
-  },
-});
+{
+  id,
+  async run(context) {},
+}
 ```
 
-An asset can consume a named output:
+An asset may provide any other object implementing this build contract.
+
+## Prepared Durable Mutations
+
+Durable changes are represented as prepared effects:
 
 ```js
-source: capturedSource({
-  reviewed: "visual_assets/sources/mobile-hero-dark.png",
-  candidate: mobileCapture.output("heroDark"),
-}),
+{
+  report,
+  async apply() {},
+}
 ```
 
-Multiple selected assets can consume outputs from one producer run. The
-producer memoizes the command for the current CLI process, so one Detox scenario
-does not start separately for each output.
+Asset callbacks perform generation and validation before returning the effect.
 
-The mobile package owns the Detox interaction scenario, fixture state, stable
-selectors, simulator configuration, and native behavior. The landing package
-owns source review, optimization, publication, and website presentation.
+Catalog commands:
 
-## Adding or Changing Assets
+1. prepare every selected effect;
+2. perform global validation such as budgets;
+3. call `context.applyAll(prepared)`.
 
-### Existing source and pipeline
+If preparation of any selected asset fails, no `apply()` function is called.
 
-1. Add a reviewed source under `visual_assets/sources/`.
-2. Add the asset to `visual_assets/config.mjs`.
-3. Add or update its website content binding.
-4. Run `visual-assets:inspect`.
-5. Record reviewed dimensions, byte ceiling, and SHA-256.
-6. Run `visual-assets:update` for the selected asset.
-7. Run `visual-assets:check` and browser verification.
+This model is used for:
 
-### New reusable pipeline
+- public derivative update;
+- reviewed-source promotion;
+- future durable asset operations.
 
-Define an ordinary JavaScript pipeline factory in `visual_assets/config.mjs`,
-or extract it to a focused module when reuse or testing justifies a separate
-file. The generic runner and CLI do not change.
+Capture output is disposable and may be produced before this boundary, but it
+must remain under an ignored `artifacts/` directory.
 
-### Unique pipeline
+## Source Lifecycle
 
-Define the pipeline beside its only asset. It may:
+`reviewedFile(path)` identifies a maintained source.
 
-- compose current ImageMagick operation functions;
-- add a custom ImageMagick argument function;
-- provide a complete `run(context)` implementation.
+`capturedSource({ reviewed, candidate })` identifies:
 
-The generic runner and CLI do not change.
+- the maintained source used by build/check/update;
+- an ignored candidate available to capture and promotion.
 
-### New source producer
+Source promotion and public publication are intentionally separate prepared
+mutations.
 
-Define a producer that returns `captureOutput`. Keep the capture implementation
-with the package that owns the behavior when it needs package-specific fixtures
-or tests. The landing configuration consumes its candidate output.
+Normal checking does not invoke a source producer.
 
-## Themed Images
+## Detox Producer
 
-`src/components/ThemedImage.astro` renders one image element with light and
-dark source metadata. The theme initialization in `src/layouts/Layout.astro`
-assigns only the source matching the restored `data-theme` value.
+`producers/detox.mjs` adapts a package-owned Detox command to one or more named
+capture outputs.
 
-The behavior is:
+The adapter:
 
-- the inactive theme is not requested on initial page load;
-- below-the-fold proof images remain lazy-loaded;
-- changing themes updates the same image elements and requests the alternate
-  files once;
-- Astro client navigation restores the selected theme and source paths;
-- a light-image fallback is available when scripting is disabled.
+- runs the command in the owning package;
+- memoizes the run for the current CLI process;
+- verifies the requested named output exists;
+- returns its repository path.
 
-## Browser Verification and Captures
+The owning mobile package remains responsible for native UI interaction and
+fixture correctness.
 
-Run visual contracts headlessly:
+The landing package remains responsible for source review, promotion,
+derivative production, and website presentation.
 
-```bash
-yarn test:visual
+## Validation
+
+`validation.mjs` owns reusable file-level concerns:
+
+- root-bound path resolution;
+- ignored capture-path enforcement;
+- image dimensions;
+- SHA-256;
+- public URL conversion;
+- YAML media binding validation.
+
+Format- or asset-specific validation belongs in lifecycle or direct command
+callbacks.
+
+## Reports and Ignored Output
+
+Reports are written under:
+
+```text
+artifacts/visual-assets/reports/
 ```
 
-Run the same contracts with visible browser windows:
+Generated candidates are written under:
 
-```bash
-yarn test:visual:headed
+```text
+artifacts/visual-assets/generated/
 ```
 
-The Playwright configuration builds and previews the static site, then checks:
+Playwright output is written under:
 
-- home and mobile routes;
-- desktop and phone viewports;
+```text
+artifacts/visual-assets/playwright/
+```
+
+Reviewed source masters remain under `visual_assets/sources/`, and optimized
+derivatives remain under `public/`.
+
+## Browser Presentation
+
+The website uses `ThemedImage.astro` so one image element carries light and dark
+source metadata. Theme restoration assigns only the active source.
+
+Playwright verifies:
+
+- desktop and phone routes;
 - light and dark themes;
-- image source selection and successful loading;
-- alternative text and dimensions;
-- provider and workbench column counts;
-- lazy active-theme loading;
-- theme toggling without duplicate image elements;
-- saved-theme behavior across Astro client navigation.
+- active source selection;
+- lazy loading;
+- image semantics;
+- card layout;
+- theme toggling;
+- client-navigation persistence.
 
-Captures are written to:
+These tests validate website presentation, not native application behavior or
+source-capture correctness.
 
-```text
-artifacts/visual-assets/playwright/captures/
-```
+## Testing Boundaries
 
-Run the programmatic asset tests, complete asset check, and browser contracts
-together:
+Programmatic tests cover:
 
-```bash
-yarn verify:visual
-```
+- catalog and asset construction;
+- command and lifecycle coexistence;
+- generic selection;
+- unknown common keys;
+- programmatic build operations;
+- capture and promotion separation;
+- Detox output memoization;
+- preparation failure preventing durable application.
 
-## Proof Integrity
+The complete catalog check exercises every current source, build, expectation,
+content binding, budget, and public derivative.
 
-Do not use generated image editing to change proof-bearing product text,
-controls, connection state, citations, notifications, or other behavior.
-Recapture the real product state instead.
+Playwright exercises the production website adapter and generated static site.
 
-Decorative generation must remain visibly separate from product-proof
-screenshots.
+Native capture scenarios remain package-owned and require their own native
+tests and human presentation review.
 
-## Retained Review Records
+## Extension Rules
 
-The current baseline review records are under:
+Adding the following should not require a CLI, runner, or API change:
 
-```text
-research/025-current-visual-baseline-and-asset-pipeline/
-```
+- a new asset config shape;
+- a direct-command-only asset;
+- a lifecycle-only asset;
+- a mixed asset;
+- a new direct command implementation for an existing catalog command;
+- a new lifecycle stage used by catalog code;
+- a different lifecycle sequence;
+- an asset that omits capture or promotion;
+- a new catalog command.
 
-They include:
+A shared runtime change is justified only when callbacks require a new
+cross-cutting service that cannot be expressed through current process, path,
+cache, selection, report, or prepared-mutation services.
 
-- accepted and omitted contribution decisions;
-- the imported and current loading measurements;
-- current alternative-text and presentation review.
+## Invariants
 
-These records preserve review evidence. Active build configuration belongs in
-`visual_assets/config.mjs`, and disposable output remains under `artifacts/`.
+Preserve these invariants:
+
+- catalog command ordering is visible in the catalog;
+- the runner does not interpret asset config;
+- the CLI derives commands from the catalog;
+- unsupported explicit selections fail;
+- unsupported `--all` operations may skip;
+- durable effects are prepared before any apply;
+- capture candidates stay ignored;
+- reviewed source promotion is explicit;
+- normal checking never runs capture producers;
+- public proof is generated from reviewed source masters;
+- proof-bearing UI is never fabricated through image editing.

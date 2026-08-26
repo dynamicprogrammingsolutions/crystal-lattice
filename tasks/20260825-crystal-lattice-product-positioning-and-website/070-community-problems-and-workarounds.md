@@ -51,7 +51,7 @@ collection.
 5. `landing_page/docs/development/research/positioning-and-product-baseline.md:68-170`
    — hypotheses and open questions that community evidence may support or
    contradict.
-6. `landing_page/research/README.md:32-84` — retained evidence, exclusions,
+6. `landing_page/research/README.md:42-94` — retained evidence, exclusions,
    review, and lineage.
 
 ## Known facts and supporting details

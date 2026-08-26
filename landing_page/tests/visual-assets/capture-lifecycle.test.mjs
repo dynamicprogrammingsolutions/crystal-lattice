@@ -2,24 +2,23 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 import {
   capturedSource,
   captureOutput,
   defineAsset,
-  definePipeline,
   defineVisualAssets,
 } from "../../scripts/visual-assets/api.mjs";
+import {
+  captureImageSources,
+  prepareImageSourcePromotion,
+} from "../../scripts/visual-assets/lifecycle/image.mjs";
 import { detoxCapture } from "../../scripts/visual-assets/producers/detox.mjs";
 import { executeVisualAssets } from "../../scripts/visual-assets/runner.mjs";
-import {
-  inspectImage,
-  sha256,
-} from "../../scripts/visual-assets/validation.mjs";
+import { sha256 } from "../../scripts/visual-assets/validation.mjs";
 
-test("capture and source promotion are separate explicit operations", async () => {
+test("capture and source promotion are separate catalog workflows", async () => {
   const repositoryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "visual-assets-capture-"),
   );
@@ -42,35 +41,56 @@ test("capture and source promotion are separate explicit operations", async () =
       },
     }),
   });
-  const configuration = defineVisualAssets({
+  const catalog = defineVisualAssets({
+    commands: {
+      async capture(context) {
+        const results = await context.forEachSelected(
+          (assetContext) =>
+            assetContext.runLifecycle("capture"),
+          { requireSelection: true },
+        );
+        return context.writeReport("capture", { results });
+      },
+
+      async "promote-source"(context) {
+        const prepared = await context.forEachSelected(
+          (assetContext) =>
+            assetContext.runLifecycle(
+              "prepareSourcePromotion",
+            ),
+          { requireSelection: true },
+        );
+        const results = prepared.map((effect) => effect.report);
+        await context.applyAll(prepared);
+        return context.writeReport("promote-source", {
+          results,
+        });
+      },
+    },
+
     assets: [
       defineAsset({
         id: "mobile-hero",
-        variants: {
-          default: {
-            source,
-            output: "public/mobile-hero.webp",
-            pipeline: definePipeline({
-              id: "unused-in-capture-test",
-              async run() {},
-            }),
-            expected: {
-              width: 1,
-              height: 1,
-              maxBytes: 100,
-              sha256: "not-used",
+        config: {
+          variants: {
+            default: {
+              source,
             },
           },
+        },
+        lifecycle: {
+          capture: captureImageSources,
+          prepareSourcePromotion:
+            prepareImageSourcePromotion,
         },
       }),
     ],
   });
 
   await executeVisualAssets({
-    configuration,
+    catalog,
     command: "capture",
-    assetIds: ["mobile-hero"],
-    all: false,
+    args: ["mobile-hero"],
     repositoryRoot,
     landingRoot,
   });
@@ -79,10 +99,9 @@ test("capture and source promotion are separate explicit operations", async () =
   assert.equal(fs.existsSync(reviewedAbsolute), false);
 
   await executeVisualAssets({
-    configuration,
+    catalog,
     command: "promote-source",
-    assetIds: ["mobile-hero"],
-    all: false,
+    args: ["mobile-hero"],
     repositoryRoot,
     landingRoot,
   });
@@ -131,86 +150,139 @@ test("one Detox producer run can serve multiple named outputs", async () => {
   fs.rmSync(repositoryRoot, { recursive: true, force: true });
 });
 
-test("a failed selected candidate does not partially update public files", async () => {
+test("catalog preparation failure prevents every durable apply callback", async () => {
   const repositoryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "visual-assets-update-"),
   );
   const landingRoot = path.join(repositoryRoot, "landing_page");
-  const sourceRelative = "visual_assets/sources/source.png";
-  const sourceAbsolute = path.join(landingRoot, sourceRelative);
-  const publicOne = path.join(landingRoot, "public/one.png");
-  fs.mkdirSync(path.dirname(sourceAbsolute), { recursive: true });
+  const publicOne = path.join(landingRoot, "public/one.txt");
   fs.mkdirSync(path.dirname(publicOne), { recursive: true });
-  const generated = spawnSync(
-    "magick",
-    ["-size", "1x1", "xc:red", sourceAbsolute],
-    { encoding: "utf8" },
-  );
-  assert.equal(generated.status, 0, generated.stderr);
   fs.writeFileSync(publicOne, "unchanged");
+  const before = sha256(publicOne);
 
-  const metrics = inspectImage(sourceAbsolute);
-  const copyingPipeline = definePipeline({
-    id: "copy",
-    async run(context) {
-      fs.copyFileSync(context.sourcePath, context.candidatePath);
+  const catalog = defineVisualAssets({
+    commands: {
+      async update(context) {
+        const prepared = await context.forEachSelected(
+          (assetContext) =>
+            assetContext.runCommand("update"),
+          { requireSelection: true },
+        );
+        await context.applyAll(prepared);
+        return { results: [] };
+      },
     },
-  });
-  const validExpected = {
-    width: metrics.width,
-    height: metrics.height,
-    maxBytes: metrics.bytes,
-    sha256: metrics.sha256,
-  };
-  const configuration = defineVisualAssets({
+
     assets: [
       defineAsset({
         id: "one",
-        variants: {
-          default: {
-            source: {
-              kind: "reviewed-file",
-              reviewedPath: sourceRelative,
+        config: { publicOne },
+        commands: {
+          update: ({ config }) => ({
+            report: { asset_id: "one" },
+            async apply() {
+              fs.writeFileSync(config.publicOne, "changed");
             },
-            output: "public/one.png",
-            pipeline: copyingPipeline,
-            expected: validExpected,
-          },
+          }),
         },
       }),
       defineAsset({
         id: "two",
-        variants: {
-          default: {
-            source: {
-              kind: "reviewed-file",
-              reviewedPath: sourceRelative,
-            },
-            output: "public/two.png",
-            pipeline: copyingPipeline,
-            expected: {
-              ...validExpected,
-              sha256: "does-not-match",
-            },
+        config: {},
+        commands: {
+          update() {
+            throw new Error("second preparation failed");
           },
         },
       }),
     ],
   });
-  const before = sha256(publicOne);
 
   await assert.rejects(
     executeVisualAssets({
-      configuration,
+      catalog,
       command: "update",
-      assetIds: [],
-      all: true,
+      args: ["--all"],
       repositoryRoot,
       landingRoot,
     }),
-    /generated sha256/,
+    /second preparation failed/,
   );
 
   assert.equal(sha256(publicOne), before);
+  fs.rmSync(repositoryRoot, { recursive: true, force: true });
+});
+
+test("one catalog command can choose direct commands or lifecycle composition per asset", async () => {
+  const repositoryRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "visual-assets-resolution-"),
+  );
+  const landingRoot = path.join(repositoryRoot, "landing_page");
+  fs.mkdirSync(landingRoot, { recursive: true });
+
+  const catalog = defineVisualAssets({
+    commands: {
+      async check(context) {
+        const results = await context.forEachSelected(
+          async (assetContext) => {
+            if (assetContext.hasCommand("check")) {
+              return assetContext.runCommand("check");
+            }
+            return assetContext.runLifecycle("validate");
+          },
+          { defaultAll: true },
+        );
+        return context.writeReport("check", { results });
+      },
+    },
+
+    assets: [
+      defineAsset({
+        id: "mixed",
+        config: { value: "direct" },
+        commands: {
+          check: ({ config }) => ({
+            asset_id: "mixed",
+            result: config.value,
+          }),
+        },
+        lifecycle: {
+          validate: () => ({
+            asset_id: "mixed",
+            result: "lifecycle-should-not-run",
+          }),
+        },
+      }),
+      defineAsset({
+        id: "lifecycle-only",
+        config: { value: "lifecycle" },
+        lifecycle: {
+          validate: ({ config }) => ({
+            asset_id: "lifecycle-only",
+            result: config.value,
+          }),
+        },
+      }),
+    ],
+  });
+
+  const report = await executeVisualAssets({
+    catalog,
+    command: "check",
+    args: [],
+    repositoryRoot,
+    landingRoot,
+  });
+
+  assert.deepEqual(report.results, [
+    {
+      asset_id: "mixed",
+      result: "direct",
+    },
+    {
+      asset_id: "lifecycle-only",
+      result: "lifecycle",
+    },
+  ]);
   fs.rmSync(repositoryRoot, { recursive: true, force: true });
 });

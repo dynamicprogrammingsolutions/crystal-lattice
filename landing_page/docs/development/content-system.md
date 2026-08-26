@@ -93,6 +93,8 @@ theme script, and below-the-fold proof remains lazy-loaded. The maintained
 programmatic asset catalog, source lifecycle, deterministic derivative
 commands, and browser checks are documented in
 [Visual content and screenshot generation](visual-content-and-screenshot-generation.md).
+Asset authors should use the
+[Visual assets guide](../visual-assets.md).
 
 ## Adding a Page
 

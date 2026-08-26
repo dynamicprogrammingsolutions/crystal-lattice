@@ -3,6 +3,11 @@
 The `landing_page` package builds the public Crystal Lattice product website
 from authored YAML, Markdown, Astro components, and approved public assets.
 
+## Guides
+
+- [Visual assets](visual-assets.md): add reviewed assets, programmatic builds,
+  direct commands, lifecycle callbacks, captured sources, and catalog commands.
+
 ## Development
 
 - [Website development](development/index.md): current content-system

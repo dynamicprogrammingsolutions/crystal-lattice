@@ -5,11 +5,13 @@ Static marketing site for Crystal Lattice. Built with Astro and deployed as a pr
 ## Documentation
 
 - [`docs/index.md`](docs/index.md) maps the package documentation.
+- [`docs/visual-assets.md`](docs/visual-assets.md) explains how to add assets,
+  programmatic builds, commands, lifecycle callbacks, and captured sources.
 - [`docs/development/index.md`](docs/development/index.md) routes current
   content-system documentation, product-website content targets, and research
   knowledge.
 - [`docs/development/visual-content-and-screenshot-generation.md`](docs/development/visual-content-and-screenshot-generation.md)
-  documents reproducible visual derivatives and browser review.
+  documents the visual asset architecture and extension boundaries.
 - [`AGENTS.md`](AGENTS.md) defines website-specific content, claim, research,
   visual, and verification boundaries.
 

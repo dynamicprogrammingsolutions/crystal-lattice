@@ -44,14 +44,14 @@ Depends On:
 2. `tasks/20260825-crystal-lattice-product-positioning-and-website/150-website-information-architecture-and-content-briefs.md:1-115`
    plus its approved architecture, page briefs, claim/proof matrix, and
    implementation handoff. Stop if incomplete.
-3. `tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md:1-128`
+3. `tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md:1-136`
    plus its approved visual manifest, public assets, and completion evidence.
    Stop if incomplete.
 4. `landing_page/docs/development/specifications/product-website-content/content-spec.md:1-305`
    and `landing_page/docs/development/specifications/product-website-content/requirements.md:6-22`
    — approved target and live requirement state.
-5. `landing_page/docs/development/content-system.md:1-159` and
-   `landing_page/README.md:1-149` — current implementation, build, preview,
+5. `landing_page/docs/development/content-system.md:1-161` and
+   `landing_page/README.md:1-151` — current implementation, build, preview,
    URL, and documentation behavior.
 6. The exact product/release owners identified by the page-brief manifest for
    mobile, desktop, CLI, GitHub, docs, compatibility, plugins, remote access,

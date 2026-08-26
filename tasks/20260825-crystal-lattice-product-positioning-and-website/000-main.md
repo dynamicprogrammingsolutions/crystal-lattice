@@ -114,7 +114,7 @@ exploratory.
 
 ### Start here for main-task orchestration
 
-1. `landing_page/AGENTS.md:1-100` — package-specific content, claim, research,
+1. `landing_page/AGENTS.md:1-104` — package-specific content, claim, research,
    privacy, visual, output, and verification boundaries. Follow its reading
    routes when the subtask touches website or research files.
 2. `landing_page/docs/development/specifications/product-website-content/content-spec.md:1-305`
@@ -131,16 +131,16 @@ exploratory.
    progressive-revision rules.
 6. `landing_page/docs/development/research/evidence-index.md:1-106` — current
    local source map and initial external-source routes.
-7. `landing_page/research/README.md:1-84` — retained evidence, excluded raw
+7. `landing_page/research/README.md:1-94` — retained evidence, excluded raw
    material, review, and lineage rules.
 
 ### Additional shared references
 
-- `landing_page/docs/development/content-system.md:1-159` — current YAML,
+- `landing_page/docs/development/content-system.md:1-161` — current YAML,
   Markdown, Astro, section, asset, build, and rendering behavior. Required for
   rewrite or implementation tasks; research tasks need it only when a
   recommendation depends on current presentation capability.
-- `landing_page/README.md:1-149` — package build, preview, public URL, and
+- `landing_page/README.md:1-151` — package build, preview, public URL, and
   documentation routes.
 - `tasks/20260611-landing-page-positioning-update/000-main.md:1-140` and
   `tasks/20260611-landing-page-positioning-update/resources/6421366435434d79a999bbd9a4a1e812-website-content-brainstorm.md:25-190`

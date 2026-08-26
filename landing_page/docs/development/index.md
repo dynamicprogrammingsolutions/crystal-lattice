@@ -5,8 +5,8 @@
 - [Content system](content-system.md): how YAML, Markdown, section definitions,
   Astro components, and public files produce the current static website.
 - [Visual content and screenshot generation](visual-content-and-screenshot-generation.md):
-  current themed-image behavior, programmatic asset catalog, source capture
-  and promotion, deterministic derivatives, and Playwright review workflow.
+  catalog dispatch, direct commands, lifecycle composition, source capture and
+  promotion, prepared mutations, and verification internals.
 
 ## Product Communication
 

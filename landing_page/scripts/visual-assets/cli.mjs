@@ -1,90 +1,62 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import configuration from "../../visual_assets/config.mjs";
-import {
-  executeVisualAssets,
-  listVisualAssets,
-} from "./runner.mjs";
+import catalog from "../../visual_assets/config.mjs";
+import { executeVisualAssets } from "./runner.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const landingRoot = path.resolve(scriptDirectory, "..", "..");
 const repositoryRoot = path.resolve(landingRoot, "..");
-const supportedCommands = new Set([
-  "capture",
-  "check",
-  "inspect",
-  "list",
-  "promote-source",
-  "update",
-]);
-
 function usage() {
   return `Usage:
-  node scripts/visual-assets/cli.mjs list
-  node scripts/visual-assets/cli.mjs <capture|check|inspect|promote-source|update> [asset-id ...] [--variant name] [--all]`;
-}
-
-function parseArguments(args) {
-  const options = {
-    assetIds: [],
-    all: false,
-    variantName: undefined,
-  };
-  for (let index = 0; index < args.length; index += 1) {
-    const current = args[index];
-    if (current === "--all") {
-      options.all = true;
-    } else if (current === "--variant") {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error("--variant requires a value");
-      }
-      options.variantName = value;
-      index += 1;
-    } else if (current.startsWith("--")) {
-      throw new Error(`Unknown option: ${current}`);
-    } else {
-      options.assetIds.push(current);
-    }
-  }
-  return options;
+  node scripts/visual-assets/cli.mjs <${catalog.commandNames.join("|")}> [arguments]`;
 }
 
 async function main() {
   const [command, ...args] = process.argv.slice(2);
-  if (!supportedCommands.has(command)) {
+  if (!catalog.hasCommand(command)) {
     throw new Error(usage());
   }
 
-  if (command === "list") {
-    for (const asset of listVisualAssets(configuration)) {
+  const result = await executeVisualAssets({
+    catalog,
+    command,
+    args,
+    repositoryRoot,
+    landingRoot,
+  });
+  if (result?.kind === "list") {
+    for (const asset of result.assets) {
       console.log(asset.id);
-      for (const variant of asset.variants) {
+      for (const variant of asset.variants ?? []) {
         console.log(
-          `  ${variant.name}: ${variant.source_kind} -> ${variant.output} (${variant.pipeline})`,
+          `  ${variant.name}: ${variant.source_kind} -> ${variant.output} (${variant.build})`,
+        );
+      }
+      if (!asset.variants) {
+        console.log(
+          `  commands: ${(asset.commands ?? []).join(", ") || "-"}`,
+        );
+        console.log(
+          `  lifecycle: ${(asset.lifecycle ?? []).join(", ") || "-"}`,
         );
       }
     }
     return;
   }
 
-  const options = parseArguments(args);
-  const report = await executeVisualAssets({
-    configuration,
-    command,
-    ...options,
-    repositoryRoot,
-    landingRoot,
-  });
-  const byteTotal = report.results.reduce(
+  const byteTotal = (result.results ?? []).reduce(
     (sum, result) => sum + (result.bytes ?? 0),
     0,
   );
   console.log(
-    `${command} processed ${report.results.length} variants (${byteTotal} bytes)`,
+    `${command} processed ${result.results?.length ?? 0} results (${byteTotal} bytes)`,
   );
-  console.log(`report: ${path.relative(landingRoot, report.reportPath)}`);
+  if (result.reportPath) {
+    console.log(
+      `report: ${path.relative(landingRoot, result.reportPath)}`,
+    );
+  }
 }
 
 main().catch((error) => {

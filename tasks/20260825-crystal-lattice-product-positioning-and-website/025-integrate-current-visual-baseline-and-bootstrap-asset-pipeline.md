@@ -53,21 +53,24 @@ Depends On:
 3. `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md:1-128`
    — downstream baseline website outcomes, current claim boundaries, and
    verification expectations.
-4. `tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md:1-128`
+4. `tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md:1-136`
    — later final-visual owner, expected reusable outputs, and automation
    boundaries.
-5. `landing_page/AGENTS.md:41-100` — claim accuracy, current/public source,
+5. `landing_page/AGENTS.md:41-104` — claim accuracy, current/public source,
    privacy, visual, and verification rules.
-6. `landing_page/docs/development/content-system.md:79-95` and
-   `landing_page/docs/development/content-system.md:136-159` — current
+6. `landing_page/docs/development/content-system.md:79-97` and
+   `landing_page/docs/development/content-system.md:138-161` — current
    screenshot sections, public-file boundary, and build/preview verification.
-7. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-406`
-   — delivered programmatic asset catalog, source capture and promotion,
-   deterministic derivative, themed-image, and Playwright workflow.
-8. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:151-268`
+7. `landing_page/docs/visual-assets.md:1-659` — supported asset-author workflow
+   for assets, programmatic builds, direct commands, lifecycle callbacks,
+   captured sources, catalog commands, and verification.
+8. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-568`
+   — catalog dispatch, direct-command and lifecycle composition, runtime
+   services, prepared mutations, source producers, and verification internals.
+9. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:151-268`
    — visual manifest, deterministic state, automation, review, promotion, and
    freshness model.
-9. `mobile/crystal-lattice-control-rn/AGENTS.md:193-222`,
+10. `mobile/crystal-lattice-control-rn/AGENTS.md:193-222`,
    `mobile/crystal-lattice-control-rn/README.md:306-350`, and
    `mobile/crystal-lattice-control-rn/e2e/notificationBanner.e2e.test.ts:1-220`
    — existing production-screen Detox and screenshot patterns if Stage C is
@@ -190,7 +193,8 @@ Stage A implementation:
 
 Stage B implementation:
 
-- a programmatic, replaceable asset catalog and pipeline contract;
+- a programmatic asset catalog with catalog-defined commands, direct asset
+  commands, composable asset lifecycle callbacks, and opaque asset config;
 - explicit reviewed-file and captured-source lifecycles;
 - per-asset, per-variant, and complete-catalog commands;
 - image path, dimensions, format, byte-budget, and broken-image checks;
@@ -330,16 +334,17 @@ Manual checkpoint C:
 
 ### Documentation
 
-- Do not add a current screenshot-generation page before Stage B behavior
-  exists.
-- After Stage B, update
-  `landing_page/docs/development/content-system.md` for the delivered
-  programmatic catalog, source lifecycle, validation, optimization, and
-  promotion behavior.
-- Create
+- Keep `landing_page/docs/visual-assets.md` as a standalone consumer guide for
+  developers adding assets, builds, commands, lifecycle callbacks, captured
+  sources, and catalog commands.
+- Keep
   `landing_page/docs/development/visual-content-and-screenshot-generation.md`
-  only if the delivered workflow no longer fits clearly in the content-system
-  page.
+  as current architecture and maintainer documentation for dispatch, runtime
+  services, lifecycle composition, mutation safety, and extension boundaries.
+- Keep detailed recipes in the consumer guide and link rather than duplicate
+  them in development documentation.
+- Update `landing_page/docs/development/content-system.md` only with the
+  content/public-file integration summary and routes to the two focused pages.
 - Update product-content requirements with implementation and verification
   evidence; do not change the content target unless Stage A exposes a genuine
   target question.
@@ -356,7 +361,8 @@ Manual checkpoint C:
       review.
 - [x] Add website-side asset validation and optimization.
 - [x] Add reusable Playwright capture/visual checks.
-- [x] Update current implementation documentation.
+- [x] Add standalone visual-asset consumer documentation and update current
+      architecture documentation.
 - [ ] Pass manual checkpoint B.
 - [ ] Obtain separate approval before Stage C.
 - [ ] If approved, implement and verify one native capture scenario.
@@ -536,3 +542,42 @@ Manual checkpoint C:
 - Deterministic regeneration, hash, byte, path, Git-diff, test, build, and
   report checks remain automated verification and are no longer repeated as
   manual instructions.
+
+### August 26, 2026 — Catalog commands and asset lifecycle finalized
+
+- The user found the prior `variant.pipeline` execution implicit and the
+  identity `defineAsset`/`defineVisualAssets` helpers insufficiently
+  inspectable.
+- `defineAsset` now validates the common `id`, `metadata`, `config`,
+  `commands`, and `lifecycle` contract. Asset-specific config remains opaque
+  and is interpreted only by assigned callbacks.
+- Assets may define direct commands, lifecycle callbacks, or both. Missing
+  operations are explicit rather than implied by a fixed image schema.
+- `defineVisualAssets` now validates catalog commands and assets, builds the
+  asset index, exposes command names to the CLI, and dispatches complete
+  catalog workflows.
+- The catalog visibly defines the ordering of `list`, `inspect`, `check`,
+  `update`, `capture`, and `promote-source`. Each workflow explicitly chooses
+  a direct asset command, composed lifecycle stages, or unsupported behavior.
+- The runner now provides only argument selection, runtime/path/process
+  services, command-local cache, prepared-effect application, asset
+  description, and reports. It no longer interprets image variants, sources,
+  builds, expectations, content bindings, or publication.
+- The CLI derives supported commands from the catalog. New catalog commands
+  can be invoked through `yarn visual-assets <command>` without CLI or runner
+  changes.
+- Image-specific config and behavior moved to
+  `scripts/visual-assets/lifecycle/image.mjs`. The current assets use lifecycle
+  composition; tests also cover direct-command-only and mixed assets.
+- Twelve focused Node tests pass, including direct/lifecycle coexistence,
+  catalog selection, unknown common keys, capture/promotion separation, Detox
+  output memoization, explicit per-asset direct-versus-lifecycle resolution,
+  and prepare-before-apply mutation safety.
+- Added `landing_page/docs/visual-assets.md` as the standalone consumer guide
+  for developers adding or extending visual assets.
+- Refocused
+  `landing_page/docs/development/visual-content-and-screenshot-generation.md`
+  on catalog dispatch, runner services, lifecycle composition, prepared
+  mutations, ownership, testing, and extension invariants.
+- Checkpoint B remains open for human architectural, documentation, and visual
+  judgment.

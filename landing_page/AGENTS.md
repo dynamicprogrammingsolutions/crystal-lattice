@@ -9,6 +9,7 @@ Before changing the website, read:
 
 - `README.md`
 - `docs/index.md`
+- `docs/visual-assets.md`
 - `docs/development/index.md`
 - `docs/development/content-system.md`
 - `docs/development/specifications/product-website-content/index.md`
@@ -76,9 +77,12 @@ labels, or internal progress into public website content.
 - Keep draft captures under `artifacts/`; move only approved production files
   to `public/`.
 - Follow
-  `docs/development/visual-content-and-screenshot-generation.md` for the
-  programmatic visual-asset catalog, source lifecycle, deterministic
-  derivatives, theme-aware loading, and Playwright review workflow.
+  `docs/visual-assets.md` when adding or changing assets, programmatic builds,
+  commands, lifecycle callbacks, or captured sources.
+- Follow
+  `docs/development/visual-content-and-screenshot-generation.md` when changing
+  catalog dispatch, runtime services, lifecycle composition, mutation safety,
+  or other visual-asset architecture.
 
 ## Verification
 

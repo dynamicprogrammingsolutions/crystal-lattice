@@ -46,7 +46,7 @@ open-source, and bridge owners rather than duplicating their contracts.
    responsibilities.
 5. `landing_page/docs/development/specifications/product-website-content/requirements.md:6-22`
    — live requirements and evidence state.
-6. `landing_page/docs/development/content-system.md:7-159` — current
+6. `landing_page/docs/development/content-system.md:7-161` — current
    implementation capability; briefs must not become YAML/component plans.
 7. Release and package owners listed in
    `landing_page/docs/development/research/evidence-index.md:18-75` — current

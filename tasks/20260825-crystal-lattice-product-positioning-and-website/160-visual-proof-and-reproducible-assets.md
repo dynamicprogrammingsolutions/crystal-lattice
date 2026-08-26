@@ -44,22 +44,28 @@ Depends On:
 2. `tasks/20260825-crystal-lattice-product-positioning-and-website/150-website-information-architecture-and-content-briefs.md:1-115`
    plus its approved page briefs, claim/proof matrix, visual requirements, and
    completion manifest. Stop if incomplete.
-3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-232`
+3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-236`
    plus its executable asset catalog, reviewed source masters, asset review,
    source lifecycle, validation/optimization workflow, accepted public
    baseline, and completion evidence. Reuse rather than reconstruct its
    technical foundation.
-4. `landing_page/AGENTS.md:41-100` — claim, source, research/privacy, visual, and
+4. `landing_page/AGENTS.md:41-104` — claim, source, research/privacy, visual, and
    verification boundaries.
 5. `landing_page/docs/development/specifications/product-website-content/content-spec.md:238-274`
    — proof and progressive-revision target.
 6. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:1-268`
    — retained visual hypotheses, reproducible asset-pipeline requirements,
    automation boundaries, review, and freshness rules.
-7. `landing_page/docs/development/content-system.md:79-95` and
-   `landing_page/docs/development/content-system.md:136-159` — current public
+7. `landing_page/docs/development/content-system.md:79-97` and
+   `landing_page/docs/development/content-system.md:138-161` — current public
    asset and build/verification behavior.
-8. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
+8. `landing_page/docs/visual-assets.md:1-659` — supported asset-author
+   workflows for builds, direct commands, lifecycle composition, capture,
+   source promotion, catalog commands, and verification.
+9. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-568`
+   — current catalog, runner, lifecycle, prepared-mutation, source-producer,
+   and testing architecture.
+10. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
    `mobile/crystal-lattice-control-rn/docs/development/index.md:1-3`,
    `desktop/crystal-lattice-control-desktop-rn/docs/development/index.md:1-5`,
    and
@@ -102,8 +108,10 @@ Implementation outputs:
   lifecycle, validation, optimization, and browser-capture workflow;
 - capture scripts, fixtures, demo plugins, and tests in their owning packages;
 - approved optimized files under `landing_page/public/`;
+- updates to `landing_page/docs/visual-assets.md` for supported asset-author
+  workflows;
 - `landing_page/docs/development/visual-content-and-screenshot-generation.md`
-  when a reusable current workflow is delivered;
+  for current implementation and architecture;
 - updates to `landing_page/docs/development/content-system.md` for implemented
   asset/content behavior;
 - exact asset handoff to

@@ -1,83 +1,71 @@
-export function validateVisualAssets(configuration) {
-  if (!Array.isArray(configuration.assets) || configuration.assets.length === 0) {
-    throw new Error("Visual asset configuration has no assets");
+export function parseSelectionArguments(args) {
+  const selection = {
+    assetIds: [],
+    all: false,
+    variantName: undefined,
+    extraArgs: [],
+  };
+
+  for (let index = 0; index < args.length; index += 1) {
+    const current = args[index];
+    if (current === "--all") {
+      selection.all = true;
+    } else if (current === "--variant") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new Error("--variant requires a value");
+      }
+      selection.variantName = value;
+      index += 1;
+    } else if (current.startsWith("--")) {
+      selection.extraArgs.push(current);
+    } else {
+      selection.assetIds.push(current);
+    }
   }
 
-  const ids = new Set();
-  for (const asset of configuration.assets) {
-    if (!asset.id || ids.has(asset.id)) {
-      throw new Error(`Invalid or duplicate visual asset id: ${asset.id}`);
-    }
-    ids.add(asset.id);
-    if (!asset.variants || Object.keys(asset.variants).length === 0) {
-      throw new Error(`${asset.id}: no variants are defined`);
-    }
-    for (const [variantName, variant] of Object.entries(asset.variants)) {
-      if (!variant.source?.reviewedPath) {
-        throw new Error(`${asset.id}/${variantName}: missing reviewed source`);
-      }
-      if (!variant.output?.startsWith("public/")) {
-        throw new Error(
-          `${asset.id}/${variantName}: output must be under public/`,
-        );
-      }
-      if (typeof variant.pipeline?.run !== "function") {
-        throw new Error(`${asset.id}/${variantName}: missing pipeline`);
-      }
-      if (!variant.expected) {
-        throw new Error(`${asset.id}/${variantName}: missing expectations`);
-      }
-    }
-  }
+  return selection;
 }
 
-export function selectAssetVariants(
-  configuration,
+export function selectAssets(
+  catalog,
+  args,
   {
-    assetIds = [],
-    variantName,
-    all = false,
     defaultAll = false,
+    requireSelection = false,
+    allowExtraArgs = false,
   } = {},
 ) {
-  validateVisualAssets(configuration);
-  if (all && assetIds.length > 0) {
+  const parsed = parseSelectionArguments(args);
+  if (!allowExtraArgs && parsed.extraArgs.length > 0) {
+    throw new Error(`Unknown options: ${parsed.extraArgs.join(", ")}`);
+  }
+  if (parsed.all && parsed.assetIds.length > 0) {
     throw new Error("Use asset ids or --all, not both");
   }
-  if (!all && !defaultAll && assetIds.length === 0) {
+  if (
+    requireSelection &&
+    !parsed.all &&
+    parsed.assetIds.length === 0
+  ) {
     throw new Error("Select at least one asset or pass --all");
   }
 
-  const requestedIds =
-    all || (defaultAll && assetIds.length === 0)
-      ? configuration.assets.map((asset) => asset.id)
-      : assetIds;
-  const assetMap = new Map(
-    configuration.assets.map((asset) => [asset.id, asset]),
-  );
-  const selected = [];
-
-  for (const assetId of requestedIds) {
-    const asset = assetMap.get(assetId);
+  const selectedIds =
+    parsed.all || (defaultAll && parsed.assetIds.length === 0)
+      ? catalog.assets.map((asset) => asset.id)
+      : parsed.assetIds;
+  const assets = selectedIds.map((assetId) => {
+    const asset = catalog.assetMap.get(assetId);
     if (!asset) {
       throw new Error(`Unknown visual asset: ${assetId}`);
     }
-    const variants = variantName
-      ? [[variantName, asset.variants[variantName]]]
-      : Object.entries(asset.variants);
-    for (const [selectedVariantName, variant] of variants) {
-      if (!variant) {
-        throw new Error(
-          `${assetId}: unknown variant ${selectedVariantName}`,
-        );
-      }
-      selected.push({
-        asset,
-        variantName: selectedVariantName,
-        variant,
-      });
-    }
-  }
+    return asset;
+  });
 
-  return selected;
+  return {
+    ...parsed,
+    assets,
+    explicit: !parsed.all,
+  };
 }
