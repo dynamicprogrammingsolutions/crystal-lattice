@@ -50,8 +50,8 @@ Depends On:
 4. `landing_page/docs/development/specifications/product-website-content/content-spec.md:1-305`
    and `landing_page/docs/development/specifications/product-website-content/requirements.md:6-22`
    — approved target and live requirement state.
-5. `landing_page/docs/development/content-system.md:1-148` and
-   `landing_page/README.md:1-136` — current implementation, build, preview,
+5. `landing_page/docs/development/content-system.md:1-156` and
+   `landing_page/README.md:1-144` — current implementation, build, preview,
    URL, and documentation behavior.
 6. The exact product/release owners identified by the page-brief manifest for
    mobile, desktop, CLI, GitHub, docs, compatibility, plugins, remote access,

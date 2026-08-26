@@ -87,6 +87,13 @@ content with root-relative paths.
 - Missing production images must fail validation or be omitted from the public
   page. Planning placeholders must not be rendered as product proof.
 
+Theme-aware screenshots use one rendered image element with `src` and
+`srcDark` content fields. The active theme source is selected by the layout
+theme script, and below-the-fold proof remains lazy-loaded. The maintained
+manifest, deterministic derivative commands, and browser checks are documented
+in
+[Visual content and screenshot generation](visual-content-and-screenshot-generation.md).
+
 ## Adding a Page
 
 The current pattern is:
@@ -144,5 +151,6 @@ For substantive content-system changes, verify:
 - desktop and mobile layouts remain usable;
 - keyboard and semantic accessibility;
 - navigation and footer links;
+- visual manifest and theme-source behavior when public screenshots change;
 - the production build;
 - the landing-to-documentation browser smoke flow when applicable.

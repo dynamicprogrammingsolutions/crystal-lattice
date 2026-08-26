@@ -54,15 +54,18 @@ Depends On:
 4. `tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md:1-127`
    — later final-visual owner, expected reusable outputs, and automation
    boundaries.
-5. `landing_page/AGENTS.md:41-97` — claim accuracy, current/public source,
+5. `landing_page/AGENTS.md:41-98` — claim accuracy, current/public source,
    privacy, visual, and verification rules.
-6. `landing_page/docs/development/content-system.md:63-88` and
-   `landing_page/docs/development/content-system.md:127-148` — current
+6. `landing_page/docs/development/content-system.md:79-95` and
+   `landing_page/docs/development/content-system.md:134-156` — current
    screenshot sections, public-file boundary, and build/preview verification.
-7. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:151-265`
+7. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-208`
+   — delivered visual manifest, deterministic derivative, themed-image, and
+   Playwright workflow.
+8. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:151-265`
    — visual manifest, deterministic state, automation, review, promotion, and
    freshness model.
-8. `mobile/crystal-lattice-control-rn/AGENTS.md:193-222`,
+9. `mobile/crystal-lattice-control-rn/AGENTS.md:193-222`,
    `mobile/crystal-lattice-control-rn/README.md:306-350`, and
    `mobile/crystal-lattice-control-rn/e2e/notificationBanner.e2e.test.ts:1-220`
    — existing production-screen Detox and screenshot patterns if Stage C is
@@ -310,10 +313,10 @@ Manual checkpoint C:
       corrections.
 - [x] Run automated and headed browser verification.
 - [x] Pass manual checkpoint A.
-- [ ] Create the initial visual manifest and retained asset review.
-- [ ] Add website-side asset validation and optimization.
-- [ ] Add reusable Playwright capture/visual checks.
-- [ ] Update current implementation documentation.
+- [x] Create the initial visual manifest and retained asset review.
+- [x] Add website-side asset validation and optimization.
+- [x] Add reusable Playwright capture/visual checks.
+- [x] Update current implementation documentation.
 - [ ] Pass manual checkpoint B.
 - [ ] Obtain separate approval before Stage C.
 - [ ] If approved, implement and verify one native capture scenario.
@@ -406,3 +409,34 @@ Manual checkpoint C:
 - Task 020 remains incomplete, so checkpoint approval does not authorize
   public promotion.
 - Stage B is authorized. Stage C remains separately gated.
+
+### August 25, 2026 — Stage B implementation ready for checkpoint B
+
+- Added the retained visual manifest, 12-row asset review, performance
+  baseline, and accessibility/alternative-text review under
+  `landing_page/research/025-current-visual-baseline-and-asset-pipeline/`.
+- Added `scripts/visual-assets.mjs` with `inspect`, `update`, and `check`
+  commands. It extracts source images from `e88aa46e`, applies the declared
+  ImageMagick transforms, validates content mappings, dimensions, byte
+  ceilings, per-theme budgets, and SHA-256 values, and compares generated
+  candidates byte-for-byte with `public/`.
+- `yarn visual-assets:update` regenerated all ten derivatives without changing
+  their Git state. A following `yarn visual-assets:check` passed.
+- Added package-owned Playwright configuration and 11 visual contracts covering
+  desktop/phone, home/mobile, light/dark, image semantics, column layout,
+  lazy active-theme loading, toggling, and Astro client navigation.
+- `yarn test:visual` and `yarn test:visual:headed` both passed all 11 tests.
+  Thirty-six current full-page/focused captures are available under the ignored
+  task artifact directory.
+- Added package scripts, Playwright 1.55.0 development dependency, and
+  synchronized Yarn/npm lockfiles. Frozen Yarn installation and npm
+  package-lock verification passed.
+- Added current package documentation for the manifest, ImageMagick commands,
+  themed image behavior, browser checks, generated output, and change workflow.
+  The package indexes, README, and AGENTS guidance route to it.
+- Documentation preparation and MkDocs build passed. Reported navigation,
+  absolute-link, and API-reference warnings predate this task.
+- The ignored generation report and Playwright captures are the checkpoint-B
+  manual review inputs. `completion-manifest.json` remains deferred until the
+  task can complete; task 020 still blocks public promotion and Stage C remains
+  optional.

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-08-25",
+  "reviewed_import": {
+    "image_requests": 24,
+    "image_bytes": 29918022,
+    "behavior": "Both light and dark raster variants were requested by ordinary img elements."
+  },
+  "stage_a": {
+    "initial_proof_image_requests": 0,
+    "light": {
+      "proof_images": 5,
+      "bytes": 264884
+    },
+    "dark": {
+      "proof_images": 5,
+      "bytes": 239020
+    },
+    "combined_public_derivatives_bytes": 503904,
+    "behavior": "Only the active lazy-loaded theme set is requested. The alternate set is requested once if the user changes themes."
+  },
+  "budgets": {
+    "active_theme_max_bytes": 300000
+  },
+  "verification": {
+    "build": "yarn build",
+    "asset_check": "yarn visual-assets:check",
+    "browser": "yarn test:visual or yarn test:visual:headed"
+  }
+}

@@ -73,9 +73,10 @@ labels, or internal progress into public website content.
   recordings.
 - Keep draft captures under `artifacts/`; move only approved production files
   to `public/`.
-- A planned screenshot-generation system belongs in a task or future
-  content-system specification until implemented. Current development pages
-  describe only delivered behavior.
+- Follow
+  `docs/development/visual-content-and-screenshot-generation.md` for the
+  maintained visual manifest, deterministic derivatives, theme-aware loading,
+  and Playwright review workflow.
 
 ## Verification
 

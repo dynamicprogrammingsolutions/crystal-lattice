@@ -44,19 +44,19 @@ Depends On:
 2. `tasks/20260825-crystal-lattice-product-positioning-and-website/150-website-information-architecture-and-content-briefs.md:1-115`
    plus its approved page briefs, claim/proof matrix, visual requirements, and
    completion manifest. Stop if incomplete.
-3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-216`
+3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-219`
    plus its visual manifest, asset review, validation/optimization workflow,
    accepted public baseline, and completion evidence. Reuse rather than
    reconstruct its technical foundation.
-4. `landing_page/AGENTS.md:41-97` — claim, source, research/privacy, visual, and
+4. `landing_page/AGENTS.md:41-98` — claim, source, research/privacy, visual, and
    verification boundaries.
 5. `landing_page/docs/development/specifications/product-website-content/content-spec.md:238-274`
    — proof and progressive-revision target.
 6. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:1-265`
    — retained visual hypotheses, reproducible asset-pipeline requirements,
    automation boundaries, review, and freshness rules.
-7. `landing_page/docs/development/content-system.md:79-88` and
-   `landing_page/docs/development/content-system.md:127-148` — current public
+7. `landing_page/docs/development/content-system.md:79-95` and
+   `landing_page/docs/development/content-system.md:134-156` — current public
    asset and build/verification behavior.
 8. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
    `mobile/crystal-lattice-control-rn/docs/development/index.md:1-3`,
