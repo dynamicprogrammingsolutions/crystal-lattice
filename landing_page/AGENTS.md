@@ -33,6 +33,8 @@ For positioning or research work, also read:
   review records when research tasks create them.
 - `artifacts/` contains disposable raw responses, caches, browser output,
   previews, and intermediate screenshots. The directory is ignored.
+- `visual_assets/` contains the executable visual catalog and reviewed,
+  sanitized source masters used to reproduce public derivatives.
 - `public/` contains approved files shipped by the website.
 
 Do not copy task phases, requirement IDs, approval state, research confidence
@@ -75,8 +77,8 @@ labels, or internal progress into public website content.
   to `public/`.
 - Follow
   `docs/development/visual-content-and-screenshot-generation.md` for the
-  maintained visual manifest, deterministic derivatives, theme-aware loading,
-  and Playwright review workflow.
+  programmatic visual-asset catalog, source lifecycle, deterministic
+  derivatives, theme-aware loading, and Playwright review workflow.
 
 ## Verification
 

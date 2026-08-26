@@ -152,9 +152,9 @@ Production screenshots, diagrams, and recordings should be reproducible
 outputs of maintained scenarios rather than one-time manually assembled
 images.
 
-### Visual Manifest
+### Asset Catalog and Capture Record
 
-Before capture, maintain a manifest recording:
+Before capture, maintain catalog and capture records for:
 
 - stable visual ID;
 - page brief and claim being supported;
@@ -218,12 +218,14 @@ Diagram updates should be reviewable as changes to:
 
 ### Draft and Production Separation
 
-- Raw captures, recordings, frames, generated variants, and review contact
-  sheets belong under
-  `landing_page/artifacts/research/160-visual-proof-and-reproducible-assets/`.
-- Retained manifests and reviews belong under
+- Unreviewed captures, recordings, frames, generated variants, reports, and
+  review contact sheets belong under `landing_page/artifacts/visual-assets/`
+  or the owning package's ignored `artifacts/` directory.
+- Approved, sanitized source masters used for reproducible website derivatives
+  belong under `landing_page/visual_assets/sources/`.
+- Retained capture-state records and reviews belong under
   `landing_page/research/160-visual-proof-and-reproducible-assets/`.
-- Only approved, sanitized, optimized files belong under
+- Only approved, sanitized, optimized derivatives belong under
   `landing_page/public/`.
 - Generated website output remains ignored and is never edited directly.
 
@@ -251,15 +253,16 @@ Refresh or retire an asset when:
 - the compatibility or release state changes;
 - a referenced configured agent, provider, account, or bridge state changes;
 - the page claim or architecture changes;
-- the manifest's verification period expires.
+- the catalog or capture record's verification period expires.
 
 An old but visually attractive screenshot must not remain when it no longer
 proves the current claim.
 
 ## Scope Boundary
 
-This page preserves the desired visual and asset-production model. It does not
-claim that the manifest, fixture, automation, or refresh system is implemented.
-Current implementation documentation is added only after
-`tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md`
-delivers the workflow.
+This page preserves the desired complete visual and asset-production model.
+The current early executable catalog, source lifecycle, derivative generation,
+and browser verification are documented in
+[Visual content and screenshot generation](../visual-content-and-screenshot-generation.md).
+This page does not claim that the final native fixtures, capture scenarios, or
+complete freshness automation have been delivered.

@@ -18,16 +18,18 @@ asset workflow that later visual-production work can extend.
       eager or duplicate theme-variant downloads.
 - [ ] Retained visuals have useful alternative text and render correctly in
       supported themes and responsive layouts.
-- [ ] A minimal reproducible manifest, validation, and browser-review workflow
-      exists for the accepted early visual baseline.
+- [ ] A minimal reproducible programmatic asset catalog, source lifecycle,
+      validation, and browser-review workflow exists for the accepted early
+      visual baseline.
 
 ### Non-functional requirements
 
 - [ ] Public visuals contain no fabricated product UI, credentials, private
       data, misleading platform framing, contradictory connection behavior, or
       planning placeholders.
-- [ ] Raw captures and review output remain ignored; only reviewed,
-      sanitized, optimized files enter `landing_page/public/`.
+- [ ] Unreviewed capture candidates and review output remain ignored; reviewed,
+      sanitized source masters remain outside `landing_page/public/`, and only
+      optimized derivatives enter `landing_page/public/`.
 - [ ] Work proceeds through the approved Stage A and Stage B manual
       checkpoints; native capture work does not start without separate Stage C
       approval.
@@ -51,18 +53,18 @@ Depends On:
 3. `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md:1-128`
    — downstream baseline website outcomes, current claim boundaries, and
    verification expectations.
-4. `tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md:1-127`
+4. `tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md:1-128`
    — later final-visual owner, expected reusable outputs, and automation
    boundaries.
-5. `landing_page/AGENTS.md:41-98` — claim accuracy, current/public source,
+5. `landing_page/AGENTS.md:41-100` — claim accuracy, current/public source,
    privacy, visual, and verification rules.
 6. `landing_page/docs/development/content-system.md:79-95` and
-   `landing_page/docs/development/content-system.md:134-156` — current
+   `landing_page/docs/development/content-system.md:136-159` — current
    screenshot sections, public-file boundary, and build/preview verification.
-7. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-208`
-   — delivered visual manifest, deterministic derivative, themed-image, and
-   Playwright workflow.
-8. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:151-265`
+7. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-406`
+   — delivered programmatic asset catalog, source capture and promotion,
+   deterministic derivative, themed-image, and Playwright workflow.
+8. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:151-268`
    — visual manifest, deterministic state, automation, review, promotion, and
    freshness model.
 9. `mobile/crystal-lattice-control-rn/AGENTS.md:193-222`,
@@ -159,11 +161,18 @@ Replace or omit before public promotion:
 
 ## Expected outputs
 
-Retained review and pipeline package:
+Current executable catalog and reviewed source masters:
+
+```text
+landing_page/visual_assets/
+├── config.mjs
+└── sources/
+```
+
+Retained review package:
 
 ```text
 landing_page/research/025-current-visual-baseline-and-asset-pipeline/
-├── visual-manifest.yaml
 ├── asset-review.csv
 ├── performance-baseline.json
 ├── accessibility-and-alt-text-review.md
@@ -181,21 +190,25 @@ Stage A implementation:
 
 Stage B implementation:
 
-- reusable website-side manifest validation;
+- a programmatic, replaceable asset catalog and pipeline contract;
+- explicit reviewed-file and captured-source lifecycles;
+- per-asset, per-variant, and complete-catalog commands;
 - image path, dimensions, format, byte-budget, and broken-image checks;
 - reproducible desktop/mobile and light/dark Playwright captures;
-- a deterministic raw-to-reviewed-to-public optimization/promotion command;
+- deterministic capture-to-reviewed-source and reviewed-to-public
+  optimization/promotion commands;
 - current implementation documentation only for behavior actually delivered.
 
 Optional Stage C implementation after separate approval:
 
 - one focused mobile website-visual scenario in the owning mobile package;
 - a production-screen Detox harness or approved real-backend boundary;
-- deterministic native capture copied into the website raw-asset workflow.
+- deterministic native capture consumed through the programmatic source
+  producer and reviewed-source workflow.
 
 Disposable output:
 
-- `landing_page/artifacts/research/025-current-visual-baseline-and-asset-pipeline/`
+- `landing_page/artifacts/visual-assets/`
   for raw screenshots, full-page captures, contact sheets, generated variants,
   Playwright output, and optimization diagnostics.
 
@@ -233,32 +246,48 @@ Record the accepted asset classification and performance evidence.
 
 Manual checkpoint A:
 
-- review the corrected home and mobile routes in both themes and viewport
-  classes;
-- confirm each retained screenshot supports its associated claim;
-- confirm the import commit and original author remain intact.
+- judge whether each retained screenshot clearly and truthfully supports its
+  associated current product claim;
+- judge whether the corrected desktop/mobile and light/dark presentation is
+  readable, visually balanced, and free of confusing or misleading proof.
 
 ### Stage B — Minimal asset-pipeline foundation
 
-Create the initial visual manifest and retained asset review. Add focused
-website-side checks for asset existence, dimensions, formats, byte budgets,
-alternative text, and responsive rendering. Turn the headed Playwright review
-into a reusable capture/validation command and add a deterministic
-raw-to-public optimization boundary.
+Create one executable JavaScript catalog for the accepted assets. Pipelines are
+replaceable programmatic functions, reusable processing elements are ordinary
+functions, and unique processing may remain beside its only asset. Keep
+reviewed source masters outside `public/`; retain imported commit/path
+information as provenance rather than a runtime dependency.
+
+Add focused website-side checks for asset existence, dimensions, formats, byte
+budgets, alternative text, and responsive rendering. Support explicit
+per-asset and per-variant inspection, public update, and complete-catalog
+verification. Keep capture, reviewed-source promotion, public transformation,
+and browser presentation as separate lifecycle operations. Turn the headed
+Playwright review into a reusable capture/validation command.
 
 Document only the workflow that is actually implemented.
 
 Manual checkpoint B:
 
-- regenerate the Stage A assets from retained raw inputs;
-- compare the resulting website against the approved Stage A appearance;
-- inspect generated reports and confirm raw files remain outside public
-  sources.
+- judge whether the executable catalog and programmatic pipeline extension
+  points are understandable, proportionate, and flexible enough for static,
+  custom-generated, and Detox-produced assets;
+- judge whether the reviewed-source, capture-candidate, promotion, and public
+  derivative boundaries are appropriate and maintainable;
+- judge whether the current website screenshots remain visually suitable,
+  readable, and truthful at their actual presentation sizes;
+- judge whether the current implementation documentation is sufficient for a
+  contributor to add or refresh an asset without reconstructing design
+  decisions;
+- decide whether the optional native capture proof in Stage C is valuable
+  enough to authorize.
 
 ### Stage C — Optional native capture proof
 
 After separate approval, add one production-screen Detox visual scenario and
-route its capture through the Stage B manifest and optimization workflow.
+route its named outputs through the Stage B source-producer, review, and
+optimization workflow.
 
 Use a deterministic in-process backend or retained reviewed session fixture.
 A real provider may seed a fixture once, but routine captures replay the
@@ -266,14 +295,23 @@ sanitized state and wait for semantic UI checkpoints rather than fixed times.
 
 Manual checkpoint C:
 
-- inspect the native capture on the supported simulator/device;
-- compare it with the website-rendered optimized asset;
-- confirm the fixture contains no private or misleading state.
+- judge whether the native capture presents a credible, current, and visually
+  useful product state;
+- judge whether its visible content is sanitized and avoids misleading product
+  implications;
+- judge whether its optimized website presentation remains readable and
+  supports the intended claim.
 
 ### Implementation decisions and open questions
 
 - Decision: preserve `e88aa46e` as the import commit and place corrections in
   later commits.
+- Decision: retain `e88aa46e` and original paths as provenance only; current
+  source masters must make ordinary generation independent of Git history.
+- Decision: define assets and replaceable pipelines programmatically in one
+  executable catalog rather than creating a declarative pipeline language.
+- Decision: keep capture, source promotion, derivative update, and verification
+  as separate commands so expensive producers do not run during normal checks.
 - Decision: use two provider cards and three session-workbench cards per
   desktop row as the Stage A starting point.
 - Decision: diagrams carrying product facts use maintainable SVG or equivalent
@@ -295,8 +333,9 @@ Manual checkpoint C:
 - Do not add a current screenshot-generation page before Stage B behavior
   exists.
 - After Stage B, update
-  `landing_page/docs/development/content-system.md` for the delivered manifest,
-  validation, optimization, and promotion behavior.
+  `landing_page/docs/development/content-system.md` for the delivered
+  programmatic catalog, source lifecycle, validation, optimization, and
+  promotion behavior.
 - Create
   `landing_page/docs/development/visual-content-and-screenshot-generation.md`
   only if the delivered workflow no longer fits clearly in the content-system
@@ -313,7 +352,8 @@ Manual checkpoint C:
       corrections.
 - [x] Run automated and headed browser verification.
 - [x] Pass manual checkpoint A.
-- [x] Create the initial visual manifest and retained asset review.
+- [x] Create the initial programmatic visual-asset catalog and retained asset
+      review.
 - [x] Add website-side asset validation and optimization.
 - [x] Add reusable Playwright capture/visual checks.
 - [x] Update current implementation documentation.
@@ -331,7 +371,9 @@ Manual checkpoint C:
   missing images or visible placeholders.
 - Network and file reports confirm the approved asset budgets and loading
   behavior.
-- The manifest can reproduce and validate the accepted Stage A public assets.
+- The executable catalog can reproduce and validate selected variants and the
+  complete accepted Stage A public set without reading deleted files from Git
+  history.
 - Any Stage C evidence uses production screens and deterministic sanitized
   state.
 
@@ -440,3 +482,57 @@ Manual checkpoint C:
   manual review inputs. `completion-manifest.json` remains deferred until the
   task can complete; task 020 still blocks public promotion and Stage C remains
   optional.
+
+### August 26, 2026 — Stage B architecture revised before checkpoint B
+
+- Commit `f52e4edc` preserves the first Stage B implementation before the
+  architecture revision.
+- The user rejected a declarative pipeline-definition language and approved a
+  single executable JavaScript catalog with replaceable programmatic pipelines
+  and an explicit source lifecycle.
+- Moved the ten accepted PNG source masters to
+  `landing_page/visual_assets/sources/`. Their imported revision and original
+  paths remain provenance in `visual_assets/config.mjs`; routine generation no
+  longer reads deleted files through `git show`.
+- Replaced the task-specific YAML manifest and monolithic script with a
+  package-owned catalog plus generic API, selection, validation, runner,
+  programmatic ImageMagick operations, CLI, and Detox source-producer modules.
+- Added `list`, `capture`, `promote-source`, `inspect`, `update`, and `check`
+  commands. Inspection and checking default to all assets when no selector is
+  supplied; mutating commands require an explicit asset or `--all`.
+- Asset and variant selectors allow one derivative to be processed without
+  regenerating the complete catalog.
+- Capturing writes only ignored candidates. Promotion explicitly updates a
+  reviewed source master, and public update remains a separate operation.
+  Ordinary inspection, update, and checking never invoke Detox or another
+  source producer.
+- The Detox producer exposes multiple named outputs from one memoized command,
+  allowing one package-owned native scenario to serve several configured
+  assets.
+- Nine focused Node tests cover programmatic operations, one-off pipeline
+  elements, catalog validity, selection, explicit mutation selection,
+  capture/promotion separation, one-run/multiple-output Detox behavior, and
+  prevention of partial public updates when a later candidate fails.
+- The selected dark provider-reasoning variant and all ten current variants
+  regenerate and pass byte-for-byte checking from current source masters.
+- Each maintained source master has the same Git blob as its recorded imported
+  source. Selected-variant and `--all` public updates both leave the approved
+  WebP files unchanged.
+- Playwright reports and captures now use the reusable
+  `landing_page/artifacts/visual-assets/` boundary. The development
+  documentation describes the executable catalog and source lifecycle.
+- `yarn verify:visual` passed nine programmatic asset tests, all ten derivative
+  checks, and all eleven headless browser scenarios. The same eleven scenarios
+  passed headed.
+- Documentation preparation and MkDocs build passed with only the previously
+  reported navigation, absolute-link, and API-reference warnings.
+- Checkpoint B remains open. No native capture scenario has been added, and
+  Stage C remains separately gated.
+
+### August 26, 2026 — Manual-checkpoint evidence clarified
+
+- The user requires manual checkpoints to contain only outcomes that need
+  visual, architectural, product, or editorial judgment.
+- Deterministic regeneration, hash, byte, path, Git-diff, test, build, and
+  report checks remain automated verification and are no longer repeated as
+  manual instructions.

@@ -3,39 +3,328 @@
 The landing package maintains approved screenshots as reproducible,
 theme-aware derivatives rather than editing production images directly.
 
-This page documents the current asset manifest, generation, validation, and
-browser-review workflow. It does not select the final website visual set or
-define product claims; authored content and its owning product sources remain
-authoritative for those decisions.
-
-## Maintained Inputs and Outputs
-
-The current visual manifest is:
+The current workflow has four separate boundaries:
 
 ```text
-research/025-current-visual-baseline-and-asset-pipeline/visual-manifest.yaml
+source capture or generation
+        │
+        ▼
+reviewed source master
+        │
+        ▼
+optimized public derivative
+        │
+        ▼
+browser presentation verification
 ```
 
-It records, for every accepted visual:
+Capturing a source never automatically changes a reviewed source or public
+website file.
 
-- the public claim and content entry it supports;
-- alternative text and display dimensions;
-- light and dark source paths at a pinned Git revision;
-- deterministic ImageMagick transformations;
+## Maintained Files
+
+The executable asset catalog is:
+
+```text
+visual_assets/config.mjs
+```
+
+It uses ordinary JavaScript functions to define:
+
+- asset and variant IDs;
+- current product claims and freshness triggers;
+- reviewed source paths;
+- source provenance;
+- replaceable pipelines;
 - public output paths;
-- byte ceilings and expected SHA-256 values;
-- freshness triggers.
+- dimensions, byte ceilings, and SHA-256 expectations;
+- content-file bindings;
+- aggregate budgets.
 
-Raw source images are recovered from the pinned Git revision into:
+Reviewed source masters are stored under:
 
 ```text
-artifacts/research/025-current-visual-baseline-and-asset-pipeline/
+visual_assets/sources/
 ```
 
-That directory also receives generated candidates, reports, Playwright output,
-and review captures. It is ignored.
+They are sanitized, maintained inputs and are not deployed by Astro.
 
-Only manifest-approved optimized files are copied to `public/`.
+Optimized website files are stored under:
+
+```text
+public/
+```
+
+Generated candidates, capture output, reports, Playwright results, and review
+screenshots are stored under the ignored directory:
+
+```text
+artifacts/visual-assets/
+```
+
+## Programmatic Pipeline Contract
+
+Every configured variant provides a pipeline with:
+
+```js
+async run(context) {
+  // Produce context.candidatePath from context.sourcePath.
+}
+```
+
+The context provides:
+
+- the asset and variant;
+- reviewed source and candidate paths;
+- repository, package, and ignored output roots;
+- a process runner;
+- an ignored-path helper.
+
+The generic runner does not know whether a pipeline uses ImageMagick,
+Playwright, a diagram renderer, another program, or unique custom code.
+
+`scripts/visual-assets/operations.mjs` provides the currently reusable
+ImageMagick elements:
+
+- trim;
+- resize;
+- centered extent;
+- sRGB normalization;
+- metadata removal;
+- WebP encoding;
+- custom programmatic ImageMagick arguments.
+
+These are JavaScript functions rather than a declarative pipeline language.
+A pipeline may use them, define a unique operation, or implement its complete
+`run(context)` method directly.
+
+## Source Types
+
+`reviewedFile(path)` identifies a maintained source master.
+
+`capturedSource({ reviewed, candidate })` identifies both:
+
+- the reviewed source used by `inspect`, `update`, and `check`;
+- an ignored candidate produced by an explicit `capture` command.
+
+Normal verification never invokes a capture producer. This keeps ordinary
+builds and CI independent of simulators, credentials, providers, and expensive
+source-generation workflows.
+
+## Current Source Provenance
+
+The current source masters came from the author-preserving imported revision:
+
+```text
+e88aa46ee8d6bd0969c63c78f8e152f1fd938974
+```
+
+That revision is recorded as provenance in the executable catalog. It is not
+needed to run the asset workflow; all maintained source files are present in
+the current checkout.
+
+## Requirements
+
+Install package dependencies:
+
+```bash
+yarn install
+```
+
+Image transformation requires:
+
+- ImageMagick 7 with the `magick` command;
+- Node.js supported by the landing package.
+
+Install the Playwright Chromium browser once when no installed browser channel
+is selected:
+
+```bash
+npx playwright install chromium
+```
+
+Set `PLAYWRIGHT_CHANNEL` to use an installed browser channel such as `chrome`
+instead.
+
+## List Assets
+
+Show every asset, variant, source type, public output, and pipeline:
+
+```bash
+yarn visual-assets:list
+```
+
+## Inspect Candidates
+
+Generate ignored candidates without requiring them to match the current
+dimensions, hashes, or byte ceilings:
+
+```bash
+yarn visual-assets:inspect provider-reasoning
+yarn visual-assets:inspect provider-reasoning --variant dark
+yarn visual-assets:inspect
+```
+
+With no asset selection, `inspect` processes the complete catalog.
+
+The report is written to:
+
+```text
+artifacts/visual-assets/reports/inspect.json
+```
+
+Use this command when evaluating a changed source or pipeline. Review the
+candidate appearance, dimensions, bytes, and SHA-256 before updating the
+maintained expectations.
+
+## Update Public Derivatives
+
+Updating is an explicit mutation and requires an asset or `--all`:
+
+```bash
+yarn visual-assets:update provider-reasoning
+yarn visual-assets:update provider-reasoning --variant dark
+yarn visual-assets:update --all
+```
+
+The command:
+
+1. reads the reviewed source master;
+2. executes the configured programmatic pipeline;
+3. checks maintained dimensions, byte ceilings, and SHA-256;
+4. validates the corresponding content-file binding;
+5. copies the approved candidate to its declared `public/` path.
+
+It does not capture a source, change copy, select a visual, or update
+expectations automatically.
+
+## Verify Current Derivatives
+
+Regenerate candidates and compare them byte-for-byte with `public/`:
+
+```bash
+yarn visual-assets:check
+yarn visual-assets:check provider-reasoning
+yarn visual-assets:check provider-reasoning --variant dark
+```
+
+With no selection, `check` verifies the complete catalog.
+
+The check fails when:
+
+- a reviewed source is missing;
+- a pipeline does not create its candidate;
+- dimensions, bytes, or SHA-256 differ from expectations;
+- an active-theme budget is exceeded;
+- a public derivative is missing or differs from its candidate;
+- a configured content binding has stale paths, alternative text, or
+  dimensions.
+
+`check` never invokes Detox or another capture producer.
+
+## Capture and Promote a Source
+
+Assets with `capturedSource` support an explicit two-step source update.
+
+Generate ignored candidates:
+
+```bash
+yarn visual-assets:capture mobile-hero
+yarn visual-assets:capture mobile-hero --variant dark
+```
+
+The candidate remains under an `artifacts/` directory. It does not replace the
+reviewed source.
+
+After human review, promote the candidate:
+
+```bash
+yarn visual-assets:promote-source mobile-hero --variant dark
+```
+
+Promotion copies the already-generated candidate to the configured reviewed
+source path. It does not generate or update the public derivative. Run
+`visual-assets:inspect` and `visual-assets:update` afterward.
+
+Both capture and promotion require an explicit asset or `--all`.
+
+## Detox Producers
+
+`scripts/visual-assets/producers/detox.mjs` provides a reusable source producer.
+It runs a package-owned Detox scenario and exposes one or more named output
+files:
+
+```js
+const mobileCapture = detoxCapture({
+  id: "mobile-showcase",
+  projectDirectory: "mobile/crystal-lattice-control-rn",
+  command: [
+    "yarn",
+    "detox",
+    "test",
+    "e2e/website-visual-capture.e2e.ts",
+    "--configuration",
+    "ios.sim.release",
+  ],
+  outputs: {
+    heroLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website/hero-light.png",
+    heroDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website/hero-dark.png",
+  },
+});
+```
+
+An asset can consume a named output:
+
+```js
+source: capturedSource({
+  reviewed: "visual_assets/sources/mobile-hero-dark.png",
+  candidate: mobileCapture.output("heroDark"),
+}),
+```
+
+Multiple selected assets can consume outputs from one producer run. The
+producer memoizes the command for the current CLI process, so one Detox scenario
+does not start separately for each output.
+
+The mobile package owns the Detox interaction scenario, fixture state, stable
+selectors, simulator configuration, and native behavior. The landing package
+owns source review, optimization, publication, and website presentation.
+
+## Adding or Changing Assets
+
+### Existing source and pipeline
+
+1. Add a reviewed source under `visual_assets/sources/`.
+2. Add the asset to `visual_assets/config.mjs`.
+3. Add or update its website content binding.
+4. Run `visual-assets:inspect`.
+5. Record reviewed dimensions, byte ceiling, and SHA-256.
+6. Run `visual-assets:update` for the selected asset.
+7. Run `visual-assets:check` and browser verification.
+
+### New reusable pipeline
+
+Define an ordinary JavaScript pipeline factory in `visual_assets/config.mjs`,
+or extract it to a focused module when reuse or testing justifies a separate
+file. The generic runner and CLI do not change.
+
+### Unique pipeline
+
+Define the pipeline beside its only asset. It may:
+
+- compose current ImageMagick operation functions;
+- add a custom ImageMagick argument function;
+- provide a complete `run(context)` implementation.
+
+The generic runner and CLI do not change.
+
+### New source producer
+
+Define a producer that returns `captureOutput`. Keep the capture implementation
+with the package that owns the behavior when it needs package-specific fixtures
+or tests. The landing configuration consumes its candidate output.
 
 ## Themed Images
 
@@ -52,95 +341,9 @@ The behavior is:
 - Astro client navigation restores the selected theme and source paths;
 - a light-image fallback is available when scripting is disabled.
 
-Content types that accept a themed image use `src` and optional `srcDark`
-fields plus explicit `width`, `height`, and `alt` values.
-
-## Requirements
-
-Install package dependencies:
-
-```bash
-yarn install
-```
-
-Asset generation requires:
-
-- Git with the manifest's source revision available;
-- ImageMagick 7 with the `magick` command;
-- Node.js supported by the landing package.
-
-Install the Playwright Chromium browser once when no installed browser channel
-is selected:
-
-```bash
-npx playwright install chromium
-```
-
-Set `PLAYWRIGHT_CHANNEL` to use an installed browser channel such as `chrome`
-instead.
-
-## Inspect Candidates
-
-Generate ignored candidates and a report without requiring the candidate
-hashes to match the current manifest:
-
-```bash
-yarn visual-assets:inspect
-```
-
-The report is written to:
-
-```text
-artifacts/research/025-current-visual-baseline-and-asset-pipeline/
-  asset-generation/asset-check-report.json
-```
-
-Use this mode when evaluating a changed source or transformation. Review the
-candidate dimensions, byte sizes, and SHA-256 values before changing maintained
-expectations.
-
-## Update Public Derivatives
-
-After reviewing candidates and updating their expected dimensions and hashes
-in the manifest:
-
-```bash
-yarn visual-assets:update
-```
-
-The command:
-
-1. extracts each pinned source image into ignored output;
-2. applies the declared ImageMagick transformation;
-3. checks dimensions, byte ceilings, and expected hashes;
-4. validates the corresponding YAML content entry;
-5. copies the approved derivative to its declared `public/` path.
-
-It does not change page copy, visual selection, or alternative text
-automatically.
-
-## Verify Public Derivatives
-
-Regenerate every candidate and compare it byte-for-byte with `public/`:
-
-```bash
-yarn visual-assets:check
-```
-
-The check fails when:
-
-- a source revision or source path is unavailable;
-- ImageMagick produces unexpected dimensions or bytes;
-- a derivative exceeds its byte ceiling;
-- a generated or public SHA-256 differs from the manifest;
-- the public file is missing;
-- `home.yaml` no longer matches the manifest's source paths, alternative text,
-  or dimensions;
-- an active theme exceeds the manifest's aggregate byte budget.
-
 ## Browser Verification and Captures
 
-Run the visual contracts headlessly:
+Run visual contracts headlessly:
 
 ```bash
 yarn test:visual
@@ -164,45 +367,41 @@ The Playwright configuration builds and previews the static site, then checks:
 - theme toggling without duplicate image elements;
 - saved-theme behavior across Astro client navigation.
 
-Full-page and focused section captures are written below:
+Captures are written to:
 
 ```text
-artifacts/research/025-current-visual-baseline-and-asset-pipeline/
-  playwright/captures/
+artifacts/visual-assets/playwright/captures/
 ```
 
-Run the asset and browser checks together:
+Run the programmatic asset tests, complete asset check, and browser contracts
+together:
 
 ```bash
 yarn verify:visual
 ```
 
-## Changing a Visual
-
-1. Confirm the current product claim and the need for visual proof.
-2. Prepare a sanitized source capture in ignored output.
-3. Commit the reviewed source or identify another stable source revision.
-4. Update the visual manifest's claim, content location, source, transform,
-   dimensions, byte ceiling, freshness triggers, and alternative text.
-5. Run `yarn visual-assets:inspect`.
-6. Review the candidate and update its expected SHA-256.
-7. Run `yarn visual-assets:update`.
-8. Run `yarn verify:visual`.
-9. Complete human review at the actual page presentation size.
+## Proof Integrity
 
 Do not use generated image editing to change proof-bearing product text,
 controls, connection state, citations, notifications, or other behavior.
 Recapture the real product state instead.
 
+Decorative generation must remain visibly separate from product-proof
+screenshots.
+
 ## Retained Review Records
 
-The manifest is accompanied by:
+The current baseline review records are under:
 
-- `asset-review.csv`, including accepted and omitted contribution decisions;
-- `performance-baseline.json`, including the imported and current loading
-  measurements;
-- `accessibility-and-alt-text-review.md`, including current alternative-text
-  and presentation review.
+```text
+research/025-current-visual-baseline-and-asset-pipeline/
+```
 
-These records preserve current review inputs. Disposable screenshots and
-browser traces remain under `artifacts/`.
+They include:
+
+- accepted and omitted contribution decisions;
+- the imported and current loading measurements;
+- current alternative-text and presentation review.
+
+These records preserve review evidence. Active build configuration belongs in
+`visual_assets/config.mjs`, and disposable output remains under `artifacts/`.

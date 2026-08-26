@@ -42,7 +42,7 @@ placeholder after a separate roadmap update.
 2. `tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md:1-125`
    plus its completed outputs — required current product, configured-agent,
    provider/account, feature, and evidence baseline. Stop if incomplete.
-3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-219`
+3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-232`
    plus its accepted early visual manifest, public assets, browser validation,
    and completion evidence. Stop if incomplete.
 4. `landing_page/docs/development/specifications/product-website-content/content-spec.md:1-305`
@@ -50,7 +50,7 @@ placeholder after a separate roadmap update.
    progressive-revision requirements.
 5. `landing_page/docs/development/specifications/product-website-content/requirements.md:6-23`
    — live target state and evidence mapping.
-6. `landing_page/docs/development/content-system.md:7-156` — current authored
+6. `landing_page/docs/development/content-system.md:7-159` — current authored
    sources, rendering, assets, extension points, boundaries, and verification.
 7. `landing_page/src/content/pages/home.yaml:1-441`,
    `landing_page/src/content/pages/mobile.yaml:1-119`, and

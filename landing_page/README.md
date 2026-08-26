@@ -35,6 +35,7 @@ landing_page/
 ├── docs/                   # Package docs, development knowledge, specifications
 ├── research/               # Retained normalized website research evidence
 ├── artifacts/              # Ignored raw research, previews, and draft captures
+├── visual_assets/          # Executable visual catalog and reviewed source masters
 ├── src/
 │   ├── pages/              # One file = one route
 │   │   ├── index.astro     # /
@@ -86,13 +87,17 @@ The active theme is stored in `localStorage` under `cl-theme` and applied by an 
 yarn dev        # dev server at localhost:4321
 yarn build      # outputs to dist/
 yarn preview    # serves dist/ locally (same as production)
+yarn visual-assets:list
 yarn visual-assets:check
 yarn test:visual
 ```
 
 `yarn visual-assets:update` regenerates approved public image derivatives from
-the maintained visual manifest. `yarn test:visual:headed` runs the same visual
-contracts with visible browser windows.
+the reviewed source masters and executable asset catalog.
+`yarn visual-assets:capture` and `yarn visual-assets:promote-source` provide an
+explicit candidate-to-reviewed-source lifecycle for generated captures.
+`yarn test:visual:headed` runs the same visual contracts with visible browser
+windows.
 
 ## Public URL Configuration
 

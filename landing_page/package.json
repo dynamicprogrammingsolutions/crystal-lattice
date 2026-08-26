@@ -7,12 +7,17 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "visual-assets:check": "node scripts/visual-assets.mjs check",
-    "visual-assets:inspect": "node scripts/visual-assets.mjs inspect",
-    "visual-assets:update": "node scripts/visual-assets.mjs update",
+    "visual-assets": "node scripts/visual-assets/cli.mjs",
+    "visual-assets:list": "node scripts/visual-assets/cli.mjs list",
+    "visual-assets:capture": "node scripts/visual-assets/cli.mjs capture",
+    "visual-assets:promote-source": "node scripts/visual-assets/cli.mjs promote-source",
+    "visual-assets:check": "node scripts/visual-assets/cli.mjs check",
+    "visual-assets:inspect": "node scripts/visual-assets/cli.mjs inspect",
+    "visual-assets:update": "node scripts/visual-assets/cli.mjs update",
+    "test:visual-assets": "node --test tests/visual-assets/*.test.mjs",
     "test:visual": "playwright test --config=playwright.visual.config.mjs",
     "test:visual:headed": "playwright test --headed --config=playwright.visual.config.mjs",
-    "verify:visual": "yarn visual-assets:check && yarn test:visual"
+    "verify:visual": "yarn test:visual-assets && yarn visual-assets:check && yarn test:visual"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",

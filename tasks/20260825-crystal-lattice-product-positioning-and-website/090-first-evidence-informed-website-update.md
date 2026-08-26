@@ -55,7 +55,7 @@ long-term page architecture.
    customization, connection, current/future, proof, and revision target.
 5. `landing_page/docs/development/specifications/product-website-content/requirements.md:6-22`
    — live requirement state to update.
-6. `landing_page/docs/development/content-system.md:7-156` — current authoring,
+6. `landing_page/docs/development/content-system.md:7-159` — current authoring,
    rendering, asset, and verification behavior.
 7. `landing_page/src/content/pages/home.yaml:1-441` and the current content
    files changed by

@@ -29,6 +29,6 @@ the final task-160 visual set.
 - Screenshot text remains supporting visual proof; the surrounding headings and
   descriptions carry the primary meaning.
 - The current captures are provisional and must be refreshed when their listed
-  manifest triggers occur.
+  asset-catalog freshness triggers occur.
 - Native screen-reader behavior belongs to the mobile application and is not
   established by these website screenshots.

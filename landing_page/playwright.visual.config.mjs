@@ -5,7 +5,7 @@ const channel = process.env.PLAYWRIGHT_CHANNEL;
 export default defineConfig({
   testDir: "./tests/visual",
   outputDir:
-    "./artifacts/research/025-current-visual-baseline-and-asset-pipeline/playwright/test-results",
+    "./artifacts/visual-assets/playwright/test-results",
   timeout: 60_000,
   workers: 1,
   reporter: "list",

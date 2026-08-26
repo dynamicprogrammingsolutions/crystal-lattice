@@ -5,8 +5,7 @@ import { expect, test } from "@playwright/test";
 
 const captureDirectory = path.resolve(
   "artifacts",
-  "research",
-  "025-current-visual-baseline-and-asset-pipeline",
+  "visual-assets",
   "playwright",
   "captures",
 );
