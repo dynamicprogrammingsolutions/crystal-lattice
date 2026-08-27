@@ -189,13 +189,9 @@ Replace or omit before public promotion:
 - A real hosted-model request can initialize a credible coding session, but the
   live request is a candidate-source refresh operation rather than part of
   ordinary screenshot capture, website build, or verification.
-- The user's current `~/.crystal/config.json` includes a `codex-openai` agent
-  using the OpenAI Responses provider and Codex tools, and
-  `~/.crystal/auth/chatgpt-auth.json` is present. A refresh workflow must accept
-  these paths as explicit read-only inputs, force ChatGPT auth instead of
-  silently falling back to API-key auth, keep generated sessions under ignored
-  output, and create repository workspaces only in automatically removed
-  temporary directories.
+- The generation source owns a Git-tracked minimal configuration derived from
+  the repository default config. `~/.crystal` supplies only the saved ChatGPT
+  credential file; personal application configuration is not an input.
 - The originally proposed React Native issue is not a bounded source for this
   workflow. Its reproduction requires a React Native checkout, dependency
   installation, and an Android native bundle, so it was rejected before
@@ -263,8 +259,9 @@ Proposed revised Stage C outputs after new approval:
 
 - a pinned public-repository and public-issue input manifest plus a concise
   planning prompt;
-- an explicit live refresh command that uses a caller-supplied Crystal Lattice
-  config directory and ChatGPT login to produce an ignored candidate session;
+- an explicit live refresh command that uses the tracked minimal generation
+  config plus a caller-supplied ChatGPT credential directory to produce an
+  ignored candidate session;
 - a reviewed, sanitized session fixture derived from the candidate and
   consumed by routine native capture without network or credentials;
 - tightly cropped, unframed homepage sources for chat actions, session
@@ -365,21 +362,22 @@ changing the generic runner or CLI. A representative invocation should be:
 ```bash
 yarn visual-assets refresh-session coding-plan \
   --config-dir "$HOME/.crystal" \
-  --config "$HOME/.crystal/config.json" \
-  --agent codex-openai
+  --agent codex-openai \
+  --python "$HOME/.crystal/dev-cli-venv/bin/python"
 ```
 
-Require an explicit configuration path or directory. Treat it as read-only,
-force the selected request to use ChatGPT auth, and fail rather than falling
-back to an API key. Do not copy, print, persist, or report credentials.
+Load the Git-tracked configuration named by the source manifest. Require an
+explicit credential directory, force the selected request to use ChatGPT auth,
+and fail rather than falling back to an API key. Do not load personal
+application configuration or copy, print, persist, or report credentials.
 
 Use a checked-in source manifest containing:
 
 - a public repository URL and exact commit SHA;
 - a bounded snapshot of one public bug issue;
 - a realistic developer prompt containing only the task to perform;
-- the selected configured agent, required tools, and expected visible session
-  shape.
+- the tracked minimal application configuration, selected agent, required
+  tools, and expected visible session shape.
 
 Use Starlette 1.4.0 at commit
 `3d6d6c20e795d02d22b358758bfa987b436a3ec4` with a sparse checkout of
@@ -610,7 +608,7 @@ content, privacy, and product-communication judgments only.
 - [x] Obtain separate approval before Stage C.
 - [x] If approved, implement and verify one native capture scenario.
 - [x] Approve the revised Stage C1-C5 expansion.
-- [ ] Implement the revised Stage C1 reviewed-session source.
+- [x] Implement the revised Stage C1 reviewed-session source.
 - [ ] Pass manual checkpoint C1.
 - [ ] Implement and pass checkpoint C2 for unframed workbench captures.
 - [ ] Implement and pass checkpoint C3 for provider focus composites.
@@ -962,3 +960,116 @@ content, privacy, and product-communication judgments only.
   staged C1-C5 checkpoints.
 - Stage C1 is authorized. Stop at its human content/privacy checkpoint before
   promoting a generated session fixture or beginning C2 visual recapture.
+
+### August 27, 2026 — Stage C1 local workflow complete; hosted refresh blocked
+
+- Commit `1a402724` preserves the prior native-capture implementation and the
+  approved revised C1-C5 plan before Stage C1 execution.
+- Added the `coding-plan` direct-command asset plus catalog-level
+  `refresh-session` and `promote-session` workflows without changing the
+  generic CLI or runner.
+- Added the Starlette 1.4.0 source manifest and realistic model-facing prompt.
+  The refresh helper creates an operating-system temporary sparse checkout,
+  verifies revision/size/time budgets, uses the shared
+  `TerminalApplication`/`AgentApplication` request path, sanitizes private and
+  volatile data, validates tool activity, and removes the checkout on success
+  or failure.
+- Candidate output remains ignored and reviewed-fixture promotion remains a
+  separate prepared mutation. No candidate or reviewed fixture currently
+  exists.
+- Added automated coverage for command parsing, sanitizer behavior,
+  forbidden installation/source-write detection, the shared application
+  request path with the deterministic echo provider, catalog compatibility,
+  and complete existing public-asset checking.
+- Verification passes:
+  - three Python session-fixture tests;
+  - fourteen Node visual-asset tests;
+  - all eleven catalog check results and the existing 503,904-byte public
+    derivative baseline;
+  - `git diff --check`.
+- The first hosted refresh stopped before ChatGPT. Copying the full personal
+  config while redirecting `plugin_cache_dir` to a temporary directory caused
+  `AgentApplication` plugin discovery to bootstrap every configured path
+  plugin. That attempted dependency installation and then failed importing the
+  OpenAI Responses bundle because the active development Python has
+  `aiohttp 3.9.3`, which lacks the API expected by the cached/current plugin.
+- The temporary plugin cache and Starlette checkout were removed. No candidate
+  was produced. `pip check` passes afterward; the active environment remains
+  on FastAPI 0.115.0, Starlette 0.38.6, and aiohttp 3.9.3.
+- Continuing now requires a runtime-boundary decision not present in the
+  approved plan. Recommendation: accept the already-installed Crystal Lattice
+  bundled Python runtime and the existing `~/.crystal/cache/plugins` as
+  explicit read-only refresh inputs, verify the cache is unchanged before and
+  after generation, and continue to use the current worktree's application
+  code plus isolated temporary workspace/session state. Do not retry until the
+  user approves this additional runtime/cache input boundary.
+
+### August 27, 2026 — Stage C1 ready for human checkpoint
+
+- The user directed the refresh workflow to use the Python interpreter behind
+  `crystal-lattice-cli-dev`:
+  `~/.crystal/dev-cli-venv/bin/python`.
+- Loading the complete personal plugin catalog remained unsuitable because
+  source-plugin fingerprints can differ from cached revisions. The final
+  implementation derives a minimal temporary config from the selected
+  `codex-openai` agent:
+  - OpenAI Responses provider and required provider extensions;
+  - request-options feature;
+  - the core-packaged read-only `FileReaderTool`;
+  - no application plugins, MCP, shell execution, source-write tools, path
+    plugin installation, or personal plugin-cache mutation.
+- The model-facing session contains only the realistic Starlette developer
+  request. Operational safety is enforced by the read-only tool set,
+  temporary checkout, candidate validation, and source/promotion boundary
+  rather than visible fixture instructions.
+- The final hosted refresh completed in 66.9 seconds. Its temporary sparse
+  checkout used 1,251,521 bytes and was removed after generation.
+- The ignored candidate is
+  `landing_page/artifacts/visual-assets/session-fixtures/coding-plan/candidate.json`.
+  It is 85,959 bytes with SHA-256
+  `49b1c50a12775d907d0c85bb84a958c42958b5c3607a9abc808fafc80cf2d092`.
+- The candidate has 11 visible messages and 10 retained repository-inspection
+  activities. Failed read attempts, checkout-log output, personal paths,
+  usernames, email addresses, credentials, provider tokens, issue number, and
+  fixture-generation language are absent. Long successful tool output is
+  bounded for the reviewed fixture.
+- The final assistant answer identifies the required keyword-only
+  `thread_minimum_size` regression, proposes restoring the shared/default
+  threshold without broader behavior changes, and specifies direct subclass
+  constructor regression coverage.
+- No reviewed fixture exists and `promote-session` has not been run.
+- Automated verification passes:
+  - three Python session-fixture tests;
+  - fourteen Node visual-asset tests;
+  - eleven complete catalog checks for the existing public derivative
+    baseline;
+  - `git diff --check`.
+- Manual checkpoint C1 is ready for judgment of session credibility,
+  concision, technical quality, and privacy. Promotion and C2 remain blocked
+  until the user approves this candidate.
+
+### August 27, 2026 — Stage C1 configuration made inspectable
+
+- The user required the exact generation configuration to be minimal,
+  Git-tracked, and directly inspectable instead of being derived from
+  `~/.crystal/config.json` at runtime.
+- Added
+  `landing_page/visual_assets/session_sources/starlette-gzip-responder/config.json`
+  using the repository default config as its baseline:
+  - one `openai` provider with ChatGPT auth;
+  - one `codex-openai` agent using `gpt-5.6-luna` with medium reasoning;
+  - OpenAI Responses provider, auth, tools, reasoning, usage, verbosity,
+    caching, and request-option support;
+  - the core-packaged read-only `FileReaderTool`;
+  - no additional agents, application plugins, MCP, shell, source-write tools,
+    API keys, or personal paths.
+- The manifest now names the tracked config. The refresh command no longer
+  accepts a personal config path; `--config-dir` is used only to resolve the
+  saved ChatGPT credential file.
+- Provenance records the tracked config SHA-256 and the final candidate's
+  config hash matches the file byte-for-byte.
+- The user subsequently selected `gpt-5.6-luna` with medium reasoning for the
+  tracked generation config. Regeneration evidence for that committed config
+  supersedes the earlier `gpt-5.4-mini` candidate values above.
+- No reviewed fixture exists and promotion remains blocked pending checkpoint
+  C1 approval.

@@ -18,6 +18,10 @@ import {
 } from "../scripts/visual-assets/lifecycle/image.mjs";
 import { detoxCapture } from "../scripts/visual-assets/producers/detox.mjs";
 import {
+  runSessionFixtureCatalogCommand,
+  sessionFixtureAssetCommands,
+} from "../scripts/visual-assets/session-fixture.mjs";
+import {
   centerExtent,
   encodeWebp,
   imageMagickPipeline,
@@ -319,6 +323,18 @@ async function promoteSourceCommand(context) {
   return context.writeReport("promote-source", { results });
 }
 
+async function refreshSessionCommand(context) {
+  return runSessionFixtureCatalogCommand(context, "refresh-session", {
+    runtimeRequired: true,
+  });
+}
+
+async function promoteSessionCommand(context) {
+  return runSessionFixtureCatalogCommand(context, "promote-session", {
+    mutate: true,
+  });
+}
+
 export default defineVisualAssets({
   config: {
     budgets: [
@@ -342,9 +358,27 @@ export default defineVisualAssets({
     update: updateCommand,
     capture: captureCommand,
     "promote-source": promoteSourceCommand,
+    "refresh-session": refreshSessionCommand,
+    "promote-session": promoteSessionCommand,
   },
 
   assets: [
+    defineAsset({
+      id: "coding-plan",
+      metadata: {
+        claim:
+          "A reviewed real coding session supplies deterministic website capture content.",
+      },
+      config: {
+        fixtureId: "coding-plan",
+        manifest:
+          "visual_assets/session_sources/starlette-gzip-responder/manifest.json",
+        reviewedFixture:
+          "mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteCodingPlanSession.json",
+      },
+      commands: sessionFixtureAssetCommands(),
+    }),
+
     defineAsset({
       id: "provider-reasoning",
       metadata: {

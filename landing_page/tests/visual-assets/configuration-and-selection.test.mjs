@@ -6,7 +6,7 @@ import { defineAsset } from "../../scripts/visual-assets/api.mjs";
 import { selectAssets } from "../../scripts/visual-assets/selection.mjs";
 
 test("the current catalog defines commands and source-local lifecycle assets", () => {
-  assert.equal(catalog.assets.length, 5);
+  assert.equal(catalog.assets.length, 6);
   assert.deepEqual(catalog.commandNames, [
     "list",
     "inspect",
@@ -14,9 +14,16 @@ test("the current catalog defines commands and source-local lifecycle assets", (
     "update",
     "capture",
     "promote-source",
+    "refresh-session",
+    "promote-session",
   ]);
 
-  for (const asset of catalog.assets) {
+  const sessionAsset = catalog.assetMap.get("coding-plan");
+  assert.equal(sessionAsset.hasCommand("refresh-session"), true);
+  assert.equal(sessionAsset.hasCommand("promote-session"), true);
+  assert.equal(sessionAsset.hasCommand("check"), true);
+
+  for (const asset of catalog.assets.filter((item) => item.id !== "coding-plan")) {
     assert.equal(asset.hasCommand("check"), false);
     assert.equal(asset.hasLifecycle("buildCandidate"), true);
     assert.equal(asset.hasLifecycle("comparePublished"), true);
@@ -52,7 +59,7 @@ test("check-style default selection includes the complete catalog", () => {
     defaultAll: true,
   });
 
-  assert.equal(selected.assets.length, 5);
+  assert.equal(selected.assets.length, 6);
 });
 
 test("mutating commands require an explicit selection or --all", () => {

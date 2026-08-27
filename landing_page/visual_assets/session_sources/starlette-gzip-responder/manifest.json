@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "fixture_id": "coding-plan",
+  "repository": {
+    "url": "https://github.com/Kludex/starlette.git",
+    "revision": "3d6d6c20e795d02d22b358758bfa987b436a3ec4",
+    "sparse_paths": [
+      "starlette",
+      "tests"
+    ],
+    "max_checkout_bytes": 20971520,
+    "max_checkout_seconds": 30
+  },
+  "source_issue": {
+    "repository": "Kludex/starlette",
+    "number": 3414,
+    "title": "Missing Default Value for thread_minimum_size in GZipResponder (Backward Compatibility Issue)"
+  },
+  "prompt_file": "prompt.md",
+  "config_file": "config.json",
+  "presentation": {
+    "session_id": "website-coding-plan",
+    "title": "Plan a Starlette compatibility fix",
+    "subtitle": "Coding session · OpenAI Responses"
+  },
+  "reviewed_fixture": "../../mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteCodingPlanSession.json"
+}
