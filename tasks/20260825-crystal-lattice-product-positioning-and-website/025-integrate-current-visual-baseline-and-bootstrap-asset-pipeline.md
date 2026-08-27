@@ -609,7 +609,7 @@ content, privacy, and product-communication judgments only.
 - [x] If approved, implement and verify one native capture scenario.
 - [x] Approve the revised Stage C1-C5 expansion.
 - [x] Implement the revised Stage C1 reviewed-session source.
-- [ ] Pass manual checkpoint C1.
+- [x] Pass manual checkpoint C1.
 - [ ] Implement and pass checkpoint C2 for unframed workbench captures.
 - [ ] Implement and pass checkpoint C3 for provider focus composites.
 - [ ] Implement and pass checkpoint C4 for the mobile-page hero.
@@ -1073,3 +1073,24 @@ content, privacy, and product-communication judgments only.
   supersedes the earlier `gpt-5.4-mini` candidate values above.
 - No reviewed fixture exists and promotion remains blocked pending checkpoint
   C1 approval.
+
+### August 27, 2026 — Stage C1 approved and promoted
+
+- The user approved C1 with one requested configuration change:
+  `gpt-5.6-luna` with medium reasoning.
+- Commit `a6bd52fa` records the complete reproducible session-fixture workflow
+  and the tracked configuration before the final hosted refresh.
+- The refresh from that committed config completed in 43.3 seconds. The
+  candidate contained five visible messages, four successful repository
+  inspections, no failed tool results, and passed the privacy/internal-context
+  scan.
+- Final generation evidence:
+  - config SHA-256:
+    `bfad8038590c3403a15c6fc4ec3208fc92ad56a45c32195fbf162cc67e34f782`;
+  - candidate SHA-256:
+    `92f28a784f40a69e185462fea6acaef4962e685791c0f7e78ddeb8fb2755ead4`;
+  - candidate size: 60,136 bytes;
+  - sparse checkout size: 1,251,521 bytes.
+- `promote-session coding-plan` copied the exact reviewed candidate to
+  `mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteCodingPlanSession.json`.
+- Stage C2 is authorized.
