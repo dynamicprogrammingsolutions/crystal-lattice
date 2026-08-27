@@ -26,6 +26,10 @@ This document captures the common patterns and background knowledge needed to ad
 
 The most important rule is: **business logic lives in the application layer (e.g. `TerminalApplication`), not in the CLI.**
 
+Terminal message headers, transient progress state, prompt redraw, and
+pseudo-terminal verification are mapped in
+[Terminal rendering, progress, and UI testing](terminal-ui.md).
+
 ## Sessions, configs, and slicing
 
 When implementing features that modify or inspect history, you need to understand:
@@ -75,6 +79,9 @@ When you add a new feature:
 - Decide what events should be emitted (if any).
 - Emit them from the application layer right after you mutate a session or start/finish a request.
 - Update the terminal and/or server rendering code to handle the new event type.
+- Preserve renderer-significant terminal events during application event
+  compaction. `tool_partial(phase="end")` and assistant lifecycle indices are
+  semantic display data rather than redundant stream chunks.
 
 ## Where to put new feature logic
 

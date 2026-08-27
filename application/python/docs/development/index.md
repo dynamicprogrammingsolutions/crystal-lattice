@@ -5,6 +5,7 @@
 - [Bridge registered-server adapter](bridge-server-adapter.md)
 - [Runtime owner integration](runtime-owner-integration.md)
 - [Terminal and HTTP feature development](terminal-and-http-features.md)
+- [Terminal rendering, progress, and UI testing](terminal-ui.md)
 
 Portable bridge-connectivity, reload, and notification behavior is specified
 in root development specifications. These package pages document terminal,

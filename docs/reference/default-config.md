@@ -579,7 +579,8 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "tool_output_line_limit": 20,
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
-    "tool_output_live_compact": false,
+    "tool_output_live_one_line": false,
+    "terminal_startup_help": "summary",
     "notifications": {
       "history_limit": 500,
       "store": {

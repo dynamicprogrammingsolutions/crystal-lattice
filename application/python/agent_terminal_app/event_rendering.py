@@ -170,10 +170,21 @@ class BaseMessageRenderer:
     def __init__(self, app: TerminalApplication) -> None:
         self._app = app
 
-    def render_event(self, event: Dict[str, Any], write: WriteFn) -> None:  # pragma: no cover - overridden
+    @staticmethod
+    def _write_message_header(write: WriteFn, header: str) -> None:
+        """Write one explicit separator line before a semantic message header."""
+
+        write("")
+        write(header)
+
+    def render_event(
+        self, event: Dict[str, Any], write: WriteFn
+    ) -> None:  # pragma: no cover - overridden
         return None
 
-    def render_message(self, index: int, message: Any, write: WriteFn, *, short: bool = False) -> None:  # pragma: no cover - overridden
+    def render_message(
+        self, index: int, message: Any, write: WriteFn, *, short: bool = False
+    ) -> None:  # pragma: no cover - overridden
         return None
 
 
@@ -216,14 +227,30 @@ class UserRenderer(BaseMessageRenderer):
         self._footer_elements_supplier = footer_elements_supplier
 
     def render_event(self, event: Dict[str, Any], write: WriteFn) -> None:
-        if event.get("type") == "message_appended" and (event.get("role") == "user" or event.get("role") == "system"):
-            self._render_message(message=event.get("message"), write=write)
+        if event.get("type") == "message_appended" and (
+            event.get("role") == "user" or event.get("role") == "system"
+        ):
+            index = event.get("index")
+            self._render_message(
+                message=event.get("message"),
+                write=write,
+                index=index if isinstance(index, int) else None,
+            )
 
-    def _render_header(self, role, write: WriteFn, *, include_index: bool, index: int | None = None) -> None:
-        prefix = f"[{index}] " if include_index and index is not None and index >= 0 else ""
-        write(f"{prefix}{BLUE}{role.capitalize()}:{RESET}")
+    def _render_header(
+        self, role, write: WriteFn, *, include_index: bool, index: int | None = None
+    ) -> None:
+        prefix = (
+            f"[{index}] " if include_index and index is not None and index >= 0 else ""
+        )
+        self._write_message_header(
+            write,
+            f"{prefix}{BLUE}{role.capitalize()}:{RESET}",
+        )
 
-    def _render_footer(self, md: Dict[str, Any], msg: Dict[str, Any], write: WriteFn) -> None:
+    def _render_footer(
+        self, md: Dict[str, Any], msg: Dict[str, Any], write: WriteFn
+    ) -> None:
         parts: List[str] = []
 
         # Plugin-provided message_footer elements are rendered on the
@@ -255,7 +282,14 @@ class UserRenderer(BaseMessageRenderer):
         if parts:
             write(" ".join(parts))
 
-    def _render_message(self, message: Any, write: WriteFn, *, index: int|None = None, short: bool = False) -> None:
+    def _render_message(
+        self,
+        message: Any,
+        write: WriteFn,
+        *,
+        index: int | None = None,
+        short: bool = False,
+    ) -> None:
         msg = _message_to_dict(message)
         if msg.get("role") != "user" and msg.get("role") != "system":
             return
@@ -269,7 +303,9 @@ class UserRenderer(BaseMessageRenderer):
             write(text)
         self._render_footer(md, msg, write)
 
-    def render_message(self, index: int, message: Any, write: WriteFn, *, short: bool = False) -> None:
+    def render_message(
+        self, index: int, message: Any, write: WriteFn, *, short: bool = False
+    ) -> None:
         self._render_message(message, write, index=index, short=short)
 
 
@@ -310,8 +346,8 @@ class AssistantRenderer(BaseMessageRenderer):
         """Render streaming assistant reasoning and content.
 
         Uses the same header/footer semantics as non-streaming rendering,
-        but without indices and with incremental content updates. The
-        footer is rendered when the final event arrives.
+        with incremental content updates. The footer is rendered when the
+        final event arrives.
         """
 
         etype = event.get("type")
@@ -325,7 +361,12 @@ class AssistantRenderer(BaseMessageRenderer):
                 # print the header so it appears before thinking/content.
                 self._flush_buffers()
                 self._reasoning_open = False
-                self._render_header(write, include_index=False)
+                index = event.get("message_index")
+                self._render_header(
+                    write,
+                    include_index=isinstance(index, int),
+                    index=index if isinstance(index, int) else None,
+                )
             elif phase == "end":
                 # End of the current assistant message. Flush any
                 # remaining buffered fragments; footers are rendered on
@@ -404,13 +445,21 @@ class AssistantRenderer(BaseMessageRenderer):
         if self._reasoning_buffer or self._content_buffer:
             self._flush_buffers()
             self._reasoning_open = False
-            
 
-    def _render_header(self, write: WriteFn, *, include_index: bool, index: int | None = None) -> None:
-        prefix = f"[{index}] " if include_index and index is not None and index >= 0 else ""
-        write(f"{prefix}{BLUE}Assistant:{RESET}")
+    def _render_header(
+        self, write: WriteFn, *, include_index: bool, index: int | None = None
+    ) -> None:
+        prefix = (
+            f"[{index}] " if include_index and index is not None and index >= 0 else ""
+        )
+        self._write_message_header(
+            write,
+            f"{prefix}{BLUE}Assistant:{RESET}",
+        )
 
-    def _render_footer(self, md: Dict[str, Any], msg: Dict[str, Any], write: WriteFn) -> None:
+    def _render_footer(
+        self, md: Dict[str, Any], msg: Dict[str, Any], write: WriteFn
+    ) -> None:
         parts: List[str] = []
         # Always include the current agent id when available.
         try:
@@ -500,7 +549,9 @@ class AssistantRenderer(BaseMessageRenderer):
                 summary = "; ".join(items)
                 write(f"{GRAY}sources: {summary}{RESET}")
 
-    def render_message(self, index: int, message: Any, write: WriteFn, *, short: bool = False) -> None:
+    def render_message(
+        self, index: int, message: Any, write: WriteFn, *, short: bool = False
+    ) -> None:
         msg = _message_to_dict(message)
         if msg.get("role") != "assistant":
             return
@@ -539,31 +590,30 @@ class AssistantRenderer(BaseMessageRenderer):
         self._render_footer(md, msg, write)
 
 
-
 class ToolRenderer(BaseMessageRenderer):
     """Render tool call output for events and list view."""
 
     def __init__(
         self,
         app: TerminalApplication,
-        compact_supplier: Optional[Callable[[], bool]] = None,
+        one_line_supplier: Optional[Callable[[], bool]] = None,
     ) -> None:
         super().__init__(app)
-        self._open_calls: set[str] = set()
+        self._open_calls: set[tuple[str, str]] = set()
         # Per-call line buffers so that streamed tool output is
         # printed only once per complete line.
-        self._line_buffers: Dict[str, str] = {}
+        self._line_buffers: Dict[tuple[str, str], str] = {}
         # Per-call accounting for line/character limits so that
         # streaming respects the same bounds as non-streamed output.
-        self._printed_lines: Dict[str, int] = {}
-        self._printed_chars: Dict[str, int] = {}
-        self._truncated_calls: set[str] = set()
-        # Live compact ("one-line") mode. The supplier is read once per
+        self._printed_lines: Dict[tuple[str, str], int] = {}
+        self._printed_chars: Dict[tuple[str, str], int] = {}
+        self._truncated_calls: set[tuple[str, str]] = set()
+        # Live one-line-result mode. The supplier is read once per
         # tool call (at the first event seen for that call) so that
         # toggling mid-call never mixes full and compact rendering for
         # the same call.
-        self._compact_supplier = compact_supplier
-        self._call_modes: Dict[str, bool] = {}
+        self._one_line_supplier = one_line_supplier
+        self._call_modes: Dict[tuple[str, str], bool] = {}
         cfg = app.agent_app.get_application_config()
         self._line_limit: int = int(cfg.get("tool_output_line_limit", 100))
         self._char_limit: int = int(cfg.get("tool_output_char_limit", 8000))
@@ -572,14 +622,16 @@ class ToolRenderer(BaseMessageRenderer):
         self._short_one_line: bool = bool(cfg.get("tool_output_short_one_line", True))
         self._short_line_limit: int = int(cfg.get("tool_output_short_line_limit", 20))
 
-    def _select_content_from_message(self, msg: Dict[str, Any], *, short: bool = False) -> str | None:
+    def _select_content_from_message(
+        self, msg: Dict[str, Any], *, short: bool = False
+    ) -> str | None:
         """Return display-aware content for a tool message/result.
 
         Prefers ``metadata.display.content`` when present, falling back to
         the core ``content`` field. This mirrors the semantics used when
         listing stored messages so that streaming and history views stay
         consistent.
-        
+
         When ``short=True``, prefers ``metadata.display.single_line`` if
         available for collapsed/short views.
         """
@@ -591,13 +643,13 @@ class ToolRenderer(BaseMessageRenderer):
         if not isinstance(md, dict):
             md = {}
         display = md.get("display")
-        
+
         # In short mode, prefer single_line if available
         if short and isinstance(display, dict):
             single_line = display.get("single_line")
             if isinstance(single_line, str) and single_line.strip():
                 return single_line
-        
+
         # Otherwise, prefer display content/fallbacks before raw message content.
         if isinstance(display, dict):
             if display.get("type") == "text":
@@ -615,8 +667,8 @@ class ToolRenderer(BaseMessageRenderer):
             return content
         return None
 
-    def _is_compact(self) -> bool:
-        supplier = self._compact_supplier
+    def _is_one_line(self) -> bool:
+        supplier = self._one_line_supplier
         if supplier is None:
             return False
         try:
@@ -641,14 +693,52 @@ class ToolRenderer(BaseMessageRenderer):
             content, self._short_line_limit, self._short_char_limit
         )
 
-    def _render_compact_line(self, event: Dict[str, Any], write: WriteFn) -> None:
-        """Render a finished tool call as a single compact line.
+    @staticmethod
+    def _call_key(event: Dict[str, Any]) -> tuple[str, str]:
+        request_id = event.get("request_id")
+        call_id = event.get("tool_call_id")
+        return (
+            request_id if isinstance(request_id, str) else "",
+            call_id if isinstance(call_id, str) else "",
+        )
 
-        Combines the message index (when present), tool name, and the
-        short/single_line content into one line, e.g.:
+    def _clear_call_state(self, key: tuple[str, str]) -> None:
+        self._open_calls.discard(key)
+        self._line_buffers.pop(key, None)
+        self._printed_lines.pop(key, None)
+        self._printed_chars.pop(key, None)
+        self._truncated_calls.discard(key)
+        self._call_modes.pop(key, None)
 
-            [7] Tool: read_file README.md
-        """
+    def _clear_request_state(self, request_id: Any) -> None:
+        if isinstance(request_id, str):
+            keys = {
+                key
+                for key in (
+                    set(self._open_calls)
+                    | set(self._line_buffers)
+                    | set(self._printed_lines)
+                    | set(self._printed_chars)
+                    | set(self._truncated_calls)
+                    | set(self._call_modes)
+                )
+                if key[0] == request_id
+            }
+            for key in keys:
+                self._clear_call_state(key)
+            return
+        self.reset_transient_state()
+
+    def reset_transient_state(self) -> None:
+        self._open_calls.clear()
+        self._line_buffers.clear()
+        self._printed_lines.clear()
+        self._printed_chars.clear()
+        self._truncated_calls.clear()
+        self._call_modes.clear()
+
+    def _render_one_line_result(self, event: Dict[str, Any], write: WriteFn) -> None:
+        """Render a finished tool call as a compact two-line block."""
 
         payload = event.get("payload") or {}
         result = payload.get("result") if isinstance(payload, dict) else None
@@ -670,25 +760,38 @@ class ToolRenderer(BaseMessageRenderer):
 
         content = self._select_content_from_message(result, short=True)
         text, _truncated = self._condense_short(content or "", one_line=True)
-        body = f" {GRAY}{text}{RESET}" if text else ""
-
-        write(f"{prefix}{BLUE}Tool:{RESET}{name_part}{body}")
+        self._write_message_header(
+            write,
+            f"{prefix}{BLUE}Tool:{RESET}{name_part}",
+        )
+        if text:
+            write(f"    {GRAY}{text}{RESET}")
 
     def render_event(self, event: Dict[str, Any], write: WriteFn) -> None:
-        if event.get("type") != "tool_partial":
+        event_type = event.get("type")
+        if event_type in {
+            "request_completed",
+            "request_cancelled",
+            "error",
+        }:
+            self._clear_request_state(event.get("request_id"))
+            return
+        if event_type == "session_created":
+            self.reset_transient_state()
+            return
+        if event_type != "tool_partial":
             return
 
-        call_id = event.get("tool_call_id")
         phase = event.get("phase")
         payload = event.get("payload") or {}
+        key = self._call_key(event)
 
         # Fix the rendering mode for this call at the first event seen
         # for it, so a mid-call toggle never mixes modes.
-        mode_key = call_id if isinstance(call_id, str) else ""
-        compact = self._call_modes.get(mode_key)
-        if compact is None:
-            compact = self._is_compact()
-            self._call_modes[mode_key] = compact
+        one_line = self._call_modes.get(key)
+        if one_line is None:
+            one_line = self._is_one_line()
+            self._call_modes[key] = one_line
 
         # Backwards compatibility: payloads from earlier versions without phase.
         if isinstance(payload, dict):
@@ -697,19 +800,14 @@ class ToolRenderer(BaseMessageRenderer):
             part = {}
 
         if phase == "end":
-            if compact:
-                # Compact mode: the whole call renders as one line. Any
+            if one_line:
+                # One-line-result mode: the call renders as a compact block. Any
                 # buffered per-call state is dropped (nothing was
-                # streamed for compact calls).
+                # streamed for one-line-result calls).
                 result = payload.get("result") if isinstance(payload, dict) else None
                 if isinstance(result, dict):
-                    self._render_compact_line(event, write)
-                self._open_calls.discard(mode_key)
-                self._line_buffers.pop(mode_key, None)
-                self._printed_lines.pop(mode_key, None)
-                self._printed_chars.pop(mode_key, None)
-                self._truncated_calls.discard(mode_key)
-                self._call_modes.pop(mode_key, None)
+                    self._render_one_line_result(event, write)
+                self._clear_call_state(key)
                 return
 
             # End-of-call event with the final tool result. When no
@@ -721,7 +819,7 @@ class ToolRenderer(BaseMessageRenderer):
                 md = result.get("metadata") or {}
                 if not isinstance(md, dict):
                     md = {}
-                saw_stream = isinstance(call_id, str) and call_id in self._open_calls
+                saw_stream = key in self._open_calls
                 if not saw_stream:
                     self._render_header(write, include_index=False)
                     content = self._select_content_from_message(result)
@@ -742,7 +840,6 @@ class ToolRenderer(BaseMessageRenderer):
                 # trailing content without a newline is still printed
                 # once with a newline appended, subject to the same
                 # line/character limits.
-                key = call_id if isinstance(call_id, str) else ""
                 buf = self._line_buffers.pop(key, "")
                 if buf:
                     lines = self._printed_lines.get(key, 0)
@@ -759,27 +856,21 @@ class ToolRenderer(BaseMessageRenderer):
                         would_exceed_chars = (
                             self._char_limit > 0 and chars + len(buf) > self._char_limit
                         )
-                        if not already_truncated and (would_exceed_lines or would_exceed_chars):
+                        if not already_truncated and (
+                            would_exceed_lines or would_exceed_chars
+                        ):
                             write(f"{GRAY}[tool output truncated]{RESET}")
                             self._truncated_calls.add(key)
                         elif not (would_exceed_lines or would_exceed_chars):
                             print(buf, flush=True)
 
-            if isinstance(call_id, str) and call_id in self._open_calls:
-                self._open_calls.discard(call_id)
-            # Clear per-call accounting once the call ends.
-            key = call_id if isinstance(call_id, str) else ""
-            self._line_buffers.pop(key, None)
-            self._printed_lines.pop(key, None)
-            self._printed_chars.pop(key, None)
-            self._truncated_calls.discard(key)
-            self._call_modes.pop(key, None)
+            self._clear_call_state(key)
             return
 
-        # In compact mode, streamed start/stream output (including
+        # In one-line-result mode, streamed start/stream output (including
         # summary parts) is suppressed entirely; the call renders as a
-        # single line on the end event instead.
-        if compact:
+        # compact block on the end event instead.
+        if one_line:
             return
 
         # For start/stream (or legacy payloads without phase), stream text.
@@ -805,18 +896,11 @@ class ToolRenderer(BaseMessageRenderer):
         if not isinstance(content, str) or not content:
             return
 
-        # Print header once per tool_call_id.
-        if isinstance(call_id, str):
-            if call_id not in self._open_calls:
-                self._open_calls.add(call_id)
-                self._render_header(write, include_index=False)
-            key = call_id
-        else:
-            # No call id; treat as anonymous stream but still show header once.
-            if "" not in self._open_calls:
-                self._open_calls.add("")
-                self._render_header(write, include_index=False)
-            key = ""
+        # Print the header once per request/tool-call pair. Anonymous or reused
+        # call ids remain isolated across requests.
+        if key not in self._open_calls:
+            self._open_calls.add(key)
+            self._render_header(write, include_index=False)
 
         # Line-buffered streaming: accumulate content until a newline is
         # seen, then print whole lines. Any remainder is flushed when
@@ -854,7 +938,9 @@ class ToolRenderer(BaseMessageRenderer):
                 continue
 
             would_exceed_lines = self._line_limit > 0 and lines + 1 > self._line_limit
-            would_exceed_chars = self._char_limit > 0 and chars + len(line) > self._char_limit
+            would_exceed_chars = (
+                self._char_limit > 0 and chars + len(line) > self._char_limit
+            )
             if would_exceed_lines or would_exceed_chars:
                 write(f"{GRAY}[tool output truncated]{RESET}")
                 self._truncated_calls.add(key)
@@ -871,9 +957,16 @@ class ToolRenderer(BaseMessageRenderer):
         self._printed_lines[key] = lines
         self._printed_chars[key] = chars
 
-    def _render_header(self, write: WriteFn, *, include_index: bool, index: int | None = None) -> None:
-        prefix = f"[{index}] " if include_index and index is not None and index >= 0 else ""
-        write(f"{prefix}{BLUE}Tool:{RESET}")
+    def _render_header(
+        self, write: WriteFn, *, include_index: bool, index: int | None = None
+    ) -> None:
+        prefix = (
+            f"[{index}] " if include_index and index is not None and index >= 0 else ""
+        )
+        self._write_message_header(
+            write,
+            f"{prefix}{BLUE}Tool:{RESET}",
+        )
 
     def _render_footer(self, md: Dict[str, Any], write: WriteFn) -> None:
         parts: List[str] = []
@@ -889,7 +982,9 @@ class ToolRenderer(BaseMessageRenderer):
         if parts:
             write(" ".join(parts))
 
-    def render_message(self, index: int, message: Any, write: WriteFn, *, short: bool = False) -> None:
+    def render_message(
+        self, index: int, message: Any, write: WriteFn, *, short: bool = False
+    ) -> None:
         msg = _message_to_dict(message)
         if msg.get("role") != "tool":
             return
@@ -921,15 +1016,19 @@ class TerminalRenderContext:
         self,
         app: TerminalApplication,
         footer_elements_supplier: Callable[[], List[Dict[str, Any]]],
-        compact_supplier: Optional[Callable[[], bool]] = None,
+        one_line_supplier: Optional[Callable[[], bool]] = None,
     ) -> None:
         self._log = _require_event_logger()
+        self._tool_renderer = ToolRenderer(app, one_line_supplier=one_line_supplier)
         self._renderers: List[BaseMessageRenderer] = [
             LifecycleRenderer(app),
             UserRenderer(app, footer_elements_supplier),
             AssistantRenderer(app, footer_elements_supplier),
-            ToolRenderer(app, compact_supplier=compact_supplier),
+            self._tool_renderer,
         ]
+
+    def reset_transient_state(self) -> None:
+        self._tool_renderer.reset_transient_state()
 
     def render_event(self, event: Dict[str, Any], write: WriteFn) -> None:
         # self._log.debug("event received", ev=event)
@@ -939,7 +1038,9 @@ class TerminalRenderContext:
             except Exception:
                 continue
 
-    def render_message(self, index: int, message: Any, write: WriteFn, *, short: bool = False) -> None:
+    def render_message(
+        self, index: int, message: Any, write: WriteFn, *, short: bool = False
+    ) -> None:
         for renderer in self._renderers:
             try:
                 renderer.render_message(index, message, write, short=short)

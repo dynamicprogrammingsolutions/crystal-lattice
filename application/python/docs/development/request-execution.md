@@ -458,6 +458,16 @@ operation remains append-only.
 The terminal polls and renders public events. It does not create its own
 request worker or hold a separate owner operation.
 
+Assistant lifecycle start/end events carry `message_index`, equal to the LLM
+phase's existing `start_index`. During streaming this is the reserved index the
+assistant message will occupy if the phase commits. Cancellation after partial
+output can leave that displayed index without a stored message; the terminal
+does not persist an incomplete assistant solely to make the index expandable.
+
+`TerminalApplication.poll_new_events()` applies the shared event compactor.
+Tool end events are preserved because they carry the final display-aware result
+and stored message index.
+
 `TerminalApplication.send_request(...)` remains as a synchronous compatibility
 API and delegates to `run_session_request(...)`.
 

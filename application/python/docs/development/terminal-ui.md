@@ -60,6 +60,19 @@ open-call, buffer, accounting, truncation, and mode state after:
 The tool-provided `display.single_line` value is opaque. It remains intact on
 the result line; the technical `tool_name` remains in the header.
 
+## Message-header invariant
+
+User, System, Assistant, and Tool headers delegate to one shared header writer.
+It emits one explicit empty line immediately before the colored/indexed header.
+The invariant applies to live and stored-message rendering, including compact
+tool headers. It excludes lifecycle/status and message detail lines.
+
+Live `message_appended` events already carry `index`; User/System rendering
+uses that field. Assistant lifecycle events carry the LLM phase
+`message_index`, equal to the final event's `start_index`. The value is
+provisional until a final assistant message commits, so cancellation can leave
+no stored message at the displayed index.
+
 ## Progress model
 
 `TerminalProgressState` is immutable and reduced from public events. It

@@ -309,6 +309,7 @@ class ToolLoopRunner:
                             "session_id": current_session.session_id,
                             "request_id": rid,
                             "phase": "start",
+                            "message_index": start_index,
                         }
                     yield {
                         "type": "partial",
@@ -330,6 +331,7 @@ class ToolLoopRunner:
                             "session_id": current_session.session_id,
                             "request_id": rid,
                             "phase": "start",
+                            "message_index": start_index,
                         }
 
                     # Emit the public final event describing the completed
@@ -350,6 +352,7 @@ class ToolLoopRunner:
                             "session_id": final_session.session_id,
                             "request_id": rid,
                             "phase": "end",
+                            "message_index": start_index,
                         }
 
                     # Internal checkpoint is emitted *after* the final

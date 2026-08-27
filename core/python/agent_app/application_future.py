@@ -1972,11 +1972,13 @@ class AgentApplication:
     def compact_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Return a compacted view of ``events``.
 
-        This helper removes redundant ``partial`` and ``tool_partial``
-        events that precede terminal events (``final`` or
-        ``tool_results``) for the same ``session_id``/``request_id``
-        pair within a single batch. It does not modify the underlying
-        event store and preserves the order of all kept events.
+        This helper removes redundant assistant partials before ``final`` and
+        non-terminal tool start/stream partials before ``tool_results`` for
+        the same ``session_id``/``request_id`` pair within one batch.
+        ``tool_partial`` events with ``phase == "end"`` are preserved because
+        they carry the final display-aware result used by renderers. The
+        underlying event store is not modified, and kept-event order is
+        preserved.
         """
 
         if not events or not self._enable_event_compaction:
@@ -2010,7 +2012,7 @@ class AgentApplication:
                     else:
                         keep_flags[idx] = True
                 elif etype == "tool_partial":
-                    if seen_tool_results.get(key):
+                    if seen_tool_results.get(key) and ev.get("phase") != "end":
                         keep_flags[idx] = False
                     else:
                         keep_flags[idx] = True

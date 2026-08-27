@@ -1194,10 +1194,15 @@ class TerminalApplication:
                 "default": 20,
                 "description": "Maximum number of lines for short tool output when one-line mode is disabled.",
             },
-            "tool_output_live_compact": {
+            "tool_output_live_one_line": {
                 "type": "bool",
                 "default": False,
-                "description": "If true, live tool calls render as one line at startup (toggle at runtime with /compact).",
+                "description": "If true, live tool results use one-line previews at startup (change at runtime with /tool-output).",
+            },
+            "terminal_startup_help": {
+                "type": "string",
+                "default": "summary",
+                "description": "Startup guidance mode: summary, hint, or off.",
             },
         }
 

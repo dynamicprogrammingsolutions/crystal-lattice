@@ -17,6 +17,7 @@ Documentation:
 
 - [Package documentation](docs/index.md)
 - [Quickstart](docs/quickstart.md)
+- [Terminal guide](docs/terminal.md)
 - [Application configuration](docs/configuration.md)
 - [Application runtime development](docs/development/index.md)
 
@@ -86,7 +87,7 @@ From the repository root:
 
 ```bash
 python -m pip install -e "core/python[dev]"
-python -m pip install -e application/python
+python -m pip install -e "application/python[dev]"
 ```
 
 For local source development, install `core/python` first so
@@ -486,7 +487,7 @@ Common slash commands:
 - `/send` - send a request with current history.
 - `/append` - add a message without sending.
 - `/delete`, `/modify`, `/list` - manage message history.
-- `/compact` - toggle one-line rendering of live tool calls (`on`/`off`).
+- `/tool-output` - show or select live tool output (`one-line`/`full`).
 - `/plugins` - list, enable, disable, or reset per-session plugins.
 
 ### Full application reload
@@ -569,18 +570,21 @@ subsequent requests and reloads use the updated plugin set.
 The `/list` command shows compact message history, including role, content,
 reasoning/thinking metadata, tool calls, and tool call ids when present.
 
-### Compact Tool Calls
+### One-Line Tool Results
 
 When a request triggers many tool calls, the live view can crowd out earlier
-messages. `/compact` toggles a one-line rendering for live tool calls:
+messages. `/tool-output one-line` uses a compact result block:
 
 ```text
-[7] Tool: read_file README.md
+
+[7] Tool: read_file
+    Read: README.md
 ```
 
 The leading `[7]` is the message index; use `/list 7` to re-print that tool
 message in full (content plus footer metadata). The startup default comes from
-the application config key `tool_output_live_compact` (default `false`).
+the application config key `tool_output_live_one_line` (default `false`).
+Use `/tool-output full` to restore full streamed tool output.
 
 ## Logging
 

@@ -43,6 +43,12 @@ def _screen_contains(screen, text: str) -> bool:
     return any(text in line for line in screen.display)
 
 
+def _assert_preceded_by_blank_line(screen, text: str) -> None:
+    row = next(index for index, line in enumerate(screen.display) if text in line)
+    assert row > 0
+    assert screen.display[row - 1].strip() == ""
+
+
 def _wait_for_screen_text(child, screen, text: str, timeout: float = 10.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -113,8 +119,11 @@ def test_progress_toolbar_redraws_for_request_llm_and_tool_phases(
                 "type": "assistant_message",
                 "phase": "start",
                 "request_id": "request-1",
+                "message_index": 174,
             },
         )
+        _wait_for_screen_text(child, screen, "[174] Assistant:")
+        _assert_preceded_by_blank_line(screen, "[174] Assistant:")
         _wait_for_screen_text(child, screen, "Running: LLM")
 
         _append_event(
@@ -161,6 +170,8 @@ def test_progress_toolbar_redraws_for_request_llm_and_tool_phases(
                 },
             },
         )
+        _wait_for_screen_text(child, screen, "Tool:")
+        _assert_preceded_by_blank_line(screen, "Tool:")
         _append_event(
             event_path,
             {"type": "request_completed", "request_id": "request-1"},

@@ -7,6 +7,8 @@ terminal interface, HTTP API, local discovery, and bridge connectivity.
 
 - [Quickstart](quickstart.md): install the command, start the local server, and
   verify its HTTP endpoint.
+- [Terminal guide](terminal.md): use slash commands, indexed message headers,
+  progress indicators, compact tool results, and terminal configuration.
 - [Application configuration](configuration.md): configure agents, providers,
   plugin packages, mixins, placeholders, and plugin installation policy.
 - [Package README](../README.md): complete terminal, HTTP, mobile connectivity,

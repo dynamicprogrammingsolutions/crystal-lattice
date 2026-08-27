@@ -83,6 +83,32 @@ Use `/cancel` or `Ctrl-X C` to cancel the active request. Completion,
 cancellation, errors, session changes, and shutdown clear transient progress
 and tool-rendering state.
 
+## Message headers and indices
+
+Every semantic message header is separated from previous output by an empty
+line and shows its session index when the event has one:
+
+```text
+
+[173] User:
+Please inspect the repository.
+
+[174] Assistant:
+I’ll inspect the relevant files.
+
+[175] Tool: shell
+    rg --files
+```
+
+This applies to User, System, Assistant, and Tool headers in live output and
+`/list`. Request, session, error, progress, footer, citation, and source lines
+are not message headers and do not receive this separator rule.
+
+For a streaming assistant response, the displayed index is reserved when the
+LLM phase starts and matches the final event's `start_index`. If the request is
+cancelled after partial output, no final assistant message may be stored at
+that reserved index.
+
 ## Tool-output modes
 
 Show the current mode:

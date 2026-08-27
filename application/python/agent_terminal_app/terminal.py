@@ -3,13 +3,11 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from logging import Logger
-from pathlib import Path
 import sys
 from typing import Any, Awaitable, Callable, Dict, List, Optional, cast, Tuple
 
-from prompt_toolkit import PromptSession, print_formatted_text
+from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
@@ -21,6 +19,12 @@ from .event_rendering import (
 )
 from .runtime_layout import load_runtime_layout
 from .session_query import parse_session_query
+from .terminal_progress import (
+    IDLE_PROGRESS,
+    TerminalProgressState,
+    format_terminal_progress,
+    reduce_terminal_progress,
+)
 from .terminal_app import (
     TerminalApplication,
     TerminalUserError,
@@ -206,7 +210,10 @@ def _render_status_bar_template(template: str, data: Any) -> str:
     return text
 
 
-def _status_bar_text(app: TerminalApplication) -> str:
+def _status_bar_text(
+    app: TerminalApplication,
+    progress: TerminalProgressState = IDLE_PROGRESS,
+) -> str:
     """Build status bar text with agent, session, and plugin-contributed fields."""
 
     # Base status info
@@ -223,6 +230,9 @@ def _status_bar_text(app: TerminalApplication) -> str:
     if isinstance(agent, str) and agent:
         parts.append(f"Agent: {agent}")
     parts.append(f"Session: {session_id}")
+    progress_text = format_terminal_progress(progress)
+    if progress_text:
+        parts.append(progress_text)
 
     # Add plugin-contributed status_bar elements from last assistant message
     try:
@@ -375,11 +385,24 @@ async def _poll_events(
     write: Callable[[str], None],
     ui_state: Dict[str, Any],
     poll_interval: float = 0.1,
+    invalidate: Optional[Callable[[], None]] = None,
 ) -> None:
     while ui_state.get("running", True):
         events = app.poll_new_events(limit=50)
         renderer = ui_state.get("renderer")
         for ev in events:
+            current_progress = ui_state.get("progress_state")
+            if not isinstance(current_progress, TerminalProgressState):
+                current_progress = IDLE_PROGRESS
+            next_progress = reduce_terminal_progress(current_progress, ev)
+            if next_progress != current_progress:
+                ui_state["progress_state"] = next_progress
+                if invalidate is not None:
+                    try:
+                        invalidate()
+                    except Exception:
+                        pass
+
             # Prefer the shared TerminalRenderContext when available so that
             # streaming events and history listing share the same visuals.
             if isinstance(renderer, TerminalRenderContext):
@@ -397,6 +420,20 @@ async def _poll_events(
                     ui_state["active_request_id"] = None
 
         await asyncio.sleep(poll_interval)
+
+
+def _reset_terminal_transient_state(ui_state: Dict[str, Any]) -> None:
+    renderer = ui_state.get("renderer")
+    if isinstance(renderer, TerminalRenderContext):
+        renderer.reset_transient_state()
+    ui_state["progress_state"] = IDLE_PROGRESS
+    ui_state["active_request_id"] = None
+    invalidate = ui_state.get("invalidate")
+    if callable(invalidate):
+        try:
+            invalidate()
+        except Exception:
+            pass
 
 
 @slash_command("ui_schema", "Get schema for UI configuration")
@@ -630,6 +667,7 @@ async def _cmd_agent(
             raise TerminalUserError(f"already using agent {target!r}")
 
         app.switch_agent(target)
+        _reset_terminal_transient_state(ui_state)
         write(f"[agent] switched to {target!r}")
         return
 
@@ -659,6 +697,7 @@ async def _cmd_session(
 
     if query.search_text and app.is_saved_session_id(query.search_text):
         session = app.switch_session(query.search_text)
+        _reset_terminal_transient_state(ui_state)
         write(f"[session] switched to {session.session_id!r}")
         return
 
@@ -1058,6 +1097,7 @@ async def _cmd_new_session(
 ) -> None:
     session = app.start_new_session(agent_id=None, persist=False)
     app.reset_event_cursor()
+    _reset_terminal_transient_state(ui_state)
     write(f"[session] switched to {session.session_id}")
 
 
@@ -1111,6 +1151,7 @@ def _handle_agent_selection(
         _render_terminal_exception("agent", exc, write)
         return
 
+    _reset_terminal_transient_state(ui_state)
     write(f"[agent] switched to {target!r}")
 
 
@@ -1146,6 +1187,7 @@ def _handle_session_selection(
         _render_terminal_exception("session", exc, write)
         return
 
+    _reset_terminal_transient_state(ui_state)
     write(f"[session] switched to {session.session_id!r}")
 
 
@@ -1709,7 +1751,7 @@ async def _cmd_list(
         renderer = TerminalRenderContext(
             app=app,
             footer_elements_supplier=lambda: app.message_footer_elements(),
-            compact_supplier=lambda: bool(ui_state.get("compact_tool_calls")),
+            one_line_supplier=lambda: bool(ui_state.get("tool_output_one_line")),
         )
         ui_state["renderer"] = renderer
 
@@ -1717,14 +1759,14 @@ async def _cmd_list(
         renderer.render_message(idx, message, write, short=use_short)
 
 
-def _compact_completion(app: TerminalApplication, text: str) -> List[Completion]:
+def _tool_output_completion(app: TerminalApplication, text: str) -> List[Completion]:
     rest = text.lstrip()
-    # Only complete a single token after /compact
+    # Only complete a single mode after /tool-output.
     if " " in rest:
         return []
 
     completions: List[Completion] = []
-    for sub in ["on", "off"]:
+    for sub in ["one-line", "full"]:
         if not rest or sub.startswith(rest):
             completions.append(
                 Completion(
@@ -1737,51 +1779,73 @@ def _compact_completion(app: TerminalApplication, text: str) -> List[Completion]
     return completions
 
 
-def _initial_compact_state(app: TerminalApplication) -> bool:
-    """Resolve the startup default for live compact tool rendering.
+def _initial_tool_output_one_line_state(app: TerminalApplication) -> bool:
+    """Resolve the startup default for one-line live tool results.
 
-    Reads the application-level ``tool_output_live_compact`` config key;
-    the ``/compact`` command toggles the runtime state from there.
+    Reads the application-level ``tool_output_live_one_line`` config key;
+    the ``/tool-output`` command changes the runtime state from there.
     """
 
     try:
         cfg = app.agent_app.get_application_config()
     except Exception:
         return False
-    return bool(cfg.get("tool_output_live_compact", False))
+    return bool(cfg.get("tool_output_live_one_line", False))
+
+
+def _startup_help_lines(app: TerminalApplication) -> List[str]:
+    """Return the configured startup guidance for the interactive terminal."""
+
+    try:
+        cfg = app.agent_app.get_application_config()
+    except Exception:
+        cfg = {}
+    raw_mode = cfg.get("terminal_startup_help", "summary")
+    mode = raw_mode.strip().lower() if isinstance(raw_mode, str) else "summary"
+
+    if mode == "off":
+        return ["Session started."]
+    if mode == "hint":
+        return ["Session started. Type /help for commands. Press Ctrl-Q to exit."]
+    return [
+        "Session started.",
+        "Quick help: type a message to send; /cancel stops the active request.",
+        "Use /session to switch sessions and /tool-output to control tool results.",
+        "Type /help for all commands. Press Ctrl-Q to exit.",
+    ]
 
 
 @slash_command(
-    "compact",
-    "Toggle one-line rendering of live tool calls",
-    completer=_compact_completion,
+    "tool-output",
+    "Show or set live tool output mode (one-line|full)",
+    completer=_tool_output_completion,
 )
-async def _cmd_compact(
+async def _cmd_tool_output(
     app: TerminalApplication,
     arg: str,
     write: Callable[[str], None],
     ui_state: Dict[str, Any],
 ) -> None:
     text = (arg or "").strip().lower()
-    current = bool(ui_state.get("compact_tool_calls"))
+    current = bool(ui_state.get("tool_output_one_line"))
 
     if not text:
-        new_value = not current
-    elif text == "on":
+        new_value = current
+    elif text == "one-line":
         new_value = True
-    elif text == "off":
+    elif text == "full":
         new_value = False
     else:
-        raise TerminalUserError("usage: /compact [on|off]")
+        raise TerminalUserError("usage: /tool-output [one-line|full]")
 
-    ui_state["compact_tool_calls"] = new_value
+    ui_state["tool_output_one_line"] = new_value
     if new_value:
         write(
-            "[compact] on - tool calls render as one line; "
+            "[tool-output] one-line - tool results use a compact preview; "
             "use /list <index> to expand one in full"
         )
     else:
-        write("[compact] off - tool calls render in full")
+        write("[tool-output] full - tool calls stream and render in full")
 
 
 @slash_command("fork", "Fork the current session (optionally up to an index)")
@@ -2104,9 +2168,10 @@ async def _run_terminal(
         "pending_modify_index": None,
         "input_prefill": "",
         "renderer": None,
-        # Live compact ("one-line") tool call rendering; toggled at
-        # runtime via /compact, seeded from application config.
-        "compact_tool_calls": _initial_compact_state(app),
+        "progress_state": IDLE_PROGRESS,
+        # Live one-line-result tool rendering; selected at runtime via
+        # /tool-output and seeded from application config.
+        "tool_output_one_line": _initial_tool_output_one_line_state(app),
     }
 
     # Shared renderer context used for both streaming events and history
@@ -2114,7 +2179,7 @@ async def _run_terminal(
     renderer_ctx = TerminalRenderContext(
         app=app,
         footer_elements_supplier=lambda: app.message_footer_elements(),
-        compact_supplier=lambda: bool(ui_state.get("compact_tool_calls")),
+        one_line_supplier=lambda: bool(ui_state.get("tool_output_one_line")),
     )
     ui_state["renderer"] = renderer_ctx
 
@@ -2128,14 +2193,31 @@ async def _run_terminal(
         multiline=False,
         completer=completer,
         complete_while_typing=True,
-        bottom_toolbar=lambda: _status_bar_text(app),
+        bottom_toolbar=lambda: _status_bar_text(
+            app,
+            (
+                ui_state.get("progress_state")
+                if isinstance(ui_state.get("progress_state"), TerminalProgressState)
+                else IDLE_PROGRESS
+            ),
+        ),
         erase_when_done=True,
     )
     key_bindings = _build_key_bindings(app, write, ui_state)
 
-    event_task = asyncio.create_task(_poll_events(app, write, ui_state))
+    def invalidate_prompt() -> None:
+        try:
+            prompt_session.app.invalidate()
+        except Exception:
+            pass
 
-    write("Session started. Type /help for commands. Press Ctrl-Q to exit.")
+    ui_state["invalidate"] = invalidate_prompt
+    event_task = asyncio.create_task(
+        _poll_events(app, write, ui_state, invalidate=invalidate_prompt)
+    )
+
+    for startup_line in _startup_help_lines(app):
+        write(startup_line)
 
     with patch_stdout(True):
         _set_terminal_title("Crystal Lattice")
