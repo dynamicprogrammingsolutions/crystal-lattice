@@ -464,9 +464,12 @@ assistant message will occupy if the phase commits. Cancellation after partial
 output can leave that displayed index without a stored message; the terminal
 does not persist an incomplete assistant solely to make the index expandable.
 
-`TerminalApplication.poll_new_events()` applies the shared event compactor.
-Tool end events are preserved because they carry the final display-aware result
-and stored message index.
+`TerminalApplication.poll_new_events()` applies the shared application event
+compactor before rendering. Redundant assistant/tool stream chunks may be
+dropped when their aggregate terminal event is present, but
+`tool_partial(phase="end")` is preserved because it carries the final
+display-aware tool result and stored message index. Terminal renderers do not
+reconstruct a lost end event from `tool_results`.
 
 `TerminalApplication.send_request(...)` remains as a synchronous compatibility
 API and delegates to `run_session_request(...)`.

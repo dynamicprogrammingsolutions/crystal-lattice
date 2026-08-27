@@ -266,6 +266,35 @@ async def test_tool_output_command_reports_and_sets_mode(tmp_path: Path) -> None
     ] == ["one-line", "full"]
 
 
+@pytest.mark.asyncio
+async def test_help_lists_registered_commands_and_tool_output_config(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import terminal as term_mod
+
+    app = _make_terminal_app(tmp_path)
+    outputs: list[str] = []
+    await term_mod._cmd_help(app, "", outputs.append, {})
+
+    command_lines = [
+        line.strip()
+        for line in outputs
+        if isinstance(line, str) and line.strip().startswith("/")
+    ]
+    expected_names = [command.name for command in term_mod.iter_slash_commands()]
+    assert len(command_lines) == len(expected_names)
+    for name in expected_names:
+        assert sum(line.startswith(f"/{name} ") for line in command_lines) == 1
+    assert not any(line.startswith("/compact ") for line in command_lines)
+    assert any(line.startswith("/tool-output ") for line in command_lines)
+
+    config_outputs: list[str] = []
+    await term_mod._cmd_help(app, "config", config_outputs.append, {})
+    config_text = _strip_ansi("\n".join(config_outputs))
+    assert "tool_output_live_one_line" in config_text
+    assert "terminal_startup_help" in config_text
+
+
 def test_initial_tool_output_state_from_config(tmp_path: Path) -> None:
     from agent_terminal_app import terminal as term_mod
 

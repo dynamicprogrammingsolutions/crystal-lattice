@@ -472,119 +472,19 @@ the bridge pairing flow.
 
 ## Terminal Usage
 
-Common slash commands:
+Run the interactive client with `crystal-lattice --console`. Important commands
+include `/help`, `/session`, `/agent`, `/send`, `/cancel`, `/list`,
+`/tool-output`, and `/exit`.
 
-- `/help` - list commands and shortcuts.
-- `/new` - start a new session.
-- `/session` - list sessions using plugin filter defaults.
-- `/session <exact-session-id>` - switch directly, even when filters hide it.
-- `/session <search text>` - search through the configured main-search filter
-  and display ordered numbered choices.
-- `/session --filter <filter-id>=<value> [search text]` - apply command-local
-  Boolean, text, or select overrides. Use `any` to deactivate Boolean/select
-  filters; multiple selects use comma-separated CSV values.
-- `/agent` - switch between configured agents.
-- `/send` - send a request with current history.
-- `/append` - add a message without sending.
-- `/delete`, `/modify`, `/list` - manage message history.
-- `/tool-output` - show or select live tool output (`one-line`/`full`).
-- `/plugins` - list, enable, disable, or reset per-session plugins.
+`/tool-output one-line` keeps tool-heavy requests compact while preserving
+full results for `/list <index>`. The terminal bottom toolbar reports active
+request, LLM, and tool phases without adding animation frames to scrollback.
+User, System, Assistant, and Tool message headers are separated by an empty
+line and display their session index when the event provides one.
 
-### Full application reload
-
-The built-in `application-config-app` contributes screen-independent actions
-for requesting a full `AgentApplication` replacement and updating configured
-provider keys in a dotenv file. The CLI process, HTTP listener, bridge, and
-Bonjour integration remain alive while the owner:
-
-1. closes application-operation admission;
-2. lets admitted requests and started tools finish;
-3. constructs a candidate from the current config and freshly read dotenv;
-4. swaps the shared server/console application;
-5. closes the old runtime, including MCP servers;
-6. reopens admission.
-
-The action returns after reload is accepted. Application-global notification
-events report requested, completed, or failed state. New application requests
-receive HTTP 503 with `application_reload_pending` while the owner drains.
-
-Desktop dotenv editing is configured under `application.application_config`:
-
-```json
-{
-  "env_file": "${env:CONFIG_DIR}/.env",
-  "editable_env_keys": ["OPENROUTER_API_KEY"],
-  "provider_env_keys": {
-    "openrouter": "OPENROUTER_API_KEY"
-  }
-}
-```
-
-Only mapped keys in `editable_env_keys` can be changed. A value supplied by the
-process environment is externally managed and cannot be overwritten through
-the dotenv action. Stage 1 does not add protected secret storage or additional
-remote-transport restrictions; production credential hardening is tracked as a
-separate stage.
-- `/set` - update config overrides from plugin UI schema entries.
-- `/cancel` - cancel an active request.
-- `/exit` or `/quit` - exit the terminal.
-
-The maintained default configuration includes pin and status filters. Examples:
-
-```text
-/session --filter pinned_state=true
-/session --filter pinned_state=false
-/session --filter session_status=todo,blocked
-/session --filter pinned_state=any --filter session_status=any
-```
-
-Pin and status default to Any, so enabling their plugins does not hide
-sessions. Existing sessions without pin metadata are not pinned; sessions
-without status behave as `todo`. Mobile and desktop expose the same
-declarations through the filter control adjacent to search.
-
-Keyboard shortcuts:
-
-- `Ctrl-N` - new session.
-- `Ctrl-Q` - exit.
-- `Ctrl-X S` - send.
-- `Ctrl-X A` - append.
-- `Ctrl-X C` - cancel active request.
-
-### Plugin Controls
-
-The terminal client exposes per-session plugin control:
-
-```text
-/plugins
-/plugins on <id-or-index>
-/plugins off <id-or-index>
-/plugins reset
-```
-
-Changes are stored on the session in `session.metadata["plugins"]`, so
-subsequent requests and reloads use the updated plugin set.
-
-### Listing Messages
-
-The `/list` command shows compact message history, including role, content,
-reasoning/thinking metadata, tool calls, and tool call ids when present.
-
-### One-Line Tool Results
-
-When a request triggers many tool calls, the live view can crowd out earlier
-messages. `/tool-output one-line` uses a compact result block:
-
-```text
-
-[7] Tool: read_file
-    Read: README.md
-```
-
-The leading `[7]` is the message index; use `/list 7` to re-print that tool
-message in full (content plus footer metadata). The startup default comes from
-the application config key `tool_output_live_one_line` (default `false`).
-Use `/tool-output full` to restore full streamed tool output.
+See the [terminal guide](docs/terminal.md) for command syntax, keyboard
+shortcuts, startup help, progress behavior, tool-output configuration, session
+filters, plugin controls, and non-interactive operation.
 
 ## Logging
 

@@ -738,7 +738,14 @@ class ToolRenderer(BaseMessageRenderer):
         self._call_modes.clear()
 
     def _render_one_line_result(self, event: Dict[str, Any], write: WriteFn) -> None:
-        """Render a finished tool call as a compact two-line block."""
+        """Render a finished tool call as a compact two-line block.
+
+        The header retains the technical tool name and message index. The
+        tool-owned or fallback compact result occupies its own physical line:
+
+            [7] Tool: read_file
+                Read: README.md
+        """
 
         payload = event.get("payload") or {}
         result = payload.get("result") if isinstance(payload, dict) else None

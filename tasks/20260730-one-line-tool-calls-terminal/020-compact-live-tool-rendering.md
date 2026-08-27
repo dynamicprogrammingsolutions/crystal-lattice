@@ -73,3 +73,101 @@ content selection and truncation logic that already exists for
 - Footer metadata (timestamp, `tool_call_id`) is intentionally dropped from
   the compact line except the tool name; it remains available via
   `/list <index>`.
+
+## Post-completion follow-up
+
+### Follow-up requirements checklist
+
+- [x] Compact rendering keeps the technical `metadata.tool_name` visible in a
+      header line containing the message index.
+- [x] The compact result is rendered on one dedicated following line, using
+      `metadata.display.single_line` when available and the existing
+      condensed/truncated fallback otherwise.
+- [x] The renderer never concatenates the tool name and compact result into
+      one line; exact-output tests use representative real display payloads
+      such as `Read: README.md` and shell command previews.
+- [x] Per-call renderer state is released after normal completion,
+      cancellation, request error, request completion, and renderer/session
+      reset.
+- [x] Call bookkeeping cannot collide across requests when a tool call id is
+      absent or reused.
+
+## Execution plan
+Status: Approved
+
+Refactor compact output into a small two-line block:
+
+```text
+[7] Tool: read_file
+    Read: README.md
+```
+
+The first line owns stable technical identity and expansion index. The second
+line owns the tool-provided compact preview. Do not attempt string-prefix
+deduplication: `display.single_line` is an opaque tool-owned preview and is
+kept intact on its dedicated line. If no preview exists, select display-aware
+full content, collapse whitespace, and apply the existing short character
+limit.
+
+Centralize transient-state cleanup in one helper instead of repeating
+individual `dict.pop` calls. Key call state by request plus call identity, or
+otherwise prove that missing/reused ids cannot share state. Teach the renderer
+to observe request terminal events before its current `tool_partial` early
+return, and clear matching state on cancellation, error, and completion.
+Renderer replacement/session switching must also start from empty transient
+state.
+
+### Implementation decisions and open questions
+
+- Decided output boundary: technical tool name in the header; one-line result
+  on its own line.
+- Recommended indentation: four spaces before the result, with existing gray
+  styling. Confirm this visual during the PTY work in subtask 050.
+- Prefer a composite `(request_id, tool_call_id)` state key with a generated
+  event-local fallback for missing ids. If this complicates legacy events,
+  document and test the narrower safe alternative.
+- Progress indicators are not implemented here; subtask 050 owns running
+  state and line rewriting.
+
+### Documentation
+
+- User-visible wording and examples are owned by subtask 060.
+- Update renderer docstrings/comments here so “compact” no longer claims the
+  complete call occupies exactly one physical line.
+
+### Task checklist
+
+- [x] Add exact-output regression cases using representative tool display
+      payloads.
+- [x] Split compact header and result rendering.
+- [x] Introduce centralized per-call cleanup and request-aware state keys.
+- [x] Clear state on all terminal request outcomes and renderer reset.
+- [x] Verify full mode and `/list` rendering remain unchanged.
+
+### Requirement verification
+
+- Exact line-array assertions match the approved two-line format.
+- Fallback content remains one physical line and obeys the short character
+  limit.
+- Tests that start a call and then cancel/error/complete prove all transient
+  state collections are empty.
+- Two requests with reused or missing call ids do not inherit each other's
+  mode or buffers.
+
+### Additional implementation verification
+
+- Run compact renderer, terminal event-rendering, cancellation, and existing
+  tool display tests.
+- Exercise representative shell, read, write, image, error, and empty-result
+  display payloads.
+
+### Follow-up completion notes
+
+- Compact output now uses `[index] Tool: <technical-name>` followed by one
+  indented compact-result line.
+- `display.single_line` remains opaque and intact; fallback content is
+  whitespace-condensed and short-limit truncated.
+- All transient collections use request/call keys and one cleanup helper.
+- Completion, cancellation, error, session change, and renderer reset coverage
+  proves state returns to empty; reused and missing call ids are isolated.
+- Existing full renderer, display-aware output, and `/list` tests pass.
