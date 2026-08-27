@@ -1,4 +1,5 @@
 import {
+  capturedSource,
   defineAsset,
   defineVisualAssets,
   reviewedFile,
@@ -6,13 +7,16 @@ import {
 } from "../scripts/visual-assets/api.mjs";
 import {
   buildImageCandidates,
+  captureImageSources,
   comparePublishedImages,
   describeImageAsset,
   inspectImageCandidates,
   prepareImagePublication,
+  prepareImageSourcePromotion,
   validateImageAssetDefinition,
   validateImageCandidates,
 } from "../scripts/visual-assets/lifecycle/image.mjs";
+import { detoxCapture } from "../scripts/visual-assets/producers/detox.mjs";
 import {
   centerExtent,
   encodeWebp,
@@ -25,6 +29,22 @@ import {
 
 const importedRevision = "e88aa46ee8d6bd0969c63c78f8e152f1fd938974";
 
+const mobileWebsiteCapture = detoxCapture({
+  id: "mobile-website-visual",
+  projectDirectory: "mobile/crystal-lattice-control-rn",
+  command: [
+    "npm",
+    "run",
+    "detox:capture:website-visual:ios",
+  ],
+  outputs: {
+    settingsLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/session-settings-light.png",
+    settingsDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/session-settings-dark.png",
+  },
+});
+
 const reviewedImageLifecycle = {
   describe: describeImageAsset,
   validateDefinition: validateImageAssetDefinition,
@@ -33,6 +53,13 @@ const reviewedImageLifecycle = {
   validateCandidate: validateImageCandidates,
   comparePublished: comparePublishedImages,
   preparePublication: prepareImagePublication,
+};
+
+const capturedImageLifecycle = {
+  ...reviewedImageLifecycle,
+  capture: captureImageSources,
+  prepareSourcePromotion:
+    prepareImageSourcePromotion,
 };
 
 function optimizedUiScreenshot({
@@ -620,9 +647,12 @@ export default defineVisualAssets({
         ],
         variants: {
           light: {
-            source: reviewedFile(
-              "visual_assets/sources/session-settings-plugins-light.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/session-settings-plugins-light.png",
+              candidate:
+                mobileWebsiteCapture.output("settingsLight"),
+            }),
             provenance: importedSource(
               "landing_page/public/session-settings-plugins.png",
             ),
@@ -639,9 +669,12 @@ export default defineVisualAssets({
             },
           },
           dark: {
-            source: reviewedFile(
-              "visual_assets/sources/session-settings-plugins-dark.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/session-settings-plugins-dark.png",
+              candidate:
+                mobileWebsiteCapture.output("settingsDark"),
+            }),
             provenance: importedSource(
               "landing_page/public/session-settings-plugins-dark.png",
             ),
@@ -660,7 +693,7 @@ export default defineVisualAssets({
           },
         },
       },
-      lifecycle: reviewedImageLifecycle,
+      lifecycle: capturedImageLifecycle,
     }),
   ],
 });

@@ -71,10 +71,16 @@ Depends On:
    — visual manifest, deterministic state, automation, review, promotion, and
    freshness model.
 10. `mobile/crystal-lattice-control-rn/AGENTS.md:193-222`,
-   `mobile/crystal-lattice-control-rn/README.md:306-350`, and
-   `mobile/crystal-lattice-control-rn/e2e/notificationBanner.e2e.test.ts:1-220`
-   — existing production-screen Detox and screenshot patterns if Stage C is
-   separately approved.
+   `mobile/crystal-lattice-control-rn/README.md:306-367`,
+   `mobile/crystal-lattice-control-rn/e2e/notificationBanner.e2e.test.ts:1-220`,
+   `mobile/crystal-lattice-control-rn/e2e/websiteVisualCapture.e2e.test.ts:1-60`,
+   and
+   `mobile/crystal-lattice-control-rn/src/testing/MobileWebsiteVisualHarness.tsx:1-279`,
+   plus
+   `mobile/crystal-lattice-control-rn/ios/CrystalLatticeControlRN/AppDelegate.swift:1-95`
+   — production-screen Detox patterns, native harness selection, the
+   implemented Stage C scenario and commands, and the ignored capture
+   boundary.
 
 ### Contribution and review references
 
@@ -162,6 +168,49 @@ Replace or omit before public promotion:
   `landing_page/package-lock.json`; do not discard or remove that worktree
   without resolving its ownership.
 
+### Revised Stage C visual direction
+
+- Homepage proof should show tightly framed product UI without a phone bezel or
+  other hardware frame. The homepage is about Crystal Lattice as a whole, not
+  specifically the mobile client.
+- The mobile page hero component already supports an optional light/dark image,
+  but `mobile.yaml` currently provides none.
+- `landing_page/public/session-workbench.png` is an obsolete four-phone
+  composite. It contains clipped status bars, raw identifiers, and
+  crystallography content and is not an acceptable mobile-page source.
+- The mobile page may reuse the same reviewed active-session capture as the
+  homepage, but only the mobile-page presentation should add a phone frame.
+- Chat actions needs a tighter crop than the current retained derivative so
+  the action labels remain readable at card size.
+- Provider reasoning and usage/cost should preserve the contributed visual
+  intent: a full product context plus a magnified focus region. The zoom,
+  placement, border, and shadow should be generated programmatically from a
+  reviewed source rather than assembled manually.
+- A real hosted-model request can initialize a credible coding session, but the
+  live request is a candidate-source refresh operation rather than part of
+  ordinary screenshot capture, website build, or verification.
+- The user's current `~/.crystal/config.json` includes a `codex-openai` agent
+  using the OpenAI Responses provider and Codex tools, and
+  `~/.crystal/auth/chatgpt-auth.json` is present. A refresh workflow must accept
+  these paths as explicit read-only inputs, force ChatGPT auth instead of
+  silently falling back to API-key auth, keep generated sessions under ignored
+  output, and create repository workspaces only in automatically removed
+  temporary directories.
+- The originally proposed React Native issue is not a bounded source for this
+  workflow. Its reproduction requires a React Native checkout, dependency
+  installation, and an Android native bundle, so it was rejected before
+  implementation.
+- Starlette is used through the application's FastAPI dependency. Starlette
+  1.4.0 contains a focused `GZipResponder` compatibility regression in
+  `starlette/middleware/gzip.py`: downstream subclasses that used the previous
+  constructor shape fail because `thread_minimum_size` became required. The
+  retained provenance source is Starlette issue `#3414`.
+- A shallow sparse checkout of Starlette 1.4.0 commit
+  `3d6d6c20e795d02d22b358758bfa987b436a3ec4`, limited to `starlette/` and
+  `tests/`, used approximately 1.4 MB and completed in approximately three
+  seconds during the August 27, 2026 planning check. Repository inspection
+  requires no installation, server, build, or simulator.
+
 ## Expected outputs
 
 Current executable catalog and reviewed source masters:
@@ -209,6 +258,21 @@ Optional Stage C implementation after separate approval:
 - a production-screen Detox harness or approved real-backend boundary;
 - deterministic native capture consumed through the programmatic source
   producer and reviewed-source workflow.
+
+Proposed revised Stage C outputs after new approval:
+
+- a pinned public-repository and public-issue input manifest plus a concise
+  planning prompt;
+- an explicit live refresh command that uses a caller-supplied Crystal Lattice
+  config directory and ChatGPT login to produce an ignored candidate session;
+- a reviewed, sanitized session fixture derived from the candidate and
+  consumed by routine native capture without network or credentials;
+- tightly cropped, unframed homepage sources for chat actions, session
+  settings, and snapshots;
+- reproducible reasoning and usage/cost focus composites with programmatic
+  zoom callouts;
+- one current framed active-session visual on the mobile page, derived from the
+  same reviewed session state rather than the obsolete four-phone composite.
 
 Disposable output:
 
@@ -287,24 +351,189 @@ Manual checkpoint B:
 - decide whether the optional native capture proof in Stage C is valuable
   enough to authorize.
 
-### Stage C — Optional native capture proof
+### Stage C — Reviewed coding-session source and corrected early visuals
 
-After separate approval, add one production-screen Detox visual scenario and
-route its named outputs through the Stage B source-producer, review, and
-optimization workflow.
+The first one-scenario implementation remains useful infrastructure, but its
+checkpoint framing was rejected. Replace the rejected candidate through the
+following independently reviewable stages.
 
-Use a deterministic in-process backend or retained reviewed session fixture.
-A real provider may seed a fixture once, but routine captures replay the
-sanitized state and wait for semantic UI checkpoints rather than fixed times.
+#### Stage C1 — Real-session candidate and reviewed fixture
 
-Manual checkpoint C:
+Add a catalog command that parses its own command-specific arguments without
+changing the generic runner or CLI. A representative invocation should be:
 
-- judge whether the native capture presents a credible, current, and visually
-  useful product state;
-- judge whether its visible content is sanitized and avoids misleading product
-  implications;
-- judge whether its optimized website presentation remains readable and
-  supports the intended claim.
+```bash
+yarn visual-assets refresh-session coding-plan \
+  --config-dir "$HOME/.crystal" \
+  --config "$HOME/.crystal/config.json" \
+  --agent codex-openai
+```
+
+Require an explicit configuration path or directory. Treat it as read-only,
+force the selected request to use ChatGPT auth, and fail rather than falling
+back to an API key. Do not copy, print, persist, or report credentials.
+
+Use a checked-in source manifest containing:
+
+- a public repository URL and exact commit SHA;
+- a bounded snapshot of one public bug issue;
+- a realistic developer prompt containing only the task to perform;
+- the selected configured agent, required tools, and expected visible session
+  shape.
+
+Use Starlette 1.4.0 at commit
+`3d6d6c20e795d02d22b358758bfa987b436a3ec4` with a sparse checkout of
+`starlette/` and `tests/`. The provenance manifest may record the source issue
+and revision, but the model-facing user prompt must not mention an issue
+number, a pinned revision, fixture generation, screenshots, or the website.
+
+The initial model-facing prompt should be:
+
+> After upgrading Starlette, one of our custom `GZipResponder` subclasses
+> stopped working. Its constructor still calls
+> `super().__init__(app, minimum_size)`, and constructing it now fails with a
+> `TypeError` saying that `thread_minimum_size` is missing. Please inspect the
+> gzip middleware and existing tests, figure out what changed, and give me a
+> focused plan for a backwards-compatible fix and regression coverage. Don't
+> change the code yet.
+
+For every refresh, create a new operating-system temporary directory, perform
+the shallow sparse checkout there, run the request with that directory as the
+workspace, and remove the complete directory when the generation command
+finishes or fails. Do not keep a reusable repository cache.
+
+Keep installation, build, server, simulator, and file-modification constraints
+outside the user prompt as generation-policy instructions. Reject the
+candidate if tool history shows dependency installation, a build or simulator
+launch, source modification, or work outside the temporary checkout. Apply
+bounded checkout-size and elapsed-time checks before starting the hosted
+request.
+
+Run the request through the public `AgentApplication` request path with an
+isolated session store rather than through FastAPI or a duplicated send
+implementation.
+
+The hosted response is intentionally not treated as byte-deterministic.
+Instead, write an ignored candidate session and provenance report, sanitize
+provider-native IDs, absolute paths, account data, credentials, raw session
+IDs, and volatile timestamps, and require explicit promotion into a reviewed
+fixture. Routine capture consumes only the reviewed fixture and therefore
+needs no repository network access, hosted model, or personal config.
+
+Automated verification covers manifest pinning, command parsing, forced
+ChatGPT auth, isolated output, sanitization, candidate/promotion separation,
+and an application-layer integration path with a deterministic fake provider.
+
+Manual checkpoint C1:
+
+- judge whether the user request, tool activity, and final plan look like a
+  credible real coding-agent session;
+- judge whether the issue excerpt and response are concise enough for visual
+  proof;
+- judge whether the reviewed fixture is free of private, misleading, or
+  distracting content.
+
+#### Stage C2 — Unframed homepage workbench captures
+
+Load the reviewed session fixture in the production-screen mobile harness and
+capture light/dark states using semantic readiness checks.
+
+Generate homepage sources without a device bezel:
+
+- chat actions: a tight crop around the modal title and a useful readable set
+  of action rows rather than the complete tall screen;
+- session settings: a tight crop around the current settings modal and the
+  controls needed to support the plugin-schema claim;
+- snapshots: a tight crop around the current snapshots modal using sanitized
+  short identifiers and the coding-plan session in any visible background.
+
+The crop geometry belongs to each asset's programmatic build so a later
+replacement can choose a different framing without changing the runner or CLI.
+Do not show the system status bar, broken app header, composer, bottom tabs,
+fixture IDs, or hardware frame in homepage derivatives.
+
+Automated verification covers source dimensions, expected crop bounds,
+light/dark outputs, no forbidden fixture text, asset budgets, website build,
+and responsive browser contracts.
+
+Manual checkpoint C2:
+
+- judge whether each crop is large enough to read at the actual homepage card
+  size;
+- judge whether the three cards feel like coherent product proof without
+  implying that the homepage is specifically about the mobile app.
+
+#### Stage C3 — Reproducible provider focus composites
+
+Add a reusable programmatic focus-callout pipeline. It receives one reviewed
+source, creates a cleaned base crop, extracts and scales a second focus crop,
+and composites the focus region with a controlled border, radius, placement,
+and shadow. This remains ordinary executable JavaScript/ImageMagick behavior,
+not a declarative pipeline language.
+
+Use it for:
+
+- reasoning: enlarge the reasoning-effort and verbosity controls over enough
+  settings context to show where they live;
+- usage/cost: enlarge the current turn's token, duration, cost, or explicitly
+  labeled cost-estimation footer over a concise completed coding-plan message.
+
+The callouts must remain readable at the provider-card size and must not hide
+or fabricate proof-bearing text.
+
+Automated verification covers deterministic composite dimensions, focus
+geometry, light/dark parity, expected source relationship, byte budgets, and
+website rendering.
+
+Manual checkpoint C3:
+
+- judge whether the zoom effect clarifies the claimed detail without looking
+  like an unrelated pasted panel;
+- judge whether the usage and cost labels remain truthful and legible.
+
+#### Stage C4 — Mobile-page active-session hero
+
+Add one current light/dark active-session image to the existing mobile hero.
+Use the same reviewed coding-plan session, showing a readable session title,
+the bounded issue-planning request, and enough of the assistant result to
+communicate continuing real work from a phone.
+
+The underlying native capture remains a clean source. Add a consistent generic
+phone frame only in mobile-page presentation, preferably as website/CSS
+presentation around the image so the same source can serve framed and
+unframed consumers. Do not reuse the obsolete
+`landing_page/public/session-workbench.png`.
+
+This is an early release-safe proof of the mobile page's existing claim, not a
+decision about the final task-150/task-160 visual set. Additional connection,
+session-list, or action-gallery images remain deferred until an approved page
+brief requires them.
+
+Automated verification covers both themes, responsive hero layout, active
+theme loading, alt text, image dimensions, and mobile/desktop browser
+rendering.
+
+Manual checkpoint C4:
+
+- judge whether the framed active-session image makes the mobile-page value
+  immediately understandable;
+- judge whether the frame, crop, text density, and surrounding hero content
+  remain balanced at desktop and phone website widths.
+
+#### Stage C5 — Documentation, handoff, and final verification
+
+Document the delivered session-refresh, reviewed-fixture, unframed crop,
+focus-callout, and mobile-frame workflows in the existing consumer and
+development visual-asset pages without duplicating architecture explanations.
+
+Update the retained task-025 review/evidence package and task-160 handoff to
+identify the provisional assets, their source manifest, freshness triggers,
+capture commands, and later replace/retain decision boundary.
+
+Run the complete programmatic asset tests, application-layer refresh
+integration test, mobile component/Detox tests, public derivative checks,
+website build, and Playwright visual suite. Manual checkpoints remain visual,
+content, privacy, and product-communication judgments only.
 
 ### Implementation decisions and open questions
 
@@ -322,6 +551,18 @@ Manual checkpoint C:
   source rather than generated raster text.
 - Decision: real model output may seed reviewed fixture content, but routine
   capture is deterministic.
+- Recommendation: use the current `codex-openai` configured agent and require
+  ChatGPT auth for the live fixture refresh.
+- Recommendation: use the Starlette 1.4.0 `GZipResponder` constructor
+  compatibility regression as the source task. Keep issue and revision
+  provenance in the manifest while presenting only the realistic developer
+  request to the model.
+- Recommendation: add one framed active-session hero to the current mobile
+  page and defer any broader mobile screenshot gallery to task 150/160.
+- Decision: homepage derivatives do not include a phone frame; only the mobile
+  page may add one.
+- Decision: reasoning and usage/cost retain a generated focus-callout effect
+  rather than becoming plain crops.
 - Decision: preserve the reviewed light and dark captures as optimized pairs
   and use one theme-aware `<img>` element that loads only the active variant,
   then fetches the alternate variant only when the user changes themes.
@@ -329,6 +570,8 @@ Manual checkpoint C:
   corrected page.
 - Open question: approve Stage C only after the browser-side workflow passes
   checkpoint B.
+- Decision: the user approved the Starlette task, `codex-openai` ChatGPT-auth
+  refresh path, and staged C1-C5 expansion.
 - Open question: decide later whether OpenRouter Image API modernization or a
   direct GPT Image provider deserves separate plugin work.
 
@@ -363,9 +606,16 @@ Manual checkpoint C:
 - [x] Add reusable Playwright capture/visual checks.
 - [x] Add standalone visual-asset consumer documentation and update current
       architecture documentation.
-- [ ] Pass manual checkpoint B.
-- [ ] Obtain separate approval before Stage C.
-- [ ] If approved, implement and verify one native capture scenario.
+- [x] Pass manual checkpoint B.
+- [x] Obtain separate approval before Stage C.
+- [x] If approved, implement and verify one native capture scenario.
+- [x] Approve the revised Stage C1-C5 expansion.
+- [ ] Implement the revised Stage C1 reviewed-session source.
+- [ ] Pass manual checkpoint C1.
+- [ ] Implement and pass checkpoint C2 for unframed workbench captures.
+- [ ] Implement and pass checkpoint C3 for provider focus composites.
+- [ ] Implement and pass checkpoint C4 for the mobile-page hero.
+- [ ] Complete Stage C5 documentation, handoff, and final verification.
 - [ ] Record completion evidence and the task-160 handoff.
 
 ### Requirement verification
@@ -581,3 +831,134 @@ Manual checkpoint C:
   mutations, ownership, testing, and extension invariants.
 - Checkpoint B remains open for human architectural, documentation, and visual
   judgment.
+
+### August 26, 2026 — Checkpoint B approved and Stage C started
+
+- The user approved the rewritten command/lifecycle architecture and requested
+  continuation to the next human checkpoint.
+- Commits `4690d8bc` and `6b811162` preserve the staged asset-workflow layer and
+  the final command/lifecycle plus documentation layer separately.
+- Stage C automates the existing `session-settings-plugins` proof rather than
+  introducing a new public claim or changing the selected website visual set.
+- Added a deterministic mobile harness that renders the production chat
+  background and production session-settings modal with sanitized coding-agent
+  messages and configuration.
+- The catalog now treats the light and dark session-settings source masters as
+  captured sources backed by one memoized Detox producer. Capture remains
+  separate from reviewed-source promotion and public derivative update.
+- Stage C will stop at checkpoint C with ignored light/dark source candidates;
+  it will not promote them into `visual_assets/sources/` before human review.
+
+### August 26, 2026 — Stage C implementation ready for checkpoint C
+
+- Added `MobileWebsiteVisualHarness`, selected through the same native iOS
+  launch-argument routing used by the existing mobile harnesses, with a
+  deterministic in-process backend, sanitized coding-session messages, and
+  production `SessionChatScreen` plus `SessionSettingsModal`.
+- Added stable production modal and settings-scroll identifiers and a
+  platform-neutral Detox scenario that captures light and dark settings
+  candidates under the mobile ignored `artifacts/website-visual/` directory.
+- Added iOS and Android Detox test commands plus build-and-capture commands.
+- Wired the existing `session-settings-plugins` catalog asset to one memoized
+  Detox producer and the captured-source lifecycle. Existing reviewed source
+  masters remain the inputs for normal inspect/check/update.
+- Mobile TypeScript verification and the four focused
+  `SessionSettingsModal` component tests passed.
+- The earlier iOS attempts exposed two unrelated environment/setup issues:
+  CoreSimulator instability under memory pressure and an out-of-sync CocoaPods
+  sandbox. The retry synchronized Pods, preserved the resulting lock checksum,
+  and completed the Release simulator build.
+- The first successful app launches still showed the normal application
+  because the new harness was registered in JavaScript but omitted from the
+  existing native `AppDelegate.swift` harness selector. Adding that bounded
+  selector entry made the simulator run `MobileWebsiteVisualHarness`.
+- The capture launches with Detox synchronization disabled, enters the
+  production screen through an explicit idle harness control, and waits for
+  visible `Model` and `Reasoning effort` settings before each screenshot.
+- `yarn visual-assets:capture session-settings-plugins` passed the focused
+  iOS Detox scenario and produced two distinct PNG candidates:
+  `session-settings-light.png` and `session-settings-dark.png`, each
+  1206×2622 pixels. The capture report processed 586,538 bytes.
+- The light candidate SHA-256 is
+  `698331c909d9dd61d079b3ce7f935421c261240e745487e836b7b13c384ccce9`;
+  the dark candidate SHA-256 is
+  `8c3347e20f0585f14d0994fa48ede78a7230a08823ce157468e62110cca8fd61`.
+- The Android E2E APK and test APK build succeeded. Detox reached native
+  instrumentation on the configured emulator, but its fixed five-second ANR
+  watchdog reported a framework cold-start ANR in Android `ViewRootImpl`;
+  successful canonical iOS capture now supplies the Stage C evidence.
+- `yarn visual-assets:inspect session-settings-plugins` and the complete
+  `yarn visual-assets:check` both pass. The candidates remain ignored, and no
+  reviewed source master or public derivative changed.
+- Manual checkpoint C is ready. Do not promote the candidates into
+  `visual_assets/sources/` or update public derivatives before the user judges
+  the native state, sanitization, readability, and claim support.
+
+### August 27, 2026 — Checkpoint C framing rejected and retained sources audited
+
+- Human review confirmed that the deterministic settings state demonstrates
+  the intended plugin-provided controls, but rejected the capture framing for
+  public use.
+- The new candidate has a crowded status/header row, excessive dimmed space
+  above the modal, a visible `website-visual-session` fixture identifier, and
+  unrelated composer controls below the modal. The current trim/resize pipeline
+  would preserve those distractions.
+- The user noted that similar framing defects exist in the retained PNG source
+  masters and approved the correction principle.
+- An audit of all five retained light/dark pairs and their generated WebP
+  derivatives confirmed that the defects survive publication:
+  - `chat-actions-workbench` has a clipped status bar, a raw UUID session title,
+    and a mixed/generic device frame;
+  - `session-settings-plugins` has the same status/header and UUID problems,
+    although the settings content itself is strong;
+  - `session-snapshots-workbench` adds unrelated crystallography conversation
+    content plus a raw snapshot/session identifier;
+  - `provider-reasoning` uses an artificial two-scale composite with a large
+    shadow and repeats the same raw UUID;
+  - `provider-usage-cost` uses unrelated long-form content, a raw UUID/session
+    footer, and a usage callout whose text becomes too small at card size.
+- The dark variants mirror the same framing and content problems; their
+  contrast is otherwise acceptable.
+- Correcting the settings capture remains a bounded Stage C follow-up.
+  Replacing the other four asset families would expand the original
+  single-scenario native proof into multiple product scenarios and source
+  migrations, so do not begin that broader implementation without an explicit
+  staged scope decision.
+
+### August 27, 2026 — Revised Stage C plan drafted
+
+- The user requested a tighter chat-actions crop, deterministic zoom callouts
+  for reasoning and usage/cost, unframed homepage proof, and a framed visual
+  specifically for the currently image-less mobile page.
+- The user also requested a real coding-session source generated from a public
+  bug task and repository through the saved ChatGPT login under `~/.crystal`.
+- The draft plan separates the non-deterministic, credentialed live refresh
+  from deterministic routine capture: pinned inputs produce an ignored
+  candidate, human review promotes a sanitized session fixture, and Detox plus
+  programmatic image builds replay only the reviewed fixture.
+- The originally proposed React Native source was rejected because its
+  reproduction requires dependency installation and an Android native bundle.
+- The replacement is the Starlette 1.4.0 `GZipResponder` constructor
+  compatibility regression. A shallow sparse source-and-test checkout is
+  approximately 1.4 MB and needs no installation or server/native execution.
+- The source issue and exact Starlette revision remain internal provenance.
+  The model receives only a normal developer request describing the failing
+  subclass and asking for a focused fix and regression-test plan.
+- The generation script creates a fresh operating-system temporary checkout
+  for each request and removes it on success or failure. The current
+  `codex-openai` configured agent remains the recommended generation target.
+- The existing generic CLI and runner do not need new semantics. A
+  catalog-defined `refresh-session` command can parse command-specific
+  `--config-dir`, `--config`, and `--agent` arguments directly.
+- The task execution plan is returned to Draft because the revised C1-C5 work
+  is materially broader than the previously approved one-screenshot proof.
+  Do not start the expansion until the user approves it.
+
+### August 27, 2026 — Revised Stage C approved
+
+- The user approved the revised plan using the bounded Starlette
+  `GZipResponder` compatibility task, the `codex-openai` agent, forced ChatGPT
+  authentication from explicitly supplied `~/.crystal` configuration, and
+  staged C1-C5 checkpoints.
+- Stage C1 is authorized. Stop at its human content/privacy checkpoint before
+  promoting a generated session fixture or beginning C2 visual recapture.

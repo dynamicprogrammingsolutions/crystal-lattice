@@ -44,7 +44,7 @@ Depends On:
 2. `tasks/20260825-crystal-lattice-product-positioning-and-website/150-website-information-architecture-and-content-briefs.md:1-115`
    plus its approved page briefs, claim/proof matrix, visual requirements, and
    completion manifest. Stop if incomplete.
-3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-236`
+3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-241`
    plus its executable asset catalog, reviewed source masters, asset review,
    source lifecycle, validation/optimization workflow, accepted public
    baseline, and completion evidence. Reuse rather than reconstruct its

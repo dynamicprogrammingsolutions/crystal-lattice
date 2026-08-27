@@ -339,6 +339,23 @@ npm run detox:test:session-list:ios
 npm run detox:test:session-list:android
 ```
 
+The website visual harness renders the production chat background and session
+settings modal with deterministic coding-agent configuration. The iOS capture
+command builds the app, runs the scenario, and writes reviewed-candidate inputs
+under `artifacts/website-visual/`:
+
+```bash
+npm run detox:capture:website-visual:ios
+```
+
+The scenario itself is also available on both platforms when a current build
+already exists:
+
+```bash
+npm run detox:test:website-visual:ios
+npm run detox:test:website-visual:android
+```
+
 The Android test command prepares and stops the selected AVD before Detox starts
 it in read-only mode. This acknowledges Android's one-time immersive-mode
 confirmation so it cannot steal window focus during automation. The build script

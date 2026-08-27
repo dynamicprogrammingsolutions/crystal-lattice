@@ -2,65 +2,72 @@
  * @format
  */
 
-import React from 'react';
-import 'react-native-gesture-handler';
-import { AppRegistry } from 'react-native';
-import App from './App';
-import { MobileSessionListHarness } from './src/testing/MobileSessionListHarness';
-import { MobileTranscriptScrollHarness } from './src/testing/MobileTranscriptScrollHarness';
-import { MobileTranscriptRangeNavigationHarness } from './src/testing/MobileTranscriptRangeNavigationHarness';
-import { MobileNotificationBannerHarness } from './src/testing/MobileNotificationBannerHarness';
-import { MobileSelectableCodeBlockHarness } from './src/testing/MobileSelectableCodeBlockHarness';
-import { MobileOrderedListMarkdownHarness } from './src/testing/MobileOrderedListMarkdownHarness';
-import { MobileNotificationUiEffectsHarness } from './src/testing/MobileNotificationUiEffectsHarness';
-import { name as appName } from './app.json';
+import React from "react";
+import "react-native-gesture-handler";
+import { AppRegistry } from "react-native";
+import App from "./App";
+import { MobileSessionListHarness } from "./src/testing/MobileSessionListHarness";
+import { MobileTranscriptScrollHarness } from "./src/testing/MobileTranscriptScrollHarness";
+import { MobileTranscriptRangeNavigationHarness } from "./src/testing/MobileTranscriptRangeNavigationHarness";
+import { MobileNotificationBannerHarness } from "./src/testing/MobileNotificationBannerHarness";
+import { MobileSelectableCodeBlockHarness } from "./src/testing/MobileSelectableCodeBlockHarness";
+import { MobileOrderedListMarkdownHarness } from "./src/testing/MobileOrderedListMarkdownHarness";
+import { MobileNotificationUiEffectsHarness } from "./src/testing/MobileNotificationUiEffectsHarness";
+import { MobileWebsiteVisualHarness } from "./src/testing/MobileWebsiteVisualHarness";
+import { name as appName } from "./app.json";
 
-const RootComponent = props => {
+const RootComponent = (props) => {
   let Component = App;
-  if (props?.clcTranscriptScrollHarness === '1') {
+  if (props?.clcTranscriptScrollHarness === "1") {
     Component = MobileTranscriptScrollHarness;
-  } else if (props?.clcTranscriptRangeNavigationHarness === '1') {
+  } else if (props?.clcTranscriptRangeNavigationHarness === "1") {
     Component = MobileTranscriptRangeNavigationHarness;
-  } else if (props?.clcSessionListHarness === '1') {
+  } else if (props?.clcSessionListHarness === "1") {
     Component = MobileSessionListHarness;
-  } else if (props?.clcNotificationBannerHarness === '1') {
+  } else if (props?.clcNotificationBannerHarness === "1") {
     Component = MobileNotificationBannerHarness;
-  } else if (props?.clcSelectableCodeBlockHarness === '1') {
+  } else if (props?.clcSelectableCodeBlockHarness === "1") {
     Component = MobileSelectableCodeBlockHarness;
-  } else if (props?.clcOrderedListMarkdownHarness === '1') {
+  } else if (props?.clcOrderedListMarkdownHarness === "1") {
     Component = MobileOrderedListMarkdownHarness;
-  } else if (props?.clcNotificationUiEffectsHarness === '1') {
+  } else if (props?.clcNotificationUiEffectsHarness === "1") {
     Component = MobileNotificationUiEffectsHarness;
+  } else if (props?.clcWebsiteVisualHarness === "1") {
+    Component = MobileWebsiteVisualHarness;
   }
   return React.createElement(Component, props);
 };
 
 AppRegistry.registerComponent(appName, () => RootComponent);
 AppRegistry.registerComponent(
-  'MobileTranscriptScrollHarness',
-  () => MobileTranscriptScrollHarness,
+  "MobileTranscriptScrollHarness",
+  () => MobileTranscriptScrollHarness
 );
 AppRegistry.registerComponent(
-  'MobileTranscriptRangeNavigationHarness',
-  () => MobileTranscriptRangeNavigationHarness,
+  "MobileTranscriptRangeNavigationHarness",
+  () => MobileTranscriptRangeNavigationHarness
 );
 AppRegistry.registerComponent(
-  'MobileSessionListHarness',
-  () => MobileSessionListHarness,
+  "MobileSessionListHarness",
+  () => MobileSessionListHarness
 );
 AppRegistry.registerComponent(
-  'MobileNotificationBannerHarness',
-  () => MobileNotificationBannerHarness,
+  "MobileNotificationBannerHarness",
+  () => MobileNotificationBannerHarness
 );
 AppRegistry.registerComponent(
-  'MobileSelectableCodeBlockHarness',
-  () => MobileSelectableCodeBlockHarness,
+  "MobileSelectableCodeBlockHarness",
+  () => MobileSelectableCodeBlockHarness
 );
 AppRegistry.registerComponent(
-  'MobileOrderedListMarkdownHarness',
-  () => MobileOrderedListMarkdownHarness,
+  "MobileOrderedListMarkdownHarness",
+  () => MobileOrderedListMarkdownHarness
 );
 AppRegistry.registerComponent(
-  'MobileNotificationUiEffectsHarness',
-  () => MobileNotificationUiEffectsHarness,
+  "MobileNotificationUiEffectsHarness",
+  () => MobileNotificationUiEffectsHarness
+);
+AppRegistry.registerComponent(
+  "MobileWebsiteVisualHarness",
+  () => MobileWebsiteVisualHarness
 );

@@ -17,7 +17,9 @@ export type PanelModalStatusTone = 'idle' | 'busy' | 'success' | 'error';
 
 export interface PanelModalFrameProps {
   visible: boolean;
+  testID?: string;
   title: string;
+  titleTestID?: string;
   subtitle?: string;
   onRequestClose: () => void;
   children: React.ReactNode;
@@ -34,7 +36,9 @@ export interface PanelModalFrameProps {
 
 const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
   visible,
+  testID,
   title,
+  titleTestID,
   subtitle,
   onRequestClose,
   children,
@@ -54,12 +58,15 @@ const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
   return (
     <CenteredModalSurface
       visible={visible}
+      testID={testID}
       onRequestClose={onRequestClose}
       overlayChildren={overlayChildren}
       contentStyle={contentStyle}
     >
       <View style={styles.headerRow}>
-        <Text style={styles.titleText}>{title}</Text>
+        <Text testID={titleTestID} style={styles.titleText}>
+          {title}
+        </Text>
         <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
           <Text style={styles.closeButtonText}>Close</Text>
         </TouchableOpacity>

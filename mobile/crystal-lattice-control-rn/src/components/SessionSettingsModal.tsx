@@ -578,12 +578,15 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   return (
     <PanelModalFrame
       visible={visible}
+      testID="session-settings-modal"
       title="Session settings"
+      titleTestID="session-settings-title"
       onRequestClose={onRequestClose}
       statusText={statusText}
       statusTone={statusTone}
       showSpinner={showSpinner}
       scroll={!error && items.length > 0}
+      scrollTestID="session-settings-scroll"
       overlayChildren={
         <OptionsPickerModal
           visible={!!dropdownState}
