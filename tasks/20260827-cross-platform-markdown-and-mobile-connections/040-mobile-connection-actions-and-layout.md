@@ -165,3 +165,24 @@ Follow-up evidence:
   health and server-settings modals, Open/Disconnect, and card/preview bounds.
 - The existing bridge-transport scenario passed on both targets and exercised
   the production `connections-new-connection` pinned action.
+
+### Shared tab-gutter alignment follow-up
+
+Status: Approved
+
+Connections no longer adds a second screen-level inset inside the common
+`ConnectedRoot` content gutter. Its visible card edges now match Sessions and
+Messages. The Connections title uses the card content inset, aligning its
+optical left edge with connection-card titles.
+
+Component coverage proves the Connections root does not own extra padding and
+derives title alignment from the card padding/border styles. The production
+Connections/Settings Detox scenario compares native title/card-title bounds.
+
+Completion evidence:
+
+- Complete mobile Jest passes 31 suites and 137 tests; TypeScript passes.
+- Fresh iOS and Android Detox builds pass.
+- Connections/Settings passes on iOS and on an Android fresh-emulator retry.
+  The first Android attempt was blocked before the harness appeared by an
+  emulator `Activity.setTheme` ANR.

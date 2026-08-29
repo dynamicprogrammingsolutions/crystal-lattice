@@ -6,6 +6,11 @@ import type {
   ExecuteActionResponse,
   SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
+import {
+  DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+  MARKDOWN_BASE_FONT_SIZES,
+  applyDisplayTypographyPreset,
+} from '@crystal-lattice/frontend-rn-components';
 
 import { ApplicationPluginsProvider } from '../ApplicationPluginsContext';
 import { PinnedActionsProvider } from '../PinnedActionsContext';
@@ -362,15 +367,28 @@ function createHarnessBackend(
   } as unknown as AgentBackend;
 }
 
-export function MobileSessionListHarness(): React.JSX.Element {
+interface MobileSessionListHarnessProps {
+  clcDisplayPreset?: string;
+}
+
+export function MobileSessionListHarness({
+  clcDisplayPreset,
+}: MobileSessionListHarnessProps): React.JSX.Element {
   const [submittedValue, setSubmittedValue] = useState('none');
   const backend = useMemo(
     () => createHarnessBackend(setSubmittedValue),
     [],
   );
+  const theme = useMemo(() => {
+    const baseFontSize =
+      clcDisplayPreset === 'largest'
+        ? MARKDOWN_BASE_FONT_SIZES[MARKDOWN_BASE_FONT_SIZES.length - 1]
+        : DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.baseFontSize;
+    return applyDisplayTypographyPreset(lightTheme, baseFontSize);
+  }, [clcDisplayPreset]);
 
   return (
-    <ThemeProvider theme={lightTheme}>
+    <ThemeProvider theme={theme}>
       <PinnedActionsProvider>
         <ApplicationPluginsProvider
           backend={backend}

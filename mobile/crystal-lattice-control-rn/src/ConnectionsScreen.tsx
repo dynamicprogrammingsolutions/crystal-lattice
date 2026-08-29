@@ -152,7 +152,12 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Connections</Text>
+        <Text
+          style={styles.title}
+          testID="connections-screen-title"
+        >
+          Connections
+        </Text>
         <ActionsMenuBar
           title="Connections actions"
           baseActions={HEADER_ACTIONS}
@@ -203,7 +208,13 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
                 activeOpacity={0.8}
               >
                 <View style={styles.itemHeaderRow}>
-                  <Text style={styles.itemTitle} numberOfLines={1}>{record.name}</Text>
+                  <Text
+                    style={styles.itemTitle}
+                    numberOfLines={1}
+                    testID={`connection-title-${record.id}`}
+                  >
+                    {record.name}
+                  </Text>
                   <View style={styles.methodBadge}>
                     <Text style={styles.methodBadgeText}>{methodLabel(record.kind)}</Text>
                   </View>
@@ -265,14 +276,19 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
-    container: { flex: 1, padding: 16, backgroundColor: theme.background },
+    container: { flex: 1, backgroundColor: theme.background },
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       marginBottom: 12,
     },
-    title: { fontSize: 16, fontWeight: '700', color: theme.text },
+    title: {
+      marginLeft: 13,
+      fontSize: 16,
+      fontWeight: '700',
+      color: theme.text,
+    },
     loadingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
     loadingText: {
       marginLeft: 8,
@@ -354,4 +370,5 @@ const createStyles = (theme: Theme) =>
     },
   });
 
+export { createStyles as createConnectionsScreenStyles };
 export default ConnectionsScreen;

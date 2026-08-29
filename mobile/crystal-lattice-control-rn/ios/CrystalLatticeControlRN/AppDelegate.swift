@@ -24,11 +24,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     window = UIWindow(frame: UIScreen.main.bounds)
 
     let arguments = ProcessInfo.processInfo.arguments
+    let displayPresetIndex = arguments.firstIndex(where: {
+      $0 == "-clcDisplayPreset" || $0 == "clcDisplayPreset"
+    })
+    let useLargestDisplayPreset =
+      displayPresetIndex.map { index in
+        arguments.indices.contains(index + 1) &&
+          arguments[index + 1] == "largest"
+      } ?? false
     let moduleName: String
     if arguments.contains(where: {
       $0 == "-clcSessionListHarness" || $0 == "clcSessionListHarness"
     }) {
-      moduleName = "MobileSessionListHarness"
+      moduleName = useLargestDisplayPreset
+        ? "MobileSessionListLargestPresetHarness"
+        : "MobileSessionListHarness"
     } else if arguments.contains(where: {
       $0 == "-clcTranscriptScrollHarness" || $0 == "clcTranscriptScrollHarness"
     }) {

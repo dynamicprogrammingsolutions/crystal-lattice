@@ -515,3 +515,239 @@ Follow-up implementation notes:
   ChatPane optional-string, and Theme `shadow` baselines. No touched follow-up
   typography, connection, renderer, harness, or native-menu file appears in
   that error output.
+
+### Completed semantic typography and syntax-highlighter follow-up
+
+After the approved 14/15/16/17 follow-up, the user manually tuned individual
+font-size and line-height entries in the explicit display typography presets.
+Those maintained preset tables are the current source of truth; the earlier
+numeric table in this task records the initially approved baseline rather than
+the final tuned values.
+
+Additional completed updates:
+
+- Desktop session cards, connection rows, tabs, the chat header, and related
+  application chrome consume semantic theme typography and colors.
+- Desktop non-markdown message content consumes the semantic `message` font
+  size and line height.
+- Desktop and mobile fenced code blocks use a monospace font plus the semantic
+  `code` font size and line height.
+- `react-native-syntax-highlighter` was forked to
+  `ferenci84/react-native-syntax-highlighter` on
+  `feature/native-line-height`; commit
+  `4602848d2271b4809257be81ae0308f562c99910` adds native line-height support.
+- Desktop and mobile consume that fork through direct Git dependencies.
+
+These updates reinforce that consumer and UI tests should obtain expected
+metrics from the maintained preset selected by the scenario. Tests may assert
+ordering, equality, growth, clipping, or consumer-to-preset mapping, but should
+not duplicate the preset's literal numeric entries.
+
+### Session-card typography and desktop Connections follow-up
+
+Status: Approved
+
+This follow-up reopens work in the existing 010, 020, and 030 subtasks. A later
+approved mobile gutter correction also reopens 040. It does not create another
+subtask.
+
+#### Follow-up requirements
+
+Functional:
+
+- [x] Mobile session cards use `large` for the title, `normal` for the
+  subtitle or preview, `small` for the session ID, and `tiny` for metadata.
+- [x] Desktop session cards use `normal` for the title, `secondary` for the
+  subtitle or preview, `small` for the session ID, and `tiny` for metadata.
+- [x] Every session-card font-size role uses the matching semantic line-height
+  role on both platforms.
+- [x] Rich session actions shown in a card use matching semantic font-size and
+  line-height roles for labels and textual icon fallbacks.
+- [x] The desktop Connections panel is expanded by default and has an
+  accessible chevron that collapses the saved-connection list to its header
+  and expands it again.
+- [x] An expanded desktop Connections panel with zero through three records
+  uses its natural content height and is not scrollable.
+- [x] An expanded desktop Connections panel with more than three records uses
+  a bounded, scrollable viewport equivalent to about three connection rows,
+  and every record remains reachable.
+- [x] The bounded connection list visibly communicates that more records
+  continue below the initial viewport with a bottom fade that disappears when
+  the user reaches the real bottom.
+
+Non-functional:
+
+- [x] Session-card typography consumes the existing explicit semantic preset
+  tables; it does not introduce scaling formulas or duplicate platform
+  presets.
+- [x] The connection-list maximum is derived from semantic row metrics and
+  spacing so it remains appropriate when the selected font-size preset
+  changes.
+- [x] The connection rows are built once and hosted in a plain natural-height
+  container for up to three records or a scroll container for more than three
+  records.
+- [x] Expanded/collapsed state is local presentation state; connection
+  persistence, focus, opening, closing, deletion, and transport ownership do
+  not change.
+- [x] Production accessibility identifiers support component and native
+  geometry verification without introducing test-only behavior into the
+  production component.
+- [x] Tests derive expected typography and geometry thresholds from the active
+  display preset and rendered layout instead of copying literal preset values.
+
+#### Approach
+
+Reopen 030 for the mobile session-card styles and tests. Preserve the mobile
+card's current visual hierarchy by pairing `large`, `normal`, `small`, and
+`tiny` font sizes with their matching line heights. Add stable identifiers for
+the session ID and preview so tests can inspect both presentation branches.
+
+Reopen 020 for the desktop session-card styles and the desktop Connections
+panel. Increase desktop session title, subtitle/preview, and ID text to
+`normal`, `secondary`, and `small`, retaining `tiny` metadata. Add a chevron to
+the Connections header using its existing right-side composition point. Keep
+the panel expanded by default and do not persist its disclosure state.
+
+Build connection row elements once. For zero through three records, host them
+in a plain `View` so the panel is content-sized and has no scroll semantics.
+For more than three, host the same rows in a `ScrollView` with a
+theme-derived maximum height equivalent to three standard rows. Render a
+non-interactive bottom fade while additional content remains below the
+viewport. Track scroll and content geometry so the fade disappears at the real
+bottom and reappears when the user scrolls away from it. Retain the existing
+saved-record count and normal vertical scroll indicator as secondary cues.
+
+Reopen 010 only for the shared rich session-action typography. Add matching
+line heights to the current-value label and explicit semantic size/line-height
+metrics to its textual fallback. Vector icon dimensions remain unchanged.
+
+Each reopened subtask owns its focused verification and documentation. There
+is no separate verification or documentation subtask.
+
+#### Implementation decisions and open questions
+
+- Recommended interpretation: the new `normal`/`secondary`/`small`/`tiny`
+  mapping is desktop-specific. Applying it to mobile would reduce the default
+  mobile title from 16 to 14 points, which conflicts with retaining its current
+  hierarchy. Mobile keeps the earlier approved
+  `large`/`normal`/`small`/`tiny` mapping.
+- Approved continuation affordance: use a three-row viewport with a bottom
+  fade while more content remains. Remove the fade at the real bottom.
+- The Connections disclosure is desktop-only. The full-screen mobile
+  Connections list remains unchanged.
+- Collapsing and reopening the desktop Connections panel returns its bounded
+  list to the top; preserving scroll offset is not required.
+- Typography tests must resolve expected metrics from
+  `DISPLAY_TYPOGRAPHY_PRESETS` or the active themed preset. Native UI tests use
+  relative rendered geometry and preset-derived thresholds, not copied point
+  values.
+
+#### Documentation
+
+- 010 owns any shared-component documentation correction needed for rich
+  session-action typography.
+- 020 owns desktop documentation for session-card semantic roles and
+  Connections-panel disclosure/bounded scrolling.
+- 030 owns mobile documentation for session-card semantic roles and matching
+  line heights.
+- 040 owns the later Connections-screen gutter correction and its native
+  alignment evidence.
+
+#### Task checklist
+
+- [x] Reopen and complete the shared rich-action follow-up in
+  `tasks/20260827-cross-platform-markdown-and-mobile-connections/010-shared-markdown-display-contract.md`.
+- [x] Reopen and complete the desktop session-card and Connections-panel
+  follow-up in
+  `tasks/20260827-cross-platform-markdown-and-mobile-connections/020-desktop-markdown-view-preferences.md`.
+- [x] Reopen and complete the mobile session-card follow-up in
+  `tasks/20260827-cross-platform-markdown-and-mobile-connections/030-mobile-global-settings-and-markdown.md`.
+- [x] Reopen and complete the mobile Connections gutter follow-up in
+  `tasks/20260827-cross-platform-markdown-and-mobile-connections/040-mobile-connection-actions-and-layout.md`
+  without changing connection behavior.
+- [x] Record focused verification and documentation in each owning reopened
+  subtask.
+
+#### Requirement verification
+
+- Mobile component tests inspect title, subtitle, preview, session ID, and
+  metadata styles under the default and largest presets and assert matching
+  role-specific line heights.
+- Shared component tests inspect rich list labels and textual fallbacks under
+  a non-default theme and assert matching semantic metrics.
+- Desktop style and component tests assert exact title, subtitle/preview,
+  session ID, metadata, and Open-label metrics.
+- Desktop connection component tests assert disclosure state and select a
+  plain container for zero through three records versus a bounded
+  `ScrollView` for more than three. They also assert that overflow controls the
+  fade and reaching the bottom removes it.
+- A production-component macOS XCTest harness runs one-, three-, and
+  five-record scenarios. It verifies natural-height growth, absence of a
+  scroll view for three or fewer records, a bounded viewport and actual row
+  movement for five records, access to the last record, collapsed header-only
+  geometry, and unclipped largest-preset geometry.
+- The existing mobile native session-list scenario is extended to verify
+  non-overlapping card field geometry at default and largest presets on iOS
+  and Android using relative or preset-derived expectations.
+
+#### Additional implementation verification
+
+- Run the shared component suite and shared type check.
+- Run complete mobile Jest and TypeScript checks plus the focused iOS and
+  Android Detox session-list scenario.
+- Run complete desktop Jest, the focused signed macOS XCTest, and a bundled
+  macOS build.
+- Report the known desktop full-TypeScript baseline separately and confirm
+  that no touched follow-up file adds an error.
+
+#### Implementation notes
+
+- Completed the shared rich-action and mobile session-card follow-ups. Shared
+  tests pass 42 cases; mobile passes 137 Jest tests and TypeScript.
+- Fresh iOS and Android Detox builds and the focused session-list scenario
+  pass on both platforms. Geometry assertions select the exported default or
+  largest preset and compare relative bounds.
+- Desktop session-card roles, disclosure, natural/scroll host split,
+  theme-derived three-row cap, and bottom fade are implemented. Desktop Jest
+  passes 120 tests.
+- Removed stale copied typography tables from shared, mobile, and desktop
+  tests. Consumer expectations now resolve from the maintained preset or
+  markdown derivation.
+- Added the production desktop Connections harness and focused XCTest. The
+  macOS app and signed test bundle pass `build-for-testing`.
+- After user confirmation, the focused desktop XCTest passed both tests with
+  zero failures.
+- A later mobile correction removed Connections' duplicate child-screen
+  padding, added the visible Sessions title, and aligned Connections/Sessions
+  titles, the Sessions search placeholder, and card titles to one optical left
+  edge. Connections, Sessions, and Messages continue to share the outer gutter
+  and compact top inset owned by `ConnectedRoot`.
+- Complete mobile verification after the gutter correction passes 137 Jest
+  tests and TypeScript. Fresh iOS/Android builds pass the two-test session-list
+  Detox scenario and the Connections/Settings scenario on both platforms. The
+  first Android Connections attempt was blocked before app readiness by an
+  emulator `Activity.setTheme` ANR; a fresh-emulator retry passed.
+
+#### Completion notes
+
+- Completed the shared, desktop, mobile session-card, and mobile gutter
+  follow-ups without creating another subtask.
+- Desktop XCTest verified natural one-versus-three-record growth, no scroll
+  view through three records, a theme-derived bounded five-record viewport,
+  visible overflow fade, native scrolling, fade removal at the real bottom,
+  final-row reachability, and collapse/expand behavior at the largest current
+  preset.
+- The first two desktop attempts exposed native-query assumptions and a stale
+  LLDB-held app process. The final production test uses the actual native
+  hierarchy, and the stale debugger session was removed before the clean
+  successful run.
+- Final planned evidence is complete across shared tests, mobile Jest and
+  TypeScript, desktop Jest, fresh iOS/Android builds and Detox, bundled macOS
+  build, and the focused signed macOS XCTest.
+
+#### Post-completion verification follow-up
+
+- The first full desktop Jest run after XCTest passed all 120 assertions but
+  exited nonzero when an existing `DependencyFlatList` timer fired after Jest
+  teardown. The focused owning suite then passed 4 tests, and a clean full
+  retry passed all 23 suites and 120 tests with a successful exit.

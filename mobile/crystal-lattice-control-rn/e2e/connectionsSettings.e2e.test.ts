@@ -58,6 +58,16 @@ describe('mobile Connections and markdown settings', () => {
     await detoxExpect(element(by.text('Connected to'))).not.toExist();
     await detoxExpect(element(by.text('Last used:'))).not.toExist();
 
+    const connectionsTitleFrame = frameFrom(
+      await element(by.id('connections-screen-title')).getAttributes(),
+    );
+    const connectionCardTitleFrame = frameFrom(
+      await element(by.id('connection-title-active')).getAttributes(),
+    );
+    jestExpect(
+      Math.abs(connectionsTitleFrame.x - connectionCardTitleFrame.x),
+    ).toBeLessThanOrEqual(1);
+
     await element(by.id('connection-open')).tap();
     await detoxExpect(element(by.id('connection-status-closed'))).toHaveText('Open');
     await detoxExpect(element(by.id('connections-harness-last-action'))).toHaveText('opened:closed');

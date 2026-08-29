@@ -38,6 +38,11 @@ const RootComponent = props => {
   return React.createElement(Component, props);
 };
 
+const MobileSessionListLargestPresetHarness = () =>
+  React.createElement(MobileSessionListHarness, {
+    clcDisplayPreset: 'largest',
+  });
+
 AppRegistry.registerComponent(appName, () => RootComponent);
 AppRegistry.registerComponent(
   'MobileTranscriptScrollHarness',
@@ -50,6 +55,10 @@ AppRegistry.registerComponent(
 AppRegistry.registerComponent(
   'MobileSessionListHarness',
   () => MobileSessionListHarness,
+);
+AppRegistry.registerComponent(
+  'MobileSessionListLargestPresetHarness',
+  () => MobileSessionListLargestPresetHarness,
 );
 AppRegistry.registerComponent(
   'MobileNotificationBannerHarness',

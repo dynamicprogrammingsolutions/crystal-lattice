@@ -17,6 +17,20 @@ function verticalPosition(attributes: any): number {
   return value;
 }
 
+function verticalBounds(attributes: any): { top: number; bottom: number; height: number } {
+  const bounds = attributes?.frame || attributes?.elementBounds;
+  const top = bounds?.y ?? bounds?.top;
+  const height = bounds?.height;
+  if (typeof top !== "number" || typeof height !== "number") {
+    throw new Error(
+      `Element attributes do not contain vertical bounds: ${JSON.stringify(
+        attributes
+      )}`
+    );
+  }
+  return { top, bottom: top + height, height };
+}
+
 async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
   if (device.getPlatform() !== "android") {
     return;
@@ -28,11 +42,14 @@ async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
   }
 }
 
-async function launchHarness(): Promise<void> {
+async function launchHarness(
+  displayPreset: "default" | "largest" = "default",
+): Promise<void> {
   await device.launchApp({
     newInstance: true,
     launchArgs: {
       clcSessionListHarness: "1",
+      clcDisplayPreset: displayPreset,
     },
   });
   await dismissAndroidImmersiveModeConfirmation();
@@ -42,6 +59,87 @@ async function launchHarness(): Promise<void> {
 }
 
 describe("mobile session-list contracts", () => {
+  it("keeps session-card fields ordered and grows from the default to largest preset", async () => {
+    await launchHarness();
+
+    const defaultRow = verticalBounds(
+      await element(by.id("session-row-server-first")).getAttributes(),
+    );
+    const screenTitleAttributes = await element(
+      by.id("sessions-screen-title"),
+    ).getAttributes();
+    const cardTitleAttributes = await element(
+      by.id("session-title-server-first"),
+    ).getAttributes();
+    const screenTitleFrame =
+      (screenTitleAttributes as any)?.frame ||
+      (screenTitleAttributes as any)?.elementBounds;
+    const cardTitleFrame =
+      (cardTitleAttributes as any)?.frame ||
+      (cardTitleAttributes as any)?.elementBounds;
+    if (
+      typeof screenTitleFrame?.x !== "number" ||
+      typeof cardTitleFrame?.x !== "number" ||
+      Math.abs(screenTitleFrame.x - cardTitleFrame.x) > 1
+    ) {
+      throw new Error(
+        `Expected Sessions title and card title left edges to align: ${JSON.stringify({
+          screenTitleFrame,
+          cardTitleFrame,
+        })}`,
+      );
+    }
+    const fieldIds = [
+      "session-title-server-first",
+      "session-id-server-first",
+      "session-subtitle-server-first",
+      "session-meta-server-first",
+    ];
+    const defaultFields = [];
+    for (const fieldId of fieldIds) {
+      defaultFields.push(
+        verticalBounds(await element(by.id(fieldId)).getAttributes()),
+      );
+    }
+    for (let index = 1; index < defaultFields.length; index += 1) {
+      if (defaultFields[index - 1].bottom > defaultFields[index].top) {
+        throw new Error(
+          `Expected ${fieldIds[index - 1]} above ${fieldIds[index]}: ${JSON.stringify(
+            defaultFields,
+          )}`,
+        );
+      }
+    }
+    await detoxExpect(
+      element(by.id("session-preview-server-second")),
+    ).toExist();
+
+    await launchHarness("largest");
+    const largestRow = verticalBounds(
+      await element(by.id("session-row-server-first")).getAttributes(),
+    );
+    if (largestRow.height <= defaultRow.height) {
+      throw new Error(
+        `Expected largest preset row to grow: ${largestRow.height} <= ${defaultRow.height}`,
+      );
+    }
+    const largestFields = [];
+    for (const fieldId of fieldIds) {
+      largestFields.push(
+        verticalBounds(await element(by.id(fieldId)).getAttributes()),
+      );
+    }
+    for (let index = 1; index < largestFields.length; index += 1) {
+      if (largestFields[index - 1].bottom > largestFields[index].top) {
+        throw new Error(
+          `Expected ${fieldIds[index - 1]} above ${fieldIds[index]} at largest preset: ${JSON.stringify(
+            largestFields,
+          )}`,
+        );
+      }
+    }
+  });
+
   it("renders the native list and runs a rich status action through its modal", async () => {
     await launchHarness();
 

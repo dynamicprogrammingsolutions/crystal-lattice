@@ -1,10 +1,14 @@
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { ConnectionRecord, Transport } from '@crystal-lattice/frontend-sdk';
 
-import ConnectionsScreen from '../src/ConnectionsScreen';
+import ConnectionsScreen, {
+  createConnectionsScreenStyles,
+} from '../src/ConnectionsScreen';
 import { PinnedActionsProvider } from '../src/PinnedActionsContext';
+import { lightTheme } from '../src/theme';
 
 const records: ConnectionRecord[] = [
   {
@@ -63,6 +67,16 @@ test('renders compact cards with status and without legacy metadata', async () =
   expect(screen.getByTestId('connection-status-active').props.children).toBe('Open');
   expect(screen.getByTestId('connection-status-closed').props.children).toBe('Closed');
   await waitFor(() => expect(screen.getByLabelText('New connection')).toBeTruthy());
+});
+
+test('uses the parent tab gutter and aligns its title with card content', () => {
+  const styles = createConnectionsScreenStyles(lightTheme);
+  const container = StyleSheet.flatten(styles.container);
+  const title = StyleSheet.flatten(styles.title);
+  const item = StyleSheet.flatten(styles.item);
+
+  expect((container as Record<string, unknown>).padding).toBeUndefined();
+  expect(title.marginLeft).toBe(item.padding + item.borderWidth);
 });
 
 test('routes header and state-dependent card actions', async () => {

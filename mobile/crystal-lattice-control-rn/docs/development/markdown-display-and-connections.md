@@ -14,6 +14,16 @@ actions, and code consumers use responsive semantic font-size and line-height
 tokens; explicit card/screen/modal titles and layout dimensions remain fixed.
 Both the enriched selectable renderer and the legacy markdown renderer map the
 shared semantic body and H1–H6 metrics to their renderer-specific style keys.
+Syntax-highlighted fallback code blocks pass the semantic `code` font size and
+line height directly to the `feature/native-line-height` branch of the
+`ferenci84/react-native-syntax-highlighter` fork.
+
+Session cards use semantic typography from the selected preset: `large` for
+the title, `normal` for the subtitle or preview, `small` for the session ID,
+and `tiny` for metadata. Each field uses the corresponding semantic line
+height. Component and native geometry tests obtain expectations from the
+selected preset or compare rendered bounds; they do not copy the preset's
+numeric entries.
 
 The Connections header uses the shared pinnable action bar for Global Settings
 and New Connection. Saved connection cards share a separate pin preference.
@@ -27,6 +37,13 @@ record is not active, opening begins without delaying navigation; pressing an
 already-open card does not reconnect. The card's Open action uses a separate
 callback and leaves the user on Connections. Other card actions likewise do
 not trigger card navigation.
+
+`ConnectedRoot` owns one horizontal content gutter and compact top inset for
+Connections, Sessions, and Messages. Child screens must not add another outer
+gutter. Connections and Sessions offset their visible screen titles by the
+card content inset, and the Sessions search input uses the same content inset,
+so screen titles, search placeholder text, and card titles share one optical
+left edge.
 
 Global Settings renders `OptionsPickerModal` as an overlay within its existing
 native modal. Do not present the picker as a second nested React Native
@@ -52,5 +69,8 @@ Maintainer entry points:
 - `src/components/MarkdownMessageContent.tsx`
 - `src/ConnectedRoot.tsx`
 - `src/ConnectionsScreen.tsx`
+- `src/SessionsScreen.tsx`
+- `src/testing/MobileSessionListHarness.tsx`
 - `src/testing/MobileConnectionsSettingsHarness.tsx`
+- `e2e/sessionList.e2e.test.ts`
 - `e2e/connectionsSettings.e2e.test.ts`

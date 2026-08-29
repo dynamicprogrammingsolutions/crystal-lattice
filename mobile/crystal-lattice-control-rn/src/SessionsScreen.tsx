@@ -752,7 +752,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             </View>
           ) : null}
         </View>
-        <Text style={styles.sessionId}>{s.session_id}</Text>
+        <Text
+          style={styles.sessionId}
+          testID={`session-id-${s.session_id}`}
+        >
+          {s.session_id}
+        </Text>
         {subtitle ? (
           <Text
             style={styles.sessionSubtitle}
@@ -761,7 +766,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             {subtitle}
           </Text>
         ) : s.preview ? (
-          <Text style={styles.sessionPreview}>{s.preview}</Text>
+          <Text
+            style={styles.sessionPreview}
+            testID={`session-preview-${s.session_id}`}
+          >
+            {s.preview}
+          </Text>
         ) : null}
         <Text
           style={styles.sessionMeta}
@@ -812,6 +822,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
+        <Text
+          style={styles.screenTitle}
+          testID="sessions-screen-title"
+        >
+          Sessions
+        </Text>
         <View style={styles.headerButtons}>
           <ActionsMenuBar<SessionsHeaderActionDefinition>
             title="Sessions actions"
@@ -1170,8 +1186,14 @@ const createStyles = (theme: Theme) =>
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'flex-end',
+      justifyContent: 'space-between',
       marginBottom: 12,
+    },
+    screenTitle: {
+      marginLeft: 13,
+      fontSize: 16,
+      fontWeight: '700',
+      color: theme.text,
     },
     headerButtons: {
       flexDirection: 'row',
@@ -1213,7 +1235,8 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.border,
       borderRadius: 8,
-      padding: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
       fontSize: 14,
       color: theme.text,
     },
@@ -1297,13 +1320,15 @@ const createStyles = (theme: Theme) =>
       marginLeft: 4,
     },
     sessionTitle: {
-      fontSize: 16,
+      fontSize: theme.typography.fontSize.large,
+      lineHeight: theme.typography.lineHeight.large,
       fontWeight: '600',
       marginBottom: 2,
       color: theme.text,
     },
     sessionSubtitle: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.textSecondary,
       marginBottom: 2,
     },
@@ -1315,17 +1340,20 @@ const createStyles = (theme: Theme) =>
       marginLeft: 4,
     },
     sessionId: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       marginBottom: 4,
     },
     sessionPreview: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
       marginBottom: 4,
     },
     sessionMeta: {
       fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
     },
     sessionActionsRow: {
@@ -1406,4 +1434,5 @@ const createStyles = (theme: Theme) =>
     },
   });
 
+export { createStyles as createSessionsScreenStyles };
 export default SessionsScreen;

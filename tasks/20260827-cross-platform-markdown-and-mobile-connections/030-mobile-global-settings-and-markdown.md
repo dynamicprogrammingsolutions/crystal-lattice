@@ -157,3 +157,109 @@ Follow-up evidence:
 - The final production-component scenario passed on iPhone 17 Pro and
   Medium Phone API 36.1, including persisted 19/Small values and
   screenshot-derived rendered glyph geometry.
+
+### Completed mobile code typography follow-up
+
+- Mobile fenced code blocks use Courier plus the semantic `code` font size and
+  line height.
+- Mobile consumes
+  `ferenci84/react-native-syntax-highlighter#feature/native-line-height`
+  through a direct Git dependency. Fork commit
+  `4602848d2271b4809257be81ae0308f562c99910` supplies native line-height
+  handling.
+- The final manually tuned shared preset table is authoritative. Mobile tests
+  derive expected semantic metrics from the selected preset instead of copying
+  literal point values.
+
+### Session-card semantic line heights
+
+Status: Approved
+
+This existing mobile subtask owns the mobile session-card portion of the
+follow-up recorded in the parent task.
+
+### Implementation decisions and open questions
+
+- Preserve the mobile hierarchy with `large` title, `normal`
+  subtitle/preview, `small` session ID, and `tiny` metadata roles.
+- Pair every font-size role with its matching line-height role.
+- Add stable identifiers for session ID and preview without changing card
+  navigation or action behavior.
+- Derive component and native geometry expectations from the selected preset
+  or relative rendered bounds rather than hardcoded preset values.
+
+### Documentation
+
+- Update mobile development documentation with the session-card semantic role
+  mapping and preset-driven line-height behavior.
+
+### Task checklist
+
+- [x] Update all direct mobile session-card text styles to semantic
+  font-size/line-height pairs.
+- [x] Add stable session ID and preview identifiers.
+- [x] Add component coverage for subtitle and preview branches at default and
+  largest presets.
+- [x] Extend and run the focused iOS and Android native session-list geometry
+  scenario.
+- [x] Run complete mobile Jest and TypeScript checks.
+- [x] Update mobile development documentation.
+
+### Requirement verification
+
+- Rendered title, subtitle, preview, session ID, and metadata fields expose the
+  approved role's font size and matching line height.
+- Native geometry checks show no overlap or clipping at default and largest
+  presets.
+- Existing card navigation and nested action behavior remain unchanged.
+
+### Additional implementation verification
+
+- Re-run affected session-rich-action tests after the shared 010 change.
+
+### Implementation Notes
+
+- Mobile session rows now use `large` titles, `normal` subtitles/previews,
+  `small` IDs, and `tiny` metadata with matching semantic line heights.
+- Added stable IDs for session ID and preview fields.
+- Existing footer and markdown typography tests were converted from copied
+  numeric tables to expectations derived from the selected preset and markdown
+  derivation.
+- The production session-list harness selects the exported default or largest
+  preset by semantic name. Native assertions compare field ordering and
+  relative card growth without embedding preset values.
+- Fresh iOS and Android builds succeeded. The focused session-list Detox
+  scenario passed 2 tests on each platform, including largest-preset geometry
+  and the existing rich action flow.
+- The initial iOS run showed unchanged geometry because iOS did not forward
+  the harness selector as root properties. A dedicated largest-preset harness
+  registration now supplies that semantic configuration; the rebuilt iOS
+  scenario passed.
+- Complete mobile verification passed: 31 Jest suites, 136 tests, and
+  TypeScript.
+
+### Completion Notes
+
+- Completed the mobile session-card semantic line-height follow-up with
+  component and native iOS/Android evidence.
+
+### Tab gutter and Sessions-title follow-up
+
+Status: Approved
+
+The Sessions screen now displays a compact bold `Sessions` title in the same
+header pattern as Connections. Its title, search placeholder inset, and card
+titles share one optical left edge. Sessions continues to consume the outer
+gutter and compact top inset owned by `ConnectedRoot`; it does not add another
+screen-level inset.
+
+Component tests derive title/search alignment from the card padding and border
+styles instead of duplicating unrelated geometry. The production session-list
+Detox scenario verifies title/card-title native alignment on iOS and Android.
+
+Completion evidence:
+
+- Complete mobile Jest passes 31 suites and 137 tests.
+- Mobile TypeScript and `git diff --check` pass.
+- Fresh iOS and Android builds pass.
+- The focused two-test session-list Detox scenario passes on iOS and Android.
