@@ -75,17 +75,23 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   BOOL enableMarkdownGeometryHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_MARKDOWN_GEOMETRY_HARNESS") ||
       LaunchArgumentPresent(@"--markdown-geometry-harness");
+  BOOL enableConnectionsPanelHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_CONNECTIONS_PANEL_HARNESS") ||
+      LaunchArgumentPresent(@"--connections-panel-harness");
   BOOL enableAnyTestHarness =
       enableScrollTestHarness ||
       enableTranscriptScrollPersistenceHarness ||
       enableTranscriptRangeNavigationHarness ||
       enableSessionFiltersPopoverHarness ||
       enableNotificationRailHarness ||
-      enableMarkdownGeometryHarness;
+      enableMarkdownGeometryHarness ||
+      enableConnectionsPanelHarness;
   if (enableAnyTestHarness) {
     RCTDevLoadingViewSetEnabled(NO);
   }
-  self.moduleName = enableMarkdownGeometryHarness
+  self.moduleName = enableConnectionsPanelHarness
+      ? @"DesktopConnectionsPanelHarness"
+      : (enableMarkdownGeometryHarness
       ? @"DesktopMarkdownGeometryHarness"
       : (enableTranscriptRangeNavigationHarness
       ? @"DesktopTranscriptRangeNavigationHarness"
@@ -97,7 +103,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
              ? @"TranscriptScrollPersistenceHarness"
              : (enableScrollTestHarness
                     ? @"ProgressiveScrollHarness"
-                    : @"CrystalLatticeControlDesktopRN")))));
+                    : @"CrystalLatticeControlDesktopRN"))))));
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
   NSInteger markdownBaseFontSize = [self loadMarkdownBaseFontSizePreference];
@@ -109,6 +115,8 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @"initialMarkdownHeaderSize" : markdownHeaderSize,
     @"enableScrollTestHarness" : @(enableScrollTestHarness),
     @"enableMarkdownGeometryHarness" : @(enableMarkdownGeometryHarness),
+    @"connectionsHarnessCount" : [NSProcessInfo processInfo].environment[@"CLC_CONNECTIONS_HARNESS_COUNT"] ?: @"0",
+    @"connectionsHarnessPreset" : [NSProcessInfo processInfo].environment[@"CLC_CONNECTIONS_HARNESS_PRESET"] ?: @"default",
     @"scrollHarnessRunId" : [NSProcessInfo processInfo].environment[@"CLC_SCROLL_HARNESS_RUN_ID"] ?: @"",
     @"scrollHarnessBackingList" : [NSProcessInfo processInfo].environment[@"CLC_PROGRESSIVE_SCROLL_BACKING_LIST"] ?: @"scrollView",
     @"scrollHarnessGrowOnly" : @(EnvironmentFlagEnabled(@"CLC_PROGRESSIVE_SCROLL_GROW_ONLY")),
@@ -343,12 +351,14 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       EnvironmentFlagEnabled(@"CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_NOTIFICATION_RAIL_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_MARKDOWN_GEOMETRY_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_CONNECTIONS_PANEL_HARNESS") ||
       LaunchArgumentPresent(@"--scroll-test-harness") ||
       LaunchArgumentPresent(@"--transcript-scroll-persistence-harness") ||
       LaunchArgumentPresent(@"--transcript-range-navigation-harness") ||
       LaunchArgumentPresent(@"--session-filters-popover-harness") ||
       LaunchArgumentPresent(@"--notification-rail-harness") ||
-      LaunchArgumentPresent(@"--markdown-geometry-harness")) {
+      LaunchArgumentPresent(@"--markdown-geometry-harness") ||
+      LaunchArgumentPresent(@"--connections-panel-harness")) {
     return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
   }
 

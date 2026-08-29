@@ -20,8 +20,21 @@ error fallback, inline code, and syntax-highlighted fenced code remain owned
 by the desktop renderer.
 
 Message, chat, composer, attachment, and metadata styles use responsive theme
-tokens. Explicit panel/card titles, icons, spacing, and hit targets remain
-fixed. Legacy persisted 13 and 19 values migrate to 14 and 17.
+tokens. Icons, spacing, and hit targets remain fixed. Desktop panel headers,
+connection/session rows, session tabs, and the chat header also consume
+semantic typography and color tokens, so the selected display preset and
+macOS appearance propagate through the main workspace. Session rows use
+`normal` titles, `secondary` subtitles/previews, `small` IDs, and `tiny`
+metadata with matching line heights. Legacy persisted 13 and 19 values migrate
+to 14 and 17.
+
+Fenced code passes the semantic `code` font size and line height plus the macOS
+`Menlo` family directly to `react-native-syntax-highlighter`; placing those
+values only in its `customStyle` does not affect token text. The application
+uses the `feature/native-line-height` branch of
+`ferenci84/react-native-syntax-highlighter`, whose lockfile entry pins the
+reviewable fork commit. Raw and otherwise non-markdown message bodies consume
+the semantic `message` font size and line height.
 
 Native verification launches `DesktopMarkdownGeometryHarness` through the
 application's harness initial property. The harness uses the production
@@ -31,6 +44,15 @@ are not available to XCTest in this application. `MarkdownDisplayMenuUITests`
 verifies persisted menu values across relaunch, actual Normal/Small heading
 geometry, body geometry, and responsive footer geometry.
 
+The Connections panel is expanded by default and its header disclosure
+collapses or restores the saved-record list. Up to three records use a
+natural-height non-scroll container. Larger sets use a theme-derived
+three-row viewport. A non-interactive bottom fade indicates remaining content
+and disappears at the real bottom. `DesktopConnectionsPanelHarness` and
+`ConnectionsPanelUITests` verify natural versus bounded geometry and native
+scrolling. Typography and geometry expectations are derived from the active
+preset rather than copied point values.
+
 Maintainer entry points:
 
 - `macos/CrystalLatticeControlDesktopRN-macOS/AppDelegate.mm`
@@ -39,6 +61,9 @@ Maintainer entry points:
 - `src/DesktopRoot.tsx`
 - `src/chat/MarkdownMessageContent.tsx`
 - `src/testing/DesktopMarkdownGeometryHarness.tsx`
+- `src/testing/DesktopConnectionsPanelHarness.tsx`
+- `src/panels/ConnectionsPanel.tsx`
 - `__tests__/MarkdownMessageContent.test.tsx`
 - `__tests__/DesktopMessageBubbleTypography.test.ts`
 - `macos/CrystalLatticeControlDesktopRN-macOSUITests/MarkdownDisplayMenuUITests.swift`
+- `macos/CrystalLatticeControlDesktopRN-macOSUITests/ConnectionsPanelUITests.swift`

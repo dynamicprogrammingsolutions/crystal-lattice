@@ -188,6 +188,9 @@ function MarkdownMessageContent({
                 language={language}
                 style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
                 highlighter="hljs"
+                fontFamily="Menlo"
+                fontSize={theme.typography.fontSize.code}
+                lineHeight={theme.typography.lineHeight.code}
                 customStyle={styles.codeBlockInner}
                 PreTag={View as any}
                 CodeTag={Text as any}
@@ -223,6 +226,9 @@ function MarkdownMessageContent({
                 language={language}
                 style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
                 highlighter="hljs"
+                fontFamily="Menlo"
+                fontSize={theme.typography.fontSize.code}
+                lineHeight={theme.typography.lineHeight.code}
                 customStyle={styles.codeBlockInner}
                 PreTag={View as any}
                 CodeTag={Text as any}

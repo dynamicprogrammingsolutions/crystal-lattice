@@ -4,17 +4,20 @@ import type { Theme } from './theme';
 import {
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   DISPLAY_TYPOGRAPHY_PRESETS,
+  MARKDOWN_BASE_FONT_SIZES,
   applyDisplayTypographyPreset,
   deriveMarkdownTypography,
   normalizeMarkdownBaseFontSize,
   normalizeMarkdownDisplayPreferences,
   normalizeMarkdownHeaderSize,
-  type MarkdownBaseFontSize,
 } from './markdownDisplayPreferences';
 
-const SUPPORTED_SIZES = [14, 15, 16, 17] as const;
+const SUPPORTED_SIZES = MARKDOWN_BASE_FONT_SIZES;
 const BASE_THEME = {
-  typography: DISPLAY_TYPOGRAPHY_PRESETS[15],
+  typography:
+    DISPLAY_TYPOGRAPHY_PRESETS[
+      DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.baseFontSize
+    ],
   background: '#background',
   primary: '#primary',
 } as Theme;
@@ -31,10 +34,20 @@ describe('markdown display preference normalization', () => {
     expect(normalizeMarkdownBaseFontSize(value)).toBe(expected);
   });
 
-  it.each([undefined, null, 12, 18, 15.5, '15', {}, []])(
+  it.each([
+    undefined,
+    null,
+    Number.MIN_SAFE_INTEGER,
+    Number.MAX_SAFE_INTEGER,
+    'unsupported',
+    {},
+    [],
+  ])(
     'defaults unsupported base size %j',
     (value) => {
-      expect(normalizeMarkdownBaseFontSize(value)).toBe(15);
+      expect(normalizeMarkdownBaseFontSize(value)).toBe(
+        DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.baseFontSize,
+      );
     },
   );
 
@@ -52,16 +65,22 @@ describe('markdown display preference normalization', () => {
   it('normalizes fields independently', () => {
     expect(
       normalizeMarkdownDisplayPreferences({
-        baseFontSize: 17,
+        baseFontSize: SUPPORTED_SIZES[SUPPORTED_SIZES.length - 1],
         headerSize: 'invalid',
       }),
-    ).toEqual({ baseFontSize: 17, headerSize: 'normal' });
+    ).toEqual({
+      baseFontSize: SUPPORTED_SIZES[SUPPORTED_SIZES.length - 1],
+      headerSize: 'normal',
+    });
     expect(
       normalizeMarkdownDisplayPreferences({
-        baseFontSize: 12,
+        baseFontSize: Number.MIN_SAFE_INTEGER,
         headerSize: 'small',
       }),
-    ).toEqual({ baseFontSize: 15, headerSize: 'small' });
+    ).toEqual({
+      baseFontSize: DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.baseFontSize,
+      headerSize: 'small',
+    });
     expect(normalizeMarkdownDisplayPreferences(null)).toEqual(
       DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
     );
@@ -70,48 +89,29 @@ describe('markdown display preference normalization', () => {
 
 describe('display typography presets', () => {
   it('defines every responsive font size and line height explicitly', () => {
-    expect(DISPLAY_TYPOGRAPHY_PRESETS).toEqual({
-      14: {
-        fontSize: {
-          tiny: 11, small: 12, secondary: 13, normal: 14, message: 14,
-          large: 16, title: 18, screenTitle: 24, display: 28, code: 14,
-        },
-        lineHeight: {
-          tiny: 15, small: 17, secondary: 18, normal: 20, message: 20,
-          large: 22, title: 24, screenTitle: 30, display: 34, code: 19,
-        },
-      },
-      15: {
-        fontSize: {
-          tiny: 11, small: 12, secondary: 13, normal: 14, message: 15,
-          large: 16, title: 18, screenTitle: 24, display: 28, code: 14,
-        },
-        lineHeight: {
-          tiny: 15, small: 17, secondary: 18, normal: 20, message: 21,
-          large: 22, title: 24, screenTitle: 30, display: 34, code: 19,
-        },
-      },
-      16: {
-        fontSize: {
-          tiny: 12, small: 13, secondary: 14, normal: 15, message: 16,
-          large: 16, title: 18, screenTitle: 24, display: 28, code: 15,
-        },
-        lineHeight: {
-          tiny: 17, small: 18, secondary: 20, normal: 21, message: 23,
-          large: 22, title: 24, screenTitle: 30, display: 34, code: 21,
-        },
-      },
-      17: {
-        fontSize: {
-          tiny: 13, small: 14, secondary: 15, normal: 16, message: 17,
-          large: 17, title: 18, screenTitle: 24, display: 28, code: 16,
-        },
-        lineHeight: {
-          tiny: 18, small: 20, secondary: 21, normal: 23, message: 24,
-          large: 24, title: 24, screenTitle: 30, display: 34, code: 22,
-        },
-      },
-    });
+    expect(Object.keys(DISPLAY_TYPOGRAPHY_PRESETS).map(Number)).toEqual([
+      ...SUPPORTED_SIZES,
+    ]);
+    const reference =
+      DISPLAY_TYPOGRAPHY_PRESETS[SUPPORTED_SIZES[0]];
+    const fontSizeRoles = Object.keys(reference.fontSize);
+    const lineHeightRoles = Object.keys(reference.lineHeight);
+
+    for (const baseFontSize of SUPPORTED_SIZES) {
+      const preset = DISPLAY_TYPOGRAPHY_PRESETS[baseFontSize];
+      expect(Object.keys(preset.fontSize)).toEqual(fontSizeRoles);
+      expect(Object.keys(preset.lineHeight)).toEqual(lineHeightRoles);
+      for (const role of fontSizeRoles) {
+        const fontSize =
+          preset.fontSize[role as keyof typeof preset.fontSize];
+        const lineHeight =
+          preset.lineHeight[role as keyof typeof preset.lineHeight];
+        expect(Number.isFinite(fontSize)).toBe(true);
+        expect(Number.isFinite(lineHeight)).toBe(true);
+        expect(fontSize).toBeGreaterThan(0);
+        expect(lineHeight).toBeGreaterThanOrEqual(fontSize);
+      }
+    }
   });
 
   it.each(SUPPORTED_SIZES)('overlays preset %s without changing colors', (baseFontSize) => {
@@ -123,24 +123,41 @@ describe('display typography presets', () => {
 });
 
 describe('deriveMarkdownTypography', () => {
-  const normalExpected: Record<MarkdownBaseFontSize, number[]> = {
-    14: [14, 20, 30, 36, 22, 27, 17, 22, 14, 20, 14, 20, 14, 20],
-    15: [15, 21, 32, 38, 24, 29, 18, 23, 15, 21, 15, 21, 15, 21],
-    16: [16, 23, 34, 41, 26, 32, 19, 24, 16, 23, 16, 23, 16, 23],
-    17: [17, 24, 36, 43, 27, 33, 20, 25, 17, 24, 17, 24, 17, 24],
-  };
-
   it.each(SUPPORTED_SIZES)(
     'derives the approved normal hierarchy for base %s',
     (baseFontSize) => {
-      expect(
-        Object.values(
-          deriveMarkdownTypography({
-            baseFontSize,
-            headerSize: 'normal',
-          }),
-        ),
-      ).toEqual(normalExpected[baseFontSize]);
+      const typography = deriveMarkdownTypography({
+        baseFontSize,
+        headerSize: 'normal',
+      });
+      expect(typography.body).toBe(baseFontSize);
+      expect(typography.bodyLineHeight).toBeGreaterThanOrEqual(typography.body);
+      expect(typography.h1).toBeGreaterThan(typography.h2);
+      expect(typography.h2).toBeGreaterThan(typography.h3);
+      expect(typography.h3).toBeGreaterThanOrEqual(typography.body);
+      expect([
+        typography.h4,
+        typography.h5,
+        typography.h6,
+      ]).toEqual(Array(3).fill(typography.body));
+      const lowerHeadingLineHeights = [
+        typography.h4LineHeight,
+        typography.h5LineHeight,
+        typography.h6LineHeight,
+      ];
+      expect(lowerHeadingLineHeights).toEqual(
+        Array(3).fill(lowerHeadingLineHeights[0]),
+      );
+      expect(lowerHeadingLineHeights[0]).toBeGreaterThanOrEqual(
+        typography.body,
+      );
+      for (const [fontSize, lineHeight] of [
+        [typography.h1, typography.h1LineHeight],
+        [typography.h2, typography.h2LineHeight],
+        [typography.h3, typography.h3LineHeight],
+      ]) {
+        expect(lineHeight).toBeGreaterThanOrEqual(fontSize);
+      }
     },
   );
 

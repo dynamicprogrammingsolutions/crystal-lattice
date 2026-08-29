@@ -42,33 +42,24 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     notificationExpectedRevision,
     selectSessionNotifications,
   } = jest.requireActual('@crystal-lattice/frontend-sdk');
+  const markdownDisplayPreferences = jest.requireActual(
+    '../../packages/frontend-rn-components/src/markdownDisplayPreferences',
+  );
+  const {
+    DEFAULT_MARKDOWN_DISPLAY_PREFERENCES: defaultMarkdownDisplayPreferences,
+    DISPLAY_TYPOGRAPHY_PRESETS,
+    MARKDOWN_BASE_FONT_SIZES,
+    applyDisplayTypographyPreset,
+    deriveMarkdownTypography,
+    normalizeMarkdownBaseFontSize,
+    normalizeMarkdownDisplayPreferences,
+    normalizeMarkdownHeaderSize,
+  } = markdownDisplayPreferences;
   const theme = {
-    typography: {
-      fontSize: {
-        tiny: 11,
-        small: 12,
-        secondary: 13,
-        normal: 14,
-        message: 15,
-        large: 16,
-        title: 18,
-        screenTitle: 24,
-        display: 28,
-        code: 14,
-      },
-      lineHeight: {
-        tiny: 15,
-        small: 17,
-        secondary: 18,
-        normal: 20,
-        message: 21,
-        large: 22,
-        title: 24,
-        screenTitle: 30,
-        display: 34,
-        code: 19,
-      },
-    },
+    typography:
+      DISPLAY_TYPOGRAPHY_PRESETS[
+        defaultMarkdownDisplayPreferences.baseFontSize
+      ],
     background: '#fff',
     backgroundAlt: '#fff',
     surface: '#fff',
@@ -102,72 +93,11 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     navIconActive: '#007AFF',
     navIconInactive: '#666',
   };
-  const defaultMarkdownDisplayPreferences = {
-    baseFontSize: 15,
-    headerSize: 'normal',
-  };
   const MarkdownDisplayPreferencesContext = React.createContext({
     preferences: defaultMarkdownDisplayPreferences,
     setPreferences: () => {},
   });
-  const normalizeMarkdownBaseFontSize = (value) => {
-    if (value === 13) return 14;
-    if (value === 19) return 17;
-    return [14, 15, 16, 17].includes(value) ? value : 15;
-  };
-  const normalizeMarkdownHeaderSize = (value) =>
-    value === 'normal' || value === 'small' ? value : 'normal';
-  const normalizeMarkdownDisplayPreferences = (value) => ({
-    baseFontSize: normalizeMarkdownBaseFontSize(value?.baseFontSize),
-    headerSize: normalizeMarkdownHeaderSize(value?.headerSize),
-  });
-  const deriveMarkdownTypography = (preferences) => {
-    const normalized = normalizeMarkdownDisplayPreferences(preferences);
-    const body = normalized.baseFontSize;
-    const normal = {
-      14: [20, 30, 36, 22, 27, 17, 22],
-      15: [21, 32, 38, 24, 29, 18, 23],
-      16: [23, 34, 41, 26, 32, 19, 24],
-      17: [24, 36, 43, 27, 33, 20, 25],
-    }[body];
-    const bodyLineHeight = normal[0];
-    if (normalized.headerSize === 'small') {
-      return {
-        body,
-        bodyLineHeight,
-        h1: body,
-        h1LineHeight: bodyLineHeight,
-        h2: body,
-        h2LineHeight: bodyLineHeight,
-        h3: body,
-        h3LineHeight: bodyLineHeight,
-        h4: body,
-        h4LineHeight: bodyLineHeight,
-        h5: body,
-        h5LineHeight: bodyLineHeight,
-        h6: body,
-        h6LineHeight: bodyLineHeight,
-      };
-    }
-    return {
-      body,
-      bodyLineHeight,
-      h1: normal[1],
-      h1LineHeight: normal[2],
-      h2: normal[3],
-      h2LineHeight: normal[4],
-      h3: normal[5],
-      h3LineHeight: normal[6],
-      h4: body,
-      h4LineHeight: bodyLineHeight,
-      h5: body,
-      h5LineHeight: bodyLineHeight,
-      h6: body,
-      h6LineHeight: bodyLineHeight,
-    };
-  };
   const ThemeContext = React.createContext(theme);
-  const applyDisplayTypographyPreset = (baseTheme) => baseTheme;
 
   const ApplicationActionForm = React.forwardRef(({ form }, ref) => {
     const inputs = form && form.kind === 'form' && Array.isArray(form.inputs) ? form.inputs : [];
@@ -227,6 +157,8 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       React.createElement(ThemeContext.Provider, { value }, children),
     useTheme: () => React.useContext(ThemeContext),
     DEFAULT_MARKDOWN_DISPLAY_PREFERENCES: defaultMarkdownDisplayPreferences,
+    DISPLAY_TYPOGRAPHY_PRESETS,
+    MARKDOWN_BASE_FONT_SIZES,
     normalizeMarkdownBaseFontSize,
     normalizeMarkdownHeaderSize,
     normalizeMarkdownDisplayPreferences,

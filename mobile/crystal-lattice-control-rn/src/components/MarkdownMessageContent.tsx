@@ -145,6 +145,9 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
                       : (hljsStyles as any).atomOneLight) as any
                   }
                   highlighter="hljs"
+                  fontFamily="Courier"
+                  fontSize={theme.typography.fontSize.code}
+                  lineHeight={theme.typography.lineHeight.code}
                   customStyle={codeBlockInnerStyle}
                   PreTag={View as any}
                   CodeTag={Text as any}
@@ -193,6 +196,9 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
                       : (hljsStyles as any).atomOneLight) as any
                   }
                   highlighter="hljs"
+                  fontFamily="Courier"
+                  fontSize={theme.typography.fontSize.code}
+                  lineHeight={theme.typography.lineHeight.code}
                   customStyle={codeBlockInnerStyle}
                   PreTag={View as any}
                   CodeTag={Text as any}

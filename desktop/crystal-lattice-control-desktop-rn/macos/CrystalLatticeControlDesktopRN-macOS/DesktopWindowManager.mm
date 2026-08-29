@@ -280,6 +280,22 @@ RCT_EXPORT_METHOD(recordMarkdownGeometryHarnessState:(NSDictionary *)state)
   [data writeToFile:@"/tmp/clc-markdown-geometry-harness-state.json" atomically:YES];
 }
 
+RCT_EXPORT_METHOD(recordConnectionsPanelHarnessState:(NSDictionary *)state)
+{
+  NSMutableDictionary *payload = [NSMutableDictionary dictionary];
+  if ([state isKindOfClass:[NSDictionary class]]) {
+    [payload addEntriesFromDictionary:state];
+  }
+  payload[@"recordedAtMs"] = @((long long)([[NSDate date] timeIntervalSince1970] * 1000));
+
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:&error];
+  if (data == nil || error != nil) {
+    return;
+  }
+  [data writeToFile:@"/tmp/clc-connections-panel-harness-state.json" atomically:YES];
+}
+
 RCT_EXPORT_METHOD(readProgressiveScrollHarnessCommand:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {

@@ -149,3 +149,127 @@ Follow-up evidence:
   geometry evidence uses the repository's established harness-state boundary:
   production `onLayout` measurements are serialized through
   `DesktopWindowManager` and polled by XCTest.
+
+### Completed desktop semantic typography and code follow-up
+
+- Desktop session cards, connection rows, tabs, the chat header, and related
+  chrome were migrated to semantic theme typography and colors.
+- Desktop non-markdown messages use the semantic `message` size and line
+  height.
+- Fenced code blocks use Menlo plus the semantic `code` size and line height.
+- Desktop consumes
+  `ferenci84/react-native-syntax-highlighter#feature/native-line-height`
+  through a direct Git dependency. Fork commit
+  `4602848d2271b4809257be81ae0308f562c99910` supplies native line-height
+  handling.
+- Focused desktop typography tests cover chrome, non-markdown messages, and
+  code rendering. Expected semantic metrics come from the active theme rather
+  than copied preset numbers.
+
+### Session-card typography and bounded Connections panel
+
+Status: Approved
+
+This existing desktop subtask owns the desktop session-card typography and
+Connections-panel layout portions of the follow-up recorded in the parent
+task.
+
+### Implementation decisions and open questions
+
+- Use `normal` for the session title, `secondary` for subtitle/preview,
+  `small` for the session ID, and `tiny` for metadata, with matching line
+  heights.
+- Keep the Connections panel expanded by default with non-persisted local
+  disclosure state.
+- Render zero through three connection records in a natural-height plain
+  container. Render more than three in a bounded `ScrollView`.
+- The bounded height is equivalent to three standard rows. A non-interactive
+  bottom fade indicates overflow and disappears at the real bottom.
+- Reopening a collapsed list starts it at the top.
+- Component and native expectations use active theme metrics and relative
+  rendered geometry rather than copied preset numbers.
+
+### Documentation
+
+- Update desktop development documentation with the delivered session-card
+  roles, Connections disclosure behavior, natural-height threshold, bounded
+  scrolling, and primary native verification.
+
+### Task checklist
+
+- [x] Update desktop session title, subtitle/preview, ID, and metadata styles.
+- [x] Extend desktop semantic typography regression coverage to every card
+  field and the Open label.
+- [x] Add the accessible Connections disclosure chevron and local state.
+- [x] Share one connection-row render path between natural and scroll hosts.
+- [x] Derive the over-three maximum height from active theme metrics.
+- [x] Add a bottom overflow fade driven by scroll/content geometry and remove
+  it at the real bottom.
+- [x] Add stable production identifiers and component coverage.
+- [x] Add one-, three-, and five-record macOS geometry/scroll tests.
+- [x] Run the focused macOS Connections-panel XCTest after user confirmation.
+- [x] Run complete desktop Jest and a bundled macOS test build.
+- [x] Update desktop development documentation.
+
+### Requirement verification
+
+- Style/component tests assert the exact semantic font-size and line-height
+  role for every desktop session-card field.
+- Zero through three connection records produce natural panel heights and no
+  scroll container.
+- More than three records produce a capped viewport, visible continuation
+  fade, and reachable final record; the fade is absent at the real bottom.
+- The disclosure control reports the correct accessibility label/state and
+  hides/restores only the connection list.
+- macOS XCTest verifies one-versus-three panel geometry, no scrolling at three,
+  real row movement and final-row reachability at five, collapsed header-only
+  geometry, and no clipping at the largest preset.
+
+### Additional implementation verification
+
+- Run the focused ConnectionsPanel and desktop chrome Jest suites.
+- Run the focused signed macOS XCTest and report the existing desktop
+  full-TypeScript baseline separately.
+
+### Implementation Notes
+
+- Desktop session rows now use `normal` titles, `secondary`
+  subtitles/previews, `small` IDs, and `tiny` metadata with matching semantic
+  line heights.
+- The Connections disclosure is expanded by default. Zero through three
+  records use a natural-height `View`; larger sets share the same row render
+  path inside a theme-derived three-row `ScrollView`.
+- Four surface-colored opacity bands form the bottom fade. Scroll/content
+  geometry removes it at the real bottom and restores it when more content is
+  below. The fade exposes a semantic continuation label while present.
+- Added `DesktopConnectionsPanelHarness` and
+  `ConnectionsPanelUITests`. The harness selects default/largest presets by
+  semantic name and reports theme-derived metrics; XCTest contains no copied
+  typography values.
+- Desktop Jest passed 23 suites and 120 tests. The signed app and UI-test
+  bundle completed `build-for-testing` with `TEST BUILD SUCCEEDED`.
+- Desktop full TypeScript still reports only the previously documented SDK
+  URL, ChatPane optional-string, and Theme `shadow` errors. No changed
+  follow-up file appears in that output.
+- After user confirmation, the focused XCTest passed both tests with zero
+  failures.
+
+### Completion Notes
+
+- Completed desktop session-card typography and the collapsible, bounded
+  Connections panel.
+- Native evidence covers natural height and absence of scrolling through three
+  records, the theme-derived five-record viewport, fade visibility/removal,
+  actual native scrolling and last-row reachability, plus disclosure behavior
+  at the largest current preset.
+- Initial native runs exposed an unlabeled React Native macOS ScrollView and a
+  stale LLDB-held app process. The final test queries the actual native scroll
+  view, uses the fade's semantic label, and passed cleanly after removing the
+  orphan debugger session.
+
+### Post-completion verification follow-up
+
+- The first full desktop Jest run after XCTest passed all assertions but
+  exited nonzero on an existing post-teardown `DependencyFlatList` timer. Its
+  focused 4-test suite passed, followed by a clean full retry of 23 suites and
+  120 tests.

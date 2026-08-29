@@ -169,7 +169,18 @@ export function SessionListRichActionControl(
         {iconName && props.renderIcon ? (
           props.renderIcon({ name: iconName, size: isHeader ? 18 : 16, color })
         ) : (
-          <Text style={[styles.pinnedFallback, { color }]}>●</Text>
+          <Text
+            style={[
+              styles.pinnedFallback,
+              {
+                color,
+                fontSize: theme.typography.fontSize.normal,
+                lineHeight: theme.typography.lineHeight.normal,
+              },
+            ]}
+          >
+            ●
+          </Text>
         )}
       </TouchableOpacity>
     );
@@ -195,7 +206,11 @@ export function SessionListRichActionControl(
         numberOfLines={1}
         style={[
           styles.pinnedListText,
-          { color, fontSize: theme.typography.fontSize.small },
+          {
+            color,
+            fontSize: theme.typography.fontSize.small,
+            lineHeight: theme.typography.lineHeight.small,
+          },
         ]}
       >
         {state.currentOption?.label ?? props.element.label}

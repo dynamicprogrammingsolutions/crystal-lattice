@@ -63,7 +63,7 @@
     "react-native-safe-area-context": "^5.5.2",
     "react-native-share": "^12.2.6",
     "react-native-svg": "^15.15.5",
-    "react-native-syntax-highlighter": "^2.1.0",
+    "react-native-syntax-highlighter": "git+https://github.com/ferenci84/react-native-syntax-highlighter.git#feature/native-line-height",
     "react-native-url-polyfill": "^3.0.0",
     "react-native-vector-icons": "^10.2.0",
     "react-native-worklets": "^0.8.1",

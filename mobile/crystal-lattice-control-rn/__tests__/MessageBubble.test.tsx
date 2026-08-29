@@ -1,7 +1,12 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { StyleSheet } from 'react-native';
-import { applyDisplayTypographyPreset } from '@crystal-lattice/frontend-rn-components';
+import {
+  DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+  MARKDOWN_BASE_FONT_SIZES,
+  applyDisplayTypographyPreset,
+  deriveMarkdownTypography,
+} from '@crystal-lattice/frontend-rn-components';
 
 import MessageBubble, {
   createMessageBubbleStyles,
@@ -53,22 +58,17 @@ function updateMessageBubble(
   });
 }
 
-test.each([
-  [14, 11, 15],
-  [15, 11, 15],
-  [16, 12, 17],
-  [17, 13, 18],
-] as const)(
-  'base size %s gives message footers explicit %s/%s metrics',
-  (baseFontSize, footerFontSize, footerLineHeight) => {
+test.each(MARKDOWN_BASE_FONT_SIZES)(
+  'base size %s maps message content and footers to its semantic preset',
+  (baseFontSize) => {
     const theme = applyDisplayTypographyPreset(lightTheme, baseFontSize);
     const styles = createMessageBubbleStyles(theme);
     expect(StyleSheet.flatten(styles.footerText)).toMatchObject({
-      fontSize: footerFontSize,
-      lineHeight: footerLineHeight,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
     });
     expect(StyleSheet.flatten(styles.contentText)).toMatchObject({
-      fontSize: baseFontSize,
+      fontSize: theme.typography.fontSize.message,
       lineHeight: theme.typography.lineHeight.message,
     });
   },
@@ -238,6 +238,9 @@ test('assistant raw mode renders selectable plain text', () => {
 
 
 test('assistant markdown mode renders selectable enriched markdown prose', () => {
+  const markdownTypography = deriveMarkdownTypography(
+    DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+  );
   const renderer = renderMessageBubble({
     role: 'assistant',
     content: 'Hello **selectable** [world](https://example.com).',
@@ -252,8 +255,8 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   expect(enrichedMarkdown.props.onLinkPress).toEqual(expect.any(Function));
   expect(enrichedMarkdown.props.markdownStyle.paragraph).toEqual(
     expect.objectContaining({
-      fontSize: lightTheme.typography.fontSize.message,
-      lineHeight: lightTheme.typography.lineHeight.message,
+      fontSize: markdownTypography.body,
+      lineHeight: markdownTypography.bodyLineHeight,
       color: lightTheme.text,
       marginTop: 10,
       marginBottom: 10,
@@ -261,8 +264,8 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   );
   expect(enrichedMarkdown.props.markdownStyle.h1).toEqual(
     expect.objectContaining({
-      fontSize: 32,
-      lineHeight: 38,
+      fontSize: markdownTypography.h1,
+      lineHeight: markdownTypography.h1LineHeight,
       fontWeight: '700',
       marginTop: 4,
       marginBottom: 2,
@@ -270,8 +273,8 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   );
   expect(enrichedMarkdown.props.markdownStyle.h2).toEqual(
     expect.objectContaining({
-      fontSize: 24,
-      lineHeight: 29,
+      fontSize: markdownTypography.h2,
+      lineHeight: markdownTypography.h2LineHeight,
       fontWeight: '700',
       marginTop: 4,
       marginBottom: 2,
@@ -279,8 +282,8 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   );
   expect(enrichedMarkdown.props.markdownStyle.h6).toEqual(
     expect.objectContaining({
-      fontSize: lightTheme.typography.fontSize.message,
-      lineHeight: lightTheme.typography.lineHeight.message,
+      fontSize: markdownTypography.h6,
+      lineHeight: markdownTypography.h6LineHeight,
       fontWeight: '700',
       marginTop: 4,
       marginBottom: 2,
@@ -288,8 +291,8 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   );
   expect(enrichedMarkdown.props.markdownStyle.list).toEqual(
     expect.objectContaining({
-      fontSize: lightTheme.typography.fontSize.message,
-      lineHeight: lightTheme.typography.lineHeight.message,
+      fontSize: markdownTypography.body,
+      lineHeight: markdownTypography.bodyLineHeight,
       marginTop: 2,
       marginBottom: 2,
       bulletSize: 3,
@@ -315,8 +318,8 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   );
   expect(enrichedMarkdown.props.markdownStyle.table).toEqual(
     expect.objectContaining({
-      fontSize: lightTheme.typography.fontSize.message,
-      lineHeight: lightTheme.typography.lineHeight.message,
+      fontSize: markdownTypography.body,
+      lineHeight: markdownTypography.bodyLineHeight,
       color: lightTheme.text,
       marginTop: 8,
       marginBottom: 12,

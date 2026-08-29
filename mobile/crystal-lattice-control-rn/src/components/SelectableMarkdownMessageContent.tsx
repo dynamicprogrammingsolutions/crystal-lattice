@@ -90,6 +90,9 @@ const SyntaxHighlightedCodeBlock: React.FC<SyntaxHighlightedCodeBlockProps> = ({
               : (hljsStyles as any).atomOneLight) as any
           }
           highlighter="hljs"
+          fontFamily="Courier"
+          fontSize={theme.typography.fontSize.code}
+          lineHeight={theme.typography.lineHeight.code}
           customStyle={codeBlockInnerStyle}
           PreTag={View as any}
           CodeTag={Text as any}

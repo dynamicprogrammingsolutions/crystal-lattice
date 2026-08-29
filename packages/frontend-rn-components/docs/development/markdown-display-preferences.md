@@ -22,11 +22,13 @@ them to AsyncStorage, its Global Settings modal, and enriched-markdown styles.
 The shared package does not read platform storage or depend on either markdown
 renderer.
 
-At the default, message prose uses 15/21 metrics and tiny footer text uses
-11/15. Selecting 14 keeps the footer at that minimum, while 16 uses 12/17 and
-17 uses 13/18. Title, screen-title, and display values stay fixed. Normal
-markdown headings use explicit hierarchical presets; Small H1-H6 use the
-selected message metrics.
+`DISPLAY_TYPOGRAPHY_PRESETS` is the maintained source of truth for exact
+metrics. Individual roles may be tuned independently after visual review.
+Tests should compare consumers with the selected preset and assert structural
+relationships rather than duplicating its numeric table. Title, screen-title,
+and display roles stay fixed. Normal markdown headings use explicit
+hierarchical presets; Small H1-H6 use the selected base size and the message
+line-height token.
 
 Maintainer entry points:
 

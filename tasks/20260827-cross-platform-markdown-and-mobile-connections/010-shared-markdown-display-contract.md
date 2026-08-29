@@ -110,3 +110,74 @@ this subtask before marking it complete.
 - Type checking passed with
   `mobile/crystal-lattice-control-rn/node_modules/.bin/tsc --noEmit -p packages/frontend-rn-components/tsconfig.json`.
 - Added and indexed current shared-package development documentation.
+
+## Post-completion follow-up
+
+### Completed manual preset tuning
+
+The user manually adjusted individual entries after the initial 14/15/16/17
+preset implementation. The maintained `DISPLAY_TYPOGRAPHY_PRESETS` table is
+authoritative; the earlier completion notes and parent numeric table preserve
+the historical baseline.
+
+Consumer tests should select a preset and compare rendered semantic roles with
+that preset. They should not duplicate literal font-size or line-height values,
+so future tuning remains a table-only change.
+
+### Rich session-action typography
+
+Status: Approved
+
+This existing subtask owns the shared portion of the session-card typography
+follow-up recorded in the parent task.
+
+### Implementation decisions and open questions
+
+- Add the matching `small` line height to rich list action labels.
+- Give textual rich-toggle fallbacks explicit `normal` font-size and
+  line-height roles.
+- Preserve vector icon dimensions and action behavior.
+- Resolve test expectations from the active preset rather than hardcoding
+  numeric semantic metrics.
+
+### Documentation
+
+- Correct shared component documentation only if it describes rich
+  session-action typography; do not broaden the markdown preference API page
+  unnecessarily.
+
+### Task checklist
+
+- [x] Pair rich list action labels with the semantic `small` line height.
+- [x] Pair textual rich-toggle fallbacks with semantic `normal` metrics.
+- [x] Add focused component regression coverage under a non-default preset.
+- [x] Run the shared package tests and type check.
+- [x] Update owning documentation if required.
+
+### Requirement verification
+
+- A rendered rich list label exposes the active theme's `small` font size and
+  line height.
+- A rendered textual rich-toggle fallback exposes the active theme's `normal`
+  font size and line height.
+- Vector-backed controls preserve their current icon sizes.
+
+### Additional implementation verification
+
+- Run the affected mobile and desktop session-action component tests.
+
+### Implementation Notes
+
+- Rich list labels now pair the active theme's `small` font size and line
+  height. Textual toggle fallbacks pair the `normal` metrics; vector icons are
+  unchanged.
+- Removed copied preset tables from shared tests. The suite now enumerates the
+  exported supported sizes, validates structural preset invariants, and
+  compares derivation/overlay consumers with the maintained source table.
+- Shared verification passed: 3 files and 42 tests, plus the shared TypeScript
+  check. Affected mobile rich-action component coverage also passed.
+
+### Completion Notes
+
+- Completed the shared rich-action typography follow-up and documented the
+  maintained preset table as the source of truth for tunable exact metrics.

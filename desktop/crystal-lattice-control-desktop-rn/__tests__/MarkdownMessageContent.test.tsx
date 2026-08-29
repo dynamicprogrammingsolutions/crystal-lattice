@@ -1,8 +1,13 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { StyleSheet, Text } from 'react-native';
+import SyntaxHighlighter from 'react-native-syntax-highlighter';
 import {
+  DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+  DISPLAY_TYPOGRAPHY_PRESETS,
+  MARKDOWN_BASE_FONT_SIZES,
   MarkdownDisplayPreferencesProvider,
+  deriveMarkdownTypography,
 } from '@crystal-lattice/frontend-rn-components';
 
 import MarkdownMessageContent, {
@@ -11,23 +16,46 @@ import MarkdownMessageContent, {
 
 describe('desktop markdown typography adapter', () => {
   it('uses the shared mobile-equivalent default', () => {
+    const expected = deriveMarkdownTypography(
+      DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+    );
     expect(
-      createDesktopMarkdownTypographyStyles({
-        baseFontSize: 15,
-        headerSize: 'normal',
-      }),
+      createDesktopMarkdownTypographyStyles(
+        DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+      ),
     ).toMatchObject({
-      text: { fontSize: 15, lineHeight: 21 },
-      heading1: { fontSize: 32, lineHeight: 38 },
-      heading2: { fontSize: 24, lineHeight: 29 },
-      heading3: { fontSize: 18, lineHeight: 23 },
-      heading4: { fontSize: 15, lineHeight: 21 },
-      heading5: { fontSize: 15, lineHeight: 21 },
-      heading6: { fontSize: 15, lineHeight: 21 },
+      text: {
+        fontSize: expected.body,
+        lineHeight: expected.bodyLineHeight,
+      },
+      heading1: {
+        fontSize: expected.h1,
+        lineHeight: expected.h1LineHeight,
+      },
+      heading2: {
+        fontSize: expected.h2,
+        lineHeight: expected.h2LineHeight,
+      },
+      heading3: {
+        fontSize: expected.h3,
+        lineHeight: expected.h3LineHeight,
+      },
+      heading4: {
+        fontSize: expected.h4,
+        lineHeight: expected.h4LineHeight,
+      },
+      heading5: {
+        fontSize: expected.h5,
+        lineHeight: expected.h5LineHeight,
+      },
+      heading6: {
+        fontSize: expected.h6,
+        lineHeight: expected.h6LineHeight,
+      },
     });
   });
 
-  it.each([14, 15, 16, 17] as const)(
+  it.each(MARKDOWN_BASE_FONT_SIZES)(
     'uses body size for all Small headings at base %s',
     (baseFontSize) => {
       const styles = createDesktopMarkdownTypographyStyles({
@@ -45,17 +73,20 @@ describe('desktop markdown typography adapter', () => {
     },
   );
 
-  it.each([
-    ['normal', 32],
-    ['small', 15],
-  ] as const)(
+  it.each(['normal', 'small'] as const)(
     'applies the %s heading size at the final markdown renderer boundary',
-    (headerSize, expectedFontSize) => {
+    (headerSize) => {
+      const preferences = {
+        ...DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+        headerSize,
+      };
+      const expectedFontSize =
+        deriveMarkdownTypography(preferences).h1;
       let renderer: ReactTestRenderer.ReactTestRenderer;
       ReactTestRenderer.act(() => {
         renderer = ReactTestRenderer.create(
           <MarkdownDisplayPreferencesProvider
-            value={{ baseFontSize: 15, headerSize }}
+            value={preferences}
           >
             <MarkdownMessageContent text="# Rendered heading" />
           </MarkdownDisplayPreferencesProvider>,
@@ -70,4 +101,36 @@ describe('desktop markdown typography adapter', () => {
       );
     },
   );
+
+  it('passes the code typography directly to the native syntax highlighter', () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <MarkdownMessageContent text={'```typescript\nconst value = 1;\n```'} />,
+      );
+    });
+
+    const highlighter = renderer!.root.findByType(SyntaxHighlighter);
+    const defaultPreset =
+      DISPLAY_TYPOGRAPHY_PRESETS[
+        DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.baseFontSize
+      ];
+    expect(highlighter.props.fontFamily).toBe('Menlo');
+    expect(highlighter.props.fontSize).toBe(defaultPreset.fontSize.code);
+    expect(highlighter.props.lineHeight).toBe(defaultPreset.lineHeight.code);
+
+    const tokenStyles = renderer!.root
+      .findAllByType(Text)
+      .map((node) => StyleSheet.flatten(node.props.style))
+      .filter((style) => style?.fontFamily === 'Menlo');
+    expect(tokenStyles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fontSize: defaultPreset.fontSize.code,
+          lineHeight: defaultPreset.lineHeight.code,
+          height: defaultPreset.lineHeight.code,
+        }),
+      ]),
+    );
+  });
 });

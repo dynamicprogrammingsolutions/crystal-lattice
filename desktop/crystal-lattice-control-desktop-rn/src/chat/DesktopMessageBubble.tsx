@@ -806,8 +806,8 @@ const createStyles = (theme: Theme) =>
       color: theme.textSecondary,
     },
     systemText: {
-      fontSize: theme.typography.fontSize.secondary,
-      lineHeight: theme.typography.lineHeight.secondary,
+      fontSize: theme.typography.fontSize.message,
+      lineHeight: theme.typography.lineHeight.message,
       color: theme.text,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
       fontStyle: 'italic',

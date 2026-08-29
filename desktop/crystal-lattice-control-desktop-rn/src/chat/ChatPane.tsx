@@ -3675,7 +3675,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
     },
     title: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '700',
       color: theme.text,
       flexShrink: 1,
@@ -3715,7 +3716,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       alignItems: 'center',
       justifyContent: 'center',
       padding: 20,
-      backgroundColor: 'rgba(0,0,0,0.4)',
+      backgroundColor: theme.modalBackdrop,
     },
     modalContent: {
       width: 360,
@@ -3826,7 +3827,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingHorizontal: 10,
       paddingVertical: 8,
       borderRadius: 10,
-      backgroundColor: 'rgba(255, 0, 0, 0.08)',
+      backgroundColor: theme.dangerMuted,
       borderWidth: separatorWidth,
       borderColor: theme.border,
     },
@@ -4041,7 +4042,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: 6,
     },
     messageRowAssistant: {
-      backgroundColor: 'rgba(120, 120, 120, 0.12)',
+      backgroundColor: theme.bubbleToolBg,
     },
     messageMeta: {
       fontSize: theme.typography.fontSize.tiny,
@@ -4066,3 +4067,5 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     },
   });
 }
+
+export { createStyles as createChatPaneStyles };
