@@ -3,6 +3,10 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
 import * as hljsStyles from 'react-syntax-highlighter/styles/hljs';
+import {
+  deriveMarkdownTypography,
+  useMarkdownDisplayPreferences,
+} from '@crystal-lattice/frontend-rn-components';
 import { useTheme } from '../theme';
 
 export type MarkdownMessageVariant = 'assistant' | 'tool' | 'system' | 'user';
@@ -37,6 +41,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
   variant = 'assistant',
 }) => {
   const theme = useTheme();
+  const { preferences } = useMarkdownDisplayPreferences();
 
   const isDarkCodeBlock = useMemo(() => {
     return theme.codeBlockBg !== '#FFFFFF';
@@ -44,17 +49,22 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
 
   const markdownStyle = useMemo(() => {
     const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
-    const messageFontSize = theme.typography.fontSize.message;
+    const typography = deriveMarkdownTypography(preferences);
+    const messageFontSize = typography.body;
+    const headingStyle = (fontSize: number, lineHeight: number) => ({
+      ...styles.heading,
+      fontSize,
+      lineHeight,
+    });
 
     return {
       body: {
         ...styles.bodyText,
         fontSize: messageFontSize,
+        lineHeight: typography.bodyLineHeight,
         color: baseTextColor,
       },
       text: {
-        ...styles.bodyText,
-        fontSize: messageFontSize,
         color: baseTextColor,
       },
       strong: {
@@ -70,7 +80,8 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       },
       code_inline: {
         ...styles.inlineCode,
-        fontSize: messageFontSize,
+        fontSize: theme.typography.fontSize.code,
+        lineHeight: theme.typography.lineHeight.code,
         backgroundColor: theme.inlineCodeBg,
       },
       code_block: styles.codeBlockContainer,
@@ -78,14 +89,14 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       bullet_list: styles.list,
       ordered_list: styles.list,
       list_item: styles.listItem,
-      heading1: styles.heading,
-      heading2: styles.heading,
-      heading3: styles.heading,
-      heading4: styles.heading,
-      heading5: styles.heading,
-      heading6: styles.heading,
+      heading1: headingStyle(typography.h1, typography.h1LineHeight),
+      heading2: headingStyle(typography.h2, typography.h2LineHeight),
+      heading3: headingStyle(typography.h3, typography.h3LineHeight),
+      heading4: headingStyle(typography.h4, typography.h4LineHeight),
+      heading5: headingStyle(typography.h5, typography.h5LineHeight),
+      heading6: headingStyle(typography.h6, typography.h6LineHeight),
     } as const;
-  }, [variant, theme]);
+  }, [preferences, variant, theme]);
 
   const codeBlockInnerStyle = useMemo(
     () => ({
@@ -201,7 +212,8 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
             style={[
               styles.inlineCode,
               {
-                fontSize: theme.typography.fontSize.message,
+                fontSize: theme.typography.fontSize.code,
+                lineHeight: theme.typography.lineHeight.code,
                 backgroundColor: theme.inlineCodeBg,
                 color: variant === 'user' ? theme.textOnPrimary : theme.text,
               },
@@ -221,7 +233,9 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       theme.inlineCodeBg,
       theme.text,
       theme.textOnPrimary,
-      theme.typography.fontSize.message,
+      theme.typography.fontSize.code,
+      theme.typography.lineHeight.code,
+      preferences,
       variant,
     ],
   );

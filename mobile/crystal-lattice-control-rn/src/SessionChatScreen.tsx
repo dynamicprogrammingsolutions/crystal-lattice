@@ -4809,13 +4809,15 @@ const createStyles = (theme: Theme) =>
     },
     backButtonText: {
       color: theme.primary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
     },
     title: {
       flexShrink: 1,
       minWidth: 0,
       textAlign: 'center',
       fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '400',
       color: theme.text,
     },
@@ -4853,18 +4855,21 @@ const createStyles = (theme: Theme) =>
     },
     sessionDetailsTitle: {
       fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '700',
       color: theme.text,
       marginBottom: 4,
     },
     sessionDetailsSubtitle: {
       fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '400',
       color: theme.text,
       marginBottom: 6,
     },
     sessionDetailsId: {
       fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       fontFamily: 'Courier',
     },
@@ -4896,12 +4901,14 @@ const createStyles = (theme: Theme) =>
     },
     buttonText: {
       color: theme.textOnPrimary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     buttonTextSecondary: {
       color: theme.text,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     buttonTextDisabled: {
@@ -4921,7 +4928,8 @@ const createStyles = (theme: Theme) =>
 	    },
 	    dirtyBannerText: {
 	      flex: 1,
-	      fontSize: 14,
+	      fontSize: theme.typography.fontSize.normal,
+	      lineHeight: theme.typography.lineHeight.normal,
 	      fontWeight: '600',
 	      color: theme.text,
 	      marginRight: 8,
@@ -4933,7 +4941,8 @@ const createStyles = (theme: Theme) =>
     },
     loadingText: {
       marginLeft: 8,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.textSecondary,
     },
     transcriptFrame: {
@@ -4955,13 +4964,15 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surface,
     },
     errorTitle: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
       color: theme.danger,
       marginBottom: 4,
     },
     errorText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
     },
     pendingRecoveryContainer: {
@@ -4975,13 +4986,15 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.primaryMuted,
     },
     pendingRecoveryTitle: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
       color: theme.text,
       marginBottom: 4,
     },
     pendingRecoveryText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
       marginBottom: 4,
     },
@@ -5018,11 +5031,13 @@ const createStyles = (theme: Theme) =>
       maxWidth: '100%',
     },
     composerInlineSelectLabel: {
-      fontSize: 10,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
     },
     composerInlineSelectValue: {
-      fontSize: 10,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.text,
       maxWidth: 100,
     },
@@ -5045,7 +5060,8 @@ const createStyles = (theme: Theme) =>
       borderRadius: 8,
       paddingHorizontal: 10,
       paddingVertical: 8,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       marginBottom: 8,
       color: theme.text,
     },
@@ -5078,7 +5094,8 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
     },
     modalSubtitle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       marginBottom: 12,
     },
@@ -5089,7 +5106,8 @@ const createStyles = (theme: Theme) =>
       borderRadius: 8,
       paddingHorizontal: 10,
       paddingVertical: 6,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       marginBottom: 12,
       color: theme.text,
     },
@@ -5108,7 +5126,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surfaceAlt,
     },
     pickerRecoveryText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     pickerRecoveryButtonsRow: {
@@ -5127,7 +5146,8 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
     },
     modalHelperText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       textAlign: 'right',
     },
@@ -5157,11 +5177,13 @@ const createStyles = (theme: Theme) =>
       marginBottom: 4,
     },
     chipText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.text,
     },
     chipTextSelected: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textOnPrimary,
     },
     rangeRow: {
@@ -5175,7 +5197,8 @@ const createStyles = (theme: Theme) =>
       marginRight: 8,
     },
     rangeLabel: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       marginBottom: 4,
     },
@@ -5200,7 +5223,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.primaryMuted,
     },
     agentItemText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
     },
     debugOverlay: {
@@ -5220,7 +5244,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surfaceAlt,
     },
     statusBarText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontFamily: 'Courier',
     },

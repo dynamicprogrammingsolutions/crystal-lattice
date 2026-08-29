@@ -1,7 +1,11 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import { StyleSheet } from 'react-native';
+import { applyDisplayTypographyPreset } from '@crystal-lattice/frontend-rn-components';
 
-import MessageBubble from '../src/components/MessageBubble';
+import MessageBubble, {
+  createMessageBubbleStyles,
+} from '../src/components/MessageBubble';
 import { AttachmentThumbnailStrip } from '../src/components/AttachmentThumbnailStrip';
 import SelectablePlainText from '../src/components/SelectablePlainText';
 import { ThemeProvider, lightTheme } from '../src/theme';
@@ -48,6 +52,27 @@ function updateMessageBubble(
     );
   });
 }
+
+test.each([
+  [14, 11, 15],
+  [15, 11, 15],
+  [16, 12, 17],
+  [17, 13, 18],
+] as const)(
+  'base size %s gives message footers explicit %s/%s metrics',
+  (baseFontSize, footerFontSize, footerLineHeight) => {
+    const theme = applyDisplayTypographyPreset(lightTheme, baseFontSize);
+    const styles = createMessageBubbleStyles(theme);
+    expect(StyleSheet.flatten(styles.footerText)).toMatchObject({
+      fontSize: footerFontSize,
+      lineHeight: footerLineHeight,
+    });
+    expect(StyleSheet.flatten(styles.contentText)).toMatchObject({
+      fontSize: baseFontSize,
+      lineHeight: theme.typography.lineHeight.message,
+    });
+  },
+);
 
 
 test('system message hides compiled content panel when metadata is absent', () => {
@@ -228,7 +253,7 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   expect(enrichedMarkdown.props.markdownStyle.paragraph).toEqual(
     expect.objectContaining({
       fontSize: lightTheme.typography.fontSize.message,
-      lineHeight: Math.round(lightTheme.typography.fontSize.message * 1.25),
+      lineHeight: lightTheme.typography.lineHeight.message,
       color: lightTheme.text,
       marginTop: 10,
       marginBottom: 10,
@@ -237,7 +262,7 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   expect(enrichedMarkdown.props.markdownStyle.h1).toEqual(
     expect.objectContaining({
       fontSize: 32,
-      lineHeight: 40,
+      lineHeight: 38,
       fontWeight: '700',
       marginTop: 4,
       marginBottom: 2,
@@ -246,7 +271,7 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   expect(enrichedMarkdown.props.markdownStyle.h2).toEqual(
     expect.objectContaining({
       fontSize: 24,
-      lineHeight: 30,
+      lineHeight: 29,
       fontWeight: '700',
       marginTop: 4,
       marginBottom: 2,
@@ -254,8 +279,8 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   );
   expect(enrichedMarkdown.props.markdownStyle.h6).toEqual(
     expect.objectContaining({
-      fontSize: 11,
-      lineHeight: 14,
+      fontSize: lightTheme.typography.fontSize.message,
+      lineHeight: lightTheme.typography.lineHeight.message,
       fontWeight: '700',
       marginTop: 4,
       marginBottom: 2,
@@ -264,7 +289,7 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   expect(enrichedMarkdown.props.markdownStyle.list).toEqual(
     expect.objectContaining({
       fontSize: lightTheme.typography.fontSize.message,
-      lineHeight: Math.round(lightTheme.typography.fontSize.message * 1.25),
+      lineHeight: lightTheme.typography.lineHeight.message,
       marginTop: 2,
       marginBottom: 2,
       bulletSize: 3,
@@ -291,7 +316,7 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   expect(enrichedMarkdown.props.markdownStyle.table).toEqual(
     expect.objectContaining({
       fontSize: lightTheme.typography.fontSize.message,
-      lineHeight: Math.round(lightTheme.typography.fontSize.message * 1.25),
+      lineHeight: lightTheme.typography.lineHeight.message,
       color: lightTheme.text,
       marginTop: 8,
       marginBottom: 12,
@@ -310,7 +335,7 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
     expect.objectContaining({
       fontFamily: 'Courier',
       fontSize: lightTheme.typography.fontSize.code,
-      lineHeight: Math.round(lightTheme.typography.fontSize.code * 1.25),
+      lineHeight: lightTheme.typography.lineHeight.code,
       color: lightTheme.text,
       marginTop: 4,
       marginBottom: 4,

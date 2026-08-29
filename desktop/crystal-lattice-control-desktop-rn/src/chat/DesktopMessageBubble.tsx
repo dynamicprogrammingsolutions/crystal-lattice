@@ -801,17 +801,20 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
     },
     headerText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     systemText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
       fontStyle: 'italic',
     },
     reasoningText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       fontStyle: 'italic',
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
@@ -820,20 +823,23 @@ const createStyles = (theme: Theme) =>
       marginBottom: 8,
     },
     toolCallName: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
       fontWeight: '600',
       marginBottom: 2,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
     },
     toolCallArgs: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
       marginLeft: 8,
     },
     contentText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.message,
+      lineHeight: theme.typography.lineHeight.message,
       color: theme.text,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
     },
@@ -864,7 +870,8 @@ const createStyles = (theme: Theme) =>
     },
     collapsedHintText: {
       marginTop: 2,
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontStyle: 'italic',
     },
@@ -884,7 +891,8 @@ const createStyles = (theme: Theme) =>
       marginTop: 4,
     },
     footerText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
     },
@@ -897,7 +905,8 @@ const createStyles = (theme: Theme) =>
       borderRadius: 6,
       paddingHorizontal: 4,
       paddingVertical: 4,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.message,
+      lineHeight: theme.typography.lineHeight.message,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
       backgroundColor: theme.surface,
       color: theme.text,
@@ -924,12 +933,14 @@ const createStyles = (theme: Theme) =>
     },
     editButtonTextPrimary: {
       color: theme.textOnPrimary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     editButtonTextSecondary: {
       color: theme.text,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     rawReadonlyInput: {
@@ -939,4 +950,5 @@ const createStyles = (theme: Theme) =>
     },
   });
 
+export { createStyles as createDesktopMessageBubbleStyles };
 export default DesktopMessageBubble;

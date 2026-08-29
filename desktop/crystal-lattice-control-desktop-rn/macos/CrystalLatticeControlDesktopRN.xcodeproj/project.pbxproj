@@ -18,6 +18,7 @@
 		8D1000110000000000000001 /* TranscriptScrollPersistenceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000120000000000000001 /* TranscriptScrollPersistenceUITests.swift */; };
 		8D1000210000000000000001 /* SessionFiltersPopoverUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000220000000000000001 /* SessionFiltersPopoverUITests.swift */; };
 		8D1000310000000000000001 /* TranscriptRangeNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000320000000000000001 /* TranscriptRangeNavigationUITests.swift */; };
+		8D1000410000000000000001 /* MarkdownDisplayMenuUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000420000000000000001 /* MarkdownDisplayMenuUITests.swift */; };
 		8511A5CB7F0EEA26F5AEBDF8 /* libPods-CrystalLatticeControlDesktopRN-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F75F6C0EDC82A9FC4070C341 /* libPods-CrystalLatticeControlDesktopRN-macOS.a */; };
 		9A6C6A4F88C14999A6E50C11 /* DesktopWindowManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */; };
 		B1C2D3E4F5A60718293A4B6C /* MacCheckboxManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5C /* MacCheckboxManager.mm */; };
@@ -41,6 +42,7 @@
 		8D1000120000000000000001 /* TranscriptScrollPersistenceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptScrollPersistenceUITests.swift; sourceTree = "<group>"; };
 		8D1000220000000000000001 /* SessionFiltersPopoverUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFiltersPopoverUITests.swift; sourceTree = "<group>"; };
 		8D1000320000000000000001 /* TranscriptRangeNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptRangeNavigationUITests.swift; sourceTree = "<group>"; };
+		8D1000420000000000000001 /* MarkdownDisplayMenuUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDisplayMenuUITests.swift; sourceTree = "<group>"; };
 		8D1000030000000000000001 /* CrystalLatticeControlDesktopRN-macOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CrystalLatticeControlDesktopRN-macOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A6C6A4D88C14999A6E50C11 /* DesktopWindowManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DesktopWindowManager.h; sourceTree = "<group>"; };
 		9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DesktopWindowManager.mm; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				8D1000120000000000000001 /* TranscriptScrollPersistenceUITests.swift */,
 				8D1000220000000000000001 /* SessionFiltersPopoverUITests.swift */,
 				8D1000320000000000000001 /* TranscriptRangeNavigationUITests.swift */,
+				8D1000420000000000000001 /* MarkdownDisplayMenuUITests.swift */,
 			);
 			path = "CrystalLatticeControlDesktopRN-macOSUITests";
 			sourceTree = "<group>";
@@ -438,6 +441,7 @@
 				8D1000110000000000000001 /* TranscriptScrollPersistenceUITests.swift in Sources */,
 				8D1000210000000000000001 /* SessionFiltersPopoverUITests.swift in Sources */,
 				8D1000310000000000000001 /* TranscriptRangeNavigationUITests.swift in Sources */,
+				8D1000410000000000000001 /* MarkdownDisplayMenuUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

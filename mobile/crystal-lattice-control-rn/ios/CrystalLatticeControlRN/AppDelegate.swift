@@ -54,6 +54,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       $0 == "-clcNotificationUiEffectsHarness" || $0 == "clcNotificationUiEffectsHarness"
     }) {
       moduleName = "MobileNotificationUiEffectsHarness"
+    } else if arguments.contains(where: {
+      $0 == "-clcConnectionsSettingsHarness" || $0 == "clcConnectionsSettingsHarness"
+    }) {
+      moduleName = "MobileConnectionsSettingsHarness"
     } else {
       moduleName = "CrystalLatticeControlRN"
     }

@@ -57,6 +57,7 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
       closeButtonText: {
         color: theme.primary,
         fontSize: theme.typography.fontSize.normal,
+        lineHeight: theme.typography.lineHeight.normal,
       },
     }),
     [
@@ -66,6 +67,7 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
       theme.text,
       theme.typography.fontSize.normal,
       theme.typography.fontSize.title,
+      theme.typography.lineHeight.normal,
     ],
   );
 
@@ -74,7 +76,13 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
       <View style={[styles.headerRow, themedStyles.headerRow]}>
         <Text style={[styles.titleText, themedStyles.titleText]}>{props.title}</Text>
         {props.onRequestClose ? (
-          <TouchableOpacity style={styles.closeButton} onPress={props.onRequestClose}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            accessibilityRole="button"
+            accessibilityLabel={`Close ${props.title}`}
+            testID="actions-menu-close"
+            onPress={props.onRequestClose}
+          >
             {props.renderCloseIcon ? (
               props.renderCloseIcon({
                 size: 16,

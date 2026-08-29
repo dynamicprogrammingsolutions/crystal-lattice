@@ -128,7 +128,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surface,
     },
     subtitle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     select: {
@@ -137,7 +138,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       maxWidth: 420,
     },
     helperText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
     },
     submitCapture: {
@@ -167,7 +169,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surface,
     },
     buttonSecondaryText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '700',
       color: theme.text,
     },
@@ -179,7 +182,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       opacity: 0.9,
     },
     buttonPrimaryText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '800',
       color: theme.textOnPrimary,
     },

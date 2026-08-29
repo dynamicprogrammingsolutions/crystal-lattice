@@ -39,9 +39,12 @@ import {
   type TransportTimeoutRule,
   type ParsedActionDeepLink,
 } from '@crystal-lattice/frontend-sdk';
+import {
+  MarkdownDisplayPreferencesProvider,
+  applyDisplayTypographyPreset,
+} from '@crystal-lattice/frontend-rn-components';
 import ConnectedRoot from './src/ConnectedRoot';
 import { useMessagesCache } from './src/cache/useMessagesCache';
-import { getConnectionAdditionalInfo } from './src/connectionInfo';
 import type { SessionSummary } from './src/api';
 import {
   appendDebugTimelineEntry,
@@ -57,6 +60,7 @@ import {
   getSavedBridgeTransportOptions,
   resolveBridgeTransportMode,
 } from './src/bridgeConnection';
+import { usePersistedMarkdownDisplayPreferences } from './src/useMarkdownDisplayPreferences';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
@@ -205,7 +209,7 @@ function isBridgeConnectionTransport(
 
 function App(): React.JSX.Element {
   const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const baseTheme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
   const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod | null>(null);
   const [showConnectionWizard, setShowConnectionWizard] = useState(false);
@@ -236,6 +240,18 @@ function App(): React.JSX.Element {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAppLoading, setIsAppLoading] = useState(true);
+  const {
+    preferences: markdownDisplayPreferences,
+    setPreferences: setMarkdownDisplayPreferences,
+    hydrated: markdownDisplayPreferencesHydrated,
+  } = usePersistedMarkdownDisplayPreferences();
+  const theme = useMemo(
+    () => applyDisplayTypographyPreset(
+      baseTheme,
+      markdownDisplayPreferences.baseFontSize,
+    ),
+    [baseTheme, markdownDisplayPreferences.baseFontSize],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1482,8 +1498,12 @@ function App(): React.JSX.Element {
     <GestureHandlerRootView style={[styles.gestureRoot, { backgroundColor: splashBg }]}>
       <SafeAreaProvider>
         <ThemeProvider theme={theme}>
+          <MarkdownDisplayPreferencesProvider
+            value={markdownDisplayPreferences}
+            onChange={setMarkdownDisplayPreferences}
+          >
           <PinnedActionsProvider>
-            {isAppLoading ? (
+            {isAppLoading || !markdownDisplayPreferencesHydrated ? (
               <AnimatedSplashScreen />
             ) : (
               <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -1491,10 +1511,6 @@ function App(): React.JSX.Element {
                 {/** Determine active connection info for display components */}
                 {/** This is derived once here and passed down rather than recomputed in children. */}
                 {(() => {
-                  const activeConnectionAdditionalInfo =
-                    activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
-                  const activeConnectionName = activeConnection != null ? activeConnection.name : null;
-
                   return (
                     <ConnectedRoot
                       backend={backend}
@@ -1521,8 +1537,6 @@ function App(): React.JSX.Element {
                       }}
                       onDeleteConnectionRecord={handleDeleteConnection}
                       activeConnectionId={selectedConnectionId}
-                      activeConnectionName={activeConnectionName}
-                      activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
                       sessionsCache={sessionsCache}
                       onUpdateSessionsCache={updateSessionsCache}
                       messagesCache={messagesCache}
@@ -1538,6 +1552,7 @@ function App(): React.JSX.Element {
               </SafeAreaView>
             )}
           </PinnedActionsProvider>
+          </MarkdownDisplayPreferencesProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

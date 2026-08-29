@@ -195,7 +195,8 @@ const createStyles = (theme: Theme) =>
       textAlign: 'center',
     },
     helperText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.textSecondary,
       marginBottom: 8,
     },
@@ -238,7 +239,8 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
     },
     subtle: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       marginTop: 2,
     },
@@ -263,7 +265,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surfaceAlt,
     },
     closeButtonText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
       color: theme.text,
     },

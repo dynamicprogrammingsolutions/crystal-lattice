@@ -364,7 +364,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       textAlign: 'center',
     },
     helperText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.textSecondary,
     },
     body: {
@@ -403,14 +404,16 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       minWidth: 0,
     },
     itemLabel: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '600',
       color: theme.text,
       marginBottom: 2,
       marginRight: 4,
     },
     itemDescription: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       marginBottom: 6,
     },
@@ -422,7 +425,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 8,
       paddingHorizontal: 10,
       paddingVertical: 6,
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       backgroundColor: theme.surface,
       color: theme.text,
     },
@@ -452,7 +456,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: theme.primary,
     },
     footerButtonText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '700',
       color: theme.text,
     },

@@ -196,6 +196,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
+              testID={`message-footer-${index}`}
             />
           </View>
         )}
@@ -344,6 +345,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
+              testID={`message-footer-${index}`}
             />
           </View>
         )}
@@ -463,6 +465,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
+              testID={`message-footer-${index}`}
             />
           </View>
         )}
@@ -827,6 +830,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
+              testID={`message-footer-${index}`}
             />
           </View>
         )}
@@ -1012,6 +1016,7 @@ const createStyles = (theme: Theme) =>
     },
     headerText: {
       fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     standaloneHeaderText: {
@@ -1019,12 +1024,14 @@ const createStyles = (theme: Theme) =>
     },
     systemText: {
       fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
       fontFamily: 'Courier',
       fontStyle: 'italic',
     },
     reasoningText: {
       fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       fontStyle: 'italic',
       fontFamily: 'Courier',
@@ -1034,6 +1041,7 @@ const createStyles = (theme: Theme) =>
     },
     toolCallName: {
       fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
       fontWeight: '600',
       marginBottom: 2,
@@ -1041,12 +1049,14 @@ const createStyles = (theme: Theme) =>
     },
     toolCallArgs: {
       fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontFamily: 'Courier',
       marginLeft: 8,
     },
     contentText: {
       fontSize: theme.typography.fontSize.message,
+      lineHeight: theme.typography.lineHeight.message,
       color: theme.text,
       fontFamily: 'Courier',
     },
@@ -1080,6 +1090,7 @@ const createStyles = (theme: Theme) =>
     collapsedHintText: {
       marginTop: 2,
       fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontStyle: 'italic',
     },
@@ -1088,6 +1099,7 @@ const createStyles = (theme: Theme) =>
     },
     footerText: {
       fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontFamily: 'Courier',
     },
@@ -1118,6 +1130,7 @@ const createStyles = (theme: Theme) =>
     },
     linkSectionLabel: {
       fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontWeight: '600',
       textTransform: 'uppercase',
@@ -1132,18 +1145,21 @@ const createStyles = (theme: Theme) =>
     },
     linkItemTitle: {
       fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
       fontWeight: '600',
     },
     linkItemUrl: {
       marginTop: 2,
       fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.primary,
       textDecorationLine: 'underline',
     },
     linkItemSnippet: {
       marginTop: 4,
       fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
     },
     editInput: {
@@ -1156,6 +1172,7 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: 8,
       paddingVertical: 6,
       fontSize: theme.typography.fontSize.message,
+      lineHeight: theme.typography.lineHeight.message,
       fontFamily: 'Courier',
       backgroundColor: theme.surface,
       color: theme.text,
@@ -1183,11 +1200,13 @@ const createStyles = (theme: Theme) =>
     editButtonTextPrimary: {
       color: theme.textOnPrimary,
       fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     editButtonTextSecondary: {
       color: theme.text,
       fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     attachmentsWrapper: {
@@ -1204,4 +1223,5 @@ const createStyles = (theme: Theme) =>
     },
   });
 
+export { createStyles as createMessageBubbleStyles };
 export default MessageBubble;

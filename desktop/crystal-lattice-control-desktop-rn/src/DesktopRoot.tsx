@@ -1,7 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+  MarkdownDisplayPreferencesProvider,
+  ThemeProvider,
+  applyDisplayTypographyPreset,
+  normalizeMarkdownBaseFontSize,
+  normalizeMarkdownHeaderSize,
+  useTheme,
+  type MarkdownBaseFontSize,
+  type MarkdownDisplayPreferences,
+  type MarkdownHeaderSize,
+} from '@crystal-lattice/frontend-rn-components';
 
 import type { ConnectionRecord, SessionSummary } from '@crystal-lattice/frontend-sdk';
 
@@ -81,14 +92,17 @@ function tabArrayEqualByReference(
 export interface DesktopRootProps {
   initialTabStripStyle?: TabStripStyle;
   initialSessionsFollowActiveTabEnabled?: boolean;
+  initialMarkdownBaseFontSize?: MarkdownBaseFontSize;
+  initialMarkdownHeaderSize?: MarkdownHeaderSize;
 }
 
 export function DesktopRoot({
   initialTabStripStyle,
   initialSessionsFollowActiveTabEnabled,
+  initialMarkdownBaseFontSize,
+  initialMarkdownHeaderSize,
 }: DesktopRootProps): React.JSX.Element {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const baseTheme = useTheme();
 
   const [tabStripStyle, setTabStripStyle] = useState<TabStripStyle>(
     parseTabStripStyle(initialTabStripStyle) ?? DEFAULT_TAB_STRIP_STYLE,
@@ -99,6 +113,25 @@ export function DesktopRoot({
       ? !!initialSessionsFollowActiveTabEnabled
       : true,
   );
+  const [markdownDisplayPreferences, setMarkdownDisplayPreferences] =
+    useState<MarkdownDisplayPreferences>({
+      baseFontSize: normalizeMarkdownBaseFontSize(
+        initialMarkdownBaseFontSize ??
+          DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.baseFontSize,
+      ),
+      headerSize: normalizeMarkdownHeaderSize(
+        initialMarkdownHeaderSize ??
+          DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.headerSize,
+      ),
+    });
+  const theme = useMemo(
+    () => applyDisplayTypographyPreset(
+      baseTheme,
+      markdownDisplayPreferences.baseFontSize,
+    ),
+    [baseTheme, markdownDisplayPreferences.baseFontSize],
+  );
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const {
     hydrated: connectionsHydrated,
@@ -583,6 +616,26 @@ export function DesktopRoot({
       },
     );
 
+    const markdownBaseFontSizeSub = desktopWindowEvents.addListener(
+      'markdownBaseFontSizeChanged',
+      (payload: any) => {
+        setMarkdownDisplayPreferences((current) => ({
+          ...current,
+          baseFontSize: normalizeMarkdownBaseFontSize(payload?.baseFontSize),
+        }));
+      },
+    );
+
+    const markdownHeaderSizeSub = desktopWindowEvents.addListener(
+      'markdownHeaderSizeChanged',
+      (payload: any) => {
+        setMarkdownDisplayPreferences((current) => ({
+          ...current,
+          headerSize: normalizeMarkdownHeaderSize(payload?.headerSize),
+        }));
+      },
+    );
+
     const clearStoredSessionCachesSub = desktopWindowEvents.addListener(
       'clearStoredSessionCachesRequested',
       () => {
@@ -682,6 +735,8 @@ export function DesktopRoot({
       savedSub.remove();
       styleSub.remove();
       followSub.remove();
+      markdownBaseFontSizeSub.remove();
+      markdownHeaderSizeSub.remove();
       clearStoredSessionCachesSub.remove();
       agentPickerSub.remove();
       sessionSettingsCancelledSub.remove();
@@ -754,6 +809,11 @@ export function DesktopRoot({
   );
 
   return (
+    <MarkdownDisplayPreferencesProvider
+      value={markdownDisplayPreferences}
+      onChange={setMarkdownDisplayPreferences}
+    >
+    <ThemeProvider theme={theme}>
     <View style={styles.root}>
       <DesktopGlobalDisplayLayer
         openConnectionsById={openConnectionsById}
@@ -860,6 +920,8 @@ export function DesktopRoot({
       />
       </DesktopGlobalDisplayLayer>
     </View>
+    </ThemeProvider>
+    </MarkdownDisplayPreferencesProvider>
   );
 }
 

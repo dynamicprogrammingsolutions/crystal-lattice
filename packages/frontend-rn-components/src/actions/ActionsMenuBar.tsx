@@ -144,6 +144,9 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             key={action.key}
             style={styles.iconButton}
             hitSlop={ICON_BUTTON_HIT_SLOP}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+            testID={typeof action.testID === 'string' ? action.testID : undefined}
             onPress={onPress}
             disabled={disabled}
           >

@@ -318,6 +318,7 @@ Build and run on iOS:
 ```bash
 npm run detox:build:ios
 npm run detox:test:bridge-transport:ios
+npm run detox:test:connections-settings:ios
 npm run detox:test:transcript:ios
 npm run detox:test:transcript-range:ios
 ```
@@ -327,6 +328,7 @@ Build and run on Android:
 ```bash
 npm run detox:build:android
 npm run detox:test:bridge-transport:android
+npm run detox:test:connections-settings:android
 npm run detox:test:transcript:android
 npm run detox:test:transcript-range:android
 ```
@@ -338,6 +340,11 @@ presentation, server ordering, ordinary action fallback, and dialog prefill:
 npm run detox:test:session-list:ios
 npm run detox:test:session-list:android
 ```
+
+The Connections/Settings harness renders the production Connections screen,
+global and server settings modals, action menus, and markdown renderer. It
+verifies native action applicability, modal transitions, persisted display and
+pin preferences, and representative typography/card geometry.
 
 The Android test command prepares and stops the selected AVD before Detox starts
 it in read-only mode. This acknowledges Android's one-time immersive-mode
