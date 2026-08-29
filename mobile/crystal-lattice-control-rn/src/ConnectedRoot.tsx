@@ -94,6 +94,12 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   const [demoResponse, setDemoResponse] = useState('');
   const [globalSettingsVisible, setGlobalSettingsVisible] = useState(false);
   const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
+  const activeConnectionName = useMemo(
+    () =>
+      connections.find((record) => record.id === activeConnectionId)?.name ??
+      'Sessions',
+    [activeConnectionId, connections],
+  );
 
   const executeDemoRequest = async (type: 'GET' | 'PUT') => {
     setDemoLoading(true);
@@ -208,6 +214,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
               <SessionsScreen
                 backend={backend}
                 connectionId={connectionId}
+                connectionName={activeConnectionName}
                 cachedSessions={cacheEntry?.sessions ?? null}
                 lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
                 isActive={tab === 'sessions'}

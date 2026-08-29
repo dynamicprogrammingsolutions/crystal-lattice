@@ -151,6 +151,21 @@ describe('mobile Connections and markdown settings', () => {
 
     await element(by.id('connection-actions-menu-active')).tap();
     await waitFor(element(by.id('actions-menu-pin-delete'))).toBeVisible().withTimeout(10000);
+    const actionsPanelFrame = frameFrom(
+      await element(by.id('actions-menu-panel')).getAttributes(),
+    );
+    const actionsTitleFrame = frameFrom(
+      await element(by.id('actions-menu-title')).getAttributes(),
+    );
+    const actionsCloseFrame = frameFrom(
+      await element(by.id('actions-menu-close')).getAttributes(),
+    );
+    jestExpect(
+      actionsTitleFrame.x + actionsTitleFrame.width,
+    ).toBeLessThanOrEqual(actionsCloseFrame.x);
+    jestExpect(actionsCloseFrame.x + actionsCloseFrame.width).toBeLessThanOrEqual(
+      actionsPanelFrame.x + actionsPanelFrame.width,
+    );
     await element(by.id('actions-menu-pin-delete')).tap();
     await element(by.id('actions-menu-close')).tap();
     await detoxExpect(element(by.label('Delete')).atIndex(0)).toBeVisible();

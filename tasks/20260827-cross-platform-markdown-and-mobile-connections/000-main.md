@@ -124,6 +124,7 @@ transport semantics and backend endpoints are also unchanged.
 - [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/020-desktop-markdown-view-preferences.md`
 - [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/030-mobile-global-settings-and-markdown.md`
 - [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/040-mobile-connection-actions-and-layout.md`
+- [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/050-responsive-action-headers.md`
 
 ## Execution plan
 Status: Approved

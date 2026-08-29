@@ -14,6 +14,7 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import type { FlatList as FlatListType } from 'react-native';
@@ -60,6 +61,7 @@ import {
   type TranscriptViewportAnchorCandidate,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  ACTIONS_MENU_BAR_ITEM_WIDTH,
   ApplicationActionDialog,
   ActionsMenuBar,
   SessionActionsBar,
@@ -139,6 +141,7 @@ import {
   MOBILE_TRANSCRIPT_RANGE_MAX_SIZE,
   MOBILE_TRANSCRIPT_RANGE_PAGE_SIZE,
 } from './transcriptRange';
+import { getMobileHeaderMaxPinnedActions } from './responsiveHeaderActions';
 
 interface SessionChatScreenProps {
   backend: AgentBackend | null;
@@ -776,7 +779,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const maxHeaderPinnedActions = getMobileHeaderMaxPinnedActions(windowWidth);
   const {
     cache: notificationDismissalCache,
     state: notificationDismissalCacheState,
@@ -4109,6 +4114,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	                  renderIcon ? renderIcon({ name: 'x', size, color }) : null
 	                }
 	                pinned={pinnedSessionActions}
+	                maxPinnedActionsForBar={maxHeaderPinnedActions}
 	                onChangePinned={setPinnedSessionActions}
 	                onAction={handleSessionAction}
 	                onOpenMenu={refreshSessionContextInBackground}
@@ -4839,6 +4845,8 @@ const createStyles = (theme: Theme) =>
     headerButtons: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexShrink: 1,
+      minWidth: ACTIONS_MENU_BAR_ITEM_WIDTH,
     },
     sessionDetailsDropdown: {
       position: 'absolute',

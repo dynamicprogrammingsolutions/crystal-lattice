@@ -31,6 +31,27 @@ function verticalBounds(attributes: any): { top: number; bottom: number; height:
   return { top, bottom: top + height, height };
 }
 
+function frameFrom(attributes: any): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const frame = attributes?.frame || attributes?.elementBounds;
+  if (
+    !frame ||
+    typeof frame.x !== "number" ||
+    typeof frame.y !== "number" ||
+    typeof frame.width !== "number" ||
+    typeof frame.height !== "number"
+  ) {
+    throw new Error(
+      `Element attributes do not contain a frame: ${JSON.stringify(attributes)}`,
+    );
+  }
+  return frame;
+}
+
 async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
   if (device.getPlatform() !== "android") {
     return;
@@ -89,6 +110,39 @@ describe("mobile session-list contracts", () => {
         })}`,
       );
     }
+    const headerFrame = frameFrom(
+      await element(by.id("sessions-screen-header")).getAttributes(),
+    );
+    const overflowFrame = frameFrom(
+      await element(by.id("sessions-actions-menu")).getAttributes(),
+    );
+    if (
+      overflowFrame.x < headerFrame.x ||
+      overflowFrame.x + overflowFrame.width >
+        headerFrame.x + headerFrame.width
+    ) {
+      throw new Error(
+        `Expected the overflow trigger inside the Sessions header: ${JSON.stringify({
+          headerFrame,
+          overflowFrame,
+        })}`,
+      );
+    }
+    if (
+      screenTitleFrame.x + screenTitleFrame.width >
+      overflowFrame.x
+    ) {
+      throw new Error(
+        `Expected the shrinking connection title not to overlap the overflow trigger: ${JSON.stringify({
+          screenTitleFrame,
+          overflowFrame,
+        })}`,
+      );
+    }
+
+    await element(by.id("sessions-actions-menu")).tap();
+    await detoxExpect(element(by.text("Toggle archive"))).toBeVisible();
+    await element(by.id("actions-menu-close")).tap();
     const fieldIds = [
       "session-title-server-first",
       "session-id-server-first",

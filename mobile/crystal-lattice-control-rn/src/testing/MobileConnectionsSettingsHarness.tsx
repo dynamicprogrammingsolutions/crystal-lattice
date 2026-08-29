@@ -21,7 +21,7 @@ const CONNECTIONS: ConnectionRecord[] = [
   {
     id: 'active',
     kind: 'manual',
-    name: 'Active server',
+    name: 'Codex Remote - ai-agent-platform connection with extended name',
     host: '127.0.0.1',
     port: 8080,
     lastUsedAt: 2,

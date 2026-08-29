@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -38,6 +39,7 @@ import {
   SessionListRichActionControl,
   SessionListRichActionList,
   SessionListFiltersPanel,
+  ACTIONS_MENU_BAR_ITEM_WIDTH,
   type SessionActionKey,
   type ActionDefinition,
 } from '@crystal-lattice/frontend-rn-components';
@@ -66,10 +68,12 @@ import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
 import { MobileDisplayHost } from './components/GlobalDisplayLayer';
 import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
+import { getMobileHeaderMaxPinnedActions } from './responsiveHeaderActions';
 
 interface SessionsScreenProps {
   backend: AgentBackend | null;
   connectionId: string | null;
+  connectionName?: string;
   cachedSessions: SessionSummary[] | null;
   lastLoadedAt: number | null;
   isActive: boolean;
@@ -122,6 +126,7 @@ function upsertInlineDisplay(
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   backend,
   connectionId,
+  connectionName = 'Sessions',
   cachedSessions,
   lastLoadedAt,
   isActive,
@@ -129,7 +134,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   onSelectSession,
 }) => {
   const theme = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const maxHeaderPinnedActions = getMobileHeaderMaxPinnedActions(windowWidth);
   const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
 
   const { controller: sessionsController, state: sessionsState } = useSessionsController({
@@ -821,18 +828,21 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
+      <View style={styles.headerRow} testID="sessions-screen-header">
         <Text
           style={styles.screenTitle}
+          numberOfLines={1}
+          ellipsizeMode="tail"
           testID="sessions-screen-title"
         >
-          Sessions
+          {connectionName || 'Sessions'}
         </Text>
         <View style={styles.headerButtons}>
           <ActionsMenuBar<SessionsHeaderActionDefinition>
             title="Sessions actions"
             baseActions={sessionsHeaderActionDefinitions}
             pinned={pinnedHeaderActions}
+            maxPinnedActionsForBar={maxHeaderPinnedActions}
             onChangePinned={setPinnedHeaderActions}
             isActive={isActive}
             renderIcon={({ name, size, color }) => (
@@ -1190,7 +1200,11 @@ const createStyles = (theme: Theme) =>
       marginBottom: 12,
     },
     screenTitle: {
+      flex: 1,
+      flexShrink: 1,
+      minWidth: 0,
       marginLeft: 13,
+      marginRight: 8,
       fontSize: 16,
       fontWeight: '700',
       color: theme.text,
@@ -1198,6 +1212,8 @@ const createStyles = (theme: Theme) =>
     headerButtons: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexShrink: 1,
+      minWidth: ACTIONS_MENU_BAR_ITEM_WIDTH,
     },
     button: {
       paddingHorizontal: 12,

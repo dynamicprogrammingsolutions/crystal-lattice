@@ -9,6 +9,7 @@ import {
   type SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  ACTIONS_MENU_BAR_ITEM_WIDTH,
   MARKDOWN_BASE_FONT_SIZES,
   applyDisplayTypographyPreset,
 } from '@crystal-lattice/frontend-rn-components';
@@ -64,10 +65,13 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   return {
     __esModule: true,
     ...actual,
-    ActionsMenuBar: ({ baseActions }: any) =>
+    ActionsMenuBar: ({ baseActions, maxPinnedActionsForBar }: any) =>
       ReactModule.createElement(
         View,
-        { testID: 'mock-sessions-actions-menu' },
+        {
+          testID: 'mock-sessions-actions-menu',
+          maxPinnedActionsForBar,
+        },
         (baseActions || []).map((action: any) =>
           ReactModule.createElement(
             Text,
@@ -256,11 +260,15 @@ function applicationPluginsResult(
   };
 }
 
-function renderScreen(connectionId = 'component-test') {
+function renderScreen(
+  connectionId = 'component-test',
+  connectionName = 'Component connection',
+) {
   return renderWithMobileProviders(
     <SessionsScreen
       backend={{ kind: 'test' } as any}
       connectionId={connectionId}
+      connectionName={connectionName}
       cachedSessions={SESSION_SUMMARIES}
       lastLoadedAt={1}
       isActive
@@ -328,8 +336,12 @@ test('hosts screen-independent application actions in the Sessions header', () =
   renderScreen();
 
   expect(screen.getByTestId('sessions-screen-title').props.children).toBe(
-    'Sessions',
+    'Component connection',
   );
+  expect(
+    screen.getByTestId('mock-sessions-actions-menu').props
+      .maxPinnedActionsForBar,
+  ).toBeGreaterThan(0);
   expect(screen.getByTestId('mock-sessions-actions-menu')).toBeTruthy();
   expect(screen.getByTestId('mock-sessions-action-serverSettings').props.children).toBe(
     'Server settings',
@@ -345,6 +357,14 @@ test('hosts screen-independent application actions in the Sessions header', () =
       'mock-sessions-action-application_config-reload_application',
     ).props.children,
   ).toBe('Reload application');
+});
+
+test('falls back to the Sessions title when a connection name is unavailable', () => {
+  renderScreen('component-test', '');
+
+  expect(screen.getByTestId('sessions-screen-title').props.children).toBe(
+    'Sessions',
+  );
 });
 
 test('renders application-derived presentation in server order', () => {
@@ -399,6 +419,14 @@ test('maps mobile session-card text to the active semantic preset', () => {
   expect(StyleSheet.flatten(styles.screenTitle).marginLeft).toBe(
     StyleSheet.flatten(styles.sessionItem).padding +
       StyleSheet.flatten(styles.sessionItem).borderWidth,
+  );
+  expect(StyleSheet.flatten(styles.screenTitle)).toMatchObject({
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  });
+  expect(StyleSheet.flatten(styles.headerButtons).minWidth).toBe(
+    ACTIONS_MENU_BAR_ITEM_WIDTH,
   );
   expect(StyleSheet.flatten(styles.input).paddingHorizontal).toBe(
     StyleSheet.flatten(styles.sessionItem).padding,

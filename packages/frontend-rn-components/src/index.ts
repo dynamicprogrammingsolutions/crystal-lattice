@@ -66,6 +66,7 @@ export { SessionNotificationsHost } from './notifications/SessionNotificationsHo
 
 export {
   buildActionsMenuModel,
+  limitPinnedActionsForBar,
   normalizeActionDefinitions,
   togglePinnedKey,
 } from './actions/model';
@@ -104,7 +105,10 @@ export type { ActionsMenuPanelProps } from './actions/ActionsMenuPanel';
 export { ActionsMenuPanel } from './actions/ActionsMenuPanel';
 
 export type { ActionsMenuBarProps } from './actions/ActionsMenuBar';
-export { ActionsMenuBar } from './actions/ActionsMenuBar';
+export {
+  ACTIONS_MENU_BAR_ITEM_WIDTH,
+  ActionsMenuBar,
+} from './actions/ActionsMenuBar';
 
 export type { SessionActionsBarProps } from './actions/SessionActionsBar';
 export { SessionActionsBar } from './actions/SessionActionsBar';

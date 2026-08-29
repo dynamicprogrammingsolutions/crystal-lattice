@@ -48,7 +48,13 @@ function renderRoot(onSelectConnectionRecord = jest.fn()) {
             renderConnectionWizard={() => null}
             onDeleteConnectionRecord={() => {}}
             activeConnectionId="active"
-            sessionsCache={{}}
+            sessionsCache={{
+              active: {
+                connectionId: 'active',
+                sessions: [],
+                lastLoadedAt: 1,
+              },
+            }}
             onUpdateSessionsCache={() => {}}
             messagesCache={{}}
             onUpdateMessagesCache={() => {}}
@@ -79,6 +85,9 @@ test('an open card navigates to Sessions without reconnecting', () => {
   fireEvent.press(screen.getByTestId('connection-card-active'));
 
   expect(isHidden(screen.getByTestId('sessions-tab-content').props.style)).toBe(false);
+  expect(screen.getByTestId('sessions-screen-title').props.children).toBe(
+    'Active server',
+  );
   expect(onSelectConnectionRecord).not.toHaveBeenCalled();
 });
 

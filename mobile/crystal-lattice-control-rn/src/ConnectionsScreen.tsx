@@ -170,6 +170,9 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
           renderPinIcon={({ size, color }) => (
             <Icon name="star" size={size} color={color} />
           )}
+          renderCloseIcon={({ size, color, renderIcon }) =>
+            renderIcon ? renderIcon({ name: 'x', size, color }) : null
+          }
           onAction={(key) => {
             if (key === 'globalSettings') onOpenGlobalSettings();
             if (key === 'newConnection') onNewConnection();
@@ -242,6 +245,9 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
                     renderPinIcon={({ size, color }) => (
                       <Icon name="star" size={size} color={color} />
                     )}
+                    renderCloseIcon={({ size, color, renderIcon }) =>
+                      renderIcon ? renderIcon({ name: 'x', size, color }) : null
+                    }
                     isActionDisabled={() => busy}
                     onAction={(key) => {
                       if (key === 'delete') confirmDelete(record);

@@ -99,6 +99,26 @@ test('routes header and state-dependent card actions', async () => {
   await waitFor(() => expect(screen.getByText(/OK:.*healthy/s)).toBeTruthy());
 });
 
+test('uses a constrained two-line menu title with a compact close icon', async () => {
+  const { screen } = renderScreen();
+  await waitFor(() =>
+    expect(screen.getByTestId('connection-actions-menu-active')).toBeTruthy(),
+  );
+
+  fireEvent.press(screen.getByTestId('connection-actions-menu-active'));
+
+  const title = screen.getByTestId('actions-menu-title');
+  expect(title.props.numberOfLines).toBe(2);
+  expect(title.props.ellipsizeMode).toBe('tail');
+  expect(StyleSheet.flatten(title.props.style)).toMatchObject({
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  });
+  expect(screen.getByTestId('actions-menu-close')).toBeTruthy();
+  expect(screen.queryByText('Close')).toBeNull();
+});
+
 test('routes both open and closed card presses independently from action icons', () => {
   const { screen, props } = renderScreen();
 

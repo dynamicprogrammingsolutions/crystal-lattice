@@ -45,6 +45,19 @@ card content inset, and the Sessions search input uses the same content inset,
 so screen titles, search placeholder text, and card titles share one optical
 left edge.
 
+The Sessions header shows the active saved-connection name, with `Sessions` as
+the fallback when no matching record is available. Sessions and Messages use
+one-line shrinkable titles beside responsive action bars. Mobile computes the
+maximum compact pinned-action count from current window width, the common
+screen gutter, a minimum useful title reservation, and complete shared action
+slots. The shared bar independently keeps its triple-dot trigger in a fixed
+non-shrinking slot; pins beyond the compact limit remain pinned and available
+inside that menu.
+
+Actions-menu panels constrain long titles to two lines before a fixed close
+control. Mobile Connections supplies the same compact `x` close icon used by
+Sessions and Messages.
+
 Global Settings renders `OptionsPickerModal` as an overlay within its existing
 native modal. Do not present the picker as a second nested React Native
 `Modal`; iOS does not reliably present a second modal while the first remains
@@ -70,6 +83,7 @@ Maintainer entry points:
 - `src/ConnectedRoot.tsx`
 - `src/ConnectionsScreen.tsx`
 - `src/SessionsScreen.tsx`
+- `src/responsiveHeaderActions.ts`
 - `src/testing/MobileSessionListHarness.tsx`
 - `src/testing/MobileConnectionsSettingsHarness.tsx`
 - `e2e/sessionList.e2e.test.ts`

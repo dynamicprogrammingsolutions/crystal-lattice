@@ -72,9 +72,19 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
   );
 
   return (
-    <View style={[styles.root, themedStyles.root, props.style]}>
+    <View
+      style={[styles.root, themedStyles.root, props.style]}
+      testID="actions-menu-panel"
+    >
       <View style={[styles.headerRow, themedStyles.headerRow]}>
-        <Text style={[styles.titleText, themedStyles.titleText]}>{props.title}</Text>
+        <Text
+          style={[styles.titleText, themedStyles.titleText]}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+          testID="actions-menu-title"
+        >
+          {props.title}
+        </Text>
         {props.onRequestClose ? (
           <TouchableOpacity
             style={styles.closeButton}
@@ -134,6 +144,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   titleText: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    marginRight: 8,
     fontWeight: '600',
   },
   body: {
@@ -148,6 +162,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   closeButton: {
+    flexShrink: 0,
+    alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
