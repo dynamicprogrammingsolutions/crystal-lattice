@@ -21,6 +21,13 @@ asset workflow that later visual-production work can extend.
 - [ ] A minimal reproducible programmatic asset catalog, source lifecycle,
       validation, and browser-review workflow exists for the accepted early
       visual baseline.
+- [ ] The workbench visual runtime is derived from a canonical Git-tracked
+      application configuration through public `AgentApplication` UI-schema
+      APIs, and the production action menu shows real plugin-provided actions
+      in their declared order.
+- [ ] Message deletion and OpenAI native compaction create default-on
+      pre-mutation session snapshots, and native compaction is available as an
+      inclusive message-level “up to here” action.
 
 ### Non-functional requirements
 
@@ -33,6 +40,9 @@ asset workflow that later visual-production work can extend.
 - [ ] Work proceeds through the approved Stage A and Stage B manual
       checkpoints; native capture work does not start without separate Stage C
       approval.
+- [ ] Automatic snapshots are not silently pruned or limited in this task;
+      their full-session storage cost and manual deletion behavior are
+      documented.
 
 Parent Task: `tasks/20260825-crystal-lattice-product-positioning-and-website/000-main.md`
 
@@ -294,6 +304,11 @@ Disposable output:
   workflow, stop and ask the user.
 - Stage C and any real-provider/GitHub-workspace seeding work require a new
   approved checkpoint before implementation.
+- The approved Stage C2 follow-up authorizes bounded changes to shared
+  frontend action ordering, `session-actions-app`, the OpenAI Responses native
+  compaction plugins, application snapshot documentation, and their focused
+  tests. If safe pre-mutation snapshots require a materially broader session
+  transaction or persistence redesign, stop and ask before expanding scope.
 
 ## Execution plan
 
@@ -436,19 +451,22 @@ Manual checkpoint C1:
 Load the reviewed session fixture in the production-screen mobile harness and
 capture light/dark states using semantic readiness checks.
 
-Generate homepage sources without a device bezel:
+Generate homepage sources without device/system chrome while preserving the
+application context that makes each surface visibly a modal:
 
-- chat actions: a tight crop around the modal title and a useful readable set
-  of action rows rather than the complete tall screen;
-- session settings: a tight crop around the current settings modal and the
-  controls needed to support the plugin-schema claim;
-- snapshots: a tight crop around the current snapshots modal using sanitized
-  short identifiers and the coding-plan session in any visible background.
+- chat actions: show the modal title and a useful readable set of action rows
+  over the active coding-plan session;
+- session settings: show the current settings modal and the controls needed to
+  support the plugin-schema claim over the active session;
+- snapshots: show the current snapshots modal using sanitized short
+  identifiers over the active coding-plan session.
 
 The crop geometry belongs to each asset's programmatic build so a later
 replacement can choose a different framing without changing the runner or CLI.
-Do not show the system status bar, broken app header, composer, bottom tabs,
-fixture IDs, or hardware frame in homepage derivatives.
+Remove the system status bar, Dynamic Island, and hardware frame. Preserve the
+correctly positioned application header, session content, session ID, bottom
+action controls, composer, Append, and Send so the captured surface reads as a
+modal inside the application.
 
 Automated verification covers source dimensions, expected crop bounds,
 light/dark outputs, no forbidden fixture text, asset budgets, website build,
@@ -459,7 +477,134 @@ Manual checkpoint C2:
 - judge whether each crop is large enough to read at the actual homepage card
   size;
 - judge whether the three cards feel like coherent product proof without
-  implying that the homepage is specifically about the mobile app.
+  implying that the homepage is specifically about the mobile app;
+- judge whether each modal remains visually grounded in a recognizable active
+  session without device chrome.
+
+#### Stage C2 follow-up — Canonical runtime UI and operation-backed snapshots
+
+Replace the handwritten action/settings state in the native visual harness
+with a canonical Git-tracked runtime configuration and UI fixture generated
+through public `AgentApplication` APIs. Keep this as a first-class asset-source
+lifecycle rather than starting a live HTTP server during Detox capture.
+
+Add
+`landing_page/visual_assets/runtime/mobile-workbench/config.json`, derived from
+the repository default configuration but limited to one `codex-openai` agent
+using `gpt-5.6-luna` with medium reasoning and the plugins that support the
+current workbench proof. Include the OpenAI Responses provider UI needed by the
+settings screenshot plus these application plugins:
+
+- `session-actions-app`;
+- `session-title-app`;
+- `generate-title-app`;
+- `summarize-range-app`;
+- the OpenAI Responses native-compaction application plugin.
+
+Omit unrelated authentication-menu, application-reload, MCP, cloud-agent,
+session-list-only metadata, export, attachment, demonstration, alternate
+provider, and native-history-rebuild plugins from this screenshot-specific
+configuration. This does not change the production default configuration.
+
+Generate an ignored candidate and explicitly promoted tracked
+`mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteRuntimeUi.json`
+containing the sanitized session application UI schema, provider/session UI
+schema, effective base settings, relevant overrides, contributing plugin and
+action identifiers, action labels/icons/conditions/orders, and source config
+and session-fixture hashes. The visual-asset check regenerates the local
+contract and fails when the promoted fixture is stale. Detox consumes only the
+promoted fixture and therefore does not need Python, plugin loading, a server,
+credentials, or HTTP readiness during capture.
+
+Use the generated fixture through the harness backend and open the production
+`SessionActionsBar` from the real session header. Remove the custom
+`ActionsMenuContent` screenshot path. Add a separate non-visual integration
+test that starts the public HTTP application boundary with the canonical
+configuration and verifies that the production frontend backend adapter
+receives the expected session action and settings contracts.
+
+Make these permanent product improvements:
+
+- remove the legacy frontend-native `Delete range` action; message deletion is
+  owned by `session-actions-app`, which remains enabled in the default config;
+- preserve numeric action `order` from UI schema through frontend action
+  definitions and stable-sort combined frontend-native and plugin actions,
+  retaining declaration order for missing/equal values;
+- assign explicit frontend-native action orders: Reload 0, Message limit 20,
+  Agent switch 25, Settings 90, Plugins 91, Snapshots 92, and Debug events 100;
+- apply the same ordering contract to shared mobile and desktop consumers;
+- show the OpenAI compacted-transcript collapse/expand action only when the
+  session contains compacted history.
+
+Add a message-level OpenAI Responses application action labeled
+`Compact native history up to here`. Map the selected visible message index to
+a dedicated `message_index` input, normalize it to the existing exclusive
+`end_index = message_index + 1`, and delegate to the current background
+compaction path. Preserve the existing progress notification, cancellation,
+retry, conflict detection, and commit behavior. The selected message is part
+of the compacted prefix.
+
+Create automatic pre-mutation snapshots with Option A behavior: enabled by
+default and without automatic retention, pruning, or count limits.
+
+- `session-actions-app` creates a snapshot after validating and normalizing a
+  non-empty message deletion and immediately before persisting the mutation.
+  Copy, fork, whole-session deletion, and no-op deletion do not create these
+  snapshots.
+- The OpenAI native-compaction background process creates a snapshot only
+  after provider work succeeds, inside the existing commit lock, immediately
+  before the reconciled compacted session is saved. Cancellation, provider
+  failure, application shutdown/reload interruption, and commit conflict do
+  not retain an automatic compaction snapshot.
+- If a mutation save fails after a provisional snapshot is created, delete
+  that snapshot before propagating the failure.
+- Keep the implementation local to the two plugins and existing
+  `AgentApplication` snapshot methods unless a third consumer or a concrete
+  correctness problem justifies a shared commit helper.
+
+Use precise, pre-state reasons such as:
+
+- `Before deleting message [14]`;
+- `Before deleting messages [18, 22, 25]`;
+- `Before deleting messages [357:]`;
+- `Before compacting conversation [:277]`.
+
+Store structured metadata including `origin: automatic`, plugin ID, action ID,
+normalized range or indices, and the compaction operation ID when applicable.
+The current frontend displays the human-readable `reason`; metadata is retained
+for future filtering, retention, and richer history UI.
+
+Regenerate the snapshot visual with deterministic ranges that match the
+reviewed coding-plan session. Show at least one automatic deletion snapshot,
+one automatic compaction snapshot, and optionally one manual snapshot so the
+visual communicates recoverable operation history rather than only manual
+bookmarks.
+
+Automated verification covers:
+
+- removal of the legacy frontend delete action;
+- stable ordering across frontend-native, application-plugin, and provider
+  actions, including equal/missing order behavior;
+- configuration-generated UI fixture provenance and stale-fixture detection;
+- the real production action menu consuming generated plugin actions;
+- inclusive compaction through the selected message;
+- snapshot creation and restoration before successful message deletion;
+- snapshot creation and restoration before successful native compaction;
+- no retained automatic snapshot for no-op deletion, cancellation, provider
+  failure, application interruption, or commit conflict;
+- provisional snapshot cleanup when mutation persistence fails;
+- application/plugin unit tests, public HTTP plus production frontend-adapter
+  integration, mobile component/Detox coverage, asset checks, website build,
+  and Playwright responsive/theme contracts.
+
+Manual checkpoint C2 follow-up:
+
+- judge whether the real action menu makes plugin-provided capabilities
+  immediately visible without looking technically cluttered;
+- judge whether the automatic snapshot reasons are understandable, precise,
+  and visually more useful than the former manual-only fixture;
+- judge whether the recaptured action, settings, and snapshot cards remain
+  readable and truthful at desktop and phone website sizes.
 
 #### Stage C3 — Reproducible provider focus composites
 
@@ -570,6 +715,20 @@ content, privacy, and product-communication judgments only.
   checkpoint B.
 - Decision: the user approved the Starlette task, `codex-openai` ChatGPT-auth
   refresh path, and staged C1-C5 expansion.
+- Decision: remove the legacy frontend-native delete-range action and let
+  `session-actions-app` own message deletion.
+- Decision: frontend-native and plugin-provided actions honor the existing
+  numeric UI-schema `order` contract through a stable combined sort.
+- Decision: add `Compact native history up to here` as an inclusive
+  message-level action backed by the existing asynchronous native-compaction
+  operation.
+- Decision: automatic snapshots before message deletion and successful native
+  compaction are enabled by default. This task adds no automatic retention,
+  pruning, or count limit; users remove snapshots manually.
+- Decision: the visual pipeline generates and promotes a reviewed
+  `websiteRuntimeUi.json` from the canonical config and reviewed session.
+  Detox does not start a live server; a separate automated HTTP/frontend
+  adapter integration test covers that boundary.
 - Open question: decide later whether OpenRouter Image API modernization or a
   direct GPT Image provider deserves separate plugin work.
 
@@ -589,6 +748,33 @@ content, privacy, and product-communication judgments only.
 - Update product-content requirements with implementation and verification
   evidence; do not change the content target unless Stage A exposes a genuine
   target question.
+- Add `application/python/docs/session-snapshots.md` as the canonical
+  user-facing snapshot guide. Document manual and automatic snapshots,
+  pre-mutation semantics, readonly selection and restore behavior, operations
+  that currently create automatic snapshots, manual deletion, full-session
+  storage cost, and the explicit absence of automatic pruning or limits.
+  Route it from `application/python/docs/index.md` and the concise package
+  README without duplicating the full explanation.
+- Update `plugins/session-actions-app/README.md` with the plugin-owned
+  automatic snapshot behavior for successful message deletion and examples of
+  normalized reasons. Link to the canonical application snapshot guide for
+  storage, restore, and retention behavior.
+- Update `plugins/openai_responses/README.md` with the message-level
+  compaction action, background lifecycle, successful-commit snapshot
+  behavior, failure/cancellation exclusions, and example reasons. Link to the
+  canonical application snapshot guide.
+- Update `plugins/docs/ui-elements.md` with the supported numeric action-order
+  contract, stable tie behavior, and a concrete application/message-action
+  example.
+- Update `plugins/docs/application-plugins.md` with a concise, reusable
+  pre-mutation snapshot pattern using public `AgentApplication` methods,
+  including lock placement and failure cleanup. Present this as an
+  application-plugin capability rather than claiming that all actions are
+  automatically snapshotted.
+- Update the existing landing-page visual-asset consumer and development pages
+  with the canonical runtime config, generated UI candidate/promotion
+  lifecycle, provenance checks, and the reason Detox intentionally consumes a
+  reviewed fixture while HTTP integration is verified separately.
 
 ### Task checklist
 
@@ -610,7 +796,18 @@ content, privacy, and product-communication judgments only.
 - [x] Approve the revised Stage C1-C5 expansion.
 - [x] Implement the revised Stage C1 reviewed-session source.
 - [x] Pass manual checkpoint C1.
-- [ ] Implement and pass checkpoint C2 for unframed workbench captures.
+- [x] Implement C2 unframed workbench captures.
+- [x] Pass manual checkpoint C2.
+- [x] Implement the approved C2 follow-up product action cleanup and ordering.
+- [x] Add the native-compaction “up to here” message action.
+- [x] Add default-on, unpruned automatic snapshots for successful message
+      deletion and native compaction.
+- [x] Add the canonical mobile-workbench config and generated/promoted runtime
+      UI fixture lifecycle.
+- [x] Update automatic snapshot, plugin action, and visual-runtime
+      documentation.
+- [x] Pass the C2 follow-up automated verification.
+- [x] Pass the C2 follow-up manual visual checkpoint.
 - [ ] Implement and pass checkpoint C3 for provider focus composites.
 - [ ] Implement and pass checkpoint C4 for the mobile-page hero.
 - [ ] Complete Stage C5 documentation, handoff, and final verification.
@@ -630,6 +827,12 @@ content, privacy, and product-communication judgments only.
   history.
 - Any Stage C evidence uses production screens and deterministic sanitized
   state.
+- The promoted runtime UI fixture is reproducibly generated from the canonical
+  config and reviewed session through public application APIs, while a
+  separate integration test verifies the live HTTP/frontend-adapter boundary.
+- Restoring an automatic deletion or compaction snapshot recovers the exact
+  pre-mutation session, and unsuccessful operations do not leave an automatic
+  snapshot.
 
 ### Additional implementation verification
 
@@ -1094,3 +1297,206 @@ content, privacy, and product-communication judgments only.
 - `promote-session coding-plan` copied the exact reviewed candidate to
   `mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteCodingPlanSession.json`.
 - Stage C2 is authorized.
+
+### August 27, 2026 — Stage C2 ready for visual checkpoint
+
+- The production native visual harness now loads the reviewed coding-plan
+  fixture and captures three selectable workbench states in light and dark:
+  session actions, snapshots, and session settings.
+- Actions use the shared production `ActionsMenuContent` inside the production
+  modal frame. Snapshots and settings use their production modal components.
+  The reviewed session screen remains mounted underneath an opaque
+  theme-colored capture backdrop, preventing transcript bleed through modal
+  surfaces.
+- One Detox invocation captures all six source PNGs on the iPhone 17 Pro
+  simulator. The completed native run passed in both themes for all three
+  states.
+- The three assets now use captured-source lifecycles. Their reviewed source
+  PNGs are the current native captures, without fixture IDs in the visible
+  modal content.
+- Added a reusable programmatic ImageMagick crop operation. Crop geometry stays
+  in each asset definition:
+  - actions: `1080x940+63+880`;
+  - snapshots: `1080x1090+63+790`;
+  - settings: `1080x1540+63+555`.
+- Final WebP candidates and exact evidence:
+  - actions light: 1000x851, 15,586 bytes,
+    `3ee015d5691634fd6683445d74b224af450311e5737a5925b844f877a6d5494e`;
+  - actions dark: 1000x851, 15,650 bytes,
+    `98bd1b644b7a7c4d50c078ddc609807dfcc2bd899838a04186cd22b894da7098`;
+  - snapshots light: 1000x1006, 29,164 bytes,
+    `0b1c585f85b17d9d39f47ebd8d2a9a4a948c887955e7b9677efafbccbb1d3ce5`;
+  - snapshots dark: 1000x1006, 30,760 bytes,
+    `7b82ceb363137929a9bcf30fb76a6f35a192a36d8ffa10aa74c393c5e2089f92`;
+  - settings light: 1000x1414, 46,040 bytes,
+    `c3c6ae968d187110db307dc402515d4ad8bc90b47f78ccdab72c000e9bc9b92b`;
+  - settings dark: 1000x1414, 49,116 bytes,
+    `6a63da05ae6df37e57a2790f879411317aeba1a6257f26a974512248e5597282`.
+- The homepage content dimensions and actions alt text now match the generated
+  files. Public working-tree derivatives are updated but uncommitted.
+- The screenshot gallery uses the themed raised surface instead of a hardcoded
+  white image background, so letterbox space is correct in dark mode.
+- The active-theme browser test now scrolls every lazy image into view instead
+  of relying on the former page geometry. Its exact five-image totals are
+  228,372 light bytes and 218,230 dark bytes.
+- Automated verification passes:
+  - mobile TypeScript typecheck;
+  - iOS Detox build and six-state native capture;
+  - fourteen visual-asset unit tests, including crop command composition;
+  - complete eleven-result asset catalog check;
+  - Astro production build;
+  - all eleven Playwright desktop/phone and light/dark visual contracts;
+  - `git diff --check`.
+- Manual checkpoint C2 is ready. Judge readability at actual card size,
+  coherence across the three cards, and whether the modal-only presentation
+  communicates product capability without making the homepage feel
+  mobile-specific.
+
+### August 27, 2026 — Stage C2 application context restored
+
+- The user clarified that C2 must omit only device/system chrome. The
+  application header, session content, session ID, bottom actions, composer,
+  Append, and Send must remain visible so each surface reads as an in-product
+  modal.
+- The harness now mirrors the application's safe-area structure, fixing the
+  previously overlapped header. Detox waits for the modal fade before capture,
+  and the temporary opaque capture backdrop was removed.
+- All six sources were recaptured successfully. The final deterministic crop
+  is `1206x2442+0+180`, beginning below the iOS status area and extending
+  through the complete bottom controls. Edge trimming is disabled so light and
+  dark variants retain identical geometry.
+- The workbench gallery uses a tall `40/81` media aspect so the restored
+  context remains readable at desktop and phone card widths. No simulated
+  device border is added.
+- Workbench WebPs use quality 76 and all six are 1000x2025:
+  - actions light: 48,144 bytes,
+    `7181d57fc191a9db9a4a2c3bc0d6b050fd43cffe536a9fbddcb247093b4bc97e`;
+  - actions dark: 46,334 bytes,
+    `c7fe783d25feec0fe7c0c3e676294d30073dfb49018f5aeb91c33962dd47a357`;
+  - snapshots light: 49,008 bytes,
+    `3d70bd7e9aee3c7aa040105990a0c2c97ce67e824210972a127891bc4981dcd1`;
+  - snapshots dark: 48,974 bytes,
+    `4de8fd37dbf462a7bf211806210898f62ed75feb19361be475dc60e489725b7a`;
+  - settings light: 51,566 bytes,
+    `7f5b368e90e9ed8b0e0afe67bab8e09261312754898d119911ba69ce26e382c5`;
+  - settings dark: 54,866 bytes,
+    `eeefe3afe32f9ac1a9fd426f2f588a7482bc088af38c84c3532f32b890b6cccf`.
+- The five-image homepage totals are 286,300 bytes in light mode and 272,878
+  bytes in dark mode, within the existing 300,000-byte per-theme budgets.
+- Verification remains green after the correction:
+  - mobile TypeScript typecheck;
+  - iOS Detox build and six-state capture;
+  - fourteen visual-asset unit tests;
+  - complete eleven-result catalog check;
+  - Astro production build;
+  - all eleven Playwright desktop/phone light/dark contracts;
+  - `git diff --check`.
+- C2 remains uncommitted and awaits the revised visual checkpoint.
+
+### August 28, 2026 — Stage C2 product follow-up approved
+
+- The user approved the canonical runtime-UI fixture design, permanent action
+  ordering correction, removal of the legacy frontend delete-range action,
+  conditional compacted-transcript toggle, and message-level native
+  compaction action.
+- The user selected automatic snapshot Option A: message deletion and
+  successful native compaction create snapshots by default, with no automatic
+  pruning, retention limit, or count limit in this task.
+- The approved follow-up remains planned and unimplemented. It must complete
+  its automated contract/integration coverage and stop at the dedicated
+  mobile visual checkpoint before C3 continues.
+
+### August 28, 2026 — Stage C2 product follow-up ready for visual checkpoint
+
+- Permanent product action improvements are implemented:
+  - the legacy frontend-native `Delete range` action and modal were removed;
+  - shared action definitions preserve optional numeric `order`;
+  - the shared menu model stable-sorts frontend-native and plugin actions;
+  - mobile and desktop propagate plugin order and use explicit native action
+    orders;
+  - the OpenAI compacted-transcript toggle is conditional on compacted session
+    metadata.
+- OpenAI native compaction now exposes `Compact native history up to here` as
+  an application-owned message action. It maps the selected message index to
+  the existing exclusive compaction boundary and keeps the background
+  operation, progress, cancellation, retry, conflict, and commit behavior.
+- Successful message deletion and successful native compaction now create
+  default-on automatic pre-mutation snapshots. No-op deletion, cancellation,
+  provider failure, application interruption, commit conflict, and failed
+  persistence do not retain an automatic snapshot. This implementation adds
+  no automatic pruning or count limit.
+- Snapshot restore now preserves the live session-notification container.
+  This prevents restoring a compaction snapshot from resurrecting an obsolete
+  in-progress banner while still restoring messages and provider-native
+  history.
+- Added the canonical tracked runtime configuration at
+  `landing_page/visual_assets/runtime/mobile-workbench/config.json`. It
+  defines one `codex-openai` screenshot agent using `gpt-5.6-luna` with medium
+  reasoning, the selected provider/application plugins, six focused real
+  setting keys, and deterministic snapshot presentation data.
+- Added `refresh-runtime-ui` and `promote-runtime-ui` asset commands. The
+  generated and promoted
+  `mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteRuntimeUi.json`
+  is 17,153 bytes with SHA-256
+  `c3c83621d2e40c6d14816fe771a2642a3ff3efdb3cf31336e375492e3b286fcf`.
+  `check mobile-workbench` regenerates and compares the fixture byte-for-byte.
+- The native harness now consumes the promoted runtime fixture. The action
+  capture opens the production `SessionActionsBar` from the real header;
+  settings and snapshots consume generated real schema and deterministic
+  operation-history data. Detox synchronization remains disabled because the
+  active production screen owns intentional polling timers; readiness uses
+  explicit semantic identifiers and visible content.
+- Added a non-visual real-server integration that starts FastAPI from the
+  canonical config and verifies the promoted action/settings contract through
+  `FetchTransport` and `RestAgentBackend`.
+- Updated the canonical application snapshot guide, plugin package READMEs,
+  shared application-plugin and UI-element authoring docs, frontend SDK
+  integration guide, and landing visual-asset consumer/development docs.
+- Final reviewed public derivatives are all 1000x2025:
+  - actions light: 38,372 bytes,
+    `bef7d5cefa6680c6b386f20c22b0c65feef538ec66986c1ff43cbb036ff6644a`;
+  - actions dark: 37,896 bytes,
+    `9d476332506e8ec1c42849dbb216c1d394b8d9146599948caa6fb7966ef6aa21`;
+  - snapshots light: 49,092 bytes,
+    `31808b2f74ca0d60dd90955c0327b8d3d4bd57b3216d0fa6813679d244866c7a`;
+  - snapshots dark: 50,496 bytes,
+    `865b735fc75522a600503dd8bf607f0ab86feade82d69d50ca0469559fe43478`;
+  - settings light: 48,866 bytes,
+    `a831addcc2865c72b495d4c18f0f14a0f75a1821f1dd4ba2536d2bdc903c3e47`;
+  - settings dark: 47,930 bytes,
+    `86d7add2912ded1f843a9ce73f3ffb659225acf1b6272d6ab7d0922f02d35d3d`.
+- Automated verification completed:
+  - shared React Native action components: 9 tests;
+  - frontend SDK: 313 unit tests;
+  - canonical FastAPI/`RestAgentBackend` integration: 1 test;
+  - mobile: TypeScript plus 119 Jest tests;
+  - iOS Detox build and six-state native capture;
+  - OpenAI native compaction: 38 focused tests;
+  - core snapshot restore: 3 tests;
+  - session-actions automatic snapshots: 3 focused tests;
+  - visual asset JavaScript: 16 tests;
+  - visual asset Python: 4 tests;
+  - complete catalog: 12 results within budgets;
+  - Astro build and all 11 responsive/theme Playwright contracts;
+  - Python Black and Ruff;
+  - documentation preparation and MkDocs build;
+  - `git diff --check`.
+- The complete pre-existing `session-actions-app` test file still has two
+  unrelated compatibility failures: one assertion expects the older raw event
+  list instead of the current event-store envelope, and whole-session deletion
+  with a persisted unknown agent ID reaches the application lifecycle before
+  deletion. The new automatic-snapshot tests pass and neither existing failure
+  is changed by this follow-up.
+- The C2 follow-up is uncommitted and stopped at the required mobile/browser
+  visual checkpoint.
+
+### August 28, 2026 — Stage C2 and product follow-up approved
+
+- The user accepted the final desktop and phone, light and dark workbench
+  versions.
+- Manual checkpoint C2 and the dedicated C2 product-follow-up checkpoint are
+  complete.
+- Stage C3 remains unstarted. The next delivery step is to commit the accepted
+  C2 implementation, documentation, task evidence, reviewed source masters,
+  and public derivatives before implementing the separately reviewable
+  provider focus composites.

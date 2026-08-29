@@ -14,47 +14,60 @@ async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
   }
 }
 
-async function captureTheme(theme: "light" | "dark"): Promise<void> {
+type VisualKind = "actions" | "snapshots" | "settings";
+
+async function captureTheme(
+  kind: VisualKind,
+  theme: "light" | "dark"
+): Promise<void> {
   await device.launchApp({
     newInstance: true,
     launchArgs: {
       clcWebsiteVisualHarness: "1",
       clcWebsiteVisualTheme: theme,
+      clcWebsiteVisualKind: kind,
       detoxEnableSynchronization: "0",
     },
   });
   await dismissAndroidImmersiveModeConfirmation();
   await device.disableSynchronization();
-  await waitFor(element(by.id("website-visual-open-session-settings")))
+  await waitFor(element(by.id(`website-visual-open-${kind}`)))
     .toExist()
     .withTimeout(30000);
-  await element(by.id("website-visual-open-session-settings")).tap();
-  await waitFor(element(by.text("Model")))
+  await element(by.id(`website-visual-open-${kind}`)).tap();
+  if (kind === "actions") {
+    await waitFor(element(by.id("session-actions-menu")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(by.id("session-actions-menu")).tap();
+  }
+  const readinessText =
+    kind === "actions"
+      ? "Copy session"
+      : kind === "snapshots"
+        ? "Snapshots"
+        : "Reasoning Effort";
+  await waitFor(element(by.text(readinessText)))
     .toBeVisible()
     .withTimeout(30000);
-  await waitFor(element(by.text("Reasoning effort")))
-    .toBeVisible()
-    .withTimeout(30000);
+  await new Promise((resolve) => setTimeout(resolve, 600));
 
   const source = await device.takeScreenshot(
-    `website-session-settings-${theme}`
+    `website-${kind}-${theme}`
   );
   const directory = path.resolve(process.cwd(), "artifacts", "website-visual");
   fs.mkdirSync(directory, { recursive: true });
   fs.copyFileSync(
     source,
-    path.join(directory, `session-settings-${theme}.png`)
+    path.join(directory, `${kind}-${theme}.png`)
   );
-  await device.enableSynchronization();
 }
 
 describe("website visual source capture", () => {
-  afterEach(async () => {
-    await device.enableSynchronization();
-  });
-
-  it("captures deterministic light and dark production session settings", async () => {
-    await captureTheme("light");
-    await captureTheme("dark");
+  it("captures deterministic light and dark production workbench states", async () => {
+    for (const kind of ["actions", "snapshots", "settings"] as const) {
+      await captureTheme(kind, "light");
+      await captureTheme(kind, "dark");
+    }
   });
 });

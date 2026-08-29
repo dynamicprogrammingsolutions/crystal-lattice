@@ -15,6 +15,10 @@ export function trim() {
   return operation("trim", () => ["-trim", "+repage"]);
 }
 
+export function crop(geometry) {
+  return operation("crop", () => ["-crop", String(geometry), "+repage"]);
+}
+
 export function resize(geometry) {
   return operation("resize", () => ["-resize", String(geometry)]);
 }

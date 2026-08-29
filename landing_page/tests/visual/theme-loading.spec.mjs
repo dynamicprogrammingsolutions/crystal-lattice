@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 async function loadLazyImages(page) {
+  const lazyImages = page.locator('img[loading="lazy"]');
+  for (let index = 0; index < (await lazyImages.count()); index += 1) {
+    await lazyImages.nth(index).scrollIntoViewIfNeeded();
+  }
   await page.locator('img[loading="lazy"]').evaluateAll((images) => {
     for (const image of images) {
       image.loading = "eager";
@@ -73,7 +77,7 @@ test("loads only the active theme and swaps the same image elements", async ({
   );
   expect(
     lightImages.reduce((sum, response) => sum + response.contentLength, 0),
-  ).toBe(264884);
+  ).toBe(273912);
 
   const themedImages = page.locator(
     "img[data-theme-light-src][data-theme-dark-src]",
@@ -102,7 +106,7 @@ test("loads only the active theme and swaps the same image elements", async ({
   expect(darkImages).toHaveLength(5);
   expect(
     darkImages.reduce((sum, response) => sum + response.contentLength, 0),
-  ).toBe(239020);
+  ).toBe(259026);
   expect(await themedImages.count()).toBe(5);
 });
 

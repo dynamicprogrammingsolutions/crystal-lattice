@@ -22,7 +22,12 @@ import {
   sessionFixtureAssetCommands,
 } from "../scripts/visual-assets/session-fixture.mjs";
 import {
+  runRuntimeUiCatalogCommand,
+  runtimeUiFixtureAssetCommands,
+} from "../scripts/visual-assets/runtime-ui-fixture.mjs";
+import {
   centerExtent,
+  crop,
   encodeWebp,
   imageMagickPipeline,
   normalizeSrgb,
@@ -42,10 +47,18 @@ const mobileWebsiteCapture = detoxCapture({
     "detox:capture:website-visual:ios",
   ],
   outputs: {
+    actionsLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/actions-light.png",
+    actionsDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/actions-dark.png",
+    snapshotsLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/snapshots-light.png",
+    snapshotsDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/snapshots-dark.png",
     settingsLight:
-      "mobile/crystal-lattice-control-rn/artifacts/website-visual/session-settings-light.png",
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/settings-light.png",
     settingsDark:
-      "mobile/crystal-lattice-control-rn/artifacts/website-visual/session-settings-dark.png",
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/settings-dark.png",
   },
 });
 
@@ -68,14 +81,17 @@ const capturedImageLifecycle = {
 
 function optimizedUiScreenshot({
   id,
+  cropGeometry,
   resizeTo,
   extent,
+  trimEdges = true,
   quality = 80,
 }) {
   return imageMagickPipeline({
     id,
     operations: [
-      trim(),
+      cropGeometry ? crop(cropGeometry) : undefined,
+      trimEdges ? trim() : undefined,
       resize(resizeTo),
       extent ? centerExtent(extent) : undefined,
       normalizeSrgb(),
@@ -95,6 +111,15 @@ function providerCard(options) {
 function workbenchPhone(options) {
   return optimizedUiScreenshot({
     id: "workbench-phone",
+    ...options,
+  });
+}
+
+function workbenchModal(options) {
+  return optimizedUiScreenshot({
+    id: "workbench-modal",
+    trimEdges: false,
+    quality: 76,
     ...options,
   });
 }
@@ -335,6 +360,18 @@ async function promoteSessionCommand(context) {
   });
 }
 
+async function refreshRuntimeUiCommand(context) {
+  return runRuntimeUiCatalogCommand(context, "refresh-runtime-ui", {
+    pythonRequired: true,
+  });
+}
+
+async function promoteRuntimeUiCommand(context) {
+  return runRuntimeUiCatalogCommand(context, "promote-runtime-ui", {
+    mutate: true,
+  });
+}
+
 export default defineVisualAssets({
   config: {
     budgets: [
@@ -360,9 +397,29 @@ export default defineVisualAssets({
     "promote-source": promoteSourceCommand,
     "refresh-session": refreshSessionCommand,
     "promote-session": promoteSessionCommand,
+    "refresh-runtime-ui": refreshRuntimeUiCommand,
+    "promote-runtime-ui": promoteRuntimeUiCommand,
   },
 
   assets: [
+    defineAsset({
+      id: "mobile-workbench",
+      metadata: {
+        claim:
+          "The website workbench visuals use UI contracts produced by a canonical application configuration.",
+      },
+      config: {
+        fixtureId: "mobile-workbench",
+        config: "visual_assets/runtime/mobile-workbench/config.json",
+        agent: "codex-openai",
+        sessionFixture:
+          "mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteCodingPlanSession.json",
+        reviewedFixture:
+          "mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteRuntimeUi.json",
+      },
+      commands: runtimeUiFixtureAssetCommands(),
+    }),
+
     defineAsset({
       id: "coding-plan",
       metadata: {
@@ -531,9 +588,9 @@ export default defineVisualAssets({
       },
       config: {
         presentation: {
-          alt: "Session actions menu listing settings, plugins, snapshots, copy, delete, title, and other plugin-provided actions.",
-          width: 693,
-          height: 1400,
+          alt: "Session actions menu showing plugin-provided copy, title, deletion, summarization, and native compaction controls alongside session settings.",
+          width: 1000,
+          height: 2025,
         },
         contentBindings: [
           homeMedia({
@@ -544,47 +601,54 @@ export default defineVisualAssets({
         ],
         variants: {
           light: {
-            source: reviewedFile(
-              "visual_assets/sources/chat-actions-workbench-light.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/chat-actions-workbench-light.png",
+              candidate:
+                mobileWebsiteCapture.output("actionsLight"),
+            }),
             provenance: importedSource(
               "landing_page/public/chat-actions-workbench.png",
             ),
             output: "public/chat-actions-workbench.webp",
-            build: workbenchPhone({
-              resizeTo: "700x1400>",
+            build: workbenchModal({
+              cropGeometry: "1206x2442+0+180",
+              resizeTo: "1000x>",
             }),
             expected: {
-              width: 693,
-              height: 1400,
-              maxBytes: 45000,
+              width: 1000,
+              height: 2025,
+              maxBytes: 55000,
               sha256:
-                "547f2c71815fbe499cf4d3c8e125f76821658ef2f0a8fcbef1c9578b8c228f48",
+                "bef7d5cefa6680c6b386f20c22b0c65feef538ec66986c1ff43cbb036ff6644a",
             },
           },
           dark: {
-            source: reviewedFile(
-              "visual_assets/sources/chat-actions-workbench-dark.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/chat-actions-workbench-dark.png",
+              candidate:
+                mobileWebsiteCapture.output("actionsDark"),
+            }),
             provenance: importedSource(
               "landing_page/public/chat-actions-workbench-dark.png",
             ),
             output: "public/chat-actions-workbench-dark.webp",
-            build: workbenchPhone({
-              resizeTo: "693x1400^",
-              extent: "693x1400",
+            build: workbenchModal({
+              cropGeometry: "1206x2442+0+180",
+              resizeTo: "1000x>",
             }),
             expected: {
-              width: 693,
-              height: 1400,
-              maxBytes: 40000,
+              width: 1000,
+              height: 2025,
+              maxBytes: 55000,
               sha256:
-                "5e4d0d12a6968089cd4a6ccc7f3dc023eef5d3edd678921ebb6c150cdce3c2c3",
+                "9d476332506e8ec1c42849dbb216c1d394b8d9146599948caa6fb7966ef6aa21",
             },
           },
         },
       },
-      lifecycle: reviewedImageLifecycle,
+      lifecycle: capturedImageLifecycle,
     }),
 
     defineAsset({
@@ -599,9 +663,9 @@ export default defineVisualAssets({
       },
       config: {
         presentation: {
-          alt: "Snapshots dialog with Create, Select, Restore, and Delete controls over a session.",
-          width: 693,
-          height: 1400,
+          alt: "Snapshots dialog showing automatic pre-compaction and pre-deletion recovery points with Select, Restore, and Delete controls.",
+          width: 1000,
+          height: 2025,
         },
         contentBindings: [
           homeMedia({
@@ -612,47 +676,54 @@ export default defineVisualAssets({
         ],
         variants: {
           light: {
-            source: reviewedFile(
-              "visual_assets/sources/session-snapshots-workbench-light.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/session-snapshots-workbench-light.png",
+              candidate:
+                mobileWebsiteCapture.output("snapshotsLight"),
+            }),
             provenance: importedSource(
               "landing_page/public/session-snapshots-workbench.png",
             ),
             output: "public/session-snapshots-workbench.webp",
-            build: workbenchPhone({
-              resizeTo: "700x1400>",
+            build: workbenchModal({
+              cropGeometry: "1206x2442+0+180",
+              resizeTo: "1000x>",
             }),
             expected: {
-              width: 693,
-              height: 1400,
-              maxBytes: 50000,
+              width: 1000,
+              height: 2025,
+              maxBytes: 55000,
               sha256:
-                "0756a2e3f65777e1ae6e411502fd7e47426b71616627c7b02cfbdb8e5f05e3d2",
+                "31808b2f74ca0d60dd90955c0327b8d3d4bd57b3216d0fa6813679d244866c7a",
             },
           },
           dark: {
-            source: reviewedFile(
-              "visual_assets/sources/session-snapshots-workbench-dark.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/session-snapshots-workbench-dark.png",
+              candidate:
+                mobileWebsiteCapture.output("snapshotsDark"),
+            }),
             provenance: importedSource(
               "landing_page/public/session-snapshots-workbench-dark.png",
             ),
             output: "public/session-snapshots-workbench-dark.webp",
-            build: workbenchPhone({
-              resizeTo: "693x1400^",
-              extent: "693x1400",
+            build: workbenchModal({
+              cropGeometry: "1206x2442+0+180",
+              resizeTo: "1000x>",
             }),
             expected: {
-              width: 693,
-              height: 1400,
-              maxBytes: 45000,
+              width: 1000,
+              height: 2025,
+              maxBytes: 55000,
               sha256:
-                "c9b5f60717cab797dd83ebf7dc6d5a6205b2b4864bb5b348ff0f0d16cb8235f6",
+                "865b735fc75522a600503dd8bf607f0ab86feade82d69d50ca0469559fe43478",
             },
           },
         },
       },
-      lifecycle: reviewedImageLifecycle,
+      lifecycle: capturedImageLifecycle,
     }),
 
     defineAsset({
@@ -668,9 +739,9 @@ export default defineVisualAssets({
       },
       config: {
         presentation: {
-          alt: "Session settings showing model, reasoning, verbosity, caching, web-search, and format controls contributed by plugins.",
-          width: 693,
-          height: 1400,
+          alt: "Session settings showing OpenAI model, reasoning, verbosity, prompt cache, web search, and compaction transcript controls contributed by plugins.",
+          width: 1000,
+          height: 2025,
         },
         contentBindings: [
           homeMedia({
@@ -691,15 +762,16 @@ export default defineVisualAssets({
               "landing_page/public/session-settings-plugins.png",
             ),
             output: "public/session-settings-plugins.webp",
-            build: workbenchPhone({
-              resizeTo: "700x1400>",
+            build: workbenchModal({
+              cropGeometry: "1206x2442+0+180",
+              resizeTo: "1000x>",
             }),
             expected: {
-              width: 693,
-              height: 1400,
-              maxBytes: 55000,
+              width: 1000,
+              height: 2025,
+              maxBytes: 60000,
               sha256:
-                "cdb0579b45b5cd9de9af98ff82720c8ad12b231b37b3adbe9623efcdbc3d6435",
+                "a831addcc2865c72b495d4c18f0f14a0f75a1821f1dd4ba2536d2bdc903c3e47",
             },
           },
           dark: {
@@ -713,16 +785,16 @@ export default defineVisualAssets({
               "landing_page/public/session-settings-plugins-dark.png",
             ),
             output: "public/session-settings-plugins-dark.webp",
-            build: workbenchPhone({
-              resizeTo: "693x1400^",
-              extent: "693x1400",
+            build: workbenchModal({
+              cropGeometry: "1206x2442+0+180",
+              resizeTo: "1000x>",
             }),
             expected: {
-              width: 693,
-              height: 1400,
-              maxBytes: 50000,
+              width: 1000,
+              height: 2025,
+              maxBytes: 60000,
               sha256:
-                "239f18bb2fd43010e63348205b04ed9f96bb1b2546b7964ca658df6a9eeb2fbd",
+                "86d7add2912ded1f843a9ce73f3ffb659225acf1b6272d6ab7d0922f02d35d3d",
             },
           },
         },

@@ -1,0 +1,622 @@
+{
+  "fixture_id": "mobile-workbench",
+  "schema_version": 1,
+  "session_application_ui_schema": [
+    {
+      "action_id": "copy_session",
+      "dialog": {
+        "kind": "none"
+      },
+      "fixed_params": {
+        "source": "session_list"
+      },
+      "icon": "copy",
+      "id": "copy_session_from_list",
+      "label": "Copy",
+      "order": 10,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "session_list_action"
+    },
+    {
+      "action_id": "delete_session",
+      "dialog": {
+        "kind": "confirm",
+        "message": "Delete this session and its messages?",
+        "title": "Delete session"
+      },
+      "fixed_params": {
+        "source": "session_list"
+      },
+      "icon": "trash-2",
+      "id": "delete_session_from_list",
+      "label": "Delete session",
+      "order": 20,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "session_list_action"
+    },
+    {
+      "action_id": "copy_session",
+      "dialog": {
+        "kind": "none"
+      },
+      "fixed_params": {
+        "source": "session_view"
+      },
+      "icon": "copy",
+      "id": "copy_session_from_view",
+      "label": "Copy session",
+      "order": 10,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "session_action"
+    },
+    {
+      "action_id": "fork_session_at",
+      "dialog": {
+        "kind": "none"
+      },
+      "fixed_params": {
+        "source": "message_menu"
+      },
+      "icon": "git-branch",
+      "id": "fork_session_at_message",
+      "label": "Fork here",
+      "order": 20,
+      "param_map": {
+        "index": "$message.index",
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "message_action"
+    },
+    {
+      "action_id": "delete_messages",
+      "dialog": {
+        "kind": "confirm",
+        "message": "Delete this message?",
+        "title": "Delete message"
+      },
+      "fixed_params": {},
+      "icon": "trash-2",
+      "id": "delete_single_message",
+      "label": "Delete",
+      "order": 30,
+      "param_map": {
+        "indices": "$message.index",
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "message_action"
+    },
+    {
+      "action_id": "delete_messages",
+      "dialog": {
+        "kind": "confirm",
+        "message": "Delete this message and all later messages?",
+        "title": "Delete from here"
+      },
+      "fixed_params": {},
+      "icon": "trash-2",
+      "id": "delete_from_here",
+      "label": "Delete from here",
+      "order": 35,
+      "param_map": {
+        "session_id": "$session.session_id",
+        "start": "$message.index"
+      },
+      "plugin": "session_actions",
+      "ui_type": "message_action"
+    },
+    {
+      "action_id": "delete_messages",
+      "dialog": {
+        "inputs": [
+          {
+            "label": "Start index",
+            "name": "start",
+            "placeholder": "e.g. 0 or -10",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "label": "End index (optional)",
+            "name": "end",
+            "placeholder": "leave blank for end",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "kind": "form",
+        "message": "Python-style range (start:end). Messages in this range will be removed.",
+        "title": "Delete messages"
+      },
+      "fixed_params": {
+        "source": "session_view"
+      },
+      "icon": "trash-2",
+      "id": "delete_last_messages",
+      "label": "Delete messages",
+      "order": 30,
+      "param_map": {
+        "end": "$dialog.end",
+        "session_id": "$session.session_id",
+        "start": "$dialog.start"
+      },
+      "plugin": "session_actions",
+      "ui_type": "session_action"
+    },
+    {
+      "action_id": "set_session_title",
+      "dialog": {
+        "inputs": [
+          {
+            "label": "Title",
+            "name": "title",
+            "placeholder": "e.g. Daily standup notes",
+            "prefill_from": "$session.metadata.title",
+            "required": false,
+            "submit_empty": true,
+            "type": "string"
+          },
+          {
+            "label": "Subtitle",
+            "name": "subtitle",
+            "placeholder": "Optional subtitle or description",
+            "prefill_from": "$session.metadata.subtitle",
+            "required": false,
+            "submit_empty": true,
+            "type": "string"
+          }
+        ],
+        "kind": "form",
+        "message": "Set a short title for this session.",
+        "title": "Edit title"
+      },
+      "fixed_params": {
+        "source": "session_list"
+      },
+      "icon": "type",
+      "id": "edit_title_from_list",
+      "label": "Edit title",
+      "order": 5,
+      "param_map": {
+        "session_id": "$session.session_id",
+        "subtitle": "$dialog.subtitle",
+        "title": "$dialog.title"
+      },
+      "plugin": "session_title",
+      "ui_type": "session_list_action"
+    },
+    {
+      "action_id": "set_session_title",
+      "dialog": {
+        "inputs": [
+          {
+            "label": "Title",
+            "name": "title",
+            "placeholder": "e.g. Daily standup notes",
+            "prefill_from": "$session.metadata.title",
+            "required": false,
+            "submit_empty": true,
+            "type": "string"
+          },
+          {
+            "label": "Subtitle",
+            "name": "subtitle",
+            "placeholder": "Optional subtitle or description",
+            "prefill_from": "$session.metadata.subtitle",
+            "required": false,
+            "submit_empty": true,
+            "type": "string"
+          }
+        ],
+        "kind": "form",
+        "message": "Set a short title for this session.",
+        "title": "Edit title"
+      },
+      "fixed_params": {
+        "source": "session_view"
+      },
+      "icon": "type",
+      "id": "edit_title_from_view",
+      "label": "Edit title",
+      "order": 15,
+      "param_map": {
+        "session_id": "$session.session_id",
+        "subtitle": "$dialog.subtitle",
+        "title": "$dialog.title"
+      },
+      "plugin": "session_title",
+      "ui_type": "session_action"
+    },
+    {
+      "data": "metadata.title",
+      "id": "session_title_field",
+      "key": "session_title",
+      "label": "Session title",
+      "order": 0,
+      "plugin": "session_title",
+      "role": "title",
+      "template": "{{data}}",
+      "ui_type": "session_list_field"
+    },
+    {
+      "data": "metadata.subtitle",
+      "id": "session_subtitle_field",
+      "key": "session_subtitle",
+      "label": "Session subtitle",
+      "order": 0,
+      "plugin": "session_title",
+      "role": "subtitle",
+      "template": "{{data}}",
+      "ui_type": "session_list_field"
+    },
+    {
+      "action_id": "generate_title_for_session",
+      "dialog": {
+        "kind": "none"
+      },
+      "fixed_params": {
+        "source": "session_list"
+      },
+      "icon": "sparkles",
+      "id": "generate_title_from_list",
+      "label": "Generate title",
+      "order": 6,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "generate_title",
+      "ui_type": "session_list_action"
+    },
+    {
+      "action_id": "generate_title_for_session",
+      "dialog": {
+        "kind": "none"
+      },
+      "fixed_params": {
+        "source": "session_view"
+      },
+      "icon": "sparkles",
+      "id": "generate_title_from_view",
+      "label": "Generate title",
+      "order": 16,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "generate_title",
+      "ui_type": "session_action"
+    },
+    {
+      "action_id": "summarize_range",
+      "dialog": {
+        "inputs": [
+          {
+            "label": "Start index",
+            "name": "start",
+            "placeholder": "e.g. 0 or -10 (leave blank for start)",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "label": "End index",
+            "name": "end",
+            "placeholder": "e.g. 10 or -1 (leave blank for end)",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "default": "Provide a detailed but concise summary of the selected conversation. Preserve decisions, relevant files, completed work, and useful next steps.",
+            "label": "Prompt",
+            "name": "prompt",
+            "placeholder": "Optional \u2013 edit the instruction if needed",
+            "required": false,
+            "type": "multiline"
+          }
+        ],
+        "kind": "form",
+        "message": "Python-style range (start:end). The selected messages will be summarized into a single assistant message.",
+        "title": "Summarize range"
+      },
+      "fixed_params": {},
+      "icon": "file-text",
+      "id": "summarize_range",
+      "label": "Summarize range",
+      "order": 40,
+      "param_map": {
+        "end": "$dialog.end",
+        "prompt": "$dialog.prompt",
+        "session_id": "$session.session_id",
+        "start": "$dialog.start"
+      },
+      "plugin": "summarize_range",
+      "ui_type": "session_action"
+    },
+    {
+      "action_id": "summarize_range",
+      "dialog": {
+        "inputs": [
+          {
+            "default": "Provide a detailed but concise summary of the selected conversation. Preserve decisions, relevant files, completed work, and useful next steps.",
+            "label": "Prompt",
+            "name": "prompt",
+            "placeholder": "Optional \u2013 edit the instruction if needed",
+            "required": false,
+            "type": "multiline"
+          }
+        ],
+        "kind": "form",
+        "message": "The messages up to here will be summarized into a single assistant message.",
+        "title": "Summarize messages up to here"
+      },
+      "fixed_params": {
+        "end_inclusive": true,
+        "start": 0
+      },
+      "icon": "file-text",
+      "id": "summarize_before_message",
+      "label": "Summarize messages up to here",
+      "order": 20,
+      "param_map": {
+        "end": "$message.index",
+        "prompt": "$dialog.prompt",
+        "session_id": "$session.session_id"
+      },
+      "plugin": "summarize_range",
+      "ui_type": "message_action"
+    },
+    {
+      "action_id": "compact_native_history",
+      "action_owner": "application",
+      "dialog": {
+        "inputs": [
+          {
+            "label": "Compact visible messages [:end]",
+            "name": "end_index",
+            "placeholder": "Leave empty to compact the full history",
+            "required": false,
+            "type": "number"
+          }
+        ],
+        "kind": "form",
+        "message": "Compact provider-native history in the background using the OpenAI Responses compact API.",
+        "title": "Compact native history"
+      },
+      "fixed_params": {},
+      "icon": "archive",
+      "id": "compact_native_history",
+      "label": "Compact native history",
+      "order": 46,
+      "param_map": {
+        "end_index": "$dialog.end_index",
+        "session_id": "$session.session_id"
+      },
+      "plugin": "openai_responses_native_compaction_app",
+      "ui_type": "session_action"
+    },
+    {
+      "action_id": "compact_native_history",
+      "action_owner": "application",
+      "dialog": {
+        "kind": "confirm",
+        "message": "Compact provider-native history through this message in the background?",
+        "title": "Compact native history up to here"
+      },
+      "fixed_params": {},
+      "icon": "archive",
+      "id": "compact_native_history_through_message",
+      "label": "Compact native history up to here",
+      "order": 25,
+      "param_map": {
+        "message_index": "$message.index",
+        "session_id": "$session.session_id"
+      },
+      "plugin": "openai_responses_native_compaction_app",
+      "ui_type": "message_action"
+    }
+  ],
+  "session_base_config": {
+    "auth_mode": "api",
+    "enable_fast_mode": false,
+    "enable_flex_processing": true,
+    "enable_prompt_cache_key": true,
+    "enable_prompt_cache_retention_24h": true,
+    "enable_reasoning": true,
+    "enable_web_search": false,
+    "model": "gpt-5.6-luna",
+    "provider": "openai_responses",
+    "reasoning_effort": "medium",
+    "reasoning_summary": "detailed",
+    "show_estimated_cached_tokens": true,
+    "show_openai_auth_mode": true,
+    "strip_leading_system_or_developer_message": true,
+    "system_message_as_instructions": true,
+    "timeout": 300,
+    "verbosity": "medium"
+  },
+  "session_config_schema": [
+    {
+      "key": "model",
+      "plugin": "openai_responses",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "Reasoning effort for supported models.",
+      "enum": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra"
+      ],
+      "key": "reasoning_effort",
+      "plugin": "openai_responses_reasoning",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "description": "Response verbosity level for supported models.",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "key": "verbosity",
+      "plugin": "openai_responses_verbosity",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": true,
+      "description": "Enable session-owned prompt cache key injection.",
+      "key": "enable_prompt_cache_key",
+      "plugin": "openai_responses_prompt_caching",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "description": "Enable OpenAI Responses web search.",
+      "key": "enable_web_search",
+      "plugin": "openai_responses_websearch",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "description": "When true, compacted native segments are shown in the visible transcript as a single placeholder message instead of rebuilding the compacted native output directly.",
+      "key": "use_compaction_placeholder_transcript",
+      "plugin": "openai_responses_native_compaction",
+      "required": false,
+      "type": "boolean"
+    }
+  ],
+  "session_overrides": {
+    "reasoning_effort": "medium",
+    "verbosity": "medium"
+  },
+  "session_ui_schema": [
+    {
+      "key": "model",
+      "label": "OpenAI Model",
+      "options": [
+        {
+          "label": "GPT-5.6 Luna",
+          "value": "gpt-5.6-luna"
+        },
+        {
+          "label": "GPT-5.4 mini",
+          "value": "gpt-5.4-mini"
+        }
+      ],
+      "plugin": "openai_responses",
+      "type": "dropdown",
+      "ui_type": "config"
+    },
+    {
+      "key": "reasoning_effort",
+      "label": "Reasoning Effort",
+      "options": [
+        {
+          "label": "low",
+          "value": "low"
+        },
+        {
+          "label": "medium",
+          "value": "medium"
+        },
+        {
+          "label": "high",
+          "value": "high"
+        },
+        {
+          "label": "xhigh",
+          "value": "xhigh"
+        },
+        {
+          "label": "max",
+          "value": "max"
+        }
+      ],
+      "plugin": "openai_responses_reasoning",
+      "type": "select",
+      "ui_type": "config"
+    },
+    {
+      "key": "verbosity",
+      "label": "Verbosity",
+      "options": [
+        {
+          "label": "low",
+          "value": "low"
+        },
+        {
+          "label": "medium",
+          "value": "medium"
+        },
+        {
+          "label": "high",
+          "value": "high"
+        }
+      ],
+      "plugin": "openai_responses_verbosity",
+      "type": "select",
+      "ui_type": "config"
+    },
+    {
+      "key": "enable_prompt_cache_key",
+      "label": "Enable prompt cache key",
+      "plugin": "openai_responses_prompt_caching",
+      "type": "checkbox",
+      "ui_type": "config"
+    },
+    {
+      "key": "enable_web_search",
+      "label": "Enable web search",
+      "plugin": "openai_responses_websearch",
+      "type": "checkbox",
+      "ui_type": "config"
+    },
+    {
+      "default": false,
+      "key": "use_compaction_placeholder_transcript",
+      "label": "Show compacted history as placeholder transcript",
+      "plugin": "openai_responses_native_compaction",
+      "type": "checkbox",
+      "ui_type": "config"
+    }
+  ],
+  "snapshots": [
+    {
+      "created_at": "Aug 28, 2026 \u00b7 4:20 PM",
+      "reason": "Before compacting conversation [:3]",
+      "snapshot_id": "automatic-compaction"
+    },
+    {
+      "created_at": "Aug 28, 2026 \u00b7 4:16 PM",
+      "reason": "Before deleting messages [3:]",
+      "snapshot_id": "automatic-delete"
+    },
+    {
+      "created_at": "Aug 28, 2026 \u00b7 4:10 PM",
+      "reason": "Initial repository review",
+      "snapshot_id": "manual-review"
+    }
+  ],
+  "source": {
+    "config_sha256": "6732284b63c902c7d4b17eeec2356d2162fded5c1e48f0f6cbd71eae728f3646",
+    "session_fixture_sha256": "92f28a784f40a69e185462fea6acaef4962e685791c0f7e78ddeb8fb2755ead4"
+  }
+}

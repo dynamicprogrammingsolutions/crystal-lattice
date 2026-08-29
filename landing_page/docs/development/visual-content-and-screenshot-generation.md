@@ -457,6 +457,33 @@ fixture correctness.
 The landing package remains responsible for source review, promotion,
 derivative production, and website presentation.
 
+## Runtime UI fixture producer
+
+`runtime-ui-fixture.mjs` is a direct-command asset adapter for deterministic
+application UI contracts. It invokes
+`refresh_runtime_ui_fixture.py`, which:
+
+1. loads the canonical visual runtime configuration;
+2. adds the owning plugin source roots to the isolated Python import path;
+3. instantiates `AgentApplication` in a temporary session store;
+4. imports the reviewed coding-session messages;
+5. asks the real core and application plugins for their UI and config schemas;
+6. selects the configured presentation keys from those real schemas;
+7. emits deterministic source hashes, action/settings contracts, and snapshot
+   presentation data.
+
+`refresh-runtime-ui` writes an ignored candidate.
+`promote-runtime-ui` is the only command that updates the tracked fixture.
+The asset's `check` command regenerates the candidate locally and compares it
+byte-for-byte with the promoted file.
+
+The native harness consumes the promoted file in process. This isolates
+visual rendering from server startup, event polling, ports, credentials, and
+plugin-cache state. It does not replace transport coverage:
+`backend.website-runtime-ui.integration.test.ts` starts the public FastAPI
+boundary and verifies the canonical actions and selected settings through the
+production frontend transport and backend adapter.
+
 ## Validation
 
 `validation.mjs` owns reusable file-level concerns:

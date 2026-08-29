@@ -1,56 +1,32 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, Settings, StyleSheet, Text, View } from "react-native";
-
 import {
-  type AgentBackend,
-  type IndexedMessage,
-  type SessionSummary,
-} from "@crystal-lattice/frontend-sdk";
+  SafeAreaProvider,
+  SafeAreaView,
+} from "react-native-safe-area-context";
+
+import type { AgentBackend, IndexedMessage, SessionSummary } from "@crystal-lattice/frontend-sdk";
 
 import { ApplicationPluginsProvider } from "../ApplicationPluginsContext";
 import { PinnedActionsProvider } from "../PinnedActionsContext";
 import SessionChatScreen from "../SessionChatScreen";
 import GlobalDisplayLayer from "../components/GlobalDisplayLayer";
 import SessionSettingsModal from "../components/SessionSettingsModal";
+import SessionSnapshotsModal from "../components/SessionSnapshotsModal";
 import { ThemeProvider, darkTheme, lightTheme, type Theme } from "../theme";
+import codingPlanFixture from "./fixtures/websiteCodingPlanSession.json";
+import runtimeUiFixture from "./fixtures/websiteRuntimeUi.json";
 
-const SESSION_ID = "website-visual-session";
-const SESSION_SUMMARY: SessionSummary = {
-  session_id: SESSION_ID,
-  modified: 1,
-  preview: "Implement bounded retry handling for uploads",
-  metadata: {},
-  presentation: {
-    title: "Implement upload retry handling",
-    subtitle: "Coding session · OpenAI Responses",
-    meta: "2 messages",
-  },
-};
-const MESSAGES: IndexedMessage[] = [
-  {
-    index: 0,
-    message: {
-      role: "user",
-      content:
-        "Add bounded retries to the upload command and keep existing errors visible.",
-    },
-  },
-  {
-    index: 1,
-    message: {
-      role: "assistant",
-      content:
-        "Implemented retry backoff with explicit terminal errors and focused coverage.",
-      metadata: {
-        display: {
-          type: "text",
-          content:
-            "Implemented retry backoff with explicit terminal errors and focused coverage.",
-        },
-      },
-    },
-  },
-];
+const SESSION_SUMMARY = codingPlanFixture.session as SessionSummary;
+const SESSION_ID = SESSION_SUMMARY.session_id;
+const MESSAGES = codingPlanFixture.messages as IndexedMessage[];
+const SESSION_UI_SCHEMA = runtimeUiFixture.session_ui_schema;
+const SESSION_APPLICATION_UI_SCHEMA =
+  runtimeUiFixture.session_application_ui_schema;
+const SESSION_CONFIG_SCHEMA = runtimeUiFixture.session_config_schema;
+const SESSION_BASE_CONFIG = runtimeUiFixture.session_base_config;
+const SESSION_OVERRIDES = runtimeUiFixture.session_overrides;
+const SNAPSHOTS = runtimeUiFixture.snapshots;
 
 function createHarnessBackend(): AgentBackend {
   return {
@@ -63,98 +39,38 @@ function createHarnessBackend(): AgentBackend {
       applicationActions: true,
       applicationConfig: false,
     }),
-    listAgents: async () => ["openai-responses"],
+    listAgents: async () => ["codex-openai"],
     listSessions: async () => [SESSION_SUMMARY],
+    getSessionSummary: async () => SESSION_SUMMARY,
+    getSessionAgent: async () => "codex-openai",
+    switchSessionAgent: async () => {},
     listApplicationActions: async () => [],
     listApplicationUiSchema: async () => [],
+    listMessages: async () => ({
+      messages: MESSAGES,
+      cursorEventId: "0",
+      activeRequestId: null,
+    }),
     getLatestEventId: async () => "0",
     listEvents: async () => ({
       events: [],
       latestEventId: "0",
       cursorExpired: false,
     }),
-    getSessionUiSchema: async () => [
-      {
-        ui_type: "config",
-        key: "model",
-        type: "dropdown",
-        label: "Model",
-        description: "Model used for this coding session.",
-        options: [
-          { value: "openai/gpt-5", label: "GPT-5" },
-          { value: "openai/gpt-5-mini", label: "GPT-5 mini" },
-        ],
-      },
-      {
-        ui_type: "config",
-        key: "reasoning_effort",
-        type: "select",
-        label: "Reasoning effort",
-        description: "Controls how much reasoning the model performs.",
-        options: [
-          { value: "low", label: "Low" },
-          { value: "medium", label: "Medium" },
-          { value: "high", label: "High" },
-        ],
-      },
-      {
-        ui_type: "config",
-        key: "verbosity",
-        type: "select",
-        label: "Verbosity",
-        description: "Controls response detail.",
-        options: [
-          { value: "low", label: "Low" },
-          { value: "medium", label: "Medium" },
-          { value: "high", label: "High" },
-        ],
-      },
-      {
-        ui_type: "config",
-        key: "prompt_cache",
-        type: "checkbox",
-        label: "Prompt caching",
-        description: "Reuse compatible cached prompt content.",
-      },
-      {
-        ui_type: "config",
-        key: "web_search",
-        type: "checkbox",
-        label: "Web search",
-        description: "Allow provider-native web search when needed.",
-      },
-      {
-        ui_type: "config",
-        key: "response_format",
-        type: "dropdown",
-        label: "Response format",
-        options: [
-          { value: "text", label: "Text" },
-          { value: "json", label: "JSON" },
-        ],
-      },
-    ],
-    getSessionApplicationUiSchema: async () => [],
-    getSessionOverrides: async () => ({
-      reasoning_effort: "medium",
-      verbosity: "medium",
-    }),
-    getSessionConfigSchema: async () => [
-      { key: "model", default: "openai/gpt-5" },
-      { key: "reasoning_effort", default: "medium" },
-      { key: "verbosity", default: "medium" },
-      { key: "prompt_cache", default: true },
-      { key: "web_search", default: false },
-      { key: "response_format", default: "text" },
-    ],
-    getSessionBaseConfig: async () => ({
-      model: "openai/gpt-5",
-      reasoning_effort: "medium",
-      verbosity: "medium",
-      prompt_cache: true,
-      web_search: false,
-      response_format: "text",
-    }),
+    getSessionUiSchema: async () => SESSION_UI_SCHEMA,
+    getSessionApplicationUiSchema: async () =>
+      SESSION_APPLICATION_UI_SCHEMA,
+    getSessionOverrides: async () => SESSION_OVERRIDES,
+    getSessionConfigSchema: async () => SESSION_CONFIG_SCHEMA,
+    getSessionBaseConfig: async () => SESSION_BASE_CONFIG,
+    listSessionSnapshots: async () =>
+      SNAPSHOTS.map((snapshot) => ({
+        ...snapshot,
+        session_id: SESSION_ID,
+      })),
+    getSelectedSessionSnapshot: async () => null,
+    listSessionNotifications: async () => [],
+    listApplicationNotifications: async () => [],
     patchSessionOverrides: async () => {},
     deleteSessionOverride: async () => {},
   } as unknown as AgentBackend;
@@ -162,57 +78,68 @@ function createHarnessBackend(): AgentBackend {
 
 export interface MobileWebsiteVisualHarnessProps {
   clcWebsiteVisualTheme?: string;
+  clcWebsiteVisualKind?: string;
 }
 
 export function MobileWebsiteVisualHarness({
   clcWebsiteVisualTheme,
+  clcWebsiteVisualKind,
 }: MobileWebsiteVisualHarnessProps): React.JSX.Element {
   const backend = useMemo(() => createHarnessBackend(), []);
   const [visualOpen, setVisualOpen] = useState(false);
   const configuredTheme =
     clcWebsiteVisualTheme ?? Settings.get("clcWebsiteVisualTheme");
+  const configuredKind =
+    clcWebsiteVisualKind ??
+    Settings.get("clcWebsiteVisualKind") ??
+    "settings";
   const theme: Theme = configuredTheme === "dark" ? darkTheme : lightTheme;
 
   if (!visualOpen) {
     return (
-      <ThemeProvider theme={theme}>
-        <View
-          style={[styles.root, { backgroundColor: theme.background }]}
-          testID="website-visual-harness-ready"
-        >
-          <View style={styles.launchControl}>
-            <Pressable
-              testID="website-visual-open-session-settings"
-              style={styles.launchButton}
-              onPress={() => setVisualOpen(true)}
-            >
-              <Text style={styles.launchButtonText}>
-                Open session settings visual
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </ThemeProvider>
+      <SafeAreaProvider>
+        <ThemeProvider theme={theme}>
+          <SafeAreaView
+            style={[styles.root, { backgroundColor: theme.background }]}
+            edges={["top", "left", "right"]}
+            testID="website-visual-harness-ready"
+          >
+            <View style={styles.launchControl}>
+              <Pressable
+                testID={`website-visual-open-${configuredKind}`}
+                style={styles.launchButton}
+                onPress={() => setVisualOpen(true)}
+              >
+                <Text style={styles.launchButtonText}>
+                  Open {configuredKind} visual
+                </Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </ThemeProvider>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <ThemeProvider theme={theme}>
-      <PinnedActionsProvider>
-        <ApplicationPluginsProvider
-          backend={backend}
-          connectionId="website-visual"
+    <SafeAreaProvider>
+      <ThemeProvider theme={theme}>
+        <SafeAreaView
+          style={[styles.root, { backgroundColor: theme.background }]}
+          edges={["top", "left", "right"]}
+          testID="website-visual-harness-ready"
         >
-          <View
-            style={[styles.root, { backgroundColor: theme.background }]}
-            testID="website-visual-harness-ready"
-          >
-            <GlobalDisplayLayer backend={backend} connectionId="website-visual">
-              <View style={styles.screen}>
-                <SessionChatScreen
+          <PinnedActionsProvider>
+            <ApplicationPluginsProvider
+              backend={backend}
+              connectionId="website-visual"
+            >
+              <GlobalDisplayLayer backend={backend} connectionId="website-visual">
+                <View style={styles.screen}>
+                  <SessionChatScreen
                   backend={backend}
                   connectionId="website-visual"
-                  isActive={false}
+                  isActive={configuredKind === "actions"}
                   sessionId={SESSION_ID}
                   sessionSummary={SESSION_SUMMARY}
                   cachedMessages={MESSAGES}
@@ -232,22 +159,38 @@ export function MobileWebsiteVisualHarness({
                   onSaveHistoryRange={() => {}}
                   debugTimeline={[]}
                   onAppendDebugTimelineEntry={() => {}}
-                />
-                <SessionSettingsModal
-                  backend={backend}
-                  cacheKey={`website-visual-${
-                    configuredTheme === "dark" ? "dark" : "light"
-                  }`}
-                  sessionId={SESSION_ID}
-                  visible
-                  onRequestClose={() => {}}
-                />
-              </View>
-            </GlobalDisplayLayer>
-          </View>
-        </ApplicationPluginsProvider>
-      </PinnedActionsProvider>
-    </ThemeProvider>
+                  />
+                  {configuredKind === "actions" ? null : configuredKind === "snapshots" ? (
+                  <SessionSnapshotsModal
+                    visible
+                    snapshotsLoading={false}
+                    snapshotItems={SNAPSHOTS}
+                    selectedSnapshotId="automatic-compaction"
+                    onRequestClose={() => {}}
+                    onCreateSnapshot={() => {}}
+                    onClearSelectedSnapshot={() => {}}
+                    onSelectSnapshot={() => {}}
+                    onRestoreSnapshot={() => {}}
+                    onDeleteSnapshot={() => {}}
+                  />
+                ) : (
+                  <SessionSettingsModal
+                    backend={backend}
+                    cacheKey={`website-visual-${
+                      configuredTheme === "dark" ? "dark" : "light"
+                    }`}
+                    sessionId={SESSION_ID}
+                    visible
+                    onRequestClose={() => {}}
+                  />
+                  )}
+                </View>
+              </GlobalDisplayLayer>
+            </ApplicationPluginsProvider>
+          </PinnedActionsProvider>
+        </SafeAreaView>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

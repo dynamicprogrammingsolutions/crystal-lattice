@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   centerExtent,
+  crop,
   encodeWebp,
   imageMagickArguments,
   imageMagickPipeline,
@@ -17,6 +18,7 @@ test("programmatic ImageMagick operations produce one replaceable pipeline", asy
   const pipeline = imageMagickPipeline({
     id: "test-pipeline",
     operations: [
+      crop("1200x1600+10+20"),
       trim(),
       resize("1000x1315^"),
       centerExtent("1000x1315"),
@@ -40,6 +42,9 @@ test("programmatic ImageMagick operations produce one replaceable pipeline", asy
       command: "magick",
       args: [
         "/tmp/source.png",
+        "-crop",
+        "1200x1600+10+20",
+        "+repage",
         "-trim",
         "+repage",
         "-resize",

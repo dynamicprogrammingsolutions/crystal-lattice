@@ -124,6 +124,7 @@ export type FeatureCodeShowcaseSection = SectionBase<"featureCodeShowcase"> & {
 
 export type ScreenshotGallerySection = SectionBase<"screenshotGallery"> & {
   body?: string[];
+  mediaAspect?: "standard" | "tall";
   gallery?: Array<{
     title: string;
     description: string;

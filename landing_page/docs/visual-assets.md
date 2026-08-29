@@ -599,6 +599,50 @@ yarn visual-assets custom <asset>
 
 No CLI or runner edit is required.
 
+## Generate a canonical runtime UI fixture
+
+Native website captures can use a Git-tracked application configuration
+without starting a server during Detox. The `mobile-workbench` asset generates
+provider settings and application actions through `AgentApplication`, then
+promotes the reviewed JSON contract consumed by the mobile harness.
+
+Refresh and inspect the candidate:
+
+```bash
+yarn visual-assets refresh-runtime-ui mobile-workbench \
+  --python "$HOME/.crystal/dev-cli-venv/bin/python"
+yarn visual-assets inspect mobile-workbench
+```
+
+The candidate remains under `artifacts/visual-assets/runtime-ui/`. Promote it
+only after checking the configured plugins, action labels and order, selected
+settings, snapshot reasons, and absence of private values:
+
+```bash
+yarn visual-assets promote-runtime-ui mobile-workbench
+yarn visual-assets check mobile-workbench
+```
+
+The canonical config is:
+
+```text
+visual_assets/runtime/mobile-workbench/config.json
+```
+
+It selects one screenshot agent, the provider and application plugins needed
+for the workbench proof, a focused list of real setting keys, and deterministic
+snapshot presentation data. The promoted fixture is:
+
+```text
+mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteRuntimeUi.json
+```
+
+Routine Detox capture reads the promoted fixture and therefore needs no
+Python process, plugin installation, credentials, port allocation, or HTTP
+readiness. A separate frontend SDK integration test starts the real FastAPI
+server and verifies the same action and settings contract through
+`FetchTransport` and `RestAgentBackend`.
+
 ## Verification
 
 Run the programmatic asset tests:

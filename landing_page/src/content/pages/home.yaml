@@ -305,6 +305,7 @@ sections:
 
   - type: screenshotGallery
     id: session-workbench
+    mediaAspect: tall
     eyebrow: "Session workbench"
     title: "Treat sessions as workspaces, not disposable chats."
     body:
@@ -320,23 +321,23 @@ sections:
         description: "Message and session actions exposed by plugins."
         src: "/chat-actions-workbench.webp"
         srcDark: "/chat-actions-workbench-dark.webp"
-        alt: "Session actions menu listing settings, plugins, snapshots, copy, delete, title, and other plugin-provided actions."
-        width: 693
-        height: 1400
+        alt: "Session actions menu showing plugin-provided copy, title, deletion, summarization, and native compaction controls alongside session settings."
+        width: 1000
+        height: 2025
       - title: "Snapshots"
         description: "Create, inspect, select, and restore session checkpoints."
         src: "/session-snapshots-workbench.webp"
         srcDark: "/session-snapshots-workbench-dark.webp"
-        alt: "Snapshots dialog with Create, Select, Restore, and Delete controls over a session."
-        width: 693
-        height: 1400
+        alt: "Snapshots dialog showing automatic pre-compaction and pre-deletion recovery points with Select, Restore, and Delete controls."
+        width: 1000
+        height: 2025
       - title: "Settings and plugins"
         description: "Per-session controls from plugin UI schema."
         src: "/session-settings-plugins.webp"
         srcDark: "/session-settings-plugins-dark.webp"
-        alt: "Session settings showing model, reasoning, verbosity, caching, web-search, and format controls contributed by plugins."
-        width: 693
-        height: 1400
+        alt: "Session settings showing OpenAI model, reasoning, verbosity, prompt cache, web search, and compaction transcript controls contributed by plugins."
+        width: 1000
+        height: 2025
 
   - type: promptBlock
     id: build-plugin
