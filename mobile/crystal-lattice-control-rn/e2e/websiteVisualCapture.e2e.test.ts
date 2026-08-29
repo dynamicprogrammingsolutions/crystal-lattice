@@ -14,7 +14,7 @@ async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
   }
 }
 
-type VisualKind = "actions" | "snapshots" | "settings";
+type VisualKind = "actions" | "snapshots" | "settings" | "usage";
 
 async function captureTheme(
   kind: VisualKind,
@@ -41,15 +41,23 @@ async function captureTheme(
       .withTimeout(30000);
     await element(by.id("session-actions-menu")).tap();
   }
-  const readinessText =
+  const readinessText: string | null =
     kind === "actions"
       ? "Copy session"
       : kind === "snapshots"
         ? "Snapshots"
-        : "Reasoning Effort";
-  await waitFor(element(by.text(readinessText)))
-    .toBeVisible()
-    .withTimeout(30000);
+        : kind === "settings"
+          ? "Reasoning Effort"
+          : null;
+  if (readinessText) {
+    await waitFor(element(by.text(readinessText)))
+      .toBeVisible()
+      .withTimeout(30000);
+  } else {
+    await waitFor(element(by.id("message-footer-4")))
+      .toBeVisible()
+      .withTimeout(30000);
+  }
   await new Promise((resolve) => setTimeout(resolve, 600));
 
   const source = await device.takeScreenshot(
@@ -65,7 +73,7 @@ async function captureTheme(
 
 describe("website visual source capture", () => {
   it("captures deterministic light and dark production workbench states", async () => {
-    for (const kind of ["actions", "snapshots", "settings"] as const) {
+    for (const kind of ["actions", "snapshots", "settings", "usage"] as const) {
       await captureTheme(kind, "light");
       await captureTheme(kind, "dark");
     }

@@ -782,6 +782,8 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
         "metadata.usage_service_tier",
         "metadata.usage_reasoning_mode",
         "metadata.usage_total_cost_formatted",
+        "metadata.usage_total_cost_formatted",
+        "metadata.usage_turn_cost_cumulative_formatted",
         "metadata.usage_turn_cost_cumulative_formatted",
         "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
         "metadata.usage_turn_input_tokens_cumulative_formatted",
@@ -809,6 +811,50 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
         "path": "metadata.usage_reasoning_mode",
         "eq": "pro",
     }
+    assert [
+        (element["template"], element["condition"])
+        for element in elements
+        if element.get("data") == "metadata.usage_total_cost_formatted"
+    ] == [
+        (
+            "estimated cost: {{data}}",
+            {
+                "path": "metadata.usage_effective_auth_mode",
+                "eq": "chatgpt",
+            },
+        ),
+        (
+            "cost: {{data}}",
+            {
+                "not": {
+                    "path": "metadata.usage_effective_auth_mode",
+                    "eq": "chatgpt",
+                }
+            },
+        ),
+    ]
+    assert [
+        (element["template"], element["condition"])
+        for element in elements
+        if element.get("data") == "metadata.usage_turn_cost_cumulative_formatted"
+    ] == [
+        (
+            "estimated turn: {{data}}",
+            {
+                "path": "metadata.usage_effective_auth_mode",
+                "eq": "chatgpt",
+            },
+        ),
+        (
+            "turn: {{data}}",
+            {
+                "not": {
+                    "path": "metadata.usage_effective_auth_mode",
+                    "eq": "chatgpt",
+                }
+            },
+        ),
+    ]
 
 
 def test_chatgpt_estimated_cached_tokens_follow_turn_algorithm() -> None:

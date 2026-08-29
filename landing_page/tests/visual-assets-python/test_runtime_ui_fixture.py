@@ -74,6 +74,18 @@ def test_canonical_runtime_ui_fixture_is_deterministic_and_plugin_driven() -> No
         "enable_web_search",
         "use_compaction_placeholder_transcript",
     ]
+    assert first["provider_usage_message"]["message"]["content"].startswith(
+        "### What changed"
+    )
+    assert (
+        first["provider_usage_message"]["message"]["metadata"][
+            "usage_total_cost_formatted"
+        ]
+        == "$0.013019"
+    )
+    footer_paths = {item["data"] for item in first["message_footer_elements"]}
+    assert "metadata.usage_prompt_tokens_formatted" in footer_paths
+    assert "metadata.usage_total_cost_formatted" in footer_paths
     assert [item["reason"] for item in first["snapshots"]] == [
         "Before compacting conversation [:3]",
         "Before deleting messages [3:]",

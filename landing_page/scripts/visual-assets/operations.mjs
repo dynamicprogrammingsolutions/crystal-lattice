@@ -67,3 +67,109 @@ export function imageMagickPipeline({ id, operations }) {
     },
   });
 }
+
+export function focusCalloutPipeline({
+  id,
+  canvas,
+  original,
+  callout,
+  quality = 80,
+  method = 6,
+}) {
+  const originalBorder =
+    original.borderWidth > 0
+      ? [
+          "-bordercolor",
+          String(original.borderColor),
+          "-border",
+          `${original.borderWidth}x${original.borderWidth}`,
+        ]
+      : [];
+  const calloutBorder =
+    callout.borderWidth > 0
+      ? [
+          "-bordercolor",
+          String(callout.borderColor),
+          "-border",
+          `${callout.borderWidth}x${callout.borderWidth}`,
+        ]
+      : [];
+
+  return definePipeline({
+    id,
+    async run(context) {
+      const args = [
+        "(",
+        "-size",
+        `${canvas.width}x${canvas.height}`,
+        `xc:${canvas.background}`,
+        ")",
+        "(",
+        context.sourcePath,
+        "-gravity",
+        "northwest",
+        "-crop",
+        String(original.crop),
+        "+repage",
+        "-resize",
+        `${original.width}x${original.height}!`,
+        "-fill",
+        "#000000",
+        "-colorize",
+        `${original.dimPercent}%`,
+        ...originalBorder,
+        ")",
+        "-gravity",
+        String(original.gravity),
+        "-geometry",
+        String(original.geometry),
+        "-compose",
+        "over",
+        "-composite",
+        "(",
+        context.sourcePath,
+        "-gravity",
+        "northwest",
+        "-crop",
+        String(callout.crop),
+        "+repage",
+        "-resize",
+        `${callout.width}x${callout.height}!`,
+        ...calloutBorder,
+        "(",
+        "+clone",
+        "-background",
+        String(callout.shadow.color),
+        "-shadow",
+        String(callout.shadow.geometry),
+        ")",
+        "+swap",
+        "-background",
+        "none",
+        "-layers",
+        "merge",
+        "+repage",
+        ")",
+        "-gravity",
+        String(callout.gravity),
+        "-geometry",
+        String(callout.geometry),
+        "-compose",
+        "over",
+        "-composite",
+        "-colorspace",
+        "sRGB",
+        "-strip",
+        "-quality",
+        String(quality),
+        "-define",
+        `webp:method=${method}`,
+        context.candidatePath,
+      ];
+      await context.run("magick", args, {
+        cwd: context.landingRoot,
+        stdio: "pipe",
+      });
+    },
+  });
+}

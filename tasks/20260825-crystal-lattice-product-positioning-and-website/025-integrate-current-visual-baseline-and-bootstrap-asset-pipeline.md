@@ -808,7 +808,8 @@ content, privacy, and product-communication judgments only.
       documentation.
 - [x] Pass the C2 follow-up automated verification.
 - [x] Pass the C2 follow-up manual visual checkpoint.
-- [ ] Implement and pass checkpoint C3 for provider focus composites.
+- [x] Implement and automatically verify C3 provider focus composites.
+- [x] Pass manual checkpoint C3.
 - [ ] Implement and pass checkpoint C4 for the mobile-page hero.
 - [ ] Complete Stage C5 documentation, handoff, and final verification.
 - [ ] Record completion evidence and the task-160 handoff.
@@ -1500,3 +1501,78 @@ content, privacy, and product-communication judgments only.
   C2 implementation, documentation, task evidence, reviewed source masters,
   and public derivatives before implementing the separately reviewable
   provider focus composites.
+
+### August 29, 2026 — Stage C3 ready for visual checkpoint
+
+- Committed the accepted C2 state before starting C3:
+  - `57a7653f Add ordered actions and automatic session snapshots`;
+  - `49ae63be Generate canonical website workbench visuals`.
+- The imported provider masters were already manually composited zoom images,
+  so they could not serve as clean deterministic inputs. Replaced them through
+  the package-owned Detox producer:
+  - reasoning uses the production session-settings modal generated from the
+    canonical runtime UI fixture;
+  - usage/cost uses the production chat screen and message footer for the real
+    reviewed Starlette coding-plan turn.
+- The runtime UI fixture now retains:
+  - the real provider message-footer schema;
+  - a deterministic excerpt of the final reviewed assistant response;
+  - the original turn usage metadata, including input `3,851`, estimated
+    cached `200`, completion `1,558`, reasoning `1,100`, estimated cost
+    `$0.013019`, and estimated turn `$0.013999`.
+- Corrected the OpenAI Responses usage UI contract so API-backed turns keep
+  `cost`/`turn` labels while ChatGPT-backed turns explicitly display
+  `estimated cost`/`estimated turn`. This makes the visual and product
+  behavior honest about API-price estimation.
+- Added `focusCalloutPipeline(...)` as ordinary programmatic
+  JavaScript/ImageMagick behavior. It:
+  - uses one reviewed source for both base and focus crops;
+  - fixes the crop origin to northwest;
+  - exposes explicit per-asset `canvas`, `original`, and `callout` sections;
+  - controls the original crop, dimensions, placement, border, and dimming
+    independently from the final canvas;
+  - extracts and scales the proof-bearing focus region;
+  - controls the square callout dimensions, placement, border, and shadow per
+    asset;
+  - applies sRGB normalization, metadata stripping, and WebP encoding.
+- After the first C3 review, revised both compositions so:
+  - callouts have square corners;
+  - the original screenshot is narrower than the final image;
+  - the callout is wider than the original screenshot;
+  - the canvas leaves visible space around the callout shadow;
+  - each callout is placed above the corresponding original-sized source
+    region using asset-specific vertical geometry.
+- Replaced the old phone-silhouette/manual composites with current unframed
+  light/dark provider cards:
+  - reasoning light: 1000x1315, 32,054 bytes,
+    `d8067aa8efca1115bb05d6cd53b66486222d0f548ae716fb812d048c0138648d`;
+  - reasoning dark: 1000x1315, 31,050 bytes,
+    `31511d829f1dc26151458a0089d1c3f076a8294b90e53d77fff54f288f6bc8ac`;
+  - usage light: 940x1334, 53,148 bytes,
+    `4e40df8d85f8425a1c922488dc3d154189af0653b9781d783632920129e91022`;
+  - usage dark: 940x1334, 62,984 bytes,
+    `90980155399d4850839deb7eb46bcafba9a11260d14afdc447a940b59b2bc5e5`.
+- Updated authored alt text and exact active-theme byte contracts. The complete
+  catalog now validates 12 results totaling 544,396 bytes.
+- Automated verification completed:
+  - 17 visual-asset JavaScript tests;
+  - runtime-fixture Python test;
+  - 31 OpenAI Responses usage-extension tests;
+  - mobile TypeScript and all 119 Jest tests;
+  - final eight-state iOS Detox build/capture;
+  - real FastAPI/`FetchTransport`/`RestAgentBackend` integration;
+  - complete visual catalog check;
+  - Astro build and all 11 responsive/theme Playwright contracts;
+  - Black, Ruff, and `git diff --check`.
+- Stage C3 remains uncommitted and is stopped at the required manual visual
+  checkpoint. Stage C4 has not started.
+
+### August 29, 2026 — Stage C3 approved
+
+- The user approved the revised provider focus composites with square
+  callouts, reduced contextual screenshots, wider focus panels, explicit
+  shadow clearance, and asset-specific vertical placement.
+- Manual checkpoint C3 is complete.
+- Stage C4 remains unstarted until the accepted C3 implementation, tests,
+  documentation, source masters, public derivatives, and task evidence are
+  committed.

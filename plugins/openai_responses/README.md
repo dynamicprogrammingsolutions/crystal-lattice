@@ -336,6 +336,10 @@ Usage metadata is attached to assistant messages, including formatted prompt,
 completion, cached-token, and cost fields. This is useful in the terminal UI
 and other clients that render message footers or status bars.
 
+API-backed turns label monetary values as `cost`. ChatGPT-backed turns use the
+same configured API pricing tables for estimation and therefore label their
+message-footer values as `estimated cost` and `estimated turn`.
+
 ### Prompt caching
 
 Prompt caching controls are available through:

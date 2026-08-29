@@ -178,12 +178,42 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             {
                 "ui_type": "message_footer",
                 "data": "metadata.usage_total_cost_formatted",
+                "template": "estimated cost: {{data}}",
+                "condition": {
+                    "path": "metadata.usage_effective_auth_mode",
+                    "eq": "chatgpt",
+                },
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_total_cost_formatted",
                 "template": "cost: {{data}}",
+                "condition": {
+                    "not": {
+                        "path": "metadata.usage_effective_auth_mode",
+                        "eq": "chatgpt",
+                    }
+                },
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_cost_cumulative_formatted",
+                "template": "estimated turn: {{data}}",
+                "condition": {
+                    "path": "metadata.usage_effective_auth_mode",
+                    "eq": "chatgpt",
+                },
             },
             {
                 "ui_type": "message_footer",
                 "data": "metadata.usage_turn_cost_cumulative_formatted",
                 "template": "turn: {{data}}",
+                "condition": {
+                    "not": {
+                        "path": "metadata.usage_effective_auth_mode",
+                        "eq": "chatgpt",
+                    }
+                },
             },
             {
                 "ui_type": "message_footer",

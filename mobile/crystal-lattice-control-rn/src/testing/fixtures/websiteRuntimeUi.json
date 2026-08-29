@@ -1,5 +1,357 @@
 {
   "fixture_id": "mobile-workbench",
+  "message_footer_elements": [
+    {
+      "condition": {
+        "exists": true,
+        "path": "metadata.openai_responses_reasoning.context"
+      },
+      "data": "metadata.openai_responses_reasoning.context",
+      "plugin": "openai_responses_reasoning",
+      "template": "context: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "data": "metadata.usage_prompt_tokens_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "input: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "not": {
+          "eq": "chatgpt",
+          "path": "metadata.usage_effective_auth_mode"
+        }
+      },
+      "data": "metadata.usage_cached_tokens_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "cached: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "exists": true,
+        "path": "metadata.usage_cache_write_tokens_formatted"
+      },
+      "data": "metadata.usage_cache_write_tokens_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "cache write: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "all": [
+          {
+            "eq": "chatgpt",
+            "path": "metadata.usage_effective_auth_mode"
+          },
+          {
+            "exists": true,
+            "path": "metadata.usage_estimated_cached_tokens_formatted"
+          }
+        ]
+      },
+      "data": "metadata.usage_estimated_cached_tokens_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "estimated cached: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "data": "metadata.usage_completion_tokens_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "completion: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "exists": true,
+        "path": "metadata.usage_effective_auth_mode_label"
+      },
+      "data": "metadata.usage_effective_auth_mode_label",
+      "plugin": "openai_responses_usage",
+      "template": "auth: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "any": [
+          {
+            "eq": "flex",
+            "path": "metadata.usage_service_tier"
+          },
+          {
+            "eq": "priority",
+            "path": "metadata.usage_service_tier"
+          }
+        ]
+      },
+      "data": "metadata.usage_service_tier",
+      "plugin": "openai_responses_usage",
+      "template": "tier: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "eq": "pro",
+        "path": "metadata.usage_reasoning_mode"
+      },
+      "data": "metadata.usage_reasoning_mode",
+      "plugin": "openai_responses_usage",
+      "template": "mode: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "eq": "chatgpt",
+        "path": "metadata.usage_effective_auth_mode"
+      },
+      "data": "metadata.usage_total_cost_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "estimated cost: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "not": {
+          "eq": "chatgpt",
+          "path": "metadata.usage_effective_auth_mode"
+        }
+      },
+      "data": "metadata.usage_total_cost_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "cost: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "eq": "chatgpt",
+        "path": "metadata.usage_effective_auth_mode"
+      },
+      "data": "metadata.usage_turn_cost_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "estimated turn: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "not": {
+          "eq": "chatgpt",
+          "path": "metadata.usage_effective_auth_mode"
+        }
+      },
+      "data": "metadata.usage_turn_cost_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "turn: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "reasoning: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "turn input: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "data": "metadata.usage_turn_cached_tokens_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "turn cached: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "turn output: {{data}}",
+      "ui_type": "message_footer"
+    }
+  ],
+  "provider_usage_message": {
+    "index": 4,
+    "message": {
+      "content": "### What changed\n\n`GZipMiddleware` now accepts and forwards a `thread_minimum_size` setting:\n\n- `GZipMiddleware.__init__` defines it with a default of `128 * 1024`.\n- When gzip is negotiated, it constructs `GZipResponder` with:\n  ```python\n  thread_minimum_size=self.thread_minimum_size",
+      "metadata": {
+        "fast_mode_applied": false,
+        "flex_processing_applied": false,
+        "has_tool_calls": false,
+        "native_indices": [
+          6,
+          7,
+          8
+        ],
+        "openai_responses_reasoning": {
+          "context": "all_turns",
+          "items": [
+            {
+              "content": [],
+              "id": "rs_0aa4a1eddff36885016a907936f03087d2bb101ae9eb7b1b87",
+              "summary": [
+                {
+                  "text": "**Planning backward-compatible GZipResponder fix**",
+                  "type": "summary_text"
+                },
+                {
+                  "text": "**Reviewing GZipResponder constructor compatibility**",
+                  "type": "summary_text"
+                },
+                {
+                  "text": "**Designing subclass constructor test**",
+                  "type": "summary_text"
+                }
+              ],
+              "type": "reasoning"
+            },
+            {
+              "content": [],
+              "id": "rs_0aa4a1eddff36885016a9079406a6887d28b0b216dc7ebcc77",
+              "summary": [
+                {
+                  "text": "**Planning custom GZipResponder subclass for testing**",
+                  "type": "summary_text"
+                },
+                {
+                  "text": "**Clarifying GZipResponder constructor defaults and test plan**",
+                  "type": "summary_text"
+                },
+                {
+                  "text": "**Planning regression tests for GZipResponder subclass calls**",
+                  "type": "summary_text"
+                }
+              ],
+              "type": "reasoning"
+            }
+          ],
+          "summary": [
+            {
+              "text": "**Planning backward-compatible GZipResponder fix**",
+              "type": "summary_text"
+            },
+            {
+              "text": "**Reviewing GZipResponder constructor compatibility**",
+              "type": "summary_text"
+            },
+            {
+              "text": "**Designing subclass constructor test**",
+              "type": "summary_text"
+            },
+            {
+              "text": "**Planning custom GZipResponder subclass for testing**",
+              "type": "summary_text"
+            },
+            {
+              "text": "**Clarifying GZipResponder constructor defaults and test plan**",
+              "type": "summary_text"
+            },
+            {
+              "text": "**Planning regression tests for GZipResponder subclass calls**",
+              "type": "summary_text"
+            }
+          ],
+          "summary_text": "**Planning backward-compatible GZipResponder fix**\n**Reviewing GZipResponder constructor compatibility**\n**Designing subclass constructor test**\n**Planning custom GZipResponder subclass for testing**\n**Clarifying GZipResponder constructor defaults and test plan**\n**Planning regression tests for GZipResponder subclass calls**"
+        },
+        "openai_service_tier": "default",
+        "phase": "final_answer",
+        "phase_messages": [
+          {
+            "content": "### What changed\n\n`GZipMiddleware` now accepts and forwards a `thread_minimum_size` setting:\n\n- `GZipMiddleware.__init__` defines it with a default of `128 * 1024`.\n- When gzip is negotiated, it constructs `GZipResponder` with:\n  ```python\n  thread_minimum_size=self.thread_minimum_size\n  ```\n\nHowever, `GZipResponder` changed to require that argument:\n\n```python\ndef __init__(\n    self,\n    app: ASGIApp,\n    minimum_size: int,\n    compresslevel: int = 9,\n    *,\n    thread_minimum_size: int,\n) -> None:\n```\n\nThat is compatible with the built-in middleware, which always passes the keyword, but it is not compatible with subclasses using the previous constructor pattern:\n\n```python\nsuper().__init__(app, minimum_size)\n```\n\nThe current gzip tests cover the new worker-thread behavior through `GZipMiddleware`, including custom thresholds, but none instantiate `GZipResponder` directly or exercise a legacy subclass constructor.\n\n### Focused backwards-compatible fix\n\nGive `GZipResponder.thread_minimum_size` the same default as the middleware:\n\n```python\nthread_minimum_size: int = 128 * 1024\n```\n\nKeep it keyword-only. This preserves:\n\n- Existing two-argument subclass calls.\n- Existing calls that provide `compresslevel`.\n- The current middleware behavior, since explicitly supplied values still win.\n- The new worker-thread compression feature.\n\nThe middleware\u2019s existing default and the responder\u2019s default should remain identical. If desired, a shared module-level constant could prevent the two defaults from drifting, but that is optional and not required for the compatibility fix.\n\n### Regression coverage\n\nAdd a focused constructor regression test in `tests/middleware/test_gzip.py`:\n\n1. Import `GZipResponder`.\n2. Define a small subclass whose constructor calls:\n   ```python\n   super().__init__(app, minimum_size)\n   ```\n3. Instantiate it with the legacy two-argument pattern.\n4. Assert construction succeeds, and optionally verify:\n   ```python\n   responder.thread_minimum_size == 128 * 1024\n   ```\n\nThat test directly reproduces the reported failure and ensures the default is actually installed.\n\nKeep the existing tests for:\n\n- `thread_minimum_size` configured through `GZipMiddleware`.\n- Non-streaming compression in a worker thread.\n- Streaming compression in a worker thread.\n\nTogether, those tests verify both compatibility for direct/custom responders and preservation of the new configured behavior.",
+            "metadata": {
+              "has_tool_calls": false,
+              "turn": {
+                "has_tool_calls": false,
+                "id": 1,
+                "is_terminal": true
+              },
+              "usage": {
+                "input_tokens": 3851,
+                "input_tokens_details": {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0
+                },
+                "output_tokens": 1558,
+                "output_tokens_details": {
+                  "reasoning_tokens": 1034
+                },
+                "total_tokens": 5409
+              },
+              "usage_completion_tokens_formatted": "1,558",
+              "usage_effective_auth_mode": "chatgpt",
+              "usage_effective_auth_mode_label": "ChatGPT",
+              "usage_estimated_cached_tokens": 200,
+              "usage_estimated_cached_tokens_formatted": "200",
+              "usage_prompt_tokens_formatted": "3,851",
+              "usage_reasoning_mode": "standard",
+              "usage_service_tier": "default",
+              "usage_total_cost": 0.013019,
+              "usage_total_cost_cumulative": 0.013999,
+              "usage_total_cost_cumulative_formatted": "$0.013999",
+              "usage_total_cost_formatted": "$0.013019",
+              "usage_turn_cache_write_tokens_cumulative": 0,
+              "usage_turn_cache_write_tokens_cumulative_formatted": "0",
+              "usage_turn_cached_tokens_cumulative": 200,
+              "usage_turn_cached_tokens_cumulative_formatted": "200",
+              "usage_turn_cost_cumulative": 0.013999,
+              "usage_turn_cost_cumulative_formatted": "$0.013999",
+              "usage_turn_input_tokens_cumulative": 4051,
+              "usage_turn_input_tokens_cumulative_formatted": "4,051",
+              "usage_turn_output_tokens_cumulative": 1688,
+              "usage_turn_output_tokens_cumulative_formatted": "1,688",
+              "usage_turn_reasoning_tokens_cumulative": 1100,
+              "usage_turn_reasoning_tokens_cumulative_formatted": "1,100"
+            },
+            "native_index": 2,
+            "phase": "final_answer"
+          }
+        ],
+        "reasoning": "**Planning backward-compatible GZipResponder fix**\n**Reviewing GZipResponder constructor compatibility**\n**Designing subclass constructor test**\n**Planning custom GZipResponder subclass for testing**\n**Clarifying GZipResponder constructor defaults and test plan**\n**Planning regression tests for GZipResponder subclass calls**",
+        "turn": {
+          "has_tool_calls": false,
+          "id": 1,
+          "is_terminal": true
+        },
+        "usage": {
+          "input_tokens": 3851,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 1558,
+          "output_tokens_details": {
+            "reasoning_tokens": 1034
+          },
+          "total_tokens": 5409
+        },
+        "usage_completion_tokens_formatted": "1,558",
+        "usage_effective_auth_mode": "chatgpt",
+        "usage_effective_auth_mode_label": "ChatGPT",
+        "usage_estimated_cached_tokens": 200,
+        "usage_estimated_cached_tokens_formatted": "200",
+        "usage_prompt_tokens_formatted": "3,851",
+        "usage_reasoning_mode": "standard",
+        "usage_service_tier": "default",
+        "usage_total_cost": 0.013019,
+        "usage_total_cost_cumulative": 0.013999,
+        "usage_total_cost_cumulative_formatted": "$0.013999",
+        "usage_total_cost_formatted": "$0.013019",
+        "usage_turn_cache_write_tokens_cumulative": 0,
+        "usage_turn_cache_write_tokens_cumulative_formatted": "0",
+        "usage_turn_cached_tokens_cumulative": 200,
+        "usage_turn_cached_tokens_cumulative_formatted": "200",
+        "usage_turn_cost_cumulative": 0.013999,
+        "usage_turn_cost_cumulative_formatted": "$0.013999",
+        "usage_turn_input_tokens_cumulative": 4051,
+        "usage_turn_input_tokens_cumulative_formatted": "4,051",
+        "usage_turn_output_tokens_cumulative": 1688,
+        "usage_turn_output_tokens_cumulative_formatted": "1,688",
+        "usage_turn_reasoning_tokens_cumulative": 1100,
+        "usage_turn_reasoning_tokens_cumulative_formatted": "1,100"
+      },
+      "role": "assistant"
+    }
+  },
   "schema_version": 1,
   "session_application_ui_schema": [
     {

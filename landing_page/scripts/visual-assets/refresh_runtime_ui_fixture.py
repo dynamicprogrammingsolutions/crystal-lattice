@@ -103,6 +103,29 @@ def build_runtime_ui_fixture(
     raw_messages = reviewed.get("messages")
     if not isinstance(raw_messages, list) or not raw_messages:
         raise RuntimeError("reviewed session fixture must contain messages")
+    assistant_messages = [
+        item
+        for item in raw_messages
+        if isinstance(item, dict)
+        and isinstance(item.get("message"), dict)
+        and item["message"].get("role") == "assistant"
+        and isinstance(item["message"].get("content"), str)
+        and item["message"]["content"].strip()
+    ]
+    if not assistant_messages:
+        raise RuntimeError(
+            "reviewed session fixture must contain a completed assistant message"
+        )
+    usage_source = assistant_messages[-1]
+    usage_message = {
+        "index": usage_source.get("index"),
+        "message": {
+            **usage_source["message"],
+            "content": "\n".join(
+                usage_source["message"]["content"].splitlines()[:8]
+            ).strip(),
+        },
+    }
 
     with tempfile.TemporaryDirectory(prefix="crystal-runtime-ui-") as raw_temp:
         runtime_root = Path(raw_temp)
@@ -135,7 +158,7 @@ def build_runtime_ui_fixture(
                 base_config,
                 session_overrides,
             )
-            session_ui_schema = core.get_ui_schema(config=effective_config)
+            full_session_ui_schema = core.get_ui_schema(config=effective_config)
             session_application_ui_schema = app.get_session_application_ui_schema(
                 session.session_id
             )
@@ -145,9 +168,14 @@ def build_runtime_ui_fixture(
 
     ui_by_key = {
         element.get("key"): element
-        for element in session_ui_schema
+        for element in full_session_ui_schema
         if isinstance(element, dict) and isinstance(element.get("key"), str)
     }
+    message_footer_elements = [
+        element
+        for element in full_session_ui_schema
+        if isinstance(element, dict) and element.get("ui_type") == "message_footer"
+    ]
     schema_by_key = {
         element.get("key"): element
         for element in session_config_schema
@@ -172,6 +200,8 @@ def build_runtime_ui_fixture(
             "session_fixture_sha256": _sha256(session_fixture_path),
         },
         "session_ui_schema": _sanitize(session_ui_schema),
+        "message_footer_elements": _sanitize(message_footer_elements),
+        "provider_usage_message": _sanitize(usage_message),
         "session_application_ui_schema": _sanitize(session_application_ui_schema),
         "session_config_schema": _sanitize(session_config_schema),
         "session_base_config": _sanitize(base_config),

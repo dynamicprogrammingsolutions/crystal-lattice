@@ -192,7 +192,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
           )
         ) : null}
         {footerParts.length > 0 && (
-          <View style={styles.footerRow}>
+          <View testID={`message-footer-${index}`} style={styles.footerRow}>
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
@@ -340,7 +340,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
           />
         )}
         {footerParts.length > 0 && (
-          <View style={styles.footerRow}>
+          <View testID={`message-footer-${index}`} style={styles.footerRow}>
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
@@ -459,7 +459,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
           />
         )}
         {footerParts.length > 0 && (
-          <View style={styles.footerRow}>
+          <View testID={`message-footer-${index}`} style={styles.footerRow}>
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
@@ -823,7 +823,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
           />
         )}
         {footerParts.length > 0 && (
-          <View style={styles.footerRow}>
+          <View testID={`message-footer-${index}`} style={styles.footerRow}>
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}

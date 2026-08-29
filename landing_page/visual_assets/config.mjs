@@ -30,6 +30,7 @@ import {
   crop,
   encodeWebp,
   imageMagickPipeline,
+  focusCalloutPipeline,
   normalizeSrgb,
   resize,
   stripMetadata,
@@ -59,6 +60,10 @@ const mobileWebsiteCapture = detoxCapture({
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/settings-light.png",
     settingsDark:
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/settings-dark.png",
+    usageLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/usage-light.png",
+    usageDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/usage-dark.png",
   },
 });
 
@@ -449,7 +454,7 @@ export default defineVisualAssets({
       },
       config: {
         presentation: {
-          alt: "Session settings showing reasoning enabled, medium reasoning effort, and medium verbosity.",
+          alt: "Session settings with magnified medium reasoning effort and medium verbosity controls.",
           width: 1000,
           height: 1315,
         },
@@ -463,47 +468,110 @@ export default defineVisualAssets({
         ],
         variants: {
           light: {
-            source: reviewedFile(
-              "visual_assets/sources/provider-reasoning-light.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/provider-reasoning-light.png",
+              candidate:
+                mobileWebsiteCapture.output("settingsLight"),
+            }),
             provenance: importedSource(
               "landing_page/public/provider-reasoning.png",
             ),
             output: "public/provider-reasoning.webp",
-            build: providerCard({
-              resizeTo: "1000x1334>",
+            build: focusCalloutPipeline({
+              id: "provider-reasoning-focus-light",
+              canvas: {
+                width: 1000,
+                height: 1315,
+                background: "#F3F4F7",
+              },
+              original: {
+                crop: "1206x1650+0+420",
+                width: 720,
+                height: 985,
+                gravity: "north",
+                geometry: "+0+190",
+                dimPercent: 18,
+                borderColor: "#D9DDE5",
+                borderWidth: 1,
+              },
+              callout: {
+                crop: "1040x410+80+1055",
+                width: 920,
+                height: 363,
+                gravity: "north",
+                geometry: "+0+105",
+                borderColor: "#FFFFFF",
+                borderWidth: 3,
+                shadow: {
+                  color: "rgba(0,0,0,0.55)",
+                  geometry: "45x14+0+12",
+                },
+              },
+              quality: 78,
             }),
             expected: {
               width: 1000,
               height: 1315,
               maxBytes: 60000,
               sha256:
-                "a47b68b60e814595ee62199c5caebbbc6e39cd23dae061cbece7fb4a3d5deea8",
+                "d8067aa8efca1115bb05d6cd53b66486222d0f548ae716fb812d048c0138648d",
             },
           },
           dark: {
-            source: reviewedFile(
-              "visual_assets/sources/provider-reasoning-dark.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/provider-reasoning-dark.png",
+              candidate:
+                mobileWebsiteCapture.output("settingsDark"),
+            }),
             provenance: importedSource(
               "landing_page/public/provider-reasoning-dark.png",
             ),
             output: "public/provider-reasoning-dark.webp",
-            build: providerCard({
-              resizeTo: "1000x1315^",
-              extent: "1000x1315",
+            build: focusCalloutPipeline({
+              id: "provider-reasoning-focus-dark",
+              canvas: {
+                width: 1000,
+                height: 1315,
+                background: "#0B0D10",
+              },
+              original: {
+                crop: "1206x1650+0+420",
+                width: 720,
+                height: 985,
+                gravity: "north",
+                geometry: "+0+190",
+                dimPercent: 10,
+                borderColor: "#2C2F35",
+                borderWidth: 1,
+              },
+              callout: {
+                crop: "1040x410+80+1055",
+                width: 920,
+                height: 363,
+                gravity: "north",
+                geometry: "+0+105",
+                borderColor: "#3A3A3C",
+                borderWidth: 3,
+                shadow: {
+                  color: "rgba(0,0,0,0.78)",
+                  geometry: "45x14+0+12",
+                },
+              },
+              quality: 78,
             }),
             expected: {
               width: 1000,
               height: 1315,
               maxBytes: 45000,
               sha256:
-                "158ce46b1320a01edd52f60fcd5868ddfdf01303878ba707ef3290c4a406815d",
+                "31511d829f1dc26151458a0089d1c3f076a8294b90e53d77fff54f288f6bc8ac",
             },
           },
         },
       },
-      lifecycle: reviewedImageLifecycle,
+      lifecycle: capturedImageLifecycle,
     }),
 
     defineAsset({
@@ -518,7 +586,7 @@ export default defineVisualAssets({
       },
       config: {
         presentation: {
-          alt: "A session message with visible input, cached, output, cost, and duration metadata.",
+          alt: "A completed coding-plan response with magnified input, estimated cached, completion, reasoning-token, and estimated-cost metadata.",
           width: 940,
           height: 1334,
         },
@@ -532,47 +600,110 @@ export default defineVisualAssets({
         ],
         variants: {
           light: {
-            source: reviewedFile(
-              "visual_assets/sources/provider-usage-cost-light.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/provider-usage-cost-light.png",
+              candidate:
+                mobileWebsiteCapture.output("usageLight"),
+            }),
             provenance: importedSource(
               "landing_page/public/provider-usage-cost.png",
             ),
             output: "public/provider-usage-cost.webp",
-            build: providerCard({
-              resizeTo: "1000x1334>",
+            build: focusCalloutPipeline({
+              id: "provider-usage-focus-light",
+              canvas: {
+                width: 940,
+                height: 1334,
+                background: "#F3F4F7",
+              },
+              original: {
+                crop: "1206x1900+0+450",
+                width: 660,
+                height: 1040,
+                gravity: "north",
+                geometry: "+0+160",
+                dimPercent: 12,
+                borderColor: "#D9DDE5",
+                borderWidth: 1,
+              },
+              callout: {
+                crop: "1050x180+75+1795",
+                width: 880,
+                height: 151,
+                gravity: "north",
+                geometry: "+0+640",
+                borderColor: "#FFFFFF",
+                borderWidth: 3,
+                shadow: {
+                  color: "rgba(0,0,0,0.55)",
+                  geometry: "45x14+0+12",
+                },
+              },
+              quality: 78,
             }),
             expected: {
               width: 940,
               height: 1334,
               maxBytes: 100000,
               sha256:
-                "9d4570663cbb38f477afe18423442e421e4962972aa5f3104c54dfe0875d6e34",
+                "4e40df8d85f8425a1c922488dc3d154189af0653b9781d783632920129e91022",
             },
           },
           dark: {
-            source: reviewedFile(
-              "visual_assets/sources/provider-usage-cost-dark.png",
-            ),
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/provider-usage-cost-dark.png",
+              candidate:
+                mobileWebsiteCapture.output("usageDark"),
+            }),
             provenance: importedSource(
               "landing_page/public/provider-usage-cost-dark.png",
             ),
             output: "public/provider-usage-cost-dark.webp",
-            build: providerCard({
-              resizeTo: "940x1334^",
-              extent: "940x1334",
+            build: focusCalloutPipeline({
+              id: "provider-usage-focus-dark",
+              canvas: {
+                width: 940,
+                height: 1334,
+                background: "#0B0D10",
+              },
+              original: {
+                crop: "1206x1900+0+450",
+                width: 660,
+                height: 1040,
+                gravity: "north",
+                geometry: "+0+160",
+                dimPercent: 6,
+                borderColor: "#2C2F35",
+                borderWidth: 1,
+              },
+              callout: {
+                crop: "1050x180+75+1795",
+                width: 880,
+                height: 151,
+                gravity: "north",
+                geometry: "+0+640",
+                borderColor: "#3A3A3C",
+                borderWidth: 3,
+                shadow: {
+                  color: "rgba(0,0,0,0.78)",
+                  geometry: "45x14+0+12",
+                },
+              },
+              quality: 78,
             }),
             expected: {
               width: 940,
               height: 1334,
               maxBytes: 100000,
               sha256:
-                "8a8ad4b107e577483cd9e2bde6772735a193eb3b907f7d6556cab2137bcad96d",
+                "90980155399d4850839deb7eb46bcafba9a11260d14afdc447a940b59b2bc5e5",
             },
           },
         },
       },
-      lifecycle: reviewedImageLifecycle,
+      lifecycle: capturedImageLifecycle,
     }),
 
     defineAsset({

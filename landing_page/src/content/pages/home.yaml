@@ -181,7 +181,7 @@ sections:
           kind: "screenshot"
           src: "/provider-reasoning.webp"
           srcDark: "/provider-reasoning-dark.webp"
-          alt: "Session settings showing reasoning enabled, medium reasoning effort, and medium verbosity."
+          alt: "Session settings with magnified medium reasoning effort and medium verbosity controls."
           width: 1000
           height: 1315
       - title: "Usage and cost transparency"
@@ -190,7 +190,7 @@ sections:
           kind: "screenshot"
           src: "/provider-usage-cost.webp"
           srcDark: "/provider-usage-cost-dark.webp"
-          alt: "A session message with visible input, cached, output, cost, and duration metadata."
+          alt: "A completed coding-plan response with magnified input, estimated cached, completion, reasoning-token, and estimated-cost metadata."
           width: 940
           height: 1334
 

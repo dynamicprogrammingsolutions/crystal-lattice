@@ -27,8 +27,11 @@ const SESSION_CONFIG_SCHEMA = runtimeUiFixture.session_config_schema;
 const SESSION_BASE_CONFIG = runtimeUiFixture.session_base_config;
 const SESSION_OVERRIDES = runtimeUiFixture.session_overrides;
 const SNAPSHOTS = runtimeUiFixture.snapshots;
+const MESSAGE_FOOTER_ELEMENTS = runtimeUiFixture.message_footer_elements;
+const PROVIDER_USAGE_MESSAGE =
+  runtimeUiFixture.provider_usage_message as IndexedMessage;
 
-function createHarnessBackend(): AgentBackend {
+function createHarnessBackend(kind: string): AgentBackend {
   return {
     kind: "inProcess",
     getCapabilities: () => ({
@@ -57,7 +60,8 @@ function createHarnessBackend(): AgentBackend {
       latestEventId: "0",
       cursorExpired: false,
     }),
-    getSessionUiSchema: async () => SESSION_UI_SCHEMA,
+    getSessionUiSchema: async () =>
+      kind === "usage" ? MESSAGE_FOOTER_ELEMENTS : SESSION_UI_SCHEMA,
     getSessionApplicationUiSchema: async () =>
       SESSION_APPLICATION_UI_SCHEMA,
     getSessionOverrides: async () => SESSION_OVERRIDES,
@@ -85,7 +89,6 @@ export function MobileWebsiteVisualHarness({
   clcWebsiteVisualTheme,
   clcWebsiteVisualKind,
 }: MobileWebsiteVisualHarnessProps): React.JSX.Element {
-  const backend = useMemo(() => createHarnessBackend(), []);
   const [visualOpen, setVisualOpen] = useState(false);
   const configuredTheme =
     clcWebsiteVisualTheme ?? Settings.get("clcWebsiteVisualTheme");
@@ -93,6 +96,10 @@ export function MobileWebsiteVisualHarness({
     clcWebsiteVisualKind ??
     Settings.get("clcWebsiteVisualKind") ??
     "settings";
+  const backend = useMemo(
+    () => createHarnessBackend(configuredKind),
+    [configuredKind],
+  );
   const theme: Theme = configuredTheme === "dark" ? darkTheme : lightTheme;
 
   if (!visualOpen) {
@@ -139,10 +146,16 @@ export function MobileWebsiteVisualHarness({
                   <SessionChatScreen
                   backend={backend}
                   connectionId="website-visual"
-                  isActive={configuredKind === "actions"}
+                  isActive={
+                    configuredKind === "actions" || configuredKind === "usage"
+                  }
                   sessionId={SESSION_ID}
                   sessionSummary={SESSION_SUMMARY}
-                  cachedMessages={MESSAGES}
+                  cachedMessages={
+                    configuredKind === "usage"
+                      ? [PROVIDER_USAGE_MESSAGE]
+                      : MESSAGES
+                  }
                   lastLoadedAt={1}
                   cachedEventsCursorId="0"
                   cachedActiveRequestId={null}
@@ -160,7 +173,7 @@ export function MobileWebsiteVisualHarness({
                   debugTimeline={[]}
                   onAppendDebugTimelineEntry={() => {}}
                   />
-                  {configuredKind === "actions" ? null : configuredKind === "snapshots" ? (
+                  {configuredKind === "actions" || configuredKind === "usage" ? null : configuredKind === "snapshots" ? (
                   <SessionSnapshotsModal
                     visible
                     snapshotsLoading={false}
