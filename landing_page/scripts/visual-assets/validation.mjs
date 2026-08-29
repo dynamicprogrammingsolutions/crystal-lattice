@@ -89,6 +89,9 @@ function findYamlMediaEntry(document, binding, assetId) {
       `${assetId}: missing section ${binding.sectionId} in ${binding.file}`,
     );
   }
+  if (!binding.collection) {
+    return binding.mediaField ? section[binding.mediaField] : section;
+  }
   const entries = section[binding.collection];
   if (!Array.isArray(entries)) {
     throw new Error(

@@ -14,7 +14,7 @@ async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
   }
 }
 
-type VisualKind = "actions" | "snapshots" | "settings" | "usage";
+type VisualKind = "actions" | "snapshots" | "settings" | "usage" | "hero";
 
 async function captureTheme(
   kind: VisualKind,
@@ -53,9 +53,13 @@ async function captureTheme(
     await waitFor(element(by.text(readinessText)))
       .toBeVisible()
       .withTimeout(30000);
-  } else {
+  } else if (kind === "usage") {
     await waitFor(element(by.id("message-footer-4")))
       .toBeVisible()
+      .withTimeout(30000);
+  } else {
+    await waitFor(element(by.id("message-bubble-4")))
+      .toExist()
       .withTimeout(30000);
   }
   await new Promise((resolve) => setTimeout(resolve, 600));
@@ -73,9 +77,9 @@ async function captureTheme(
 
 describe("website visual source capture", () => {
   it("captures deterministic light and dark production workbench states", async () => {
-    for (const kind of ["actions", "snapshots", "settings", "usage"] as const) {
+    for (const kind of ["actions", "snapshots", "settings", "usage", "hero"] as const) {
       await captureTheme(kind, "light");
       await captureTheme(kind, "dark");
     }
-  });
+  }, 300000);
 });

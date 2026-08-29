@@ -83,6 +83,25 @@ def test_canonical_runtime_ui_fixture_is_deterministic_and_plugin_driven() -> No
         ]
         == "$0.013019"
     )
+    assert [item["message"]["role"] for item in first["mobile_hero_messages"]] == [
+        "user",
+        "assistant",
+    ]
+    assert first["mobile_hero_messages"][0]["message"]["content"].startswith(
+        "After upgrading Starlette"
+    )
+    assert first["mobile_hero_messages"][1]["message"]["content"].startswith(
+        "### Focused backwards-compatible fix"
+    )
+    assert (
+        "thread_minimum_size: int = 128 * 1024"
+        in first["mobile_hero_messages"][1]["message"]["content"]
+    )
+    assert (
+        "Keep it keyword-only."
+        not in first["mobile_hero_messages"][1]["message"]["content"]
+    )
+    assert "reasoning" not in first["mobile_hero_messages"][1]["message"]["metadata"]
     footer_paths = {item["data"] for item in first["message_footer_elements"]}
     assert "metadata.usage_prompt_tokens_formatted" in footer_paths
     assert "metadata.usage_total_cost_formatted" in footer_paths

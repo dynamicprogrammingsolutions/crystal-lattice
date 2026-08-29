@@ -76,16 +76,20 @@ const storeBtnDisabled = `${storeBtnBase} cursor-default opacity-[0.72]`;
           <div class="pointer-events-none absolute left-[-5%] top-[8%] h-[200px] w-[200px] animate-[blob1_10s_ease-in-out_infinite] rounded-full bg-[#6366f1] opacity-[0.28] blur-[52px]"></div>
           <div class="pointer-events-none absolute bottom-[5%] right-[-8%] h-[160px] w-[160px] animate-[blob2_13s_ease-in-out_infinite] rounded-full bg-[#8b5cf6] opacity-[0.28] blur-[52px]"></div>
           <div class="pointer-events-none absolute left-[38%] top-[52%] h-[130px] w-[130px] animate-[blob3_9s_ease-in-out_infinite] rounded-full bg-[#06b6d4] opacity-[0.28] blur-[52px]"></div>
-          <div class="relative z-[1] w-full max-w-[280px] max-[860px]:max-w-[240px]">
+          <div
+            class="relative z-[1] w-full max-w-[280px] overflow-hidden rounded-[3rem] border-[8px] border-[#17191d] bg-[#17191d] p-1.5 shadow-[0_30px_70px_rgba(15,23,42,0.35)] max-[860px]:max-w-[240px]"
+            data-phone-frame
+          >
             <ThemedImage
               src={image.src}
               srcDark={image.srcDark}
               alt={image.alt}
               width={image.width}
               height={image.height}
+              loading="eager"
               decoding="async"
               fetchpriority="high"
-              class="block h-auto w-full"
+              class="block h-auto w-full rounded-[2.25rem]"
               onerror="this.closest('[data-phone-col]').style.display='none';"
             />
           </div>

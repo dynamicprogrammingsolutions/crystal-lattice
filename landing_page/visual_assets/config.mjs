@@ -64,6 +64,10 @@ const mobileWebsiteCapture = detoxCapture({
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/usage-light.png",
     usageDark:
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/usage-dark.png",
+    heroLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/hero-light.png",
+    heroDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/hero-dark.png",
   },
 });
 
@@ -136,6 +140,18 @@ function homeMedia({ sectionId, collection, title, mediaField }) {
     collection,
     title,
     mediaField,
+    variantFields: {
+      light: "src",
+      dark: "srcDark",
+    },
+  });
+}
+
+function mobileHeroMedia() {
+  return yamlMediaBinding({
+    file: "src/content/pages/mobile.yaml",
+    sectionId: "mobile-hero",
+    mediaField: "image",
     variantFields: {
       light: "src",
       dark: "srcDark",
@@ -699,6 +715,82 @@ export default defineVisualAssets({
               maxBytes: 100000,
               sha256:
                 "90980155399d4850839deb7eb46bcafba9a11260d14afdc447a940b59b2bc5e5",
+            },
+          },
+        },
+      },
+      lifecycle: capturedImageLifecycle,
+    }),
+
+    defineAsset({
+      id: "mobile-active-session",
+      metadata: {
+        claim:
+          "The mobile client can continue a realistic coding-agent session from a phone.",
+        freshnessTriggers: [
+          "mobile chat header, transcript, composer, or navigation changes",
+          "reviewed coding-plan session changes",
+          "mobile-page hero layout changes",
+        ],
+      },
+      config: {
+        presentation: {
+          alt: "Crystal Lattice mobile chat showing a realistic Starlette compatibility request and a focused backwards-compatible fix.",
+          width: 1000,
+          height: 2025,
+        },
+        contentBindings: [mobileHeroMedia()],
+        variants: {
+          light: {
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/mobile-active-session-light.png",
+              candidate:
+                mobileWebsiteCapture.output("heroLight"),
+            }),
+            provenance: {
+              kind: "detox-capture",
+              fixture: "website-coding-plan",
+              output: "hero-light.png",
+            },
+            output: "public/mobile-active-session.webp",
+            build: workbenchModal({
+              cropGeometry: "1206x2442+0+180",
+              resizeTo: "1000x>",
+              quality: 60,
+            }),
+            expected: {
+              width: 1000,
+              height: 2025,
+              maxBytes: 80000,
+              sha256:
+                "ee0f25d7196cfe67764b249eaade1066920bfe95c0f1db28c2bab28bd8626d9a",
+            },
+          },
+          dark: {
+            source: capturedSource({
+              reviewed:
+                "visual_assets/sources/mobile-active-session-dark.png",
+              candidate:
+                mobileWebsiteCapture.output("heroDark"),
+            }),
+            provenance: {
+              kind: "detox-capture",
+              fixture: "website-coding-plan",
+              output: "hero-dark.png",
+            },
+            output: "public/mobile-active-session-dark.webp",
+            build: workbenchModal({
+              cropGeometry: "1206x2442+0+180",
+              resizeTo: "1000x>",
+              quality: 40,
+            }),
+            expected: {
+              width: 1000,
+              height: 2025,
+              maxBytes: 80000,
+              sha256:
+                "e07eb780380100e888292ca83f8abccb7d29df820aee6e5dcd83d5189f92d260",
             },
           },
         },

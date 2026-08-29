@@ -148,3 +148,43 @@ test("loads saved dark variants and preserves them across navigation", async ({
     restoredSources.every((source) => source.includes("-dark.webp")),
   ).toBe(true);
 });
+
+test("loads the active mobile hero theme inside the CSS phone frame", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.addInitScript(() => {
+    localStorage.setItem("cl-theme", "light");
+  });
+  await page.goto("/mobile", { waitUntil: "networkidle" });
+
+  const heroImage = page.locator("[data-phone-frame] img").first();
+  const phoneFrame = page.locator("[data-phone-frame]").first();
+  await expect(heroImage).toBeVisible();
+  await expect(heroImage).toHaveAttribute(
+    "src",
+    "/mobile-active-session.webp",
+  );
+  await expect(heroImage).toHaveAttribute("loading", "eager");
+  await expect(heroImage).toHaveAttribute("width", "1000");
+  await expect(heroImage).toHaveAttribute("height", "2025");
+
+  const frameStyle = await phoneFrame.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      borderRadius: Number.parseFloat(style.borderRadius),
+      borderWidth: Number.parseFloat(style.borderTopWidth),
+      overflow: style.overflow,
+    };
+  });
+  expect(frameStyle.borderRadius).toBeGreaterThan(30);
+  expect(frameStyle.borderWidth).toBe(8);
+  expect(frameStyle.overflow).toBe("hidden");
+
+  await page.locator("#themeToggle").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(heroImage).toHaveAttribute(
+    "src",
+    "/mobile-active-session-dark.webp",
+  );
+});

@@ -30,8 +30,16 @@ const SNAPSHOTS = runtimeUiFixture.snapshots;
 const MESSAGE_FOOTER_ELEMENTS = runtimeUiFixture.message_footer_elements;
 const PROVIDER_USAGE_MESSAGE =
   runtimeUiFixture.provider_usage_message as IndexedMessage;
+const MOBILE_HERO_MESSAGES =
+  runtimeUiFixture.mobile_hero_messages as IndexedMessage[];
 
 function createHarnessBackend(kind: string): AgentBackend {
+  const displayedMessages =
+    kind === "usage"
+      ? [PROVIDER_USAGE_MESSAGE]
+      : kind === "hero"
+        ? MOBILE_HERO_MESSAGES
+        : MESSAGES;
   return {
     kind: "inProcess",
     getCapabilities: () => ({
@@ -50,7 +58,7 @@ function createHarnessBackend(kind: string): AgentBackend {
     listApplicationActions: async () => [],
     listApplicationUiSchema: async () => [],
     listMessages: async () => ({
-      messages: MESSAGES,
+      messages: displayedMessages,
       cursorEventId: "0",
       activeRequestId: null,
     }),
@@ -154,6 +162,8 @@ export function MobileWebsiteVisualHarness({
                   cachedMessages={
                     configuredKind === "usage"
                       ? [PROVIDER_USAGE_MESSAGE]
+                      : configuredKind === "hero"
+                        ? MOBILE_HERO_MESSAGES
                       : MESSAGES
                   }
                   lastLoadedAt={1}
@@ -173,7 +183,7 @@ export function MobileWebsiteVisualHarness({
                   debugTimeline={[]}
                   onAppendDebugTimelineEntry={() => {}}
                   />
-                  {configuredKind === "actions" || configuredKind === "usage" ? null : configuredKind === "snapshots" ? (
+                  {configuredKind === "actions" || configuredKind === "usage" || configuredKind === "hero" ? null : configuredKind === "snapshots" ? (
                   <SessionSnapshotsModal
                     visible
                     snapshotsLoading={false}

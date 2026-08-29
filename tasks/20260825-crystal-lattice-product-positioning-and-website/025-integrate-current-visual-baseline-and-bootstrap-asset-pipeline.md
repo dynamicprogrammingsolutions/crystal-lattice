@@ -810,7 +810,8 @@ content, privacy, and product-communication judgments only.
 - [x] Pass the C2 follow-up manual visual checkpoint.
 - [x] Implement and automatically verify C3 provider focus composites.
 - [x] Pass manual checkpoint C3.
-- [ ] Implement and pass checkpoint C4 for the mobile-page hero.
+- [x] Implement and automatically verify C4 mobile-page hero.
+- [ ] Pass manual checkpoint C4.
 - [ ] Complete Stage C5 documentation, handoff, and final verification.
 - [ ] Record completion evidence and the task-160 handoff.
 
@@ -1576,3 +1577,57 @@ content, privacy, and product-communication judgments only.
 - Stage C4 remains unstarted until the accepted C3 implementation, tests,
   documentation, source masters, public derivatives, and task evidence are
   committed.
+
+### August 29, 2026 — Stage C4 ready for visual checkpoint
+
+- Committed the accepted C3 provider focus composites as:
+  - `a37f2d3d Add deterministic provider focus visuals`.
+- Added the canonical `mobile-active-session` asset with light/dark sources
+  captured by the existing production-screen Detox producer.
+- Extended the generated runtime UI fixture with a deterministic mobile-hero
+  transcript derived from the reviewed Starlette coding-plan session:
+  - the complete realistic user request is preserved;
+  - the assistant presentation is an exact bounded excerpt beginning with
+    `Focused backwards-compatible fix` and showing the concrete
+    `thread_minimum_size: int = 128 * 1024` recommendation;
+  - duplicated reasoning metadata is omitted only from this presentation
+    fixture so the beginning of the user request and concrete result fit in one
+    initial viewport.
+- The native source uses the real production `SessionChatScreen` and
+  `MessageBubble` components. It retains the readable
+  `website-coding-plan` session ID, message actions, status area, composer,
+  Append, and Send controls.
+- Added stable production message-bubble test identifiers and extended the
+  native visual test to ten light/dark states. The normal catalog `capture`
+  command now completes successfully.
+- Added a direct-section YAML media binding so a catalog asset can own a
+  section-level image such as the mobile hero without inventing a single-item
+  gallery. Added focused automated coverage for that binding.
+- Added the active-session image to the mobile page through its authored YAML.
+  The reviewed source remains an unframed native capture; the mobile page adds
+  a generic frame entirely through CSS, including clipping, border, radius,
+  and shadow.
+- Published optimized derivatives:
+  - light: 1000x2025, 71,336 bytes,
+    `ee0f25d7196cfe67764b249eaade1066920bfe95c0f1db28c2bab28bd8626d9a`;
+  - dark: 1000x2025, 66,266 bytes,
+    `e07eb780380100e888292ca83f8abccb7d29df820aee6e5dcd83d5189f92d260`.
+- Selected WebP quality independently by theme after reviewing comparison
+  images at the actual 280-pixel website width. The complete active-theme
+  assets remain below the existing 300 KB budget:
+  - light: 292,868 bytes;
+  - dark: 296,622 bytes.
+- Automated verification completed:
+  - 18 visual-asset JavaScript tests;
+  - deterministic runtime-fixture Python test;
+  - mobile TypeScript and all 119 Jest tests;
+  - successful ten-state iOS Detox build/capture through the catalog;
+  - real FastAPI/`FetchTransport`/`RestAgentBackend` integration;
+  - complete 14-result visual catalog totaling 689,926 bytes;
+  - Astro build and all 12 responsive/theme Playwright contracts;
+  - CSS phone-frame, eager image, active-theme, dimensions, alt-text, and
+    broken-image checks;
+  - Black, Ruff, and `git diff --check`.
+- The initial Stage C4 candidate is committed as a separate baseline before
+  the approved footer, identity, and status-row follow-up. Manual checkpoint
+  C4 remains open. Stage C5 has not started.

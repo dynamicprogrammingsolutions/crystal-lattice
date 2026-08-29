@@ -6,7 +6,7 @@ import { defineAsset } from "../../scripts/visual-assets/api.mjs";
 import { selectAssets } from "../../scripts/visual-assets/selection.mjs";
 
 test("the current catalog defines commands and source-local lifecycle assets", () => {
-  assert.equal(catalog.assets.length, 7);
+  assert.equal(catalog.assets.length, 8);
   assert.deepEqual(catalog.commandNames, [
     "list",
     "inspect",
@@ -41,10 +41,15 @@ test("the current catalog defines commands and source-local lifecycle assets", (
         variant.source.reviewedPath,
         /^visual_assets\/sources\//,
       );
-      assert.equal(
-        variant.provenance.revision,
-        "e88aa46ee8d6bd0969c63c78f8e152f1fd938974",
-      );
+      if (asset.id === "mobile-active-session") {
+        assert.equal(variant.provenance.kind, "detox-capture");
+        assert.equal(variant.provenance.fixture, "website-coding-plan");
+      } else {
+        assert.equal(
+          variant.provenance.revision,
+          "e88aa46ee8d6bd0969c63c78f8e152f1fd938974",
+        );
+      }
     }
   }
 });
@@ -68,7 +73,7 @@ test("check-style default selection includes the complete catalog", () => {
     defaultAll: true,
   });
 
-  assert.equal(selected.assets.length, 7);
+  assert.equal(selected.assets.length, 8);
 });
 
 test("mutating commands require an explicit selection or --all", () => {

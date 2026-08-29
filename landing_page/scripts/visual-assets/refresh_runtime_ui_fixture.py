@@ -116,6 +116,17 @@ def build_runtime_ui_fixture(
         raise RuntimeError(
             "reviewed session fixture must contain a completed assistant message"
         )
+    user_messages = [
+        item
+        for item in raw_messages
+        if isinstance(item, dict)
+        and isinstance(item.get("message"), dict)
+        and item["message"].get("role") == "user"
+        and isinstance(item["message"].get("content"), str)
+        and item["message"]["content"].strip()
+    ]
+    if not user_messages:
+        raise RuntimeError("reviewed session fixture must contain a user request")
     usage_source = assistant_messages[-1]
     usage_message = {
         "index": usage_source.get("index"),
@@ -126,6 +137,40 @@ def build_runtime_ui_fixture(
             ).strip(),
         },
     }
+    focused_fix_start = "### Focused backwards-compatible fix"
+    focused_fix_end = "Keep it keyword-only."
+    focused_fix_content = usage_source["message"]["content"]
+    focused_fix_start_index = focused_fix_content.find(focused_fix_start)
+    focused_fix_end_index = focused_fix_content.find(
+        focused_fix_end,
+        focused_fix_start_index,
+    )
+    if focused_fix_start_index < 0 or focused_fix_end_index < 0:
+        raise RuntimeError(
+            "reviewed assistant response is missing the expected focused-fix section"
+        )
+    mobile_hero_messages = [
+        user_messages[0],
+        {
+            "index": usage_source.get("index"),
+            "message": {
+                **usage_source["message"],
+                "metadata": {
+                    key: value
+                    for key, value in usage_source["message"]
+                    .get(
+                        "metadata",
+                        {},
+                    )
+                    .items()
+                    if key not in {"reasoning", "openai_responses_reasoning"}
+                },
+                "content": focused_fix_content[
+                    focused_fix_start_index:focused_fix_end_index
+                ].strip(),
+            },
+        },
+    ]
 
     with tempfile.TemporaryDirectory(prefix="crystal-runtime-ui-") as raw_temp:
         runtime_root = Path(raw_temp)
@@ -201,6 +246,7 @@ def build_runtime_ui_fixture(
         },
         "session_ui_schema": _sanitize(session_ui_schema),
         "message_footer_elements": _sanitize(message_footer_elements),
+        "mobile_hero_messages": _sanitize(mobile_hero_messages),
         "provider_usage_message": _sanitize(usage_message),
         "session_application_ui_schema": _sanitize(session_application_ui_schema),
         "session_config_schema": _sanitize(session_config_schema),
