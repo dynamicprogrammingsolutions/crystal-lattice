@@ -121,6 +121,10 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 "order": 45,
                 "action_id": "toggle_compaction_transcript_mode",
                 "action_owner": "provider_extension",
+                "condition": {
+                    "path": "metadata.openai_responses_compaction",
+                    "exists": True,
+                },
                 "fixed_params": {},
                 "param_map": {
                     "session_id": "$session.session_id",

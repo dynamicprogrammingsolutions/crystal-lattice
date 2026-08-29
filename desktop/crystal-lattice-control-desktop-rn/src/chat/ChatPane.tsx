@@ -356,12 +356,12 @@ function upsertInlineDisplay(
 }
 
 const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
-  { key: 'reload', label: 'Reload', iconName: 'refresh-ccw' },
-  { key: 'agentSwitch', label: 'Switch agent', iconName: 'user' },
-  { key: 'messageLimit', label: 'Message limit', iconName: 'sliders' },
-  { key: 'settings', label: 'Settings…', iconName: 'settings' },
-  { key: 'plugins', label: 'Plugins…', iconName: 'package' },
-  { key: 'snapshots', label: 'Snapshots…', iconName: 'camera' },
+  { key: 'reload', label: 'Reload', iconName: 'refresh-ccw', order: 0 },
+  { key: 'messageLimit', label: 'Message limit', iconName: 'sliders', order: 20 },
+  { key: 'agentSwitch', label: 'Switch agent', iconName: 'user', order: 25 },
+  { key: 'settings', label: 'Settings…', iconName: 'settings', order: 90 },
+  { key: 'plugins', label: 'Plugins…', iconName: 'package', order: 91 },
+  { key: 'snapshots', label: 'Snapshots…', iconName: 'camera', order: 92 },
 ];
 
 const BUILTIN_COMPOSER_ACTIONS: ActionDefinition[] = [
@@ -762,6 +762,7 @@ export const ChatPane = React.memo(function ChatPane({
         key: el.id,
         label: el.label,
         iconName: (el as any).icon || 'zap',
+        order: typeof el.order === 'number' ? el.order : undefined,
       }))
       .filter((def) => typeof def.key === 'string' && def.key);
   }, [backend, visibleSessionActions]);

@@ -830,9 +830,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [appendAsVisible, setAppendAsVisible] = useState(false);
   const [appendAsRole, setAppendAsRole] = useState<AppendAsRole>('user');
   const [appendAsDraftText, setAppendAsDraftText] = useState('');
-  const [deleteRangeVisible, setDeleteRangeVisible] = useState(false);
-  const [deleteRangeStartText, setDeleteRangeStartText] = useState('');
-  const [deleteRangeEndText, setDeleteRangeEndText] = useState('');
   const defaultPinnedSessionActions: SessionActionKey[] = Object.values(SESSION_ACTIONS)
     .filter((def) => def.defaultPinned)
     .map((def) => def.key);
@@ -1628,6 +1625,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         label: el.label,
         iconName: (el as any).icon || 'zap',
         defaultPinned: false,
+        order: typeof el.order === 'number' ? el.order : undefined,
       })),
     [visibleSessionActions],
   );
@@ -2194,7 +2192,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const closeOverlays = useCallback(() => {
     setMessageLimitVisible(false);
-    setDeleteRangeVisible(false);
     setAgentModalVisible(false);
     setSettingsVisible(false);
     setPluginsVisible(false);
@@ -3295,29 +3292,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       sendInProgress,
     ],
   );
-	  const confirmDeleteRange = async () => {
-	    if (!chatController) {
-      Alert.alert('No connection', 'Connect to a server to delete messages.');
-      return;
-    }
-    try {
-	      await chatController.deleteMessagesFromRangeText({
-	        startText: deleteRangeStartText,
-	        endText: deleteRangeEndText,
-	      });
-      setDeleteRangeVisible(false);
-    } catch (err: any) {
-	      const rawMessage = err?.message;
-	      if (typeof rawMessage === 'string' && rawMessage.includes('Provide at least')) {
-	        Alert.alert('Invalid range', rawMessage);
-	        return;
-	      }
-	      console.log('Failed to delete range', err);
-	      const message = rawMessage || 'Failed to delete messages';
-	      Alert.alert('Error', message);
-    }
-  };
-
   const handleSwitchAgent = async (agentId: string) => {
 	    if (!backend) {
 	      Alert.alert('No connection', 'Connect to a server to switch agent.');
@@ -3431,12 +3405,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === 'messageLimit') {
       setMessageLimitVisible(true);
-      return;
-    }
-    if (action === 'deleteRange') {
-      setDeleteRangeStartText('');
-      setDeleteRangeEndText('');
-      setDeleteRangeVisible(true);
       return;
     }
     if (action === 'agentSwitch') {
@@ -4112,6 +4080,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	                onChangePinned={setPinnedSessionActions}
 	                onAction={handleSessionAction}
 	                onOpenMenu={refreshSessionContextInBackground}
+	                menuButtonTestID="session-actions-menu"
 	                isActionDisabled={(action) =>
 	                  pluginActionInProgress ||
 	                  ((sendInProgress || resumeRecoveryInProgress) && action === 'reload')
@@ -4622,59 +4591,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </Modal>
 	      )}
 
-	      {deleteRangeVisible && (
-	        <Modal
-	          visible={deleteRangeVisible}
-	          transparent
-	          animationType="fade"
-	          onRequestClose={() => setDeleteRangeVisible(false)}
-	        >
-	          <View style={styles.modalOverlay}>
-	            <View style={styles.modalContent}>
-	              <Text style={styles.modalTitle}>Delete range</Text>
-	              <Text style={styles.modalSubtitle}>
-	                Python-style range (start:end). Messages in this range will be removed.
-	              </Text>
-	              <View style={styles.rangeRow}>
-	                <View style={styles.rangeInputContainer}>
-	                  <Text style={styles.rangeLabel}>Start</Text>
-	                  <TextInput
-	                    style={styles.modalInput}
-	                    value={deleteRangeStartText}
-	                    onChangeText={setDeleteRangeStartText}
-	                    placeholder="e.g. 0 or -10"
-	                    keyboardType="default"
-	                  />
-	                </View>
-	                <View style={styles.rangeInputContainer}>
-	                  <Text style={styles.rangeLabel}>End</Text>
-	                  <TextInput
-	                    style={styles.modalInput}
-	                    value={deleteRangeEndText}
-	                    onChangeText={setDeleteRangeEndText}
-	                    placeholder="optional"
-	                    keyboardType="default"
-	                  />
-	                </View>
-	              </View>
-	              <View style={styles.modalButtonsRow}>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                  onPress={() => setDeleteRangeVisible(false)}
-	                >
-	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	                </TouchableOpacity>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.primaryButton, styles.modalButton]}
-	                  onPress={confirmDeleteRange}
-	                >
-	                  <Text style={styles.buttonText}>Delete</Text>
-	                </TouchableOpacity>
-	              </View>
-	            </View>
-	          </View>
-	        </Modal>
-	      )}
         <SessionSnapshotsModal
           visible={snapshotsVisible}
           snapshotsLoading={snapshotsLoading}

@@ -544,6 +544,11 @@ returns promptly, rewrites provider-native history after the provider call
 completes, and rebuilds the visible transcript from the compacted native
 output.
 
+Users can compact the complete visible history, provide an explicit exclusive
+end index, or invoke `Compact native history up to here` from an individual
+message. The message-level action includes the selected message in the
+compacted prefix and uses the same background operation.
+
 While compaction runs, a dismissible warning banner reports the current phase
 and elapsed time approximately every 15 seconds and offers a `Cancel compaction`
 action. Canceling stops the operation; the session is not changed.
@@ -554,6 +559,19 @@ and you cannot start a request while compaction is running.
 Successful completion updates the session and leaves a dismissible success
 banner. Provider, output-validation, and concurrent-history failures leave a
 dismissible persistent error banner with a Retry action.
+
+A successful compaction commit creates a full session snapshot immediately
+before the compacted state is saved:
+
+```text
+Before compacting conversation [:277]
+```
+
+Cancellation, provider failure, application interruption, and conflicting
+commits do not retain an automatic compaction snapshot. Automatic snapshots
+are enabled by default and are not pruned or limited. See the
+[session snapshot guide](../../application/python/docs/session-snapshots.md)
+for storage, restoration, and manual deletion.
 
 The synchronous provider-extension compatibility action remains available as
 `compact_native_history_sync`, but it has no default UI element.
@@ -571,8 +589,9 @@ The bundle also exposes a session action that toggles this view mode:
 - `Collapse compacted messages`
 - `Expand compacted messages`
 
-The action changes the visible projection only. Retained native history stays
-canonical and is rebuilt using the updated session override.
+The toggle appears only after the session contains compacted history. It
+changes the visible projection only. Retained native history stays canonical
+and is rebuilt using the updated session override.
 
 By default, native compaction follows the same effective auth mode as normal
 Responses requests, and the selected mode selects the upstream compaction

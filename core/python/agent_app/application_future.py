@@ -3652,6 +3652,19 @@ class AgentApplication:
             )
         if live.to_dict() != restored.to_dict():
             self._session_store.create_snapshot(live, reason="before restore")
+        live_metadata = live.metadata if isinstance(live.metadata, dict) else {}
+        restored_metadata = (
+            dict(restored.metadata) if isinstance(restored.metadata, dict) else {}
+        )
+        if "notifications" in live_metadata:
+            restored_metadata["notifications"] = live_metadata["notifications"]
+        else:
+            restored_metadata.pop("notifications", None)
+        restored = Session(
+            session_id=restored.session_id,
+            messages=restored.messages,
+            metadata=restored_metadata,
+        )
         self._snapshot_selection_store.clear_selected_snapshot(session_id)
         saved = self.save_session(restored, acquire_lock=False)
         return saved

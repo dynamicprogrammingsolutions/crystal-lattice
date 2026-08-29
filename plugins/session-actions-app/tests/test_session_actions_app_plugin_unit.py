@@ -33,9 +33,7 @@ def _get_ui_effects(result: Dict[str, Any]) -> Dict[str, Any]:
 
 def _make_config_with_session_actions(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
-        "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"}
-        },
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "session_actions_app.SessionActionsAppPlugin",
@@ -199,7 +197,9 @@ def test_delete_messages_by_indices_and_range(tmp_path: Path) -> None:
     assert remaining_contents2 == ["m0"]
 
 
-def test_delete_from_here_deletes_message_and_all_later_messages(tmp_path: Path) -> None:
+def test_delete_from_here_deletes_message_and_all_later_messages(
+    tmp_path: Path,
+) -> None:
     app = _build_app(tmp_path)
 
     session_id = _create_session_with_messages(app, ["m0", "m1", "m2", "m3", "m4"])
@@ -241,19 +241,89 @@ def test_delete_from_here_at_first_message_removes_all(tmp_path: Path) -> None:
     assert len(session.messages) == 0
 
 
+def test_delete_messages_creates_restoreable_automatic_snapshot(
+    tmp_path: Path,
+) -> None:
+    app = _build_app(tmp_path)
+    session_id = _create_session_with_messages(app, ["m0", "m1", "m2", "m3"])
+
+    app.execute_application_action(
+        plugin_id="session_actions",
+        action_id="delete_messages",
+        params={"session_id": session_id, "start": 2},
+    )
+
+    snapshots = app.list_session_snapshots(session_id)
+    assert len(snapshots) == 1
+    snapshot = snapshots[0]
+    assert snapshot.reason == "Before deleting messages [2:]"
+    assert snapshot.metadata == {
+        "origin": "automatic",
+        "plugin": "session_actions",
+        "action": "delete_messages",
+        "deleted_indices": [2, 3],
+        "range": {"start": 2, "end": 4},
+    }
+
+    restored = app.restore_session_snapshot(session_id, snapshot.snapshot_id)
+    assert [message.content for message in restored.messages] == [
+        "m0",
+        "m1",
+        "m2",
+        "m3",
+    ]
+
+
+def test_noop_delete_does_not_create_snapshot(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+    session_id = _create_session_with_messages(app, ["m0"])
+
+    result = app.execute_application_action(
+        plugin_id="session_actions",
+        action_id="delete_messages",
+        params={"session_id": session_id, "indices": []},
+    )
+
+    assert result["message"] == "No messages deleted."
+    assert app.list_session_snapshots(session_id) == []
+
+
+def test_failed_delete_save_removes_provisional_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _build_app(tmp_path)
+    session_id = _create_session_with_messages(app, ["m0", "m1"])
+
+    def fail_save(*args: Any, **kwargs: Any) -> None:
+        _ = args, kwargs
+        raise RuntimeError("save failed")
+
+    monkeypatch.setattr(app, "save_session", fail_save)
+
+    with pytest.raises(RuntimeError, match="save failed"):
+        app.execute_application_action(
+            plugin_id="session_actions",
+            action_id="delete_messages",
+            params={"session_id": session_id, "indices": [1]},
+        )
+
+    assert app.list_session_snapshots(session_id) == []
+
+
 def test_delete_from_here_ui_element_is_present() -> None:
     """Verify the delete_from_here message action is exposed in UI elements."""
     plugin = SessionActionsAppPlugin()
     plugin.init({"application": {"session_actions": {"allow_delete": True}}})
     elements = plugin.get_ui_elements(plugin._state)
 
-    message_actions = [
-        el for el in elements if el.get("ui_type") == "message_action"
-    ]
+    message_actions = [el for el in elements if el.get("ui_type") == "message_action"]
     ids = [el["id"] for el in message_actions]
     assert "delete_from_here" in ids
 
-    delete_from_here = next(el for el in message_actions if el["id"] == "delete_from_here")
+    delete_from_here = next(
+        el for el in message_actions if el["id"] == "delete_from_here"
+    )
     assert delete_from_here["label"] == "Delete from here"
     assert delete_from_here["action_id"] == "delete_messages"
     assert delete_from_here["param_map"]["start"] == "$message.index"
@@ -279,9 +349,7 @@ def test_delete_session_respects_allow_delete_flag(tmp_path: Path) -> None:
     # Now, build a config that disables deletion and ensure the
     # plugin raises a ValueError when called.
     cfg: Dict[str, Any] = {
-        "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"}
-        },
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "session_actions_app.SessionActionsAppPlugin",

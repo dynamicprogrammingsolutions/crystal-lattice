@@ -385,6 +385,11 @@ def test_compaction_toggle_ui_label_depends_on_config() -> None:
 
     assert collapsed_toggle["label"] == "Collapse compacted messages"
     assert expand_toggle["label"] == "Expand compacted messages"
+    assert collapsed_toggle["condition"] == {
+        "path": "metadata.openai_responses_compaction",
+        "exists": True,
+    }
+    assert expand_toggle["condition"] == collapsed_toggle["condition"]
 
 
 def test_from_native_messages_surfaces_compaction_summary_as_local_placeholder() -> (
@@ -975,9 +980,7 @@ def test_compaction_uses_chatgpt_effective_endpoint_when_enabled(
     request = responses.create_calls[0]
     assert request["stream"] is True
     assert request["store"] is False
-    assert request["extra_headers"] == {
-        "x-codex-beta-features": "remote_compaction_v2"
-    }
+    assert request["extra_headers"] == {"x-codex-beta-features": "remote_compaction_v2"}
     assert request["input"][-1] == {"type": "compaction_trigger"}
     assert request["reasoning"] == {"effort": "high", "summary": "auto"}
     assert request["prompt_cache_key"] == "session-cache-key"

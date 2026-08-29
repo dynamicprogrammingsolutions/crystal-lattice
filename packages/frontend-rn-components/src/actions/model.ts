@@ -36,8 +36,30 @@ export function normalizeActionDefinitions<TDef extends ActionDefinition>(option
   }
 
   const orderedActions = orderedKeys
-    .map((key) => actionsByKey[key])
-    .filter((def): def is TDef => Boolean(def));
+    .map((key, declarationIndex) => ({
+      declarationIndex,
+      definition: actionsByKey[key],
+    }))
+    .filter(
+      (
+        entry,
+      ): entry is {
+        declarationIndex: number;
+        definition: TDef;
+      } => Boolean(entry.definition),
+    )
+    .sort((left, right) => {
+      const leftOrder =
+        typeof left.definition.order === 'number' && Number.isFinite(left.definition.order)
+          ? left.definition.order
+          : Number.POSITIVE_INFINITY;
+      const rightOrder =
+        typeof right.definition.order === 'number' && Number.isFinite(right.definition.order)
+          ? right.definition.order
+          : Number.POSITIVE_INFINITY;
+      return leftOrder - rightOrder || left.declarationIndex - right.declarationIndex;
+    })
+    .map((entry) => entry.definition);
 
   return { actionsByKey, orderedActions };
 }
