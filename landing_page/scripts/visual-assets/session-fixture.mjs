@@ -61,25 +61,32 @@ function runPythonRefresh({ repositoryRoot, landingRoot, artifactRoot, config },
     path.dirname(manifestPath),
     manifest.config_file,
   );
+  const command = [
+    helperPath,
+    "--repository-root",
+    repositoryRoot,
+    "--manifest",
+    manifestPath,
+    "--config-dir",
+    input.config_dir,
+    "--config",
+    generationConfigPath,
+    "--agent",
+    input.agent,
+    "--candidate",
+    candidatePath,
+    "--provenance",
+    provenancePath,
+  ];
+  if (config.extendReviewedFixture) {
+    command.push(
+      "--seed-fixture",
+      path.resolve(repositoryRoot, config.reviewedFixture),
+    );
+  }
   const result = spawnSync(
     input.python,
-    [
-      helperPath,
-      "--repository-root",
-      repositoryRoot,
-      "--manifest",
-      manifestPath,
-      "--config-dir",
-      input.config_dir,
-      "--config",
-      generationConfigPath,
-      "--agent",
-      input.agent,
-      "--candidate",
-      candidatePath,
-      "--provenance",
-      provenancePath,
-    ],
+    command,
     {
       cwd: repositoryRoot,
       encoding: "utf8",

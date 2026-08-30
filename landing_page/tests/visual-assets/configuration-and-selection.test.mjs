@@ -43,7 +43,7 @@ test("the current catalog defines commands and source-local lifecycle assets", (
       );
       if (asset.id === "mobile-active-session") {
         assert.equal(variant.provenance.kind, "detox-capture");
-        assert.equal(variant.provenance.fixture, "website-coding-plan");
+        assert.equal(variant.provenance.fixture, "coding-plan");
       } else {
         assert.equal(
           variant.provenance.revision,

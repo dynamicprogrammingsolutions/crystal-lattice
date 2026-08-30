@@ -172,127 +172,196 @@
   ],
   "mobile_hero_messages": [
     {
-      "index": 0,
+      "index": 5,
       "message": {
-        "content": "After upgrading Starlette, one of our custom `GZipResponder` subclasses stopped\nworking. Its constructor still calls `super().__init__(app, minimum_size)`, and\nconstructing it now fails with a `TypeError` saying that\n`thread_minimum_size` is missing. Please inspect the gzip middleware and\nexisting tests, figure out what changed, and give me a focused plan for a\nbackwards-compatible fix and regression coverage. Don't change the code yet.",
+        "content": "Based on what you already found, compare two fixes: adding the same\n`128 * 1024` default directly to `GZipResponder`, or introducing a shared\nmodule-level constant for the middleware and responder. Consider backwards\ncompatibility, default-drift risk, patch and review scope, and future\nmaintenance. No further repository inspection is needed. Which approach would\nyou choose for this fix, and why? Keep the final recommendation concise.",
         "metadata": {
           "native_indices": [
-            0
+            6
           ]
         },
         "role": "user"
       }
     },
     {
-      "index": 4,
+      "index": 6,
       "message": {
-        "content": "### Focused backwards-compatible fix\n\nGive `GZipResponder.thread_minimum_size` the same default as the middleware:\n\n```python\nthread_minimum_size: int = 128 * 1024\n```",
+        "content": "I would choose **adding `thread_minimum_size: int = 128 * 1024` directly to `GZipResponder`**.\n\n- **Backwards compatibility:** Restores legacy `super().__init__(app, minimum_size)` calls immediately.\n- **Patch scope:** Smallest change, with minimal review and regression risk.\n- **Default drift:** There would technically be two literals, but both are currently part of the same closely related API and can be covered by the regression test.\n- **Maintenance:** A shared constant would reduce drift risk, but adds a module-level implementation detail and broadens the patch without solving an immediate problem.\n\nIf the threshold later gains more consumers or is expected to change independently, introducing a shared constant would become worthwhile. For this targeted compatibility fix, the direct default is preferable.",
         "metadata": {
+          "display": {
+            "content": "I would choose **adding `thread_minimum_size: int = 128 * 1024` directly to `GZipResponder`**.\n\n- **Backwards compatibility:** Restores legacy `super().__init__(app, minimum_size)` calls immediately.",
+            "type": "text"
+          },
           "fast_mode_applied": false,
           "flex_processing_applied": false,
           "has_tool_calls": false,
           "native_indices": [
-            6,
             7,
             8
           ],
+          "openai_responses_reasoning": {
+            "context": "all_turns",
+            "items": [
+              {
+                "content": [],
+                "id": "rs_06c08a0ef3cec53b016a93376638ac87d2ae664f1ba138f293",
+                "summary": [
+                  {
+                    "text": "**Deciding on shared default constant**",
+                    "type": "summary_text"
+                  }
+                ],
+                "type": "reasoning"
+              }
+            ],
+            "summary": [
+              {
+                "text": "**Deciding on shared default constant**",
+                "type": "summary_text"
+              }
+            ],
+            "summary_text": "**Deciding on shared default constant**"
+          },
           "openai_service_tier": "default",
           "phase": "final_answer",
           "phase_messages": [
             {
-              "content": "### What changed\n\n`GZipMiddleware` now accepts and forwards a `thread_minimum_size` setting:\n\n- `GZipMiddleware.__init__` defines it with a default of `128 * 1024`.\n- When gzip is negotiated, it constructs `GZipResponder` with:\n  ```python\n  thread_minimum_size=self.thread_minimum_size\n  ```\n\nHowever, `GZipResponder` changed to require that argument:\n\n```python\ndef __init__(\n    self,\n    app: ASGIApp,\n    minimum_size: int,\n    compresslevel: int = 9,\n    *,\n    thread_minimum_size: int,\n) -> None:\n```\n\nThat is compatible with the built-in middleware, which always passes the keyword, but it is not compatible with subclasses using the previous constructor pattern:\n\n```python\nsuper().__init__(app, minimum_size)\n```\n\nThe current gzip tests cover the new worker-thread behavior through `GZipMiddleware`, including custom thresholds, but none instantiate `GZipResponder` directly or exercise a legacy subclass constructor.\n\n### Focused backwards-compatible fix\n\nGive `GZipResponder.thread_minimum_size` the same default as the middleware:\n\n```python\nthread_minimum_size: int = 128 * 1024\n```\n\nKeep it keyword-only. This preserves:\n\n- Existing two-argument subclass calls.\n- Existing calls that provide `compresslevel`.\n- The current middleware behavior, since explicitly supplied values still win.\n- The new worker-thread compression feature.\n\nThe middleware\u2019s existing default and the responder\u2019s default should remain identical. If desired, a shared module-level constant could prevent the two defaults from drifting, but that is optional and not required for the compatibility fix.\n\n### Regression coverage\n\nAdd a focused constructor regression test in `tests/middleware/test_gzip.py`:\n\n1. Import `GZipResponder`.\n2. Define a small subclass whose constructor calls:\n   ```python\n   super().__init__(app, minimum_size)\n   ```\n3. Instantiate it with the legacy two-argument pattern.\n4. Assert construction succeeds, and optionally verify:\n   ```python\n   responder.thread_minimum_size == 128 * 1024\n   ```\n\nThat test directly reproduces the reported failure and ensures the default is actually installed.\n\nKeep the existing tests for:\n\n- `thread_minimum_size` configured through `GZipMiddleware`.\n- Non-streaming compression in a worker thread.\n- Streaming compression in a worker thread.\n\nTogether, those tests verify both compatibility for direct/custom responders and preservation of the new configured behavior.",
+              "content": "I would choose **adding `thread_minimum_size: int = 128 * 1024` directly to `GZipResponder`**.\n\n- **Backwards compatibility:** Restores legacy `super().__init__(app, minimum_size)` calls immediately.\n- **Patch scope:** Smallest change, with minimal review and regression risk.\n- **Default drift:** There would technically be two literals, but both are currently part of the same closely related API and can be covered by the regression test.\n- **Maintenance:** A shared constant would reduce drift risk, but adds a module-level implementation detail and broadens the patch without solving an immediate problem.\n\nIf the threshold later gains more consumers or is expected to change independently, introducing a shared constant would become worthwhile. For this targeted compatibility fix, the direct default is preferable.",
               "metadata": {
                 "has_tool_calls": false,
                 "turn": {
                   "has_tool_calls": false,
-                  "id": 1,
+                  "id": 2,
                   "is_terminal": true
                 },
                 "usage": {
-                  "input_tokens": 3851,
+                  "input_tokens": 2236,
                   "input_tokens_details": {
                     "cache_write_tokens": 0,
                     "cached_tokens": 0
                   },
-                  "output_tokens": 1558,
+                  "output_tokens": 257,
                   "output_tokens_details": {
-                    "reasoning_tokens": 1034
+                    "reasoning_tokens": 88
                   },
-                  "total_tokens": 5409
+                  "total_tokens": 2493
                 },
-                "usage_completion_tokens_formatted": "1,558",
+                "usage_completion_tokens_formatted": "257",
                 "usage_effective_auth_mode": "chatgpt",
                 "usage_effective_auth_mode_label": "ChatGPT",
                 "usage_estimated_cached_tokens": 200,
                 "usage_estimated_cached_tokens_formatted": "200",
-                "usage_prompt_tokens_formatted": "3,851",
+                "usage_prompt_tokens_formatted": "2,236",
                 "usage_reasoning_mode": "standard",
                 "usage_service_tier": "default",
-                "usage_total_cost": 0.013019,
-                "usage_total_cost_cumulative": 0.013999,
-                "usage_total_cost_cumulative_formatted": "$0.013999",
-                "usage_total_cost_formatted": "$0.013019",
+                "usage_total_cost": 0.003598,
+                "usage_total_cost_cumulative": 0.018577,
+                "usage_total_cost_cumulative_formatted": "$0.018577",
+                "usage_total_cost_formatted": "$0.003598",
                 "usage_turn_cache_write_tokens_cumulative": 0,
                 "usage_turn_cache_write_tokens_cumulative_formatted": "0",
                 "usage_turn_cached_tokens_cumulative": 200,
                 "usage_turn_cached_tokens_cumulative_formatted": "200",
-                "usage_turn_cost_cumulative": 0.013999,
-                "usage_turn_cost_cumulative_formatted": "$0.013999",
-                "usage_turn_input_tokens_cumulative": 4051,
-                "usage_turn_input_tokens_cumulative_formatted": "4,051",
-                "usage_turn_output_tokens_cumulative": 1688,
-                "usage_turn_output_tokens_cumulative_formatted": "1,688",
-                "usage_turn_reasoning_tokens_cumulative": 1100,
-                "usage_turn_reasoning_tokens_cumulative_formatted": "1,100"
+                "usage_turn_cost_cumulative": 0.003598,
+                "usage_turn_cost_cumulative_formatted": "$0.003598",
+                "usage_turn_input_tokens_cumulative": 2236,
+                "usage_turn_input_tokens_cumulative_formatted": "2,236",
+                "usage_turn_output_tokens_cumulative": 257,
+                "usage_turn_output_tokens_cumulative_formatted": "257",
+                "usage_turn_reasoning_tokens_cumulative": 88,
+                "usage_turn_reasoning_tokens_cumulative_formatted": "88"
               },
-              "native_index": 2,
+              "native_index": 1,
               "phase": "final_answer"
             }
           ],
+          "reasoning": "**Deciding on shared default constant**",
           "turn": {
             "has_tool_calls": false,
-            "id": 1,
+            "id": 2,
             "is_terminal": true
           },
           "usage": {
-            "input_tokens": 3851,
+            "input_tokens": 2236,
             "input_tokens_details": {
               "cache_write_tokens": 0,
               "cached_tokens": 0
             },
-            "output_tokens": 1558,
+            "output_tokens": 257,
             "output_tokens_details": {
-              "reasoning_tokens": 1034
+              "reasoning_tokens": 88
             },
-            "total_tokens": 5409
+            "total_tokens": 2493
           },
-          "usage_completion_tokens_formatted": "1,558",
+          "usage_completion_tokens_formatted": "257",
           "usage_effective_auth_mode": "chatgpt",
           "usage_effective_auth_mode_label": "ChatGPT",
           "usage_estimated_cached_tokens": 200,
           "usage_estimated_cached_tokens_formatted": "200",
-          "usage_prompt_tokens_formatted": "3,851",
+          "usage_prompt_tokens_formatted": "2,236",
           "usage_reasoning_mode": "standard",
           "usage_service_tier": "default",
-          "usage_total_cost": 0.013019,
-          "usage_total_cost_cumulative": 0.013999,
-          "usage_total_cost_cumulative_formatted": "$0.013999",
-          "usage_total_cost_formatted": "$0.013019",
+          "usage_total_cost": 0.003598,
+          "usage_total_cost_cumulative": 0.018577,
+          "usage_total_cost_cumulative_formatted": "$0.018577",
+          "usage_total_cost_formatted": "$0.003598",
           "usage_turn_cache_write_tokens_cumulative": 0,
           "usage_turn_cache_write_tokens_cumulative_formatted": "0",
           "usage_turn_cached_tokens_cumulative": 200,
           "usage_turn_cached_tokens_cumulative_formatted": "200",
-          "usage_turn_cost_cumulative": 0.013999,
-          "usage_turn_cost_cumulative_formatted": "$0.013999",
-          "usage_turn_input_tokens_cumulative": 4051,
-          "usage_turn_input_tokens_cumulative_formatted": "4,051",
-          "usage_turn_output_tokens_cumulative": 1688,
-          "usage_turn_output_tokens_cumulative_formatted": "1,688",
-          "usage_turn_reasoning_tokens_cumulative": 1100,
-          "usage_turn_reasoning_tokens_cumulative_formatted": "1,100"
+          "usage_turn_cost_cumulative": 0.003598,
+          "usage_turn_cost_cumulative_formatted": "$0.003598",
+          "usage_turn_input_tokens_cumulative": 2236,
+          "usage_turn_input_tokens_cumulative_formatted": "2,236",
+          "usage_turn_output_tokens_cumulative": 257,
+          "usage_turn_output_tokens_cumulative_formatted": "257",
+          "usage_turn_reasoning_tokens_cumulative": 88,
+          "usage_turn_reasoning_tokens_cumulative_formatted": "88"
         },
         "role": "assistant"
       }
+    }
+  ],
+  "mobile_hero_ui_schema": [
+    {
+      "condition": {
+        "eq": "chatgpt",
+        "path": "metadata.usage_effective_auth_mode"
+      },
+      "data": "metadata.usage_turn_cost_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "estimated turn: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "condition": {
+        "not": {
+          "eq": "chatgpt",
+          "path": "metadata.usage_effective_auth_mode"
+        }
+      },
+      "data": "metadata.usage_turn_cost_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "turn: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "turn input: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "turn output: {{data}}",
+      "ui_type": "message_footer"
+    },
+    {
+      "data": "metadata.usage_total_cost_cumulative_formatted",
+      "plugin": "openai_responses_usage",
+      "template": "Total: {{data}}",
+      "ui_type": "status_bar"
     }
   ],
   "provider_usage_message": {
@@ -1093,7 +1162,7 @@
     }
   ],
   "source": {
-    "config_sha256": "6732284b63c902c7d4b17eeec2356d2162fded5c1e48f0f6cbd71eae728f3646",
-    "session_fixture_sha256": "92f28a784f40a69e185462fea6acaef4962e685791c0f7e78ddeb8fb2755ead4"
+    "config_sha256": "f5f415c95f4ae212c46d396a326e71ccb6237a81ab790882bedb6919fe2d1a4c",
+    "session_fixture_sha256": "7483bde0d7a4a38117e0eccf47176f20a15c8db27d47262a11fb36fbcdabf636"
   }
 }

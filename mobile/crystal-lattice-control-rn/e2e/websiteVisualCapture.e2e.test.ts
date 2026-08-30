@@ -58,8 +58,11 @@ async function captureTheme(
       .toBeVisible()
       .withTimeout(30000);
   } else {
-    await waitFor(element(by.id("message-bubble-4")))
+    await waitFor(element(by.id("message-bubble-6")))
       .toExist()
+      .withTimeout(30000);
+    await waitFor(element(by.text("Plan a Starlette compatibility fix")))
+      .toBeVisible()
       .withTimeout(30000);
   }
   await new Promise((resolve) => setTimeout(resolve, 600));

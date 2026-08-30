@@ -42,8 +42,8 @@ sections:
       src: "/mobile-active-session.webp"
       srcDark: "/mobile-active-session-dark.webp"
       alt: >-
-        Crystal Lattice mobile chat showing a realistic Starlette compatibility
-        request and a focused backwards-compatible fix.
+        Crystal Lattice mobile chat showing a Starlette compatibility plan with
+        turn usage, estimated cost, agent, and session status.
       width: 1000
       height: 2025
 

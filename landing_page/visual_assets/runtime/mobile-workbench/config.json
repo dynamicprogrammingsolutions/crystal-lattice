@@ -90,6 +90,17 @@
       "reasoning_effort": "medium",
       "verbosity": "medium"
     },
+    "mobile_hero_overrides": {
+      "usage_message_footer_fields": [
+        "turn_input",
+        "turn_output",
+        "turn_cost"
+      ],
+      "show_usage_status_total": true,
+      "show_reasoning_context_footer": false,
+      "show_estimated_cached_tokens": false,
+      "show_openai_auth_mode": false
+    },
     "settings_keys": [
       "model",
       "reasoning_effort",

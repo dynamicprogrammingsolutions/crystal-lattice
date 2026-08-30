@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
-import os
 import re
 import subprocess
 import sys
@@ -41,6 +41,8 @@ DROP_KEYS = {
     "request_id",
     "response_id",
 }
+
+
 def _run(command: list[str], *, cwd: Path, timeout: int) -> None:
     result = subprocess.run(
         command,
@@ -60,7 +62,9 @@ def _directory_bytes(root: Path) -> int:
     return sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
 
 
-def checkout_repository(manifest: Mapping[str, Any], destination: Path) -> dict[str, Any]:
+def checkout_repository(
+    manifest: Mapping[str, Any], destination: Path
+) -> dict[str, Any]:
     repository = manifest["repository"]
     started = time.monotonic()
     timeout = int(repository["max_checkout_seconds"])
@@ -93,7 +97,11 @@ def checkout_repository(manifest: Mapping[str, Any], destination: Path) -> dict[
         cwd=destination,
         timeout=timeout,
     )
-    _run(["git", "checkout", "-q", "--detach", "FETCH_HEAD"], cwd=destination, timeout=timeout)
+    _run(
+        ["git", "checkout", "-q", "--detach", "FETCH_HEAD"],
+        cwd=destination,
+        timeout=timeout,
+    )
     revision = subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=destination, text=True
     ).strip()
@@ -133,6 +141,8 @@ def run_application_session(
     workspace: Path,
     agent_id: str,
     prompt: str,
+    follow_up_prompt: str | None = None,
+    seed_messages: list[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     import agent_app
 
@@ -169,40 +179,82 @@ def run_application_session(
             "working_directory": str(workspace),
         }.items():
             app.update_override(key, value)
-        app.add_message(app.session_id, role="user", content=prompt)
-        final_session, final_messages, _request_id = app.send_request(stream=True)
-        session = (
-            dict(final_session)
-            if isinstance(final_session, dict)
-            else app.session.to_dict()
-        )
+        if seed_messages:
+            for item in seed_messages:
+                message = item.get("message") if isinstance(item, Mapping) else None
+                if not isinstance(message, Mapping):
+                    continue
+                role = message.get("role")
+                content = message.get("content")
+                metadata = message.get("metadata")
+                if role not in {"user", "assistant", "tool"} or not isinstance(
+                    content, str
+                ):
+                    continue
+                app.add_message(
+                    app.session_id,
+                    role=role,
+                    content=content,
+                    metadata=dict(metadata) if isinstance(metadata, Mapping) else None,
+                )
+            request_prompts = [follow_up_prompt] if follow_up_prompt else []
+        else:
+            request_prompts = [prompt]
+            if isinstance(follow_up_prompt, str) and follow_up_prompt:
+                request_prompts.append(follow_up_prompt)
+        final_session: Any = None
+        last_final_messages: list[dict[str, Any]] = []
+        for request_prompt in request_prompts:
+            app.add_message(app.session_id, role="user", content=request_prompt)
+            final_session, final_messages, _request_id = app.send_request(stream=True)
+            last_final_messages = []
+            for message in final_messages:
+                if isinstance(message, dict):
+                    last_final_messages.append(message)
+                    continue
+                to_dict = getattr(message, "to_dict", None)
+                if callable(to_dict):
+                    converted = to_dict()
+                    if isinstance(converted, dict):
+                        last_final_messages.append(converted)
+
+        session = app.session.to_dict()
         messages = list(session.get("messages") or [])
-        for final_message in final_messages:
-            if not isinstance(final_message, dict):
-                continue
-            if final_message not in messages:
-                messages.append(final_message)
-        if not any(message.get("role") == "assistant" for message in messages):
+        if not follow_up_prompt and not any(
+            message.get("role") == "assistant" for message in messages
+        ):
+            assistant_candidate = next(
+                (
+                    message
+                    for message in reversed(last_final_messages)
+                    if message.get("role") == "assistant"
+                ),
+                None,
+            )
             metadata = session.get("metadata")
             native_messages = (
-                metadata.get("native_messages")
-                if isinstance(metadata, dict)
-                else None
+                metadata.get("native_messages") if isinstance(metadata, dict) else None
             )
-            if isinstance(native_messages, list):
-                for native_message in reversed(native_messages):
-                    if (
-                        isinstance(native_message, dict)
-                        and native_message.get("role") == "assistant"
-                    ):
-                        messages.append(
-                            {
-                                "role": "assistant",
-                                "content": native_message.get("content", ""),
-                                "metadata": {},
-                            }
-                        )
-                        break
+            if assistant_candidate is None and isinstance(native_messages, list):
+                assistant_candidate = next(
+                    (
+                        message
+                        for message in reversed(native_messages)
+                        if isinstance(message, dict)
+                        and message.get("role") == "assistant"
+                    ),
+                    None,
+                )
+            if isinstance(assistant_candidate, dict):
+                content = assistant_candidate.get("content")
+                if isinstance(content, str) and content:
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": content,
+                            "metadata": {},
+                        }
+                    )
         session["messages"] = messages
         return session
     finally:
@@ -246,6 +298,8 @@ def build_candidate(
     *,
     manifest: Mapping[str, Any],
     prompt: str,
+    follow_up_prompt: str | None = None,
+    seed_fixture: Mapping[str, Any] | None = None,
     workspace: Path,
 ) -> tuple[dict[str, Any], int]:
     for text in _tool_commands(raw_session):
@@ -282,8 +336,103 @@ def build_candidate(
     if not {"user", "assistant"}.issubset(roles):
         raise RuntimeError("Generated session must contain user and assistant messages")
     if tool_activity < 1:
-        raise RuntimeError("Generated session must contain repository-inspection tool activity")
+        raise RuntimeError(
+            "Generated session must contain repository-inspection tool activity"
+        )
+    follow_up_user_position: int | None = None
+    if isinstance(follow_up_prompt, str) and follow_up_prompt:
+        user_positions = [
+            index
+            for index, item in enumerate(visible)
+            if item["message"].get("role") == "user"
+        ]
+        if len(user_positions) < 2:
+            raise RuntimeError("Generated session is missing the follow-up user turn")
+        follow_up_user_position = user_positions[-1]
+        follow_up_user = visible[follow_up_user_position]["message"]
+        if str(follow_up_user.get("content") or "").strip() != follow_up_prompt.strip():
+            raise RuntimeError("Generated session follow-up prompt does not match")
+        follow_up_segment = visible[follow_up_user_position + 1 :]
+        if (
+            len(follow_up_segment) != 1
+            or follow_up_segment[0]["message"].get("role") != "assistant"
+        ):
+            shape = [
+                {
+                    "role": item["message"].get("role"),
+                    "has_content": bool(
+                        str(item["message"].get("content") or "").strip()
+                    ),
+                    "has_tool_calls": "tool_calls" in json.dumps(item["message"]),
+                }
+                for item in follow_up_segment
+            ]
+            raise RuntimeError(
+                "Generated follow-up must finish with one assistant response "
+                f"and no tool activity; observed {shape}"
+            )
+        follow_up_assistant = follow_up_segment[0]["message"]
+        if not str(follow_up_assistant.get("content") or "").strip():
+            raise RuntimeError("Generated follow-up assistant response is empty")
+        metadata = follow_up_assistant.get("metadata")
+        reasoning = metadata.get("reasoning") if isinstance(metadata, dict) else None
+        if reasoning in (None, "", [], {}):
+            raise RuntimeError(
+                "Generated follow-up assistant response has no reasoning metadata"
+            )
+    if seed_fixture is not None:
+        seed_items = seed_fixture.get("messages")
+        if not isinstance(seed_items, list) or not seed_items:
+            raise RuntimeError("Reviewed seed fixture has no messages")
+        if follow_up_user_position is None:
+            raise RuntimeError("Reviewed seed extension requires a follow-up turn")
+        runtime_seed_items = [
+            item
+            for item in seed_items
+            if not (
+                isinstance(item, dict)
+                and isinstance(item.get("message"), dict)
+                and item["message"].get("role") == "assistant"
+                and not str(item["message"].get("content") or "").strip()
+                and "tool_calls" in json.dumps(item["message"])
+            )
+        ]
+        raw_prefix = visible[:follow_up_user_position]
+        if len(raw_prefix) != len(runtime_seed_items):
+            raise RuntimeError(
+                "Runtime seed prefix length changed: "
+                f"reviewed={len(runtime_seed_items)} "
+                f"roles={[item.get('message', {}).get('role') for item in runtime_seed_items if isinstance(item, dict)]}; "
+                f"runtime={len(raw_prefix)} "
+                f"roles={[item.get('message', {}).get('role') for item in raw_prefix]}"
+            )
+        for expected, actual in zip(runtime_seed_items, raw_prefix):
+            expected_message = (
+                expected.get("message") if isinstance(expected, dict) else None
+            )
+            actual_message = actual.get("message")
+            if not isinstance(expected_message, dict) or not isinstance(
+                actual_message, dict
+            ):
+                raise RuntimeError("Reviewed seed prefix contains an invalid message")
+            if expected_message.get("role") != actual_message.get(
+                "role"
+            ) or expected_message.get("content") != actual_message.get("content"):
+                raise RuntimeError("Runtime seed prefix content changed")
+        follow_up_items = visible[follow_up_user_position:]
+        visible = [copy.deepcopy(item) for item in seed_items]
+        for item in follow_up_items:
+            visible.append(
+                {
+                    "index": len(visible),
+                    "message": item["message"],
+                }
+            )
     presentation = manifest["presentation"]
+    session_metadata: dict[str, Any] = {}
+    agent_id = manifest.get("agent_id")
+    if isinstance(agent_id, str) and agent_id:
+        session_metadata["agent_id"] = agent_id
     candidate = {
         "schema_version": 1,
         "fixture_id": manifest["fixture_id"],
@@ -291,7 +440,7 @@ def build_candidate(
             "session_id": presentation["session_id"],
             "modified": 1,
             "preview": prompt.splitlines()[0],
-            "metadata": {},
+            "metadata": session_metadata,
             "presentation": {
                 "title": presentation["title"],
                 "subtitle": presentation["subtitle"],
@@ -312,6 +461,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--agent", required=True)
     parser.add_argument("--candidate", required=True)
     parser.add_argument("--provenance", required=True)
+    parser.add_argument("--seed-fixture")
     return parser.parse_args()
 
 
@@ -337,6 +487,41 @@ def main() -> int:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     prompt_path = manifest_path.parent / manifest["prompt_file"]
     prompt = prompt_path.read_text(encoding="utf-8").strip()
+    follow_up_prompt_file = manifest.get("follow_up_prompt_file")
+    follow_up_prompt = (
+        (manifest_path.parent / follow_up_prompt_file)
+        .read_text(encoding="utf-8")
+        .strip()
+        if isinstance(follow_up_prompt_file, str) and follow_up_prompt_file
+        else None
+    )
+    seed_fixture_path = Path(args.seed_fixture).resolve() if args.seed_fixture else None
+    seed_fixture = (
+        json.loads(seed_fixture_path.read_text(encoding="utf-8"))
+        if seed_fixture_path is not None
+        else None
+    )
+    all_seed_messages = (
+        seed_fixture.get("messages") if isinstance(seed_fixture, dict) else None
+    )
+    seed_message_count = manifest.get("seed_message_count")
+    seed_messages = (
+        all_seed_messages[:seed_message_count]
+        if isinstance(all_seed_messages, list)
+        and isinstance(seed_message_count, int)
+        and seed_message_count > 0
+        else all_seed_messages
+    )
+    effective_seed_fixture = (
+        {
+            **seed_fixture,
+            "messages": seed_messages,
+        }
+        if isinstance(seed_fixture, dict) and isinstance(seed_messages, list)
+        else seed_fixture
+    )
+    if seed_fixture is not None and not follow_up_prompt:
+        raise RuntimeError("Reviewed seed extension requires a follow-up prompt")
     config_dir = Path(args.config_dir).expanduser().resolve()
     source_config = Path(args.config).expanduser().resolve()
     candidate_path = Path(args.candidate).resolve()
@@ -364,11 +549,15 @@ def main() -> int:
             workspace=workspace,
             agent_id=args.agent,
             prompt=prompt,
+            follow_up_prompt=follow_up_prompt,
+            seed_messages=seed_messages if isinstance(seed_messages, list) else None,
         )
         candidate, tool_activity = build_candidate(
             raw_session,
             manifest=manifest,
             prompt=prompt,
+            follow_up_prompt=follow_up_prompt,
+            seed_fixture=effective_seed_fixture,
             workspace=workspace,
         )
     candidate_path.parent.mkdir(parents=True, exist_ok=True)
@@ -383,6 +572,16 @@ def main() -> int:
         "checkout_bytes": checkout["bytes"],
         "checkout_seconds": checkout["seconds"],
         "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+        "follow_up_prompt_sha256": (
+            hashlib.sha256(follow_up_prompt.encode()).hexdigest()
+            if follow_up_prompt
+            else None
+        ),
+        "seed_fixture_sha256": (
+            hashlib.sha256(seed_fixture_path.read_bytes()).hexdigest()
+            if seed_fixture_path is not None
+            else None
+        ),
         "config_sha256": hashlib.sha256(source_config.read_bytes()).hexdigest(),
         "tool_activity": tool_activity,
         "python": sys.executable,

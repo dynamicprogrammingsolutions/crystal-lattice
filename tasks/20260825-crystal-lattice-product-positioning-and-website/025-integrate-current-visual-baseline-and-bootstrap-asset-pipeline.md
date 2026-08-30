@@ -811,7 +811,7 @@ content, privacy, and product-communication judgments only.
 - [x] Implement and automatically verify C3 provider focus composites.
 - [x] Pass manual checkpoint C3.
 - [x] Implement and automatically verify C4 mobile-page hero.
-- [ ] Pass manual checkpoint C4.
+- [x] Pass manual checkpoint C4.
 - [ ] Complete Stage C5 documentation, handoff, and final verification.
 - [ ] Record completion evidence and the task-160 handoff.
 
@@ -1631,3 +1631,159 @@ content, privacy, and product-communication judgments only.
 - The initial Stage C4 candidate is committed as a separate baseline before
   the approved footer, identity, and status-row follow-up. Manual checkpoint
   C4 remains open. Stage C5 has not started.
+
+### August 29, 2026 — Stage C4 footer and identity follow-up
+
+- Committed the initial deterministic mobile hero separately as:
+  - `a3066ac6 Add deterministic mobile session hero`.
+- Added backward-compatible OpenAI Responses display controls:
+  - formally declared the existing `show_usage` master switch;
+  - added `usage_message_footer_fields` as an optional supported-field filter;
+  - added `show_usage_status_total` for the cumulative status-bar total;
+  - added `show_reasoning_context_footer` to hide only the reasoning-context
+    footer while preserving reasoning behavior and metadata.
+- Existing configurations retain the complete usage footer and status total.
+  The compact mobile-hero profile selects `turn_cost`, `turn_input`, and
+  `turn_output`; keeps `Total`; and hides reasoning context, estimated cached
+  tokens, and auth mode.
+- The compact usage values are cumulative for the complete tool-using user
+  turn:
+  - turn input: 4,051;
+  - turn output: 1,688;
+  - estimated turn: $0.013999.
+- Kept the accepted provider-usage proof unchanged by generating separate full
+  and compact UI-schema projections from the same real plugin configuration.
+  The provider proof retains all 17 footer definitions; the mobile hero
+  contains only the auth-conditioned turn-cost definitions, turn input, turn
+  output, and the `Total` status element.
+- Replaced the human-readable fixture session ID with the stable manifest-owned
+  UUID `dc4efaec-9451-5981-a721-175a079860fb`.
+- Added manifest-owned `agent_id: codex-openai` to the reviewed session summary
+  so the status row follows the same metadata path as real application
+  sessions.
+- The mobile chat header now renders the existing session presentation title,
+  with the established presentation fallback behavior, while session details
+  and the status row retain the full UUID.
+- The final native proof therefore shows:
+  - header: `Plan a Starlette compatibility fix`;
+  - compact assistant footer: estimated turn, turn input, and turn output;
+  - status row: Agent, UUID Session, and Total.
+- Updated OpenAI Responses user documentation for the new keys and stable
+  footer-field identifiers.
+- Published revised derivatives:
+  - light: 1000x2025, 77,472 bytes,
+    `70ec95efaf1f06fd6972a414b2b9e39cf07d2fcb9f588d1d22cc4cc142885a2b`;
+  - dark: 1000x2025, 67,562 bytes,
+    `ddf538e6d0ec69aaba184ce8f080020a8d79dabd60663275be0515dc758f9ac3`.
+- Theme budgets remain below the existing 300 KB limit:
+  - light: 299,004 bytes;
+  - dark: 297,918 bytes.
+- Automated verification completed:
+  - 120 focused OpenAI usage/reasoning plugin tests;
+  - Black and Ruff for changed Python plugin and fixture code;
+  - four deterministic session/runtime fixture tests;
+  - 18 visual-asset JavaScript tests;
+  - mobile TypeScript and all 119 Jest tests;
+  - 314 frontend SDK tests;
+  - real FastAPI/`FetchTransport`/`RestAgentBackend` integration;
+  - successful ten-state iOS Detox build/capture with title assertion;
+  - complete 14-result visual catalog totaling 698,671 bytes;
+  - Astro build and all 12 responsive/theme Playwright tests;
+  - `git diff --check`.
+- The revised Stage C4 candidate remains uncommitted and is stopped at the
+  required manual visual checkpoint. Stage C5 has not started.
+
+### August 29, 2026 — Stage C4 consecutive follow-up exchange
+
+- The user approved replacing the non-consecutive `[0]` user / `[4]`
+  assistant hero projection with a real consecutive follow-up exchange after
+  the repository investigation.
+- The reviewed session source will add a tracked, realistic engineering
+  follow-up asking whether the compatibility fix should duplicate the existing
+  default or share a module-level constant.
+- Session refresh will send that follow-up through the same live session after
+  the initial tool-using investigation completes.
+- The reviewed fixture will retain the complete investigation and follow-up
+  transcript. Candidate validation will require:
+  - repository-inspection tool activity in the initial turn;
+  - a later consecutive user/assistant follow-up pair;
+  - no follow-up tool call;
+  - reasoning metadata on the follow-up response.
+- The provider usage/cost proof will remain sourced from the first completed
+  investigation response so accepted Stage C3 content does not change.
+- The mobile hero will use the last user and last completed assistant messages,
+  preserve the follow-up reasoning display, and keep the compact usage and
+  Agent/UUID/Total status configuration.
+- This follow-up remains part of the uncommitted revised Stage C4 change. A new
+  manual visual checkpoint is required before Stage C4 can be marked complete
+  or Stage C5 begins.
+
+### August 29, 2026 — Stage C4 consecutive exchange implemented
+
+- Added tracked `follow-up-prompt.md` and extended the reviewed-session refresh
+  workflow to send a real second request through `TerminalApplication`.
+- The follow-up refresh extends the first five manually approved investigation
+  messages instead of regenerating them:
+  - the runtime is seeded from the reviewed fixture;
+  - `seed_message_count: 5` prevents repeated refreshes from accumulating
+    additional follow-up turns;
+  - the candidate builder verifies the semantic runtime prefix and restores
+    the exact reviewed message objects before appending the new pair.
+- OpenAI provider reconstruction intentionally collapses the empty assistant
+  tool-call carrier from the runtime-visible prefix. Validation therefore
+  compares the semantic `user → tool → tool → assistant` prefix while the
+  promoted fixture preserves the original five-message sequence including the
+  carrier.
+- The promoted reviewed fixture contains seven messages:
+  - `[0]` through `[4]` are byte-for-byte identical to the accepted
+    investigation fixture;
+  - `[5]` is the real engineering follow-up;
+  - `[6]` is one no-tool assistant response with reasoning metadata.
+- The full reviewed `[6]` response remains in the fixture. The mobile hero uses
+  the standard `metadata.display` contract to show an exact bounded excerpt:
+  the recommendation and backwards-compatibility rationale. This keeps both
+  consecutive message headers visible while preserving the complete source
+  response for other consumers.
+- The accepted Stage C3 provider usage proof remains sourced from `[4]` with
+  its existing text and `$0.013019` response cost.
+- The final hero displays:
+  - `[5] User` with the follow-up question;
+  - `[6] Assistant`;
+  - `Reasoning: Deciding on shared default constant`;
+  - the direct-default recommendation and compatibility rationale;
+  - estimated turn `$0.003598`, turn input `2,236`, turn output `257`;
+  - Agent `codex-openai`;
+  - UUID Session `dc4efaec-9451-5981-a721-175a079860fb`;
+  - cumulative Total `$0.018577`.
+- Final derivatives:
+  - light: 1000x2025, 78,018 bytes,
+    `55a4f00c51b57fc355059923a26eab75f96330850b62b70c2f0c48b6be3a4c84`;
+  - dark: 1000x2025, 68,378 bytes,
+    `ce0aa2813b683d32068dc03a2b64b146be23ab52269d3cbc929700c357b05ff8`.
+- Theme budgets remain below the existing 300 KB limit:
+  - light: 299,550 bytes;
+  - dark: 298,734 bytes.
+- Final automated verification:
+  - six session-fixture tests, including reviewed-prefix preservation and
+    follow-up shape/reasoning validation;
+  - one deterministic runtime-fixture test;
+  - 18 visual-asset JavaScript tests;
+  - 120 OpenAI usage/reasoning plugin tests;
+  - mobile TypeScript and all 119 Jest tests;
+  - 314 frontend SDK tests;
+  - real FastAPI/`FetchTransport`/`RestAgentBackend` integration;
+  - successful ten-state iOS Detox build/capture;
+  - complete 14-result visual catalog totaling 707,738 bytes;
+  - Astro build and all 12 responsive/theme Playwright tests;
+  - Black, Ruff, and `git diff --check`.
+- The implementation remains unstaged and is stopped at the revised manual C4
+  checkpoint. Stage C5 has not started.
+
+### August 30, 2026 — Stage C4 approved
+
+- The user approved the consecutive follow-up mobile hero in both light and
+  dark themes at desktop and phone website widths.
+- Manual checkpoint C4 is complete.
+- The accepted implementation, source masters, public derivatives, runtime and
+  reviewed-session fixtures, plugin display controls, tests, and task evidence
+  are ready to be committed together before Stage C5 begins.

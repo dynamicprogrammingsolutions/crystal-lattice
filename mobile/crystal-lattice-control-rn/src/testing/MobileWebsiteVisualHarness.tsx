@@ -32,6 +32,7 @@ const PROVIDER_USAGE_MESSAGE =
   runtimeUiFixture.provider_usage_message as IndexedMessage;
 const MOBILE_HERO_MESSAGES =
   runtimeUiFixture.mobile_hero_messages as IndexedMessage[];
+const MOBILE_HERO_UI_SCHEMA = runtimeUiFixture.mobile_hero_ui_schema;
 
 function createHarnessBackend(kind: string): AgentBackend {
   const displayedMessages =
@@ -69,9 +70,13 @@ function createHarnessBackend(kind: string): AgentBackend {
       cursorExpired: false,
     }),
     getSessionUiSchema: async () =>
-      kind === "usage" ? MESSAGE_FOOTER_ELEMENTS : SESSION_UI_SCHEMA,
+      kind === "usage"
+        ? MESSAGE_FOOTER_ELEMENTS
+        : kind === "hero"
+          ? MOBILE_HERO_UI_SCHEMA
+          : SESSION_UI_SCHEMA,
     getSessionApplicationUiSchema: async () =>
-      SESSION_APPLICATION_UI_SCHEMA,
+      kind === "hero" ? [] : SESSION_APPLICATION_UI_SCHEMA,
     getSessionOverrides: async () => SESSION_OVERRIDES,
     getSessionConfigSchema: async () => SESSION_CONFIG_SCHEMA,
     getSessionBaseConfig: async () => SESSION_BASE_CONFIG,
@@ -155,7 +160,9 @@ export function MobileWebsiteVisualHarness({
                   backend={backend}
                   connectionId="website-visual"
                   isActive={
-                    configuredKind === "actions" || configuredKind === "usage"
+                    configuredKind === "actions" ||
+                    configuredKind === "usage" ||
+                    configuredKind === "hero"
                   }
                   sessionId={SESSION_ID}
                   sessionSummary={SESSION_SUMMARY}

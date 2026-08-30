@@ -88,23 +88,39 @@ def test_canonical_runtime_ui_fixture_is_deterministic_and_plugin_driven() -> No
         "assistant",
     ]
     assert first["mobile_hero_messages"][0]["message"]["content"].startswith(
-        "After upgrading Starlette"
+        "Based on what you already found, compare two fixes"
     )
-    assert first["mobile_hero_messages"][1]["message"]["content"].startswith(
-        "### Focused backwards-compatible fix"
+    assert first["mobile_hero_messages"][1]["index"] == (
+        first["mobile_hero_messages"][0]["index"] + 1
     )
+    assert first["mobile_hero_messages"][1]["message"]["content"].strip()
+    assert first["mobile_hero_messages"][1]["message"]["metadata"]["reasoning"]
+    hero_display = first["mobile_hero_messages"][1]["message"]["metadata"]["display"]
+    assert hero_display["type"] == "text"
+    assert hero_display["content"].startswith("I would choose")
+    assert "**Backwards compatibility:**" in hero_display["content"]
+    assert "**Patch scope:**" not in hero_display["content"]
+    assert "**Default drift:**" not in hero_display["content"]
     assert (
-        "thread_minimum_size: int = 128 * 1024"
-        in first["mobile_hero_messages"][1]["message"]["content"]
+        "**Default drift:**" in first["mobile_hero_messages"][1]["message"]["content"]
     )
-    assert (
-        "Keep it keyword-only."
-        not in first["mobile_hero_messages"][1]["message"]["content"]
+    assert [
+        (item["ui_type"], item["template"]) for item in first["mobile_hero_ui_schema"]
+    ] == [
+        ("message_footer", "estimated turn: {{data}}"),
+        ("message_footer", "turn: {{data}}"),
+        ("message_footer", "turn input: {{data}}"),
+        ("message_footer", "turn output: {{data}}"),
+        ("status_bar", "Total: {{data}}"),
+    ]
+    assert all(
+        item.get("data") != "metadata.openai_responses_reasoning.context"
+        for item in first["mobile_hero_ui_schema"]
     )
-    assert "reasoning" not in first["mobile_hero_messages"][1]["message"]["metadata"]
     footer_paths = {item["data"] for item in first["message_footer_elements"]}
     assert "metadata.usage_prompt_tokens_formatted" in footer_paths
     assert "metadata.usage_total_cost_formatted" in footer_paths
+    assert "metadata.openai_responses_reasoning.context" in footer_paths
     assert [item["reason"] for item in first["snapshots"]] == [
         "Before compacting conversation [:3]",
         "Before deleting messages [3:]",

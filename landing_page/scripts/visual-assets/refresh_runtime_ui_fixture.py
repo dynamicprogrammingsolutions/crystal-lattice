@@ -84,6 +84,9 @@ def build_runtime_ui_fixture(
     session_overrides = visual_fixture.get("session_overrides")
     if not isinstance(session_overrides, dict):
         session_overrides = {}
+    mobile_hero_overrides = visual_fixture.get("mobile_hero_overrides")
+    if not isinstance(mobile_hero_overrides, dict):
+        mobile_hero_overrides = {}
     snapshots = visual_fixture.get("snapshots")
     if not isinstance(snapshots, list):
         raise RuntimeError("visual_fixture.snapshots must be a list")
@@ -127,7 +130,7 @@ def build_runtime_ui_fixture(
     ]
     if not user_messages:
         raise RuntimeError("reviewed session fixture must contain a user request")
-    usage_source = assistant_messages[-1]
+    usage_source = assistant_messages[0]
     usage_message = {
         "index": usage_source.get("index"),
         "message": {
@@ -137,40 +140,41 @@ def build_runtime_ui_fixture(
             ).strip(),
         },
     }
-    focused_fix_start = "### Focused backwards-compatible fix"
-    focused_fix_end = "Keep it keyword-only."
-    focused_fix_content = usage_source["message"]["content"]
-    focused_fix_start_index = focused_fix_content.find(focused_fix_start)
-    focused_fix_end_index = focused_fix_content.find(
-        focused_fix_end,
-        focused_fix_start_index,
-    )
-    if focused_fix_start_index < 0 or focused_fix_end_index < 0:
+    hero_assistant_source = assistant_messages[-1]
+    hero_assistant_content = hero_assistant_source["message"]["content"]
+    hero_excerpt_end = hero_assistant_content.find("- **Patch scope:**")
+    if hero_excerpt_end < 0:
         raise RuntimeError(
-            "reviewed assistant response is missing the expected focused-fix section"
+            "reviewed follow-up response is missing the expected tradeoff section"
         )
+    hero_assistant_metadata = hero_assistant_source["message"].get("metadata")
     mobile_hero_messages = [
-        user_messages[0],
+        user_messages[-1],
         {
-            "index": usage_source.get("index"),
+            "index": hero_assistant_source.get("index"),
             "message": {
-                **usage_source["message"],
+                **hero_assistant_source["message"],
                 "metadata": {
-                    key: value
-                    for key, value in usage_source["message"]
-                    .get(
-                        "metadata",
-                        {},
-                    )
-                    .items()
-                    if key not in {"reasoning", "openai_responses_reasoning"}
+                    **(
+                        hero_assistant_metadata
+                        if isinstance(hero_assistant_metadata, dict)
+                        else {}
+                    ),
+                    "display": {
+                        "type": "text",
+                        "content": hero_assistant_content[:hero_excerpt_end].strip(),
+                    },
                 },
-                "content": focused_fix_content[
-                    focused_fix_start_index:focused_fix_end_index
-                ].strip(),
             },
         },
     ]
+    if (
+        not isinstance(mobile_hero_messages[0].get("index"), int)
+        or mobile_hero_messages[1].get("index") != mobile_hero_messages[0]["index"] + 1
+    ):
+        raise RuntimeError(
+            "reviewed session must end with a consecutive user/assistant follow-up"
+        )
 
     with tempfile.TemporaryDirectory(prefix="crystal-runtime-ui-") as raw_temp:
         runtime_root = Path(raw_temp)
@@ -204,6 +208,14 @@ def build_runtime_ui_fixture(
                 session_overrides,
             )
             full_session_ui_schema = core.get_ui_schema(config=effective_config)
+            mobile_hero_config = resolve_request_config(
+                base_config,
+                {
+                    **session_overrides,
+                    **mobile_hero_overrides,
+                },
+            )
+            mobile_hero_full_ui_schema = core.get_ui_schema(config=mobile_hero_config)
             session_application_ui_schema = app.get_session_application_ui_schema(
                 session.session_id
             )
@@ -220,6 +232,12 @@ def build_runtime_ui_fixture(
         element
         for element in full_session_ui_schema
         if isinstance(element, dict) and element.get("ui_type") == "message_footer"
+    ]
+    mobile_hero_ui_schema = [
+        element
+        for element in mobile_hero_full_ui_schema
+        if isinstance(element, dict)
+        and element.get("ui_type") in {"message_footer", "status_bar"}
     ]
     schema_by_key = {
         element.get("key"): element
@@ -246,6 +264,7 @@ def build_runtime_ui_fixture(
         },
         "session_ui_schema": _sanitize(session_ui_schema),
         "message_footer_elements": _sanitize(message_footer_elements),
+        "mobile_hero_ui_schema": _sanitize(mobile_hero_ui_schema),
         "mobile_hero_messages": _sanitize(mobile_hero_messages),
         "provider_usage_message": _sanitize(usage_message),
         "session_application_ui_schema": _sanitize(session_application_ui_schema),

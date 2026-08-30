@@ -4050,7 +4050,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            </View>
 	            <View style={styles.titleContainer}>
 	              <Text style={styles.title} numberOfLines={1}>
-	                {sessionId}
+	                {sessionHeaderPresentation.title}
 	              </Text>
 	              <TouchableOpacity
 	                style={styles.titleChevronButton}

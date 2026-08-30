@@ -497,6 +497,8 @@ loaded.
   `auth_mode` is `chatgpt`.
 - `reasoning_context`: optional string enum `["auto", "current_turn",
   "all_turns"]`, GPT-5.6 family only.
+- `show_reasoning_context_footer`: set to `false` to keep reasoning-context
+  behavior and metadata while hiding its assistant-message footer.
 
 See [Reasoning controls](docs/development/reasoning-controls.md) for the full
 shaping rules, silent-drop behavior, metadata footers, Pro mode billing, and
@@ -515,6 +517,14 @@ models whose id contains `gpt-5`.
 
 - `pricing_snapshot_path`: optional override for the checked-in pricing snapshot
 - `show_usage`: set to `false` to hide usage footer/status UI elements
+- `usage_message_footer_fields`: optional list that filters message-footer
+  fields while preserving plugin-defined order. Supported values are `input`,
+  `cached`, `cache_write`, `estimated_cached`, `completion`, `auth`, `tier`,
+  `mode`, `cost`, `turn_cost`, `turn_reasoning`, `turn_input`, `turn_cached`,
+  and `turn_output`. Omitting the key preserves the complete existing footer;
+  an empty list hides message-level usage while allowing the status total.
+- `show_usage_status_total`: set to `false` to hide cumulative cost from the
+  chat status bar while retaining selected message-footer usage
 - `show_estimated_cached_tokens`: set to `true` to show ChatGPT estimated cached-token footers
 - `show_openai_auth_mode`: set to `true` to show the effective auth mode (`API` or `ChatGPT`) in usage footers
 

@@ -449,6 +449,7 @@ export default defineVisualAssets({
       },
       config: {
         fixtureId: "coding-plan",
+        extendReviewedFixture: true,
         manifest:
           "visual_assets/session_sources/starlette-gzip-responder/manifest.json",
         reviewedFixture:
@@ -735,7 +736,7 @@ export default defineVisualAssets({
       },
       config: {
         presentation: {
-          alt: "Crystal Lattice mobile chat showing a realistic Starlette compatibility request and a focused backwards-compatible fix.",
+          alt: "Crystal Lattice mobile chat showing a Starlette compatibility plan with turn usage, estimated cost, agent, and session status.",
           width: 1000,
           height: 2025,
         },
@@ -750,21 +751,21 @@ export default defineVisualAssets({
             }),
             provenance: {
               kind: "detox-capture",
-              fixture: "website-coding-plan",
+              fixture: "coding-plan",
               output: "hero-light.png",
             },
             output: "public/mobile-active-session.webp",
             build: workbenchModal({
               cropGeometry: "1206x2442+0+180",
               resizeTo: "1000x>",
-              quality: 60,
+              quality: 54,
             }),
             expected: {
               width: 1000,
               height: 2025,
               maxBytes: 80000,
               sha256:
-                "ee0f25d7196cfe67764b249eaade1066920bfe95c0f1db28c2bab28bd8626d9a",
+                "55a4f00c51b57fc355059923a26eab75f96330850b62b70c2f0c48b6be3a4c84",
             },
           },
           dark: {
@@ -776,21 +777,21 @@ export default defineVisualAssets({
             }),
             provenance: {
               kind: "detox-capture",
-              fixture: "website-coding-plan",
+              fixture: "coding-plan",
               output: "hero-dark.png",
             },
             output: "public/mobile-active-session-dark.webp",
             build: workbenchModal({
               cropGeometry: "1206x2442+0+180",
               resizeTo: "1000x>",
-              quality: 40,
+              quality: 30,
             }),
             expected: {
               width: 1000,
               height: 2025,
               maxBytes: 80000,
               sha256:
-                "e07eb780380100e888292ca83f8abccb7d29df820aee6e5dcd83d5189f92d260",
+                "ce0aa2813b683d32068dc03a2b64b146be23ab52269d3cbc929700c357b05ff8",
             },
           },
         },
