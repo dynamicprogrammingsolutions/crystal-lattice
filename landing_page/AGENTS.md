@@ -9,6 +9,7 @@ Before changing the website, read:
 
 - `README.md`
 - `docs/index.md`
+- `docs/visual-asset-framework.md`
 - `docs/visual-assets.md`
 - `docs/development/index.md`
 - `docs/development/content-system.md`
@@ -77,8 +78,11 @@ labels, or internal progress into public website content.
 - Keep draft captures under `artifacts/`; move only approved production files
   to `public/`.
 - Follow
-  `docs/visual-assets.md` when adding or changing assets, programmatic builds,
-  commands, lifecycle callbacks, or captured sources.
+  `docs/visual-asset-framework.md` when adding framework assets, commands,
+  lifecycle callbacks, pipelines, custom rules, or catalog commands.
+- Follow
+  `docs/visual-assets.md` when selecting or changing concrete image, capture,
+  fixture, derivative, or website-presentation processing.
 - Follow
   `docs/development/visual-content-and-screenshot-generation.md` when changing
   catalog dispatch, runtime services, lifecycle composition, mutation safety,

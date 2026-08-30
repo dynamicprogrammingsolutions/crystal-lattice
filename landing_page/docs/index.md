@@ -5,8 +5,12 @@ from authored YAML, Markdown, Astro components, and approved public assets.
 
 ## Guides
 
-- [Visual assets](visual-assets.md): add reviewed assets, programmatic builds,
-  direct commands, lifecycle callbacks, captured sources, and catalog commands.
+- [Using the Visual Asset Framework](visual-asset-framework.md): define assets,
+  pipelines, commands, lifecycle callbacks, custom rules, and catalog
+  commands.
+- [Visual Asset Processing Pipelines](visual-assets.md): use and change the
+  available image, capture, fixture, derivative, and website-presentation
+  workflows.
 
 ## Development
 

@@ -263,6 +263,6 @@ proves the current claim.
 This page preserves the desired complete visual and asset-production model.
 The current early executable catalog, source lifecycle, derivative generation,
 and browser verification are documented in
-[Visual content and screenshot generation](../visual-content-and-screenshot-generation.md).
+[Visual Asset Framework Architecture](../visual-content-and-screenshot-generation.md).
 This page does not claim that the final native fixtures, capture scenarios, or
 complete freshness automation have been delivered.

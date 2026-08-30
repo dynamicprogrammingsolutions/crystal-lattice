@@ -1,75 +1,77 @@
-# Visual Content and Screenshot Generation Architecture
+# Visual Asset Framework Architecture
 
-This page describes the current implementation of the landing package visual
-asset system.
+This page describes the current architecture of the landing package visual
+asset framework.
 
-Developers adding assets, builds, commands, lifecycle callbacks, or captures
-should start with the consumer guide:
+Developers using the supported framework contract should start with:
 
-- [Visual assets](../visual-assets.md)
+- [Using the Visual Asset Framework](../visual-asset-framework.md)
 
-This page focuses on ownership, execution, extension, and safety boundaries.
+Developers selecting or changing processing implementations should use:
+
+- [Visual Asset Processing Pipelines](../visual-assets.md)
+
+This page focuses on framework ownership, execution, extension, safety, and
+testing. It does not define processing-pipeline behavior.
 
 ## Responsibilities
 
-The visual asset system owns:
+The framework owns:
 
-- executable asset registration;
-- CLI command registration;
+- executable catalog construction;
+- asset construction;
+- catalog command registration;
+- CLI command discovery;
 - asset selection;
-- direct asset-command execution;
-- lifecycle composition;
+- command and lifecycle dispatch;
+- command and asset contexts;
 - process and ignored-path services;
-- prepared durable mutations;
-- reports;
-- reviewed-source and public-derivative generation;
-- website content bindings;
-- browser presentation checks.
+- command-local caching;
+- prepared durable mutation;
+- report writing;
+- common framework validation;
+- unsupported-operation behavior.
 
 It does not own:
 
-- product truth for the represented feature;
-- mobile or desktop production UI behavior;
-- native fixture implementation;
-- provider credentials;
-- final page briefs or visual selection;
-- deployment.
+- the meaning of asset-specific configuration;
+- product truth represented by a visual;
+- processing algorithms;
+- capture implementation;
+- source-fixture behavior;
+- image composition;
+- native application behavior;
+- website content selection;
+- final visual approval.
 
-## Module Layout
+Processing implementations use the framework through commands, lifecycle
+callbacks, opaque configuration, and context services.
+
+## Framework Layout
 
 ```text
 landing_page/
 ├── visual_assets/
-│   ├── config.mjs
-│   └── sources/
+│   └── config.mjs
 ├── scripts/
 │   └── visual-assets/
 │       ├── api.mjs
 │       ├── cli.mjs
 │       ├── runner.mjs
 │       ├── selection.mjs
-│       ├── validation.mjs
-│       ├── operations.mjs
-│       ├── runtime-ui-fixture.mjs
-│       ├── session-fixture.mjs
-│       ├── refresh_runtime_ui_fixture.py
-│       ├── refresh_session_fixture.py
-│       ├── lifecycle/
-│       │   └── image.mjs
-│       └── producers/
-│           └── detox.mjs
+│       └── validation.mjs
 ├── tests/
-│   ├── visual-assets/
-│   └── visual/
+│   └── visual-assets/
 └── artifacts/
     └── visual-assets/
 ```
 
-`visual_assets/config.mjs` is the composition root. It defines the supported
-commands and assets.
+`visual_assets/config.mjs` is the composition root. It registers commands and
+assets.
 
-`scripts/visual-assets/` provides reusable infrastructure and implementations.
-It does not register specific website assets.
+`scripts/visual-assets/` owns reusable framework code. Processing modules may
+exist beside it, but they are consumers of this architecture rather than part
+of its common contract.
 
 ## Catalog Construction
 
@@ -86,21 +88,25 @@ defineVisualAssets({
 It:
 
 - rejects unknown common keys;
-- requires at least one asset;
 - requires at least one command;
+- requires at least one asset;
 - validates command callbacks;
 - validates unique asset IDs;
-- builds the asset index;
-- exposes command names to the CLI;
+- creates the asset index;
+- exposes command names;
 - dispatches catalog commands.
 
-The CLI does not maintain a separate command list. It reads:
+The catalog owns:
 
 ```js
 catalog.commandNames
+catalog.hasCommand(name)
+catalog.execute(name, context)
+catalog.assetMap
+catalog.assets
 ```
 
-Adding a catalog command therefore does not require a CLI or runner change.
+The CLI and runner do not maintain separate command or asset registries.
 
 ## Asset Construction
 
@@ -119,26 +125,77 @@ defineAsset({
 It:
 
 - rejects unknown common keys;
-- requires `id`;
-- validates command and lifecycle callbacks;
+- requires a stable asset ID;
+- validates direct-command callbacks;
+- validates lifecycle callbacks;
 - requires at least one command or lifecycle callback;
-- provides `hasCommand` and `runCommand`;
-- provides `hasLifecycle` and `runLifecycle`;
-- injects the asset, metadata, and opaque config into callbacks.
+- provides command and lifecycle lookup;
+- injects asset data into callback contexts.
 
-`config` is intentionally opaque to the API and runner. Its structure belongs
-to the assigned callbacks.
+The constructed asset exposes:
 
-`metadata` is non-operational. Catalog commands may include it in reports, but
-the runner does not interpret claims, provenance, or freshness triggers.
+```js
+asset.hasCommand(name)
+asset.runCommand(name, context)
+asset.hasLifecycle(name)
+asset.runLifecycle(name, context)
+```
+
+## Opaque Asset Configuration
+
+Asset `config` is opaque to:
+
+- the framework API;
+- the CLI;
+- the runner;
+- selection;
+- generic dispatch.
+
+Its shape belongs to the callbacks assigned to the asset.
+
+This boundary allows independently designed asset types to coexist in one
+catalog:
+
+```js
+defineAsset({
+  id: "example",
+
+  config: {
+    arbitrary:
+      "interpreted by the callback",
+  },
+
+  commands: {
+    inspect,
+  },
+});
+```
+
+A new asset-specific key does not justify a framework change.
+
+A framework change is justified only when callbacks require a new common
+contract or cross-cutting service that cannot be expressed through existing
+contexts.
+
+## Metadata Boundary
+
+Asset `metadata` is non-operational.
+
+The framework may carry it into contexts and reports, but it does not interpret
+claims, provenance, freshness information, or review status.
+
+Operational behavior belongs under `config`, direct commands, or lifecycle
+callbacks.
+
+This prevents descriptive metadata from silently changing execution.
 
 ## CLI Dispatch
 
-The CLI performs only three architecture-specific operations:
+The CLI performs a small fixed set of operations:
 
 1. import the catalog;
-2. verify that the requested command exists;
-3. pass the command and raw arguments to the runner.
+2. verify the requested command exists;
+3. pass the command name and raw arguments to the runner.
 
 Conceptually:
 
@@ -156,31 +213,39 @@ await executeVisualAssets({
 });
 ```
 
-Argument meaning belongs to the selected catalog command. Current selection
-helpers understand asset IDs, `--all`, and `--variant`; a custom command may
-interpret other raw arguments without changing CLI dispatch.
+The CLI derives its available commands from the catalog.
+
+Adding a catalog command does not require adding another dispatch branch to the
+CLI.
 
 ## Runner Boundary
 
 The runner creates a command context and invokes:
 
 ```js
-await catalog.execute(command, commandContext);
+await catalog.execute(
+  command,
+  commandContext,
+);
 ```
 
-It does not interpret:
+The runner does not interpret:
 
-- image variants;
+- asset-specific configuration;
+- variants;
 - sources;
-- build pipelines;
-- public outputs;
+- outputs;
+- processing stages;
 - dimensions;
 - hashes;
-- capture producers;
-- content bindings;
-- asset-specific configuration keys.
+- capture semantics;
+- publication semantics;
+- content bindings.
 
-Those concepts are implemented by catalog commands and asset callbacks.
+Those concepts belong to catalog commands and asset callbacks.
+
+The runner remains stable as new asset types and processing workflows are
+introduced.
 
 ## Command Context
 
@@ -189,41 +254,38 @@ Catalog commands receive services for:
 - raw command arguments;
 - asset selection;
 - sequential selected-asset iteration;
-- asset description;
 - prepared-effect application;
 - report writing;
-- repository, package, and ignored output roots;
-- a command-local cache.
+- repository and package roots;
+- ignored output paths;
+- process execution;
+- command-local caching.
 
-The current selection helper supports:
+The command context coordinates behavior spanning selected assets.
 
-```text
-<asset-id> ...
---all
---variant <name>
-```
+It is the correct owner for:
 
-Catalog commands decide whether:
-
-- no selection means all assets;
-- explicit selection is required;
-- extra arguments are allowed;
-- unsupported assets are skipped or rejected.
+- selection requirements;
+- unsupported-operation policy;
+- combined budgets or constraints;
+- all-or-nothing prepared application;
+- command reports.
 
 ## Asset Context
 
-Selected assets receive:
+Each selected asset receives an asset context containing:
 
-- the defined asset;
-- opaque asset config;
+- the constructed asset;
+- asset ID;
 - metadata;
+- opaque config;
 - selected variant name;
 - whether `--all` was used;
 - repository, package, and ignored output roots;
 - process execution;
-- ignored-path construction;
 - command-local cache;
-- direct-command and lifecycle helpers.
+- direct-command helpers;
+- lifecycle helpers.
 
 Important helpers include:
 
@@ -238,84 +300,121 @@ assetContext.requireLifecycles(names)
 assetContext.unsupported(name)
 ```
 
-`unsupported(name)` skips the asset for an `--all` operation and rejects an
-explicitly selected unsupported asset.
+Asset contexts do not add meaning to callback names or configuration keys.
+
+## Asset Selection
+
+The shared selection layer understands:
+
+```text
+<asset-id> ...
+--all
+--variant <name>
+```
+
+It:
+
+- resolves asset IDs through the catalog index;
+- rejects unknown IDs;
+- prevents contradictory selection;
+- returns selected assets and raw variant selection.
+
+The catalog command decides:
+
+- whether no selector defaults to all assets;
+- whether explicit selection is required;
+- whether variants apply;
+- whether extra arguments are allowed;
+- whether an unsupported asset is skipped or rejected.
+
+Selection does not inspect asset configuration.
 
 ## Catalog Commands
 
-Catalog commands are complete CLI-visible workflows.
+A catalog command is a complete CLI-visible workflow.
 
-The current catalog defines:
+It can:
 
-- `list`;
-- `inspect`;
-- `check`;
-- `update`;
-- `capture`;
-- `promote-source`;
-- `refresh-session`;
-- `promote-session`;
-- `refresh-runtime-ui`;
-- `promote-runtime-ui`.
+- run a direct asset command;
+- compose lifecycle callbacks;
+- use both forms for different assets;
+- perform cross-asset validation;
+- prepare durable effects;
+- apply effects;
+- write a report.
 
-Each command explicitly chooses:
+Example:
 
-- direct asset command;
-- composed lifecycle stages;
-- unsupported behavior.
+```js
+async function exampleCommand(
+  context,
+) {
+  const results =
+    await context.forEachSelected(
+      async (assetContext) => {
+        if (
+          assetContext.hasCommand(
+            "example",
+          )
+        ) {
+          return assetContext.runCommand(
+            "example",
+          );
+        }
 
-There is no runner-level precedence rule between direct commands and
-lifecycle callbacks.
+        if (
+          assetContext.hasLifecycle(
+            "exampleStage",
+          )
+        ) {
+          return assetContext.runLifecycle(
+            "exampleStage",
+          );
+        }
 
-For example, `check`:
+        return assetContext.unsupported(
+          "example",
+        );
+      },
+      {
+        requireSelection: true,
+      },
+    );
 
-1. runs `commands.check` when present;
-2. otherwise requires the image-check lifecycle;
-3. validates the asset definition;
-4. builds candidates;
-5. inspects candidates;
-6. validates candidates strictly;
-7. compares public derivatives;
-8. applies catalog-level budgets;
-9. writes the report.
+  return context.writeReport("example", {
+    results,
+  });
+}
+```
 
-The complete ordering is visible in `visual_assets/config.mjs`.
+There is no runner-level precedence rule between direct commands and lifecycle
+callbacks.
 
-## Direct Asset Commands
+## Direct Commands
 
-A direct asset command implements the complete asset-local part of a catalog
+A direct command implements the complete asset-local part of one catalog
 command:
 
 ```js
 commands: {
-  check: checkGeneratedDiagram,
+  inspect: inspectAsset,
 }
 ```
 
-The callback receives the asset context plus:
+The callback receives the asset context and command-specific input.
 
-```js
-{
-  asset,
-  metadata,
-  config,
-  input,
-}
-```
+Direct commands are appropriate when:
 
-The catalog command determines how the returned value participates in global
-budgets, reports, or durable mutation.
+- an operation is complete and asset-specific;
+- lifecycle decomposition would not create useful reuse;
+- an external system already owns the operation sequence;
+- the asset needs command-specific argument handling.
 
-Direct commands are appropriate for:
+The framework does not constrain the callback's internal processing.
 
-- unique generators;
-- external tools with their own lifecycle;
-- formats that do not use image inspection;
-- command-specific behavior that cannot reuse shared stages.
+## Lifecycle Callbacks
 
-## Lifecycle Composition
-
-Lifecycle callbacks are smaller asset-local stages:
+Lifecycle callbacks are smaller named stages:
 
 ```js
 lifecycle: {
@@ -323,92 +422,62 @@ lifecycle: {
   buildCandidate,
   inspectCandidate,
   validateCandidate,
-  comparePublished,
   preparePublication,
 }
 ```
 
-Lifecycle names are not registered in the runner or API. A name is meaningful
-because a catalog command calls it.
+Lifecycle names are local conventions between an asset type and the catalog
+commands composing it.
 
-This allows catalog commands to define more than one lifecycle sequence:
+They are not registered in:
 
-- inspection uses non-strict validation;
-- checking adds public comparison;
-- update replaces comparison with prepared publication;
-- capture and source promotion use separate optional stages.
+- the API;
+- the CLI;
+- the runner;
+- a global lifecycle enum.
 
-An asset can define both direct commands and lifecycle callbacks. The catalog
-command explicitly decides which path to use.
+This allows different catalog commands to compose different stage sequences
+without changing framework dispatch.
 
-## Current Image Lifecycle
+## Commands and Lifecycle Together
 
-`lifecycle/image.mjs` owns the current reviewed-image configuration shape:
-
-```js
-config: {
-  presentation,
-  contentBindings,
-  variants,
-}
-```
-
-Each variant currently contains:
+An asset may expose both:
 
 ```js
-{
-  source,
-  provenance,
-  output,
-  build,
-  expected,
-}
+defineAsset({
+  id: "mixed",
+
+  commands: {
+    capture,
+  },
+
+  lifecycle: {
+    validateCandidate,
+    preparePublication,
+  },
+});
 ```
 
-The image lifecycle implements:
+The catalog command explicitly selects the path it needs.
 
-- `describe`;
-- `validateDefinition`;
-- `buildCandidate`;
-- `inspectCandidate`;
-- `validateCandidate`;
-- `comparePublished`;
-- `preparePublication`;
-- optional `capture`;
-- optional `prepareSourcePromotion`.
+This supports:
 
-The generic runner never reads this configuration.
+- one-off operations beside reusable stages;
+- asset types that participate only in some commands;
+- gradual extraction of shared behavior;
+- replacement of one processing workflow without framework changes.
 
-## Programmatic Builds
+## Unsupported Operations
 
-`operations.mjs` provides ordinary JavaScript functions for building an
-ImageMagick command:
+`assetContext.unsupported(name)` applies selection-aware behavior.
 
-- trim;
-- resize;
-- centered extent;
-- sRGB normalization;
-- metadata removal;
-- WebP encoding;
-- custom argument callbacks.
+An explicitly selected unsupported asset should fail because the user asked
+for that asset.
 
-`imageMagickPipeline` returns the common:
+An unsupported asset reached through `--all` may be skipped when the command
+defines that behavior.
 
-```js
-{
-  id,
-  async run(context) {},
-}
-```
-
-An asset may provide any other object implementing this build contract.
-
-`focusCalloutPipeline` is a programmatic build assembled from the same
-operations. The asset owns all source rectangles, contextual-image placement,
-callout placement, border, shadow, dimming, and encoding values. The pipeline
-keeps the contextual screenshot narrower than the final canvas and places the
-enlarged square-corner callout above the source region it magnifies. This is an
-image composition of one reviewed source, not a native UI mutation.
+This distinction belongs to command coordination, not processing callbacks.
 
 ## Prepared Durable Mutations
 
@@ -417,266 +486,206 @@ Durable changes are represented as prepared effects:
 ```js
 {
   report,
-  async apply() {},
+
+  async apply() {
+    // Durable mutation.
+  },
 }
 ```
 
-Asset callbacks perform generation and validation before returning the effect.
+The callback performs generation and validation before returning the effect.
 
-Catalog commands:
+The catalog command:
 
-1. prepare every selected effect;
-2. perform global validation such as budgets;
-3. call `context.applyAll(prepared)`.
+1. prepares every selected effect;
+2. performs cross-asset validation;
+3. calls `context.applyAll(prepared)`.
 
-If preparation of any selected asset fails, no `apply()` function is called.
+If preparation fails, no prepared `apply()` function is called.
 
-This model is used for:
+This protects multi-asset commands from partial durable updates caused by a
+later validation failure.
 
-- public derivative update;
-- reviewed-source promotion;
-- future durable asset operations.
+Disposable work may occur before this boundary only under ignored output.
 
-Capture output is disposable and may be produced before this boundary, but it
-must remain under an ignored `artifacts/` directory.
+## Process Service
 
-## Source Lifecycle
+Callbacks use the context process service rather than creating inconsistent
+subprocess conventions.
 
-`reviewedFile(path)` identifies a maintained source.
+The service centralizes:
 
-`capturedSource({ reviewed, candidate })` identifies:
+- working directory;
+- argument handling;
+- process failure reporting;
+- output collection;
+- command context.
 
-- the maintained source used by build/check/update;
-- an ignored candidate available to capture and promotion.
+The framework does not interpret the external process being executed.
 
-Source promotion and public publication are intentionally separate prepared
-mutations.
+## Ignored Path Service
 
-Normal checking does not invoke a source producer.
+Callbacks request disposable output through the context:
 
-## Detox Producer
-
-`producers/detox.mjs` adapts a package-owned Detox command to one or more named
-capture outputs.
-
-The adapter:
-
-- runs the command in the owning package;
-- memoizes the run for the current CLI process;
-- verifies the requested named output exists;
-- returns its repository path.
-
-The owning mobile package remains responsible for native UI interaction and
-fixture correctness.
-
-The landing package remains responsible for source review, promotion,
-derivative production, and website presentation.
-
-The producer captures application pixels without a hardware frame. The image
-lifecycle applies the maintained crop and encoding to those pixels. A phone
-frame, when required by a mobile-specific page, is presentation owned by the
-website CSS and is not part of the reviewed raster source.
-
-## Reviewed session fixture producer
-
-`session-fixture.mjs` adapts the `coding-plan` direct-command asset to
-`refresh_session_fixture.py`.
-
-The producer receives all environment-dependent inputs explicitly:
-
-- Python executable;
-- agent ID;
-- credential-directory path.
-
-The tracked source manifest owns:
-
-- repository URL and immutable revision;
-- sparse checkout paths;
-- checkout byte and time budgets;
-- generation config;
-- initial and follow-up prompts;
-- reviewed-prefix length;
-- presentation identity.
-
-The Python producer:
-
-1. creates an operating-system temporary directory;
-2. performs the bounded sparse checkout and verifies its exact revision;
-3. copies the tracked generation config;
-4. reads only the expected ChatGPT credential file from the supplied config
-   directory;
-5. creates `TerminalApplication` with explicit runtime paths and overrides;
-6. either runs the initial investigation or seeds the approved reviewed
-   prefix and runs only its replacement follow-up;
-7. uses the shared application request path;
-8. rejects install, build, simulator, and source-writing commands;
-9. sanitizes private metadata, paths, account identifiers, credentials, raw
-   responses, and request identifiers;
-10. validates repository-inspection activity, a no-tool follow-up, and visible
-    reasoning metadata;
-11. writes an ignored candidate plus generation provenance.
-
-Provider reconstruction omits an empty assistant message whose only purpose is
-to carry a tool call. Seed validation therefore compares the semantic runtime
-prefix while candidate construction restores the exact reviewed message
-objects before appending the new follow-up pair.
-
-`promote-session` is the only command that replaces the tracked reviewed
-session fixture. The ordinary `check` path never runs a model request or
-repository checkout.
-
-## Runtime UI fixture producer
-
-`runtime-ui-fixture.mjs` is a direct-command asset adapter for deterministic
-application UI contracts. It invokes
-`refresh_runtime_ui_fixture.py`, which:
-
-1. loads the canonical visual runtime configuration;
-2. adds the owning plugin source roots to the isolated Python import path;
-3. instantiates `AgentApplication` in a temporary session store;
-4. imports the reviewed coding-session messages;
-5. asks the real core and application plugins for their UI and config schemas;
-6. selects the configured presentation keys from those real schemas;
-7. emits deterministic source hashes, action/settings contracts, and snapshot
-   presentation data.
-
-`refresh-runtime-ui` writes an ignored candidate.
-`promote-runtime-ui` is the only command that updates the tracked fixture.
-The asset's `check` command regenerates the candidate locally and compares it
-byte-for-byte with the promoted file.
-
-The native harness consumes the promoted file in process. This isolates
-visual rendering from server startup, event polling, ports, credentials, and
-plugin-cache state. It does not replace transport coverage:
-`backend.website-runtime-ui.integration.test.ts` starts the public FastAPI
-boundary and verifies the canonical actions and selected settings through the
-production frontend transport and backend adapter.
-
-The runtime fixture keeps several presentation projections from one reviewed
-session. Provider usage proof remains attached to the accepted investigation
-response, while the mobile hero uses the consecutive follow-up exchange.
-`metadata.display` may carry a bounded exact excerpt for a website proof while
-the reviewed fixture retains the complete response content.
-
-## Validation
-
-`validation.mjs` owns reusable file-level concerns:
-
-- root-bound path resolution;
-- ignored capture-path enforcement;
-- image dimensions;
-- SHA-256;
-- public URL conversion;
-- YAML media binding validation.
-
-Format- or asset-specific validation belongs in lifecycle or direct command
-callbacks.
-
-## Reports and Ignored Output
-
-Reports are written under:
-
-```text
-artifacts/visual-assets/reports/
+```js
+const candidate =
+  context.artifactPath(
+    "example/candidate.dat",
+  );
 ```
 
-Generated candidates are written under:
+The framework roots this output under the package's ignored visual output
+directory.
 
-```text
-artifacts/visual-assets/generated/
+This keeps temporary generation, reports, and review output separate from
+maintained source and published files.
+
+## Command-Local Cache
+
+The command context provides one cache shared by all selected assets during a
+single CLI invocation.
+
+Processing adapters can use it to memoize expensive shared work:
+
+```js
+let result =
+  context.commandCache.get(cacheKey);
+
+if (!context.commandCache.has(cacheKey)) {
+  result = await produceOnce();
+  context.commandCache.set(
+    cacheKey,
+    result,
+  );
+}
 ```
 
-Playwright output is written under:
+The cache is not persistent state. It exists only for one command execution.
 
-```text
-artifacts/visual-assets/playwright/
+The framework does not assign meaning to cache keys.
+
+## Reports
+
+Catalog commands write structured reports through:
+
+```js
+context.writeReport(name, payload)
 ```
 
-Reviewed source masters remain under `visual_assets/sources/`, and optimized
-derivatives remain under `public/`.
+Reports belong under ignored output.
 
-## Browser Presentation
+They provide:
 
-The website uses `ThemedImage.astro` so one image element carries light and dark
-source metadata. Theme restoration assigns only the active source.
+- selected asset results;
+- candidate or output information;
+- validation findings;
+- command summary;
+- review support.
 
-The mobile-page hero wraps the same unframed source in a generic CSS phone
-frame. Homepage and other consumers can therefore reuse the proof without a
-device bezel.
+Reports are command output, not maintained behavioral contracts.
 
-Playwright verifies:
+## Common Validation
 
-- desktop and phone routes;
-- light and dark themes;
-- active source selection;
-- lazy loading;
-- image semantics;
-- card layout;
-- theme toggling;
-- client-navigation persistence.
+Framework-level validation covers common contracts such as:
 
-These tests validate website presentation, not native application behavior or
-source-capture correctness.
+- known common keys;
+- callback shape;
+- unique asset IDs;
+- registered command names;
+- valid selection;
+- root-bound paths where a framework service owns resolution.
 
-## Testing Boundaries
+Asset-specific validation belongs to the callback interpreting that asset's
+opaque configuration.
 
-Programmatic tests cover:
+Cross-asset validation belongs to the catalog command coordinating the
+selection.
 
-- catalog and asset construction;
-- command and lifecycle coexistence;
-- generic selection;
-- unknown common keys;
-- programmatic build operations;
-- capture and promotion separation;
-- Detox output memoization;
-- preparation failure preventing durable application.
+## Error Ownership
 
-Python fixture tests cover:
+Errors should be raised at the narrowest owner:
 
-- sanitization and forbidden-command rejection;
-- two-request shared application execution;
-- reviewed-prefix preservation across provider normalization;
-- no-tool, reasoning-bearing follow-up validation;
-- deterministic runtime UI-schema generation.
+- API construction errors for invalid common definitions;
+- selection errors for invalid selectors;
+- command errors for unsupported or invalid command usage;
+- asset callback errors for asset-specific configuration;
+- catalog command errors for combined validation;
+- process-service errors for failed external execution.
 
-The complete catalog check exercises every current source, build, expectation,
-content binding, budget, and public derivative.
+Avoid moving asset-specific validation into the runner merely to centralize
+error text.
 
-Playwright exercises the production website adapter and generated static site.
+## Extension Boundaries
 
-Native capture scenarios remain package-owned and require their own native
-tests and human presentation review.
+The following should not require a CLI, runner, or common API change:
 
-## Extension Rules
-
-Adding the following should not require a CLI, runner, or API change:
-
-- a new asset config shape;
+- a new asset configuration shape;
 - a direct-command-only asset;
 - a lifecycle-only asset;
-- a mixed asset;
-- a new direct command implementation for an existing catalog command;
-- a new lifecycle stage used by catalog code;
+- an asset combining both forms;
+- a new lifecycle callback name interpreted by catalog code;
 - a different lifecycle sequence;
-- an asset that omits capture or promotion;
+- a new processing pipeline;
+- a new producer adapter;
+- an asset that omits optional operations;
 - a new catalog command.
 
-A shared runtime change is justified only when callbacks require a new
-cross-cutting service that cannot be expressed through current process, path,
-cache, selection, report, or prepared-mutation services.
+A shared framework change is justified when consumers need a new common
+service or contract that cannot be expressed through:
+
+- opaque config;
+- commands;
+- lifecycle callbacks;
+- process execution;
+- ignored paths;
+- command-local cache;
+- selection;
+- reports;
+- prepared mutations.
+
+## Testing Architecture
+
+Framework tests cover:
+
+- catalog construction;
+- asset construction;
+- unknown common keys;
+- unique IDs;
+- command registration;
+- command and lifecycle coexistence;
+- selection behavior;
+- unsupported explicit selection;
+- unsupported `--all` behavior;
+- prepared mutation ordering;
+- failure preventing durable application;
+- command-local service reuse.
+
+Processing tests belong with the processing implementation using the framework.
+
+At least one real catalog consumer should exercise a changed shared helper.
+
+From `landing_page/`:
+
+```bash
+yarn test:visual-assets
+```
 
 ## Invariants
 
-Preserve these invariants:
+Preserve these framework invariants:
 
-- catalog command ordering is visible in the catalog;
-- the runner does not interpret asset config;
+- the catalog is the only command and asset registry;
+- command ordering is visible in catalog code;
 - the CLI derives commands from the catalog;
+- the runner does not interpret asset config;
+- asset config remains opaque;
+- metadata remains non-operational;
+- lifecycle names are defined by their consumers;
+- direct commands and lifecycle callbacks may coexist;
 - unsupported explicit selections fail;
-- unsupported `--all` operations may skip;
+- unsupported `--all` operations may skip only when the command allows it;
 - durable effects are prepared before any apply;
-- capture candidates stay ignored;
-- reviewed source promotion is explicit;
-- normal checking never runs capture producers;
-- public proof is generated from reviewed source masters;
-- proof-bearing UI is never fabricated through image editing.
+- disposable output remains under ignored paths;
+- reports remain command output;
+- processing-specific behavior does not migrate into common dispatch without a
+  cross-cutting need.

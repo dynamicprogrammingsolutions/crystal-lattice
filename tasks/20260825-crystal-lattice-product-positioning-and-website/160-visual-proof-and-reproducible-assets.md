@@ -59,13 +59,16 @@ Depends On:
 7. `landing_page/docs/development/content-system.md:79-97` and
    `landing_page/docs/development/content-system.md:138-161` — current public
    asset and build/verification behavior.
-8. `landing_page/docs/visual-assets.md:1-875` — supported asset-author
-   workflows for builds, direct commands, lifecycle composition, capture,
-   source promotion, catalog commands, and verification.
-9. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-681`
-   — current catalog, runner, lifecycle, prepared-mutation, source-producer,
-   and testing architecture.
-10. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
+8. `landing_page/docs/visual-asset-framework.md:1-579` — supported framework
+   usage for assets, pipelines, commands, lifecycle callbacks, custom rules,
+   and prepared publication.
+9. `landing_page/docs/visual-assets.md:1-772` — concrete image, native-capture,
+   reviewed-session, runtime-fixture, derivative, and website-presentation
+   processing workflows.
+10. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-690`
+   — framework construction, dispatch, contexts, selection, prepared mutation,
+   shared services, testing, and extension invariants.
+11. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
    `mobile/crystal-lattice-control-rn/docs/development/index.md:1-3`,
    `desktop/crystal-lattice-control-desktop-rn/docs/development/index.md:1-5`,
    and
@@ -187,8 +190,10 @@ Implementation outputs:
   lifecycle, validation, optimization, and browser-capture workflow;
 - capture scripts, fixtures, demo plugins, and tests in their owning packages;
 - approved optimized files under `landing_page/public/`;
-- updates to `landing_page/docs/visual-assets.md` for supported asset-author
-  workflows;
+- updates to `landing_page/docs/visual-asset-framework.md` for supported
+  framework usage;
+- updates to `landing_page/docs/visual-assets.md` for concrete processing
+  pipelines and operational workflows;
 - `landing_page/docs/development/visual-content-and-screenshot-generation.md`
   for current implementation and architecture;
 - updates to `landing_page/docs/development/content-system.md` for implemented

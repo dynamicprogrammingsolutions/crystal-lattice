@@ -71,16 +71,19 @@ Depends On:
 6. `landing_page/docs/development/content-system.md:79-97` and
    `landing_page/docs/development/content-system.md:138-161` — current
    screenshot sections, public-file boundary, and build/preview verification.
-7. `landing_page/docs/visual-assets.md:1-875` — supported asset-author workflow
-   for assets, programmatic builds, direct commands, lifecycle callbacks,
-   captured sources, catalog commands, and verification.
-8. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-681`
-   — catalog dispatch, direct-command and lifecycle composition, runtime
-   services, prepared mutations, source producers, and verification internals.
-9. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:151-268`
+7. `landing_page/docs/visual-asset-framework.md:1-579` — supported framework
+   usage for assets, pipelines, commands, lifecycle callbacks, custom rules,
+   catalog commands, and prepared publication.
+8. `landing_page/docs/visual-assets.md:1-772` — concrete image, capture,
+   reviewed-session, runtime-fixture, derivative, and website-presentation
+   processing workflows.
+9. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-690`
+   — framework construction, dispatch, contexts, selection, prepared mutation,
+   shared services, testing, and extension invariants.
+10. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:151-268`
    — visual manifest, deterministic state, automation, review, promotion, and
    freshness model.
-10. `mobile/crystal-lattice-control-rn/AGENTS.md:193-222`,
+11. `mobile/crystal-lattice-control-rn/AGENTS.md:193-222`,
    `mobile/crystal-lattice-control-rn/README.md:306-367`,
    `mobile/crystal-lattice-control-rn/e2e/notificationBanner.e2e.test.ts:1-220`,
    `mobile/crystal-lattice-control-rn/e2e/websiteVisualCapture.e2e.test.ts:1-60`,
@@ -734,15 +737,19 @@ content, privacy, and product-communication judgments only.
 
 ### Documentation
 
-- Keep `landing_page/docs/visual-assets.md` as a standalone consumer guide for
-  developers adding assets, builds, commands, lifecycle callbacks, captured
-  sources, and catalog commands.
+- Keep `landing_page/docs/visual-asset-framework.md` as the standalone consumer
+  guide for developers defining framework assets, pipelines, commands,
+  lifecycle callbacks, custom rules, and catalog commands.
+- Keep `landing_page/docs/visual-assets.md` focused on concrete reusable and
+  unique processing pipelines, operational workflows, and pipeline-specific
+  gotchas without maintaining a current asset directory.
 - Keep
   `landing_page/docs/development/visual-content-and-screenshot-generation.md`
-  as current architecture and maintainer documentation for dispatch, runtime
-  services, lifecycle composition, mutation safety, and extension boundaries.
-- Keep detailed recipes in the consumer guide and link rather than duplicate
-  them in development documentation.
+  as framework-only architecture and maintainer documentation for
+  construction, dispatch, contexts, shared services, mutation safety, testing,
+  and extension boundaries.
+- Keep processing recipes and implementations out of framework architecture;
+  link to the processing page rather than duplicating them.
 - Update `landing_page/docs/development/content-system.md` only with the
   content/public-file integration summary and routes to the two focused pages.
 - Update product-content requirements with implementation and verification
@@ -1026,12 +1033,14 @@ content, privacy, and product-communication judgments only.
   catalog selection, unknown common keys, capture/promotion separation, Detox
   output memoization, explicit per-asset direct-versus-lifecycle resolution,
   and prepare-before-apply mutation safety.
-- Added `landing_page/docs/visual-assets.md` as the standalone consumer guide
-  for developers adding or extending visual assets.
+- Added the initial standalone visual-asset consumer guide; the current
+  documentation separates generic framework usage into
+  `landing_page/docs/visual-asset-framework.md` and concrete processing into
+  `landing_page/docs/visual-assets.md`.
 - Refocused
   `landing_page/docs/development/visual-content-and-screenshot-generation.md`
-  on catalog dispatch, runner services, lifecycle composition, prepared
-  mutations, ownership, testing, and extension invariants.
+  on framework construction, dispatch, contexts, prepared mutations, shared
+  services, ownership, testing, and extension invariants.
 - Checkpoint B remains open for human architectural, documentation, and visual
   judgment.
 
@@ -1792,17 +1801,14 @@ content, privacy, and product-communication judgments only.
 
 - Committed the accepted Stage C4 implementation as:
   - `a6c5fc28 Complete mobile session hero follow-up`.
-- Updated the standalone visual-asset consumer guide with:
-  - all current catalog commands;
-  - exact reviewed-session refresh and promotion commands;
-  - canonical runtime UI refresh;
-  - focus-callout authoring;
-  - shared Detox capture;
-  - unframed source and CSS mobile-frame boundaries;
-  - freshness-trigger and later retain/replace guidance.
-- Updated the development architecture page with the reviewed-session producer,
-  semantic seed-prefix validation, runtime UI projections, focus composition,
-  unframed native capture, CSS framing, and Python fixture-test boundaries.
+- Updated the visual asset documentation with three audience layers:
+  - generic framework usage for assets, pipelines, commands, lifecycle
+    callbacks, custom rules, and prepared publication;
+  - concrete processing pipelines for reviewed images, focus composition,
+    native capture, reviewed sessions, runtime UI fixtures, derivatives, and
+    website presentation;
+  - framework-only development architecture for construction, dispatch,
+    contexts, shared services, testing, and invariants.
 - Completed the retained task-025 evidence package:
   - refreshed accessibility and alt-text review for all six proof assets;
   - current performance and active-theme budgets;
@@ -1836,3 +1842,29 @@ content, privacy, and product-communication judgments only.
   and parent-task checkbox remain open because this review branch has not been
   merged into `develop`; merging is outside the current branch-local
   implementation step.
+
+### August 30, 2026 — Visual documentation audience split
+
+- The user approved a three-layer documentation model:
+  - `landing_page/docs/visual-asset-framework.md` teaches generic framework
+    usage to developers defining assets, pipelines, commands, lifecycle
+    callbacks, custom rules, and publication behavior;
+  - `landing_page/docs/visual-assets.md` documents concrete reusable and unique
+    processing pipelines, operational workflows, and pipeline-specific
+    gotchas without maintaining a current asset inventory;
+  - `landing_page/docs/development/visual-content-and-screenshot-generation.md`
+    documents framework architecture, services, invariants, and testing without
+    concrete processing implementations.
+- Updated the package README, AGENTS routing, documentation indexes,
+  content-system links, research link, and task-025/task-160 start references
+  to the correct audience layer.
+- Audits confirm that the framework consumer and development pages contain no
+  current asset IDs or concrete processing-pipeline names, while the
+  processing page contains no maintained current-asset directory.
+- The landing build, authored relative-link validation, documentation-site
+  preparation, and MkDocs build pass.
+- The landing package is not currently registered in
+  `docs_site/packages.toml`, so its preexisting package documentation is not
+  copied into the prepared documentation site. This publication gap predates
+  the audience split; package registration was not added as an implicit
+  expansion of this documentation refactor.

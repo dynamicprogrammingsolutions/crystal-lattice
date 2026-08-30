@@ -1,273 +1,177 @@
-# Visual Assets
+# Visual Asset Processing Pipelines
 
-The landing package uses an executable JavaScript catalog to produce,
-validate, and publish screenshots and other visual files.
+The landing package includes processing implementations for reviewed images,
+native captures, generated UI fixtures, and website presentation.
 
-Use this guide when adding or changing:
+Use this page when selecting, configuring, or changing one of those processing
+workflows.
 
-- an asset;
-- a build pipeline;
-- a direct asset command;
-- reusable lifecycle callbacks;
-- a captured source;
-- a catalog command.
+For the framework used to define assets, commands, lifecycle callbacks,
+custom rules, and new pipeline types, see
+[Using the Visual Asset Framework](visual-asset-framework.md).
 
-For implementation internals, see
-[Visual content and screenshot generation](development/visual-content-and-screenshot-generation.md).
+For framework internals and maintainer boundaries, see
+[Visual Asset Framework Architecture](development/visual-content-and-screenshot-generation.md).
 
-## Locations
+## Find Current Assets
+
+The executable catalog is the source of truth for current asset membership,
+configuration, sources, outputs, expectations, and freshness metadata:
+
+```text
+landing_page/visual_assets/config.mjs
+```
+
+Inspect it through the catalog:
+
+```bash
+yarn visual-assets:list
+yarn visual-assets:inspect
+yarn visual-assets:inspect <asset-id>
+yarn visual-assets:inspect <asset-id> \
+  --variant dark
+```
+
+This page documents processing behavior and operational constraints. It is not
+the current asset registry.
+
+## Processing Locations
 
 ```text
 landing_page/
 ├── visual_assets/
-│   ├── config.mjs          # Catalog commands, assets, and shared builds
-│   ├── runtime/            # Tracked application configs for generated UI contracts
-│   ├── session_sources/    # Pinned repository/session refresh inputs
-│   └── sources/            # Reviewed, sanitized source masters
-├── public/              # Optimized deployed derivatives
+│   ├── config.mjs
+│   ├── runtime/
+│   ├── session_sources/
+│   └── sources/
+├── scripts/
+│   └── visual-assets/
+│       ├── lifecycle/
+│       ├── producers/
+│       ├── operations.mjs
+│       ├── runtime-ui-fixture.mjs
+│       ├── session-fixture.mjs
+│       ├── refresh_runtime_ui_fixture.py
+│       └── refresh_session_fixture.py
 ├── artifacts/
-│   └── visual-assets/   # Ignored candidates, reports, and browser captures
-└── scripts/
-    └── visual-assets/   # Reusable API and implementations
+│   └── visual-assets/
+└── public/
 ```
 
-Do not place unreviewed captures in `visual_assets/sources/` or optimized
-derivatives. Capture candidates belong under an ignored `artifacts/`
-directory.
+The maintained boundaries are:
 
-## Catalog Model
+- ignored candidates and reports under `artifacts/visual-assets/`;
+- reviewed, sanitized processing inputs under `visual_assets/`;
+- optimized website files under `public/`.
 
-The catalog is created with:
+## Reviewed Image Lifecycle
+
+The image lifecycle under `scripts/visual-assets/lifecycle/image.mjs` processes
+light and dark reviewed image variants.
+
+Its callbacks cover:
+
+- definition validation;
+- candidate generation;
+- image inspection;
+- strict or non-strict candidate validation;
+- public derivative comparison;
+- prepared public-file publication;
+- optional source capture;
+- optional reviewed-source promotion.
+
+A typical image configuration contains:
 
 ```js
-defineVisualAssets({
-  config,
-  commands,
-  assets,
-});
-```
-
-The common asset shape is:
-
-```js
-defineAsset({
-  id,
-  metadata,
-  config,
-  commands,
-  lifecycle,
-});
-```
-
-These fields have distinct responsibilities:
-
-| Field | Purpose |
-|---|---|
-| `id` | Stable asset selector used by the CLI and reports |
-| `metadata` | Non-operational claim, provenance, and freshness information |
-| `config` | Arbitrary asset-specific data interpreted by its callbacks |
-| `commands` | Complete asset implementations for catalog commands |
-| `lifecycle` | Smaller reusable stages composed by catalog commands |
-
-An asset may define:
-
-- only direct commands;
-- only lifecycle callbacks;
-- both direct commands and lifecycle callbacks.
-
-The catalog command decides explicitly which form it uses.
-
-## Current Commands
-
-List assets:
-
-```bash
-yarn visual-assets:list
-```
-
-Inspect one asset or variant:
-
-```bash
-yarn visual-assets:inspect provider-reasoning
-yarn visual-assets:inspect provider-reasoning --variant dark
-```
-
-Inspect the complete catalog:
-
-```bash
-yarn visual-assets:inspect
-```
-
-Check one asset or the complete catalog:
-
-```bash
-yarn visual-assets:check provider-reasoning
-yarn visual-assets:check
-```
-
-Update an explicitly selected asset or all assets:
-
-```bash
-yarn visual-assets:update provider-reasoning
-yarn visual-assets:update provider-reasoning --variant dark
-yarn visual-assets:update --all
-```
-
-Capture and promote a source when the selected asset supports those
-operations:
-
-```bash
-yarn visual-assets:capture mobile-active-session
-yarn visual-assets:promote-source mobile-active-session --variant dark
-```
-
-Refresh and promote reviewed data fixtures:
-
-```bash
-yarn visual-assets refresh-session coding-plan ...
-yarn visual-assets promote-session coding-plan
-yarn visual-assets refresh-runtime-ui mobile-workbench ...
-yarn visual-assets promote-runtime-ui mobile-workbench
-```
-
-Catalog command names are derived from `defineVisualAssets({ commands })`. A
-new catalog command can be invoked through the base script without adding a
-package shortcut:
-
-```bash
-yarn visual-assets <command> [arguments]
-```
-
-## Add an Image Using the Current Lifecycle
-
-The current reviewed-image assets share:
-
-```js
-const reviewedImageLifecycle = {
-  describe: describeImageAsset,
-  validateDefinition: validateImageAssetDefinition,
-  buildCandidate: buildImageCandidates,
-  inspectCandidate: inspectImageCandidates,
-  validateCandidate: validateImageCandidates,
-  comparePublished: comparePublishedImages,
-  preparePublication: prepareImagePublication,
-};
-```
-
-Add an asset to `visual_assets/config.mjs`:
-
-```js
-defineAsset({
-  id: "new-provider-control",
-
-  metadata: {
-    claim:
-      "The provider exposes a visible per-session control.",
-
-    freshnessTriggers: [
-      "provider control schema changes",
-      "session settings presentation changes",
-    ],
+config: {
+  presentation: {
+    alt:
+      "Description of the visible product state.",
+    width: 1000,
+    height: 1400,
   },
 
-  config: {
-    presentation: {
-      alt:
-        "Session settings showing the provider control.",
-      width: 1000,
-      height: 1315,
+  contentBindings: [
+    // Website YAML binding.
+  ],
+
+  variants: {
+    light: {
+      source,
+      output,
+      build,
+      expected,
     },
 
-    contentBindings: [
-      homeMedia({
-        sectionId: "native-provider-features",
-        collection: "items",
-        title: "Provider control",
-        mediaField: "media",
-      }),
-    ],
-
-    variants: {
-      light: {
-        source: reviewedFile(
-          "visual_assets/sources/new-provider-control-light.png",
-        ),
-
-        output:
-          "public/new-provider-control.webp",
-
-        build: providerCard({
-          resizeTo: "1000x1334>",
-        }),
-
-        expected: {
-          width: 1000,
-          height: 1315,
-          maxBytes: 60000,
-          sha256: "...",
-        },
-      },
-
-      dark: {
-        source: reviewedFile(
-          "visual_assets/sources/new-provider-control-dark.png",
-        ),
-
-        output:
-          "public/new-provider-control-dark.webp",
-
-        build: providerCard({
-          resizeTo: "1000x1315^",
-          extent: "1000x1315",
-        }),
-
-        expected: {
-          width: 1000,
-          height: 1315,
-          maxBytes: 60000,
-          sha256: "...",
-        },
-      },
+    dark: {
+      source,
+      output,
+      build,
+      expected,
     },
   },
-
-  lifecycle: reviewedImageLifecycle,
-});
+}
 ```
 
-Then:
-
-1. add the reviewed source masters;
-2. add the corresponding content fields;
-3. run `visual-assets:inspect`;
-4. review the candidates and record their expectations;
-5. run `visual-assets:update` for the asset;
-6. run `visual-assets:check`.
-
-## Define a Reusable Build
-
-A build receives a source path and must create the requested candidate path.
-
-The current ImageMagick helper accepts ordinary JavaScript operations:
+Each expected result records:
 
 ```js
-function desktopScreenshot({
+expected: {
+  width,
+  height,
+  maxBytes,
+  sha256,
+}
+```
+
+Run inspection while tuning a build:
+
+```bash
+yarn visual-assets inspect <asset-id>
+```
+
+After review, update the public derivative and verify it:
+
+```bash
+yarn visual-assets update <asset-id>
+yarn visual-assets check <asset-id>
+```
+
+Do not update a hash merely because generation changed. Review the source,
+crop, presentation, output dimensions, and website rendering first.
+
+## Programmatic ImageMagick Builds
+
+`scripts/visual-assets/operations.mjs` supplies JavaScript operations for
+assembling ImageMagick processing:
+
+- `trim`;
+- `crop`;
+- `resize`;
+- `centerExtent`;
+- `normalizeSrgb`;
+- `stripMetadata`;
+- `encodeWebp`;
+- `imageMagickArguments`.
+
+Create a reusable build with `imageMagickPipeline`:
+
+```js
+function exampleScreenshot({
+  cropGeometry,
   resizeTo,
-  extent,
+  quality = 82,
 }) {
   return imageMagickPipeline({
-    id: "desktop-screenshot",
+    id: "example-screenshot",
 
     operations: [
-      trim(),
+      crop(cropGeometry),
       resize(resizeTo),
-      extent
-        ? centerExtent(extent)
-        : undefined,
       normalizeSrgb(),
       stripMetadata(),
       encodeWebp({
-        quality: 82,
+        quality,
         method: 6,
       }),
     ],
@@ -275,20 +179,29 @@ function desktopScreenshot({
 }
 ```
 
-Use it in an asset:
+Asset-local configuration decides the source rectangle, final size, and
+encoding values:
 
 ```js
-build: desktopScreenshot({
-  resizeTo: "1400x1000>",
+build: exampleScreenshot({
+  cropGeometry: "1200x1800+0+160",
+  resizeTo: "1000x>",
+  quality: 76,
 }),
 ```
 
-An ImageMagick-specific operation can be added programmatically:
+Keep unique geometry with the asset definition. Extract a shared build only
+when several assets use the same processing semantics.
+
+### Custom ImageMagick operation
+
+Use `imageMagickArguments` for an operation not covered by a maintained
+helper:
 
 ```js
-const removeCaptureBorder =
+const removeEdge =
   imageMagickArguments(
-    "remove-capture-border",
+    "remove-edge",
     () => [
       "-shave",
       "3x4",
@@ -296,241 +209,143 @@ const removeCaptureBorder =
   );
 ```
 
-A build does not need to use ImageMagick. Implement the `run(context)` contract
-directly:
+The callback returns arguments only. Process execution, source and output
+paths, and error handling remain owned by the pipeline.
+
+## Unframed Native Screen Crops
+
+The current workbench-style processing uses a maintained crop over a native
+production-screen capture:
 
 ```js
-const customBuild = definePipeline({
-  id: "custom-build",
+function workbenchModal({
+  cropGeometry,
+  resizeTo = "1000x>",
+  quality = 76,
+}) {
+  return imageMagickPipeline({
+    id: "workbench-modal",
 
-  async run(context) {
-    await renderCustomVisual({
-      source: context.sourcePath,
-      output: context.candidatePath,
-    });
-  },
-});
+    operations: [
+      crop(cropGeometry),
+      resize(resizeTo),
+      normalizeSrgb(),
+      stripMetadata(),
+      encodeWebp({
+        quality,
+        method: 6,
+      }),
+    ],
+  });
+}
 ```
 
-## Define a Focus Callout
+The source should retain application context such as:
 
-Use `focusCalloutPipeline` when a proof image needs both product context and a
-larger view of one existing UI region. The pipeline composes one reviewed
-source; it does not synthesize or edit proof-bearing text.
+- application header;
+- session title or identity;
+- relevant controls;
+- composer or footer when it establishes the screen boundary.
 
-Each asset defines its own:
+The processing crop removes only irrelevant simulator or capture framing. It
+does not add a phone bezel or fabricate missing application UI.
+
+If a page needs a device frame, apply it in website presentation so the same
+reviewed raster can remain useful to unframed consumers.
+
+## Focus Callout Pipeline
+
+`focusCalloutPipeline` builds a contextual screenshot and a magnified view from
+one reviewed source.
+
+It is appropriate when a full product screen establishes context but the
+claimed control or footer would be too small at website presentation size.
+
+The asset controls:
 
 - final canvas;
-- source rectangle used for the contextual screenshot;
-- contextual screenshot size and position;
-- source rectangle used for the enlarged callout;
-- callout size and position;
-- border and square-corner treatment;
+- context crop;
+- context size and placement;
+- context dimming;
+- focus crop;
+- focus size and placement;
+- border;
+- square corners;
 - shadow geometry and clearance;
-- dimming and encoding.
+- encoding.
 
-The provider reasoning and usage/cost assets use this pattern:
+Example:
 
 ```js
 build: focusCalloutPipeline({
-  id: "provider-focus",
+  id: "example-focus",
+
   canvas: {
     width: 1000,
     height: 1315,
     background: "#F3F4F7",
   },
+
   original: {
     crop: "1206x1650+0+420",
     width: 720,
     height: 985,
+    gravity: "north",
     geometry: "+0+190",
+    dimPercent: 18,
+    borderColor: "#D9DDE5",
   },
+
   callout: {
     crop: "960x280+120+720",
     width: 900,
+    gravity: "north",
     geometry: "+50+45",
+    borderColor: "#D9DDE5",
     shadow: {
       geometry: "45x14+0+12",
     },
   },
-});
+
+  quality: 78,
+}),
 ```
 
-Keep geometry beside the asset using it. Add a shared helper only when more
-than one asset genuinely shares the same operation.
+Important controls are deliberately asset-local. Different UI regions often
+need different:
 
-## Define a Direct-Command Asset
+- background crops;
+- vertical placement;
+- focus dimensions;
+- shadow clearance;
+- relationship between the callout and its original location.
 
-Use direct commands when an asset owns a complete process that does not benefit
-from shared lifecycle composition:
+Common mistakes:
 
-```js
-defineAsset({
-  id: "generated-diagram",
+- leaving rounded corners on the focus crop;
+- placing the callout over the wrong source region;
+- making the contextual screenshot as wide as the final canvas;
+- clipping the shadow;
+- showing the original focus region at nearly the same prominence as the
+  callout;
+- using image editing to change product text or controls.
 
-  config: {
-    model:
-      "visual_assets/sources/diagram-model.json",
-    output:
-      "public/generated-diagram.svg",
-  },
+The pipeline may enlarge existing pixels, crop, dim, frame, and add a shadow.
+It must not fabricate proof-bearing UI.
 
-  commands: {
-    inspect: inspectGeneratedDiagram,
-    check: checkGeneratedDiagram,
-    update: prepareGeneratedDiagramUpdate,
-  },
-});
-```
+## Captured Source Lifecycle
 
-The command callback receives:
-
-```js
-{
-  asset,
-  metadata,
-  config,
-  repositoryRoot,
-  landingRoot,
-  artifactRoot,
-  variantName,
-  run,
-  artifactPath,
-  input,
-}
-```
-
-Read-only command callbacks return report entries.
-
-A durable mutating command such as `update` returns one or more prepared
-effects:
-
-```js
-async function prepareGeneratedDiagramUpdate(
-  context,
-) {
-  const candidate = await buildAndValidateDiagram(
-    context,
-  );
-
-  return {
-    report: candidate.report,
-
-    async apply() {
-      await publishDiagram(candidate);
-    },
-  };
-}
-```
-
-The catalog prepares every selected asset before calling any `apply()`
-function.
-
-## Define Lifecycle Callbacks
-
-Lifecycle callbacks are named stages interpreted by catalog commands:
-
-```js
-defineAsset({
-  id: "lifecycle-asset",
-
-  config: {
-    // Asset-specific configuration.
-  },
-
-  lifecycle: {
-    validateDefinition,
-    buildCandidate,
-    inspectCandidate,
-    validateCandidate,
-    comparePublished,
-    preparePublication,
-  },
-});
-```
-
-Lifecycle names are not hardcoded in the runner. They become meaningful when a
-catalog command calls them:
-
-```js
-const candidate = await assetContext.runLifecycle(
-  "buildCandidate",
-);
-```
-
-Changing or introducing lifecycle stages requires changing the catalog command
-and affected assets, not the runner or CLI.
-
-## Combine Commands and Lifecycle
-
-A captured image may own `capture` directly while using the shared image
-lifecycle for inspection, checking, and publication:
-
-```js
-defineAsset({
-  id: "mobile-hero",
-
-  config: {
-    // Capture and image configuration.
-  },
-
-  commands: {
-    capture: captureMobileHero,
-  },
-
-  lifecycle: {
-    prepareSourcePromotion:
-      prepareImageSourcePromotion,
-
-    validateDefinition:
-      validateImageAssetDefinition,
-
-    buildCandidate:
-      buildImageCandidates,
-
-    inspectCandidate:
-      inspectImageCandidates,
-
-    validateCandidate:
-      validateImageCandidates,
-
-    comparePublished:
-      comparePublishedImages,
-
-    preparePublication:
-      prepareImagePublication,
-  },
-});
-```
-
-The catalog command explicitly decides whether to run a direct command or
-compose lifecycle stages.
-
-## Add Capture and Source Promotion
-
-A captured source keeps an ignored candidate separate from the reviewed
-source:
+Use `capturedSource` when a maintained reviewed source is produced by an
+expensive or non-deterministic process:
 
 ```js
 source: capturedSource({
   reviewed:
-    "visual_assets/sources/mobile-hero-dark.png",
+    "visual_assets/sources/example-dark.png",
 
   candidate:
-    mobileCapture.output("heroDark"),
+    producer.output("exampleDark"),
 }),
-```
-
-Attach the source callbacks:
-
-```js
-lifecycle: {
-  capture: captureImageSources,
-  prepareSourcePromotion:
-    prepareImageSourcePromotion,
-
-  // Build and validation lifecycle...
-},
 ```
 
 The lifecycle is:
@@ -540,337 +355,419 @@ capture
   -> ignored candidate
   -> human review
   -> promote-source
-  -> reviewed source master
+  -> reviewed source
   -> inspect/update/check
   -> public derivative
 ```
 
-`check` and `update` always read the reviewed source. They do not invoke the
-capture producer.
+Capture and source promotion remain separate:
 
-## Add a Detox Producer
+```bash
+yarn visual-assets capture <asset-id>
+yarn visual-assets promote-source <asset-id>
+```
 
-Define one producer:
+`check` and `update` read the reviewed source. They do not invoke the capture
+producer.
+
+Review candidate sources for:
+
+- correct product state;
+- sensitive or private information;
+- stale labels or controls;
+- light and dark theme consistency;
+- clipping;
+- platform framing;
+- capture size;
+- reproducible fixture state.
+
+## Shared Detox Capture
+
+`detoxCapture` adapts a package-owned native capture command to named outputs:
 
 ```js
-const mobileCapture = detoxCapture({
-  id: "mobile-showcase",
+const nativeCapture = detoxCapture({
+  id: "native-website-capture",
 
   projectDirectory:
     "mobile/crystal-lattice-control-rn",
 
   command: [
-    "yarn",
-    "detox",
-    "test",
-    "e2e/website-visual-capture.e2e.ts",
-    "--configuration",
-    "ios.sim.release",
+    "npm",
+    "run",
+    "detox:capture:website-visual:ios",
   ],
 
   outputs: {
-    heroLight:
-      "mobile/crystal-lattice-control-rn/artifacts/website/hero-light.png",
-
-    heroDark:
-      "mobile/crystal-lattice-control-rn/artifacts/website/hero-dark.png",
+    exampleLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website/example-light.png",
+    exampleDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website/example-dark.png",
   },
 });
 ```
 
-Several assets may consume named outputs from the same producer. The producer
-runs its command once per CLI process.
+Several assets can consume different named outputs from one producer. The
+adapter memoizes the producer run for the current CLI process.
 
-The owning application package remains responsible for:
+The owning application package is responsible for:
 
-- production UI interaction;
-- fixture state;
-- stable identifiers;
+- launching production screens;
+- fixture correctness;
+- stable test identifiers;
 - simulator configuration;
-- native behavior verification.
+- native behavior assertions;
+- writing candidate screenshots to ignored package output.
 
-The landing package owns review, source promotion, derivative generation, and
-website presentation.
+The landing package is responsible for:
 
-The current mobile producer captures unframed production-screen sources. The
-homepage uses those sources directly. The mobile page adds its generic phone
-frame in website CSS, so the reviewed PNG is reusable and does not bake one
-device style into the proof image.
+- selecting named outputs;
+- source review;
+- source promotion;
+- derivative processing;
+- content binding;
+- browser presentation.
 
-## Add a Catalog Command
+Changing only a crop or WebP quality does not require a new native capture.
+Changing visible application state does.
 
-Catalog commands are defined in:
+## Reviewed Session Generation
 
-```js
-defineVisualAssets({
-  commands: {
-    // ...
-  },
-});
-```
+The session-fixture processing workflow creates a sanitized reviewed
+conversation for deterministic native rendering.
 
-A command can run direct asset commands, compose lifecycle callbacks, or use
-both:
-
-```js
-async function customCommand(context) {
-  const results = await context.forEachSelected(
-    async (assetContext) => {
-      if (
-        assetContext.hasCommand("custom")
-      ) {
-        return assetContext.runCommand("custom");
-      }
-
-      if (
-        assetContext.hasLifecycle(
-          "customStage",
-        )
-      ) {
-        return assetContext.runLifecycle(
-          "customStage",
-        );
-      }
-
-      return assetContext.unsupported("custom");
-    },
-    {
-      requireSelection: true,
-    },
-  );
-
-  return context.writeReport("custom", {
-    results,
-  });
-}
-```
-
-Register it:
-
-```js
-commands: {
-  // ...
-  custom: customCommand,
-},
-```
-
-Invoke it:
-
-```bash
-yarn visual-assets custom <asset>
-```
-
-No CLI or runner edit is required.
-
-## Refresh a Reviewed Coding Session
-
-The `coding-plan` direct-command asset owns the reviewed coding-session source
-used by deterministic native captures.
-
-Its tracked inputs are:
+The direct-command adapter is:
 
 ```text
-visual_assets/session_sources/starlette-gzip-responder/
-├── config.json
-├── manifest.json
-├── prompt.md
-└── follow-up-prompt.md
+scripts/visual-assets/session-fixture.mjs
 ```
 
-The manifest pins the public repository revision, sparse paths, checkout size
-and time budgets, presentation identity, and the number of already reviewed
-messages to retain when replacing the follow-up exchange.
+The Python producer is:
 
-Generate an ignored candidate with an explicitly selected Python executable,
-agent, and credential directory:
+```text
+scripts/visual-assets/refresh_session_fixture.py
+```
+
+A session source directory can provide:
+
+```text
+config.json
+manifest.json
+prompt.md
+follow-up-prompt.md
+```
+
+The manifest owns:
+
+- public repository URL;
+- immutable revision;
+- sparse checkout paths;
+- checkout time and byte budgets;
+- generation config;
+- initial prompt;
+- optional follow-up prompt;
+- presentation identity;
+- reviewed-prefix length when replacing a follow-up.
+
+Refresh a session candidate:
 
 ```bash
-yarn visual-assets refresh-session coding-plan \
+yarn visual-assets refresh-session \
+  <session-asset-id> \
   --config-dir "$HOME/.crystal" \
-  --agent codex-openai \
-  --python "$HOME/.crystal/dev-cli-venv/bin/python"
+  --agent <agent-id> \
+  --python <python-executable>
 ```
 
-The tracked generation config supplies the application and plugin settings.
-The supplied config directory contributes only the saved ChatGPT credential
-file. Personal application configuration is not read.
+The tracked generation config supplies application and plugin configuration.
+The supplied config directory contributes the expected credential file only.
+
+The producer:
+
+1. creates a temporary sparse checkout;
+2. verifies the pinned revision and resource budgets;
+3. creates `TerminalApplication` with explicit paths;
+4. runs the request through the shared application request path;
+5. rejects install, build, simulator, and source-writing commands;
+6. sanitizes private metadata and paths;
+7. validates required tool activity and follow-up shape;
+8. writes an ignored candidate and provenance record.
+
+When replacing a reviewed follow-up, the producer seeds an approved prefix.
+Provider reconstruction may collapse an empty assistant message that only
+carries a tool call. Prefix validation compares the semantic runtime sequence,
+then restores the exact reviewed message objects before appending the new
+follow-up pair.
+
+Review the candidate and provenance under:
+
+```text
+artifacts/visual-assets/session-fixtures/
+```
+
+Promote only after content, privacy, tool-use, and reasoning review:
+
+```bash
+yarn visual-assets promote-session \
+  <session-asset-id>
+yarn visual-assets check \
+  <session-asset-id>
+```
+
+Live model access is a source-refresh operation. Routine native capture and
+website verification consume the promoted reviewed fixture.
+
+## Runtime UI Fixture Generation
+
+The runtime UI fixture pipeline produces deterministic frontend contracts from
+a tracked application configuration and reviewed session.
+
+The adapter is:
+
+```text
+scripts/visual-assets/runtime-ui-fixture.mjs
+```
+
+The Python producer is:
+
+```text
+scripts/visual-assets/refresh_runtime_ui_fixture.py
+```
+
+The tracked configuration can select:
+
+- one configured agent;
+- provider and application plugins;
+- relevant setting keys;
+- compact or full message-footer presentation;
+- snapshot presentation;
+- application and message actions;
+- reviewed session projections.
+
+Refresh an ignored candidate:
+
+```bash
+yarn visual-assets refresh-runtime-ui \
+  <runtime-ui-asset-id> \
+  --python <python-executable>
+```
 
 Review:
 
-```text
-artifacts/visual-assets/session-fixtures/coding-plan/candidate.json
-artifacts/visual-assets/session-fixtures/coding-plan/provenance.json
-```
+- configured plugins;
+- action labels and ordering;
+- selected setting keys and options;
+- snapshot descriptions;
+- message and status presentation;
+- source hashes;
+- absence of private configuration values.
 
-Confirm:
-
-- the pinned repository revision and checkout budgets;
-- the realistic user prompt and repository-inspection tool activity;
-- the absence of credentials, private paths, request IDs, or private account
-  metadata;
-- the no-tool follow-up user/assistant pair;
-- visible reasoning metadata on the follow-up response;
-- the exact approved prefix retained from the current fixture.
-
-Promote only after review:
+Promote and check:
 
 ```bash
-yarn visual-assets promote-session coding-plan
-yarn visual-assets check coding-plan
+yarn visual-assets promote-runtime-ui \
+  <runtime-ui-asset-id>
+yarn visual-assets check \
+  <runtime-ui-asset-id>
 ```
 
-The promoted fixture is:
+The native harness reads the promoted fixture in process. It does not need a
+server, credentials, plugin installation, port allocation, or event polling.
 
-```text
-mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteCodingPlanSession.json
+A separate frontend integration test should exercise the corresponding real
+server, transport, and backend adapter contract.
+
+## Reviewed Message Projections
+
+A runtime fixture may derive more than one proof from a reviewed message:
+
+- complete source content for retained review;
+- a provider-focused response for metadata proof;
+- a consecutive user/assistant exchange for an active-session proof;
+- a bounded exact display excerpt for constrained website presentation.
+
+Use the maintained message display contract for a bounded projection:
+
+```js
+metadata: {
+  display: {
+    type: "text",
+    content:
+      "Exact excerpt retained from the full message.",
+  },
+}
 ```
 
-Live model access is a candidate refresh operation only. Routine native
-capture, website build, and catalog checking use the promoted fixture and do
-not require credentials or network access.
+The full reviewed message remains unchanged. The projection affects
+presentation only.
 
-## Generate a canonical runtime UI fixture
+Do not paraphrase a proof-bearing response into a different product claim.
 
-Native website captures can use a Git-tracked application configuration
-without starting a server during Detox. The `mobile-workbench` asset generates
-provider settings and application actions through `AgentApplication`, then
-promotes the reviewed JSON contract consumed by the mobile harness.
+## Theme-Aware Website Presentation
 
-Refresh and inspect the candidate:
+`ThemedImage.astro` stores light and dark source metadata on one image element.
+Theme initialization assigns the active source.
+
+This avoids loading two ordinary image elements when only one theme is
+visible.
+
+Content bindings should provide:
+
+- light source;
+- dark source;
+- width;
+- height;
+- useful alternative text;
+- eager or lazy loading appropriate to page position.
+
+Playwright verifies:
+
+- active source selection;
+- theme switching;
+- client-navigation persistence;
+- image dimensions;
+- alt text;
+- loading behavior;
+- responsive layout;
+- broken-image absence.
+
+### CSS device framing
+
+A page can add a generic device frame around an unframed reviewed source.
+
+Keep the frame in website presentation when:
+
+- the page specifically communicates mobile use;
+- the same screenshot may be reused without a frame elsewhere;
+- the frame does not imply a platform different from the captured UI.
+
+Do not bake the frame into the reviewed source unless the hardware itself is
+part of the claim.
+
+## Refresh Decision Guide
+
+Use the smallest workflow that reaches the changed boundary.
+
+### Only derivative processing changed
+
+Examples:
+
+- crop;
+- resize;
+- focus placement;
+- shadow;
+- encoding quality;
+- byte budget.
+
+Run:
 
 ```bash
-yarn visual-assets refresh-runtime-ui mobile-workbench \
-  --python "$HOME/.crystal/dev-cli-venv/bin/python"
-yarn visual-assets inspect mobile-workbench
-```
-
-The candidate remains under `artifacts/visual-assets/runtime-ui/`. Promote it
-only after checking the configured plugins, action labels and order, selected
-settings, snapshot reasons, and absence of private values:
-
-```bash
-yarn visual-assets promote-runtime-ui mobile-workbench
-yarn visual-assets check mobile-workbench
-```
-
-The canonical config is:
-
-```text
-visual_assets/runtime/mobile-workbench/config.json
-```
-
-It selects one screenshot agent, the provider and application plugins needed
-for the workbench proof, a focused list of real setting keys, and deterministic
-snapshot presentation data. It also derives the mobile-hero projection from
-the reviewed coding session while keeping provider proof anchored to the
-accepted investigation response. The promoted fixture is:
-
-```text
-mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteRuntimeUi.json
-```
-
-Routine Detox capture reads the promoted fixture and therefore needs no
-Python process, plugin installation, credentials, port allocation, or HTTP
-readiness. A separate frontend SDK integration test starts the real FastAPI
-server and verifies the same action and settings contract through
-`FetchTransport` and `RestAgentBackend`.
-
-## Refresh Current Native Sources and Public Derivatives
-
-The current six proof-image assets share one Detox producer. Capture all
-current native states in one process:
-
-```bash
-yarn visual-assets capture \
-  provider-reasoning \
-  provider-usage-cost \
-  chat-actions-workbench \
-  session-snapshots-workbench \
-  session-settings-plugins \
-  mobile-active-session
-```
-
-Review the light and dark candidate outputs before promoting each affected
-source:
-
-```bash
-yarn visual-assets promote-source <asset-id>
 yarn visual-assets inspect <asset-id>
 yarn visual-assets update <asset-id>
 yarn visual-assets check <asset-id>
 ```
 
-Run `refresh-runtime-ui` before capture when plugin settings, action schemas,
-snapshot presentation, compact usage fields, or the reviewed coding session
-change. Run `refresh-session` first only when the real reviewed conversation
-itself must change.
+Do not run native capture.
 
-The `metadata.freshnessTriggers` array beside each asset is the maintained
-review checklist. It does not trigger capture automatically. When a listed
-product, schema, or website presentation boundary changes, inspect the asset,
-refresh its upstream fixture if needed, recapture, review, and promote it
-explicitly.
+### Visible native UI changed
 
-The current images are an early release-safe baseline. Later approved page
-briefs decide whether each image is retained, replaced, or removed; the asset
-catalog does not make that product-communication decision.
+Run:
+
+```bash
+yarn visual-assets capture <asset-id>
+yarn visual-assets promote-source <asset-id>
+yarn visual-assets update <asset-id>
+yarn visual-assets check <asset-id>
+```
+
+### Plugin UI schema or fixture projection changed
+
+Refresh and promote the runtime UI fixture before native capture:
+
+```bash
+yarn visual-assets refresh-runtime-ui \
+  <runtime-ui-asset-id> \
+  --python <python-executable>
+yarn visual-assets promote-runtime-ui \
+  <runtime-ui-asset-id>
+```
+
+Then capture affected sources.
+
+### Reviewed conversation changed
+
+Refresh and promote the reviewed session first, then refresh runtime UI and
+capture affected sources.
+
+### Website layout only changed
+
+Do not regenerate sources automatically. Run the website build and browser
+visual checks first.
 
 ## Verification
 
-Run the programmatic asset tests:
+Programmatic processing tests:
 
 ```bash
 yarn test:visual-assets
 ```
 
-Check all configured assets:
+Complete catalog verification:
 
 ```bash
 yarn visual-assets:check
 ```
 
-Run website visual contracts:
+Website build:
+
+```bash
+yarn build
+```
+
+Responsive and theme presentation:
 
 ```bash
 yarn test:visual
 ```
 
-Run all visual verification:
-
-```bash
-yarn verify:visual
-```
-
-Use headed browser verification when judging visual presentation:
+Headed human review:
 
 ```bash
 yarn test:visual:headed
 ```
 
+Native capture tests remain owned by the application package supplying the
+producer.
+
 ## Troubleshooting
-
-### Unsupported command
-
-An explicitly selected asset must define the direct command or lifecycle stages
-used by the catalog command. Add the applicable callback or select another
-asset.
-
-### Unknown configuration key
-
-Only the common `defineAsset` keys are validated by the API. Asset-specific
-keys belong under `config` and are interpreted by the assigned callbacks.
-
-### Candidate differs from expectations
-
-Run `visual-assets:inspect`, review the candidate, and update expectations only
-after the visual is accepted.
 
 ### Captured source is missing
 
-Run `visual-assets:capture` first. Promotion never launches the capture
-producer automatically.
+Run `capture` before `promote-source`. Promotion does not invoke the producer.
 
-### Public derivative differs
+### Candidate differs from expectations
 
-Run `visual-assets:update` for the explicitly reviewed asset, then run
-`visual-assets:check`.
+Inspect and review the candidate. Update expected hashes or dimensions only
+after accepting the new processing result.
+
+### Source promotion changed the public file unexpectedly
+
+Source promotion changes the reviewed input only. Run `inspect`, then
+explicitly run `update` to publish a new derivative.
+
+### Session refresh requires personal application configuration
+
+The session workflow should use a tracked generation config. The explicit
+credential directory supplies authentication, not the caller's personal
+application settings.
+
+### Runtime fixture and native capture disagree
+
+Promote the refreshed runtime fixture, verify the harness reads it, and run the
+real backend/frontend integration boundary before weakening the native test.
+
+### Focus callout is difficult to align
+
+Keep context crop, focus crop, context placement, focus placement, and shadow
+clearance independently configurable. Do not force unrelated assets through
+one fixed geometry.

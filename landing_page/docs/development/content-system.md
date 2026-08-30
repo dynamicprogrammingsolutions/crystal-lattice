@@ -92,9 +92,11 @@ Theme-aware screenshots use one rendered image element with `src` and
 theme script, and below-the-fold proof remains lazy-loaded. The maintained
 programmatic asset catalog, source lifecycle, deterministic derivative
 commands, and browser checks are documented in
-[Visual content and screenshot generation](visual-content-and-screenshot-generation.md).
-Asset authors should use the
-[Visual assets guide](../visual-assets.md).
+[Visual Asset Processing Pipelines](../visual-assets.md).
+Framework users should start with
+[Using the Visual Asset Framework](../visual-asset-framework.md), while
+framework maintainers should use
+[Visual Asset Framework Architecture](visual-content-and-screenshot-generation.md).
 
 ## Adding a Page
 
