@@ -7,9 +7,9 @@ credential, request, streaming, extension, compatibility, and error contracts.
 
 ### Functional requirements
 
-- [ ] `AnthropicProvider` supports ordinary and streaming requests through the
+- [x] `AnthropicProvider` supports ordinary and streaming requests through the
   standard provider plugin interfaces.
-- [ ] API-key authentication consumes resolved `config["api_key"]` as the
+- [x] API-key authentication consumes resolved `config["api_key"]` as the
   primary credential input, with direct environment lookup only as a secondary
   fallback.
 - [ ] Official Anthropic model discovery uses `/v1/models`, retains published
@@ -17,9 +17,9 @@ credential, request, streaming, extension, compatibility, and error contracts.
   the response.
 - [ ] Configurable base and model-discovery URLs support the documented
   Anthropic-compatible subset through providers such as local Ollama.
-- [ ] `AnthropicToolsExtension` owns tool schema injection, streamed tool-call
+- [x] `AnthropicToolsExtension` owns tool schema injection, streamed tool-call
   reconstruction, tool-call/result mapping, and tool interop declarations.
-- [ ] `AnthropicReasoningExtension` owns thinking configuration, UI,
+- [x] `AnthropicReasoningExtension` owns thinking configuration, UI,
   enablement, streamed thinking, redacted thinking, effort, and signature
   preservation.
 - [ ] `AnthropicUsageExtension` owns public usage metadata, cache accounting,
@@ -28,34 +28,34 @@ credential, request, streaming, extension, compatibility, and error contracts.
 - [ ] `AnthropicPromptCachingExtension` is included in the baseline and owns
   automatic caching configuration, selectable supported TTL, UI, request
   shaping, and cache-usage collection.
-- [ ] Claude-compatible tool schemas, calls, native history, reasoning, usage,
+- [x] Claude-compatible tool schemas, calls, native history, reasoning, usage,
   and cancellation map through existing application/core contracts.
-- [ ] Provider configuration distinguishes direct Anthropic access,
+- [x] Provider configuration distinguishes direct Anthropic access,
   Anthropic-compatible endpoints, and OpenRouter access.
-- [ ] Provider failures are sanitized, redacted, and emitted through the
+- [x] Provider failures are sanitized, redacted, and emitted through the
   current generic request-error event; cancellation retains its existing typed
   outcome.
 
 ### Non-functional requirements
 
-- [ ] Provider code does not embed OAuth login UI, credential acquisition,
+- [x] Provider code does not embed OAuth login UI, credential acquisition,
   refresh, or persistence logic.
-- [ ] Credential and authorization values are redacted from logs, errors, and
+- [x] Credential and authorization values are redacted from logs, errors, and
   diagnostics.
-- [ ] Direct-provider failures never silently fall back to OpenRouter or
+- [x] Direct-provider failures never silently fall back to OpenRouter or
   another paid provider.
-- [ ] The provider works for ordinary text requests without optional
+- [x] The provider works for ordinary text requests without optional
   extensions or tools.
-- [ ] Provider-specific feature configuration, UI, tags, enablement, and
+- [x] Provider-specific feature configuration, UI, tags, enablement, and
   public metadata remain in extensions even when transport mechanics require a
   narrow provider hook.
-- [ ] Provider request retry remains owned by `AnthropicProvider`.
+- [x] Provider request retry remains owned by `AnthropicProvider`.
 - [ ] Unsupported compatible-endpoint features are omitted or fail explicitly
   according to a compatibility profile.
-- [ ] Deterministic unit/contract coverage precedes local Ollama and selective
+- [x] Deterministic unit/contract coverage precedes local Ollama and selective
   hosted Anthropic tests.
-- [ ] Batch processing and structured outputs are outside this task.
-- [ ] Image attachments, model-price cost estimation, and the portable
+- [x] Batch processing and structured outputs are outside this task.
+- [x] Image attachments, model-price cost estimation, and the portable
   structured provider-error contract are outside this task.
 
 Parent Task:
@@ -121,10 +121,18 @@ subtask 020.
 - The local `../pi` Anthropic provider demonstrates indexed SSE content-block
   reduction, partial tool JSON, thinking signatures, cache compatibility
   controls, and multiple Anthropic-compatible endpoints.
+- Local Ollama currently has `qwen3:0.6b` installed with completion, tools, and
+  thinking capabilities. It is the preferred low-cost Stage 1 integration
+  model.
+- Local Ollama also has `qwen3.5:0.8b` installed with completion, tools, and
+  thinking capabilities. It is the local fallback only when the preferred
+  0.6B model cannot reliably exercise a required behavior.
+- Hosted Stage 1 verification assumes `ANTHROPIC_API_KEY` will be present in the
+  repository-root `.env` before hosted tests are run.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 Create the first-party package under `plugins/anthropic-compatible` using the
 Anthropic SDK, current provider-plugin conventions, and the approved package
@@ -143,6 +151,190 @@ every endpoint or model honors every value.
 Verify deterministic ordinary, streamed, tool-loop, reasoning/tool-loop,
 usage, reload, and cancellation behavior. Stage 1 does not calculate monetary
 cost.
+
+##### Stage 1 detailed execution plan
+
+###### 1. Package and SDK boundary
+
+- Create the Python package, descriptor, `pyproject.toml`, source modules, and
+  package-local tests.
+- Implement provider ID `anthropic`, `AnthropicProvider`, and registration of
+  `AnthropicToolsExtension`, `AnthropicReasoningExtension`, and
+  `AnthropicUsageExtension`.
+- Build the Anthropic SDK client from resolved config:
+  - `api_key`;
+  - `base_url`;
+  - `anthropic_version` and supported extra headers;
+  - timeout;
+  - provider-owned retry count.
+- Keep SDK objects inside request runtime state and normalize persisted
+  messages/events to plain mappings.
+- Register active SDK streams/clients by request ID and close the matching
+  operation on cancellation.
+- Convert SDK exceptions into bounded redacted generic request-error detail.
+  Do not add the subtask 019 structured error contract.
+
+###### 2. Core Messages protocol
+
+- Implement basic `/v1/models` discovery for IDs and display names. Full
+  official capability-driven tags remain Stage 3.
+- Convert leading system messages into the provider system field.
+- Convert ordinary user and assistant text while preserving complete
+  provider-native history.
+- Implement ordinary response finalization before streaming.
+- Implement indexed stream reduction for:
+  - message start/stop;
+  - text block start/delta/stop;
+  - thinking and redacted-thinking blocks;
+  - signature deltas;
+  - tool-use start/input JSON delta/stop;
+  - message usage deltas;
+  - safe terminal errors and premature termination.
+- Ensure partials are chunk-local and scratch buffers never enter native
+  history.
+
+###### 3. Tools
+
+- Reuse the request-bound `claude-tools` schema/call/result interop.
+- Add Anthropic tool schemas to the request only when the tools extension is
+  enabled.
+- Preserve tool-use block order and exact call IDs.
+- Accumulate partial JSON without exposing invalid final arguments.
+- Convert core tool messages into provider `tool_result` user blocks.
+- Complete a multi-request application tool loop and persist/reload the native
+  history before a later follow-up.
+
+###### 4. Core reasoning and simple effort UI
+
+- Expose:
+  - `enable_reasoning`;
+  - a simple `reasoning_effort` selector;
+  - reasoning display enabled/disabled.
+- Treat the initial effort selector as request configuration, not a claim that
+  every model honors every value.
+- Stream visible thinking through the reasoning extension.
+- Preserve thinking, redacted-thinking, signatures, and block ordering through
+  tool rounds and native-history reload.
+- Defer model-specific effort choices, adaptive/manual selection,
+  interleaved-versus-preserved capability UI, and behavioral effort validation
+  to Stages 2 and 3.
+
+###### 5. Usage and formatting
+
+- Normalize per-generation input, output, total, reasoning, cache-read, and
+  cache-creation token fields when present.
+- Add formatted per-message usage metadata and usage UI.
+- Calculate turn-cumulative and session-cumulative token totals across
+  tool-call generations.
+- Persist normalized internal usage metadata so reload produces the same
+  visible totals.
+- Produce the standard turn input/output fields needed by
+  `DurationExtension`, but defer the combined duration/TPS acceptance test to
+  Stage 2.
+- Do not calculate monetary cost or cached-token estimates in 010.
+
+###### 6. Deterministic acceptance
+
+Use an injected/fake Anthropic SDK transport or local HTTP fixture behind the
+SDK for the primary acceptance suite. Cover:
+
+- config and API-key precedence/redaction;
+- SDK client construction;
+- model discovery success, malformed response, and failure fallback;
+- ordinary request and native conversion;
+- every supported stream event and malformed/premature streams;
+- tools, partial JSON, tool results, and full tool loop;
+- thinking, redacted thinking, signatures, and tool-round continuity;
+- usage formatting and cumulative totals;
+- cancellation before connect and during streaming;
+- provider-owned retry before visible output;
+- safe generic request-error detail;
+- operation with each optional extension disabled;
+- application persistence/reload.
+
+Deterministic tests are the source of truth for exact event shapes, edge cases,
+and failure behavior. Real-model tests do not replace them.
+
+###### 7. Local Ollama verification
+
+Use:
+
+```text
+base_url: http://localhost:11434
+model: qwen3:0.6b
+api_key: ollama
+```
+
+Run focused `integration` + `ollama` tests for:
+
+- one ordinary non-streaming response;
+- one streamed text response;
+- one simple tool call, tool result, and final response;
+- one response containing non-empty thinking;
+- input/output usage presence;
+- cancellation/stream closure where deterministic timing is practical.
+
+The prompts and tool schema should be minimal and deterministic. Do not assert
+reasoning quality or exact prose.
+
+If `qwen3:0.6b` repeatedly fails to exercise a required advertised capability,
+confirm the failure is model behavior rather than provider code, then use
+`qwen3.5:0.8b` for that local smoke. Do not use an Ollama cloud model as the
+fallback and do not weaken deterministic acceptance to accommodate a small
+model.
+
+Stage 1 local tests prove that the SDK/provider can traverse a real compatible
+endpoint. Exhaustive profile differences, unsupported-field omission, and
+effort-level behavior remain Stage 2.
+
+###### 8. Minimal hosted Anthropic verification
+
+Before running hosted tests:
+
+- require `ANTHROPIC_API_KEY` from the repository-root `.env`;
+- allow `ANTHROPIC_TEST_MODEL` to override the test model;
+- otherwise use the current low-cost supported Haiku test model after model
+  discovery confirms it is available;
+- use short prompts and bounded `max_tokens`;
+- mark tests `integration`, `api`, and `anthropic`.
+
+Run only:
+
+1. Model discovery and one tiny ordinary non-streaming request. This verifies
+   official authentication, SDK endpoint behavior, and the non-streaming
+   response shape.
+2. One compact streamed reasoning-plus-tool loop ending in a final answer.
+   This verifies official stream events, thinking/signature handling,
+   tool-use/result continuity, usage, and finalization in one hosted scenario.
+
+Do not duplicate the full deterministic or Ollama matrix on the paid API.
+Stage 1 does not require hosted cancellation, error-taxonomy matrices,
+repeated effort comparisons, cache tests, attachments, or cost tests. Those
+behaviors are deterministic, compatible-endpoint, later-stage, or separate-task
+responsibilities.
+
+If Haiku cannot exercise a Stage 1 official protocol requirement, use the
+lowest-cost discovered Anthropic model that advertises the required capability
+for that one hosted test rather than upgrading the whole hosted matrix.
+
+###### 9. Stage 1 checkpoint and handoff
+
+Stage 1 is ready for review when:
+
+- the fast deterministic suite passes;
+- the public application flow completes ordinary and tool-enabled requests;
+- native reasoning/tool history survives reload and a follow-up request;
+- enabled local `qwen3:0.6b` tests pass or a documented
+  `qwen3.5:0.8b` capability fallback passes;
+- the two minimal hosted Anthropic scenarios run successfully with the API gate
+  enabled;
+- package docs describe only delivered Stage 1 behavior;
+- Anthropic requirements contain concrete implementation and verification
+  evidence.
+
+Stop for review before Stage 2. Record any SDK/compatible-endpoint mismatch,
+small-model limitation, or provider-native history change that would alter the
+approved Stage 2 compatibility plan.
 
 #### Stage 2: compatibility and portable refinements
 
@@ -220,16 +412,16 @@ baseline.
 
 ### Task checklist
 
-- [ ] Create provider package, descriptor, metadata, and test configuration.
-- [ ] Complete Stage 1 core provider, tools, reasoning, usage, and deterministic
+- [x] Create provider package, descriptor, metadata, and test configuration.
+- [x] Complete Stage 1 core provider, tools, reasoning, usage, and deterministic
   acceptance.
 - [ ] Complete Stage 2 compatibility profiles, Ollama effort/usage coverage,
   duration/TPS interoperability, and unsupported-field acceptance.
 - [ ] Complete Stage 3 official capability, interleaved/preserved thinking,
   automatic caching/TTL, and hosted acceptance.
-- [ ] Add safe generic error messages and provider-owned retry behavior.
-- [ ] Document delivered behavior and limitations.
-- [ ] Update package and portable requirements with concrete evidence.
+- [x] Add safe generic error messages and provider-owned retry behavior.
+- [x] Document delivered behavior and limitations.
+- [x] Update package and portable requirements with concrete evidence.
 
 ### Requirement verification
 
@@ -261,3 +453,85 @@ baseline.
   capability-gated and verified.
 - Unknown model capability fields are preserved or ignored safely without
   weakening conservative defaults.
+
+## Implementation Notes
+
+### 2026-08-30 Stage 1 implementation
+
+Implemented:
+
+- package metadata and descriptor under `plugins/anthropic-compatible`;
+- Anthropic SDK 1.x transport with configured base URL, timeout, API key,
+  provider-owned retries, model discovery, ordinary requests, streaming, and
+  request-ID cancellation;
+- lossless ordered text, thinking, redacted-thinking, signature, tool-use, and
+  unknown content-block accumulation;
+- provider-native history persistence and reload;
+- independent `AnthropicToolsExtension`, `AnthropicReasoningExtension`, and
+  `AnthropicUsageExtension` plugin classes;
+- self-contained Anthropic tool schema/call accessors so tool execution does
+  not depend on `claude-tools` being importable merely to inspect a provider
+  call;
+- explicit `thinking: disabled` request shaping when reasoning is off, needed
+  for local Qwen models that otherwise think by default;
+- simple reasoning effort/budget UI and request shaping;
+- formatted per-message usage plus tool-turn and session cumulative totals;
+- safe generic request errors, API-key redaction, and SDK-owned pre-output
+  retries;
+- package user documentation and contributor implementation documentation.
+
+Verification completed:
+
+- `pytest plugins/anthropic-compatible/tests -q`: 24 passed, 6 deselected;
+- `pytest plugins/anthropic-compatible/tests -m 'integration and ollama' -q`:
+  4 passed, 24 deselected using local `qwen3:0.6b`;
+- local coverage includes ordinary/streaming text, reasoning, a complete tool
+  call/result/follow-up round, usage, reload, descriptor loading, and
+  `AgentApplication.send_request`;
+- `python -m pyright plugins/anthropic-compatible/src
+  plugins/anthropic-compatible/tests`: 0 errors;
+- Black and Ruff package checks pass;
+- documentation preparation and MkDocs build pass with existing repository
+  warnings.
+
+Hosted verification:
+
+- `pytest plugins/anthropic-compatible/tests -m 'integration and api and
+  anthropic' -q`: 2 passed, 26 deselected;
+- official model discovery, API-key authentication, a tiny non-streaming
+  request, streamed thinking, tool use, tool-result continuation, usage, and
+  finalization passed on 2026-08-30;
+- Stage 1 is complete and stops at its approved checkpoint before Stage 2.
+
+Findings:
+
+- `qwen3:0.6b` reliably exercised text, streaming, tools, thinking, and usage;
+  the `qwen3.5:0.8b` fallback was not needed;
+- the official API rejects thinking when `tool_choice` forces a tool; the
+  hosted reasoning/tool scenario therefore uses normal automatic tool
+  selection with a strict tool-use prompt;
+- official Claude tool smoke testing found and fixed double-wrapping of
+  provider-native `tool_result` blocks; the extension now preserves an
+  already-native outer result block instead of nesting it;
+- the terminal default config now exposes `claude-openrouter` and
+  `claude-anthropic`, registers the Anthropic-compatible package, and maps
+  `ANTHROPIC_API_KEY` through application configuration;
+- the paid `claude-anthropic` default-config Read-tool smoke and the focused
+  `claude-openrouter` Read/reasoning smoke both pass;
+- `pytest application/python/tests -q`: 359 passed, 91 deselected;
+- default-config binary asset selection includes `anthropic-compatible` as a
+  preinstalled plugin with the `anthropic_plugins` hidden import;
+- Anthropic provider and reasoning configuration elements now use the
+  canonical UI shape (`type` for the control kind rather than `ui_type`);
+- the reasoning effort selector exposes `low`, `medium`, `high`, `xhigh`, and
+  `max`, keeps the default value unset, and labels availability as
+  model-specific;
+- the paid `claude-anthropic` default-config smoke asserts that the flattened
+  session UI exposes renderable reasoning controls before executing the tool
+  round;
+- Ollama accepted the simple `reasoning_effort` request field, but comparative
+  effort behavior remains Stage 2;
+- duration/TPS integration remains Stage 2 even though Stage 1 now emits its
+  required cumulative input/output fields;
+- official capability-driven tags and compatibility profiles remain Stages 2
+  and 3.

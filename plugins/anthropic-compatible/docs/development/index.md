@@ -1,7 +1,12 @@
 # Anthropic-compatible provider development documentation
 
-This development documentation owns the target design for the planned
-Anthropic-compatible provider package.
+This development documentation covers implementation, maintenance, and the
+durable design of the Anthropic-compatible provider package.
+
+## Implementation
+
+- [Implementation](implementation.md): runtime classes, provider/extension
+  ownership, streaming sequence, and verification layout.
 
 ## Specifications
 
@@ -9,6 +14,5 @@ Anthropic-compatible provider package.
   API-key baseline, provider/extension boundaries, Messages protocol,
   compatibility profiles, security, errors, and verification.
 
-Current package-user documentation will be added with the implementation. This
-development index does not claim that the provider package is already
-available.
+Package-user installation and configuration documentation is maintained in the
+package `README.md`.

@@ -50,6 +50,7 @@ def _set_default_config_env(monkeypatch: pytest.MonkeyPatch) -> None:
         str(ROOT / "build" / "test-cloud-runtime-context"),
     )
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
     monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")

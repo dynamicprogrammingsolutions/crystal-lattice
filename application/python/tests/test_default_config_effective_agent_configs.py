@@ -33,6 +33,38 @@ def test_default_config_enables_session_list_status_footer_and_archive() -> None
     assert "path:${env:BUILTIN_PLUGINS}/session-archive-app" in config["plugins"]
 
 
+def test_default_config_declares_provider_qualified_claude_agents() -> None:
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert "claude" not in config["agents"]
+    assert config["agents"]["claude-openrouter"]["provider"] == "openrouter"
+    assert (
+        config["agents"]["claude-openrouter"]["model"] == "anthropic/claude-haiku-4.5"
+    )
+    assert config["agents"]["claude-anthropic"]["provider"] == "anthropic"
+    assert config["agents"]["claude-anthropic"]["model"] == "claude-haiku-4-5-20251001"
+    assert config["agents"]["claude-anthropic"]["reasoning_effort"] is None
+    assert "path:${env:BUILTIN_PLUGINS}/anthropic-compatible" in config["plugins"]
+    assert config["providers"]["anthropic"] == {
+        "mixin_refs": ["provider_defaults"],
+        "provider": "anthropic",
+        "auth_mode": "api",
+        "api_key": "${env:ANTHROPIC_API_KEY}",
+        "base_url": "https://api.anthropic.com",
+    }
+    app_config = config["application"]["application_config"]
+    assert "ANTHROPIC_API_KEY" in app_config["editable_env_keys"]
+    assert app_config["provider_env_keys"]["anthropic"] == "ANTHROPIC_API_KEY"
+
+
 @pytest.mark.integration
 def test_default_config_effective_agent_configs_stay_intact(
     tmp_path: Path,
@@ -48,6 +80,7 @@ def test_default_config_effective_agent_configs_stay_intact(
     # Default config placeholder resolution records missing env vars as
     # config errors, so set stable dummy values for providers we inspect.
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
     monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
@@ -220,7 +253,7 @@ def test_default_config_effective_agent_configs_stay_intact(
                 "provider": {"order": ["z-ai"], "allow_fallbacks": False}
             },
         },
-        "claude": {
+        "claude-openrouter": {
             "provider": "openrouter",
             "model": "anthropic/claude-haiku-4.5",
             "reasoning_max_tokens": 16000,
@@ -232,6 +265,16 @@ def test_default_config_effective_agent_configs_stay_intact(
             "request_options": {
                 "provider": {"order": ["anthropic"], "allow_fallbacks": False}
             },
+        },
+        "claude-anthropic": {
+            "provider": "anthropic",
+            "model": "claude-haiku-4-5-20251001",
+            "reasoning_effort": None,
+            "web_search_enabled": True,
+            "web_search_provider": "gemini_api",
+            "mcp_enabled": False,
+            "mcp_reuse_runtime": True,
+            "mcp_fail_on_startup_error": False,
         },
         "openrouter-image": {
             "provider": "openrouter_image_generation",

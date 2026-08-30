@@ -213,6 +213,7 @@ def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installab
     selected = binary_builder.discover_selected_bundled_plugin_names()
     resources = binary_builder.discover_builtin_plugin_resource_paths()
 
+    assert "anthropic-compatible" in selected
     assert "codex-tools" in selected
     assert "cloud-agent-app" in selected
     assert "gemini-compaction-feature" not in selected
@@ -225,6 +226,11 @@ def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installab
             encoding="utf-8"
         )
     )
+    anthropic_descriptor = json.loads(
+        (bundled_plugins / "anthropic-compatible" / "agent_plugin.json").read_text(
+            encoding="utf-8"
+        )
+    )
     optional_descriptor = json.loads(
         (bundled_plugins / "gemini-compaction-feature" / "agent_plugin.json").read_text(
             encoding="utf-8"
@@ -232,6 +238,7 @@ def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installab
     )
 
     assert selected_descriptor["preinstalled"] is True
+    assert anthropic_descriptor["preinstalled"] is True
     assert not (bundled_plugins / "codex-tools" / "src").exists()
     assert optional_descriptor.get("preinstalled") is not True
     assert (bundled_plugins / "gemini-compaction-feature" / "pyproject.toml").is_file()
@@ -244,6 +251,7 @@ def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installab
     ).is_file()
 
     hidden_imports = binary_builder.discover_plugin_hidden_imports(bundled_plugins)
+    assert "anthropic_plugins" in hidden_imports
     assert "codex_tools" in hidden_imports
     assert "gemini_compaction_feature" not in hidden_imports
 

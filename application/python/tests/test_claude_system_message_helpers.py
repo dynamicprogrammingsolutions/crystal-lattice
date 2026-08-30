@@ -114,6 +114,7 @@ def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
 
     monkeypatch.chdir(workspace)
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
     monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
@@ -143,7 +144,7 @@ def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
     )
     assert app.get_config_errors() == []
 
-    _core, base_config, _session = app.create_session("claude")
+    _core, base_config, _session = app.create_session("claude-openrouter")
     base_config = {**base_config, "include_tasks": True}
 
     feature = SystemMessageFeature()
@@ -180,6 +181,7 @@ def test_default_config_claude_agent_uses_claude_tools(
     monkeypatch.chdir(workspace)
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
     monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
@@ -208,38 +210,50 @@ def test_default_config_claude_agent_uses_claude_tools(
     )
     assert app.get_config_errors() == []
 
-    _core, base_config, _session = app.create_session("claude")
-
-    assert base_config["provider"] == "openrouter"
-    assert base_config["model"] == "anthropic/claude-haiku-4.5"
-    assert base_config["gemini_api_key"] == "test-gemini-key"
-    assert base_config["tavily_api_key"] == "test-tavily-key"
-    assert base_config["web_search_enabled"] is True
-    assert base_config["web_search_provider"] == "gemini_api"
-    assert base_config["mcp_enabled"] is False
-    assert base_config["mcp_reuse_runtime"] is True
-    assert base_config["mcp_fail_on_startup_error"] is False
-    assert "filesystem" in base_config["mcp_servers"]
-
-    plugin_ids = {
-        entry["id"]
-        for entry in app.list_plugins_for_agent("claude")
-        if entry["kind"] == "tools"
+    expected_agents = {
+        "claude-openrouter": {
+            "provider": "openrouter",
+            "model": "anthropic/claude-haiku-4.5",
+        },
+        "claude-anthropic": {
+            "provider": "anthropic",
+            "model": "claude-haiku-4-5-20251001",
+        },
     }
-    assert "claude_read_tool" in plugin_ids
-    assert "claude_write_tool" in plugin_ids
-    assert "claude_edit_tool" in plugin_ids
-    assert "claude_glob_tool" in plugin_ids
-    assert "claude_grep_tool" in plugin_ids
-    assert "claude_bash_tool" in plugin_ids
-    assert "claude_task_stop_tool" in plugin_ids
-    assert "claude_web_fetch_tool" in plugin_ids
-    assert "claude_web_search_tool" in plugin_ids
-    assert "claude_mcp_tool" in plugin_ids
-    assert "shell" not in plugin_ids
+    for agent_id, expected in expected_agents.items():
+        _core, base_config, _session = app.create_session(agent_id)
+
+        assert base_config["provider"] == expected["provider"]
+        assert base_config["model"] == expected["model"]
+        assert base_config["gemini_api_key"] == "test-gemini-key"
+        assert base_config["tavily_api_key"] == "test-tavily-key"
+        assert base_config["web_search_enabled"] is True
+        assert base_config["web_search_provider"] == "gemini_api"
+        assert base_config["mcp_enabled"] is False
+        assert base_config["mcp_reuse_runtime"] is True
+        assert base_config["mcp_fail_on_startup_error"] is False
+        assert "filesystem" in base_config["mcp_servers"]
+
+        plugin_ids = {
+            entry["id"]
+            for entry in app.list_plugins_for_agent(agent_id)
+            if entry["kind"] == "tools"
+        }
+        assert "claude_read_tool" in plugin_ids
+        assert "claude_write_tool" in plugin_ids
+        assert "claude_edit_tool" in plugin_ids
+        assert "claude_glob_tool" in plugin_ids
+        assert "claude_grep_tool" in plugin_ids
+        assert "claude_bash_tool" in plugin_ids
+        assert "claude_task_stop_tool" in plugin_ids
+        assert "claude_web_fetch_tool" in plugin_ids
+        assert "claude_web_search_tool" in plugin_ids
+        assert "claude_mcp_tool" in plugin_ids
+        assert "shell" not in plugin_ids
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    claude_agent = config["agents"]["claude"]
-    assert "claude_mcp_defaults" in claude_agent["mixin_refs"]
-    assert claude_agent["plugins"] == ["path:${env:BUILTIN_PLUGINS}/claude-tools"]
-    assert "anthropic-openrouter" not in config["agents"]
+    assert "claude" not in config["agents"]
+    for agent_id in ("claude-openrouter", "claude-anthropic"):
+        claude_agent = config["agents"][agent_id]
+        assert "claude_mcp_defaults" in claude_agent["mixin_refs"]
+        assert claude_agent["plugins"] == ["path:${env:BUILTIN_PLUGINS}/claude-tools"]

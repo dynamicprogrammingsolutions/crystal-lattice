@@ -124,6 +124,7 @@ def test_default_config_openrouter_image_agent_generates_asset_backed_image(
     monkeypatch.chdir(workspace)
 
     monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
     monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
@@ -203,6 +204,7 @@ def test_default_config_openrouter_image_agent_send_message_endpoint_real_api(
     monkeypatch.chdir(workspace)
 
     monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
     monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")

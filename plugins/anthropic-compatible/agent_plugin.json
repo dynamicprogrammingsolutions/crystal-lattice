@@ -1,0 +1,16 @@
+{
+  "module": "anthropic_plugins",
+  "subdirectory": ".",
+  "entries": [
+    "anthropic_plugins.provider.AnthropicProvider",
+    "anthropic_plugins.tools_extension.AnthropicToolsExtension",
+    "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
+    "anthropic_plugins.usage_extension.AnthropicUsageExtension"
+  ],
+  "kinds": {
+    "anthropic_plugins.provider.AnthropicProvider": "providers",
+    "anthropic_plugins.tools_extension.AnthropicToolsExtension": "extensions",
+    "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension": "extensions",
+    "anthropic_plugins.usage_extension.AnthropicUsageExtension": "extensions"
+  }
+}
