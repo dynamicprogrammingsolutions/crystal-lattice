@@ -517,7 +517,7 @@ export default defineVisualAssets({
                 width: 920,
                 height: 363,
                 gravity: "north",
-                geometry: "+0+105",
+                geometry: "+0+500",
                 borderColor: "#FFFFFF",
                 borderWidth: 3,
                 shadow: {
@@ -532,7 +532,7 @@ export default defineVisualAssets({
               height: 1315,
               maxBytes: 60000,
               sha256:
-                "d8067aa8efca1115bb05d6cd53b66486222d0f548ae716fb812d048c0138648d",
+                "1d10ffdb13d405fe9b495a6bf927b92a0a960b1570c8897e77cc4e3879e3725d",
             },
           },
           dark: {
@@ -568,7 +568,7 @@ export default defineVisualAssets({
                 width: 920,
                 height: 363,
                 gravity: "north",
-                geometry: "+0+105",
+                geometry: "+0+500",
                 borderColor: "#3A3A3C",
                 borderWidth: 3,
                 shadow: {
@@ -583,7 +583,7 @@ export default defineVisualAssets({
               height: 1315,
               maxBytes: 45000,
               sha256:
-                "31511d829f1dc26151458a0089d1c3f076a8294b90e53d77fff54f288f6bc8ac",
+                "80b7364913bd58dc359dbe02a013d5434c242abd9a2159287f5868d7ab3b41e5",
             },
           },
         },
@@ -649,7 +649,7 @@ export default defineVisualAssets({
                 width: 880,
                 height: 151,
                 gravity: "north",
-                geometry: "+0+640",
+                geometry: "+0+850",
                 borderColor: "#FFFFFF",
                 borderWidth: 3,
                 shadow: {
@@ -664,7 +664,7 @@ export default defineVisualAssets({
               height: 1334,
               maxBytes: 100000,
               sha256:
-                "4e40df8d85f8425a1c922488dc3d154189af0653b9781d783632920129e91022",
+                "527a3494070e8b9a37774e66afcb5e2b38984fa3c8d204201eedf4737d734f0a",
             },
           },
           dark: {
@@ -700,7 +700,7 @@ export default defineVisualAssets({
                 width: 880,
                 height: 151,
                 gravity: "north",
-                geometry: "+0+640",
+                geometry: "+0+850",
                 borderColor: "#3A3A3C",
                 borderWidth: 3,
                 shadow: {
@@ -715,7 +715,7 @@ export default defineVisualAssets({
               height: 1334,
               maxBytes: 100000,
               sha256:
-                "90980155399d4850839deb7eb46bcafba9a11260d14afdc447a940b59b2bc5e5",
+                "3749a82c6afb16e1af85fe286061c1ffe0c67b5703135670c1b08028b009491e",
             },
           },
         },

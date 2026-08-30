@@ -5,6 +5,56 @@ import catalog from "../../visual_assets/config.mjs";
 import { defineAsset } from "../../scripts/visual-assets/api.mjs";
 import { selectAssets } from "../../scripts/visual-assets/selection.mjs";
 
+function valuesAfter(args, option) {
+  return args.flatMap((value, index) =>
+    value === option ? [args[index + 1]] : [],
+  );
+}
+
+function parseCrop(value) {
+  const match = /^(\d+)x(\d+)\+(\d+)\+(\d+)$/.exec(value);
+  assert.ok(match, `invalid crop geometry: ${value}`);
+  return {
+    width: Number(match[1]),
+    height: Number(match[2]),
+    x: Number(match[3]),
+    y: Number(match[4]),
+  };
+}
+
+function parseResize(value) {
+  const match = /^(\d+)x(\d+)!$/.exec(value);
+  assert.ok(match, `invalid resize geometry: ${value}`);
+  return {
+    width: Number(match[1]),
+    height: Number(match[2]),
+  };
+}
+
+function parsePlacement(value) {
+  const match = /^\+(-?\d+)\+(-?\d+)$/.exec(value);
+  assert.ok(match, `invalid placement geometry: ${value}`);
+  return {
+    x: Number(match[1]),
+    y: Number(match[2]),
+  };
+}
+
+async function capturePipelineArguments(pipeline) {
+  const calls = [];
+  await pipeline.run({
+    sourcePath: "/tmp/source.png",
+    candidatePath: "/tmp/candidate.webp",
+    landingRoot: "/tmp/landing",
+    async run(command, args, options) {
+      calls.push({ command, args, options });
+    },
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, "magick");
+  return calls[0].args;
+}
+
 test("the current catalog defines commands and source-local lifecycle assets", () => {
   assert.equal(catalog.assets.length, 8);
   assert.deepEqual(catalog.commandNames, [
@@ -50,6 +100,40 @@ test("the current catalog defines commands and source-local lifecycle assets", (
           "e88aa46ee8d6bd0969c63c78f8e152f1fd938974",
         );
       }
+    }
+  }
+});
+
+test("provider focus callouts vertically cover the source regions they enlarge", async () => {
+  for (const assetId of ["provider-reasoning", "provider-usage-cost"]) {
+    const asset = catalog.assetMap.get(assetId);
+    for (const [variantName, variant] of Object.entries(asset.config.variants)) {
+      const args = await capturePipelineArguments(variant.build);
+      const crops = valuesAfter(args, "-crop").map(parseCrop);
+      const resizes = valuesAfter(args, "-resize").map(parseResize);
+      const placements = valuesAfter(args, "-geometry").map(parsePlacement);
+      assert.equal(crops.length, 2);
+      assert.equal(resizes.length, 2);
+      assert.equal(placements.length, 2);
+
+      const [originalCrop, calloutCrop] = crops;
+      const [originalResize, calloutResize] = resizes;
+      const [originalPlacement, calloutPlacement] = placements;
+      const scaleY = originalResize.height / originalCrop.height;
+      const targetTop =
+        originalPlacement.y + (calloutCrop.y - originalCrop.y) * scaleY;
+      const targetBottom = targetTop + calloutCrop.height * scaleY;
+      const calloutTop = calloutPlacement.y;
+      const calloutBottom = calloutTop + calloutResize.height;
+
+      assert.ok(
+        calloutTop <= targetTop,
+        `${assetId}/${variantName}: callout starts below its source region`,
+      );
+      assert.ok(
+        calloutBottom >= targetBottom,
+        `${assetId}/${variantName}: callout does not cover its source region`,
+      );
     }
   }
 });

@@ -77,7 +77,7 @@ test("loads only the active theme and swaps the same image elements", async ({
   );
   expect(
     lightImages.reduce((sum, response) => sum + response.contentLength, 0),
-  ).toBe(221532);
+  ).toBe(216814);
 
   const themedImages = page.locator(
     "img[data-theme-light-src][data-theme-dark-src]",
@@ -106,7 +106,7 @@ test("loads only the active theme and swaps the same image elements", async ({
   expect(darkImages).toHaveLength(5);
   expect(
     darkImages.reduce((sum, response) => sum + response.contentLength, 0),
-  ).toBe(230356);
+  ).toBe(221778);
   expect(await themedImages.count()).toBe(5);
 });
 

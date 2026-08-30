@@ -23,15 +23,15 @@
     "observed_on": "2026-08-30",
     "light": {
       "proof_images": 6,
-      "bytes": 299550
+      "bytes": 294832
     },
     "dark": {
       "proof_images": 6,
-      "bytes": 298734
+      "bytes": 290156
     },
-    "combined_public_derivatives_bytes": 598284,
+    "combined_public_derivatives_bytes": 584988,
     "catalog_results": 14,
-    "catalog_bytes": 707738,
+    "catalog_bytes": 694442,
     "behavior": "The homepage and mobile page load one active theme variant per rendered proof. The mobile hero frame is CSS and adds no raster download."
   },
   "budgets": {

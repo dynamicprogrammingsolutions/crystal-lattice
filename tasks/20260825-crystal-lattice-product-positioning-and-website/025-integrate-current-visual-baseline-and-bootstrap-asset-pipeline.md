@@ -1554,14 +1554,14 @@ content, privacy, and product-communication judgments only.
     region using asset-specific vertical geometry.
 - Replaced the old phone-silhouette/manual composites with current unframed
   light/dark provider cards:
-  - reasoning light: 1000x1315, 32,054 bytes,
-    `d8067aa8efca1115bb05d6cd53b66486222d0f548ae716fb812d048c0138648d`;
-  - reasoning dark: 1000x1315, 31,050 bytes,
-    `31511d829f1dc26151458a0089d1c3f076a8294b90e53d77fff54f288f6bc8ac`;
-  - usage light: 940x1334, 53,148 bytes,
-    `4e40df8d85f8425a1c922488dc3d154189af0653b9781d783632920129e91022`;
-  - usage dark: 940x1334, 62,984 bytes,
-    `90980155399d4850839deb7eb46bcafba9a11260d14afdc447a940b59b2bc5e5`.
+  - reasoning light: 1000x1315, 27,824 bytes,
+    `1d10ffdb13d405fe9b495a6bf927b92a0a960b1570c8897e77cc4e3879e3725d`;
+  - reasoning dark: 1000x1315, 26,948 bytes,
+    `80b7364913bd58dc359dbe02a013d5434c242abd9a2159287f5868d7ab3b41e5`;
+  - usage light: 940x1334, 52,660 bytes,
+    `527a3494070e8b9a37774e66afcb5e2b38984fa3c8d204201eedf4737d734f0a`;
+  - usage dark: 940x1334, 58,508 bytes,
+    `3749a82c6afb16e1af85fe286061c1ffe0c67b5703135670c1b08028b009491e`.
 - Updated authored alt text and exact active-theme byte contracts. The complete
   catalog now validates 12 results totaling 544,396 bytes.
 - Automated verification completed:
@@ -1770,8 +1770,8 @@ content, privacy, and product-communication judgments only.
   - dark: 1000x2025, 68,378 bytes,
     `ce0aa2813b683d32068dc03a2b64b146be23ab52269d3cbc929700c357b05ff8`.
 - Theme budgets remain below the existing 300 KB limit:
-  - light: 299,550 bytes;
-  - dark: 298,734 bytes.
+  - light: 294,832 bytes;
+  - dark: 290,156 bytes.
 - Final automated verification:
   - six session-fixture tests, including reviewed-prefix preservation and
     follow-up shape/reasoning validation;
@@ -1782,7 +1782,7 @@ content, privacy, and product-communication judgments only.
   - 314 frontend SDK tests;
   - real FastAPI/`FetchTransport`/`RestAgentBackend` integration;
   - successful ten-state iOS Detox build/capture;
-  - complete 14-result visual catalog totaling 707,738 bytes;
+  - complete 14-result visual catalog totaling 694,442 bytes;
   - Astro build and all 12 responsive/theme Playwright tests;
   - Black, Ruff, and `git diff --check`.
 - The implementation remains unstaged and is stopped at the revised manual C4
@@ -1833,7 +1833,7 @@ content, privacy, and product-communication judgments only.
 - Post-documentation verification:
   - 18 visual-asset JavaScript tests;
   - seven Python session/runtime fixture tests;
-  - 14-result catalog check totaling 707,738 bytes;
+  - 14-result catalog check totaling 694,442 bytes;
   - Astro build;
   - all 12 responsive/theme Playwright tests;
   - JSON, CSV, and `git diff --check`.
@@ -1868,3 +1868,40 @@ content, privacy, and product-communication judgments only.
   copied into the prepared documentation site. This publication gap predates
   the audience split; package registration was not added as an implicit
   expansion of this documentation refactor.
+
+### August 30, 2026 — Provider focus placement correction
+
+- The user identified that the promoted reasoning and usage callouts appeared
+  separately from the original-sized source region, leaving the same content
+  visible twice.
+- Confirmed this was not a source-promotion or derivative-publication failure:
+  the public files matched the catalog hashes and commit `a37f2d3d`.
+- Corrected the per-asset vertical placement in both themes:
+  - reasoning callouts move from Y 105 to Y 500;
+  - usage/cost callouts move from Y 640 to Y 850.
+- The generic `focusCalloutPipeline` remains unchanged. It continues to apply
+  asset-local crop, placement, border, and shadow configuration.
+- Full-size and website-scale light/dark inspection confirms:
+  - the enlarged reasoning panel fully covers the original reasoning and
+    verbosity controls;
+  - the enlarged usage panel fully covers the original message-footer text;
+  - contextual screen content remains visible around each callout.
+- Added a catalog regression test that derives the scaled source-region
+  position from the actual ImageMagick arguments and requires every provider
+  callout to cover that region vertically.
+- Updated derivatives and retained evidence:
+  - reasoning light: 27,824 bytes,
+    `1d10ffdb13d405fe9b495a6bf927b92a0a960b1570c8897e77cc4e3879e3725d`;
+  - reasoning dark: 26,948 bytes,
+    `80b7364913bd58dc359dbe02a013d5434c242abd9a2159287f5868d7ab3b41e5`;
+  - usage light: 52,660 bytes,
+    `527a3494070e8b9a37774e66afcb5e2b38984fa3c8d204201eedf4737d734f0a`;
+  - usage dark: 58,508 bytes,
+    `3749a82c6afb16e1af85fe286061c1ffe0c67b5703135670c1b08028b009491e`.
+- Verification:
+  - 19 visual-asset JavaScript tests;
+  - 14-result catalog check totaling 694,442 bytes;
+  - Astro build;
+  - all 12 responsive/theme Playwright tests;
+  - retained manifest/hash validation;
+  - `git diff --check`.
