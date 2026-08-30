@@ -25,7 +25,10 @@ Remove Note action deletes note text.
 
 `deriveHomeSessionCollections()` preserves stored Watchlist order and derives a
 separate modified-descending Recent Sessions timeline. The timeline applies
-the exact `24h`, `3d`, or `1w` cutoff and excludes watched composite identities.
+the exact `24h`, `3d`, or `1w` cutoff. Watchlist membership does not filter the
+timeline because the sections answer different questions: the Watchlist is
+manually curated and ordered, while Recent Sessions is complete for the
+selected time window.
 
 ## Presentation
 
@@ -34,8 +37,21 @@ the exact `24h`, `3d`, or `1w` cutoff and excludes watched composite identities.
 - Watchlist uses exactly two columns of workspace tiles;
 - each tile has a dedicated PanResponder drag handle and accessible
   Move Earlier/Move Later actions;
+- the grid owns transient drag state, snapshots measured variable-height
+  slots, renders an elevated tile plus same-size target placeholder, and
+  persists only the settled move;
+- release installs a keyed optimistic order until the Home workspace context
+  acknowledges the same stored order, preventing the pre-move arrangement
+  from rendering between local drag cleanup and context propagation;
+- the responder overlay enters a non-animated settling phase at release: its
+  translation snaps to the measured placeholder frame, the preview remains
+  mounted, and the translation resets only after acknowledged final tiles
+  replace the overlay;
+- handle capture disables user scrolling only for the active drag, while
+  bounded edge scrolling keeps off-screen Watchlist targets reachable;
 - Recent Sessions uses a vertical activity timeline;
-- bookmark language belongs only to the local Watchlist;
+- Recent uses the bookmark for adding local Watchlist membership, while a
+  Watchlist tile uses `x` to remove that membership;
 - server session pins continue to use their existing rich application action.
 
 Tiles bound note previews to two lines and consume semantic typography. Native
@@ -73,6 +89,7 @@ probed. Loss of authority removes stale Running state.
 
 Primary tests:
 
+- `src/__tests__/watchlistDrag.test.ts`
 - `core/python/tests/test_session_request_status.py`
 - `application/python/tests/test_session_request_status_http.py`
 - `packages/frontend-sdk/src/types/sessionRequestStatus.test.ts`

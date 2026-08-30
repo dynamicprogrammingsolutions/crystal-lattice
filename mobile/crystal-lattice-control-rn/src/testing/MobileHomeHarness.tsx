@@ -64,6 +64,11 @@ export function MobileHomeHarness(): React.JSX.Element {
                         modified: now - 20,
                         preview: 'Office shared session',
                       },
+                      {
+                        session_id: 'project',
+                        modified: now - 30,
+                        preview: 'Office project session',
+                      },
                     ],
                   },
                   laptop: {
@@ -74,6 +79,11 @@ export function MobileHomeHarness(): React.JSX.Element {
                         session_id: 'shared',
                         modified: now - 10,
                         preview: 'Laptop shared session',
+                      },
+                      {
+                        session_id: 'review',
+                        modified: now - 40,
+                        preview: 'Laptop review session',
                       },
                       {
                         session_id: 'older',

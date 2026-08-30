@@ -41,7 +41,7 @@ describe('home workspace state', () => {
     });
   });
 
-  it('derives ordered watched tiles and strict recent sessions without duplicates', () => {
+  it('derives ordered watched tiles and keeps watched sessions in strict recents', () => {
     const nowMs = Date.UTC(2026, 7, 29, 12);
     const recent = nowMs / 1000 - 60;
     const old = nowMs / 1000 - 2 * 24 * 60 * 60;
@@ -61,13 +61,13 @@ describe('home workspace state', () => {
           ],
         },
       },
-      watchlist: [{ connectionId: 'one', sessionId: 'shared' }],
+      watchlist: [{ connectionId: 'two', sessionId: 'shared' }],
       notes: { shared: 'same note on both connections' },
       recentSessionsWindow: '24h',
       nowMs,
     });
 
-    expect(result.watchlist.map((item) => item.key)).toEqual(['one::shared']);
+    expect(result.watchlist.map((item) => item.key)).toEqual(['two::shared']);
     expect(result.watchlist[0].note).toBe('same note on both connections');
     expect(result.recent.map((item) => item.sessionId)).toEqual([
       'recent-two',

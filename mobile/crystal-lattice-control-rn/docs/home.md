@@ -11,11 +11,17 @@ stored on the current device and is independent from server-side session
 pinning.
 
 Watched sessions appear as reorderable two-column tiles. Drag a tile by its
-move handle to change the order. Accessible Move Earlier and Move Later
-actions provide the same operation without dragging.
+move handle to change the order. The tile follows the drag while an empty
+outlined space previews its prospective position. Vertical and horizontal
+movement are both supported; scrolling Home normally still works when the
+gesture starts outside a move handle. Accessible Move Earlier and Move Later
+actions provide the same operation without dragging. When the drag ends, the
+floating tile is placed directly into the outlined destination and stays there
+until the ordinary tiles report the saved final order.
 
 Watchlist membership and order are local to the device. A watched session can
-remain on Home after it is no longer recent.
+remain on Home after it is no longer recent. Use the close control on a
+Watchlist tile to remove that local membership without deleting the session.
 
 ## Permanent local notes
 
@@ -30,7 +36,8 @@ deleted.
 ## Recent Sessions
 
 Recent Sessions is a chronological timeline built from locally cached session
-summaries. It includes only sessions modified inside the selected window:
+summaries. It includes sessions modified inside the selected window whether
+or not they are also on the Watchlist:
 
 - Last 24 hours
 - Last 3 days

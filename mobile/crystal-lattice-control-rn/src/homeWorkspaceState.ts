@@ -131,11 +131,6 @@ export function deriveHomeSessionCollections(options: {
   const connectionsById = new Map(
     options.connections.map((connection) => [connection.id, connection]),
   );
-  const watchedKeys = new Set(
-    options.watchlist.map(({ connectionId, sessionId }) =>
-      watchedSessionKey(connectionId, sessionId),
-    ),
-  );
   const resolveItem = (
     connectionId: string,
     sessionId: string,
@@ -165,7 +160,7 @@ export function deriveHomeSessionCollections(options: {
   for (const connection of options.connections) {
     for (const summary of options.sessionsCache[connection.id]?.sessions ?? []) {
       const key = watchedSessionKey(connection.id, summary.session_id);
-      if (watchedKeys.has(key) || summary.modified * 1000 < cutoffMs) continue;
+      if (summary.modified * 1000 < cutoffMs) continue;
       recent.push({
         key,
         connectionId: connection.id,

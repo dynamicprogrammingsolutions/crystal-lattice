@@ -122,7 +122,10 @@ Home contains:
 
 The Watchlist is not server-side session pinning. Equal session IDs across
 connections intentionally share one local note, while Watchlist membership and
-navigation remain connection-scoped.
+navigation remain connection-scoped. Watchlist membership does not remove a
+session from the time-bounded Recent Sessions timeline; a qualifying session
+may appear in both sections because one is manually curated and the other is
+chronological.
 
 Selecting a Home session is explicit user navigation intent. A closed
 connection is opened first; only the current successful intent may focus the

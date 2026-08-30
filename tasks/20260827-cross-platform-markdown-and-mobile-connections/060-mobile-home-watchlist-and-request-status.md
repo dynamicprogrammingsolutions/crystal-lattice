@@ -457,3 +457,170 @@ through these interfaces. Do not add static review-only session data.
 - The provisional status source deliberately does not emit paused, cancelled,
   or failed. Closed cloud status remains unsupported unless a future
   orchestrator contract guarantees a no-wake read.
+
+## Post-completion follow-up
+
+Status: Approved
+
+The user approved a focused correction to Watchlist reordering and Recent
+Sessions behavior after evaluating the delivered Home screen. This follow-up
+supersedes the earlier requirements and verification statements that excluded
+watched sessions from Recent Sessions.
+
+### Follow-up requirements
+
+- [x] A drag started from a Watchlist move handle captures predominantly
+  vertical as well as horizontal movement without the Home scroll view taking
+  over; ordinary gestures started outside a move handle continue to scroll
+  Home.
+- [x] Watchlist reordering previews the prospective order during the gesture
+  with a same-sized empty placeholder at the future position and persists only
+  the settled order on release.
+- [x] Drag target resolution uses measured tile geometry, supports
+  variable-height two-column tiles, and can auto-scroll within bounded Home
+  content when the pointer reaches a viewport edge.
+- [x] A watched session remains in Recent Sessions whenever its modification
+  timestamp is inside the selected recent window.
+- [x] Removing a watched session uses a close (`x`) icon; the bookmark remains
+  the Add to Watchlist metaphor in Recent Sessions.
+- [x] Touch, accessibility, component, state, and native verification cover
+  the corrected behavior without hardcoding typography or unrelated theme
+  preset values.
+- [x] Current mobile user and development documentation describes the
+  inclusive Recent Sessions behavior and grid-owned drag interaction.
+
+### Follow-up execution plan
+
+Move transient drag ownership to the Watchlist grid while retaining one
+dedicated responder handle per tile. Capture responder ownership immediately
+from the handle, disable user scrolling only for the active drag, reject
+responder termination, and leave ordinary Home scrolling untouched elsewhere.
+
+Measure rendered tile slots and snapshot them when a drag starts. Resolve the
+nearest target from the dragged tile center, current gesture translation, and
+programmatic scroll delta. Render the dragged tile as an elevated absolute
+overlay and render a same-size placeholder in a transient preview order.
+Persist one final move on release; cancellation restores the original order.
+Use bounded edge scrolling for Watchlists extending beyond the viewport.
+
+Remove Watchlist identity from the Recent Sessions selector filter. Keep the
+strict configured timeframe and global modified-descending order, allowing the
+same session to appear in both purposefully distinct Home sections. Make the
+Recent bookmark action idempotent for an already watched session and change
+only the Watchlist removal icon to `x`.
+
+Add pure geometry/preview tests, component coverage for placeholder and scroll
+ownership, selector and icon regressions, and iOS/Android Home Detox coverage
+for predominantly vertical drag, normal scrolling, persistence, and inclusive
+Recent Sessions. Update the owning Home user/development pages and lifecycle
+description.
+
+### Follow-up task checklist
+
+- [x] Add measured-slot drag geometry and preview helpers.
+- [x] Refactor Home Watchlist drag ownership and live placeholder rendering.
+- [x] Keep watched sessions in Recent Sessions and update action state.
+- [x] Replace the Watchlist removal bookmark with a close icon.
+- [x] Add state, component, and native regressions.
+- [x] Update owning documentation and lifecycle wording.
+- [x] Run mobile unit/type/native verification and record evidence.
+
+### Follow-up implementation notes
+
+- The first live-preview implementation rendered the dragged keyed tile after
+  the preview slots. Fabric terminated the native responder when that child
+  moved in the React child list, even though component simulation remained
+  green. The final render-slot model keeps the responder-owning child at its
+  original index, absolutely positions it as the overlay, and independently
+  reorders only the non-dragged layout slots and placeholder.
+- The grid snapshots measured slot frames at gesture start, adjusts the dragged
+  center for programmatic scroll offset, resolves the nearest measured slot,
+  and maintains only the target index in React state. Translation remains on
+  `Animated.ValueXY`, avoiding a React render for every pointer update.
+- Recent Sessions now applies only the selected time cutoff and modified-time
+  sort. A qualifying watched session appears in both sections; its Recent
+  bookmark is disabled and labeled `In Watchlist` until membership is removed.
+- Detox's `longPressAndDrag` is effective only on iOS in the installed Detox
+  version. The native regression therefore uses exact handle-to-handle
+  vertical drag on iOS and a screen-distance vertical handle swipe on Android.
+- The dedicated Android 36.1 AVD has one CPU core and 2 GB RAM and repeatedly
+  raised a pre-application System UI ANR. The successful Android run used a
+  cold boot with temporary four-core/4-GB runtime overrides and snapshot
+  load/save disabled. No repository or permanent AVD configuration changed.
+
+### Follow-up completion notes
+
+- Delivered grid-owned live reordering with immediate handle capture, stable
+  native responder ownership, an elevated dragged tile, a same-size target
+  placeholder, measured variable-height target geometry, bounded edge scroll,
+  cancellation rollback, and one settled persistence update.
+- Delivered inclusive Recent Sessions semantics and an idempotent watched
+  state while retaining strict `24h`, `3d`, and `1w` cutoffs.
+- Replaced the Watchlist removal bookmark with a neutral close (`x`) icon;
+  Recent Sessions retains the bookmark as its add metaphor.
+- Verification passed:
+  - mobile Jest: 40 suites and 160 tests;
+  - mobile TypeScript and focused source-format checks;
+  - focused measured-slot, placeholder, responder/scroll, inclusive Recent,
+    action-state, and icon regressions;
+  - fresh iOS and Android Detox builds;
+  - the complete updated Home Detox scenario on iOS and Android, including
+    predominantly vertical reorder, persisted geometry, normal timeline
+    scrolling, inclusive watched recents, and Watchlist-only removal;
+  - `git diff --check` and obsolete current-document wording search.
+- Targeted ESLint was unavailable because this mobile package currently has no
+  ESLint configuration file; TypeScript, Prettier, Jest, native builds, and
+  native execution completed successfully.
+
+### Settled-order optimism correction
+
+Status: Complete
+
+- [x] Releasing a successful Watchlist drag immediately renders the settled
+  order and never exposes the pre-move arrangement while the workspace context
+  propagates or persists the move.
+- [x] The optimistic projection is keyed by session identity, reconciles with
+  the current resolved tiles, clears when context acknowledges the target
+  order, and yields to a competing membership or order change.
+- [x] Focused projection and Home component regressions plus mobile TypeScript
+  verification cover the correction.
+- [x] Current Home user and development documentation describes the immediate
+  settled placement.
+
+The correction keeps a local source/target key projection when release clears
+the drag overlay. `HomeScreen` applies the target keys to the latest resolved
+tile objects, so note, status, membership, and cache updates remain current.
+The projection is removed after context reports the target order; an order
+that matches neither the source nor target is treated as newer authority and
+also removes the projection.
+
+Verification passed with the focused Home/projection regressions, the complete
+mobile Jest suite (40 suites, 161 tests), mobile TypeScript, and
+`git diff --check`. Native drag geometry and persistence were unchanged and
+remain covered by the preceding successful iOS and Android Home runs.
+
+### Placeholder handoff correction
+
+Status: Complete
+
+- [x] Releasing a moved card snaps the still-rendered drag overlay directly
+  onto the measured placeholder without animation.
+- [x] The overlay and preview ordering remain visible until the workspace
+  context reports the final target order; only then do ordinary final tiles
+  replace them.
+- [x] Animated translation never resets to the source position while the
+  overlay remains mounted.
+- [x] Measured placeholder-offset and Home drag regressions plus mobile
+  TypeScript verification cover the handoff.
+
+The previous optimistic key projection removed the source-order context gap,
+but resetting `Animated.ValueXY` during the release callback could still move
+the mounted overlay back to its source for one frame. The drag now enters a
+`settling` phase, snaps the overlay translation to the target slot delta, and
+uses the stored source order to keep the preview composition stable even after
+context receives the target order. Context acknowledgement unmounts the
+overlay first; a subsequent effect then resets its translation.
+
+Verification passed with the focused Home and measured-offset regressions, the
+complete mobile Jest suite (40 suites, 162 tests), mobile TypeScript, and
+`git diff --check`.

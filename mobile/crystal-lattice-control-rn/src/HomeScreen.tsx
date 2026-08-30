@@ -1,8 +1,19 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Animated,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
   Modal,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   PanResponder,
+  type PanResponderGestureState,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,6 +40,14 @@ import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { useTheme, type Theme } from './theme';
 import SessionNoteModal from './components/SessionNoteModal';
 import SessionRequestStatusBadge from './components/SessionRequestStatusBadge';
+import {
+  applyWatchlistKeyOrder,
+  buildWatchlistRenderSlots,
+  moveWatchlistValues,
+  resolveWatchlistDropTranslation,
+  resolveWatchlistDropTarget,
+  type WatchlistTileFrame,
+} from './watchlistDrag';
 
 interface HomeActionDefinition extends ActionDefinition {
   iconName: string;
@@ -75,8 +94,16 @@ const WatchlistTile: React.FC<{
   index: number;
   itemCount: number;
   status: SessionRequestStatus | null;
+  dragFrame?: WatchlistTileFrame;
+  dragTranslation?: Animated.ValueXY;
+  isDragging?: boolean;
+  onLayout?: (event: LayoutChangeEvent) => void;
   onPress: () => void;
   onMove: (fromIndex: number, toIndex: number) => void;
+  onDragStart: (key: string) => void;
+  onDragMove: (gesture: PanResponderGestureState, pageY: number | null) => void;
+  onDragRelease: (gesture: PanResponderGestureState) => void;
+  onDragCancel: () => void;
   onEditNote: () => void;
   onRemove: () => void;
 }> = ({
@@ -84,48 +111,63 @@ const WatchlistTile: React.FC<{
   index,
   itemCount,
   status,
+  dragFrame,
+  dragTranslation,
+  isDragging = false,
+  onLayout,
   onPress,
   onMove,
+  onDragStart,
+  onDragMove,
+  onDragRelease,
+  onDragCancel,
   onEditNote,
   onRemove,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const drag = useRef(new Animated.ValueXY()).current;
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_event, gesture) =>
-          Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 4,
-        onPanResponderMove: Animated.event(
-          [null, { dx: drag.x, dy: drag.y }],
-          { useNativeDriver: false },
-        ),
-        onPanResponderRelease: (_event, gesture) => {
-          const rowDelta = Math.round(gesture.dy / 120) * 2;
-          const columnDelta =
-            gesture.dx > 45 ? 1 : gesture.dx < -45 ? -1 : 0;
-          const target = Math.max(
-            0,
-            Math.min(itemCount - 1, index + rowDelta + columnDelta),
-          );
-          drag.setValue({ x: 0, y: 0 });
-          if (target !== index) onMove(index, target);
+        onStartShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponderCapture: () => true,
+        onPanResponderGrant: () => {
+          onDragStart(item.key);
         },
-        onPanResponderTerminate: () => {
-          drag.setValue({ x: 0, y: 0 });
+        onPanResponderMove: (
+          event: GestureResponderEvent,
+          gesture: PanResponderGestureState,
+        ) => {
+          const pageY = event.nativeEvent.pageY;
+          onDragMove(gesture, Number.isFinite(pageY) ? pageY : null);
         },
+        onPanResponderRelease: (_event, gesture) => onDragRelease(gesture),
+        onPanResponderTerminate: onDragCancel,
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
       }),
-    [drag, index, itemCount, onMove],
+    [item.key, onDragCancel, onDragMove, onDragRelease, onDragStart],
   );
 
   return (
     <Animated.View
       testID={`home-watchlist-tile-${item.connectionId}-${item.sessionId}`}
+      onLayout={onLayout}
       style={[
         styles.watchTile,
-        { transform: drag.getTranslateTransform() },
+        isDragging && styles.draggedTile,
+        isDragging &&
+          dragFrame &&
+          dragTranslation && {
+            position: 'absolute',
+            left: dragFrame.x,
+            top: dragFrame.y,
+            width: dragFrame.width,
+            height: dragFrame.height,
+            transform: dragTranslation.getTranslateTransform(),
+          },
       ]}
     >
       <View style={styles.tileTopRow}>
@@ -152,7 +194,9 @@ const WatchlistTile: React.FC<{
         <View style={styles.tileActions}>
           <TouchableOpacity
             testID={`home-watchlist-note-${item.connectionId}-${item.sessionId}`}
-            accessibilityLabel={item.note ? 'Edit session note' : 'Add session note'}
+            accessibilityLabel={
+              item.note ? 'Edit session note' : 'Add session note'
+            }
             style={styles.iconButton}
             onPress={onEditNote}
           >
@@ -168,7 +212,7 @@ const WatchlistTile: React.FC<{
             style={styles.iconButton}
             onPress={onRemove}
           >
-            <Icon name="bookmark" size={16} color={theme.primary} />
+            <Icon name="x" size={17} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -204,6 +248,42 @@ const WatchlistTile: React.FC<{
   );
 };
 
+interface ActiveWatchlistDrag {
+  phase: 'dragging' | 'settling';
+  key: string;
+  sourceKeys: string[];
+  sourceIndex: number;
+  targetIndex: number;
+  sourceFrame: WatchlistTileFrame;
+  slotFrames: WatchlistTileFrame[];
+  startScrollOffset: number;
+  gestureX: number;
+  gestureY: number;
+}
+
+interface ScrollViewport {
+  y: number;
+  height: number;
+}
+
+interface SettledWatchlistOrder {
+  sourceKeys: string[];
+  targetKeys: string[];
+}
+
+const DRAG_EDGE_SIZE = 64;
+const DRAG_EDGE_SCROLL_STEP = 18;
+
+function sameKeyOrder(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
 const HomeScreen: React.FC<HomeScreenProps> = ({
   connections,
   sessionsCache,
@@ -222,6 +302,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     watchlist,
     notes,
     recentSessionsWindow,
+    isWatched,
     addToWatchlist,
     removeFromWatchlist,
     moveWatchlistItem,
@@ -232,9 +313,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     'clc_pinned_home_actions_v1',
     ['settings', 'newConnection'],
   );
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [noteSessionId, setNoteSessionId] = useState<string | null>(null);
-  const collections = useMemo(
+  const derivedCollections = useMemo(
     () =>
       deriveHomeSessionCollections({
         connections,
@@ -243,20 +322,244 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         notes,
         recentSessionsWindow,
       }),
-    [
-      connections,
-      notes,
-      recentSessionsWindow,
-      sessionsCache,
-      watchlist,
-    ],
+    [connections, notes, recentSessionsWindow, sessionsCache, watchlist],
+  );
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [noteSessionId, setNoteSessionId] = useState<string | null>(null);
+  const [activeDrag, setActiveDrag] = useState<ActiveWatchlistDrag | null>(
+    null,
+  );
+  const [settledWatchlistOrder, setSettledWatchlistOrder] =
+    useState<SettledWatchlistOrder | null>(null);
+  const collections = useMemo(
+    () =>
+      settledWatchlistOrder
+        ? {
+            ...derivedCollections,
+            watchlist: applyWatchlistKeyOrder(
+              derivedCollections.watchlist,
+              settledWatchlistOrder.targetKeys,
+            ),
+          }
+        : derivedCollections,
+    [derivedCollections, settledWatchlistOrder],
+  );
+  useEffect(() => {
+    if (!settledWatchlistOrder) return;
+    const currentKeys = derivedCollections.watchlist.map((item) => item.key);
+    if (
+      sameKeyOrder(currentKeys, settledWatchlistOrder.targetKeys) ||
+      !sameKeyOrder(currentKeys, settledWatchlistOrder.sourceKeys)
+    ) {
+      setSettledWatchlistOrder(null);
+      setActiveDrag((current) =>
+        current?.phase === 'settling' ? null : current,
+      );
+    }
+  }, [derivedCollections.watchlist, settledWatchlistOrder]);
+  const activeDragRef = useRef<ActiveWatchlistDrag | null>(null);
+  const tileFramesRef = useRef<Record<string, WatchlistTileFrame>>({});
+  const dragTranslation = useRef(new Animated.ValueXY()).current;
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const scrollOffsetRef = useRef(0);
+  const scrollViewportRef = useRef<ScrollViewport | null>(null);
+  const scrollContentHeightRef = useRef(0);
+  const watchlistItems = useMemo(
+    () =>
+      activeDrag
+        ? applyWatchlistKeyOrder(
+            derivedCollections.watchlist,
+            activeDrag.sourceKeys,
+          )
+        : collections.watchlist,
+    [activeDrag, collections.watchlist, derivedCollections.watchlist],
+  );
+  const collectionsRef = useRef({
+    ...collections,
+    watchlist: watchlistItems,
+  });
+  collectionsRef.current = { ...collections, watchlist: watchlistItems };
+
+  useEffect(() => {
+    if (!activeDrag) {
+      dragTranslation.setValue({ x: 0, y: 0 });
+    }
+  }, [activeDrag, dragTranslation]);
+
+  const updateDragPosition = useCallback(
+    (gestureX: number, gestureY: number) => {
+      const current = activeDragRef.current;
+      if (!current) return;
+      const scrollDelta = scrollOffsetRef.current - current.startScrollOffset;
+      const translationY = gestureY + scrollDelta;
+      dragTranslation.setValue({ x: gestureX, y: translationY });
+      const targetIndex = resolveWatchlistDropTarget(
+        current.slotFrames,
+        current.sourceIndex,
+        gestureX,
+        translationY,
+      );
+      const next = {
+        ...current,
+        targetIndex,
+        gestureX,
+        gestureY,
+      };
+      activeDragRef.current = next;
+      if (targetIndex !== current.targetIndex) setActiveDrag(next);
+    },
+    [dragTranslation],
+  );
+
+  const startWatchlistDrag = useCallback(
+    (key: string) => {
+      const currentItems = collectionsRef.current.watchlist;
+      const sourceIndex = currentItems.findIndex((item) => item.key === key);
+      const slotFrames = currentItems.map(
+        (item) => tileFramesRef.current[item.key],
+      );
+      const sourceFrame = slotFrames[sourceIndex];
+      if (
+        sourceIndex < 0 ||
+        !sourceFrame ||
+        slotFrames.some((frame) => frame === undefined)
+      ) {
+        return;
+      }
+      const measuredSlotFrames = slotFrames as WatchlistTileFrame[];
+      const next: ActiveWatchlistDrag = {
+        phase: 'dragging',
+        key,
+        sourceKeys: currentItems.map((item) => item.key),
+        sourceIndex,
+        targetIndex: sourceIndex,
+        sourceFrame,
+        slotFrames: measuredSlotFrames,
+        startScrollOffset: scrollOffsetRef.current,
+        gestureX: 0,
+        gestureY: 0,
+      };
+      dragTranslation.setValue({ x: 0, y: 0 });
+      activeDragRef.current = next;
+      setActiveDrag(next);
+    },
+    [dragTranslation],
+  );
+
+  const autoScrollForDrag = useCallback((pageY: number | null) => {
+    const viewport = scrollViewportRef.current;
+    if (pageY === null || !viewport) return;
+    const maxOffset = Math.max(
+      0,
+      scrollContentHeightRef.current - viewport.height,
+    );
+    let delta = 0;
+    if (pageY < viewport.y + DRAG_EDGE_SIZE) {
+      delta = -DRAG_EDGE_SCROLL_STEP;
+    } else if (pageY > viewport.y + viewport.height - DRAG_EDGE_SIZE) {
+      delta = DRAG_EDGE_SCROLL_STEP;
+    }
+    if (delta === 0) return;
+    const nextOffset = Math.max(
+      0,
+      Math.min(maxOffset, scrollOffsetRef.current + delta),
+    );
+    if (nextOffset === scrollOffsetRef.current) return;
+    scrollViewRef.current?.scrollTo({ y: nextOffset, animated: false });
+  }, []);
+
+  const moveWatchlistDrag = useCallback(
+    (gesture: PanResponderGestureState, pageY: number | null) => {
+      updateDragPosition(gesture.dx, gesture.dy);
+      autoScrollForDrag(pageY);
+    },
+    [autoScrollForDrag, updateDragPosition],
+  );
+
+  const releaseWatchlistDrag = useCallback(
+    (gesture: PanResponderGestureState) => {
+      updateDragPosition(gesture.dx, gesture.dy);
+      const settled = activeDragRef.current;
+      activeDragRef.current = null;
+      if (settled && settled.sourceIndex !== settled.targetIndex) {
+        const sourceKeys = settled.sourceKeys;
+        const targetKeys = moveWatchlistValues(
+          sourceKeys,
+          settled.sourceIndex,
+          settled.targetIndex,
+        );
+        dragTranslation.setValue(
+          resolveWatchlistDropTranslation(
+            settled.slotFrames,
+            settled.sourceIndex,
+            settled.targetIndex,
+          ),
+        );
+        setActiveDrag({
+          ...settled,
+          phase: 'settling',
+          targetIndex: settled.targetIndex,
+        });
+        setSettledWatchlistOrder({ sourceKeys, targetKeys });
+        moveWatchlistItem(settled.sourceIndex, settled.targetIndex);
+      } else {
+        setActiveDrag(null);
+      }
+    },
+    [dragTranslation, moveWatchlistItem, updateDragPosition],
+  );
+
+  const cancelWatchlistDrag = useCallback(() => {
+    activeDragRef.current = null;
+    setActiveDrag(null);
+  }, []);
+
+  const recordTileFrame = useCallback(
+    (key: string, event: LayoutChangeEvent) => {
+      tileFramesRef.current[key] = event.nativeEvent.layout;
+    },
+    [],
+  );
+
+  const handleHomeScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+      const current = activeDragRef.current;
+      if (current) {
+        updateDragPosition(current.gestureX, current.gestureY);
+      }
+    },
+    [updateDragPosition],
+  );
+
+  const measureScrollViewport = useCallback(() => {
+    scrollViewRef.current
+      ?.getNativeScrollRef()
+      ?.measureInWindow((_x, y, _width, height) => {
+        scrollViewportRef.current = { y, height };
+      });
+  }, []);
+
+  const watchlistRenderSlots = useMemo(
+    () =>
+      activeDrag
+        ? buildWatchlistRenderSlots(
+            watchlistItems,
+            activeDrag.sourceIndex,
+            activeDrag.targetIndex,
+          )
+        : watchlistItems.map((item) => ({
+            kind: 'item' as const,
+            item,
+          })),
+    [activeDrag, watchlistItems],
   );
   const recentWindowLabel =
     recentSessionsWindow === '24h'
       ? 'Last 24 hours'
       : recentSessionsWindow === '1w'
-        ? 'Last week'
-        : 'Last 3 days';
+      ? 'Last week'
+      : 'Last 3 days';
 
   if (!hydrated) {
     return (
@@ -305,40 +608,105 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         testID="home-scroll"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
+        scrollEnabled={activeDrag === null}
+        scrollEventThrottle={16}
+        onLayout={measureScrollViewport}
+        onScroll={handleHomeScroll}
+        onContentSizeChange={(_width, height) => {
+          scrollContentHeightRef.current = height;
+        }}
       >
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Watchlist</Text>
           <Text style={styles.sectionHint}>Stored on this device</Text>
         </View>
-        {collections.watchlist.length === 0 ? (
+        {watchlistItems.length === 0 ? (
           <Text style={styles.emptyText}>
             Add recent sessions to your Watchlist for quick access.
           </Text>
         ) : (
           <View style={styles.watchGrid} testID="home-watchlist-grid">
-            {collections.watchlist.map((item, index) => (
-              <WatchlistTile
-                key={item.key}
-                item={item}
-                index={index}
-                itemCount={collections.watchlist.length}
-                status={
-                  statusesByConnection[item.connectionId]?.[item.sessionId] ??
-                  null
-                }
-                onPress={() =>
-                  onSelectSession(item.connectionId, item.sessionId)
-                }
-                onMove={moveWatchlistItem}
-                onEditNote={() => setNoteSessionId(item.sessionId)}
-                onRemove={() =>
-                  removeFromWatchlist(item.connectionId, item.sessionId)
-                }
-              />
-            ))}
+            {watchlistRenderSlots.map((slot, slotIndex) => {
+              if (slot.kind === 'placeholder') {
+                return activeDrag ? (
+                  <View
+                    key={`placeholder-${activeDrag.key}`}
+                    testID={`home-watchlist-placeholder-${activeDrag.key}`}
+                    style={[
+                      styles.watchPlaceholder,
+                      {
+                        width: activeDrag.sourceFrame.width,
+                        height: activeDrag.sourceFrame.height,
+                      },
+                    ]}
+                  />
+                ) : null;
+              }
+              if (slot.kind === 'dragged') {
+                const item = slot.item;
+                return activeDrag ? (
+                  <WatchlistTile
+                    key={item.key}
+                    item={item}
+                    index={activeDrag.sourceIndex}
+                    itemCount={watchlistItems.length}
+                    status={
+                      statusesByConnection[item.connectionId]?.[
+                        item.sessionId
+                      ] ?? null
+                    }
+                    dragFrame={activeDrag.sourceFrame}
+                    dragTranslation={dragTranslation}
+                    isDragging
+                    onPress={() =>
+                      onSelectSession(item.connectionId, item.sessionId)
+                    }
+                    onMove={moveWatchlistItem}
+                    onDragStart={startWatchlistDrag}
+                    onDragMove={moveWatchlistDrag}
+                    onDragRelease={releaseWatchlistDrag}
+                    onDragCancel={cancelWatchlistDrag}
+                    onEditNote={() => setNoteSessionId(item.sessionId)}
+                    onRemove={() =>
+                      removeFromWatchlist(item.connectionId, item.sessionId)
+                    }
+                  />
+                ) : null;
+              }
+              const item = slot.item;
+              const storedIndex = watchlistItems.findIndex(
+                (candidate) => candidate.key === item.key,
+              );
+              return (
+                <WatchlistTile
+                  key={item.key}
+                  item={item}
+                  index={storedIndex >= 0 ? storedIndex : slotIndex}
+                  itemCount={watchlistItems.length}
+                  status={
+                    statusesByConnection[item.connectionId]?.[item.sessionId] ??
+                    null
+                  }
+                  onLayout={(event) => recordTileFrame(item.key, event)}
+                  onPress={() =>
+                    onSelectSession(item.connectionId, item.sessionId)
+                  }
+                  onMove={moveWatchlistItem}
+                  onDragStart={startWatchlistDrag}
+                  onDragMove={moveWatchlistDrag}
+                  onDragRelease={releaseWatchlistDrag}
+                  onDragCancel={cancelWatchlistDrag}
+                  onEditNote={() => setNoteSessionId(item.sessionId)}
+                  onRemove={() =>
+                    removeFromWatchlist(item.connectionId, item.sessionId)
+                  }
+                />
+              );
+            })}
           </View>
         )}
 
@@ -375,7 +743,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                     {sessionTitle(item)}
                   </Text>
                   <Text style={styles.connectionName} numberOfLines={1}>
-                    {item.connection.name} · {relativeModified(item.summary.modified)}
+                    {item.connection.name} ·{' '}
+                    {relativeModified(item.summary.modified)}
                   </Text>
                   <SessionRequestStatusBadge
                     status={
@@ -408,8 +777,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   </TouchableOpacity>
                   <TouchableOpacity
                     testID={`home-recent-watch-${item.connectionId}-${item.sessionId}`}
-                    accessibilityLabel="Add to Watchlist"
-                    style={styles.iconButton}
+                    accessibilityLabel={
+                      isWatched(item.connectionId, item.sessionId)
+                        ? 'In Watchlist'
+                        : 'Add to Watchlist'
+                    }
+                    accessibilityState={{
+                      disabled: isWatched(item.connectionId, item.sessionId),
+                    }}
+                    disabled={isWatched(item.connectionId, item.sessionId)}
+                    style={[
+                      styles.iconButton,
+                      isWatched(item.connectionId, item.sessionId) &&
+                        styles.disabledAction,
+                    ]}
                     onPress={() =>
                       addToWatchlist(item.connectionId, item.sessionId)
                     }
@@ -528,6 +909,7 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.tiny,
     },
     watchGrid: {
+      position: 'relative',
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-between',
@@ -542,6 +924,24 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surface,
       padding: 10,
       zIndex: 1,
+    },
+    watchPlaceholder: {
+      minHeight: 172,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: theme.primary,
+      borderRadius: 14,
+      backgroundColor: theme.surfaceAlt,
+      opacity: 0.6,
+    },
+    draggedTile: {
+      zIndex: 20,
+      elevation: 8,
+      opacity: 0.94,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
     },
     tileTopRow: {
       flexDirection: 'row',
@@ -567,6 +967,9 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: 8,
+    },
+    disabledAction: {
+      opacity: 0.45,
     },
     tileBody: {
       flex: 1,
