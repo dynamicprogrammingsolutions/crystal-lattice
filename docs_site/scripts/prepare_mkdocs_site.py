@@ -360,10 +360,13 @@ def _fixed_source_outputs(
         source_outputs[source.resolve()] = relative
         output_paths.add(relative)
 
-    for source in sorted(paths.plugin_docs_dir.glob("*.md")):
+    for source in sorted(paths.plugin_docs_dir.rglob("*.md")):
         if source.name == "AGENTS.md":
             continue
-        output = PurePosixPath("plugin-development") / source.name
+        relative = PurePosixPath(
+            source.relative_to(paths.plugin_docs_dir).as_posix()
+        )
+        output = PurePosixPath("plugin-development") / relative
         source_outputs[source.resolve()] = output
         output_paths.add(output)
 
@@ -757,13 +760,14 @@ def copy_plugin_development_docs(
 ) -> None:
     destination = output_root / "plugin-development"
     destination.mkdir(parents=True, exist_ok=True)
-    for source in sorted(paths.plugin_docs_dir.glob("*.md")):
+    for source in sorted(paths.plugin_docs_dir.rglob("*.md")):
         if source.name == "AGENTS.md":
             continue
+        relative = source.relative_to(paths.plugin_docs_dir)
         content = normalize_plugin_docs_links(
             source.read_text(encoding="utf-8")
         )
-        write_text(destination / source.name, content)
+        write_text(destination / relative, content)
 
 
 def discover_plugin_readmes(paths: SitePaths) -> list[Path]:

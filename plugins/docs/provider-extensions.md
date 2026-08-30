@@ -4,6 +4,10 @@ Provider extensions (`ProviderExtensionPlugin`) are the recommended way to add *
 
 This page is a focused companion to [`plugins/docs/provider-plugins.md`](provider-plugins.md). It documents the runtime contracts that the tool loop and UIs rely on, and provides clean, copyable recipes.
 
+For the portable boundary between provider transport and provider-specific
+features, see the
+[provider implementation standard](provider-implementation-standard/index.md).
+
 Runtime references (source of truth):
 
 - Protocols/docstrings: `core/python/agent_core/types.py`

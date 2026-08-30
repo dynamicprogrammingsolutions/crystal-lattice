@@ -4,6 +4,9 @@ This page documents the recommended way to package plugin repos (providers, exte
 
 It is shared across plugin kinds.
 
+Substantial provider bundles should also follow the
+[provider package and documentation standard](provider-implementation-standard/package-and-documentation.md).
+
 ## Recommended repo layout (Python)
 
 Minimal layout:
