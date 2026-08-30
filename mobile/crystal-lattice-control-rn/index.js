@@ -14,6 +14,7 @@ import { MobileSelectableCodeBlockHarness } from './src/testing/MobileSelectable
 import { MobileOrderedListMarkdownHarness } from './src/testing/MobileOrderedListMarkdownHarness';
 import { MobileNotificationUiEffectsHarness } from './src/testing/MobileNotificationUiEffectsHarness';
 import { MobileConnectionsSettingsHarness } from './src/testing/MobileConnectionsSettingsHarness';
+import { MobileHomeHarness } from './src/testing/MobileHomeHarness';
 import { name as appName } from './app.json';
 
 const RootComponent = props => {
@@ -34,6 +35,8 @@ const RootComponent = props => {
     Component = MobileNotificationUiEffectsHarness;
   } else if (props?.clcConnectionsSettingsHarness === '1') {
     Component = MobileConnectionsSettingsHarness;
+  } else if (props?.clcHomeHarness === '1') {
+    Component = MobileHomeHarness;
   }
   return React.createElement(Component, props);
 };
@@ -79,4 +82,8 @@ AppRegistry.registerComponent(
 AppRegistry.registerComponent(
   'MobileConnectionsSettingsHarness',
   () => MobileConnectionsSettingsHarness,
+);
+AppRegistry.registerComponent(
+  'MobileHomeHarness',
+  () => MobileHomeHarness,
 );

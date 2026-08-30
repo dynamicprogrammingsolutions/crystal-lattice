@@ -11,6 +11,8 @@ import {
 import OptionsPickerModal, { type OptionItem } from './OptionsPickerModal';
 import PanelModalFrame from './PanelModalFrame';
 import { useTheme, type Theme } from '../theme';
+import { useHomeWorkspace } from '../HomeWorkspaceContext';
+import type { RecentSessionsWindow } from '../homeWorkspaceState';
 
 interface GlobalSettingsModalProps {
   visible: boolean;
@@ -24,14 +26,21 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { preferences, setPreferences } = useMarkdownDisplayPreferences();
-  const [picker, setPicker] = useState<'font' | 'headers' | null>(null);
+  const { recentSessionsWindow, setRecentSessionsWindow } = useHomeWorkspace();
+  const [picker, setPicker] = useState<'font' | 'headers' | 'recent' | null>(null);
   const options: OptionItem[] =
     picker === 'font'
       ? MARKDOWN_BASE_FONT_SIZE_OPTIONS.map((option) => ({
           value: String(option.value),
           label: option.label,
         }))
-      : MARKDOWN_HEADER_SIZE_OPTIONS.map((option) => ({ ...option }));
+      : picker === 'headers'
+        ? MARKDOWN_HEADER_SIZE_OPTIONS.map((option) => ({ ...option }))
+        : [
+            { value: '24h', label: 'Last 24 hours' },
+            { value: '3d', label: 'Last 3 days' },
+            { value: '1w', label: 'Last week' },
+          ];
 
   return (
     <PanelModalFrame
@@ -47,6 +56,11 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
           useModal={false}
           onRequestClose={() => setPicker(null)}
           onSelect={(value) => {
+            if (picker === 'recent') {
+              setRecentSessionsWindow(value as RecentSessionsWindow);
+              setPicker(null);
+              return;
+            }
             setPreferences(
               picker === 'font'
                 ? {
@@ -86,6 +100,26 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
           >
             <Text testID="global-settings-markdown-headers-value" style={styles.selectorText}>
               {preferences.headerSize === 'normal' ? 'Normal' : 'Small'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.settingRow}>
+          <Text style={styles.label}>Recent sessions</Text>
+          <TouchableOpacity
+            testID="global-settings-recent-sessions"
+            accessibilityLabel="Recent sessions"
+            style={styles.selector}
+            onPress={() => setPicker('recent')}
+          >
+            <Text
+              testID="global-settings-recent-sessions-value"
+              style={styles.selectorText}
+            >
+              {recentSessionsWindow === '24h'
+                ? 'Last 24 hours'
+                : recentSessionsWindow === '1w'
+                  ? 'Last week'
+                  : 'Last 3 days'}
             </Text>
           </TouchableOpacity>
         </View>

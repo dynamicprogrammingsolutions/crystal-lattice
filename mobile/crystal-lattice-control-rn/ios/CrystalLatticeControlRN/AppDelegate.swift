@@ -68,6 +68,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       $0 == "-clcConnectionsSettingsHarness" || $0 == "clcConnectionsSettingsHarness"
     }) {
       moduleName = "MobileConnectionsSettingsHarness"
+    } else if arguments.contains(where: {
+      $0 == "-clcHomeHarness" || $0 == "clcHomeHarness"
+    }) {
+      moduleName = "MobileHomeHarness"
     } else {
       moduleName = "CrystalLatticeControlRN"
     }

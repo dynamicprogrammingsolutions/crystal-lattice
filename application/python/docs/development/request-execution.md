@@ -144,6 +144,25 @@ request_id = app.get_active_session_request_id(session_id)
 This is the authoritative application-process single-flight state. Adapters
 must not maintain a separate active-request map.
 
+### Query derived status for explicit sessions
+
+```python
+snapshot = app.get_session_request_statuses(["session-one", "session-two"])
+```
+
+`SessionRequestStatusService` checks coordinated active state first. When no
+request is active, it classifies the persisted conversation tail and caches
+that classification by the session store's opaque revision. Empty history is
+`idle`, a user tail is `not_started`, a final assistant tail without tool
+calls is `succeeded`, and every other incomplete conversational tail is
+`interrupted`.
+
+FastAPI exposes this through `POST /sessions/request-statuses`. The request
+must contain explicit `session_ids`; omitted IDs never mean all sessions.
+Missing sessions are partial results. The response authority is
+`derived_transient`, so it does not claim durable failure/cancellation history
+and can later delegate to persisted operation state.
+
 ### Cancel
 
 ```python

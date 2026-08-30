@@ -2,7 +2,9 @@
 
 Plan and track one coordinated implementation that aligns desktop and mobile
 markdown typography, adds persistent display controls, and rebuilds the mobile
-Connections tab around the existing pinnable action UI.
+Connections tab around the existing pinnable action UI. A later approved
+subtask extends the same mobile shell with Home, a local Watchlist, recent
+sessions, and derived request status.
 
 ## Requirements checklist
 
@@ -66,6 +68,32 @@ Connections tab around the existing pinnable action UI.
   preference ownership, native-menu bridge, and mobile Connections hosting
   without exposing task-tracking language.
 
+### Mobile Home follow-up requirements
+
+Functional:
+
+- [x] Mobile adds Home without replacing Connections; Home presents a local,
+  reorderable two-column session Watchlist and a strictly time-bounded Recent
+  Sessions timeline across saved connections.
+- [x] Sessions can carry permanent device-local notes keyed by session ID and
+  editable from Home and the Sessions tab, and Home plus Sessions display
+  derived request status from explicit-ID status queries.
+- [x] Selecting a Home session opens its closed connection when needed and
+  navigates only to the intended `(connectionId, sessionId)`.
+- [x] Global Settings owns the recent-session window and is reachable from
+  Connections, the Home menu, and Home actions.
+
+Non-functional:
+
+- [x] Home Watchlist order, membership, and notes remain device-local and
+  distinct from server-side session pin metadata and actions.
+- [x] Saved connections can query explicit session statuses without opening a
+  runtime where their transport supports one stateless HTTP read; legacy
+  WebSocket-only bridges degrade as unsupported.
+- [x] The provisional status source is replaceable by durable request-operation
+  state and the Home shell remains compatible with future multi-open,
+  notification/attention, login, and App Review local-runtime work.
+
 ## Scope and workstreams
 
 This is one delivery split into dependency-ordered workstreams so implementation
@@ -125,6 +153,7 @@ transport semantics and backend endpoints are also unchanged.
 - [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/030-mobile-global-settings-and-markdown.md`
 - [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/040-mobile-connection-actions-and-layout.md`
 - [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/050-responsive-action-headers.md`
+- [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/060-mobile-home-watchlist-and-request-status.md`
 
 ## Execution plan
 Status: Approved
@@ -752,3 +781,14 @@ is no separate verification or documentation subtask.
   exited nonzero when an existing `DependencyFlatList` timer fired after Jest
   teardown. The focused owning suite then passed 4 tests, and a clean full
   retry passed all 23 suites and 120 tests with a successful exit.
+
+### Mobile Home follow-up completion
+
+- Completed
+  `tasks/20260827-cross-platform-markdown-and-mobile-connections/060-mobile-home-watchlist-and-request-status.md`.
+- Added Home without replacing Connections, a local reorderable Watchlist,
+  permanent session-ID notes available from Home and Sessions, strict recent
+  windows, explicit-ID derived request status, stateless saved-connection
+  reads, and current-intent cross-connection navigation.
+- Complete core, application, frontend SDK, mobile component, real-backend,
+  documentation, iOS, and Android verification is recorded in the subtask.

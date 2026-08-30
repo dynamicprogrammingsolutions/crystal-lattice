@@ -25,6 +25,11 @@ from .request_execution import (
     SessionRequestResult,
     SessionRequestStart,
 )
+from .session_request_status import (
+    SessionRequestStatus,
+    SessionRequestStatusService,
+    SessionRequestStatusSnapshot,
+)
 from .operations import (
     ApplicationOperationBusyError,
     ApplicationOperationClosedError,
@@ -63,6 +68,9 @@ __all__ = [
     "SessionOperationBusyError",
     "SessionRequestResult",
     "SessionRequestStart",
+    "SessionRequestStatus",
+    "SessionRequestStatusService",
+    "SessionRequestStatusSnapshot",
     "SQLiteApplicationNotificationStore",
     "get_managed_process_registry",
     "get_application_operation_service",

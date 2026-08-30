@@ -50,6 +50,8 @@ The target covers:
 - cache-first launch and offline workspace navigation;
 - stable connection/session ownership for screens, events, deep links, and
   drafts;
+- Home aggregation, local Watchlist/notes, and explicit cross-connection
+  navigation;
 - foreground/background behavior for every open runtime;
 - complete mobile draft storage and restoration;
 - accessible status/actions and native race/offline/relaunch verification.

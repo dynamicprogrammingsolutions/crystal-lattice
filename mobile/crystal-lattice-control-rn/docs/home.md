@@ -1,0 +1,62 @@
+# Home, Watchlist, and recent sessions
+
+Home is the initial mobile workspace. It sits alongside Connections, Sessions,
+and Messages and provides shortcuts to sessions cached from all saved
+connections.
+
+## Watchlist
+
+Add a session to the Watchlist with its bookmark control. The Watchlist is
+stored on the current device and is independent from server-side session
+pinning.
+
+Watched sessions appear as reorderable two-column tiles. Drag a tile by its
+move handle to change the order. Accessible Move Earlier and Move Later
+actions provide the same operation without dragging.
+
+Watchlist membership and order are local to the device. A watched session can
+remain on Home after it is no longer recent.
+
+## Permanent local notes
+
+Home and Sessions offer a Local Note action. Each session ID has one note
+stored on the device. If the same session ID appears through another
+connection, both places show and edit the same note.
+
+Removing a session from the Watchlist or deleting a saved connection does not
+remove its note. Use Remove Note in the note editor when the note should be
+deleted.
+
+## Recent Sessions
+
+Recent Sessions is a chronological timeline built from locally cached session
+summaries. It includes only sessions modified inside the selected window:
+
+- Last 24 hours
+- Last 3 days
+- Last week
+
+Change the window in Global Settings. Global Settings is available from
+Connections, the Home menu, and Home actions.
+
+## Request status
+
+Home and Sessions can show:
+
+- Idle
+- Not started
+- In progress
+- Completed
+- Interrupted
+
+The initial status is a lightweight current-runtime estimate. An active
+request is In progress. Otherwise the server inspects the stored conversation
+tail: a final assistant answer is Completed, a user tail is Not started, and
+an unfinished assistant/tool tail is Interrupted.
+
+Status may be unavailable when a server is offline, does not implement status
+queries, or is reachable only through an older WebSocket-only bridge. Status
+checks do not open a saved connection.
+
+Selecting a Home session opens its saved connection when necessary and enters
+Messages after the connection succeeds.

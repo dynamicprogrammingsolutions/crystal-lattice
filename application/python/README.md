@@ -690,6 +690,8 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 
 - `POST /sessions` - create a session.
 - `GET /sessions` - list sessions.
+- `POST /sessions/request-statuses` - derive lightweight status for explicitly
+  supplied session IDs without listing all sessions.
 - `GET /sessions/{session_id}/messages` - list session messages.
 - `POST /sessions/{session_id}/messages` - append a message.
 - `POST /sessions/{session_id}/send` - run the model/tool loop.

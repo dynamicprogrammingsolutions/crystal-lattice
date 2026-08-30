@@ -39,11 +39,11 @@ callback and leaves the user on Connections. Other card actions likewise do
 not trigger card navigation.
 
 `ConnectedRoot` owns one horizontal content gutter and compact top inset for
-Connections, Sessions, and Messages. Child screens must not add another outer
-gutter. Connections and Sessions offset their visible screen titles by the
-card content inset, and the Sessions search input uses the same content inset,
-so screen titles, search placeholder text, and card titles share one optical
-left edge.
+Home, Connections, Sessions, and Messages. Child screens must not add another
+outer gutter. Connections and Sessions offset their visible screen titles by
+the card content inset, and the Sessions search input uses the same content
+inset, so screen titles, search placeholder text, and card titles share one
+optical left edge.
 
 The Sessions header shows the active saved-connection name, with `Sessions` as
 the fallback when no matching record is available. Sessions and Messages use

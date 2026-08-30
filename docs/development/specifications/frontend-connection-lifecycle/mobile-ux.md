@@ -9,8 +9,8 @@ The product outcomes remain authoritative in
 [Product behavior and target user experience](product-spec.md). Portable
 semantics shared with desktop remain authoritative in
 [Portable frontend behavior](frontend-behavior.md). This page defines how
-those outcomes appear in the mobile application's Connections, Sessions, and
-Messages navigation.
+those outcomes appear in the mobile application's Home, Connections, Sessions,
+and Messages navigation.
 
 ## Normative and illustrative content
 
@@ -31,10 +31,11 @@ clear wording where this page does not require exact text.
 
 ## Navigation model
 
-Mobile retains its three primary destinations:
+Mobile retains Connections, Sessions, and Messages and adds Home as a fourth
+primary destination:
 
 ```text
-Connections        Sessions        Messages
+Home        Connections        Sessions        Messages
 ```
 
 The destinations are workspace navigation, not connection-state gates.
@@ -83,7 +84,7 @@ Illustrative offline launch:
 │ Cached sessions or selected chat        │
 │ appear immediately after hydration.     │
 └─────────────────────────────────────────┘
-  Connections       Sessions       Messages
+  Home       Connections       Sessions       Messages
 ```
 
 The following result sequence is valid:
@@ -100,10 +101,33 @@ Unavailable: keep cached workspace and offer Retry
 
 Neither result navigates on its own.
 
-If no focused connection was persisted, Connections is the initial
-destination. If the focused connection has no applicable cache, Sessions and
-Messages show an honest empty offline state rather than a generic loading
-failure.
+Home is the initial destination after local hydration, including when no
+focused connection exists. If the focused connection has no applicable cache,
+Sessions and Messages show an honest empty offline state rather than a generic
+loading failure.
+
+## Home screen
+
+Home aggregates only locally known session summaries across saved connections.
+It does not open a runtime merely to discover or poll a session.
+
+Home contains:
+
+- a device-local ordered Watchlist keyed by connection and session;
+- permanent device-local notes keyed by session ID;
+- a Recent Sessions timeline limited to the user-selected 24-hour, 3-day, or
+  1-week window;
+- lightweight request status where the saved connection supports one
+  stateless explicit-ID query.
+
+The Watchlist is not server-side session pinning. Equal session IDs across
+connections intentionally share one local note, while Watchlist membership and
+navigation remain connection-scoped.
+
+Selecting a Home session is explicit user navigation intent. A closed
+connection is opened first; only the current successful intent may focus the
+connection, select the session, and enter Messages. Status polling, recovery,
+and stale open completion never navigate.
 
 ## Connections screen
 
@@ -221,7 +245,7 @@ The wizard shows progress and error state within the attempt context:
 │ Your previous connection remains open.  │
 │ [Retry]  [Edit address]                 │
 └─────────────────────────────────────────┘
-  Connections       Sessions       Messages
+  Home       Connections       Sessions       Messages
 ```
 
 Cancel:
@@ -432,7 +456,7 @@ cache freshness:
 │ Session B                               │
 │ Session C                               │
 └─────────────────────────────────────────┘
-  Connections       Sessions       Messages
+  Home       Connections       Sessions       Messages
 ```
 
 Required distinctions:
@@ -495,7 +519,7 @@ Illustrative offline chat:
 │ [Type your message…                  ]  │
 │ [Attachments]      [Reconnect to send]  │
 └─────────────────────────────────────────┘
-  Connections       Sessions       Messages
+  Home       Connections       Sessions       Messages
 ```
 
 Local behavior remains available:
@@ -779,7 +803,8 @@ The mobile target described here does not itself:
 - define broad reconnect/backoff timing;
 - automatically reopen every previously open runtime after process restart;
 - change bridge WebSocket, HTTP, or hybrid routing/defaults;
-- replace bottom navigation;
+- remove or replace the existing Connections, Sessions, or Messages
+  destinations;
 - redesign transcript content or viewport controls;
 - require exact visual styling from the illustrative wireframes.
 

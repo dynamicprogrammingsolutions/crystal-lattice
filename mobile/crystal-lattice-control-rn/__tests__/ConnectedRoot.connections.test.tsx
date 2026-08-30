@@ -8,6 +8,8 @@ import type { ConnectionRecord, Transport } from '@crystal-lattice/frontend-sdk'
 import ConnectedRoot from '../src/ConnectedRoot';
 import { PinnedActionsProvider } from '../src/PinnedActionsContext';
 import { ThemeProvider, lightTheme } from '../src/theme';
+import { HomeWorkspaceProvider } from '../src/HomeWorkspaceContext';
+import type { SessionsCache } from '../App';
 
 const records: ConnectionRecord[] = [
   {
@@ -32,11 +34,21 @@ const transport = {
   request: jest.fn(),
 } as unknown as Transport;
 
-function renderRoot(onSelectConnectionRecord = jest.fn()) {
+function renderRoot(
+  onSelectConnectionRecord = jest.fn(),
+  sessionsCache: SessionsCache = {
+    active: {
+      connectionId: 'active',
+      sessions: [],
+      lastLoadedAt: 1,
+    },
+  },
+) {
   const screen = render(
     <SafeAreaProvider>
       <ThemeProvider theme={lightTheme}>
         <PinnedActionsProvider>
+        <HomeWorkspaceProvider>
           <ConnectedRoot
             backend={null}
             transport={transport}
@@ -48,13 +60,7 @@ function renderRoot(onSelectConnectionRecord = jest.fn()) {
             renderConnectionWizard={() => null}
             onDeleteConnectionRecord={() => {}}
             activeConnectionId="active"
-            sessionsCache={{
-              active: {
-                connectionId: 'active',
-                sessions: [],
-                lastLoadedAt: 1,
-              },
-            }}
+            sessionsCache={sessionsCache}
             onUpdateSessionsCache={() => {}}
             messagesCache={{}}
             onUpdateMessagesCache={() => {}}
@@ -64,6 +70,7 @@ function renderRoot(onSelectConnectionRecord = jest.fn()) {
             debugTimeline={[]}
             onAppendDebugTimelineEntry={() => {}}
           />
+        </HomeWorkspaceProvider>
         </PinnedActionsProvider>
       </ThemeProvider>
     </SafeAreaProvider>,
@@ -82,6 +89,7 @@ beforeEach(async () => {
 test('an open card navigates to Sessions without reconnecting', () => {
   const { screen, onSelectConnectionRecord } = renderRoot();
 
+  fireEvent.press(screen.getByTestId('connections-tab'));
   fireEvent.press(screen.getByTestId('connection-card-active'));
 
   expect(isHidden(screen.getByTestId('sessions-tab-content').props.style)).toBe(false);
@@ -95,6 +103,7 @@ test('a closed card navigates before its connection attempt resolves', () => {
   const neverResolves = jest.fn(() => new Promise<void>(() => {}));
   const { screen } = renderRoot(neverResolves);
 
+  fireEvent.press(screen.getByTestId('connections-tab'));
   fireEvent.press(screen.getByTestId('connection-card-closed'));
 
   expect(isHidden(screen.getByTestId('sessions-tab-content').props.style)).toBe(false);
@@ -104,10 +113,45 @@ test('a closed card navigates before its connection attempt resolves', () => {
 test('the Open action starts the connection and remains on Connections', async () => {
   const openConnection = jest.fn();
   const { screen } = renderRoot(openConnection);
+  fireEvent.press(screen.getByTestId('connections-tab'));
   await waitFor(() => expect(screen.getByLabelText('Open')).toBeTruthy());
 
   fireEvent.press(screen.getByLabelText('Open'));
 
   expect(openConnection).toHaveBeenCalledWith(records[1]);
   expect(isHidden(screen.getByTestId('connections-tab-content').props.style)).toBe(false);
+});
+
+test('a Home session waits for its closed connection before navigating to Messages', async () => {
+  let resolveOpen!: (value: boolean) => void;
+  const openPromise = new Promise<boolean>((resolve) => {
+    resolveOpen = resolve;
+  });
+  const openConnection = jest.fn(() => openPromise);
+  const { screen } = renderRoot(openConnection, {
+    closed: {
+      connectionId: 'closed',
+      sessions: [
+        {
+          session_id: 'home-session',
+          modified: Date.now() / 1000,
+          preview: 'Home session',
+        },
+      ],
+      lastLoadedAt: Date.now(),
+    },
+  });
+  await waitFor(() =>
+    expect(screen.getByTestId('home-recent-open-closed-home-session')).toBeTruthy(),
+  );
+
+  fireEvent.press(screen.getByTestId('home-recent-open-closed-home-session'));
+
+  expect(openConnection).toHaveBeenCalledWith(records[1]);
+  expect(screen.queryByTestId('messages-tab-content')).toBeNull();
+
+  resolveOpen(true);
+  await waitFor(() =>
+    expect(isHidden(screen.getByTestId('messages-tab-content').props.style)).toBe(false),
+  );
 });

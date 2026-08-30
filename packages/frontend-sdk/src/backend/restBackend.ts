@@ -14,6 +14,10 @@ import type {
   NotificationExpectedRevision,
   SessionNotification,
 } from '../types/notifications';
+import {
+  normalizeSessionRequestStatusSnapshot,
+  type SessionRequestStatusSnapshot,
+} from '../types/sessionRequestStatus';
 import type {
   AgentBackend,
   BackendCapabilities,
@@ -60,6 +64,7 @@ export class RestAgentBackend implements AgentBackend {
       applicationActions: true,
       applicationConfig: false,
       notificationLifecycle: true,
+      sessionRequestStatus: true,
     };
   }
 
@@ -160,6 +165,19 @@ export class RestAgentBackend implements AgentBackend {
       throw new Error('Server did not return a session summary');
     }
     return session as SessionSummary;
+  }
+
+  async getSessionRequestStatuses(
+    sessionIds: readonly string[],
+    options: { signal?: AbortSignal } = {},
+  ): Promise<SessionRequestStatusSnapshot> {
+    const resp = await this.transport.request({
+      method: 'POST',
+      path: '/sessions/request-statuses',
+      body: { session_ids: sessionIds },
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    return normalizeSessionRequestStatusSnapshot(resp.data);
   }
 
   async listMessages(

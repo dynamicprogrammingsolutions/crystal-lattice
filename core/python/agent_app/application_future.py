@@ -49,6 +49,7 @@ from .config import (
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
 from .session_listing import SessionListFilterEvaluator, SessionListService
+from .session_request_status import SessionRequestStatusService
 from .session_filters import (
     SessionListFilterEngine,
     coerce_session_list_filter_input,
@@ -625,6 +626,10 @@ class AgentApplication:
             operations=self._application_operations,
             new_request_id=self._new_request_id,
             logger=self._logger,
+        )
+        self._session_request_status_service = SessionRequestStatusService(
+            store=self._session_store,
+            get_active_request_id=self.get_active_session_request_id,
         )
 
         # Event compaction controls. These are primarily intended for
@@ -2652,6 +2657,20 @@ class AgentApplication:
 
         return self._session_request_coordinator.get_active_request_id(session_id)
 
+    def get_session_request_statuses(
+        self,
+        session_ids: Sequence[str],
+    ) -> Dict[str, Any]:
+        """Return derived status for explicitly requested sessions."""
+
+        snapshot = self._session_request_status_service.query(session_ids)
+        return {
+            "version": 1,
+            "authority": "derived_transient",
+            "statuses": [status.to_dict() for status in snapshot.statuses],
+            "missing_session_ids": list(snapshot.missing_session_ids),
+        }
+
     def list_agents(self) -> List[str]:
         """Return the configured agent identifiers.
 
@@ -3704,6 +3723,7 @@ class AgentApplication:
     def _save_session_low_level(self, session: Session) -> Session:
         self._session_store.save(session)
         self._session_list_service.invalidate(session.session_id)
+        self._session_request_status_service.invalidate(session.session_id)
         return self.load_session_record(session.session_id) or session
 
     def save_session(
@@ -3760,6 +3780,7 @@ class AgentApplication:
             )
         self._session_store.delete(session_id)
         self._session_list_service.invalidate(session_id)
+        self._session_request_status_service.invalidate(session_id)
 
     def create_session(
         self, agent_id: str

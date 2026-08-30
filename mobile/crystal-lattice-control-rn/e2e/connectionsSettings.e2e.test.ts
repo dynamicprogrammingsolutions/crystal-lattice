@@ -50,6 +50,7 @@ async function launchHarness(deleteData: boolean): Promise<void> {
 describe('mobile Connections and markdown settings', () => {
   it('uses production actions, modals, persistence, and native geometry', async () => {
     await launchHarness(true);
+    await element(by.id('connections-tab')).tap();
 
     await detoxExpect(element(by.id('connections-global-settings'))).toBeVisible();
     await detoxExpect(element(by.id('connections-new-connection'))).toBeVisible();
@@ -171,6 +172,7 @@ describe('mobile Connections and markdown settings', () => {
     await detoxExpect(element(by.label('Delete')).atIndex(0)).toBeVisible();
 
     await launchHarness(false);
+    await element(by.id('connections-tab')).tap();
     await detoxExpect(element(by.label('Delete')).atIndex(0)).toBeVisible();
     await element(by.id('connections-global-settings')).tap();
     await detoxExpect(element(by.id('global-settings-base-font-size-value'))).toHaveText('17');

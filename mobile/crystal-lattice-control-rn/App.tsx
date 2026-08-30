@@ -61,6 +61,7 @@ import {
   resolveBridgeTransportMode,
 } from './src/bridgeConnection';
 import { usePersistedMarkdownDisplayPreferences } from './src/useMarkdownDisplayPreferences';
+import { HomeWorkspaceProvider } from './src/HomeWorkspaceContext';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
@@ -1414,7 +1415,9 @@ function App(): React.JSX.Element {
     return null;
   };
 
-  const handleSelectSavedConnection = async (record: ConnectionRecord) => {
+  const handleSelectSavedConnection = async (
+    record: ConnectionRecord,
+  ): Promise<boolean> => {
     setIsLoading(true);
     try {
       disconnectIfPossible(transport);
@@ -1439,7 +1442,7 @@ function App(): React.JSX.Element {
       } else if (record.kind === 'bridge') {
         if (!record.pairingToken) {
           await openBridgeRepairFlow(record, null);
-          return;
+          return false;
         }
 
         const bridge = createBridgeTransport({
@@ -1459,7 +1462,7 @@ function App(): React.JSX.Element {
               });
             }
             await openBridgeRepairFlow(record, reasonCode);
-            return;
+            return false;
           }
           throw error;
         }
@@ -1483,10 +1486,13 @@ function App(): React.JSX.Element {
             connectionId: record.id,
           },
         });
+        return true;
       }
+      return false;
     } catch (error: any) {
       console.log('Failed to reconnect to saved connection', error);
       Alert.alert('Connection Error', error?.message || 'Failed to reconnect');
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -1503,6 +1509,7 @@ function App(): React.JSX.Element {
             onChange={setMarkdownDisplayPreferences}
           >
           <PinnedActionsProvider>
+          <HomeWorkspaceProvider>
             {isAppLoading || !markdownDisplayPreferencesHydrated ? (
               <AnimatedSplashScreen />
             ) : (
@@ -1551,6 +1558,7 @@ function App(): React.JSX.Element {
                 })()}
               </SafeAreaView>
             )}
+          </HomeWorkspaceProvider>
           </PinnedActionsProvider>
           </MarkdownDisplayPreferencesProvider>
         </ThemeProvider>

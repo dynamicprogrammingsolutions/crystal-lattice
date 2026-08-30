@@ -42,6 +42,11 @@ explicit choices and never fall back automatically.
 See [Bridge transports](docs/bridge-transports.md) for pairing, mode routing,
 binary behavior, persistence, lifecycle, and rollback.
 
+## Session request status
+
+The optional backend and saved-connection status query contracts are described
+in [Session request status](docs/session-request-status.md).
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

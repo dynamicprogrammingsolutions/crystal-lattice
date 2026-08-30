@@ -16,6 +16,7 @@ import SelectableMarkdownMessageContent from '../components/SelectableMarkdownMe
 import MessageBubble from '../components/MessageBubble';
 import { lightTheme, ThemeProvider } from '../theme';
 import { usePersistedMarkdownDisplayPreferences } from '../useMarkdownDisplayPreferences';
+import { HomeWorkspaceProvider } from '../HomeWorkspaceContext';
 
 const CONNECTIONS: ConnectionRecord[] = [
   {
@@ -72,6 +73,7 @@ export function MobileConnectionsSettingsHarness(): React.JSX.Element {
         onChange={setPreferences}
       >
         <PinnedActionsProvider>
+        <HomeWorkspaceProvider>
           <SafeAreaProvider>
           <View style={styles.root} testID="connections-settings-harness-ready">
             <View style={styles.markdownPreview} testID="markdown-preview">
@@ -140,6 +142,7 @@ export function MobileConnectionsSettingsHarness(): React.JSX.Element {
             </View>
           </View>
           </SafeAreaProvider>
+        </HomeWorkspaceProvider>
         </PinnedActionsProvider>
       </MarkdownDisplayPreferencesProvider>
     </ThemeProvider>
