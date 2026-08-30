@@ -73,6 +73,30 @@ def _normalize_slice_bounds(
     return start_idx, end_idx
 
 
+def _deletion_snapshot_reason(
+    *,
+    concrete_indices: List[int],
+    has_indices: bool,
+    has_start_end: bool,
+    start_idx: int,
+    end_idx: int,
+    raw_start: Optional[int],
+    raw_end: Optional[int],
+) -> str:
+    if has_indices:
+        if len(concrete_indices) == 1:
+            return f"Before deleting message [{concrete_indices[0]}]"
+        joined = ", ".join(str(index) for index in concrete_indices)
+        return f"Before deleting messages [{joined}]"
+
+    if has_start_end:
+        start_text = "" if raw_start is None else str(start_idx)
+        end_text = "" if raw_end is None else str(end_idx)
+        return f"Before deleting messages [{start_text}:{end_text}]"
+
+    return f"Before deleting messages [{start_idx}:]"
+
+
 class SessionActionsAppPlugin:
     """Application-level plugin implementing copy/fork/delete operations."""
 
@@ -258,7 +282,11 @@ class SessionActionsAppPlugin:
                 "description": "Duplicate a session.",
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
-                    "source": {"type": "string", "required": False, "default": "manual"},
+                    "source": {
+                        "type": "string",
+                        "required": False,
+                        "default": "manual",
+                    },
                 },
             },
             {
@@ -319,7 +347,9 @@ class SessionActionsAppPlugin:
     # Action implementations
     # ------------------------------------------------------------------
 
-    def _do_copy_session(self, app: "AgentApplication", params: Dict[str, Any]) -> Dict[str, Any]:
+    def _do_copy_session(
+        self, app: "AgentApplication", params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         session_id = params.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
@@ -401,7 +431,9 @@ class SessionActionsAppPlugin:
             "message": "Session copied successfully.",
         }
 
-    def _do_fork_session_at(self, app: "AgentApplication", params: Dict[str, Any]) -> Dict[str, Any]:
+    def _do_fork_session_at(
+        self, app: "AgentApplication", params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         session_id = params.get("session_id")
         index = params.get("index")
 
@@ -511,7 +543,9 @@ class SessionActionsAppPlugin:
             "message": "Session deleted.",
         }
 
-    def _do_delete_messages(self, app: "AgentApplication", params: Dict[str, Any]) -> Dict[str, Any]:
+    def _do_delete_messages(
+        self, app: "AgentApplication", params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         session_id = params.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
@@ -537,6 +571,10 @@ class SessionActionsAppPlugin:
                 raise ValueError("no messages to delete")
 
             delete_indices: List[int]
+            start_idx = 0
+            end_idx = message_count
+            raw_start: Optional[int] = None
+            raw_end: Optional[int] = None
 
             if has_indices:
                 raw_indices = params.get("indices")
@@ -583,6 +621,8 @@ class SessionActionsAppPlugin:
                     raise ValueError(str(exc)) from exc
 
                 delete_indices = list(range(start_idx, end_idx))
+                raw_start = start if isinstance(start, int) else None
+                raw_end = end if isinstance(end, int) else None
 
             else:  # has_last
                 last = params.get("last")
@@ -593,10 +633,36 @@ class SessionActionsAppPlugin:
 
                 count = min(last, message_count)
                 start_idx = message_count - count
+                end_idx = message_count
                 delete_indices = list(range(start_idx, message_count))
 
             if not delete_indices:
                 raise ValueError("no messages selected for deletion")
+
+            concrete_indices = sorted(set(delete_indices))
+            snapshot_reason = _deletion_snapshot_reason(
+                concrete_indices=concrete_indices,
+                has_indices=has_indices,
+                has_start_end=has_start_end,
+                start_idx=start_idx,
+                end_idx=end_idx,
+                raw_start=raw_start,
+                raw_end=raw_end,
+            )
+            snapshot = app.create_session_snapshot(
+                session_id,
+                reason=snapshot_reason,
+                metadata={
+                    "origin": "automatic",
+                    "plugin": self.name,
+                    "action": "delete_messages",
+                    "deleted_indices": concrete_indices,
+                    "range": {
+                        "start": concrete_indices[0],
+                        "end": concrete_indices[-1] + 1,
+                    },
+                },
+            )
 
             metadata = session.metadata if isinstance(session.metadata, dict) else {}
             overrides_val = metadata.get("overrides")
@@ -605,10 +671,14 @@ class SessionActionsAppPlugin:
             )
             config = resolve_request_config(base_config, overrides)
 
-            new_session = core.slice_session(session, config, remove_indices=delete_indices)
-            new_session = app.save_session(new_session)
-
-            concrete_indices = sorted(set(delete_indices))
+            new_session = core.slice_session(
+                session, config, remove_indices=delete_indices
+            )
+            try:
+                new_session = app.save_session(new_session)
+            except BaseException:
+                app.delete_session_snapshot(session_id, snapshot.snapshot_id)
+                raise
 
             stored = app.publish_event(
                 {

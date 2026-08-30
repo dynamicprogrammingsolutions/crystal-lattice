@@ -4,6 +4,9 @@
 
 - [Content system](content-system.md): how YAML, Markdown, section definitions,
   Astro components, and public files produce the current static website.
+- [Visual Asset Framework Architecture](visual-content-and-screenshot-generation.md):
+  catalog and asset construction, dispatch, contexts, selection, prepared
+  mutation, services, testing, and extension invariants.
 
 ## Product Communication
 

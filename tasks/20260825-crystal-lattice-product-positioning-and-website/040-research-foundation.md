@@ -52,7 +52,7 @@ Depends On:
    direction.
 5. `landing_page/docs/development/research/evidence-index.md:1-106` — current
    product, historical, release, and initial external source routes.
-6. `landing_page/research/README.md:1-84` — retained evidence, excluded raw
+6. `landing_page/research/README.md:1-94` — retained evidence, excluded raw
    material, review, and lineage constraints.
 
 ### Additional references

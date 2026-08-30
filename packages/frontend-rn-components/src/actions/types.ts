@@ -3,6 +3,7 @@ export type ActionKey = string;
 export interface ActionDefinition {
   key: ActionKey;
   label: string;
+  order?: number;
   [k: string]: any;
 }
 

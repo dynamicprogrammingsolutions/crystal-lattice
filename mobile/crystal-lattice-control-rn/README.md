@@ -341,6 +341,23 @@ npm run detox:test:session-list:ios
 npm run detox:test:session-list:android
 ```
 
+The website visual harness renders the production chat background and session
+settings modal with deterministic coding-agent configuration. The iOS capture
+command builds the app, runs the scenario, and writes reviewed-candidate inputs
+under `artifacts/website-visual/`:
+
+```bash
+npm run detox:capture:website-visual:ios
+```
+
+The scenario itself is also available on both platforms when a current build
+already exists:
+
+```bash
+npm run detox:test:website-visual:ios
+npm run detox:test:website-visual:android
+```
+
 The Connections/Settings harness renders the production Connections screen,
 global and server settings modals, action menus, and markdown renderer. It
 verifies native action applicability, modal transitions, persisted display and

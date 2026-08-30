@@ -65,6 +65,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }) {
       moduleName = "MobileNotificationUiEffectsHarness"
     } else if arguments.contains(where: {
+      $0 == "-clcWebsiteVisualHarness" || $0 == "clcWebsiteVisualHarness"
+    }) {
+      moduleName = "MobileWebsiteVisualHarness"
+    } else if arguments.contains(where: {
       $0 == "-clcConnectionsSettingsHarness" || $0 == "clcConnectionsSettingsHarness"
     }) {
       moduleName = "MobileConnectionsSettingsHarness"

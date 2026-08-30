@@ -7,6 +7,7 @@ seo:
 
 sections:
   - type: mobileHero
+    id: mobile-hero
     label: "Crystal Lattice"
     titleHtml: "Continue agent work,<br />from your phone."
     subtitle: >-
@@ -38,8 +39,13 @@ sections:
         name: "Run from source"
     note: "Requires Crystal Lattice running on your computer"
     image:
-      src: "/cl-mobile-frame.png"
-      alt: "Crystal Lattice mobile app"
+      src: "/mobile-active-session.webp"
+      srcDark: "/mobile-active-session-dark.webp"
+      alt: >-
+        Crystal Lattice mobile chat showing a Starlette compatibility plan with
+        turn usage, estimated cost, agent, and session status.
+      width: 1000
+      height: 2025
 
   - type: mobileFeatures
     id: features

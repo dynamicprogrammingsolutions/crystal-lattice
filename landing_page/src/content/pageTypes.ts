@@ -29,7 +29,10 @@ export type MediaPlaceholder = {
   kind?: string;
   status?: string;
   src?: string;
+  srcDark?: string;
   alt?: string;
+  width?: number;
+  height?: number;
   desktop?: string;
 };
 
@@ -121,10 +124,15 @@ export type FeatureCodeShowcaseSection = SectionBase<"featureCodeShowcase"> & {
 
 export type ScreenshotGallerySection = SectionBase<"screenshotGallery"> & {
   body?: string[];
+  mediaAspect?: "standard" | "tall";
   gallery?: Array<{
     title: string;
     description: string;
     src: string;
+    srcDark?: string;
+    alt?: string;
+    width?: number;
+    height?: number;
     status?: string;
   }>;
 };
@@ -164,9 +172,12 @@ export type MobileHeroSection = SectionBase<"mobileHero"> & {
   }>;
   storeButtons?: StoreButton[];
   note?: string;
-  image: {
+  image?: {
     src: string;
+    srcDark?: string;
     alt: string;
+    width?: number;
+    height?: number;
   };
 };
 

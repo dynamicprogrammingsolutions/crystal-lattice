@@ -39,6 +39,10 @@
     "detox:test:ordered-list:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/orderedListMarkdown.e2e.test.ts --cleanup",
     "detox:test:notification-ui-effects:ios": "detox test -c ios.sim.release e2e/notificationUiEffects.e2e.test.ts --cleanup",
     "detox:test:notification-ui-effects:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/notificationUiEffects.e2e.test.ts --cleanup",
+    "detox:test:website-visual:ios": "detox test -c ios.sim.release e2e/websiteVisualCapture.e2e.test.ts --cleanup",
+    "detox:test:website-visual:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/websiteVisualCapture.e2e.test.ts --cleanup",
+    "detox:capture:website-visual:ios": "npm run detox:build:ios && npm run detox:test:website-visual:ios",
+    "detox:capture:website-visual:android": "npm run detox:build:android && npm run detox:test:website-visual:android",
     "tsc": "tsc --noEmit"
   },
   "dependencies": {

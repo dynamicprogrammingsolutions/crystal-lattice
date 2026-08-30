@@ -19,6 +19,7 @@ Documentation:
 - [Quickstart](docs/quickstart.md)
 - [Terminal guide](docs/terminal.md)
 - [Application configuration](docs/configuration.md)
+- [Session snapshots](docs/session-snapshots.md)
 - [Application runtime development](docs/development/index.md)
 
 ## Installation
@@ -696,6 +697,10 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 - `POST /sessions/{session_id}/messages` - append a message.
 - `POST /sessions/{session_id}/send` - run the model/tool loop.
 - `POST /sessions/{session_id}/send_message` - append and send in one call.
+- `GET` and `POST /sessions/{session_id}/snapshots` - list or create session
+  recovery points. Message deletion and successful OpenAI native compaction
+  also create automatic pre-mutation snapshots; see the
+  [session snapshot guide](docs/session-snapshots.md).
 - `GET /events` - poll request/session events.
 - `GET /application/notifications` - load the active application-notification
   snapshot; use `include_terminal=true` for terminal records.

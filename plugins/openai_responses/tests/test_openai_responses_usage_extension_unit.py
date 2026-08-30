@@ -13,6 +13,29 @@ from openai_responses_plugins.openai_responses_usage_extension import (
 RAW_USAGE_KEY = "_openai_responses_usage_raw"
 
 
+def test_usage_config_schema_exposes_footer_visibility_controls() -> None:
+    schema = OpenAIResponsesUsageExtension().get_config_schema()
+
+    assert schema["show_usage"]["default"] is True
+    assert schema["show_usage_status_total"]["default"] is True
+    assert schema["usage_message_footer_fields"]["items"]["enum"] == [
+        "input",
+        "cached",
+        "cache_write",
+        "estimated_cached",
+        "completion",
+        "auth",
+        "tier",
+        "mode",
+        "cost",
+        "turn_cost",
+        "turn_reasoning",
+        "turn_input",
+        "turn_cached",
+        "turn_output",
+    ]
+
+
 def _assistant_output_item(
     text: str,
     *,
@@ -782,6 +805,8 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
         "metadata.usage_service_tier",
         "metadata.usage_reasoning_mode",
         "metadata.usage_total_cost_formatted",
+        "metadata.usage_total_cost_formatted",
+        "metadata.usage_turn_cost_cumulative_formatted",
         "metadata.usage_turn_cost_cumulative_formatted",
         "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
         "metadata.usage_turn_input_tokens_cumulative_formatted",
@@ -809,6 +834,50 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
         "path": "metadata.usage_reasoning_mode",
         "eq": "pro",
     }
+    assert [
+        (element["template"], element["condition"])
+        for element in elements
+        if element.get("data") == "metadata.usage_total_cost_formatted"
+    ] == [
+        (
+            "estimated cost: {{data}}",
+            {
+                "path": "metadata.usage_effective_auth_mode",
+                "eq": "chatgpt",
+            },
+        ),
+        (
+            "cost: {{data}}",
+            {
+                "not": {
+                    "path": "metadata.usage_effective_auth_mode",
+                    "eq": "chatgpt",
+                }
+            },
+        ),
+    ]
+    assert [
+        (element["template"], element["condition"])
+        for element in elements
+        if element.get("data") == "metadata.usage_turn_cost_cumulative_formatted"
+    ] == [
+        (
+            "estimated turn: {{data}}",
+            {
+                "path": "metadata.usage_effective_auth_mode",
+                "eq": "chatgpt",
+            },
+        ),
+        (
+            "turn: {{data}}",
+            {
+                "not": {
+                    "path": "metadata.usage_effective_auth_mode",
+                    "eq": "chatgpt",
+                }
+            },
+        ),
+    ]
 
 
 def test_chatgpt_estimated_cached_tokens_follow_turn_algorithm() -> None:
@@ -1128,6 +1197,65 @@ def test_usage_ui_elements_hide_optional_chatgpt_footers_by_default() -> None:
 
     assert "metadata.usage_estimated_cached_tokens_formatted" not in data_paths
     assert "metadata.usage_effective_auth_mode_label" not in data_paths
+
+
+def test_usage_ui_elements_can_select_compact_turn_footer() -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    elements = ext.get_ui_elements(
+        config={
+            "usage_message_footer_fields": [
+                "turn_input",
+                "turn_output",
+                "turn_cost",
+            ]
+        },
+        tags=["openai_responses"],
+        models=[],
+    )
+    footers = [
+        element for element in elements if element.get("ui_type") == "message_footer"
+    ]
+
+    assert [element["template"] for element in footers] == [
+        "estimated turn: {{data}}",
+        "turn: {{data}}",
+        "turn input: {{data}}",
+        "turn output: {{data}}",
+    ]
+    assert [
+        element["template"]
+        for element in elements
+        if element.get("ui_type") == "status_bar"
+    ] == ["Total: {{data}}"]
+
+
+def test_usage_ui_elements_can_hide_message_footer_or_status_total_independently() -> (
+    None
+):
+    ext = OpenAIResponsesUsageExtension()
+
+    status_only = ext.get_ui_elements(
+        config={"usage_message_footer_fields": []},
+        tags=["openai_responses"],
+        models=[],
+    )
+    footer_only = ext.get_ui_elements(
+        config={"show_usage_status_total": False},
+        tags=["openai_responses"],
+        models=[],
+    )
+
+    assert [element.get("ui_type") for element in status_only] == ["status_bar"]
+    assert all(element.get("ui_type") == "message_footer" for element in footer_only)
+    assert (
+        ext.get_ui_elements(
+            config={"show_usage": False},
+            tags=["openai_responses"],
+            models=[],
+        )
+        == []
+    )
 
 
 def test_api_mode_does_not_synthesize_estimated_cached_tokens() -> None:

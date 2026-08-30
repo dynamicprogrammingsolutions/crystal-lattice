@@ -23,6 +23,22 @@ const {
   <ViewTransitions />
   <!-- Prevent flash of wrong theme -->
   <script is:inline>
+    function applyThemeImages(root = document) {
+      const theme = document.documentElement.getAttribute('data-theme') === 'light'
+        ? 'light'
+        : 'dark';
+      root
+        .querySelectorAll('img[data-theme-light-src][data-theme-dark-src]')
+        .forEach((image) => {
+          const nextSource = theme === 'dark'
+            ? image.getAttribute('data-theme-dark-src')
+            : image.getAttribute('data-theme-light-src');
+          if (nextSource && image.getAttribute('src') !== nextSource) {
+            image.setAttribute('src', nextSource);
+          }
+        });
+    }
+
     function restoreTheme() {
       const saved = localStorage.getItem('cl-theme');
       const preferred = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
@@ -30,10 +46,16 @@ const {
       document.documentElement.setAttribute('data-theme', theme);
       const favicon = document.querySelector('link[rel="icon"]');
       if (favicon) favicon.setAttribute('href', theme === 'dark' ? '/icon_dark.svg' : '/icon.svg');
+      applyThemeImages();
     }
 
     restoreTheme();
+    document.addEventListener('DOMContentLoaded', () => applyThemeImages());
     document.addEventListener('astro:after-swap', restoreTheme);
+    new MutationObserver(() => applyThemeImages()).observe(
+      document.documentElement,
+      { attributes: true, attributeFilter: ['data-theme'] },
+    );
   </script>
 </head>
 <body>

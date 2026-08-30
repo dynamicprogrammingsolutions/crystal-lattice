@@ -87,6 +87,17 @@ content with root-relative paths.
 - Missing production images must fail validation or be omitted from the public
   page. Planning placeholders must not be rendered as product proof.
 
+Theme-aware screenshots use one rendered image element with `src` and
+`srcDark` content fields. The active theme source is selected by the layout
+theme script, and below-the-fold proof remains lazy-loaded. The maintained
+programmatic asset catalog, source lifecycle, deterministic derivative
+commands, and browser checks are documented in
+[Visual Asset Processing Pipelines](../visual-assets.md).
+Framework users should start with
+[Using the Visual Asset Framework](../visual-asset-framework.md), while
+framework maintainers should use
+[Visual Asset Framework Architecture](visual-content-and-screenshot-generation.md).
+
 ## Adding a Page
 
 The current pattern is:
@@ -116,6 +127,8 @@ that belongs in content.
 ## Source Boundaries
 
 - `src/content/` is current public content.
+- `visual_assets/` contains the executable visual catalog and reviewed source
+  masters used to reproduce optimized public derivatives.
 - This development page documents the current authoring and rendering system.
 - The product website content specification defines intended communication
   outcomes.
@@ -144,5 +157,7 @@ For substantive content-system changes, verify:
 - desktop and mobile layouts remain usable;
 - keyboard and semantic accessibility;
 - navigation and footer links;
+- visual-asset catalog and theme-source behavior when public screenshots
+  change;
 - the production build;
 - the landing-to-documentation browser smoke flow when applicable.
