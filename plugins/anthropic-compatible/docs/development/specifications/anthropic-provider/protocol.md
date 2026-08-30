@@ -24,8 +24,9 @@ information remains core metadata rather than wire content.
 
 ### User messages
 
-Plain text becomes a user string or text block. Image multipart content becomes
-an image block when the active profile supports the source type.
+Plain text becomes a user string or text block. Image multipart conversion is
+added by `AnthropicAttachmentsExtension` when subtask 017 is delivered and the
+active profile supports the source type.
 
 ### Assistant messages
 
@@ -58,7 +59,8 @@ One provider assistant message normally becomes one core assistant message:
 
 Tool-result user blocks rebuild as core tool messages where the native-index
 mapping permits an unambiguous reconstruction. Ordinary user text remains a
-user message.
+user message. Multimodal image tool-result behavior is refined by the
+attachment subtask.
 
 ## Streaming event reduction
 
@@ -136,8 +138,9 @@ safe generic outcome.
 ## Ordinary requests
 
 Non-streaming responses use the same native assistant block shape and
-finalization rules as streaming. Tools, thinking, usage, and images must not
-behave differently solely because streaming is disabled.
+finalization rules as streaming. Tools, thinking, usage, and attachment
+behavior from installed extensions must not differ solely because streaming is
+disabled.
 
 ## Compatible-endpoint tolerance
 

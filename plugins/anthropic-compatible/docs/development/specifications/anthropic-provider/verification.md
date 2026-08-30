@@ -15,8 +15,7 @@ Use local fake HTTP/SSE fixtures for:
 - thinking, redacted thinking, and signatures;
 - initial/final usage;
 - cache request shaping;
-- image request/result conversion;
-- error envelopes and retryability;
+- safe SDK error messages and provider-owned retry behavior;
 - cancellation before connect, during response, and after completion;
 - compatible-profile omission of unsupported fields.
 
@@ -29,6 +28,8 @@ Use the real public core and application boundaries for:
 - ordinary request;
 - streaming request;
 - tool loop;
+- usage formatting and turn/session totals;
+- duration/TPS interoperability;
 - persistence and reload;
 - cancellation event;
 - stable error event;
@@ -45,7 +46,8 @@ Run with the Anthropic-compatible endpoint and a selected local model:
 - tools and tool results;
 - thinking/reasoning;
 - usage;
-- base64 image input;
+- effort-level acceptance and behavioral effect where the selected model
+  permits a stable comparison;
 - cancellation where the endpoint and client permit it;
 - omission of caching, PDF, citation, request-metadata, token-count, and
   unsupported tool-choice fields.
@@ -65,8 +67,9 @@ Selective hosted tests cover behavior unavailable through Ollama:
 - adaptive/extended thinking and signature continuity;
 - automatic and one-hour prompt caching;
 - cache-read and cache-creation usage;
-- image tool results;
-- rate limits/errors where deterministic safe fixtures are insufficient;
+- selectable cache TTL;
+- safe SDK rate-limit/error detail and provider-owned retries where
+  deterministic fixtures are insufficient;
 - cancellation against a real stream.
 
 Hosted tests use `integration`, `api`, and `anthropic` markers and document
@@ -82,6 +85,7 @@ credential and cost requirements.
 - Tool schemas and calls use the active request-bound interop registry.
 - Thinking block order and signatures survive tool rounds.
 - Usage remains correct when fields arrive at different stream phases.
+- Duration/TPS derives from the standard turn-cumulative usage fields.
 - Cache controls do not appear on unsupported profiles.
 - Credentials and authorization values are absent from logs, errors, sessions,
   notifications, and fixtures.

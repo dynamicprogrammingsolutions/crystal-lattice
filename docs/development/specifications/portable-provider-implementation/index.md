@@ -10,6 +10,8 @@ It covers:
 - provider extension ownership;
 - model discovery and capability tags;
 - official and compatible endpoint profiles;
+- normalized usage, cost-estimation, cache-estimation, and duration/TPS
+  interoperability;
 - streaming, native history, cancellation, and error contracts;
 - deterministic, local-compatible, and hosted conformance tests;
 - package and documentation requirements.
@@ -38,3 +40,5 @@ Package refinement:
 Active delivery work:
 
 - `tasks/20260824-direct-claude-provider-and-plugin-login/010-direct-claude-provider-runtime.md`
+- `tasks/20260824-direct-claude-provider-and-plugin-login/018-provider-cost-estimation-and-pricing-catalog.md`
+- `tasks/20260824-direct-claude-provider-and-plugin-login/019-portable-provider-request-errors.md`

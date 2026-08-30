@@ -17,18 +17,36 @@ AnthropicReasoningExtension
   thinking configuration, effort, thinking blocks, signatures
 
 AnthropicUsageExtension
-  public usage metadata, formatting, cumulative totals, cost
+  public usage metadata, formatting, turn/session totals, TPS inputs
 
 AnthropicPromptCachingExtension
-  cache configuration, UI, request shaping, retention controls
-
-AnthropicAttachmentsExtension
-  image policy/UI/actions and compatible-endpoint gating
+  automatic cache configuration, UI, request shaping, selectable TTL
 ```
 
-The provider remains functional without the extensions. The standard bundle
-registers all five extensions, and tag/capability resolution decides which are
-active for a request.
+The provider remains functional without the extensions. The 010 bundle
+registers these four extensions, and tag/capability resolution decides which
+are active for a request.
+
+`AnthropicAttachmentsExtension`, portable cost estimation, and portable
+structured request errors are separate follow-ups.
+
+## Transport
+
+The provider uses the official Anthropic Python SDK with:
+
+- the selected `base_url`;
+- API-key or later OAuth credential configuration;
+- SDK Messages ordinary and streaming operations;
+- SDK model discovery where it exposes the required response;
+- SDK error types and raw response/request IDs where available;
+- explicit stream/client closure for request-ID cancellation.
+
+Provider and extension state remains plain mappings. SDK objects and event
+types are normalized at the provider boundary and are not persisted in native
+history.
+
+Compatible profiles must be tested through the same SDK transport. The package
+does not maintain a second direct-HTTP Messages implementation.
 
 ## Configuration
 
@@ -111,15 +129,13 @@ must not replace unknown accumulator keys.
 2. The provider converts core history to Anthropic-native history.
 3. The provider initializes the Messages request, auth headers, compatibility
    state, and empty accumulator.
-4. Extensions add tool schemas, reasoning controls, caching, and attachment
-   state.
+4. Extensions add tool schemas, reasoning controls, usage state, and caching.
 5. Generic request options apply after provider-specific extension shaping
    according to established priority.
 6. The provider performs ordinary or streaming transport.
 7. The provider reduces native content-block events into complete native
    assistant history.
-8. Extensions finalize tool calls, reasoning, usage, caching metadata, and
-   attachment state.
+8. Extensions finalize tool calls, reasoning, usage, and caching metadata.
 9. The provider and extensions convert finals to core messages.
 10. Core persists the complete provider-native history.
 
@@ -145,26 +161,22 @@ state and must not independently expose feature config or UI.
 
 Prompt caching is baseline and extension-owned.
 
-The official profile defaults to automatic caching. Supported settings include:
+The official profile defaults to automatic caching. Baseline settings include:
 
 - enabled/disabled;
-- automatic or explicit mode;
-- five-minute or one-hour retention;
-- optional explicit breakpoints.
+- `prompt_cache_ttl` with supported values `5m` and `1h`.
 
-The extension writes request-only cache controls. The usage extension surfaces
-cache-read and cache-creation counts. Compatible profiles that do not declare
-caching support omit all cache fields.
+The extension writes request-only automatic cache controls. The usage
+extension surfaces cache-read and cache-creation counts. Compatible profiles
+that do not declare caching support omit all cache fields. Explicit breakpoint
+selection and cache-management actions are outside 010.
 
 ## Attachments
 
-The baseline supports image attachments and multimodal tool results.
-`AnthropicAttachmentsExtension` owns session asset actions and UI. The provider
-owns the final conversion to Anthropic image blocks and request-time asset
-resolution.
-
-PDF, document, remote Files API, and citation behavior are outside the
-baseline.
+Image attachments and multimodal image tool results are owned by subtask 017.
+That task adds `AnthropicAttachmentsExtension`, session asset actions, image
+source policy, and provider-native conversion. PDF, document, remote Files API,
+and citation behavior remain in subtask 014.
 
 ## Cancellation
 
@@ -176,9 +188,46 @@ Each active request is registered by `request_id`. Cancellation:
 - removes the runtime after completion;
 - never appends a partial assistant message as a completed history item.
 
+## Baseline request errors and retries
+
+010 uses the existing generic request-error event. The provider:
+
+- maps SDK failures into bounded safe messages;
+- redacts credentials and sensitive provider bodies;
+- preserves provider request IDs only where the current event/detail contract
+  can do so safely;
+- performs eligible pre-output retries inside the provider;
+- never asks frontends to implement login or refresh behavior.
+
+The portable structured provider-error contract is deferred to subtask 019.
+That task will preserve categories, retryability, statuses, and request IDs
+through lifecycle hooks and clients without moving retry or auth ownership.
+
+## Delivery stages
+
+### Stage 1
+
+API-key configuration, basic model discovery, SDK Messages ordinary/streaming
+transport, native history, cancellation, tools, core reasoning with simple
+effort UI, and normalized formatted usage with turn/session totals.
+
+### Stage 2
+
+Official/Ollama/custom compatibility profiles, compatible model discovery,
+unsupported-field omission, Ollama tools/reasoning/usage/effort verification,
+and duration/TPS interoperability.
+
+### Stage 3
+
+Official capability-driven UI, independent interleaved-thinking and
+preserved-thinking behavior, Anthropic-specific effort/adaptive/budget
+controls, automatic prompt caching with selectable TTL, reported cache usage,
+and selective hosted verification.
+
 ## Follow-up feature boundary
 
 Server web tools, fast mode/service tiers, native compaction/context editing,
-Files/PDFs/citations, token counting, and advanced server tools extend this
-package through separate tasks. Each must update this specification or add a
-linked package refinement before implementation.
+Files/PDFs/citations, token counting, advanced server tools, image attachments,
+cost estimation, and portable request errors extend this package through
+separate tasks. Each must update this specification or add a linked package
+refinement before implementation.

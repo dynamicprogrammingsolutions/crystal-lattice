@@ -86,6 +86,13 @@ Normalize provider failures into stable categories suitable for the current
 application event contract. Preserve safe provider request IDs and
 retryability where supported.
 
+Request retry remains provider-owned. Error events expose information; they do
+not move retry execution into the application or frontend.
+
+Interactive login, refresh, status, and logout remain application-plugin
+responsibilities. Frontends display error state and invoke plugin actions
+without parsing error strings into credential lifecycle.
+
 Do not expose:
 
 - API keys or tokens;

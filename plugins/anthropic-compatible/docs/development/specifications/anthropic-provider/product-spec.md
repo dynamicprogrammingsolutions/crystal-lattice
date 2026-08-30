@@ -20,7 +20,7 @@ Package users need to:
 - send ordinary and streaming conversations;
 - run the existing Claude-compatible tool bundle;
 - enable or disable reasoning, usage displays, prompt caching, and image
-  attachments through provider extensions;
+  attachments through provider extensions delivered by their owning tasks;
 - point the provider at a compatible local or hosted endpoint;
 - understand which features a compatible endpoint does not support;
 - receive stable, redacted authentication, validation, rate-limit, provider,
@@ -73,22 +73,24 @@ With the standard extension bundle enabled, users can:
 - stream text and thinking;
 - invoke Claude-compatible tools;
 - continue after tool results;
-- inspect input, output, cache-read, and cache-write usage;
-- use automatic or explicit prompt caching when supported;
-- send image attachments and receive multimodal tool results.
+- inspect formatted input, output, cache-read, and cache-write usage;
+- use automatic prompt caching with a supported selectable TTL.
 
 ### Compatible local endpoint
 
 An Ollama configuration uses the same `anthropic` provider and a different
 base URL. The provider advertises only the compatible-local subset and omits
 unsupported caching, PDF, citation, token-count, request-metadata, and
-tool-choice fields.
+tool-choice fields. Image support is delivered and verified by the separate
+attachment subtask.
 
 ### Failure behavior
 
-Failures identify a stable category, retryability, provider request ID where
-available, and a safe user-facing message. Secrets and raw authorization
-values never appear in session history, displays, logs, or diagnostics.
+The baseline provider sanitizes failures and emits safe user-facing detail
+through the current generic request-error event. Provider-owned retries may use
+native status and retry information internally. A later portable request-error
+task carries structured categories and provider request IDs across application
+and client boundaries.
 
 ## Compatibility
 
@@ -107,8 +109,9 @@ values never appear in session history, displays, logs, or diagnostics.
 - Silently falling back to OpenRouter or another provider.
 - Implementing server web search or web fetch in the baseline.
 - Implementing fast mode, service tiers, native compaction, context editing,
-  Files API, PDFs, document citations, token counting, code execution, tool
-  search, or programmatic tool calling in the baseline.
+  image attachments, Files API, PDFs, document citations, token counting,
+  model-price cost estimation, structured provider request errors, code
+  execution, tool search, or programmatic tool calling in the baseline.
 - Implementing Message Batches.
 - Implementing structured outputs.
 - Treating every Anthropic-compatible endpoint as feature-complete.

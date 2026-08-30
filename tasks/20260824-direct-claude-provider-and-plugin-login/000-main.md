@@ -27,8 +27,9 @@ terminal while preserving the existing OpenRouter Claude option.
 - [ ] Existing OpenRouter-based Claude agents remain available and are not
   silently replaced.
 - [ ] Provider-specific follow-ups add server web tools, fast mode and service
-  tiers, native compaction, files/PDFs, token counting, and advanced server
-  tools without bloating the baseline provider.
+  tiers, native compaction, image attachments, files/PDFs, token counting,
+  cost estimation, portable request errors, and advanced server tools without
+  bloating the baseline provider.
 
 ### Non-functional requirements
 
@@ -36,6 +37,7 @@ terminal while preserving the existing OpenRouter Claude option.
   ordinary logs, notifications, session records, and diagnostics.
 - [ ] Direct-provider selection and fallback behavior are explicit and do not
   silently route a failed request through another paid provider.
+- [ ] Provider request retries remain provider-owned.
 - [ ] OAuth state, PKCE, refresh, supersession, and cancellation are safe.
 - [ ] Anthropic-specific behavior remains in provider/auth plugins rather than
   generic application, terminal, or frontend code.
@@ -63,14 +65,19 @@ terminal while preserving the existing OpenRouter Claude option.
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/014-anthropic-files-pdfs-and-citations.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/015-anthropic-token-counting.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/016-anthropic-advanced-server-tools.md`
+- [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/017-anthropic-image-attachments.md`
+- [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/018-provider-cost-estimation-and-pricing-catalog.md`
+- [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/019-portable-provider-request-errors.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/020-claude-authentication-plugin.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/030-claude-client-and-terminal-integration.md`
 
 ## Workstreams
 
 - Baseline provider delivery: subtask 010.
-- Provider-specific follow-ups: subtasks 011 through 016; each depends on 010
-  but is not a prerequisite for OAuth.
+- Provider-specific follow-ups: subtasks 011 through 018; each depends on 010
+  or a documented provider boundary but is not a prerequisite for OAuth.
+- Portable request errors: subtask 019; this revisits the provider/application
+  error boundary without moving retry or login ownership out of plugins.
 - OAuth lifecycle: subtask 020.
 - Client and terminal integration: subtask 030.
 
@@ -120,6 +127,10 @@ or materially different security boundaries.
   interop contract permits.
 - Decision: OpenRouter remains a supported explicit alternative.
 - Decision: batch processing and structured outputs are not planned.
+- Decision: 010 uses the Anthropic SDK.
+- Decision: image attachments and cost estimation are separate subtasks.
+- Decision: 010 uses the current generic request-error event; the portable
+  structured provider-error contract is deferred to subtask 019.
 - Open: decide whether and when direct Anthropic becomes a default agent.
 
 ### Documentation
@@ -142,7 +153,9 @@ or materially different security boundaries.
 - [x] Resolve the baseline credential mode and provider/package naming.
 - [x] Define the package-owned and portable specification structures.
 - [ ] Execute and verify direct provider runtime subtask 010.
-- [ ] Execute selected provider-feature subtasks 011 through 016.
+- [ ] Execute selected provider-feature subtasks 011 through 018.
+- [ ] Execute the portable request-error follow-up 019 when the standard
+  request-error work is planned.
 - [ ] Execute and verify OAuth authentication subtask 020.
 - [ ] Execute and verify frontend/terminal integration subtask 030.
 - [ ] Run selective local-compatible, real-provider, and saved-login smoke

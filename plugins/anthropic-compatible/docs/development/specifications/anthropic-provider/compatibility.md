@@ -37,7 +37,7 @@ The official profile:
 - sends the required Anthropic API version;
 - uses `/v1/messages` and `/v1/models`;
 - consumes published model capabilities;
-- supports the baseline tool, reasoning, usage, caching, and image extension
+- supports the baseline tool, reasoning, usage, and caching extension
   contracts when the selected model advertises them;
 - preserves provider request IDs and error types;
 - enables automatic prompt caching by default.
@@ -113,8 +113,11 @@ returns an empty list so users can enter a model ID manually.
 ## Testing profiles
 
 - `messages-basic`: ordinary, streaming, system, multi-turn, stop/error.
-- `messages-agent`: tools/results, reasoning, usage, cancellation, images.
-- `anthropic-cache`: automatic/explicit caching and cache usage.
+- `messages-agent`: tools/results, reasoning, usage, and cancellation.
+- `messages-images`: image inputs and multimodal tool results, owned by
+  subtask 017.
+- `anthropic-cache`: automatic caching, selectable supported TTL, and cache
+  usage.
 - `official-anthropic`: official discovery and baseline feature capability
   gating.
 - `compatible-local`: Ollama-supported subset and explicit omission tests.

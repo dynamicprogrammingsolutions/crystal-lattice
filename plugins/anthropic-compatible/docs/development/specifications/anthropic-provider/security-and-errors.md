@@ -38,7 +38,20 @@ Safe diagnostics may include:
 
 Generic exception text is sanitized before it becomes an application event.
 
-## Error model
+## Baseline error model
+
+Subtask 010 uses the current generic request-error event. The provider maps SDK
+failures to bounded, redacted user-facing detail and retains any richer native
+classification only inside provider runtime state and tests.
+
+Provider retries remain inside `AnthropicProvider`. Authentication acquisition,
+refresh, login status, and logout remain application-plugin responsibilities.
+Frontends display actions and error detail without owning credential lifecycle.
+
+The portable structured contract below is the target of subtask 019 rather
+than a prerequisite for 010.
+
+## Portable follow-up error model
 
 The portable application-facing provider error contains:
 
@@ -86,7 +99,8 @@ retryable before visible output begins. Retry policy is bounded and respects
 provider guidance when safe.
 
 Mid-stream retries must not duplicate visible content or tool calls. Recovery
-is disabled unless a feature/profile defines a tested replay policy.
+is disabled unless the provider defines a tested replay policy. Retry execution
+does not move into the application error contract.
 
 ## Cancellation
 

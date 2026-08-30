@@ -17,6 +17,9 @@ substantial provider implementation.
   endpoints, model capabilities, overrides, and fallback rules.
 - [Conformance testing](conformance-testing.md): deterministic, application,
   local-compatible, and hosted verification.
+- [Usage, cost, and performance](usage-cost-and-performance.md): normalized
+  usage, pricing catalogs, cost-estimation provenance, cached-token estimation,
+  and duration/TPS interoperability.
 - [Package and documentation](package-and-documentation.md): package layout,
   descriptors, README/docs, tests, and delivery checklist.
 
@@ -31,6 +34,7 @@ A substantial provider bundle should provide:
 - redacted deterministic errors;
 - model discovery or an explicit manual-model fallback;
 - separate provider extensions for optional provider-specific features;
+- normalized usage and performance metadata when token counts are available;
 - request-bound tool interop;
 - deterministic provider and extension tests;
 - application integration;

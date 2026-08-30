@@ -31,6 +31,15 @@ Each provider extension covers:
 - interaction with the shared accumulator;
 - operation without unrelated extensions.
 
+Usage-capable providers additionally cover:
+
+- normalized and formatted usage;
+- tool-turn and session cumulative totals;
+- persistence/rebuild;
+- duration/TPS interoperability;
+- reported-versus-estimated provenance;
+- pricing-catalog and cached-token estimation behavior when supported.
+
 ## Tool-loop tests
 
 For tool-capable providers, cover:

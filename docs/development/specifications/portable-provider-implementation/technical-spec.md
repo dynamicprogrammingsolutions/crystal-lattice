@@ -171,6 +171,58 @@ Providers and extensions use the request-bound tool interop registry:
 Tool-result display and structured payload metadata must survive tool execution
 and session reload.
 
+## Usage and performance metadata
+
+Substantial generative providers implement usage through a provider extension
+when the upstream response exposes token counts.
+
+The extension owns:
+
+- usage config and UI;
+- provider-native usage normalization;
+- formatted per-message fields;
+- turn-cumulative input/output usage;
+- session-cumulative usage;
+- raw provider usage;
+- persistence/rebuild;
+- compatibility with duration/TPS calculation.
+
+At minimum, normalized metadata distinguishes input, output, total, reasoning,
+cache-read, and cache-write tokens when the provider reports them.
+
+Turn-cumulative usage is retained in stable internal metadata so
+`DurationExtension` and equivalent performance features can calculate turn TPS
+without understanding provider-native usage.
+
+## Cost estimation
+
+Locally calculated monetary values are cost estimates.
+
+Portable precedence:
+
+1. provider-reported request cost when present;
+2. provider-reported token classes with maintained/configured model rates;
+3. estimated cache/token classes with maintained/configured model rates;
+4. no cost value when rates or required usage are incomplete.
+
+Metadata distinguishes reported and estimated values. Estimated cache counts
+remain separate from raw provider usage and never masquerade as provider
+reported values.
+
+Maintained model-pricing catalogs:
+
+- are checked-in runtime inputs;
+- record their source and refresh time;
+- resolve documented model aliases;
+- support input, cached-input, cache-write where applicable, and output rates;
+- are refreshed through explicit maintainer tooling rather than live request
+  traffic;
+- produce no estimate for unknown or incomplete entries.
+
+Generic formatting, cumulative calculations, cached-token estimation, and
+cost-estimation helpers should be shared across providers. Native usage mapping
+and provider-specific rate classes remain provider-extension concerns.
+
 ## Cancellation
 
 Providers register active transports by request ID and close/cancel the
@@ -196,6 +248,14 @@ The shared application layer preserves structured provider errors rather than
 collapsing them to untyped text. Provider packages map native error types into
 the shared categories and may retain a safe provider-native subtype.
 
+Provider request retries remain provider-owned. The portable error event
+communicates what happened and whether a retry may be meaningful; it does not
+execute retries.
+
+Authentication acquisition, refresh, login status, and logout remain
+application-plugin responsibilities. Frontends render error state and invoke
+plugin actions but do not own credential lifecycle.
+
 Authorization values, credentials, full sensitive payloads, and raw user
 content are excluded from ordinary logs and errors.
 
@@ -215,6 +275,10 @@ Every provider package covers:
 - error normalization;
 - extension enablement/disablement;
 - compatibility overrides.
+- normalized usage and formatting when usage is supported;
+- turn/session cumulative usage and duration/TPS compatibility;
+- cost-estimation provenance and pricing-catalog behavior when cost estimation
+  is supported.
 
 ### Application integration
 

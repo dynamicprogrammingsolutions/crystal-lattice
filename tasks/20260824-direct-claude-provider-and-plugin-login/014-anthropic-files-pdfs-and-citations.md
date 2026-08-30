@@ -33,6 +33,7 @@ Parent Task:
 Depends On:
 
 - `tasks/20260824-direct-claude-provider-and-plugin-login/010-direct-claude-provider-runtime.md`
+- `tasks/20260824-direct-claude-provider-and-plugin-login/017-anthropic-image-attachments.md`
 
 Specification:
 
