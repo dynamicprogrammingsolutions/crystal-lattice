@@ -115,7 +115,8 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
     },
     modalSubtitle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       marginBottom: 12,
     },
@@ -126,7 +127,8 @@ const createStyles = (theme: Theme) =>
     },
     loadingText: {
       marginLeft: 8,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.textSecondary,
     },
     modalButtonsRow: {
@@ -149,7 +151,8 @@ const createStyles = (theme: Theme) =>
     },
     buttonTextSecondary: {
       color: theme.text,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     agentList: {
@@ -173,7 +176,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.primaryMuted,
     },
     agentItemText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
     },
   });

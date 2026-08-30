@@ -19,6 +19,16 @@ native frame before and after each range replacement:
 npm run test:macos-ui:transcript-range
 ```
 
-The current notification XCUITest target builds, but execution remains
-unverified because XCTest timed out while enabling macOS automation before app
-launch. Human desktop verification remains a separate checkpoint.
+The Connections-panel harness mounts the production panel with deterministic
+record counts and selects the default or largest current typography preset by
+semantic name. Its focused XCUITest verifies natural height through three
+records, bounded scrolling above that threshold, bottom-fade state, and the
+disclosure control:
+
+```bash
+npm run test:macos-ui:connections
+```
+
+Harnesses report theme-derived values and measured frames. Native assertions
+compare those values and relative geometry instead of copying display-preset
+numbers, allowing preset tuning without rewriting native tests.

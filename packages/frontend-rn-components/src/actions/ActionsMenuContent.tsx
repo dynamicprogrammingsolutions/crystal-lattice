@@ -111,6 +111,7 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
                   {
                     color: disabled ? theme.textSecondary : theme.text,
                     fontSize: theme.typography.fontSize.message,
+                    lineHeight: theme.typography.lineHeight.message,
                   },
                 ]}
               >
@@ -120,6 +121,9 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
             <TouchableOpacity
               style={styles.pinButton}
               hitSlop={PIN_BUTTON_HIT_SLOP}
+              accessibilityRole="button"
+              accessibilityLabel={`${pinned ? 'Unpin' : 'Pin'} ${action.label}`}
+              testID={`actions-menu-pin-${String(action.key)}`}
               onPress={onTogglePinned}
             >
               {props.renderPinIcon ? (

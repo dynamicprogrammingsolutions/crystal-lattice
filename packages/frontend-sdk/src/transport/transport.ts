@@ -20,6 +20,7 @@ export interface Transport {
     headers?: Record<string, string>;
     body?: any;
     timeoutMs?: number;
+    signal?: AbortSignal;
   }): Promise<{ status: number; data: T }>;
 }
 

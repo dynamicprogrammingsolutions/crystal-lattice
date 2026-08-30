@@ -1,4 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+} from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
@@ -6,7 +12,6 @@ import type { AgentBackend, ConnectionRecord, Transport } from '@crystal-lattice
 import type { SessionsCache } from '../App';
 import type { DebugTimelineEntry } from './debugTimeline';
 import type { MessagesCache } from './cache/types';
-import ConnectionScreen from './ConnectionScreen';
 import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
 import type { SessionSummary, IndexedMessage } from './api';
@@ -16,6 +21,13 @@ import { useTheme, type Theme } from './theme';
 import { ApplicationPluginsProvider } from './ApplicationPluginsContext';
 import { DEFAULT_MOBILE_TRANSCRIPT_RANGE } from './transcriptRange';
 import GlobalDisplayLayer from './components/GlobalDisplayLayer';
+import GlobalSettingsModal from './components/GlobalSettingsModal';
+import ServerSettingsModal from './components/ServerSettingsModal';
+import HomeScreen from './HomeScreen';
+import { useHomeWorkspace } from './HomeWorkspaceContext';
+import { deriveHomeSessionCollections } from './homeWorkspaceState';
+import { MobileConnectionSessionStatusReader } from './connectionSessionStatusReader';
+import { useSessionRequestStatuses } from './useSessionRequestStatuses';
 
 interface ConnectedRootProps {
   backend: AgentBackend | null;
@@ -23,13 +35,13 @@ interface ConnectedRootProps {
   onDisconnect: () => void;
   connections: ConnectionRecord[];
   connectionsLoading: boolean;
-  onSelectConnectionRecord: (record: ConnectionRecord) => void;
+  onSelectConnectionRecord: (
+    record: ConnectionRecord,
+  ) => void | boolean | Promise<void | boolean>;
   onNewConnectionRequested: () => void;
   renderConnectionWizard: () => React.ReactNode;
   onDeleteConnectionRecord: (record: ConnectionRecord) => void;
   activeConnectionId: string | null;
-  activeConnectionName: string | null;
-  activeConnectionAdditionalInfo: string | null;
   sessionsCache: SessionsCache;
   onUpdateSessionsCache: (connectionId: string, sessions: SessionSummary[]) => void;
   messagesCache: MessagesCache;
@@ -76,8 +88,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   renderConnectionWizard,
   onDeleteConnectionRecord,
   activeConnectionId,
-  activeConnectionName,
-  activeConnectionAdditionalInfo,
   sessionsCache,
   onUpdateSessionsCache,
   messagesCache,
@@ -91,10 +101,93 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
-  const [tab, setTab] = useState<'connection' | 'sessions' | 'messages'>('connection');
+  const [tab, setTab] = useState<'home' | 'connection' | 'sessions' | 'messages'>('home');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoResponse, setDemoResponse] = useState('');
+  const [globalSettingsVisible, setGlobalSettingsVisible] = useState(false);
+  const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
+  const [newSessionRequestToken, setNewSessionRequestToken] = useState(0);
+  const navigationIntentRef = useRef(0);
+  const {
+    hydrated: homeWorkspaceHydrated,
+    watchlist,
+    notes,
+    recentSessionsWindow,
+    removeFromWatchlist,
+  } = useHomeWorkspace();
+  const activeConnectionName = useMemo(
+    () =>
+      connections.find((record) => record.id === activeConnectionId)?.name ??
+      'Sessions',
+    [activeConnectionId, connections],
+  );
+  const homeCollections = useMemo(
+    () =>
+      deriveHomeSessionCollections({
+        connections,
+        sessionsCache,
+        watchlist,
+        notes,
+        recentSessionsWindow,
+      }),
+    [connections, notes, recentSessionsWindow, sessionsCache, watchlist],
+  );
+  const statusSessionIdsByConnection = useMemo(() => {
+    const groups: Record<string, string[]> = {};
+    if (tab === 'home') {
+      for (const item of [
+        ...homeCollections.watchlist,
+        ...homeCollections.recent,
+      ]) {
+        const values = groups[item.connectionId] ?? [];
+        values.push(item.sessionId);
+        groups[item.connectionId] = values;
+      }
+    }
+    if (tab === 'sessions' && activeConnectionId) {
+      groups[activeConnectionId] =
+        sessionsCache[activeConnectionId]?.sessions.map(
+          (session) => session.session_id,
+        ) ?? [];
+    }
+    return groups;
+  }, [activeConnectionId, homeCollections, sessionsCache, tab]);
+  const statusReader = useMemo(
+    () => new MobileConnectionSessionStatusReader(activeConnectionId, backend),
+    [activeConnectionId, backend],
+  );
+  const handleMissingSessionIds = useCallback(
+    (connectionId: string, sessionIds: readonly string[]) => {
+      for (const sessionId of sessionIds) {
+        removeFromWatchlist(connectionId, sessionId);
+      }
+    },
+    [removeFromWatchlist],
+  );
+  const statusesByConnection = useSessionRequestStatuses({
+    enabled: tab === 'home' || tab === 'sessions',
+    connections,
+    sessionIdsByConnection: statusSessionIdsByConnection,
+    reader: statusReader,
+    onMissingSessionIds: handleMissingSessionIds,
+  });
+
+  useEffect(() => {
+    if (!homeWorkspaceHydrated || connectionsLoading) return;
+    const savedConnectionIds = new Set(connections.map((connection) => connection.id));
+    for (const watched of watchlist) {
+      if (!savedConnectionIds.has(watched.connectionId)) {
+        removeFromWatchlist(watched.connectionId, watched.sessionId);
+      }
+    }
+  }, [
+    connections,
+    connectionsLoading,
+    homeWorkspaceHydrated,
+    removeFromWatchlist,
+    watchlist,
+  ]);
 
   const executeDemoRequest = async (type: 'GET' | 'PUT') => {
     setDemoLoading(true);
@@ -128,6 +221,26 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   };
 
   const handleSelectSession = (sessionId: string) => {
+    navigationIntentRef.current += 1;
+    setSelectedSessionId(sessionId);
+    setTab('messages');
+  };
+
+  const handleSelectHomeSession = async (
+    connectionId: string,
+    sessionId: string,
+  ) => {
+    const record = connections.find((connection) => connection.id === connectionId);
+    if (!record) return;
+    const intent = navigationIntentRef.current + 1;
+    navigationIntentRef.current = intent;
+    const isOpen =
+      connectionId === activeConnectionId && backend !== null && transport !== null;
+    if (!isOpen) {
+      const opened = await onSelectConnectionRecord(record);
+      if (opened === false || navigationIntentRef.current !== intent) return;
+    }
+    if (navigationIntentRef.current !== intent) return;
     setSelectedSessionId(sessionId);
     setTab('messages');
   };
@@ -140,8 +253,39 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           connectionId={activeConnectionId}
         >
         <View style={styles.contentArea} testID="connected-root-content">
+        <View
+          testID="home-tab-content"
+          style={[
+            styles.connectionsTabContainer,
+            tab !== 'home' && { display: 'none' },
+          ]}
+        >
+          <HomeScreen
+            connections={connections}
+            sessionsCache={sessionsCache}
+            statusesByConnection={statusesByConnection}
+            hasActiveBackend={backend !== null}
+            isActive={tab === 'home'}
+            onOpenGlobalSettings={() => setGlobalSettingsVisible(true)}
+            onNewConnection={() => {
+              navigationIntentRef.current += 1;
+              setTab('connection');
+              onNewConnectionRequested();
+            }}
+            onNewSession={() => {
+              navigationIntentRef.current += 1;
+              setNewSessionRequestToken((current) => current + 1);
+              setTab('sessions');
+            }}
+            onSelectSession={(connectionId, sessionId) => {
+              void handleSelectHomeSession(connectionId, sessionId);
+            }}
+          />
+        </View>
+
         {/* Connection tab content (kept mounted, visibility toggled) */}
         <View
+          testID="connections-tab-content"
           style={[
             styles.connectionsTabContainer,
             tab !== 'connection' && { display: 'none' },
@@ -154,41 +298,38 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
             }
 
             return (
-              <>
-                {backend && transport ? (
-                  <ConnectionScreen
-                    transport={transport}
-                    displayName={activeConnectionName || 'Connected'}
-                    onDisconnect={onDisconnect}
-                    additionalInfo={activeConnectionAdditionalInfo}
-                  />
-                ) : (
-                  <View style={styles.placeholderContainer}>
-                    <Text style={styles.placeholderText}>
-                      No active connection. Select a saved connection below or create a new one.
-                    </Text>
-                  </View>
-                )}
-
                 <View style={styles.connectionsListSection}>
                   <ConnectionsScreen
                     connections={connections}
                     loading={connectionsLoading}
-                    onSelectConnection={async (record) => {
-                      await onSelectConnectionRecord(record);
+                    activeConnectionId={activeConnectionId}
+                    transport={transport}
+                    onConnectionCardPress={(record) => {
+                      navigationIntentRef.current += 1;
                       setTab('sessions');
+                      const isOpen =
+                        record.id === activeConnectionId && transport !== null;
+                      if (!isOpen) {
+                        void onSelectConnectionRecord(record);
+                      }
+                    }}
+                    onOpenConnection={(record) => {
+                      void onSelectConnectionRecord(record);
                     }}
                     onNewConnection={onNewConnectionRequested}
+                    onOpenGlobalSettings={() => setGlobalSettingsVisible(true)}
+                    onOpenServerSettings={() => setServerSettingsVisible(true)}
+                    onDisconnect={onDisconnect}
                     onDeleteConnection={onDeleteConnectionRecord}
                   />
                 </View>
-              </>
             );
           })()}
         </View>
 
         {/* Sessions tab content (kept mounted, visibility toggled) */}
         <View
+          testID="sessions-tab-content"
           style={[
             styles.connectionsTabContainer,
             tab !== 'sessions' && { display: 'none' },
@@ -214,6 +355,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
               <SessionsScreen
                 backend={backend}
                 connectionId={connectionId}
+                connectionName={activeConnectionName}
                 cachedSessions={cacheEntry?.sessions ?? null}
                 lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
                 isActive={tab === 'sessions'}
@@ -223,6 +365,12 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   }
                 }}
                 onSelectSession={handleSelectSession}
+                requestStatuses={
+                  connectionId
+                    ? statusesByConnection[connectionId] ?? {}
+                    : {}
+                }
+                newSessionRequestToken={newSessionRequestToken}
               />
             );
           })()}
@@ -230,6 +378,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
         {/* Messages tab content (kept mounted, visibility toggled) */}
         <View
+          testID="messages-tab-content"
           style={[
             styles.connectionsTabContainer,
             tab !== 'messages' && { display: 'none' },
@@ -310,9 +459,11 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                     }
                   }}
                   onBack={() => {
+                    navigationIntentRef.current += 1;
                     setTab('sessions');
                   }}
                   onNavigateToSession={(sessionId) => {
+                    navigationIntentRef.current += 1;
                     setSelectedSessionId(sessionId);
                     setTab('messages');
                   }}
@@ -354,10 +505,42 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         </GlobalDisplayLayer>
       </ApplicationPluginsProvider>
 
+      <GlobalSettingsModal
+        visible={globalSettingsVisible}
+        onRequestClose={() => setGlobalSettingsVisible(false)}
+      />
+      <ServerSettingsModal
+        backend={backend}
+        cacheKey={activeConnectionId ?? 'default'}
+        visible={serverSettingsVisible}
+        onRequestClose={() => setServerSettingsVisible(false)}
+      />
+
       <View style={styles.navBar}>
         <TouchableOpacity
+          testID="home-tab"
+          style={[styles.navItem, tab === 'home' && styles.navItemActive]}
+          onPress={() => {
+            navigationIntentRef.current += 1;
+            setTab('home');
+          }}
+        >
+          <Icon
+            name="home"
+            size={20}
+            color={tab === 'home' ? theme.navIconActive : theme.navIconInactive}
+          />
+          <Text style={tab === 'home' ? styles.navTextActive : styles.navText}>
+            Home
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          testID="connections-tab"
           style={[styles.navItem, tab === 'connection' && styles.navItemActive]}
-          onPress={() => setTab('connection')}
+          onPress={() => {
+            navigationIntentRef.current += 1;
+            setTab('connection');
+          }}
         >
           <Icon
             name="wifi"
@@ -367,8 +550,12 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           <Text style={tab === 'connection' ? styles.navTextActive : styles.navText}>Connections</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          testID="sessions-tab"
           style={[styles.navItem, tab === 'sessions' && styles.navItemActive]}
-          onPress={() => setTab('sessions')}
+          onPress={() => {
+            navigationIntentRef.current += 1;
+            setTab('sessions');
+          }}
         >
           <Icon
             name="list"
@@ -378,8 +565,12 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           <Text style={tab === 'sessions' ? styles.navTextActive : styles.navText}>Sessions</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          testID="messages-tab"
           style={[styles.navItem, tab === 'messages' && styles.navItemActive]}
-          onPress={() => setTab('messages')}
+          onPress={() => {
+            navigationIntentRef.current += 1;
+            setTab('messages');
+          }}
         >
           <Icon
             name="message-circle"
@@ -413,7 +604,6 @@ const createStyles = (theme: Theme, insets: { top: number; bottom: number; left:
     },
     connectionsListSection: {
       flex: 1,
-      marginTop: 16,
     },
     button: {
       paddingHorizontal: 12,

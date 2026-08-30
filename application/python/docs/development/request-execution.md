@@ -144,6 +144,25 @@ request_id = app.get_active_session_request_id(session_id)
 This is the authoritative application-process single-flight state. Adapters
 must not maintain a separate active-request map.
 
+### Query derived status for explicit sessions
+
+```python
+snapshot = app.get_session_request_statuses(["session-one", "session-two"])
+```
+
+`SessionRequestStatusService` checks coordinated active state first. When no
+request is active, it classifies the persisted conversation tail and caches
+that classification by the session store's opaque revision. Empty history is
+`idle`, a user tail is `not_started`, a final assistant tail without tool
+calls is `succeeded`, and every other incomplete conversational tail is
+`interrupted`.
+
+FastAPI exposes this through `POST /sessions/request-statuses`. The request
+must contain explicit `session_ids`; omitted IDs never mean all sessions.
+Missing sessions are partial results. The response authority is
+`derived_transient`, so it does not claim durable failure/cancellation history
+and can later delegate to persisted operation state.
+
 ### Cancel
 
 ```python
@@ -457,6 +476,19 @@ operation remains append-only.
 
 The terminal polls and renders public events. It does not create its own
 request worker or hold a separate owner operation.
+
+Assistant lifecycle start/end events carry `message_index`, equal to the LLM
+phase's existing `start_index`. During streaming this is the reserved index the
+assistant message will occupy if the phase commits. Cancellation after partial
+output can leave that displayed index without a stored message; the terminal
+does not persist an incomplete assistant solely to make the index expandable.
+
+`TerminalApplication.poll_new_events()` applies the shared application event
+compactor before rendering. Redundant assistant/tool stream chunks may be
+dropped when their aggregate terminal event is present, but
+`tool_partial(phase="end")` is preserved because it carries the final
+display-aware tool result and stored message index. Terminal renderers do not
+reconstruct a lost end event from `tool_results`.
 
 `TerminalApplication.send_request(...)` remains as a synchronous compatibility
 API and delegates to `run_session_request(...)`.

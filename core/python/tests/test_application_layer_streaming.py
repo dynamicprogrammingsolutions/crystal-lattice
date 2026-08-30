@@ -11,8 +11,11 @@ import time
 import json
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
+from agent_app.app_context import ApplicationContext
 from agent_app.application_future import AgentApplication
+from agent_app.tool_loop import ToolLoopRunner
 from agent_core import AgentCore
 
 
@@ -46,6 +49,65 @@ def test_send_request_streaming_emits_events(tmp_path: Path) -> None:
     assert any(ev["type"] == "partial" for ev in events)
     assert any(ev["type"] == "final" for ev in events)
     assert any(ev["type"] == "request_completed" for ev in events)
+
+
+def test_streaming_assistant_lifecycle_carries_reserved_message_index(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "Hello")
+    app.save_session(session)
+    expected_index = len(session.messages)
+
+    events = list(
+        app.send_request(core, session, base_config, overrides=None, stream=True)
+    )
+
+    lifecycle = [event for event in events if event.get("type") == "assistant_message"]
+    assert [event.get("phase") for event in lifecycle] == ["start", "end"]
+    assert all(event.get("message_index") == expected_index for event in lifecycle)
+
+    final_event = next(event for event in events if event.get("type") == "final")
+    assert final_event["start_index"] == expected_index
+
+
+def test_final_without_partials_emits_indexed_synthetic_assistant_start() -> None:
+    session_core = AgentCore()
+    session = session_core.create_session()
+    session = session_core.add_message(session, "user", "Hello")
+    expected_index = len(session.messages)
+    final_message = {"role": "assistant", "content": "Done", "metadata": {}}
+    final_session = session_core.add_message(session, "assistant", "Done")
+
+    class _FinalOnlyCore:
+        def send_request_stream(self, *args, **kwargs):
+            _ = args, kwargs
+            yield {
+                "type": "final",
+                "session": final_session,
+                "messages": [final_message],
+            }
+
+    runner = ToolLoopRunner(
+        core=_FinalOnlyCore(),  # type: ignore[arg-type]
+        config={},
+        request_id="request-final-only",
+        tool_loop_cfg=SimpleNamespace(max_loops=8),
+        app_context=ApplicationContext(app=None),
+        base_config={},
+    )
+
+    events = list(runner._run_llm_phase(session, stream=True))
+    lifecycle = [event for event in events if event.get("type") == "assistant_message"]
+
+    assert [event.get("phase") for event in lifecycle] == ["start", "end"]
+    assert all(event.get("message_index") == expected_index for event in lifecycle)
 
 
 def test_send_request_completion_expires_request_scoped_notification(
@@ -647,6 +709,13 @@ def test_cancel_request_interrupts_provider_after_partial_output(
     assert "request_cancelled" in kinds
     assert "request_completed" in kinds
     assert "final" not in kinds
+    assistant_starts = [
+        event
+        for event in events
+        if event.get("type") == "assistant_message" and event.get("phase") == "start"
+    ]
+    assert assistant_starts
+    assert assistant_starts[0].get("message_index") == len(session.messages)
 
     provider_state = get_cancellable_blocking_provider_state()
     assert request_id in provider_state["stream_request_ids"]

@@ -394,6 +394,17 @@ export type {
   CloudConnectionRecord,
   ConnectionRecord,
 } from './connections/types';
+export type {
+  ConnectionSessionStatusReader,
+  ConnectionSessionStatusResult,
+} from './connections/sessionStatusReader';
+export type {
+  SessionRequestStatus,
+  SessionRequestStatusBasis,
+  SessionRequestStatusSnapshot,
+  SessionRequestStatusState,
+} from './types/sessionRequestStatus';
+export { normalizeSessionRequestStatusSnapshot } from './types/sessionRequestStatus';
 
 export { CONNECTIONS_STORAGE_KEY, loadConnections, saveConnections } from './connections/store';
 export {

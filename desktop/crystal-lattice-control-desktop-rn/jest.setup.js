@@ -42,21 +42,24 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     notificationExpectedRevision,
     selectSessionNotifications,
   } = jest.requireActual('@crystal-lattice/frontend-sdk');
+  const markdownDisplayPreferences = jest.requireActual(
+    '../../packages/frontend-rn-components/src/markdownDisplayPreferences',
+  );
+  const {
+    DEFAULT_MARKDOWN_DISPLAY_PREFERENCES: defaultMarkdownDisplayPreferences,
+    DISPLAY_TYPOGRAPHY_PRESETS,
+    MARKDOWN_BASE_FONT_SIZES,
+    applyDisplayTypographyPreset,
+    deriveMarkdownTypography,
+    normalizeMarkdownBaseFontSize,
+    normalizeMarkdownDisplayPreferences,
+    normalizeMarkdownHeaderSize,
+  } = markdownDisplayPreferences;
   const theme = {
-    typography: {
-      fontSize: {
-        tiny: 11,
-        small: 12,
-        secondary: 13,
-        normal: 14,
-        message: 15,
-        large: 16,
-        title: 18,
-        screenTitle: 24,
-        display: 28,
-        code: 14,
-      },
-    },
+    typography:
+      DISPLAY_TYPOGRAPHY_PRESETS[
+        defaultMarkdownDisplayPreferences.baseFontSize
+      ],
     background: '#fff',
     backgroundAlt: '#fff',
     surface: '#fff',
@@ -90,6 +93,11 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     navIconActive: '#007AFF',
     navIconInactive: '#666',
   };
+  const MarkdownDisplayPreferencesContext = React.createContext({
+    preferences: defaultMarkdownDisplayPreferences,
+    setPreferences: () => {},
+  });
+  const ThemeContext = React.createContext(theme);
 
   const ApplicationActionForm = React.forwardRef(({ form }, ref) => {
     const inputs = form && form.kind === 'form' && Array.isArray(form.inputs) ? form.inputs : [];
@@ -145,8 +153,36 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   });
 
   return {
-    ThemeProvider: ({ children }: { children: any }) => React.createElement(React.Fragment, null, children),
-    useTheme: () => theme,
+    ThemeProvider: ({ theme: value, children }: { theme: any; children: any }) =>
+      React.createElement(ThemeContext.Provider, { value }, children),
+    useTheme: () => React.useContext(ThemeContext),
+    DEFAULT_MARKDOWN_DISPLAY_PREFERENCES: defaultMarkdownDisplayPreferences,
+    DISPLAY_TYPOGRAPHY_PRESETS,
+    MARKDOWN_BASE_FONT_SIZES,
+    normalizeMarkdownBaseFontSize,
+    normalizeMarkdownHeaderSize,
+    normalizeMarkdownDisplayPreferences,
+    deriveMarkdownTypography,
+    applyDisplayTypographyPreset,
+    MarkdownDisplayPreferencesProvider: ({ value, onChange, children }) => {
+      const preferences = normalizeMarkdownDisplayPreferences(value);
+      return React.createElement(
+        MarkdownDisplayPreferencesContext.Provider,
+        {
+          value: {
+            preferences,
+            setPreferences: (update) => {
+              const next =
+                typeof update === 'function' ? update(preferences) : update;
+              onChange?.(normalizeMarkdownDisplayPreferences(next));
+            },
+          },
+        },
+        children,
+      );
+    },
+    useMarkdownDisplayPreferences: () =>
+      React.useContext(MarkdownDisplayPreferencesContext),
     DropdownMenuSurface: ({ visible, children }: { visible: boolean; children: any }) =>
       visible ? React.createElement(React.Fragment, null, children) : null,
     SessionListFiltersPanel: ({

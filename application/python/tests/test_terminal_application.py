@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pytest
 from prompt_toolkit.document import Document
-from prompt_toolkit.completion import Completer
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if ROOT not in sys.path:
@@ -166,7 +165,13 @@ async def test_run_terminal_uses_compact_erasing_prompt(
             captured["prompt_kwargs"] = kwargs
             raise EOFError()
 
-    async def _fake_poll_events(app, write, ui_state, poll_interval=0.1) -> None:
+    async def _fake_poll_events(
+        app,
+        write,
+        ui_state,
+        poll_interval=0.1,
+        invalidate=None,
+    ) -> None:
         return None
 
     monkeypatch.setattr(term_mod, "PromptSession", _FakePromptSession)
@@ -531,7 +536,7 @@ def test_set_overrides_and_send_request_uses_them(
     )
 
     # Create a session and update an override via the application.
-    session = term_app.start_new_session(agent_id="default")
+    term_app.start_new_session(agent_id="default")
     updated = term_app.update_override("reasoning_effort", "high")
 
     overrides = updated.metadata.get("overrides") or {}

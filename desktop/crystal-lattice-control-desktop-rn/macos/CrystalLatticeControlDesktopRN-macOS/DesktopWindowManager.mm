@@ -62,7 +62,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"markdownBaseFontSizeChanged", @"markdownHeaderSizeChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
 }
 
 - (void)startObserving
@@ -75,6 +75,16 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleSessionsFollowActiveTabDidChange:)
                                                name:CLCSessionsFollowActiveTabDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleMarkdownBaseFontSizeDidChange:)
+                                               name:CLCMarkdownBaseFontSizeDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleMarkdownHeaderSizeDidChange:)
+                                               name:CLCMarkdownHeaderSizeDidChangeNotification
                                              object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
@@ -113,6 +123,14 @@ RCT_EXPORT_MODULE();
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCSessionsFollowActiveTabDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCMarkdownBaseFontSizeDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCMarkdownHeaderSizeDidChangeNotification
                                                 object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
@@ -175,6 +193,26 @@ RCT_EXPORT_MODULE();
   [self sendEventWithName:@"sessionsFollowActiveTabChanged" body:@{ @"enabled" : @(resolved) }];
 }
 
+- (void)handleMarkdownBaseFontSizeDidChange:(NSNotification *)notification
+{
+  NSNumber *baseFontSize = notification.userInfo[CLCMarkdownBaseFontSizeUserInfoKey];
+  if (![baseFontSize isKindOfClass:[NSNumber class]]) {
+    return;
+  }
+  [self sendEventWithName:@"markdownBaseFontSizeChanged"
+                     body:@{ @"baseFontSize" : baseFontSize }];
+}
+
+- (void)handleMarkdownHeaderSizeDidChange:(NSNotification *)notification
+{
+  NSString *headerSize = notification.userInfo[CLCMarkdownHeaderSizeUserInfoKey];
+  if (![headerSize isKindOfClass:[NSString class]]) {
+    return;
+  }
+  [self sendEventWithName:@"markdownHeaderSizeChanged"
+                     body:@{ @"headerSize" : headerSize }];
+}
+
 - (void)handleClearStoredSessionCaches:(__unused NSNotification *)notification
 {
   [self sendEventWithName:@"clearStoredSessionCachesRequested" body:@{}];
@@ -224,6 +262,38 @@ RCT_EXPORT_METHOD(recordProgressiveScrollHarnessState:(NSDictionary *)state)
     return;
   }
   [data writeToFile:@"/tmp/clc-progressive-scroll-harness-state.json" atomically:YES];
+}
+
+RCT_EXPORT_METHOD(recordMarkdownGeometryHarnessState:(NSDictionary *)state)
+{
+  NSMutableDictionary *payload = [NSMutableDictionary dictionary];
+  if ([state isKindOfClass:[NSDictionary class]]) {
+    [payload addEntriesFromDictionary:state];
+  }
+  payload[@"recordedAtMs"] = @((long long)([[NSDate date] timeIntervalSince1970] * 1000));
+
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:&error];
+  if (data == nil || error != nil) {
+    return;
+  }
+  [data writeToFile:@"/tmp/clc-markdown-geometry-harness-state.json" atomically:YES];
+}
+
+RCT_EXPORT_METHOD(recordConnectionsPanelHarnessState:(NSDictionary *)state)
+{
+  NSMutableDictionary *payload = [NSMutableDictionary dictionary];
+  if ([state isKindOfClass:[NSDictionary class]]) {
+    [payload addEntriesFromDictionary:state];
+  }
+  payload[@"recordedAtMs"] = @((long long)([[NSDate date] timeIntervalSince1970] * 1000));
+
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:&error];
+  if (data == nil || error != nil) {
+    return;
+  }
+  [data writeToFile:@"/tmp/clc-connections-panel-harness-state.json" atomically:YES];
 }
 
 RCT_EXPORT_METHOD(readProgressiveScrollHarnessCommand:(RCTPromiseResolveBlock)resolve

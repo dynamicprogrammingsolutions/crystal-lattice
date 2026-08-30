@@ -15,6 +15,7 @@
     "test:integration": "jest --config jest.integration.config.js --runInBand",
     "test:macos-ui": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests",
     "test:macos-ui:session-filters": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/SessionFiltersPopoverUITests",
+    "test:macos-ui:connections": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/ConnectionsPanelUITests",
     "test:macos-ui:transcript-range": "CLC_ENABLE_TRANSCRIPT_RANGE_NAVIGATION_HARNESS=1 FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/TranscriptRangeNavigationUITests",
     "pod-install": "cd macos && pod install && cd .."
   },
@@ -30,7 +31,7 @@
     "react-native-macos": "0.81.8",
     "react-native-markdown-display": "^7.0.2",
     "react-native-safe-area-context": "^5.5.2",
-    "react-native-syntax-highlighter": "^2.1.0",
+    "react-native-syntax-highlighter": "git+https://github.com/ferenci84/react-native-syntax-highlighter.git#feature/native-line-height",
     "react-native-vector-icons": "^10.2.0",
     "react-syntax-highlighter": "^6.1.2"
   },

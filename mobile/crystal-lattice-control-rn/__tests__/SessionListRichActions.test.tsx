@@ -1,7 +1,7 @@
 jest.unmock('@crystal-lattice/frontend-rn-components');
 
 import React from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 
 import {
@@ -9,9 +9,11 @@ import {
   type SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  MARKDOWN_BASE_FONT_SIZES,
   SessionListActionsBar,
   SessionListRichActionControl,
   SessionListRichActionList,
+  applyDisplayTypographyPreset,
 } from '@crystal-lattice/frontend-rn-components';
 
 import { ThemeProvider, lightTheme } from '../src/theme';
@@ -92,8 +94,8 @@ const archiveAction = normalizeSessionListActionElement({
   },
 }).value!;
 
-function wrap(children: React.ReactNode) {
-  return <ThemeProvider theme={lightTheme}>{children}</ThemeProvider>;
+function wrap(children: React.ReactNode, theme = lightTheme) {
+  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
 
 test('renders rich pinned state and routes unpinned list actions through rich presentation', () => {
@@ -190,6 +192,46 @@ test('renders a highlighted rich toggle in its declared header slot', () => {
     ),
   );
   expect(onExecuteAction).toHaveBeenCalledWith(pinAction);
+});
+
+test('uses active semantic metrics for rich labels and textual fallbacks', () => {
+  const largestPreset =
+    MARKDOWN_BASE_FONT_SIZES[MARKDOWN_BASE_FONT_SIZES.length - 1];
+  const theme = applyDisplayTypographyPreset(lightTheme, largestPreset);
+  const list = render(
+    wrap(
+      <SessionListRichActionControl
+        element={statusAction}
+        session={session}
+        placement="actions_bar"
+        onExecuteAction={jest.fn()}
+        onPresentRichList={jest.fn()}
+      />,
+      theme,
+    ),
+  );
+  expect(StyleSheet.flatten(list.getByText('Done').props.style)).toMatchObject({
+    fontSize: theme.typography.fontSize.small,
+    lineHeight: theme.typography.lineHeight.small,
+  });
+  list.unmount();
+
+  const fallback = render(
+    wrap(
+      <SessionListRichActionControl
+        element={pinAction}
+        session={session}
+        placement="header_trailing"
+        onExecuteAction={jest.fn()}
+        onPresentRichList={jest.fn()}
+      />,
+      theme,
+    ),
+  );
+  expect(StyleSheet.flatten(fallback.getByText('●').props.style)).toMatchObject({
+    fontSize: theme.typography.fontSize.normal,
+    lineHeight: theme.typography.lineHeight.normal,
+  });
 });
 
 test('keeps a header-only action out of the action bar and renders a dual-placement action once', () => {

@@ -1,16 +1,59 @@
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import type {
-  AgentBackend,
-  ExecuteActionResponse,
-  SessionSummary,
+import {
+  applicationActionKey,
+  type AgentBackend,
+  type ExecuteActionResponse,
+  type SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
+import {
+  DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+  MARKDOWN_BASE_FONT_SIZES,
+  applyDisplayTypographyPreset,
+} from '@crystal-lattice/frontend-rn-components';
 
-import { ApplicationPluginsProvider } from '../ApplicationPluginsContext';
+import {
+  ApplicationPluginsProvider,
+  useApplicationPlugins,
+} from '../ApplicationPluginsContext';
 import { PinnedActionsProvider } from '../PinnedActionsContext';
 import SessionsScreen from '../SessionsScreen';
 import { ThemeProvider, lightTheme } from '../theme';
+
+const HEADER_ACTIONS_STORAGE_KEY =
+  'clc_pinned_sessions_header_actions_v1:session-list-harness';
+const STRESS_PINNED_HEADER_ACTIONS = [
+  'serverSettings',
+  'refreshSessions',
+  'newSession',
+  applicationActionKey('session_status', 'set_session_status'),
+  applicationActionKey('session_pinned', 'toggle_session_pinned'),
+  applicationActionKey('session_archive', 'toggle_session_archived'),
+];
+const LONG_CONNECTION_NAME =
+  'Codex Remote - ai-agent-platform connection with extended name';
+
+function HarnessReadyRoot({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const { applicationActions = [] } = useApplicationPlugins();
+  return (
+    <View
+      style={styles.root}
+      testID={
+        applicationActions.length >= 3
+          ? 'session-list-harness-ready'
+          : 'session-list-harness-loading'
+      }
+    >
+      {children}
+    </View>
+  );
+}
 
 const SESSION_SUMMARIES: SessionSummary[] = [
   {
@@ -117,6 +160,33 @@ function createHarnessBackend(
       },
     ],
     listApplicationUiSchema: async () => [
+      {
+        ui_type: 'application_action',
+        plugin: 'session_status',
+        id: 'set_session_status',
+        action_id: 'set_session_status',
+        label: 'Set status',
+        icon: 'check-circle',
+        order: 10,
+      },
+      {
+        ui_type: 'application_action',
+        plugin: 'session_pinned',
+        id: 'toggle_session_pinned',
+        action_id: 'toggle_session_pinned',
+        label: 'Toggle pin',
+        icon: 'star',
+        order: 20,
+      },
+      {
+        ui_type: 'application_action',
+        plugin: 'session_archive',
+        id: 'toggle_session_archived',
+        action_id: 'toggle_session_archived',
+        label: 'Toggle archive',
+        icon: 'archive',
+        order: 30,
+      },
       {
         ui_type: 'session_list_filter',
         plugin: 'session_list_harness',
@@ -362,24 +432,50 @@ function createHarnessBackend(
   } as unknown as AgentBackend;
 }
 
-export function MobileSessionListHarness(): React.JSX.Element {
+interface MobileSessionListHarnessProps {
+  clcDisplayPreset?: string;
+}
+
+export function MobileSessionListHarness({
+  clcDisplayPreset,
+}: MobileSessionListHarnessProps): React.JSX.Element {
   const [submittedValue, setSubmittedValue] = useState('none');
+  const [headerPinsReady, setHeaderPinsReady] = useState(false);
   const backend = useMemo(
     () => createHarnessBackend(setSubmittedValue),
     [],
   );
+  const theme = useMemo(() => {
+    const baseFontSize =
+      clcDisplayPreset === 'largest'
+        ? MARKDOWN_BASE_FONT_SIZES[MARKDOWN_BASE_FONT_SIZES.length - 1]
+        : DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.baseFontSize;
+    return applyDisplayTypographyPreset(lightTheme, baseFontSize);
+  }, [clcDisplayPreset]);
+
+  useEffect(() => {
+    AsyncStorage.setItem(
+      HEADER_ACTIONS_STORAGE_KEY,
+      JSON.stringify(STRESS_PINNED_HEADER_ACTIONS),
+    ).finally(() => setHeaderPinsReady(true));
+  }, []);
+
+  if (!headerPinsReady) {
+    return <ActivityIndicator testID="session-list-harness-loading" />;
+  }
 
   return (
-    <ThemeProvider theme={lightTheme}>
+    <ThemeProvider theme={theme}>
       <PinnedActionsProvider>
         <ApplicationPluginsProvider
           backend={backend}
           connectionId="session-list-harness"
         >
-          <View style={styles.root} testID="session-list-harness-ready">
+          <HarnessReadyRoot>
             <SessionsScreen
               backend={backend}
               connectionId="session-list-harness"
+              connectionName={LONG_CONNECTION_NAME}
               cachedSessions={SESSION_SUMMARIES}
               lastLoadedAt={1}
               isActive
@@ -392,7 +488,7 @@ export function MobileSessionListHarness(): React.JSX.Element {
             >
               {submittedValue}
             </Text>
-          </View>
+          </HarnessReadyRoot>
         </ApplicationPluginsProvider>
       </PinnedActionsProvider>
     </ThemeProvider>

@@ -76,6 +76,9 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
                 <TouchableOpacity
                   key={opt.value}
                   style={styles.item}
+                  accessibilityRole="button"
+                  accessibilityLabel={opt.label}
+                  testID={`options-picker-option-${opt.value}`}
                   onPress={() => handleSelect(opt.value)}
                 >
                   <Text style={styles.itemText} numberOfLines={2}>
@@ -86,6 +89,9 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
             </ScrollView>
             <TouchableOpacity
               style={[styles.button, styles.secondaryButton]}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel option selection"
+              testID="options-picker-cancel"
               onPress={handleClose}
             >
               <Text style={styles.buttonTextSecondary}>Cancel</Text>
@@ -128,7 +134,8 @@ const createStyles = (theme: Theme) =>
       borderRadius: 8,
       paddingHorizontal: 10,
       paddingVertical: 8,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
       backgroundColor: theme.surface,
       marginBottom: 8,
@@ -144,7 +151,8 @@ const createStyles = (theme: Theme) =>
       borderBottomColor: theme.border,
     },
     itemText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
     },
     button: {
@@ -158,7 +166,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surfaceAlt,
     },
     buttonTextSecondary: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
       color: theme.text,
     },

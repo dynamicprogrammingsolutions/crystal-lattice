@@ -30,6 +30,7 @@ export interface PanelModalFrameProps {
   contentStyle?: StyleProp<ViewStyle>;
   bodyStyle?: StyleProp<ViewStyle>;
   scrollContentStyle?: StyleProp<ViewStyle>;
+  testID?: string;
 }
 
 const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
@@ -47,6 +48,7 @@ const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
   contentStyle,
   bodyStyle,
   scrollContentStyle,
+  testID,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -57,10 +59,17 @@ const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
       onRequestClose={onRequestClose}
       overlayChildren={overlayChildren}
       contentStyle={contentStyle}
+      testID={testID}
     >
       <View style={styles.headerRow}>
         <Text style={styles.titleText}>{title}</Text>
-        <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
+        <TouchableOpacity
+          style={styles.closeButton}
+          accessibilityRole="button"
+          accessibilityLabel={`Close ${title}`}
+          testID={testID ? `${testID}-close` : undefined}
+          onPress={onRequestClose}
+        >
           <Text style={styles.closeButtonText}>Close</Text>
         </TouchableOpacity>
       </View>

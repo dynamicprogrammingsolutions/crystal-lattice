@@ -71,7 +71,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: theme.surfaceAlt,
     },
     rowButtonText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '600',
       color: theme.text,
     },

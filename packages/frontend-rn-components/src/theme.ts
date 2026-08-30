@@ -14,6 +14,18 @@ export interface Theme {
       display: number;
       code: number;
     };
+    lineHeight: {
+      tiny: number;
+      small: number;
+      secondary: number;
+      normal: number;
+      message: number;
+      large: number;
+      title: number;
+      screenTitle: number;
+      display: number;
+      code: number;
+    };
   };
   background: string;
   backgroundAlt: string;
@@ -63,6 +75,18 @@ const defaultLightTheme: Theme = {
       screenTitle: 24,
       display: 28,
       code: 14,
+    },
+    lineHeight: {
+      tiny: 15,
+      small: 17,
+      secondary: 18,
+      normal: 20,
+      message: 21,
+      large: 22,
+      title: 24,
+      screenTitle: 30,
+      display: 34,
+      code: 19,
     },
   },
   background: '#F2F2F7',
