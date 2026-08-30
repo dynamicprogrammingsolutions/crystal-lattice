@@ -19,6 +19,7 @@ export interface SessionActionsBarProps {
   isActionDisabled?: (action: SessionActionKey) => boolean;
   extraActions?: SessionActionDefinition[];
   availableActions?: SessionActionKey[];
+  maxPinnedActionsForBar?: number;
   isActive?: boolean;
 
   title?: string;
@@ -42,6 +43,7 @@ export function SessionActionsBar({
   isActionDisabled,
   extraActions,
   availableActions,
+  maxPinnedActionsForBar,
   isActive,
   title,
   variant,
@@ -61,6 +63,7 @@ export function SessionActionsBar({
       baseActions={ALL_SESSION_ACTIONS}
       extraActions={extraActions}
       availableActions={availableActions}
+      maxPinnedActionsForBar={maxPinnedActionsForBar}
       pinned={pinned}
       onChangePinned={onChangePinned}
       onAction={onAction}

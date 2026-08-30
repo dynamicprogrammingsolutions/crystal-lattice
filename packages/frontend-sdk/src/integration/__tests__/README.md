@@ -10,6 +10,7 @@ you intentionally want integration or e2e coverage.
 
 ```bash
 npm run integration:backend
+npm run integration:session-status
 npm run integration:action-display-forms
 npm run integration:website-runtime-ui
 npm run integration:cloud -- -t "routes two cloud sessions"
@@ -37,6 +38,7 @@ forwarded after `--`.
 | Local backend | `npm run integration:action-display-forms` | Dummy action display embedded form flow through SDK `runApplicationAction`. |
 | Local backend | `npm run integration:website-runtime-ui` | Canonical website config and promoted UI fixture through FastAPI, `FetchTransport`, and `RestAgentBackend`. |
 | Local backend | `npm run integration:backend` | `backend.integration.test.ts` with deterministic local providers. |
+| Local backend | `npm run integration:session-status` | Explicit-ID request status through real FastAPI, HTTP transport, and `RestAgentBackend`. |
 | Hosted API | `npm run integration:backend:openai` | OpenAI Responses attachment integration; requires `OPENAI_API_KEY`. |
 | Hosted API | `npm run integration:backend:openrouter` | OpenRouter chat attachment integration; requires `OPENROUTER_API_KEY`. |
 | Hosted API | `npm run integration:backend:openrouter-images` | OpenRouter image-generation attachment integration; requires `OPENROUTER_API_KEY`. |
@@ -137,6 +139,14 @@ Tests:
 - `M: expired snapshot cursor does not trigger a /messages reload loop`
 - `N: reload and polling timing matrix stays clean during delayed persistence`
 - `O: tool-loop reopen matrix stays aligned across delayed checkpoint publication`
+
+### `sessionRequestStatus.integration.test.ts`
+
+Selected by `npm run integration:session-status`.
+
+Starts an isolated real FastAPI backend and verifies the explicit-ID status
+projection through `FetchTransport` and `RestAgentBackend`, including idle,
+missing, not-started, running, and completed behavior.
 
 Example:
 

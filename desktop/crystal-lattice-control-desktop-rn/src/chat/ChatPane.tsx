@@ -3676,13 +3676,15 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
     },
     title: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '700',
       color: theme.text,
       flexShrink: 1,
     },
     subtitle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       flexShrink: 1,
     },
@@ -3693,12 +3695,14 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: 6,
     },
     metaText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
       fontWeight: '600',
     },
     metaDot: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
       marginTop: -1,
     },
@@ -3713,7 +3717,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       alignItems: 'center',
       justifyContent: 'center',
       padding: 20,
-      backgroundColor: 'rgba(0,0,0,0.4)',
+      backgroundColor: theme.modalBackdrop,
     },
     modalContent: {
       width: 360,
@@ -3731,7 +3735,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       color: theme.text,
     },
     modalSubtitle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     rangeRow: {
@@ -3743,7 +3748,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: 6,
     },
     rangeLabel: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '700',
       color: theme.textSecondary,
     },
@@ -3755,7 +3761,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingHorizontal: 10,
       paddingVertical: 8,
       color: theme.text,
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
     },
     modalButtonsRow: {
       flexDirection: 'row',
@@ -3781,17 +3788,20 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       opacity: 0.85,
     },
     modalButtonSecondaryText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '700',
       color: theme.text,
     },
     modalButtonPrimaryText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '800',
       color: theme.textOnPrimary,
     },
     modalHelperText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
     },
     body: {
@@ -3818,13 +3828,14 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingHorizontal: 10,
       paddingVertical: 8,
       borderRadius: 10,
-      backgroundColor: 'rgba(255, 0, 0, 0.08)',
+      backgroundColor: theme.dangerMuted,
       borderWidth: separatorWidth,
       borderColor: theme.border,
     },
     errorText: {
       flex: 1,
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.text,
     },
     retryButton: {
@@ -3839,7 +3850,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       opacity: 0.8,
     },
     retryButtonText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '600',
       color: theme.primary,
     },
@@ -3886,7 +3898,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       opacity: 0.45,
     },
     transcriptRangeControlText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '700',
       color: theme.primary,
     },
@@ -3924,7 +3937,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingTop: 8,
     },
     sessionStatusBarText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
     },
@@ -4015,7 +4029,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       opacity: 0.85,
     },
     sendButtonText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '700',
       color: theme.primary,
     },
@@ -4028,25 +4043,30 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: 6,
     },
     messageRowAssistant: {
-      backgroundColor: 'rgba(120, 120, 120, 0.12)',
+      backgroundColor: theme.bubbleToolBg,
     },
     messageMeta: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       fontWeight: '600',
       color: theme.textSecondary,
     },
     messageText: {
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
     },
     hint: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
     },
     hintSecondary: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
   });
 }
+
+export { createStyles as createChatPaneStyles };

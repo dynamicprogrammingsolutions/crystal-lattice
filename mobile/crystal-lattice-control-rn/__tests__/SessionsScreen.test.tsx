@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, screen } from '@testing-library/react-native';
 
 import {
@@ -7,6 +8,11 @@ import {
   normalizeSessionListFilterSchema,
   type SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
+import {
+  ACTIONS_MENU_BAR_ITEM_WIDTH,
+  MARKDOWN_BASE_FONT_SIZES,
+  applyDisplayTypographyPreset,
+} from '@crystal-lattice/frontend-rn-components';
 import {
   useAgentsController,
   useHydrateControllerFromCache,
@@ -17,7 +23,9 @@ import {
   useApplicationPlugins,
   useApplicationPluginsContext,
 } from '../src/ApplicationPluginsContext';
-import SessionsScreen from '../src/SessionsScreen';
+import SessionsScreen, {
+  createSessionsScreenStyles,
+} from '../src/SessionsScreen';
 import { renderWithMobileProviders } from '../src/testUtils/renderWithMobileProviders';
 import { ThemeProvider, lightTheme } from '../src/theme';
 
@@ -57,10 +65,13 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   return {
     __esModule: true,
     ...actual,
-    ActionsMenuBar: ({ baseActions }: any) =>
+    ActionsMenuBar: ({ baseActions, maxPinnedActionsForBar }: any) =>
       ReactModule.createElement(
         View,
-        { testID: 'mock-sessions-actions-menu' },
+        {
+          testID: 'mock-sessions-actions-menu',
+          maxPinnedActionsForBar,
+        },
         (baseActions || []).map((action: any) =>
           ReactModule.createElement(
             Text,
@@ -249,11 +260,15 @@ function applicationPluginsResult(
   };
 }
 
-function renderScreen(connectionId = 'component-test') {
+function renderScreen(
+  connectionId = 'component-test',
+  connectionName = 'Component connection',
+) {
   return renderWithMobileProviders(
     <SessionsScreen
       backend={{ kind: 'test' } as any}
       connectionId={connectionId}
+      connectionName={connectionName}
       cachedSessions={SESSION_SUMMARIES}
       lastLoadedAt={1}
       isActive
@@ -320,6 +335,13 @@ test('hosts screen-independent application actions in the Sessions header', () =
 
   renderScreen();
 
+  expect(screen.getByTestId('sessions-screen-title').props.children).toBe(
+    'Component connection',
+  );
+  expect(
+    screen.getByTestId('mock-sessions-actions-menu').props
+      .maxPinnedActionsForBar,
+  ).toBeGreaterThan(0);
   expect(screen.getByTestId('mock-sessions-actions-menu')).toBeTruthy();
   expect(screen.getByTestId('mock-sessions-action-serverSettings').props.children).toBe(
     'Server settings',
@@ -337,6 +359,14 @@ test('hosts screen-independent application actions in the Sessions header', () =
   ).toBe('Reload application');
 });
 
+test('falls back to the Sessions title when a connection name is unavailable', () => {
+  renderScreen('component-test', '');
+
+  expect(screen.getByTestId('sessions-screen-title').props.children).toBe(
+    'Sessions',
+  );
+});
+
 test('renders application-derived presentation in server order', () => {
   renderScreen();
 
@@ -351,7 +381,56 @@ test('renders application-derived presentation in server order', () => {
   expect(screen.getByTestId('session-meta-server-first').props.children).toBe(
     'Server first meta · Status: Done',
   );
+  expect(screen.getByTestId('session-id-server-first').props.children).toBe(
+    'server-first',
+  );
+  expect(
+    screen.getByTestId('session-preview-server-second').props.children,
+  ).toBe('conflicting second preview');
   expect(screen.queryByText('Local first title')).toBeNull();
+});
+
+test('maps mobile session-card text to the active semantic preset', () => {
+  const largestPreset =
+    MARKDOWN_BASE_FONT_SIZES[MARKDOWN_BASE_FONT_SIZES.length - 1];
+  const theme = applyDisplayTypographyPreset(lightTheme, largestPreset);
+  const styles = createSessionsScreenStyles(theme);
+
+  expect(StyleSheet.flatten(styles.sessionTitle)).toMatchObject({
+    fontSize: theme.typography.fontSize.large,
+    lineHeight: theme.typography.lineHeight.large,
+  });
+  expect(StyleSheet.flatten(styles.sessionSubtitle)).toMatchObject({
+    fontSize: theme.typography.fontSize.normal,
+    lineHeight: theme.typography.lineHeight.normal,
+  });
+  expect(StyleSheet.flatten(styles.sessionPreview)).toMatchObject({
+    fontSize: theme.typography.fontSize.normal,
+    lineHeight: theme.typography.lineHeight.normal,
+  });
+  expect(StyleSheet.flatten(styles.sessionId)).toMatchObject({
+    fontSize: theme.typography.fontSize.small,
+    lineHeight: theme.typography.lineHeight.small,
+  });
+  expect(StyleSheet.flatten(styles.sessionMeta)).toMatchObject({
+    fontSize: theme.typography.fontSize.tiny,
+    lineHeight: theme.typography.lineHeight.tiny,
+  });
+  expect(StyleSheet.flatten(styles.screenTitle).marginLeft).toBe(
+    StyleSheet.flatten(styles.sessionItem).padding +
+      StyleSheet.flatten(styles.sessionItem).borderWidth,
+  );
+  expect(StyleSheet.flatten(styles.screenTitle)).toMatchObject({
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  });
+  expect(StyleSheet.flatten(styles.headerButtons).minWidth).toBe(
+    ACTIONS_MENU_BAR_ITEM_WIDTH,
+  );
+  expect(StyleSheet.flatten(styles.input).paddingHorizontal).toBe(
+    StyleSheet.flatten(styles.sessionItem).padding,
+  );
 });
 
 test('opens the ordinary form when malformed rich UI falls back', () => {

@@ -159,12 +159,14 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       gap: 2,
     },
     title: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '700',
       color: theme.text,
     },
     subtitle: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
     },
     menuButton: {
@@ -181,7 +183,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surfaceAlt,
     },
     menuButtonText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '700',
       color: theme.text,
     },
@@ -196,8 +199,11 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surfaceAlt,
     },
     menuItemText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.text,
     },
   });
 }
+
+export { createStyles as createPanelHeaderStyles };

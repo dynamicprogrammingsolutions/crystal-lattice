@@ -288,7 +288,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: 1,
     },
     tabTitle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: toolbarTabs ? '700' : '600',
       color: theme.text,
     },
@@ -296,7 +297,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       color: theme.text,
     },
     tabMeta: {
-      fontSize: 10,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
     },
     closeButton: {
@@ -313,10 +315,10 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       backgroundColor: theme.surfaceAlt,
     },
     closeButtonText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
       fontWeight: '600',
       color: theme.textSecondary,
-      lineHeight: 14,
+      lineHeight: theme.typography.lineHeight.normal,
     },
     closeButtonTextDim: {
       color: theme.textSecondary,
@@ -336,7 +338,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       backgroundColor: theme.surfaceAlt,
     },
     menuButtonText: {
-      fontSize: 18,
+      fontSize: theme.typography.fontSize.title,
+      lineHeight: theme.typography.lineHeight.title,
       fontWeight: '600',
       color: theme.text,
       marginTop: -2,
@@ -352,8 +355,11 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       backgroundColor: theme.surfaceAlt,
     },
     menuItemText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.text,
     },
   });
 }
+
+export { createStyles as createSessionTabsStyles };

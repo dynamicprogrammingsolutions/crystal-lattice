@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -8,12 +8,12 @@ import {
   View,
   type StyleProp,
   type ViewStyle,
-} from 'react-native';
+} from "react-native";
 
-import CenteredModalSurface from './CenteredModalSurface';
-import { useTheme, type Theme } from '../theme';
+import CenteredModalSurface from "./CenteredModalSurface";
+import { useTheme, type Theme } from "../theme";
 
-export type PanelModalStatusTone = 'idle' | 'busy' | 'success' | 'error';
+export type PanelModalStatusTone = "idle" | "busy" | "success" | "error";
 
 export interface PanelModalFrameProps {
   visible: boolean;
@@ -44,7 +44,7 @@ const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
   children,
   overlayChildren,
   statusText,
-  statusTone = 'idle',
+  statusTone = "idle",
   showSpinner = false,
   scroll = false,
   scrollTestID,
@@ -67,23 +67,31 @@ const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
         <Text testID={titleTestID} style={styles.titleText}>
           {title}
         </Text>
-        <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
+        <TouchableOpacity
+          style={styles.closeButton}
+          accessibilityRole="button"
+          accessibilityLabel={`Close ${title}`}
+          testID={testID ? `${testID}-close` : undefined}
+          onPress={onRequestClose}
+        >
           <Text style={styles.closeButtonText}>Close</Text>
         </TouchableOpacity>
       </View>
       {subtitle ? <Text style={styles.subtitleText}>{subtitle}</Text> : null}
-      {(showSpinner || statusText) ? (
+      {showSpinner || statusText ? (
         <View style={styles.statusLine}>
-          {showSpinner ? <ActivityIndicator size="small" color={theme.primary} /> : null}
+          {showSpinner ? (
+            <ActivityIndicator size="small" color={theme.primary} />
+          ) : null}
           {statusText ? (
             <Text
               style={[
                 styles.statusText,
-                statusTone === 'error'
+                statusTone === "error"
                   ? styles.statusTextError
-                  : statusTone === 'success'
-                    ? styles.statusTextSuccess
-                    : null,
+                  : statusTone === "success"
+                  ? styles.statusTextSuccess
+                  : null,
               ]}
               numberOfLines={1}
             >
@@ -113,9 +121,9 @@ const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
     headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       paddingHorizontal: 16,
       paddingVertical: 12,
       borderBottomWidth: StyleSheet.hairlineWidth,
@@ -125,7 +133,7 @@ const createStyles = (theme: Theme) =>
       flex: 1,
       color: theme.text,
       fontSize: theme.typography.fontSize.title,
-      fontWeight: '600',
+      fontWeight: "600",
       marginRight: 12,
     },
     closeButton: {
@@ -135,7 +143,7 @@ const createStyles = (theme: Theme) =>
     closeButtonText: {
       color: theme.primary,
       fontSize: theme.typography.fontSize.normal,
-      fontWeight: '600',
+      fontWeight: "600",
     },
     subtitleText: {
       paddingHorizontal: 16,
@@ -144,8 +152,8 @@ const createStyles = (theme: Theme) =>
       fontSize: theme.typography.fontSize.small,
     },
     statusLine: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 10,
       minHeight: 22,
       paddingHorizontal: 16,
@@ -158,11 +166,11 @@ const createStyles = (theme: Theme) =>
     },
     statusTextError: {
       color: theme.danger,
-      fontWeight: '600',
+      fontWeight: "600",
     },
     statusTextSuccess: {
       color: theme.success,
-      fontWeight: '600',
+      fontWeight: "600",
     },
     body: {
       flexGrow: 0,

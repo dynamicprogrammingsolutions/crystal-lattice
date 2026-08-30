@@ -170,6 +170,7 @@ export class HttpBridgeTransport {
     headers?: Record<string, string>;
     body?: any;
     timeoutMs?: number;
+    signal?: AbortSignal;
   }): Promise<{ status: number; data: T }> {
     if (!this.pairingToken || !this.serverId) {
       throw new Error('Not paired with any server');
@@ -212,6 +213,7 @@ export class HttpBridgeTransport {
       },
       timeoutMs,
       `HTTP ${req.method} ${req.path}`,
+      req.signal,
     );
     return await this.parseResponse<T>(response, req.method, req.path);
   }
@@ -262,13 +264,20 @@ export class HttpBridgeTransport {
     init: RequestInit,
     timeoutMs: number | undefined,
     context: string,
+    externalSignal?: AbortSignal,
   ): Promise<Response> {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let didTimeout = false;
+    const abortFromExternal = () => controller?.abort();
     if (controller) {
       this.activeControllers.add(controller);
       init.signal = controller.signal;
+      if (externalSignal?.aborted) {
+        controller.abort();
+      } else {
+        externalSignal?.addEventListener('abort', abortFromExternal);
+      }
       if (typeof timeoutMs === 'number') {
         timeoutId = setTimeout(() => {
           didTimeout = true;
@@ -285,6 +294,7 @@ export class HttpBridgeTransport {
       }
       throw error;
     } finally {
+      externalSignal?.removeEventListener('abort', abortFromExternal);
       if (timeoutId) {
         clearTimeout(timeoutId);
       }

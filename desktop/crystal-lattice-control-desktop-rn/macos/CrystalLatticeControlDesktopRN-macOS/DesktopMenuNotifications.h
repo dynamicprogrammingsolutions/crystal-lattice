@@ -7,6 +7,14 @@ static NSNotificationName const CLCSessionsFollowActiveTabDidChangeNotification 
     @"CrystalLattice.SessionsFollowActiveTabDidChange";
 static NSString *const CLCSessionsFollowActiveTabEnabledUserInfoKey = @"enabled";
 
+static NSNotificationName const CLCMarkdownBaseFontSizeDidChangeNotification =
+    @"CrystalLattice.MarkdownBaseFontSizeDidChange";
+static NSString *const CLCMarkdownBaseFontSizeUserInfoKey = @"baseFontSize";
+
+static NSNotificationName const CLCMarkdownHeaderSizeDidChangeNotification =
+    @"CrystalLattice.MarkdownHeaderSizeDidChange";
+static NSString *const CLCMarkdownHeaderSizeUserInfoKey = @"headerSize";
+
 static NSNotificationName const CLCClearStoredSessionCachesNotification =
     @"CrystalLattice.ClearStoredSessionCaches";
 

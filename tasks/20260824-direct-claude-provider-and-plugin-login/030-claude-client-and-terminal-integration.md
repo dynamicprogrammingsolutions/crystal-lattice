@@ -1,28 +1,30 @@
-# Claude Client And Terminal Integration
+# Anthropic Client And Terminal Integration
 
-Expose the direct Claude provider and authentication actions consistently in
-mobile, desktop, top-level CLI, and the interactive terminal, then verify the
-complete saved-login request flow.
+Expose the direct Anthropic provider and OAuth actions consistently in mobile,
+desktop, top-level CLI, and the interactive terminal, then verify the complete
+saved-login request flow.
 
 ## Requirements checklist
 
 ### Functional requirements
 
-- [ ] Mobile and desktop show appropriate Claude login, status, cancel, and
-  logout actions for direct-Claude configurations.
-- [ ] The Claude auth plugin contributes top-level and interactive terminal
+- [ ] Mobile and desktop show appropriate Anthropic OAuth login, status,
+  cancel, and logout actions for direct `anthropic` configurations.
+- [ ] The Anthropic auth plugin contributes top-level and interactive terminal
   command bindings.
-- [ ] Generic `/action` can invoke the same Claude actions.
+- [ ] Generic `/action` can invoke the same Anthropic actions.
 - [ ] Login completion invalidates or refreshes affected provider/action state
   without requiring an unrelated user message.
-- [ ] A saved login can be used for an ordinary and tool-enabled request from
-  each supported application entrypoint.
-- [ ] OpenRouter Claude configurations do not show misleading direct-Claude
+- [ ] A saved OAuth login can be used for an ordinary and tool-enabled request
+  from each supported application entrypoint.
+- [ ] API-key configurations remain usable without OAuth actions.
+- [ ] OpenRouter Claude configurations do not show misleading direct-Anthropic
   authentication requirements.
 
 ### Non-functional requirements
 
-- [ ] Frontends contain no Claude protocol or token-exchange implementation.
+- [ ] Frontends contain no Anthropic protocol or token-exchange
+  implementation.
 - [ ] All entrypoints execute the same plugin actions and render the standard
   action-display contract.
 - [ ] Deep-link and command routing preserve connection/session ownership.
@@ -45,28 +47,30 @@ Depends On:
 Status: Draft
 
 Add provider/config-aware UI declarations and plugin command descriptors to the
-Claude auth plugin. Route every frontend through existing action runners and
-generic deep-link handling. Use real backend component/integration harnesses to
-prove that saved credentials become visible to the direct provider after
+Anthropic auth plugin. Route every frontend through existing action runners
+and generic deep-link handling. Use real backend component/integration
+harnesses to prove that saved credentials become visible to the provider after
 login, refresh, and reconnect.
 
-Keep visual work limited to standard action/dialog/notification components. Any
-need for Claude-specific frontend state or components is a scope boundary and
-requires user review.
+Keep visual work limited to standard action/dialog/notification components.
+Any need for Anthropic-specific frontend protocol state or components is a
+scope boundary and requires user review.
 
 ### Implementation decisions and open questions
 
-- Decision: direct-Claude configuration controls action visibility.
+- Decision: direct `anthropic` configuration and effective auth mode control
+  action visibility.
 - Decision: command names are plugin-owned bindings under the generic command
   contract.
-- Open: exact user-facing naming depends on whether one or multiple credential
-  modes ship.
+- Decision: API-key configurations do not require or advertise OAuth login.
+- Open: finalize user-facing command names with the OAuth plugin plan.
 
 ### Documentation
 
 - Update mobile, desktop, terminal, and provider quickstarts with one shared
-  login/status/logout workflow.
-- Document OpenRouter versus direct-Claude selection clearly.
+  OAuth login/status/logout workflow.
+- Document API-key, OAuth, Anthropic-compatible, and OpenRouter selection
+  clearly.
 
 ### Task checklist
 
@@ -76,15 +80,16 @@ requires user review.
 - [ ] Add backend and SDK integration tests.
 - [ ] Add mobile and desktop component/native tests.
 - [ ] Run terminal and real-provider smoke tests.
-- [ ] Complete manual mobile/desktop login and request checkpoints.
+- [ ] Complete manual mobile/desktop OAuth and request checkpoints.
 - [ ] Update user documentation.
 
 ### Requirement verification
 
-- Each frontend can start login, observe status, cancel, and logout.
+- Each frontend can start OAuth login, observe status, cancel, and logout.
 - Top-level command, slash command, and `/action` invoke the same action.
 - Saved credentials support a subsequent real direct-provider request.
-- OpenRouter configurations remain free of direct-auth prompts.
+- API-key and OpenRouter configurations remain free of misleading OAuth
+  prompts.
 
 ### Additional implementation verification
 

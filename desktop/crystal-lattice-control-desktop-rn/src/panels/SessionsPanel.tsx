@@ -1178,7 +1178,11 @@ function SessionsPanelInner({
                       />
                     ) : null}
                   </View>
-                  <Text style={styles.rowId} numberOfLines={1}>
+                  <Text
+                    style={styles.rowId}
+                    numberOfLines={1}
+                    testID={`session-id-${session.session_id}`}
+                  >
                     {session.session_id}
                   </Text>
                   <Text
@@ -1322,7 +1326,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       borderRadius: 10,
       paddingHorizontal: 10,
       paddingVertical: 7,
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.text,
       backgroundColor: theme.backgroundAlt,
     },
@@ -1348,7 +1353,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       right: 2,
       top: 0,
       color: theme.primary,
-      fontSize: 9,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       fontWeight: '900',
     },
     filterWarning: {
@@ -1357,7 +1363,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       borderBottomWidth: separatorWidth,
       borderBottomColor: theme.border,
       color: theme.danger,
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
     },
     newButton: {
       borderWidth: separatorWidth,
@@ -1377,7 +1384,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surfaceAlt,
     },
     newButtonText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '800',
       color: theme.textOnPrimary,
     },
@@ -1391,13 +1399,15 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       borderBottomColor: theme.border,
     },
     loadingText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     errorText: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.danger,
     },
     list: {
@@ -1431,22 +1441,26 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       gap: 8,
     },
     rowTitle: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '700',
       color: theme.text,
       flexGrow: 1,
       flexShrink: 1,
     },
     rowId: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     rowSubtitle: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.textSecondary,
     },
     rowMeta: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
     },
     rowRight: {
@@ -1470,7 +1484,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       opacity: 1,
     },
     openButtonText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       fontWeight: '700',
       color: theme.primary,
     },
@@ -1489,7 +1504,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surfaceAlt,
     },
     pinButtonText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '800',
     },
     empty: {
@@ -1497,11 +1513,13 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       gap: 4,
     },
     emptyText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     emptyMeta: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
     },
     loadMoreContainer: {
@@ -1527,9 +1545,12 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surface,
     },
     loadMoreButtonText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '600',
       color: theme.textSecondary,
     },
   });
 }
+
+export { createStyles as createSessionsPanelStyles };

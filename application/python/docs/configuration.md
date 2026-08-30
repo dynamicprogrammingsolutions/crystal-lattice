@@ -4,6 +4,8 @@ This page explains how to configure plugins in the application. It covers the `p
 
 ## Overview
 
+- Terminal presentation and application-owned UI settings are documented in
+  the [terminal guide](terminal.md#terminal-configuration).
 - top-level `plugins`: global plugin package specs shared by all agents.
 - top-level `mixins`: reusable config fragments that can be applied to providers and agents.
 - provider-level `plugins`: additional plugin package specs for agents using that provider config.

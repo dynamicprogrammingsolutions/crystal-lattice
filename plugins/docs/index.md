@@ -15,6 +15,7 @@ They are deliberately absent from production default configuration.
 
 - [Notifications and action displays](notifications-and-action-displays.md)
 - [Provider plugins](provider-plugins.md)
+- [Provider implementation standard](provider-implementation-standard/index.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Feature plugins](feature-plugins.md)
 - [Application plugins](application-plugins.md)

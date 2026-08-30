@@ -13,6 +13,8 @@ import { MobileNotificationBannerHarness } from "./src/testing/MobileNotificatio
 import { MobileSelectableCodeBlockHarness } from "./src/testing/MobileSelectableCodeBlockHarness";
 import { MobileOrderedListMarkdownHarness } from "./src/testing/MobileOrderedListMarkdownHarness";
 import { MobileNotificationUiEffectsHarness } from "./src/testing/MobileNotificationUiEffectsHarness";
+import { MobileConnectionsSettingsHarness } from "./src/testing/MobileConnectionsSettingsHarness";
+import { MobileHomeHarness } from "./src/testing/MobileHomeHarness";
 import { MobileWebsiteVisualHarness } from "./src/testing/MobileWebsiteVisualHarness";
 import { name as appName } from "./app.json";
 
@@ -34,9 +36,18 @@ const RootComponent = (props) => {
     Component = MobileNotificationUiEffectsHarness;
   } else if (props?.clcWebsiteVisualHarness === "1") {
     Component = MobileWebsiteVisualHarness;
+  } else if (props?.clcConnectionsSettingsHarness === "1") {
+    Component = MobileConnectionsSettingsHarness;
+  } else if (props?.clcHomeHarness === "1") {
+    Component = MobileHomeHarness;
   }
   return React.createElement(Component, props);
 };
+
+const MobileSessionListLargestPresetHarness = () =>
+  React.createElement(MobileSessionListHarness, {
+    clcDisplayPreset: "largest",
+  });
 
 AppRegistry.registerComponent(appName, () => RootComponent);
 AppRegistry.registerComponent(
@@ -50,6 +61,10 @@ AppRegistry.registerComponent(
 AppRegistry.registerComponent(
   "MobileSessionListHarness",
   () => MobileSessionListHarness
+);
+AppRegistry.registerComponent(
+  "MobileSessionListLargestPresetHarness",
+  () => MobileSessionListLargestPresetHarness
 );
 AppRegistry.registerComponent(
   "MobileNotificationBannerHarness",
@@ -71,3 +86,8 @@ AppRegistry.registerComponent(
   "MobileWebsiteVisualHarness",
   () => MobileWebsiteVisualHarness
 );
+AppRegistry.registerComponent(
+  "MobileConnectionsSettingsHarness",
+  () => MobileConnectionsSettingsHarness
+);
+AppRegistry.registerComponent("MobileHomeHarness", () => MobileHomeHarness);

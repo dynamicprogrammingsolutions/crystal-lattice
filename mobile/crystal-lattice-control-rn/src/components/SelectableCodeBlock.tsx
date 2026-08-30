@@ -159,7 +159,7 @@ const SelectableCodeBlock: React.FC<SelectableCodeBlockProps> = ({
     () => tokens.map(codeTokenToSelectableToken),
     [tokens],
   );
-  const lineHeight = Math.round(theme.typography.fontSize.code * 1.25);
+  const lineHeight = theme.typography.lineHeight.code;
   const baseCodeColor = colorValueToString(stylesheet.hljs?.color) || theme.text;
   const handleCopyCode = useCallback(() => {
     Clipboard.setString(code);

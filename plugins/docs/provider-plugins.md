@@ -31,6 +31,7 @@ Runtime code references (source of truth):
 
 See also:
 
+- [Provider implementation standard](provider-implementation-standard/index.md)
 - [Tool interop flow](tool-interop.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Configuration schema (`get_config_schema`)](config-schema.md)

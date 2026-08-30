@@ -1,5 +1,15 @@
 import type { ActionDefinition, ActionKey, ActionsMenuModel } from './types';
 
+export function limitPinnedActionsForBar<TDef>(
+  actions: readonly TDef[],
+  maximum: number | undefined,
+): readonly TDef[] {
+  if (maximum == null || !Number.isFinite(maximum)) {
+    return actions;
+  }
+  return actions.slice(0, Math.max(0, Math.floor(maximum)));
+}
+
 export function togglePinnedKey(pinned: readonly ActionKey[], key: ActionKey): ActionKey[] {
   if (pinned.includes(key)) {
     return pinned.filter((k) => k !== key);

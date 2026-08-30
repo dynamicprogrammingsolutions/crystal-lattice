@@ -194,7 +194,8 @@ const createStyles = (theme: Theme) =>
       paddingVertical: 8,
     },
     emptyStateText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.textSecondary,
     },
   });

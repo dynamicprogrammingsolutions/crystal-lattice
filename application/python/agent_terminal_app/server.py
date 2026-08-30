@@ -11,7 +11,7 @@ import threading
 import logging
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from agent_core.utils import get_logger
 
@@ -1975,6 +1975,31 @@ def list_sessions(
     """List shared application-layer session summaries."""
 
     return {"sessions": app_instance.list_session_summaries(limit=limit)}
+
+
+@app.post("/sessions/request-statuses")
+def get_session_request_statuses(
+    payload: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return derived request status for explicitly requested sessions."""
+
+    if "session_ids" not in payload:
+        raise HTTPException(status_code=400, detail="session_ids is required")
+    session_ids = payload.get("session_ids")
+    if not isinstance(session_ids, list):
+        raise HTTPException(
+            status_code=400,
+            detail="session_ids must be a list of non-empty strings",
+        )
+    try:
+        response = app_instance.get_session_request_statuses(session_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        **response,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @app.get("/sessions/{session_id}/summary")

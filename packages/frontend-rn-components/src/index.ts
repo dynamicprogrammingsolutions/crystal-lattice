@@ -9,6 +9,28 @@ export type { Theme } from './theme';
 export { ThemeProvider, useTheme } from './theme';
 
 export type {
+  MarkdownBaseFontSize,
+  MarkdownDisplayPreferences,
+  MarkdownDisplayPreferencesProviderProps,
+  MarkdownHeaderSize,
+  MarkdownTypography,
+} from './markdownDisplayPreferences';
+export {
+  DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+  DISPLAY_TYPOGRAPHY_PRESETS,
+  MARKDOWN_BASE_FONT_SIZES,
+  MARKDOWN_BASE_FONT_SIZE_OPTIONS,
+  MARKDOWN_HEADER_SIZE_OPTIONS,
+  MarkdownDisplayPreferencesProvider,
+  applyDisplayTypographyPreset,
+  deriveMarkdownTypography,
+  normalizeMarkdownBaseFontSize,
+  normalizeMarkdownDisplayPreferences,
+  normalizeMarkdownHeaderSize,
+  useMarkdownDisplayPreferences,
+} from './markdownDisplayPreferences';
+
+export type {
   SessionActionKey,
   SessionActionDefinition,
 } from './sessionActions';
@@ -44,6 +66,7 @@ export { SessionNotificationsHost } from './notifications/SessionNotificationsHo
 
 export {
   buildActionsMenuModel,
+  limitPinnedActionsForBar,
   normalizeActionDefinitions,
   togglePinnedKey,
 } from './actions/model';
@@ -82,7 +105,10 @@ export type { ActionsMenuPanelProps } from './actions/ActionsMenuPanel';
 export { ActionsMenuPanel } from './actions/ActionsMenuPanel';
 
 export type { ActionsMenuBarProps } from './actions/ActionsMenuBar';
-export { ActionsMenuBar } from './actions/ActionsMenuBar';
+export {
+  ACTIONS_MENU_BAR_ITEM_WIDTH,
+  ActionsMenuBar,
+} from './actions/ActionsMenuBar';
 
 export type { SessionActionsBarProps } from './actions/SessionActionsBar';
 export { SessionActionsBar } from './actions/SessionActionsBar';

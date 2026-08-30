@@ -94,6 +94,8 @@ export interface DesktopWindowManagerModule {
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
   recordProgressiveScrollHarnessState?(state: Record<string, unknown>): void;
+  recordMarkdownGeometryHarnessState?(state: Record<string, unknown>): void;
+  recordConnectionsPanelHarnessState?(state: Record<string, unknown>): void;
   readProgressiveScrollHarnessCommand?(): Promise<Record<string, unknown> | null>;
 }
 

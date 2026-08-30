@@ -628,7 +628,8 @@ export default SessionSettingsModal;
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
     helperText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.textSecondary,
       marginBottom: 8,
     },
@@ -660,7 +661,8 @@ const createStyles = (theme: Theme) =>
       flex: 1,
     },
     itemLabel: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '500',
       color: theme.text,
       marginBottom: 2,
@@ -670,7 +672,8 @@ const createStyles = (theme: Theme) =>
       color: theme.textSecondary,
     },
     itemDescription: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     itemDescriptionDisabled: {
@@ -695,11 +698,13 @@ const createStyles = (theme: Theme) =>
       borderColor: theme.border,
     },
     tagTextConfig: {
-      fontSize: 10,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
     },
     tagTextDefault: {
-      fontSize: 10,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
     },
     chipsRow: {
@@ -732,15 +737,18 @@ const createStyles = (theme: Theme) =>
       borderColor: theme.border,
     },
     chipText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.text,
     },
     chipTextSelected: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textOnPrimary,
     },
     chipTextDisabled: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     textRow: {
@@ -756,7 +764,8 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: 8,
       paddingVertical: 4,
       color: theme.text,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       marginRight: 8,
     },
     textInputDisabled: {
@@ -774,7 +783,8 @@ const createStyles = (theme: Theme) =>
     },
     saveButtonText: {
       color: theme.textOnPrimary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     dropdownButtonDisabled: {
@@ -810,12 +820,14 @@ const createStyles = (theme: Theme) =>
       marginTop: 6,
     },
     dropdownButtonLabel: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.textSecondary,
     },
     dropdownButtonValue: {
       flex: 1,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
     },
     readonlyValueBox: {
@@ -828,7 +840,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surfaceAlt,
     },
     readonlyValueText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
     },
   });

@@ -49,6 +49,7 @@ from .config import (
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
 from .session_listing import SessionListFilterEvaluator, SessionListService
+from .session_request_status import SessionRequestStatusService
 from .session_filters import (
     SessionListFilterEngine,
     coerce_session_list_filter_input,
@@ -625,6 +626,10 @@ class AgentApplication:
             operations=self._application_operations,
             new_request_id=self._new_request_id,
             logger=self._logger,
+        )
+        self._session_request_status_service = SessionRequestStatusService(
+            store=self._session_store,
+            get_active_request_id=self.get_active_session_request_id,
         )
 
         # Event compaction controls. These are primarily intended for
@@ -1972,11 +1977,13 @@ class AgentApplication:
     def compact_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Return a compacted view of ``events``.
 
-        This helper removes redundant ``partial`` and ``tool_partial``
-        events that precede terminal events (``final`` or
-        ``tool_results``) for the same ``session_id``/``request_id``
-        pair within a single batch. It does not modify the underlying
-        event store and preserves the order of all kept events.
+        This helper removes redundant assistant partials before ``final`` and
+        non-terminal tool start/stream partials before ``tool_results`` for
+        the same ``session_id``/``request_id`` pair within one batch.
+        ``tool_partial`` events with ``phase == "end"`` are preserved because
+        they carry the final display-aware result used by renderers. The
+        underlying event store is not modified, and kept-event order is
+        preserved.
         """
 
         if not events or not self._enable_event_compaction:
@@ -2010,7 +2017,7 @@ class AgentApplication:
                     else:
                         keep_flags[idx] = True
                 elif etype == "tool_partial":
-                    if seen_tool_results.get(key):
+                    if seen_tool_results.get(key) and ev.get("phase") != "end":
                         keep_flags[idx] = False
                     else:
                         keep_flags[idx] = True
@@ -2649,6 +2656,20 @@ class AgentApplication:
         """Return the active coordinated request id for one session."""
 
         return self._session_request_coordinator.get_active_request_id(session_id)
+
+    def get_session_request_statuses(
+        self,
+        session_ids: Sequence[str],
+    ) -> Dict[str, Any]:
+        """Return derived status for explicitly requested sessions."""
+
+        snapshot = self._session_request_status_service.query(session_ids)
+        return {
+            "version": 1,
+            "authority": "derived_transient",
+            "statuses": [status.to_dict() for status in snapshot.statuses],
+            "missing_session_ids": list(snapshot.missing_session_ids),
+        }
 
     def list_agents(self) -> List[str]:
         """Return the configured agent identifiers.
@@ -3715,6 +3736,7 @@ class AgentApplication:
     def _save_session_low_level(self, session: Session) -> Session:
         self._session_store.save(session)
         self._session_list_service.invalidate(session.session_id)
+        self._session_request_status_service.invalidate(session.session_id)
         return self.load_session_record(session.session_id) or session
 
     def save_session(
@@ -3771,6 +3793,7 @@ class AgentApplication:
             )
         self._session_store.delete(session_id)
         self._session_list_service.invalidate(session_id)
+        self._session_request_status_service.invalidate(session_id)
 
     def create_session(
         self, agent_id: str

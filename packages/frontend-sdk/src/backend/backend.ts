@@ -13,6 +13,7 @@ import type {
   NotificationExpectedRevision,
   SessionNotification,
 } from '../types/notifications';
+import type { SessionRequestStatusSnapshot } from '../types/sessionRequestStatus';
 
 export interface ListMessagesResult {
   messages: IndexedMessage[];
@@ -51,6 +52,7 @@ export interface BackendCapabilities {
   applicationActions: boolean;
   applicationConfig: boolean;
   notificationLifecycle?: boolean;
+  sessionRequestStatus?: boolean;
 }
 
 export interface AgentBackend {
@@ -75,6 +77,10 @@ export interface AgentBackend {
   }): Promise<{ session: { session_id: string; [key: string]: any } }>;
   listSessions(params?: { limit?: number }): Promise<SessionSummary[]>;
   getSessionSummary(sessionId: string): Promise<SessionSummary>;
+  getSessionRequestStatuses?(
+    sessionIds: readonly string[],
+    options?: { signal?: AbortSignal },
+  ): Promise<SessionRequestStatusSnapshot>;
   forkSession(
     sessionId: string,
     params?: { index?: number; idempotencyKey?: string },

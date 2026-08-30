@@ -30,8 +30,10 @@ import {
   setActiveActionsPopoverMenu,
   updateActiveActionsPopoverMenuData,
 } from './actionsPopoverCoordinator';
+import { limitPinnedActionsForBar } from './model';
 
 const ICON_BUTTON_HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
+export const ACTIONS_MENU_BAR_ITEM_WIDTH = 44;
 
 export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefinition> {
   title: string;
@@ -41,6 +43,8 @@ export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefin
   pinned: readonly ActionKey[];
   /** When set, only these pinned keys show as bar icons; modal still uses full pinned for star state. */
   pinnedKeysForBar?: readonly ActionKey[];
+  /** Limits only compact pinned buttons; all actions and pin states remain available in the menu. */
+  maxPinnedActionsForBar?: number;
   onChangePinned: (nextPinned: ActionKey[]) => void;
   onAction: (key: ActionKey) => void;
   onOpenMenu?: () => void;
@@ -112,7 +116,10 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       props.pinnedKeysForBar != null
         ? model.visiblePinned.filter((action) => props.pinnedKeysForBar!.includes(action.key))
         : model.visiblePinned;
-    return barPinned
+    return limitPinnedActionsForBar(
+      barPinned,
+      props.maxPinnedActionsForBar,
+    )
       .map((action) => {
         const iconName = getIconName(action);
         const disabled = props.isActionDisabled ? props.isActionDisabled(action.key) : false;
@@ -144,6 +151,9 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             key={action.key}
             style={styles.iconButton}
             hitSlop={ICON_BUTTON_HIT_SLOP}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+            testID={typeof action.testID === 'string' ? action.testID : undefined}
             onPress={onPress}
             disabled={disabled}
           >
@@ -166,6 +176,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
   }, [
     model.visiblePinned,
     props.pinnedKeysForBar,
+    props.maxPinnedActionsForBar,
     getIconName,
     props.isActionDisabled,
     props.renderIcon,
@@ -231,8 +242,18 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
   return (
     <>
       <View style={[styles.actionsRow, props.style]}>
-        {pinnedButtons}
-        <View ref={menuAnchorRef} collapsable={false}>
+        <View
+          style={styles.pinnedActionsViewport}
+          testID="actions-menu-pinned-viewport"
+        >
+          {pinnedButtons}
+        </View>
+        <View
+          ref={menuAnchorRef}
+          collapsable={false}
+          style={styles.menuButtonSlot}
+          testID="actions-menu-overflow-slot"
+        >
           <TouchableOpacity
             style={styles.iconButton}
             hitSlop={ICON_BUTTON_HIT_SLOP}
@@ -363,12 +384,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '100%',
     marginTop: 4,
   },
+  pinnedActionsViewport: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexShrink: 1,
+    minWidth: 0,
+    overflow: 'hidden',
+  },
+  menuButtonSlot: {
+    width: ACTIONS_MENU_BAR_ITEM_WIDTH,
+    flexShrink: 0,
+  },
   iconButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginLeft: 4,
+    width: ACTIONS_MENU_BAR_ITEM_WIDTH,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   moreText: {
     fontWeight: '800',

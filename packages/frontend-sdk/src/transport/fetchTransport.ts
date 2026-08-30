@@ -39,6 +39,7 @@ export class FetchTransport implements Transport {
     headers?: Record<string, string>;
     body?: any;
     timeoutMs?: number;
+    signal?: AbortSignal;
   }): Promise<{ status: number; data: T }> {
     const url = `${this.baseUrl}${req.path}`;
     const timeoutMs = resolveTransportTimeoutMs({
@@ -63,6 +64,12 @@ export class FetchTransport implements Transport {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let didTimeout = false;
+    const abortFromExternal = () => controller?.abort();
+    if (req.signal?.aborted) {
+      controller?.abort();
+    } else {
+      req.signal?.addEventListener('abort', abortFromExternal);
+    }
 
     if (this.debug) {
       this.logger('[fetch] request:start', {
@@ -85,7 +92,7 @@ export class FetchTransport implements Transport {
         method: req.method,
         headers,
         body,
-        signal: controller?.signal,
+        signal: controller?.signal ?? req.signal,
       });
     } catch (err: any) {
       if (timeoutId) {
@@ -114,6 +121,8 @@ export class FetchTransport implements Transport {
         });
       }
       throw err;
+    } finally {
+      req.signal?.removeEventListener('abort', abortFromExternal);
     }
 
     if (timeoutId) {

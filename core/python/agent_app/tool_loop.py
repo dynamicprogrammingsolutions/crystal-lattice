@@ -309,6 +309,7 @@ class ToolLoopRunner:
                             "session_id": current_session.session_id,
                             "request_id": rid,
                             "phase": "start",
+                            "message_index": start_index,
                         }
                     yield {
                         "type": "partial",
@@ -330,6 +331,7 @@ class ToolLoopRunner:
                             "session_id": current_session.session_id,
                             "request_id": rid,
                             "phase": "start",
+                            "message_index": start_index,
                         }
 
                     # Emit the public final event describing the completed
@@ -350,6 +352,7 @@ class ToolLoopRunner:
                             "session_id": final_session.session_id,
                             "request_id": rid,
                             "phase": "end",
+                            "message_index": start_index,
                         }
 
                     # Internal checkpoint is emitted *after* the final
@@ -472,12 +475,17 @@ class ToolLoopRunner:
             if stream_tools and last_final is not None:
                 # Emit an explicit end event so UIs can render headers/footers
                 # around streamed tool output without re-parsing tool_results.
+                # ``message_index`` is the session index this tool message
+                # will occupy once appended below (add_message appends
+                # exactly one message per call), so compact renderers can
+                # label the call for later expansion by index.
                 yield {
                     "type": "tool_partial",
                     "session_id": current_session.session_id,
                     "request_id": rid,
                     "tool_call_id": call_id,
                     "phase": "end",
+                    "message_index": len(current_session.messages),
                     "payload": {"result": last_final},
                 }
 

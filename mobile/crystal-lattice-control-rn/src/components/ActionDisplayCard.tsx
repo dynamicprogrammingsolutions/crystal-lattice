@@ -163,7 +163,8 @@ const createStyles = (theme: Theme, compact: boolean) =>
       color: theme.text,
     },
     variant: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '600',
       color: theme.textSecondary,
       textTransform: 'uppercase',
@@ -179,7 +180,8 @@ const createStyles = (theme: Theme, compact: boolean) =>
       borderColor: theme.border,
     },
     headerDismissText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '600',
       color: theme.textSecondary,
     },
@@ -191,8 +193,8 @@ const createStyles = (theme: Theme, compact: boolean) =>
       paddingBottom: 8,
     },
     bodyText: {
-      fontSize: 14,
-      lineHeight: 20,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
     },
     actionsRow: {
@@ -218,7 +220,8 @@ const createStyles = (theme: Theme, compact: boolean) =>
     },
     actionButtonText: {
       color: theme.textOnPrimary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     footer: {
