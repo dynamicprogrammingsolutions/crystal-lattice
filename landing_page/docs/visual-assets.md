@@ -20,8 +20,10 @@ For implementation internals, see
 ```text
 landing_page/
 ├── visual_assets/
-│   ├── config.mjs       # Catalog commands, assets, and shared builds
-│   └── sources/         # Reviewed, sanitized source masters
+│   ├── config.mjs          # Catalog commands, assets, and shared builds
+│   ├── runtime/            # Tracked application configs for generated UI contracts
+│   ├── session_sources/    # Pinned repository/session refresh inputs
+│   └── sources/            # Reviewed, sanitized source masters
 ├── public/              # Optimized deployed derivatives
 ├── artifacts/
 │   └── visual-assets/   # Ignored candidates, reports, and browser captures
@@ -115,8 +117,17 @@ Capture and promote a source when the selected asset supports those
 operations:
 
 ```bash
-yarn visual-assets:capture mobile-hero
-yarn visual-assets:promote-source mobile-hero --variant dark
+yarn visual-assets:capture mobile-active-session
+yarn visual-assets:promote-source mobile-active-session --variant dark
+```
+
+Refresh and promote reviewed data fixtures:
+
+```bash
+yarn visual-assets refresh-session coding-plan ...
+yarn visual-assets promote-session coding-plan
+yarn visual-assets refresh-runtime-ui mobile-workbench ...
+yarn visual-assets promote-runtime-ui mobile-workbench
 ```
 
 Catalog command names are derived from `defineVisualAssets({ commands })`. A
@@ -300,6 +311,53 @@ const customBuild = definePipeline({
   },
 });
 ```
+
+## Define a Focus Callout
+
+Use `focusCalloutPipeline` when a proof image needs both product context and a
+larger view of one existing UI region. The pipeline composes one reviewed
+source; it does not synthesize or edit proof-bearing text.
+
+Each asset defines its own:
+
+- final canvas;
+- source rectangle used for the contextual screenshot;
+- contextual screenshot size and position;
+- source rectangle used for the enlarged callout;
+- callout size and position;
+- border and square-corner treatment;
+- shadow geometry and clearance;
+- dimming and encoding.
+
+The provider reasoning and usage/cost assets use this pattern:
+
+```js
+build: focusCalloutPipeline({
+  id: "provider-focus",
+  canvas: {
+    width: 1000,
+    height: 1315,
+    background: "#F3F4F7",
+  },
+  original: {
+    crop: "1206x1650+0+420",
+    width: 720,
+    height: 985,
+    geometry: "+0+190",
+  },
+  callout: {
+    crop: "960x280+120+720",
+    width: 900,
+    geometry: "+50+45",
+    shadow: {
+      geometry: "45x14+0+12",
+    },
+  },
+});
+```
+
+Keep geometry beside the asset using it. Add a shared helper only when more
+than one asset genuinely shares the same operation.
 
 ## Define a Direct-Command Asset
 
@@ -534,6 +592,11 @@ The owning application package remains responsible for:
 The landing package owns review, source promotion, derivative generation, and
 website presentation.
 
+The current mobile producer captures unframed production-screen sources. The
+homepage uses those sources directly. The mobile page adds its generic phone
+frame in website CSS, so the reviewed PNG is reusable and does not bake one
+device style into the proof image.
+
 ## Add a Catalog Command
 
 Catalog commands are defined in:
@@ -599,6 +662,73 @@ yarn visual-assets custom <asset>
 
 No CLI or runner edit is required.
 
+## Refresh a Reviewed Coding Session
+
+The `coding-plan` direct-command asset owns the reviewed coding-session source
+used by deterministic native captures.
+
+Its tracked inputs are:
+
+```text
+visual_assets/session_sources/starlette-gzip-responder/
+├── config.json
+├── manifest.json
+├── prompt.md
+└── follow-up-prompt.md
+```
+
+The manifest pins the public repository revision, sparse paths, checkout size
+and time budgets, presentation identity, and the number of already reviewed
+messages to retain when replacing the follow-up exchange.
+
+Generate an ignored candidate with an explicitly selected Python executable,
+agent, and credential directory:
+
+```bash
+yarn visual-assets refresh-session coding-plan \
+  --config-dir "$HOME/.crystal" \
+  --agent codex-openai \
+  --python "$HOME/.crystal/dev-cli-venv/bin/python"
+```
+
+The tracked generation config supplies the application and plugin settings.
+The supplied config directory contributes only the saved ChatGPT credential
+file. Personal application configuration is not read.
+
+Review:
+
+```text
+artifacts/visual-assets/session-fixtures/coding-plan/candidate.json
+artifacts/visual-assets/session-fixtures/coding-plan/provenance.json
+```
+
+Confirm:
+
+- the pinned repository revision and checkout budgets;
+- the realistic user prompt and repository-inspection tool activity;
+- the absence of credentials, private paths, request IDs, or private account
+  metadata;
+- the no-tool follow-up user/assistant pair;
+- visible reasoning metadata on the follow-up response;
+- the exact approved prefix retained from the current fixture.
+
+Promote only after review:
+
+```bash
+yarn visual-assets promote-session coding-plan
+yarn visual-assets check coding-plan
+```
+
+The promoted fixture is:
+
+```text
+mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteCodingPlanSession.json
+```
+
+Live model access is a candidate refresh operation only. Routine native
+capture, website build, and catalog checking use the promoted fixture and do
+not require credentials or network access.
+
 ## Generate a canonical runtime UI fixture
 
 Native website captures can use a Git-tracked application configuration
@@ -631,7 +761,9 @@ visual_assets/runtime/mobile-workbench/config.json
 
 It selects one screenshot agent, the provider and application plugins needed
 for the workbench proof, a focused list of real setting keys, and deterministic
-snapshot presentation data. The promoted fixture is:
+snapshot presentation data. It also derives the mobile-hero projection from
+the reviewed coding session while keeping provider proof anchored to the
+accepted investigation response. The promoted fixture is:
 
 ```text
 mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteRuntimeUi.json
@@ -642,6 +774,46 @@ Python process, plugin installation, credentials, port allocation, or HTTP
 readiness. A separate frontend SDK integration test starts the real FastAPI
 server and verifies the same action and settings contract through
 `FetchTransport` and `RestAgentBackend`.
+
+## Refresh Current Native Sources and Public Derivatives
+
+The current six proof-image assets share one Detox producer. Capture all
+current native states in one process:
+
+```bash
+yarn visual-assets capture \
+  provider-reasoning \
+  provider-usage-cost \
+  chat-actions-workbench \
+  session-snapshots-workbench \
+  session-settings-plugins \
+  mobile-active-session
+```
+
+Review the light and dark candidate outputs before promoting each affected
+source:
+
+```bash
+yarn visual-assets promote-source <asset-id>
+yarn visual-assets inspect <asset-id>
+yarn visual-assets update <asset-id>
+yarn visual-assets check <asset-id>
+```
+
+Run `refresh-runtime-ui` before capture when plugin settings, action schemas,
+snapshot presentation, compact usage fields, or the reviewed coding session
+change. Run `refresh-session` first only when the real reviewed conversation
+itself must change.
+
+The `metadata.freshnessTriggers` array beside each asset is the maintained
+review checklist. It does not trigger capture automatically. When a listed
+product, schema, or website presentation boundary changes, inspect the asset,
+refresh its upstream fixture if needed, recapture, review, and promote it
+explicitly.
+
+The current images are an early release-safe baseline. Later approved page
+briefs decide whether each image is retained, replaced, or removed; the asset
+catalog does not make that product-communication decision.
 
 ## Verification
 

@@ -59,10 +59,10 @@ Depends On:
 7. `landing_page/docs/development/content-system.md:79-97` and
    `landing_page/docs/development/content-system.md:138-161` — current public
    asset and build/verification behavior.
-8. `landing_page/docs/visual-assets.md:1-659` — supported asset-author
+8. `landing_page/docs/visual-assets.md:1-875` — supported asset-author
    workflows for builds, direct commands, lifecycle composition, capture,
    source promotion, catalog commands, and verification.
-9. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-568`
+9. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-681`
    — current catalog, runner, lifecycle, prepared-mutation, source-producer,
    and testing architecture.
 10. `mobile/crystal-lattice-control-rn/AGENTS.md:1-253`,
@@ -89,6 +89,85 @@ Depends On:
   task-150 briefs determine what this task must retain, replace, or add.
 - Screenshot-generation mechanics are documented as current implementation
   only after they exist.
+
+## Task-025 provisional baseline handoff
+
+Task 025 completed an accepted early release-safe baseline on August 30, 2026.
+The exact retained evidence is:
+
+```text
+landing_page/research/025-current-visual-baseline-and-asset-pipeline/
+├── accessibility-and-alt-text-review.md
+├── asset-review.csv
+├── completion-manifest.json
+└── performance-baseline.json
+```
+
+The completion manifest is the compact machine-readable handoff for current
+source paths, public dimensions, byte sizes, hashes, capture commands,
+freshness triggers, verification counts, and source revisions.
+
+### Supporting fixtures
+
+| Fixture | Tracked source | Refresh and promotion |
+|---|---|---|
+| Reviewed coding plan | `landing_page/visual_assets/session_sources/starlette-gzip-responder/manifest.json` plus its tracked config and prompts | `cd landing_page && yarn visual-assets refresh-session coding-plan --config-dir "$HOME/.crystal" --agent codex-openai --python "$HOME/.crystal/dev-cli-venv/bin/python"`; review the ignored candidate and provenance; then `yarn visual-assets promote-session coding-plan` |
+| Canonical mobile workbench UI | `landing_page/visual_assets/runtime/mobile-workbench/config.json` plus the reviewed coding-plan fixture | `cd landing_page && yarn visual-assets refresh-runtime-ui mobile-workbench --python "$HOME/.crystal/dev-cli-venv/bin/python"`; review the ignored candidate; then `yarn visual-assets promote-runtime-ui mobile-workbench` |
+
+Live model access is used only to refresh the reviewed coding-session
+candidate. Routine Detox capture, catalog checking, website building, and
+browser verification use tracked reviewed fixtures.
+
+### Provisional proof assets
+
+| Asset | Current proof | Reviewed sources and build | Freshness triggers |
+|---|---|---|---|
+| `provider-reasoning` | Reasoning-effort and verbosity controls | `landing_page/visual_assets/sources/provider-reasoning-{light,dark}.png`; programmatic contextual screenshot plus square-corner focus callout | Provider settings UI, reasoning/verbosity schema, or mobile settings presentation |
+| `provider-usage-cost` | Input, cache, completion, reasoning-token, duration, and estimated-cost visibility | `landing_page/visual_assets/sources/provider-usage-cost-{light,dark}.png`; programmatic contextual screenshot plus square-corner focus callout | Message-footer presentation or provider usage/cost schema |
+| `chat-actions-workbench` | Ordered real plugin-provided session and message actions | `landing_page/visual_assets/sources/chat-actions-workbench-{light,dark}.png`; unframed native crop | Session action menu, application action contract, ordering, or mobile presentation |
+| `session-snapshots-workbench` | Automatic pre-compaction and pre-deletion snapshots plus Select, Restore, and Delete | `landing_page/visual_assets/sources/session-snapshots-workbench-{light,dark}.png`; unframed native crop | Snapshot actions, descriptions, dialog, or contract |
+| `session-settings-plugins` | Plugin-provided model and provider settings | `landing_page/visual_assets/sources/session-settings-plugins-{light,dark}.png`; unframed native crop | Session settings UI, plugin UI schema, or provider options |
+| `mobile-active-session` | Consecutive user/assistant coding follow-up with reasoning, usage, cost, agent, UUID session, total, and composer | `landing_page/visual_assets/sources/mobile-active-session-{light,dark}.png`; unframed native crop; generic phone frame exists only in mobile-page CSS | Mobile chat/header/composer/navigation, reviewed coding session, or mobile-page hero layout |
+
+All six image assets use one package-owned Detox producer:
+
+```bash
+cd landing_page
+yarn visual-assets capture \
+  provider-reasoning \
+  provider-usage-cost \
+  chat-actions-workbench \
+  session-snapshots-workbench \
+  session-settings-plugins \
+  mobile-active-session
+```
+
+Candidate capture, reviewed-source promotion, public derivative update, and
+verification remain separate:
+
+```bash
+yarn visual-assets promote-source <asset-id>
+yarn visual-assets update <asset-id>
+yarn visual-assets check <asset-id>
+yarn visual-assets:check
+```
+
+### Retain, replace, or remove boundary
+
+- These six assets are approved current proof for the early release website.
+- They remain provisional for this task. Do not carry them into the final
+  visual set merely because they already exist.
+- After task 150 supplies approved page briefs and its claim/proof matrix,
+  record an explicit retain, replace, or remove decision for every task-025
+  asset.
+- Retained assets must be recaptured when their configured freshness triggers
+  are relevant to the approved page claim.
+- A replaced asset should reuse the catalog, fixture, capture, promotion,
+  validation, and browser-review foundation where suitable; it does not need
+  to preserve the current crop, callout, or page placement.
+- The omitted diagrams, web-search proof, caching proof, session list, and
+  attachment proof remain candidate gaps rather than implicit requirements.
+  Add them only when an approved brief requires the corresponding proof.
 
 ## Expected outputs
 

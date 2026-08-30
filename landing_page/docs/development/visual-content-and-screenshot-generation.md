@@ -50,6 +50,10 @@ landing_page/
 │       ├── selection.mjs
 │       ├── validation.mjs
 │       ├── operations.mjs
+│       ├── runtime-ui-fixture.mjs
+│       ├── session-fixture.mjs
+│       ├── refresh_runtime_ui_fixture.py
+│       ├── refresh_session_fixture.py
 │       ├── lifecycle/
 │       │   └── image.mjs
 │       └── producers/
@@ -248,7 +252,11 @@ The current catalog defines:
 - `check`;
 - `update`;
 - `capture`;
-- `promote-source`.
+- `promote-source`;
+- `refresh-session`;
+- `promote-session`;
+- `refresh-runtime-ui`;
+- `promote-runtime-ui`.
 
 Each command explicitly chooses:
 
@@ -395,6 +403,13 @@ ImageMagick command:
 
 An asset may provide any other object implementing this build contract.
 
+`focusCalloutPipeline` is a programmatic build assembled from the same
+operations. The asset owns all source rectangles, contextual-image placement,
+callout placement, border, shadow, dimming, and encoding values. The pipeline
+keeps the contextual screenshot narrower than the final canvas and places the
+enlarged square-corner callout above the source region it magnifies. This is an
+image composition of one reviewed source, not a native UI mutation.
+
 ## Prepared Durable Mutations
 
 Durable changes are represented as prepared effects:
@@ -457,6 +472,59 @@ fixture correctness.
 The landing package remains responsible for source review, promotion,
 derivative production, and website presentation.
 
+The producer captures application pixels without a hardware frame. The image
+lifecycle applies the maintained crop and encoding to those pixels. A phone
+frame, when required by a mobile-specific page, is presentation owned by the
+website CSS and is not part of the reviewed raster source.
+
+## Reviewed session fixture producer
+
+`session-fixture.mjs` adapts the `coding-plan` direct-command asset to
+`refresh_session_fixture.py`.
+
+The producer receives all environment-dependent inputs explicitly:
+
+- Python executable;
+- agent ID;
+- credential-directory path.
+
+The tracked source manifest owns:
+
+- repository URL and immutable revision;
+- sparse checkout paths;
+- checkout byte and time budgets;
+- generation config;
+- initial and follow-up prompts;
+- reviewed-prefix length;
+- presentation identity.
+
+The Python producer:
+
+1. creates an operating-system temporary directory;
+2. performs the bounded sparse checkout and verifies its exact revision;
+3. copies the tracked generation config;
+4. reads only the expected ChatGPT credential file from the supplied config
+   directory;
+5. creates `TerminalApplication` with explicit runtime paths and overrides;
+6. either runs the initial investigation or seeds the approved reviewed
+   prefix and runs only its replacement follow-up;
+7. uses the shared application request path;
+8. rejects install, build, simulator, and source-writing commands;
+9. sanitizes private metadata, paths, account identifiers, credentials, raw
+   responses, and request identifiers;
+10. validates repository-inspection activity, a no-tool follow-up, and visible
+    reasoning metadata;
+11. writes an ignored candidate plus generation provenance.
+
+Provider reconstruction omits an empty assistant message whose only purpose is
+to carry a tool call. Seed validation therefore compares the semantic runtime
+prefix while candidate construction restores the exact reviewed message
+objects before appending the new follow-up pair.
+
+`promote-session` is the only command that replaces the tracked reviewed
+session fixture. The ordinary `check` path never runs a model request or
+repository checkout.
+
 ## Runtime UI fixture producer
 
 `runtime-ui-fixture.mjs` is a direct-command asset adapter for deterministic
@@ -483,6 +551,12 @@ plugin-cache state. It does not replace transport coverage:
 `backend.website-runtime-ui.integration.test.ts` starts the public FastAPI
 boundary and verifies the canonical actions and selected settings through the
 production frontend transport and backend adapter.
+
+The runtime fixture keeps several presentation projections from one reviewed
+session. Provider usage proof remains attached to the accepted investigation
+response, while the mobile hero uses the consecutive follow-up exchange.
+`metadata.display` may carry a bounded exact excerpt for a website proof while
+the reviewed fixture retains the complete response content.
 
 ## Validation
 
@@ -526,6 +600,10 @@ derivatives remain under `public/`.
 The website uses `ThemedImage.astro` so one image element carries light and dark
 source metadata. Theme restoration assigns only the active source.
 
+The mobile-page hero wraps the same unframed source in a generic CSS phone
+frame. Homepage and other consumers can therefore reuse the proof without a
+device bezel.
+
 Playwright verifies:
 
 - desktop and phone routes;
@@ -552,6 +630,14 @@ Programmatic tests cover:
 - capture and promotion separation;
 - Detox output memoization;
 - preparation failure preventing durable application.
+
+Python fixture tests cover:
+
+- sanitization and forbidden-command rejection;
+- two-request shared application execution;
+- reviewed-prefix preservation across provider normalization;
+- no-tool, reasoning-bearing follow-up validation;
+- deterministic runtime UI-schema generation.
 
 The complete catalog check exercises every current source, build, expectation,
 content binding, budget, and public derivative.

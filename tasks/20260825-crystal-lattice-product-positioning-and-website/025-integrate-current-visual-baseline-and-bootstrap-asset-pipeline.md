@@ -11,36 +11,36 @@ asset workflow that later visual-production work can extend.
 - [ ] The relevant screenshot contribution is integrated on current
       `develop` while preserving the original author's authorship and current
       website content.
-- [ ] Every visual retained in public content accurately supports its
+- [x] Every visual retained in public content accurately supports its
       associated current product claim and remains readable on desktop and
       mobile.
-- [ ] Public images use bounded, optimized delivery that avoids unnecessary
+- [x] Public images use bounded, optimized delivery that avoids unnecessary
       eager or duplicate theme-variant downloads.
-- [ ] Retained visuals have useful alternative text and render correctly in
+- [x] Retained visuals have useful alternative text and render correctly in
       supported themes and responsive layouts.
-- [ ] A minimal reproducible programmatic asset catalog, source lifecycle,
+- [x] A minimal reproducible programmatic asset catalog, source lifecycle,
       validation, and browser-review workflow exists for the accepted early
       visual baseline.
-- [ ] The workbench visual runtime is derived from a canonical Git-tracked
+- [x] The workbench visual runtime is derived from a canonical Git-tracked
       application configuration through public `AgentApplication` UI-schema
       APIs, and the production action menu shows real plugin-provided actions
       in their declared order.
-- [ ] Message deletion and OpenAI native compaction create default-on
+- [x] Message deletion and OpenAI native compaction create default-on
       pre-mutation session snapshots, and native compaction is available as an
       inclusive message-level “up to here” action.
 
 ### Non-functional requirements
 
-- [ ] Public visuals contain no fabricated product UI, credentials, private
+- [x] Public visuals contain no fabricated product UI, credentials, private
       data, misleading platform framing, contradictory connection behavior, or
       planning placeholders.
-- [ ] Unreviewed capture candidates and review output remain ignored; reviewed,
+- [x] Unreviewed capture candidates and review output remain ignored; reviewed,
       sanitized source masters remain outside `landing_page/public/`, and only
       optimized derivatives enter `landing_page/public/`.
-- [ ] Work proceeds through the approved Stage A and Stage B manual
+- [x] Work proceeds through the approved Stage A and Stage B manual
       checkpoints; native capture work does not start without separate Stage C
       approval.
-- [ ] Automatic snapshots are not silently pruned or limited in this task;
+- [x] Automatic snapshots are not silently pruned or limited in this task;
       their full-session storage cost and manual deletion behavior are
       documented.
 
@@ -71,10 +71,10 @@ Depends On:
 6. `landing_page/docs/development/content-system.md:79-97` and
    `landing_page/docs/development/content-system.md:138-161` — current
    screenshot sections, public-file boundary, and build/preview verification.
-7. `landing_page/docs/visual-assets.md:1-659` — supported asset-author workflow
+7. `landing_page/docs/visual-assets.md:1-875` — supported asset-author workflow
    for assets, programmatic builds, direct commands, lifecycle callbacks,
    captured sources, catalog commands, and verification.
-8. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-568`
+8. `landing_page/docs/development/visual-content-and-screenshot-generation.md:1-681`
    — catalog dispatch, direct-command and lifecycle composition, runtime
    services, prepared mutations, source producers, and verification internals.
 9. `landing_page/docs/development/research/visual-communication-and-reproducible-assets.md:151-268`
@@ -778,7 +778,7 @@ content, privacy, and product-communication judgments only.
 
 ### Task checklist
 
-- [ ] Confirm task-020 product/compatibility facts needed by retained visuals.
+- [x] Confirm task-020 product/compatibility facts needed by retained visuals.
 - [x] Preserve and verify the author-attributed import commit.
 - [x] Complete Stage A layout, content, accessibility, and performance
       corrections.
@@ -812,8 +812,8 @@ content, privacy, and product-communication judgments only.
 - [x] Pass manual checkpoint C3.
 - [x] Implement and automatically verify C4 mobile-page hero.
 - [x] Pass manual checkpoint C4.
-- [ ] Complete Stage C5 documentation, handoff, and final verification.
-- [ ] Record completion evidence and the task-160 handoff.
+- [x] Complete Stage C5 documentation, handoff, and final verification.
+- [x] Record completion evidence and the task-160 handoff.
 
 ### Requirement verification
 
@@ -1787,3 +1787,52 @@ content, privacy, and product-communication judgments only.
 - The accepted implementation, source masters, public derivatives, runtime and
   reviewed-session fixtures, plugin display controls, tests, and task evidence
   are ready to be committed together before Stage C5 begins.
+
+### August 30, 2026 — Stage C5 complete
+
+- Committed the accepted Stage C4 implementation as:
+  - `a6c5fc28 Complete mobile session hero follow-up`.
+- Updated the standalone visual-asset consumer guide with:
+  - all current catalog commands;
+  - exact reviewed-session refresh and promotion commands;
+  - canonical runtime UI refresh;
+  - focus-callout authoring;
+  - shared Detox capture;
+  - unframed source and CSS mobile-frame boundaries;
+  - freshness-trigger and later retain/replace guidance.
+- Updated the development architecture page with the reviewed-session producer,
+  semantic seed-prefix validation, runtime UI projections, focus composition,
+  unframed native capture, CSS framing, and Python fixture-test boundaries.
+- Completed the retained task-025 evidence package:
+  - refreshed accessibility and alt-text review for all six proof assets;
+  - current performance and active-theme budgets;
+  - per-asset source revisions, manifests, decisions, and freshness guidance;
+  - machine-readable `completion-manifest.json` containing fixture commands,
+    source/public paths, hashes, budgets, verification, and the task-160
+    decision boundary.
+- Updated task 160 with the exact provisional assets, source manifest,
+  supporting fixtures, capture and promotion commands, freshness triggers, and
+  the requirement to explicitly retain, replace, or remove every task-025
+  asset after task 150 supplies approved page briefs.
+- Task 020 remains an unapproved Draft and was not marked complete. The facts
+  required by the retained visuals were verified directly against the owning
+  application, plugin, frontend, and production-screen boundaries.
+- Final code-state verification completed before the Stage C4 commit:
+  - 120 OpenAI provider display tests;
+  - mobile TypeScript and all 119 Jest tests;
+  - 314 frontend SDK tests;
+  - real FastAPI/frontend adapter integration;
+  - successful ten-state Detox build/capture;
+  - complete catalog, Astro build, Playwright, Black, Ruff, and diff checks.
+- Post-documentation verification:
+  - 18 visual-asset JavaScript tests;
+  - seven Python session/runtime fixture tests;
+  - 14-result catalog check totaling 707,738 bytes;
+  - Astro build;
+  - all 12 responsive/theme Playwright tests;
+  - JSON, CSV, and `git diff --check`.
+- The implementation is complete on
+  `review/CL-291-landing-page-screenshots`. The first functional requirement
+  and parent-task checkbox remain open because this review branch has not been
+  merged into `develop`; merging is outside the current branch-local
+  implementation step.

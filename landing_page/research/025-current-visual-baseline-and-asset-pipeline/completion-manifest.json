@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "completed_on": "2026-08-30",
+  "status": "accepted_early_release_baseline_provisional_for_task_160",
+  "commits": {
+    "author_preserving_import": "e88aa46ee8d6bd0969c63c78f8e152f1fd938974",
+    "canonical_native_sources": "49ae63beb0e4c2cfb5f2814b746ed98a1c8b50d7",
+    "provider_focus_composites": "a37f2d3db68166e6e7e06070e1b974e468221c52",
+    "mobile_session_hero": "a6c5fc283209bfd55c3992cc8f6841ad5ad03440"
+  },
+  "fixtures": {
+    "coding_plan": {
+      "asset_id": "coding-plan",
+      "source_manifest": "landing_page/visual_assets/session_sources/starlette-gzip-responder/manifest.json",
+      "reviewed_fixture": "mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteCodingPlanSession.json",
+      "candidate": "landing_page/artifacts/visual-assets/session-fixtures/coding-plan/candidate.json",
+      "provenance": "landing_page/artifacts/visual-assets/session-fixtures/coding-plan/provenance.json",
+      "refresh_command": "cd landing_page && yarn visual-assets refresh-session coding-plan --config-dir \"$HOME/.crystal\" --agent codex-openai --python \"$HOME/.crystal/dev-cli-venv/bin/python\"",
+      "promotion_command": "cd landing_page && yarn visual-assets promote-session coding-plan",
+      "freshness_triggers": [
+        "the reviewed coding conversation or presentation identity changes",
+        "the pinned Starlette source task is no longer suitable",
+        "the provider reasoning or usage metadata needed by current proof changes"
+      ]
+    },
+    "mobile_workbench": {
+      "asset_id": "mobile-workbench",
+      "tracked_config": "landing_page/visual_assets/runtime/mobile-workbench/config.json",
+      "reviewed_fixture": "mobile/crystal-lattice-control-rn/src/testing/fixtures/websiteRuntimeUi.json",
+      "candidate": "landing_page/artifacts/visual-assets/runtime-ui/mobile-workbench/candidate.json",
+      "refresh_command": "cd landing_page && yarn visual-assets refresh-runtime-ui mobile-workbench --python \"$HOME/.crystal/dev-cli-venv/bin/python\"",
+      "promotion_command": "cd landing_page && yarn visual-assets promote-runtime-ui mobile-workbench",
+      "freshness_triggers": [
+        "configured plugin actions or ordering changes",
+        "selected provider setting schemas change",
+        "snapshot presentation changes",
+        "the reviewed coding-plan fixture changes",
+        "compact mobile-hero usage or reasoning presentation changes"
+      ]
+    }
+  },
+  "capture": {
+    "producer": "landing_page/scripts/visual-assets/producers/detox.mjs",
+    "owning_test": "mobile/crystal-lattice-control-rn/e2e/websiteVisualCapture.e2e.test.ts",
+    "capture_command": "cd landing_page && yarn visual-assets capture provider-reasoning provider-usage-cost chat-actions-workbench session-snapshots-workbench session-settings-plugins mobile-active-session",
+    "reviewed_source_root": "landing_page/visual_assets/sources",
+    "candidate_policy": "ignored",
+    "source_policy": "reviewed_sanitized_git_tracked",
+    "public_policy": "optimized_derivatives_only"
+  },
+  "assets": [
+    {
+      "asset_id": "provider-reasoning",
+      "claim": "Provider plugins can expose reasoning effort and verbosity as visible session settings.",
+      "current_source_revision": "a37f2d3db68166e6e7e06070e1b974e468221c52",
+      "build": "focus_callout",
+      "sources": {
+        "light": "landing_page/visual_assets/sources/provider-reasoning-light.png",
+        "dark": "landing_page/visual_assets/sources/provider-reasoning-dark.png"
+      },
+      "public": {
+        "light": {
+          "path": "landing_page/public/provider-reasoning.webp",
+          "width": 1000,
+          "height": 1315,
+          "bytes": 32054,
+          "sha256": "d8067aa8efca1115bb05d6cd53b66486222d0f548ae716fb812d048c0138648d"
+        },
+        "dark": {
+          "path": "landing_page/public/provider-reasoning-dark.webp",
+          "width": 1000,
+          "height": 1315,
+          "bytes": 31050,
+          "sha256": "31511d829f1dc26151458a0089d1c3f076a8294b90e53d77fff54f288f6bc8ac"
+        }
+      },
+      "freshness_triggers": [
+        "provider settings UI changes",
+        "reasoning or verbosity schema changes",
+        "mobile message/settings presentation changes"
+      ]
+    },
+    {
+      "asset_id": "provider-usage-cost",
+      "claim": "Provider metadata can make token, cache, duration, and cost information visible in a session.",
+      "current_source_revision": "a37f2d3db68166e6e7e06070e1b974e468221c52",
+      "build": "focus_callout",
+      "sources": {
+        "light": "landing_page/visual_assets/sources/provider-usage-cost-light.png",
+        "dark": "landing_page/visual_assets/sources/provider-usage-cost-dark.png"
+      },
+      "public": {
+        "light": {
+          "path": "landing_page/public/provider-usage-cost.webp",
+          "width": 940,
+          "height": 1334,
+          "bytes": 53148,
+          "sha256": "4e40df8d85f8425a1c922488dc3d154189af0653b9781d783632920129e91022"
+        },
+        "dark": {
+          "path": "landing_page/public/provider-usage-cost-dark.webp",
+          "width": 940,
+          "height": 1334,
+          "bytes": 62984,
+          "sha256": "90980155399d4850839deb7eb46bcafba9a11260d14afdc447a940b59b2bc5e5"
+        }
+      },
+      "freshness_triggers": [
+        "message footer or metadata presentation changes",
+        "provider usage or cost schema changes"
+      ]
+    },
+    {
+      "asset_id": "chat-actions-workbench",
+      "claim": "Plugins can expose session and message actions through the mobile workbench.",
+      "current_source_revision": "49ae63beb0e4c2cfb5f2814b746ed98a1c8b50d7",
+      "build": "unframed_native_crop",
+      "sources": {
+        "light": "landing_page/visual_assets/sources/chat-actions-workbench-light.png",
+        "dark": "landing_page/visual_assets/sources/chat-actions-workbench-dark.png"
+      },
+      "public": {
+        "light": {
+          "path": "landing_page/public/chat-actions-workbench.webp",
+          "width": 1000,
+          "height": 2025,
+          "bytes": 38372,
+          "sha256": "bef7d5cefa6680c6b386f20c22b0c65feef538ec66986c1ff43cbb036ff6644a"
+        },
+        "dark": {
+          "path": "landing_page/public/chat-actions-workbench-dark.webp",
+          "width": 1000,
+          "height": 2025,
+          "bytes": 37896,
+          "sha256": "9d476332506e8ec1c42849dbb216c1d394b8d9146599948caa6fb7966ef6aa21"
+        }
+      },
+      "freshness_triggers": [
+        "session action menu changes",
+        "application action contract changes",
+        "mobile action presentation changes"
+      ]
+    },
+    {
+      "asset_id": "session-snapshots-workbench",
+      "claim": "A session can expose checkpoint creation, selection, restoration, and deletion controls.",
+      "current_source_revision": "49ae63beb0e4c2cfb5f2814b746ed98a1c8b50d7",
+      "build": "unframed_native_crop",
+      "sources": {
+        "light": "landing_page/visual_assets/sources/session-snapshots-workbench-light.png",
+        "dark": "landing_page/visual_assets/sources/session-snapshots-workbench-dark.png"
+      },
+      "public": {
+        "light": {
+          "path": "landing_page/public/session-snapshots-workbench.webp",
+          "width": 1000,
+          "height": 2025,
+          "bytes": 49092,
+          "sha256": "31808b2f74ca0d60dd90955c0327b8d3d4bd57b3216d0fa6813679d244866c7a"
+        },
+        "dark": {
+          "path": "landing_page/public/session-snapshots-workbench-dark.webp",
+          "width": 1000,
+          "height": 2025,
+          "bytes": 50496,
+          "sha256": "865b735fc75522a600503dd8bf607f0ab86feade82d69d50ca0469559fe43478"
+        }
+      },
+      "freshness_triggers": [
+        "snapshot action or dialog changes",
+        "snapshot contract changes"
+      ]
+    },
+    {
+      "asset_id": "session-settings-plugins",
+      "claim": "Plugin UI schemas can contribute model and provider controls to per-session settings.",
+      "current_source_revision": "49ae63beb0e4c2cfb5f2814b746ed98a1c8b50d7",
+      "build": "unframed_native_crop",
+      "sources": {
+        "light": "landing_page/visual_assets/sources/session-settings-plugins-light.png",
+        "dark": "landing_page/visual_assets/sources/session-settings-plugins-dark.png"
+      },
+      "public": {
+        "light": {
+          "path": "landing_page/public/session-settings-plugins.webp",
+          "width": 1000,
+          "height": 2025,
+          "bytes": 48866,
+          "sha256": "a831addcc2865c72b495d4c18f0f14a0f75a1821f1dd4ba2536d2bdc903c3e47"
+        },
+        "dark": {
+          "path": "landing_page/public/session-settings-plugins-dark.webp",
+          "width": 1000,
+          "height": 2025,
+          "bytes": 47930,
+          "sha256": "86d7add2912ded1f843a9ce73f3ffb659225acf1b6272d6ab7d0922f02d35d3d"
+        }
+      },
+      "freshness_triggers": [
+        "session settings UI changes",
+        "plugin UI schema changes",
+        "provider option changes"
+      ]
+    },
+    {
+      "asset_id": "mobile-active-session",
+      "claim": "The mobile client can continue a realistic coding-agent session from a phone.",
+      "current_source_revision": "a6c5fc283209bfd55c3992cc8f6841ad5ad03440",
+      "build": "unframed_native_crop_with_mobile_page_css_frame",
+      "sources": {
+        "light": "landing_page/visual_assets/sources/mobile-active-session-light.png",
+        "dark": "landing_page/visual_assets/sources/mobile-active-session-dark.png"
+      },
+      "public": {
+        "light": {
+          "path": "landing_page/public/mobile-active-session.webp",
+          "width": 1000,
+          "height": 2025,
+          "bytes": 78018,
+          "sha256": "55a4f00c51b57fc355059923a26eab75f96330850b62b70c2f0c48b6be3a4c84"
+        },
+        "dark": {
+          "path": "landing_page/public/mobile-active-session-dark.webp",
+          "width": 1000,
+          "height": 2025,
+          "bytes": 68378,
+          "sha256": "ce0aa2813b683d32068dc03a2b64b146be23ab52269d3cbc929700c357b05ff8"
+        }
+      },
+      "freshness_triggers": [
+        "mobile chat header, transcript, composer, or navigation changes",
+        "reviewed coding-plan session changes",
+        "mobile-page hero layout changes"
+      ]
+    }
+  ],
+  "budgets": {
+    "active_theme_max_bytes": 300000,
+    "light_active_theme_bytes": 299550,
+    "dark_active_theme_bytes": 298734,
+    "combined_public_derivatives_bytes": 598284,
+    "complete_catalog_results": 14,
+    "complete_catalog_bytes": 707738
+  },
+  "presentation": {
+    "homepage": "unframed proof images",
+    "mobile_page": "the same unframed active-session source inside a generic CSS phone frame",
+    "theme_loading": "one active variant is assigned to each rendered image element; the alternate variant loads only after a theme change"
+  },
+  "verification": {
+    "visual_asset_tests": 18,
+    "python_fixture_tests": 7,
+    "openai_plugin_tests": 120,
+    "mobile_jest_tests": 119,
+    "frontend_sdk_tests": 314,
+    "frontend_backend_integration_tests": 1,
+    "detox_scenarios": 10,
+    "playwright_tests": 12,
+    "commands": [
+      "cd landing_page && yarn visual-assets:check",
+      "cd landing_page && yarn build",
+      "cd landing_page && yarn test:visual",
+      "cd mobile/crystal-lattice-control-rn && npm run tsc && npm test -- --runInBand",
+      "cd packages/frontend-sdk && npm test",
+      "cd packages/frontend-sdk && PYTHON=\"$HOME/.crystal/dev-cli-venv/bin/python\" npm run integration:website-runtime-ui"
+    ]
+  },
+  "handoff": {
+    "owner_task": "tasks/20260825-crystal-lattice-product-positioning-and-website/160-visual-proof-and-reproducible-assets.md",
+    "decision_boundary": "These assets are accepted current proof for the early release website. Task 160 must compare them with approved task-150 page briefs and explicitly retain, replace, or remove each one; acceptance here does not make them the final visual set."
+  }
+}

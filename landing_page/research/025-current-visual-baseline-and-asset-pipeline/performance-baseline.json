@@ -19,6 +19,21 @@
     "combined_public_derivatives_bytes": 503904,
     "behavior": "Only the active lazy-loaded theme set is requested. The alternate set is requested once if the user changes themes."
   },
+  "completed_baseline": {
+    "observed_on": "2026-08-30",
+    "light": {
+      "proof_images": 6,
+      "bytes": 299550
+    },
+    "dark": {
+      "proof_images": 6,
+      "bytes": 298734
+    },
+    "combined_public_derivatives_bytes": 598284,
+    "catalog_results": 14,
+    "catalog_bytes": 707738,
+    "behavior": "The homepage and mobile page load one active theme variant per rendered proof. The mobile hero frame is CSS and adds no raster download."
+  },
   "budgets": {
     "active_theme_max_bytes": 300000
   },
