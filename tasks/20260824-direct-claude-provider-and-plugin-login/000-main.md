@@ -26,6 +26,9 @@ terminal while preserving the existing OpenRouter Claude option.
 - [ ] Existing `claude-tools` work with the direct provider.
 - [ ] Existing OpenRouter-based Claude agents remain available and are not
   silently replaced.
+- [ ] Application configuration can select model-specific Anthropic settings
+  through reusable configuration variants without requiring separate direct
+  Anthropic agents for Haiku and Sonnet.
 - [ ] Provider-specific follow-ups add server web tools, fast mode and service
   tiers, native compaction, image attachments, files/PDFs, token counting,
   cost estimation, portable request errors, and advanced server tools without
@@ -69,6 +72,7 @@ terminal while preserving the existing OpenRouter Claude option.
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/018-provider-cost-estimation-and-pricing-catalog.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/019-portable-provider-request-errors.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/020-claude-authentication-plugin.md`
+- [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/021-application-config-variants-and-recursive-merge.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/030-claude-client-and-terminal-integration.md`
 
 ## Workstreams
@@ -79,6 +83,9 @@ terminal while preserving the existing OpenRouter Claude option.
 - Portable request errors: subtask 019; this revisits the provider/application
   error boundary without moving retry or login ownership out of plugins.
 - OAuth lifecycle: subtask 020.
+- Configuration composition: subtask 021; this adds reusable model-selected
+  variants and one recursive merge contract shared with existing mixins, then
+  consolidates the direct Anthropic default agents.
 - Client and terminal integration: subtask 030.
 
 ## Supporting facts
@@ -131,6 +138,9 @@ or materially different security boundaries.
 - Decision: image attachments and cost estimation are separate subtasks.
 - Decision: 010 uses the current generic request-error event; the portable
   structured provider-error contract is deferred to subtask 019.
+- Decision: model-specific direct Anthropic defaults use the application-owned
+  configuration-variant contract from subtask 021 rather than provider-owned
+  model-name branching.
 - Open: decide whether and when direct Anthropic becomes a default agent.
 
 ### Documentation
@@ -157,6 +167,7 @@ or materially different security boundaries.
 - [ ] Execute the portable request-error follow-up 019 when the standard
   request-error work is planned.
 - [ ] Execute and verify OAuth authentication subtask 020.
+- [ ] Execute and verify configuration composition subtask 021.
 - [ ] Execute and verify frontend/terminal integration subtask 030.
 - [ ] Run selective local-compatible, real-provider, and saved-login smoke
   tests.
