@@ -30,6 +30,12 @@ export type {
 export { useSessionsController } from './useSessionsController';
 
 export type {
+  SessionStatusesByConnection,
+  UseSessionRequestStatusesOptions,
+} from './useSessionRequestStatuses';
+export { useSessionRequestStatuses } from './useSessionRequestStatuses';
+
+export type {
   UseSessionListFiltersOptions,
   UseSessionListFiltersResult,
 } from './useSessionListFilters';

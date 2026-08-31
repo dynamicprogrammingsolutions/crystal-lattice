@@ -3,6 +3,7 @@ import {StyleSheet, Text, View} from 'react-native';
 
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import type { SessionSummary } from '@crystal-lattice/frontend-sdk';
+import type { SessionRequestStatus } from '@crystal-lattice/frontend-sdk';
 
 import { ApplicationPluginsProvider } from '@crystal-lattice/frontend-sdk-react';
 
@@ -57,6 +58,10 @@ export interface ChatPaneTabStackProps {
     title?: string;
     subtitle?: string | null;
   }) => void;
+  requestStatuses?: Readonly<
+    Record<string, Readonly<Record<string, SessionRequestStatus>>>
+  >;
+  onPromotePreview?: (tabId: string) => void;
 }
 
 type TabFrameProps = {
@@ -75,6 +80,8 @@ type TabFrameProps = {
   messagesCacheHydrated?: boolean;
   onUpdateCache: ChatPaneTabStackProps['onUpdateCache'];
   onOpenSessionTab: ChatPaneTabStackProps['onOpenSessionTab'];
+  requestStatus: SessionRequestStatus | null;
+  onPromotePreview?: ChatPaneTabStackProps['onPromotePreview'];
 };
 
 const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.Element {
@@ -93,6 +100,8 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
     messagesCacheHydrated,
     onUpdateCache,
     onOpenSessionTab,
+    requestStatus,
+    onPromotePreview,
   } = props;
 
   return (
@@ -116,13 +125,15 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
           messagesCacheHydrated={messagesCacheHydrated}
           onUpdateCache={onUpdateCache}
           onOpenSessionTab={onOpenSessionTab}
+          requestStatus={requestStatus}
+          onBeforeSessionMutation={() => onPromotePreview?.(props.tabId)}
         />
       </ApplicationPluginsProvider>
     </View>
   );
 });
 
-export function ChatPaneTabStackPlaceholder(props: ChatPaneTabStackProps): React.JSX.Element {
+export function ChatPaneTabStackPlaceholder(_props: ChatPaneTabStackProps): React.JSX.Element {
 
   return <View><Text>Placeholder</Text></View>
 }
@@ -139,6 +150,8 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
     messagesCacheHydrated,
     onUpdateCache,
     onOpenSessionTab,
+    requestStatuses = {},
+    onPromotePreview,
   } = props;
   
   // Keep MRU ordering in a ref so switching among already-active tabs
@@ -196,6 +209,10 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
             messagesCacheHydrated={messagesCacheHydrated}
             onUpdateCache={onUpdateCache}
             onOpenSessionTab={onOpenSessionTab}
+            requestStatus={
+              requestStatuses[tab.connectionId]?.[tab.sessionId] ?? null
+            }
+            onPromotePreview={onPromotePreview}
           />
         );
       })}

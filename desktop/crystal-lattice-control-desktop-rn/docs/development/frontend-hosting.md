@@ -3,6 +3,11 @@
 `DesktopRoot` owns one application-notification controller for each open
 backend connection.
 
+It also owns one explicit-ID request-status polling consumer for Home, History,
+Sessions, tabs, and the active Chat pane. Status reads reuse open backends or
+use supported stateless closed-connection HTTP reads; polling never opens or
+focuses a connection.
+
 Connection-level notifications and application/session-list action responses
 from open connections render in one normal-flow message/detail-area rail with
 connection labels. The active ChatPane contributes its session notifications
@@ -18,3 +23,6 @@ Maintainer entry points:
 - `src/panels/SessionsPanel.tsx`
 - `src/chat/ChatPane.tsx`
 - `src/chat/ChatPanePlaceholder.tsx`
+- `src/home/DesktopHomeWorkspaceContext.tsx`
+- `src/tabs/desktopWorkspaceState.ts`
+- `src/status/DesktopConnectionSessionStatusReader.ts`

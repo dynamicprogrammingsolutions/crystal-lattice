@@ -6,6 +6,12 @@ without constructing transports and delegates connection opening plus
 session/navigation selection through one host command guarded by current user
 intent.
 
+Portable Watchlist/recent selectors, note normalization, request-status
+presentation, and measured reorder helpers are owned by
+`@crystal-lattice/frontend-rn-components`. The mobile application continues to
+own AsyncStorage keys, touch responders, full-screen composition, connection
+opening, and navigation.
+
 ## Local ownership
 
 `HomeWorkspaceProvider` owns three versioned AsyncStorage records:

@@ -19,6 +19,14 @@ npm test
 This package currently has fast Vitest coverage only; it does not define
 integration or e2e scripts.
 
+## Session request-status polling
+
+`useSessionRequestStatuses` is a host-neutral explicit-ID polling hook. The
+host supplies active/foreground policy, saved connections, grouped session
+IDs, and a `ConnectionSessionStatusReader`. The hook deduplicates IDs, polls
+per connection, cancels stale work, applies bounded backoff, and removes stale
+running state when authority is unavailable.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

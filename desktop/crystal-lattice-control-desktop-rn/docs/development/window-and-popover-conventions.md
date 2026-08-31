@@ -6,6 +6,8 @@ Current macOS conventions:
 |---|---|
 | Anchored transient menu | Native `NSPopover` |
 | Server or session settings | Separate React window |
+| Global application settings | Separate keyed React window opened from the application menu |
+| Permanent local session note | Separate keyed React window |
 | Notification/action modal request | Inline fallback in message/detail rail |
 | Connection/application banner | Message/detail-area rail |
 | Session inline/banner/modal | Active ChatPane rail |

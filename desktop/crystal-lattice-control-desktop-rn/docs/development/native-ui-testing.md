@@ -29,6 +29,14 @@ disclosure control:
 npm run test:macos-ui:connections
 ```
 
+The desktop-workspace harness mounts the production Home, History, activity
+rail, and session tab strip with deterministic sessions. Focused methods in
+`ConnectionsPanelUITests` verify preview promotion, activity-panel state,
+request-status accessibility, Home navigation, real Watchlist mouse drag, and
+real permanent-tab mouse drag.
+`MarkdownDisplayMenuUITests` verifies that the application Settings item opens
+the separate keyed Settings window.
+
 Harnesses report theme-derived values and measured frames. Native assertions
 compare those values and relative geometry instead of copying display-preset
 numbers, allowing preset tuning without rewriting native tests.

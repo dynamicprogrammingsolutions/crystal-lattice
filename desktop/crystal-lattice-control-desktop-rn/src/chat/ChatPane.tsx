@@ -19,6 +19,7 @@ import {
   ActionsMenuBar,
   ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
+  SessionRequestStatusIndicator,
   useTheme,
   type ActionDefinition,
   type ActionKey,
@@ -32,6 +33,7 @@ import type {
   IndexedMessage,
   RunActionContext,
   SessionSummary,
+  SessionRequestStatus,
 } from '@crystal-lattice/frontend-sdk';
 import {
   attachmentDraftStatusLabel,
@@ -403,6 +405,8 @@ export interface ChatPaneProps {
     composeText?: string;
     scrollAnchor?: unknown;
   }) => void;
+  requestStatus?: SessionRequestStatus | null;
+  onBeforeSessionMutation?: () => void;
   styleVariant?: TabStripStyle;
 }
 
@@ -420,6 +424,8 @@ export const ChatPane = React.memo(function ChatPane({
   messagesCacheHydrated = true,
 	onOpenSessionTab,
 	onUpdateCache,
+  requestStatus = null,
+  onBeforeSessionMutation,
 	styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
   const theme = useTheme();
@@ -1582,6 +1588,7 @@ export const ChatPane = React.memo(function ChatPane({
 
     const content = trimmed.length > 0 ? trimmed : '';
 
+    onBeforeSessionMutation?.();
     setSendInFlight(true);
     try {
       await sendComposerMessageAtomically(chatController, {
@@ -1611,6 +1618,7 @@ export const ChatPane = React.memo(function ChatPane({
     composeTextRef,
     setComposeText,
     unresolvedAttachmentDraft,
+    onBeforeSessionMutation,
   ]);
 
   const canRunComposerActions =
@@ -1643,6 +1651,7 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
+      onBeforeSessionMutation?.();
       setSendInFlight(true);
       try {
         await chatController.appendMessage({ role: role as any, content: content.length > 0 ? content : '', multipartContent });
@@ -1664,6 +1673,7 @@ export const ChatPane = React.memo(function ChatPane({
       composeTextRef,
       sendInFlight,
       unresolvedAttachmentDraft,
+      onBeforeSessionMutation,
     ],
   );
 
@@ -1745,6 +1755,7 @@ export const ChatPane = React.memo(function ChatPane({
       return;
     }
 
+    onBeforeSessionMutation?.();
     setSendInFlight(true);
     try {
       chatController.clearRequestState();
@@ -1756,7 +1767,13 @@ export const ChatPane = React.memo(function ChatPane({
     } finally {
       setSendInFlight(false);
     }
-  }, [canRunComposerActions, chatController, chatState?.activeRequestId, sendInFlight]);
+  }, [
+    canRunComposerActions,
+    chatController,
+    chatState?.activeRequestId,
+    onBeforeSessionMutation,
+    sendInFlight,
+  ]);
 
   const handleCancel = useCallback(async () => {
     if (!canRunComposerActions) {
@@ -2735,6 +2752,7 @@ export const ChatPane = React.memo(function ChatPane({
       }
 
       try {
+        onBeforeSessionMutation?.();
         await chatController.modifyMessage(index, trimmed);
         setEditingIndex(null);
         setEditingText('');
@@ -2744,7 +2762,7 @@ export const ChatPane = React.memo(function ChatPane({
         Alert.alert('Error', message);
       }
     },
-    [backend, chatController],
+    [backend, chatController, onBeforeSessionMutation],
   );
 
   const handleCancelEditMessage = useCallback(() => {
@@ -3070,6 +3088,12 @@ export const ChatPane = React.memo(function ChatPane({
             <Text style={styles.metaText} numberOfLines={1}>
               {backend ? 'Online' : 'Offline'}
             </Text>
+            {requestStatus ? <Text style={styles.metaDot}>•</Text> : null}
+            <SessionRequestStatusIndicator
+              status={requestStatus}
+              variant="inline"
+              testID={`chat-request-status-${connectionId}-${sessionId}`}
+            />
           </View>
           <Text style={styles.subtitle} numberOfLines={2}>
             {displaySubtitle}

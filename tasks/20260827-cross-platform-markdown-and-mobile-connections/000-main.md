@@ -154,6 +154,7 @@ transport semantics and backend endpoints are also unchanged.
 - [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/040-mobile-connection-actions-and-layout.md`
 - [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/050-responsive-action-headers.md`
 - [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/060-mobile-home-watchlist-and-request-status.md`
+- [x] `tasks/20260827-cross-platform-markdown-and-mobile-connections/070-desktop-home-history-status-and-preview-tabs.md`
 
 ## Execution plan
 Status: Approved

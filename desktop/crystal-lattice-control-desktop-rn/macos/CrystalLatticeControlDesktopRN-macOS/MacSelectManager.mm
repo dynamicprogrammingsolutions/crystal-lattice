@@ -2,6 +2,7 @@
 
 #import <React/RCTComponent.h>
 #import <React/RCTConvert.h>
+#import <React/RCTView.h>
 #import <React/RCTViewManager.h>
 
 @interface CLCMacSelect : NSPopUpButton
@@ -10,6 +11,100 @@
 @property(nonatomic, copy) NSArray<NSDictionary *> *options;
 @property(nonatomic, copy) NSString *selectedValue;
 @property(nonatomic, copy) NSString *placeholder;
+
+@end
+
+@interface CLCMacDragView : RCTView
+
+@property(nonatomic, copy) RCTDirectEventBlock onDragStart;
+@property(nonatomic, copy) RCTDirectEventBlock onDragMove;
+@property(nonatomic, copy) RCTDirectEventBlock onDragEnd;
+@property(nonatomic, copy) RCTDirectEventBlock onDragCancel;
+
+@end
+
+@implementation CLCMacDragView
+
+- (instancetype)initWithFrame:(NSRect)frame
+{
+  if ((self = [super initWithFrame:frame])) {
+    self.mouseDownCanMoveWindow = NO;
+    NSPanGestureRecognizer *recognizer =
+        [[NSPanGestureRecognizer alloc] initWithTarget:self
+                                               action:@selector(handlePan:)];
+    [self addGestureRecognizer:recognizer];
+  }
+  return self;
+}
+
+- (NSDictionary *)payloadForRecognizer:(NSPanGestureRecognizer *)recognizer
+{
+  NSPoint translation = [recognizer translationInView:self];
+  NSPoint location = [recognizer locationInView:self];
+  NSPoint windowLocation = [self convertPoint:location toView:nil];
+  return @{
+    @"translationX" : @(translation.x),
+    @"translationY" : @(-translation.y),
+    @"locationX" : @(location.x),
+    @"locationY" : @(NSHeight(self.bounds) - location.y),
+    @"pageX" : @(windowLocation.x),
+    @"pageY" : @(windowLocation.y),
+  };
+}
+
+- (void)handlePan:(NSPanGestureRecognizer *)recognizer
+{
+  NSDictionary *payload = [self payloadForRecognizer:recognizer];
+  switch (recognizer.state) {
+    case NSGestureRecognizerStateBegan:
+      if (self.onDragStart) {
+        self.onDragStart(payload);
+      }
+      break;
+    case NSGestureRecognizerStateChanged:
+      if (self.onDragMove) {
+        self.onDragMove(payload);
+      }
+      break;
+    case NSGestureRecognizerStateEnded:
+      if (self.onDragEnd) {
+        self.onDragEnd(payload);
+      }
+      break;
+    case NSGestureRecognizerStateCancelled:
+    case NSGestureRecognizerStateFailed:
+      if (self.onDragCancel) {
+        self.onDragCancel(payload);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+@end
+
+@interface MacDragViewManager : RCTViewManager
+@end
+
+@implementation MacDragViewManager
+
+RCT_EXPORT_MODULE(MacDragView)
+
++ (BOOL)requiresMainQueueSetup
+{
+  return YES;
+}
+
+- (NSView *)view
+{
+  return [[CLCMacDragView alloc] initWithFrame:NSZeroRect];
+}
+
+RCT_EXPORT_VIEW_PROPERTY(onDragStart, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onDragMove, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onDragEnd, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onDragCancel, RCTDirectEventBlock)
 
 @end
 

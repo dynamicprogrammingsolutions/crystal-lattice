@@ -49,12 +49,23 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     DEFAULT_MARKDOWN_DISPLAY_PREFERENCES: defaultMarkdownDisplayPreferences,
     DISPLAY_TYPOGRAPHY_PRESETS,
     MARKDOWN_BASE_FONT_SIZES,
+    MARKDOWN_BASE_FONT_SIZE_OPTIONS,
+    MARKDOWN_HEADER_SIZE_OPTIONS,
     applyDisplayTypographyPreset,
     deriveMarkdownTypography,
     normalizeMarkdownBaseFontSize,
     normalizeMarkdownDisplayPreferences,
     normalizeMarkdownHeaderSize,
   } = markdownDisplayPreferences;
+  const homeWorkspace = jest.requireActual(
+    '../../packages/frontend-rn-components/src/homeWorkspace',
+  );
+  const reorderGeometry = jest.requireActual(
+    '../../packages/frontend-rn-components/src/reorderGeometry',
+  );
+  const sessionRequestStatus = jest.requireActual(
+    '../../packages/frontend-rn-components/src/sessionRequestStatus',
+  );
   const theme = {
     typography:
       DISPLAY_TYPOGRAPHY_PRESETS[
@@ -153,12 +164,33 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   });
 
   return {
+    ...homeWorkspace,
+    ...reorderGeometry,
+    ...sessionRequestStatus,
     ThemeProvider: ({ theme: value, children }: { theme: any; children: any }) =>
       React.createElement(ThemeContext.Provider, { value }, children),
     useTheme: () => React.useContext(ThemeContext),
+    SessionRequestStatusIndicator: ({ status, variant = 'badge', testID }) => {
+      if (!status) return null;
+      const presentation =
+        sessionRequestStatus.getSessionRequestStatusPresentation(status);
+      return React.createElement(
+        View,
+        {
+          testID,
+          accessibilityLabel: `Request status: ${presentation.label}`,
+          accessibilityValue: { text: presentation.label },
+        },
+        variant === 'dot'
+          ? null
+          : React.createElement(Text, null, presentation.label),
+      );
+    },
     DEFAULT_MARKDOWN_DISPLAY_PREFERENCES: defaultMarkdownDisplayPreferences,
     DISPLAY_TYPOGRAPHY_PRESETS,
     MARKDOWN_BASE_FONT_SIZES,
+    MARKDOWN_BASE_FONT_SIZE_OPTIONS,
+    MARKDOWN_HEADER_SIZE_OPTIONS,
     normalizeMarkdownBaseFontSize,
     normalizeMarkdownHeaderSize,
     normalizeMarkdownDisplayPreferences,

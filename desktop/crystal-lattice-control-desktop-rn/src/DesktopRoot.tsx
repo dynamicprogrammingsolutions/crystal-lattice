@@ -1,27 +1,47 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
+import { AppState, StyleSheet, View } from 'react-native';
 
 import {
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   MarkdownDisplayPreferencesProvider,
   ThemeProvider,
   applyDisplayTypographyPreset,
+  deriveHomeSessionCollections,
   normalizeMarkdownBaseFontSize,
   normalizeMarkdownHeaderSize,
+  normalizeRecentSessionsWindow,
   useTheme,
   type MarkdownBaseFontSize,
   type MarkdownDisplayPreferences,
   type MarkdownHeaderSize,
+  type HomeSessionItem,
+  type RecentSessionsWindow,
 } from '@crystal-lattice/frontend-rn-components';
 
-import type { ConnectionRecord, SessionSummary } from '@crystal-lattice/frontend-sdk';
+import type {
+  ConnectionRecord,
+  SessionSummary,
+} from '@crystal-lattice/frontend-sdk';
+import { useSessionRequestStatuses } from '@crystal-lattice/frontend-sdk-react';
 
 import { DesktopShell } from './layout/DesktopShell';
+import {
+  DesktopActivityRail,
+  type DesktopLowerPanel,
+} from './layout/DesktopActivityRail';
 import { ConnectionsPanel } from './panels/ConnectionsPanel';
+import { HistoryPanel } from './panels/HistoryPanel';
 import { SessionsPanel } from './panels/SessionsPanel';
 import { ChatPanePlaceholder } from './chat/ChatPanePlaceholder';
-import {ChatPaneTabStack, ChatPaneTabStackPlaceholder} from './tabs/ChatPaneTabStack';
-import { SessionTabs, type DesktopSessionTab } from './tabs/SessionTabs';
+import { ChatPaneTabStack } from './tabs/ChatPaneTabStack';
+import { SessionTabs } from './tabs/SessionTabs';
 import { usePersistedConnections } from './connections/usePersistedConnections';
 import { useOpenConnections } from './connections/useOpenConnections';
 import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
@@ -43,8 +63,28 @@ import {
   serializePersistedOpenTabsState,
   STORAGE_KEY_OPEN_TABS,
 } from './tabs/openTabsStorage';
+import {
+  INITIAL_DESKTOP_WORKSPACE_STATE,
+  desktopWorkspaceReducer,
+  getActiveDesktopSessionTab,
+  getDesktopWorkspaceTabs,
+} from './tabs/desktopWorkspaceState';
 import { DesktopGlobalDisplayLayer } from './ui/DesktopGlobalDisplayLayer';
 import { setActiveServerSettingsWindow } from './windows/serverSettingsCoordinator';
+import {
+  DesktopHomeWorkspaceProvider,
+  useDesktopHomeWorkspace,
+} from './home/DesktopHomeWorkspaceContext';
+import { DesktopHomeView } from './home/DesktopHomeView';
+import {
+  normalizeSessionOpenMode,
+  type SessionOpenMode,
+} from './settings/desktopGlobalSettings';
+import { DesktopConnectionSessionStatusReader } from './status/DesktopConnectionSessionStatusReader';
+import {
+  clearSessionNoteWindowFromSystem,
+  openSessionNoteWindow,
+} from './windows/sessionNoteCoordinator';
 
 const EMPTY_CACHED_SESSIONS: SessionSummary[] = [];
 
@@ -54,53 +94,30 @@ function buildTabId(connectionId: string, sessionId: string): string {
   return `${connectionId}:${sessionId}`;
 }
 
-function removeTabAndSelectNext(
-  tabs: DesktopSessionTab[],
-  removedTabId: string,
-  activeTabId: string | null,
-): { tabs: DesktopSessionTab[]; nextActiveTabId: string | null } {
-  const index = tabs.findIndex((tab) => tab.tabId === removedTabId);
-  if (index === -1) {
-    return { tabs, nextActiveTabId: activeTabId };
-  }
-
-  const nextTabs = tabs.filter((tab) => tab.tabId !== removedTabId);
-  if (activeTabId !== removedTabId) {
-    return { tabs: nextTabs, nextActiveTabId: activeTabId };
-  }
-
-  if (nextTabs.length === 0) {
-    return { tabs: nextTabs, nextActiveTabId: null };
-  }
-
-  const neighborIndex = Math.min(index, nextTabs.length - 1);
-  return { tabs: nextTabs, nextActiveTabId: nextTabs[neighborIndex].tabId };
-}
-
-function tabArrayEqualByReference(
-  a: ReadonlyArray<DesktopSessionTab>,
-  b: ReadonlyArray<DesktopSessionTab>,
-): boolean {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-
 export interface DesktopRootProps {
   initialTabStripStyle?: TabStripStyle;
   initialSessionsFollowActiveTabEnabled?: boolean;
   initialMarkdownBaseFontSize?: MarkdownBaseFontSize;
   initialMarkdownHeaderSize?: MarkdownHeaderSize;
+  initialRecentSessionsWindow?: RecentSessionsWindow;
+  initialSessionDoubleClickAction?: SessionOpenMode;
 }
 
-export function DesktopRoot({
+export function DesktopRoot(props: DesktopRootProps): React.JSX.Element {
+  return (
+    <DesktopHomeWorkspaceProvider store={asyncStorageKeyValueStore}>
+      <DesktopRootInner {...props} />
+    </DesktopHomeWorkspaceProvider>
+  );
+}
+
+function DesktopRootInner({
   initialTabStripStyle,
   initialSessionsFollowActiveTabEnabled,
   initialMarkdownBaseFontSize,
   initialMarkdownHeaderSize,
+  initialRecentSessionsWindow,
+  initialSessionDoubleClickAction,
 }: DesktopRootProps): React.JSX.Element {
   const baseTheme = useTheme();
 
@@ -132,6 +149,33 @@ export function DesktopRoot({
     [baseTheme, markdownDisplayPreferences.baseFontSize],
   );
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [recentSessionsWindow, setRecentSessionsWindow] =
+    useState<RecentSessionsWindow>(
+      normalizeRecentSessionsWindow(initialRecentSessionsWindow),
+    );
+  const [sessionDoubleClickAction, setSessionDoubleClickAction] =
+    useState<SessionOpenMode>(
+      normalizeSessionOpenMode(initialSessionDoubleClickAction),
+    );
+  const [foreground, setForeground] = useState(
+    AppState.currentState === 'active',
+  );
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      setForeground(state === 'active');
+    });
+    return () => subscription.remove();
+  }, []);
+  const {
+    watchlist,
+    notes,
+    addToWatchlist,
+    removeFromWatchlist,
+    moveWatchlistItem,
+    removeConnectionFromWatchlist,
+    setSessionNote,
+    removeSessionNote,
+  } = useDesktopHomeWorkspace();
 
   const {
     hydrated: connectionsHydrated,
@@ -168,29 +212,30 @@ export function DesktopRoot({
   } = useMessagesCache(asyncStorageKeyValueStore);
 
   const [focusedConnectionId, setFocusedConnectionId] = useState<string | null>(null);
-  const [tabs, setTabs] = useState<DesktopSessionTab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
-
-  const activeTabIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    activeTabIdRef.current = activeTabId;
-  }, [activeTabId]);
-
+  const [workspace, dispatchWorkspace] = useReducer(
+    desktopWorkspaceReducer,
+    INITIAL_DESKTOP_WORKSPACE_STATE,
+  );
+  const tabs = useMemo(() => getDesktopWorkspaceTabs(workspace), [workspace]);
+  const activeTab = useMemo(
+    () => getActiveDesktopSessionTab(workspace),
+    [workspace],
+  );
+  const activeTabId =
+    workspace.activeWorkspace.kind === 'session'
+      ? workspace.activeWorkspace.tabId
+      : null;
   const [tabsHydrated, setTabsHydrated] = useState(false);
-  const hydratedTabRangesRef = useRef<
-    Array<{ connectionId: string; sessionId: string; rangeStartText?: string | null; rangeEndText?: string | null }>
-  >([]);
-  const didSeedTabRangesRef = useRef(false);
-
+  const [sessionReopenIntentVersion, setSessionReopenIntentVersion] =
+    useState(0);
+  const lastSessionReopenAttemptRef = useRef<string | null>(null);
   const [didAutoOpenMostRecent, setDidAutoOpenMostRecent] = useState(false);
+  const [connectionsVisible, setConnectionsVisible] = useState(true);
+  const [lowerPanel, setLowerPanel] =
+    useState<DesktopLowerPanel>('sessions');
 
   const lastValidatedOpenedAtByConnectionRef = useRef<Record<string, number>>({});
   const validatingConnectionIdsRef = useRef<Set<string>>(new Set());
-
-  const lastSavedOpenTabsStateRef = useRef<{
-    activeTabId: string | null;
-    tabs: DesktopSessionTab[];
-  } | null>(null);
 
   const openTab = useCallback(
     ({
@@ -198,38 +243,26 @@ export function DesktopRoot({
       sessionId,
       title,
       subtitle,
+      mode = 'open',
     }: {
       connectionId: string;
       sessionId: string;
       title?: string;
       subtitle?: string | null;
+      mode?: SessionOpenMode;
     }) => {
       const tabId = buildTabId(connectionId, sessionId);
-      setTabs((prev) => {
-        const existingIndex = prev.findIndex((tab) => tab.tabId === tabId);
-        if (existingIndex >= 0) {
-          const existing = prev[existingIndex];
-          const nextTitle = typeof title === 'string' && title ? title : existing.title;
-          const nextSubtitle = subtitle !== undefined ? subtitle : existing.subtitle;
-          if (existing.title === nextTitle && existing.subtitle === nextSubtitle) {
-            return prev;
-          }
-          const next = [...prev];
-          next[existingIndex] = { ...existing, title: nextTitle, subtitle: nextSubtitle };
-          return next;
-        }
-        return [
-          ...prev,
-          {
-            tabId,
-            connectionId,
-            sessionId,
-            title: title ?? sessionId,
-            subtitle: subtitle ?? null,
-          },
-        ];
+      dispatchWorkspace({
+        type: mode === 'preview' ? 'openPreview' : 'openPermanent',
+        tab: {
+          tabId,
+          connectionId,
+          sessionId,
+          title: title ?? sessionId,
+          subtitle: subtitle ?? null,
+        },
       });
-      setActiveTabId(tabId);
+      setSessionReopenIntentVersion((current) => current + 1);
     },
     [],
   );
@@ -239,56 +272,26 @@ export function DesktopRoot({
       connectionId: string;
       presentations: Record<string, { title: string; subtitle: string | null }>;
     }) => {
-      setTabs((prev) => {
-        if (prev.length === 0) {
-          return prev;
-        }
-
-        let changed = false;
-        const next = prev.map((tab) => {
-          if (tab.connectionId !== params.connectionId) {
-            return tab;
-          }
-
-          const presentation = params.presentations[tab.sessionId];
-          if (!presentation) {
-            return tab;
-          }
-
-          const nextTitle = presentation.title || tab.title;
-          const nextSubtitle = presentation.subtitle;
-          if (tab.title === nextTitle && tab.subtitle === nextSubtitle) {
-            return tab;
-          }
-          changed = true;
-          return { ...tab, title: nextTitle, subtitle: nextSubtitle };
-        });
-
-        return changed ? next : prev;
+      dispatchWorkspace({
+        type: 'updatePresentations',
+        connectionId: params.connectionId,
+        presentations: params.presentations,
       });
     },
     [],
   );
 
-  const closeTab = useCallback(
-    (tabId: string) => {
-      setTabs((prev) => {
-        const result = removeTabAndSelectNext(prev, tabId, activeTabIdRef.current);
-        setActiveTabId(result.nextActiveTabId);
-        return result.tabs;
-      });
-    },
-    [],
-  );
-
-  const focusTab = useCallback((tabId: string) => {
-    setActiveTabId(tabId);
+  const closeTab = useCallback((tabId: string) => {
+    dispatchWorkspace({ type: 'closeTab', tabId });
   }, []);
 
-  const activeTab = useMemo(
-    () => (activeTabId ? tabs.find((tab) => tab.tabId === activeTabId) ?? null : null),
-    [activeTabId, tabs],
-  );
+  const focusTab = useCallback((tabId: string) => {
+    dispatchWorkspace({ type: 'selectTab', tabId });
+    setSessionReopenIntentVersion((current) => current + 1);
+  }, []);
+  const promotePreview = useCallback((tabId?: string) => {
+    dispatchWorkspace({ type: 'promotePreview', tabId });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -300,51 +303,11 @@ export function DesktopRoot({
         if (!parsed || cancelled) {
           return;
         }
-
-        hydratedTabRangesRef.current = parsed.tabs.map((tab) => ({
-          connectionId: tab.connectionId,
-          sessionId: tab.sessionId,
-          rangeStartText: tab.rangeStartText,
-          rangeEndText: tab.rangeEndText,
-        }));
-
-        setTabs((prevTabs) => {
-          if (prevTabs.length > 0) {
-            return prevTabs;
-          }
-
-          const restoredTabs: DesktopSessionTab[] = parsed.tabs.map((tab) => {
-            const tabId = buildTabId(tab.connectionId, tab.sessionId);
-            return {
-              tabId,
-              connectionId: tab.connectionId,
-              sessionId: tab.sessionId,
-              title: tab.title,
-              subtitle: tab.subtitle ?? null,
-            };
-          });
-
-          const restoredActive =
-            parsed.activeTabId && restoredTabs.some((tab) => tab.tabId === parsed.activeTabId)
-              ? parsed.activeTabId
-              : restoredTabs[0]?.tabId ?? null;
-
-          setActiveTabId(restoredActive);
-
-          const focusedConnection = restoredActive
-            ? restoredTabs.find((tab) => tab.tabId === restoredActive)?.connectionId
-            : restoredTabs[0]?.connectionId;
-          if (focusedConnection) {
-            setFocusedConnectionId(focusedConnection);
-          }
-
-          lastSavedOpenTabsStateRef.current = {
-            activeTabId: restoredActive,
-            tabs: restoredTabs,
-          };
-
-          return restoredTabs;
-        });
+        dispatchWorkspace({ type: 'hydrate', state: parsed });
+        const restoredActive = getActiveDesktopSessionTab(parsed);
+        if (restoredActive) {
+          setFocusedConnectionId(restoredActive.connectionId);
+        }
       } finally {
         if (!cancelled) {
           setTabsHydrated(true);
@@ -359,89 +322,11 @@ export function DesktopRoot({
   }, []);
 
   useEffect(() => {
-    if (!tabsHydrated) {
-      return;
-    }
-    if (!messagesCacheHydrated) {
-      return;
-    }
-    if (didSeedTabRangesRef.current) {
-      return;
-    }
-
-    const ranges = hydratedTabRangesRef.current;
-    if (ranges.length === 0) {
-      didSeedTabRangesRef.current = true;
-      return;
-    }
-
-    didSeedTabRangesRef.current = true;
-    for (const range of ranges) {
-      const startText = range.rangeStartText;
-      const endText = range.rangeEndText;
-      if (startText == null && endText == null) {
-        continue;
-      }
-
-      const existing = messagesCache[range.connectionId]?.[range.sessionId];
-      const existingHasRange =
-        (typeof existing?.rangeStartText === 'string' || existing?.rangeStartText === null) &&
-        (typeof existing?.rangeEndText === 'string' || existing?.rangeEndText === null);
-      if (existing && existingHasRange) {
-        continue;
-      }
-
-      updateMessagesCache({
-        connectionId: range.connectionId,
-        sessionId: range.sessionId,
-        messages: existing?.messages ?? [],
-        cursorEventId: existing?.cursorEventId ?? null,
-        activeRequestId: existing?.activeRequestId ?? null,
-        rangeStartText: startText ?? null,
-        rangeEndText: endText ?? null,
-      });
-    }
-  }, [messagesCache, messagesCacheHydrated, tabsHydrated, updateMessagesCache]);
-
-  useEffect(() => {
-    if (!tabsHydrated) {
-      return;
-    }
-
-    const lastSaved = lastSavedOpenTabsStateRef.current;
-    if (
-      lastSaved &&
-      lastSaved.activeTabId === activeTabId &&
-      tabArrayEqualByReference(lastSaved.tabs, tabs)
-    ) {
-      return;
-    }
-
-    lastSavedOpenTabsStateRef.current = {
-      activeTabId,
-      tabs,
-    };
-
-    const save = async () => {
-      try {
-        await asyncStorageKeyValueStore.set(
-          STORAGE_KEY_OPEN_TABS,
-          serializePersistedOpenTabsState({
-            activeTabId,
-            tabs: tabs.map((tab) => ({
-              connectionId: tab.connectionId,
-              sessionId: tab.sessionId,
-              title: tab.title,
-              subtitle: tab.subtitle ?? null,
-            })),
-          }),
-        );
-      } catch {
-      }
-    };
-
-    save();
-  }, [activeTabId, tabs, tabsHydrated]);
+    if (!tabsHydrated) return;
+    void asyncStorageKeyValueStore
+      .set(STORAGE_KEY_OPEN_TABS, serializePersistedOpenTabsState(workspace))
+      .catch(() => {});
+  }, [tabsHydrated, workspace]);
 
   useEffect(() => {
     if (!connectionsHydrated) return;
@@ -476,6 +361,31 @@ export function DesktopRoot({
   );
 
   useEffect(() => {
+    if (!connectionsHydrated || !tabsHydrated || !activeTab) return;
+    const attemptKey = `${activeTab.tabId}:${sessionReopenIntentVersion}`;
+    if (lastSessionReopenAttemptRef.current === attemptKey) return;
+    lastSessionReopenAttemptRef.current = attemptKey;
+    const record = sortedConnectionRecords.find(
+      (candidate) => candidate.id === activeTab.connectionId,
+    );
+    if (!record) return;
+    setFocusedConnectionId(record.id);
+    const openState = openConnectionsById[record.id];
+    if (openState?.status === 'open' || openState?.status === 'connecting') {
+      return;
+    }
+    void openConnectionAndTouch(record);
+  }, [
+    activeTab,
+    connectionsHydrated,
+    openConnectionAndTouch,
+    openConnectionsById,
+    sessionReopenIntentVersion,
+    sortedConnectionRecords,
+    tabsHydrated,
+  ]);
+
+  useEffect(() => {
     if (!connectionsHydrated) return;
     if (!tabsHydrated) return;
 
@@ -506,27 +416,23 @@ export function DesktopRoot({
     if (!connectionsHydrated) return;
     if (!tabsHydrated) return;
 
-    const validConnectionIds = new Set(sortedConnectionRecords.map((record) => record.id));
-    setTabs((prevTabs) => {
-      if (prevTabs.length === 0) {
-        return prevTabs;
-      }
-
-      const nextTabs = prevTabs.filter((tab) => validConnectionIds.has(tab.connectionId));
-      if (nextTabs.length === prevTabs.length) {
-        return prevTabs;
-      }
-
-      setActiveTabId((prevActive) => {
-        if (prevActive && nextTabs.some((tab) => tab.tabId === prevActive)) {
-          return prevActive;
-        }
-        return nextTabs[0]?.tabId ?? null;
-      });
-
-      return nextTabs;
-    });
-  }, [connectionsHydrated, sortedConnectionRecords, tabsHydrated]);
+    const validConnectionIds = new Set(
+      sortedConnectionRecords.map((record) => record.id),
+    );
+    const removedConnectionIds = new Set(
+      tabs
+        .filter((tab) => !validConnectionIds.has(tab.connectionId))
+        .map((tab) => tab.connectionId),
+    );
+    for (const connectionId of removedConnectionIds) {
+      dispatchWorkspace({ type: 'removeConnection', connectionId });
+    }
+  }, [
+    connectionsHydrated,
+    sortedConnectionRecords,
+    tabs,
+    tabsHydrated,
+  ]);
 
   useEffect(() => {
     if (!tabsHydrated) {
@@ -641,8 +547,25 @@ export function DesktopRoot({
       () => {
         clearSessionsCache();
         clearMessagesCache();
-        setTabs([]);
-        setActiveTabId(null);
+        dispatchWorkspace({ type: 'clear' });
+      },
+    );
+
+    const recentSessionsWindowSub = desktopWindowEvents.addListener(
+      'recentSessionsWindowChanged',
+      (payload: any) => {
+        setRecentSessionsWindow(
+          normalizeRecentSessionsWindow(payload?.recentSessionsWindow),
+        );
+      },
+    );
+
+    const sessionDoubleClickActionSub = desktopWindowEvents.addListener(
+      'sessionDoubleClickActionChanged',
+      (payload: any) => {
+        setSessionDoubleClickAction(
+          normalizeSessionOpenMode(payload?.sessionDoubleClickAction),
+        );
       },
     );
 
@@ -728,6 +651,9 @@ export function DesktopRoot({
         if (windowKey === 'serverSettings') {
           setActiveServerSettingsWindow(null);
         }
+        if (windowKey === 'sessionNote') {
+          clearSessionNoteWindowFromSystem();
+        }
       },
     );
 
@@ -738,6 +664,8 @@ export function DesktopRoot({
       markdownBaseFontSizeSub.remove();
       markdownHeaderSizeSub.remove();
       clearStoredSessionCachesSub.remove();
+      recentSessionsWindowSub.remove();
+      sessionDoubleClickActionSub.remove();
       agentPickerSub.remove();
       sessionSettingsCancelledSub.remove();
     };
@@ -759,6 +687,107 @@ export function DesktopRoot({
     return map;
   }, [sortedConnectionRecords]);
 
+  const homeCollections = useMemo(
+    () =>
+      deriveHomeSessionCollections({
+        connections: sortedConnectionRecords,
+        sessionsCache,
+        watchlist,
+        notes,
+        recentSessionsWindow,
+      }),
+    [
+      notes,
+      recentSessionsWindow,
+      sessionsCache,
+      sortedConnectionRecords,
+      watchlist,
+    ],
+  );
+
+  const statusSessionIdsByConnection = useMemo(() => {
+    const ids = new Map<string, Set<string>>();
+    const add = (connectionId: string, sessionId: string) => {
+      const group = ids.get(connectionId) ?? new Set<string>();
+      group.add(sessionId);
+      ids.set(connectionId, group);
+    };
+    tabs.forEach((tab) => add(tab.connectionId, tab.sessionId));
+    homeCollections.watchlist.forEach((item) =>
+      add(item.connectionId, item.sessionId),
+    );
+    homeCollections.recent.forEach((item) =>
+      add(item.connectionId, item.sessionId),
+    );
+    if (focusedConnectionId) {
+      for (const session of
+        sessionsCache[focusedConnectionId]?.sessions ?? []) {
+        add(focusedConnectionId, session.session_id);
+      }
+    }
+    return Object.fromEntries(
+      [...ids.entries()].map(([connectionId, values]) => [
+        connectionId,
+        [...values],
+      ]),
+    );
+  }, [
+    focusedConnectionId,
+    homeCollections.recent,
+    homeCollections.watchlist,
+    sessionsCache,
+    tabs,
+  ]);
+
+  const statusReader = useMemo(
+    () => new DesktopConnectionSessionStatusReader(getBackend),
+    [getBackend],
+  );
+  const requestStatuses = useSessionRequestStatuses({
+    active: connectionsHydrated && foreground,
+    connections: sortedConnectionRecords,
+    sessionIdsByConnection: statusSessionIdsByConnection,
+    reader: statusReader,
+  });
+
+  const openCollectionSession = useCallback(
+    (
+      item: HomeSessionItem,
+      mode: SessionOpenMode,
+    ) => {
+      const presentation = item.summary.presentation;
+      setFocusedConnectionId(item.connectionId);
+      openTab({
+        connectionId: item.connectionId,
+        sessionId: item.sessionId,
+        title:
+          presentation?.title ||
+          item.summary.preview ||
+          item.summary.session_id,
+        subtitle: presentation?.subtitle ?? item.connection.name,
+        mode,
+      });
+    },
+    [openTab],
+  );
+
+  const editCollectionNote = useCallback(
+    (item: HomeSessionItem) => {
+      openSessionNoteWindow({
+        id: `session-note:${item.sessionId}`,
+        sessionId: item.sessionId,
+        title:
+          item.summary.presentation?.title ||
+          item.summary.preview ||
+          item.sessionId,
+        initialNote: notes[item.sessionId] ?? '',
+        onSave: (note) => setSessionNote(item.sessionId, note),
+        onRemove: () => removeSessionNote(item.sessionId),
+      });
+    },
+    [notes, removeSessionNote, setSessionNote],
+  );
+
   const openNewConnectionEditor = useCallback(() => {
     DesktopWindowManager?.openConnectionEditor({ mode: 'new' });
   }, []);
@@ -768,14 +797,23 @@ export function DesktopRoot({
   }, []);
 
   const handleClearConnections = useCallback(() => {
+    for (const record of sortedConnectionRecords) {
+      removeConnectionFromWatchlist(record.id);
+    }
     clearConnections();
     closeAllConnections();
     clearSessionsCache();
     clearMessagesCache();
     setFocusedConnectionId(null);
-    setTabs([]);
-    setActiveTabId(null);
-  }, [clearConnections, clearMessagesCache, clearSessionsCache, closeAllConnections]);
+    dispatchWorkspace({ type: 'clear' });
+  }, [
+    clearConnections,
+    clearMessagesCache,
+    clearSessionsCache,
+    closeAllConnections,
+    removeConnectionFromWatchlist,
+    sortedConnectionRecords,
+  ]);
 
   const handleDeleteConnection = useCallback(
     (id: string) => {
@@ -783,21 +821,8 @@ export function DesktopRoot({
       deleteConnection(id);
       deleteConnectionSessionsCache(id);
       deleteConnectionMessagesCache(id);
-      setTabs((prev) => {
-        const remaining = prev.filter((tab) => tab.connectionId !== id);
-
-        setActiveTabId((currentActive) => {
-          if (!currentActive) {
-            return remaining[0]?.tabId ?? null;
-          }
-          if (!currentActive.startsWith(`${id}:`)) {
-            return currentActive;
-          }
-          return remaining[0]?.tabId ?? null;
-        });
-
-        return remaining;
-      });
+      dispatchWorkspace({ type: 'removeConnection', connectionId: id });
+      removeConnectionFromWatchlist(id);
       setFocusedConnectionId((prev) => (prev === id ? null : prev));
     },
     [
@@ -805,6 +830,7 @@ export function DesktopRoot({
       deleteConnection,
       deleteConnectionMessagesCache,
       deleteConnectionSessionsCache,
+      removeConnectionFromWatchlist,
     ],
   );
 
@@ -820,69 +846,135 @@ export function DesktopRoot({
         connectionNameById={connectionNameById}
       >
       <DesktopShell
-        left={(
+        activityRail={(
+          <DesktopActivityRail
+            connectionsVisible={connectionsVisible}
+            lowerPanel={lowerPanel}
+            onToggleConnections={() =>
+              setConnectionsVisible((current) => !current)
+            }
+            onSelectLowerPanel={setLowerPanel}
+          />
+        )}
+        panel={(
           <View style={styles.leftColumn}>
-            <ConnectionsPanel
-              connectionRecords={sortedConnectionRecords}
-              focusedConnectionId={focusedConnectionId}
-              openConnectionsById={openConnectionsById}
-              rowClickBehavior={DEFAULT_CONNECTION_ROW_CLICK_BEHAVIOR}
-              onFocusConnection={(id) => setFocusedConnectionId(id)}
-              onOpenConnection={(record) => {
-                setFocusedConnectionId(record.id);
-                openConnectionAndTouch(record);
-              }}
-              onCloseConnection={(id) => closeConnection(id)}
-              onDeleteConnection={handleDeleteConnection}
-              onClearConnections={handleClearConnections}
-              onOpenNewConnectionEditor={openNewConnectionEditor}
-              onOpenEditConnectionEditor={openEditConnectionEditor}
-            />
+            {connectionsVisible ? (
+              <ConnectionsPanel
+                connectionRecords={sortedConnectionRecords}
+                focusedConnectionId={focusedConnectionId}
+                openConnectionsById={openConnectionsById}
+                rowClickBehavior={DEFAULT_CONNECTION_ROW_CLICK_BEHAVIOR}
+                onFocusConnection={(id) => setFocusedConnectionId(id)}
+                onOpenConnection={(record) => {
+                  setFocusedConnectionId(record.id);
+                  openConnectionAndTouch(record);
+                }}
+                onCloseConnection={(id) => closeConnection(id)}
+                onDeleteConnection={handleDeleteConnection}
+                onClearConnections={handleClearConnections}
+                onOpenNewConnectionEditor={openNewConnectionEditor}
+                onOpenEditConnectionEditor={openEditConnectionEditor}
+              />
+            ) : null}
 
-            <SessionsPanel
-              focusedConnectionId={focusedConnectionId}
-              focusedConnectionName={
-                focusedConnectionId ? connectionNameById[focusedConnectionId] : null
-              }
-              connectionBaseUrl={
-                focusedConnectionId
-                  ? openConnectionsById[focusedConnectionId]?.baseUrl ?? null
-                  : null
-              }
-              connectionId={focusedConnectionId}
-              backend={focusedConnectionId ? getBackend(focusedConnectionId) : null}
-              isOnline={
-                focusedConnectionId
-                  ? openConnectionsById[focusedConnectionId]?.status === 'open'
-                  : false
-              }
-              cachedSessions={
-                focusedConnectionId
-                  ? sessionsCache[focusedConnectionId]?.sessions ?? EMPTY_CACHED_SESSIONS
-                  : EMPTY_CACHED_SESSIONS
-              }
-              cachedLastLoadedAt={
-                focusedConnectionId ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null : null
-              }
-              activeTabId={activeTabId}
-              activeTabConnectionId={activeTab?.connectionId ?? null}
-              activeTabSessionId={activeTab?.sessionId ?? null}
-              followActiveTabEnabled={sessionsFollowActiveTabEnabled}
-              onUpdateCache={updateSessionsCache}
-              onOpenSessionTab={openTab}
-              onUpdateOpenTabsPresentation={updateOpenTabsPresentation}
-            />
+            {lowerPanel === 'sessions' ? (
+              <SessionsPanel
+                focusedConnectionId={focusedConnectionId}
+                focusedConnectionName={
+                  focusedConnectionId
+                    ? connectionNameById[focusedConnectionId]
+                    : null
+                }
+                connectionBaseUrl={
+                  focusedConnectionId
+                    ? openConnectionsById[focusedConnectionId]?.baseUrl ?? null
+                    : null
+                }
+                connectionId={focusedConnectionId}
+                backend={
+                  focusedConnectionId ? getBackend(focusedConnectionId) : null
+                }
+                isOnline={
+                  focusedConnectionId
+                    ? openConnectionsById[focusedConnectionId]?.status ===
+                      'open'
+                    : false
+                }
+                cachedSessions={
+                  focusedConnectionId
+                    ? sessionsCache[focusedConnectionId]?.sessions ??
+                      EMPTY_CACHED_SESSIONS
+                    : EMPTY_CACHED_SESSIONS
+                }
+                cachedLastLoadedAt={
+                  focusedConnectionId
+                    ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null
+                    : null
+                }
+                activeTabId={activeTabId}
+                activeTabConnectionId={activeTab?.connectionId ?? null}
+                activeTabSessionId={activeTab?.sessionId ?? null}
+                followActiveTabEnabled={sessionsFollowActiveTabEnabled}
+                onUpdateCache={updateSessionsCache}
+                onOpenSessionTab={openTab}
+                onUpdateOpenTabsPresentation={updateOpenTabsPresentation}
+                sessionDoubleClickAction={sessionDoubleClickAction}
+                requestStatuses={
+                  focusedConnectionId
+                    ? requestStatuses[focusedConnectionId] ?? {}
+                    : {}
+                }
+                sessionNotes={notes}
+                onEditSessionNote={({ sessionId, title }) =>
+                  openSessionNoteWindow({
+                    id: `session-note:${sessionId}`,
+                    sessionId,
+                    title,
+                    initialNote: notes[sessionId] ?? '',
+                    onSave: (note) => setSessionNote(sessionId, note),
+                    onRemove: () => removeSessionNote(sessionId),
+                  })
+                }
+              />
+            ) : (
+              <HistoryPanel
+                collections={homeCollections}
+                statuses={requestStatuses}
+                doubleClickAction={sessionDoubleClickAction}
+                onOpenSession={openCollectionSession}
+                onToggleWatch={(item, watched) =>
+                  watched
+                    ? removeFromWatchlist(item.connectionId, item.sessionId)
+                    : addToWatchlist(item.connectionId, item.sessionId)
+                }
+                onEditNote={editCollectionNote}
+              />
+            )}
           </View>
         )}
         main={(
           <View style={styles.mainColumn}>
             <SessionTabs
-              tabs={tabs}
+              permanentTabs={workspace.permanentTabs}
+              previewTab={workspace.previewTab}
+              homeActive={workspace.activeWorkspace.kind === 'home'}
               activeTabId={activeTabId}
               styleVariant={tabStripStyle}
               connectionNameById={connectionNameById}
+              requestStatuses={requestStatuses}
+              onSelectHome={() =>
+                dispatchWorkspace({ type: 'selectHome' })
+              }
               onSelectTab={focusTab}
               onCloseTab={closeTab}
+              onPromotePreview={promotePreview}
+              onReorderPermanent={(fromIndex, toIndex) =>
+                dispatchWorkspace({
+                  type: 'reorderPermanent',
+                  fromIndex,
+                  toIndex,
+                })
+              }
             />
 
             <View
@@ -893,7 +985,21 @@ export function DesktopRoot({
                   : styles.mainContentCardLike,
               ]}
             >
-              {tabs.length === 0 ? (
+              {workspace.activeWorkspace.kind === 'home' ? (
+                <DesktopHomeView
+                  collections={homeCollections}
+                  statuses={requestStatuses}
+                  doubleClickAction={sessionDoubleClickAction}
+                  onOpenSession={openCollectionSession}
+                  onToggleWatch={(item, watched) =>
+                    watched
+                      ? removeFromWatchlist(item.connectionId, item.sessionId)
+                      : addToWatchlist(item.connectionId, item.sessionId)
+                  }
+                  onEditNote={editCollectionNote}
+                  onMoveWatchlistItem={moveWatchlistItem}
+                />
+              ) : !activeTab ? (
                 <ChatPanePlaceholder
                   visible
                   title="No sessions open"
@@ -910,8 +1016,10 @@ export function DesktopRoot({
 	                  sessionsCache={sessionsCache}
 	                  messagesCache={messagesCache}
                     messagesCacheHydrated={messagesCacheHydrated}
+                    requestStatuses={requestStatuses}
 	                  onUpdateCache={updateMessagesCache}
 	                  onOpenSessionTab={openTab}
+                    onPromotePreview={promotePreview}
 	                />
               )}
             </View>

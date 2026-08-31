@@ -138,4 +138,35 @@ final class MarkdownDisplayMenuUITests: XCTestCase {
     )
     XCTAssertGreaterThan(footerAt16, footerAt15)
   }
+
+  func testApplicationSettingsMenuOpensSeparateSettingsWindow() throws {
+    let app = XCUIApplication()
+    app.launch()
+    app.activate()
+
+    let applicationMenu =
+      app.menuBars.menuBarItems["CrystalLatticeControlDesktopRN"]
+    XCTAssertTrue(
+      applicationMenu.waitForExistence(timeout: 20),
+      app.debugDescription
+    )
+    applicationMenu.click()
+    let settings = app.menuItems["Settings…"]
+    XCTAssertTrue(settings.waitForExistence(timeout: 5), app.debugDescription)
+    XCTAssertTrue(settings.isEnabled)
+    settings.click()
+
+    let settingsWindow = app.windows["globalSettingsWindow"]
+    XCTAssertTrue(
+      settingsWindow.waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    XCTAssertTrue(
+      app.descendants(matching: .any)
+        .matching(NSPredicate(format: "label == %@", "Close settings"))
+        .firstMatch
+        .waitForExistence(timeout: 5),
+      app.debugDescription
+    )
+  }
 }

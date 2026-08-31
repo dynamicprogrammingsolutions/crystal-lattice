@@ -5,6 +5,9 @@ final class ConnectionsPanelUITests: XCTestCase {
   private let stateURL = URL(
     fileURLWithPath: "/tmp/clc-connections-panel-harness-state.json"
   )
+  private let workspaceStateURL = URL(
+    fileURLWithPath: "/tmp/clc-desktop-workspace-harness-state.json"
+  )
 
   override func setUpWithError() throws {
     continueAfterFailure = false
@@ -15,6 +18,61 @@ final class ConnectionsPanelUITests: XCTestCase {
     }
     RunLoop.current.run(until: Date().addingTimeInterval(0.3))
     try? FileManager.default.removeItem(at: stateURL)
+    try? FileManager.default.removeItem(at: workspaceStateURL)
+  }
+
+  private func launchWorkspaceHarness() -> XCUIApplication {
+    try? FileManager.default.removeItem(at: workspaceStateURL)
+    let app = XCUIApplication()
+    app.launchEnvironment["CLC_ENABLE_DESKTOP_WORKSPACE_HARNESS"] = "1"
+    app.launchArguments.append("--desktop-workspace-harness")
+    app.launch()
+    app.activate()
+    return app
+  }
+
+  private func readWorkspaceState() -> [String: Any]? {
+    guard let data = try? Data(contentsOf: workspaceStateURL) else {
+      return nil
+    }
+    return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+  }
+
+  private func waitForWorkspaceState(
+    timeout: TimeInterval = 20,
+    where predicate: ([String: Any]) -> Bool
+  ) -> [String: Any] {
+    let deadline = Date().addingTimeInterval(timeout)
+    var latest: [String: Any]?
+    while Date() < deadline {
+      if let state = readWorkspaceState() {
+        latest = state
+        if predicate(state) {
+          return state
+        }
+      }
+      RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+    }
+    XCTFail(
+      "Timed out waiting for desktop workspace state. "
+        + "Latest state: \(String(describing: latest))"
+    )
+    return latest ?? [:]
+  }
+
+  private func workspaceElement(
+    _ app: XCUIApplication,
+    _ identifier: String
+  ) -> XCUIElement {
+    app.descendants(matching: .any)
+      .matching(identifier: identifier)
+      .firstMatch
+  }
+
+  private func clickCenter(_ element: XCUIElement) {
+    element.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    ).click()
   }
 
   private func launchHarness(
@@ -140,5 +198,107 @@ final class ConnectionsPanelUITests: XCTestCase {
       number(state, "panelHeight"),
       number(state, "expectedListMaxHeight")
     )
+  }
+
+  func testWorkspaceActivityHomeAndPreviewPromotion() throws {
+    let app = launchWorkspaceHarness()
+    _ = waitForWorkspaceState { state in
+      (state["previewSessionId"] as? String) == "preview"
+        && (state["permanentOrder"] as? [String]) == ["one", "two"]
+    }
+
+    let preview = workspaceElement(
+      app,
+      "desktop-session-tab-harness-connection:preview"
+    )
+    XCTAssertTrue(preview.waitForExistence(timeout: 20), app.debugDescription)
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tab-request-status-harness-connection:preview"
+      )
+        .waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    preview.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    ).doubleClick()
+    _ = waitForWorkspaceState { state in
+      state["previewSessionId"] is NSNull
+        && (state["permanentOrder"] as? [String])
+          == ["one", "two", "preview"]
+    }
+
+    let home = workspaceElement(app, "desktop-home-tab")
+    XCTAssertTrue(home.waitForExistence(timeout: 10), app.debugDescription)
+    clickCenter(home)
+    _ = waitForWorkspaceState { state in
+      (state["active"] as? String) == "home"
+    }
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tile-session-harness-connection-one"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+
+    let firstWatched = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-one"
+    )
+    let secondWatched = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-two"
+    )
+    firstWatched.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    ).press(
+      forDuration: 0.2,
+      thenDragTo: secondWatched.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)
+      )
+    )
+    _ = waitForWorkspaceState { state in
+      (state["watchlistOrder"] as? [String]) == ["two", "one"]
+    }
+
+    clickCenter(workspaceElement(app, "desktop-activity-history"))
+    _ = waitForWorkspaceState { state in
+      (state["lowerPanel"] as? String) == "history"
+    }
+    clickCenter(workspaceElement(app, "desktop-activity-connections"))
+    _ = waitForWorkspaceState { state in
+      (state["connectionsVisible"] as? NSNumber)?.boolValue == false
+    }
+  }
+
+  func testPermanentTabsDragToLiveFinalOrder() throws {
+    let app = launchWorkspaceHarness()
+    _ = waitForWorkspaceState { state in
+      (state["permanentOrder"] as? [String]) == ["one", "two"]
+    }
+    let first = workspaceElement(
+      app,
+      "desktop-session-tab-harness-connection:one"
+    )
+    let second = workspaceElement(
+      app,
+      "desktop-session-tab-harness-connection:two"
+    )
+    XCTAssertTrue(first.waitForExistence(timeout: 20), app.debugDescription)
+    XCTAssertTrue(second.waitForExistence(timeout: 10), app.debugDescription)
+
+    let source = first.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    )
+    let destination = second.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)
+    )
+    source.press(forDuration: 0.2, thenDragTo: destination)
+
+    _ = waitForWorkspaceState { state in
+      (state["permanentOrder"] as? [String]) == ["two", "one"]
+    }
   }
 }
