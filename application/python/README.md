@@ -326,7 +326,10 @@ export ANTHROPIC_API_KEY=...
 The default Claude routes are provider-qualified:
 
 - `claude-openrouter` uses Claude through OpenRouter.
-- `claude-anthropic` uses the direct Anthropic API.
+- `claude-anthropic` uses Haiku 4.5 manual thinking through the direct
+  Anthropic API.
+- `claude-sonnet-anthropic` uses Sonnet 5 adaptive thinking and keep-all
+  reasoning context through the direct Anthropic API.
 
 For no-key development from a source checkout, use the echo config:
 

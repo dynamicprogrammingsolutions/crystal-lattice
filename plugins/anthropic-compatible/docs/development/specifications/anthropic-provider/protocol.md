@@ -111,9 +111,15 @@ assistant native message for the turn.
 
 ## Thinking continuity
 
-Thinking and redacted-thinking blocks from the latest assistant turn are
-preserved exactly and in order for follow-up requests. Tool rounds must not
-strip, reorder, rewrite, or synthesize signatures.
+Thinking and redacted-thinking blocks are preserved exactly and in order in
+client-side native history. Tool rounds must not strip, reorder, rewrite, or
+synthesize signatures.
+
+Request-body thinking controls use raw request options. Server-side retention
+may be model-default or controlled through beta context management, while the
+client retains the complete native history. The canonical bank-file
+conformance test verifies tool-turn continuity, and its interrupted-user
+variant verifies profiles that claim cross-request reasoning preservation.
 
 When a compatible endpoint does not support thinking signatures, the selected
 profile defines whether thinking is omitted, converted to text, or replayed

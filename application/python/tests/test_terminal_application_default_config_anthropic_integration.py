@@ -115,12 +115,15 @@ def test_terminal_application_default_config_anthropic_reads_file(
             for element in term_app.session_ui_elements()
             if isinstance(element, dict) and isinstance(element.get("key"), str)
         }
-        assert ui_by_key["enable_reasoning"]["type"] == "checkbox"
-        assert ui_by_key["reasoning_effort"]["type"] == "select"
+        assert "enable_reasoning" not in ui_by_key
+        assert "reasoning_effort" not in ui_by_key
+        assert "show_reasoning" not in ui_by_key
+        assert ui_by_key["request_options__thinking__type"]["type"] == "select"
         assert [
-            option["value"] for option in ui_by_key["reasoning_effort"]["options"]
-        ] == ["low", "medium", "high", "xhigh", "max"]
-        assert ui_by_key["show_reasoning"]["type"] == "checkbox"
+            option["value"]
+            for option in ui_by_key["request_options__thinking__type"]["options"]
+        ] == ["disabled", "enabled"]
+        assert ui_by_key["request_options__thinking__budget_tokens"]["type"] == "number"
         term_app.append_user_message(
             f"Use the Read tool to read {target.resolve()} and reply with "
             "exactly the first line."

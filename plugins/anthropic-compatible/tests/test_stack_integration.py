@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from agent_core import AgentCore, Session
+from plugins.request_options_feature import RequestOptionsFeature
 
 from anthropic_plugins import (
     AnthropicProvider,
@@ -50,6 +51,7 @@ class ScriptedAnthropicProvider(AnthropicProvider):
 
 def _core(*, extensions: list[type] | None = None) -> AgentCore:
     core = AgentCore()
+    core.register_feature(RequestOptionsFeature)
     core.register_provider(
         ScriptedAnthropicProvider,
         extensions=(
@@ -137,8 +139,7 @@ def test_full_stack_persists_reasoning_usage_and_native_history() -> None:
         "provider": "anthropic",
         "model": "scripted",
         "api_key": "test",
-        "enable_reasoning": True,
-        "reasoning_budget_tokens": 128,
+        "request_options": {"thinking": {"type": "enabled", "budget_tokens": 128}},
     }
     session = core.add_message(core.create_session(), "user", "question", config=config)
 

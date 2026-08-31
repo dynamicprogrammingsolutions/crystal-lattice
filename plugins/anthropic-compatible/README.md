@@ -11,8 +11,11 @@ The package currently provides:
 - complete provider-native content-block history;
 - request cancellation;
 - tool schemas, calls, and results through `AnthropicToolsExtension`;
-- thinking, redacted thinking, signatures, and effort controls through
-  `AnthropicReasoningExtension`;
+- thinking, redacted thinking, signatures, and native-history reconstruction
+  through `AnthropicReasoningExtension`;
+- raw request-body reasoning controls through `RequestOptionsFeature`;
+- standard and beta Anthropic SDK requests with configurable beta features
+  and beta headers;
 - formatted per-message, turn, and session usage through
   `AnthropicUsageExtension`;
 - local Ollama compatibility for text, streaming, tools, thinking, and usage.
@@ -119,6 +122,8 @@ Provider-owned keys:
 - `max_retries`: SDK pre-output retry count, default `2`;
 - `max_tokens`: maximum generated tokens, default `4096`;
 - `headers`: additional non-secret headers.
+- `betas`: beta identifiers passed through the SDK beta Messages API;
+- `beta_headers`: beta identifiers composed into the Anthropic beta header.
 
 The provider owns transport, native Messages history, cancellation, model
 discovery, and redacted request failures. It remains usable for plain text when
@@ -141,21 +146,60 @@ Actual tools remain separate tool plugins.
 
 ## Reasoning extension
 
-Configuration:
+The reasoning extension contributes no request config or UI. It interprets
+thinking and redacted-thinking blocks, streams visible reasoning, and
+preserves signatures and complete native blocks needed for continuation.
 
-- `enable_reasoning`: enable thinking, default `false`;
-- `reasoning_effort`: `low`, `medium`, `high`, `xhigh`, or `max` when
-  accepted by the model;
-- `reasoning_budget_tokens`: manual thinking budget, default `1024`;
-- `show_reasoning`: expose reasoning in UI metadata, default `true`.
+Configure request behavior through raw request options. Manual thinking:
 
-When reasoning is disabled, the extension sends an explicit disabled thinking
-configuration. When enabled, thinking and redacted-thinking blocks remain in
-provider-native history, including signatures needed for tool-result
-continuation.
+```json
+{
+  "request_options": {
+    "thinking": {
+      "type": "enabled",
+      "budget_tokens": 1024
+    }
+  }
+}
+```
 
-Effort support is model-specific. Unsupported models may reject a selected
-effort value, so leaving the value unset uses the provider/model default.
+Adaptive thinking:
+
+```json
+{
+  "request_options": {
+    "thinking": {
+      "type": "adaptive",
+      "display": "summarized"
+    },
+    "output_config": {
+      "effort": "high"
+    }
+  }
+}
+```
+
+Beta context management uses provider beta config plus a raw request body:
+
+```json
+{
+  "betas": ["context-management-2025-06-27"],
+  "request_options": {
+    "context_management": {
+      "edits": [
+        {
+          "type": "clear_thinking_20251015",
+          "keep": "all"
+        }
+      ]
+    }
+  }
+}
+```
+
+Register the request-options feature whenever these fields are used. The
+provider reserves `messages`, `system`, and `stream`; unknown compatible
+request fields are forwarded through the SDK body escape hatch.
 
 ## Usage extension
 

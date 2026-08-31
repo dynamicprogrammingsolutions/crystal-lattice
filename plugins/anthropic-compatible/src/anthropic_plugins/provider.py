@@ -18,6 +18,39 @@ from .content_blocks import (
 
 logger = get_logger("anthropic_provider")
 
+_STANDARD_MESSAGE_KEYS = {
+    "cache_control",
+    "container",
+    "extra_body",
+    "extra_headers",
+    "extra_query",
+    "inference_geo",
+    "max_tokens",
+    "messages",
+    "metadata",
+    "model",
+    "output_config",
+    "service_tier",
+    "stop_sequences",
+    "system",
+    "thinking",
+    "timeout",
+    "tool_choice",
+    "tools",
+    "user_profile_id",
+}
+_BETA_MESSAGE_KEYS = {
+    *_STANDARD_MESSAGE_KEYS,
+    "context_management",
+    "diagnostics",
+    "fallback_credit_token",
+    "fallbacks",
+    "mcp_servers",
+    "speed",
+}
+_RESERVED_REQUEST_OPTION_KEYS = {"messages", "stream", "system"}
+_CONTEXT_MANAGEMENT_BETA = "context-management-2025-06-27"
+
 
 def _effective_api_key(config: dict[str, Any]) -> str:
     value = config.get("api_key")
@@ -31,6 +64,32 @@ def _redacted_error(exc: Exception, api_key: str) -> str:
     if api_key:
         message = message.replace(api_key, "<redacted>")
     return f"Anthropic request failed: {type(exc).__name__}: {message[:500]}"
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
+
+
+def _dedupe_strings(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(values))
+
+
+def _header_value(headers: Any, name: str) -> str | None:
+    if not isinstance(headers, dict):
+        return None
+    lowered = name.lower()
+    for key, value in headers.items():
+        if isinstance(key, str) and key.lower() == lowered and isinstance(value, str):
+            return value
+    return None
+
+
+def _split_beta_header(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def _content_text(content: Any) -> str:
@@ -96,6 +155,16 @@ class AnthropicProvider(ProviderPlugin):
             "max_retries": {"type": "integer", "default": 2},
             "max_tokens": {"type": "integer", "default": 4096},
             "headers": {"type": "object", "required": False},
+            "betas": {
+                "type": "array",
+                "items": {"type": "string"},
+                "default": [],
+            },
+            "beta_headers": {
+                "type": "array",
+                "items": {"type": "string"},
+                "default": [],
+            },
         }
 
     def get_ui_elements(
@@ -269,12 +338,127 @@ class AnthropicProvider(ProviderPlugin):
                 "raw_usage": {},
                 "completed": False,
                 "request_id": request_id,
+                "protected_request_fields": {
+                    "messages": request_messages,
+                    **({"system": system} if system else {}),
+                },
             },
         }
 
     def _request_payload(self, state: dict[str, Any]) -> dict[str, Any]:
         request = state.get("request") or {}
-        return dict(request.get("payload") or {})
+        payload = dict(request.get("payload") or {})
+        runtime = state.get("anthropic_runtime") or {}
+        protected = runtime.get("protected_request_fields") or {}
+        if isinstance(protected, dict):
+            payload["messages"] = protected.get("messages", [])
+            if "system" in protected:
+                payload["system"] = protected["system"]
+            else:
+                payload.pop("system", None)
+        payload.pop("stream", None)
+        return payload
+
+    def _explicit_beta_header(
+        self,
+        config: dict[str, Any],
+        payload: dict[str, Any],
+    ) -> str | None:
+        request_header = _header_value(payload.get("extra_headers"), "anthropic-beta")
+        if request_header is not None:
+            return request_header
+        return _header_value(config.get("headers"), "anthropic-beta")
+
+    def _configured_beta_ids(
+        self,
+        config: dict[str, Any],
+        payload: dict[str, Any],
+    ) -> list[str]:
+        explicit = self._explicit_beta_header(config, payload)
+        if explicit is not None:
+            return _dedupe_strings(_split_beta_header(explicit))
+        return _dedupe_strings(
+            [
+                *_string_list(config.get("betas")),
+                *_string_list(config.get("beta_headers")),
+            ]
+        )
+
+    def _uses_beta_api(
+        self,
+        config: dict[str, Any],
+        payload: dict[str, Any],
+    ) -> bool:
+        return bool(_string_list(config.get("betas"))) or any(
+            key in payload for key in _BETA_MESSAGE_KEYS - _STANDARD_MESSAGE_KEYS
+        )
+
+    def _request_kwargs(
+        self,
+        config: dict[str, Any],
+        payload: dict[str, Any],
+        *,
+        stream: bool,
+    ) -> tuple[dict[str, Any], bool]:
+        beta_ids = self._configured_beta_ids(config, payload)
+        if "context_management" in payload and _CONTEXT_MANAGEMENT_BETA not in beta_ids:
+            raise RuntimeError(
+                "Anthropic request option 'context_management' requires "
+                f"provider beta {_CONTEXT_MANAGEMENT_BETA!r}"
+            )
+
+        use_beta = self._uses_beta_api(config, payload)
+        supported_keys = _BETA_MESSAGE_KEYS if use_beta else _STANDARD_MESSAGE_KEYS
+        explicit_extra_body = payload.get("extra_body")
+        extra_body = (
+            dict(explicit_extra_body) if isinstance(explicit_extra_body, dict) else {}
+        )
+        unknown_body: dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
+        for key, value in payload.items():
+            if key in _RESERVED_REQUEST_OPTION_KEYS:
+                if key != "stream":
+                    kwargs[key] = value
+                continue
+            if key == "extra_body":
+                continue
+            if key in supported_keys:
+                kwargs[key] = value
+            else:
+                unknown_body[key] = value
+        if unknown_body or extra_body:
+            kwargs["extra_body"] = {**unknown_body, **extra_body}
+        kwargs["stream"] = stream
+
+        if use_beta and self._explicit_beta_header(config, payload) is None:
+            sdk_betas = _dedupe_strings(
+                [
+                    *_string_list(config.get("betas")),
+                    *_string_list(config.get("beta_headers")),
+                ]
+            )
+            if sdk_betas:
+                kwargs["betas"] = sdk_betas
+        elif not use_beta and self._explicit_beta_header(config, payload) is None:
+            beta_headers = _dedupe_strings(_string_list(config.get("beta_headers")))
+            if beta_headers:
+                extra_headers = kwargs.get("extra_headers")
+                merged_headers = (
+                    dict(extra_headers) if isinstance(extra_headers, dict) else {}
+                )
+                merged_headers["anthropic-beta"] = ",".join(beta_headers)
+                kwargs["extra_headers"] = merged_headers
+        return kwargs, use_beta
+
+    @staticmethod
+    def _messages_resource(client: Any, use_beta: bool) -> Any:
+        if not use_beta:
+            return client.messages
+        beta = getattr(client, "beta", None)
+        messages = getattr(beta, "messages", None)
+        if messages is None:
+            raise RuntimeError("Anthropic SDK beta Messages API is unavailable")
+        return messages
 
     def call_api(
         self,
@@ -285,16 +469,27 @@ class AnthropicProvider(ProviderPlugin):
     ):
         config = state.get("config") or {}
         api_key = _effective_api_key(config)
-        client = self._client(config)
+        payload = self._request_payload(state)
+        client = None
         try:
-            response = client.messages.create(
-                **self._request_payload(state), stream=False
+            request_kwargs, use_beta = self._request_kwargs(
+                config, payload, stream=False
+            )
+            client = self._client(config)
+            response = self._messages_resource(client, use_beta).create(
+                **request_kwargs
             )
             raw = object_to_dict(response)
             metadata = {
                 "anthropic": {
                     key: raw.get(key)
-                    for key in ("id", "model", "stop_reason", "stop_sequence")
+                    for key in (
+                        "id",
+                        "model",
+                        "stop_reason",
+                        "stop_sequence",
+                        "context_management",
+                    )
                     if raw.get(key) is not None
                 },
                 "anthropic_usage": raw.get("usage") or {},
@@ -320,7 +515,8 @@ class AnthropicProvider(ProviderPlugin):
         except Exception as exc:
             raise RuntimeError(_redacted_error(exc, api_key)) from exc
         finally:
-            client.close()
+            if client is not None:
+                client.close()
 
     def stream_api(
         self,
@@ -331,13 +527,15 @@ class AnthropicProvider(ProviderPlugin):
     ) -> Iterator[dict[str, Any]]:
         config = state.get("config") or {}
         api_key = _effective_api_key(config)
-        client = self._client(config)
+        payload = self._request_payload(state)
         stream = None
+        client = None
         try:
-            stream = client.messages.create(
-                **self._request_payload(state),
-                stream=True,
+            request_kwargs, use_beta = self._request_kwargs(
+                config, payload, stream=True
             )
+            client = self._client(config)
+            stream = self._messages_resource(client, use_beta).create(**request_kwargs)
             if request_id:
                 with self._lock:
                     self._active[request_id] = (stream, client)
@@ -359,7 +557,8 @@ class AnthropicProvider(ProviderPlugin):
             close = getattr(stream, "close", None)
             if callable(close):
                 close()
-            client.close()
+            if client is not None:
+                client.close()
 
     def process_chunk(
         self,

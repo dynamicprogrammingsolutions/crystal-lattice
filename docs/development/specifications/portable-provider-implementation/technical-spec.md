@@ -56,15 +56,18 @@ a failure.
 
 A provider-specific feature extension owns:
 
-- configuration schema;
-- UI declarations;
 - tags and required tags;
 - model/capability gating;
-- normalized feature state;
-- request shaping;
 - provider-native feature accumulation/finalization;
 - public metadata and displays;
 - feature-specific tests and docs.
+
+The extension also owns configuration, UI, normalized state, and request
+shaping when the package defines a provider-specific user contract. When the
+feature maps directly to versioned provider request keys, the generic
+request-options feature may own injection and declarative UI while the
+provider-specific extension retains response interpretation, native-history,
+metadata, tests, and documentation.
 
 The provider may execute mechanics that cannot be separated from transport,
 including retrying a feature-specific request or parsing a shared event. Those
@@ -88,6 +91,12 @@ with extensions and features.
   metadata.
 - Config names should align across provider packages when the concepts are
   genuinely equivalent.
+
+Providers using a typed SDK define how raw request options are partitioned
+between supported SDK arguments and an SDK body escape hatch. Messages,
+history-derived system content, and stream mode remain provider-owned. SDK
+variant selection, beta feature arrays, and beta-header composition remain
+provider transport configuration rather than frontend behavior.
 
 ## Model discovery and capabilities
 
@@ -300,6 +309,20 @@ cost, latency, and provider selection.
 
 Skipped gated tests are reported as not run unless the gate was explicitly
 enabled and the skip is expected.
+
+### Reasoning and tools
+
+Every provider/profile claiming both reasoning and tools runs the canonical
+bank-file reasoning continuity test in streaming and non-streaming modes.
+Profiles claiming preservation across an inserted user request also run the
+interrupted-user variant and verify that follow-up reasoning is absent or
+materially shorter than the initial reasoning while the result remains
+`Clock`.
+
+Profiles intentionally retaining insufficient reasoning history use a strict
+expected failure or documented negative assertion. Provider-native reasoning
+state and tool relationships remain structurally valid regardless of the
+server-side retention policy.
 
 ## Documentation
 

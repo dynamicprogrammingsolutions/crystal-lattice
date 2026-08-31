@@ -19,8 +19,10 @@ Package users need to:
 - discover supported models automatically;
 - send ordinary and streaming conversations;
 - run the existing Claude-compatible tool bundle;
-- enable or disable reasoning, usage displays, prompt caching, and image
-  attachments through provider extensions delivered by their owning tasks;
+- configure reasoning request fields through raw request options while the
+  reasoning extension preserves and interprets provider-native thinking;
+- enable or disable usage displays, prompt caching, and image attachments
+  through provider extensions delivered by their owning tasks;
 - point the provider at a compatible local or hosted endpoint;
 - understand which features a compatible endpoint does not support;
 - receive stable, redacted authentication, validation, rate-limit, provider,
@@ -108,10 +110,14 @@ and client boundaries.
 - Implementing OAuth login or refresh in the provider.
 - Silently falling back to OpenRouter or another provider.
 - Implementing server web search or web fetch in the baseline.
-- Implementing fast mode, service tiers, native compaction, context editing,
-  image attachments, Files API, PDFs, document citations, token counting,
+- Implementing fast mode, service tiers, general native compaction/context
+  editing policy, image attachments, Files API, PDFs, document citations, token counting,
   model-price cost estimation, structured provider request errors, code
   execution, tool search, or programmatic tool calling in the baseline.
 - Implementing Message Batches.
 - Implementing structured outputs.
 - Treating every Anthropic-compatible endpoint as feature-complete.
+
+The baseline does support raw beta context-management request options needed
+to verify reasoning-retention profiles. Higher-level compaction and context
+editing policy remains outside this provider baseline.

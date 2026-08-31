@@ -19,9 +19,12 @@ credential, request, streaming, extension, compatibility, and error contracts.
   Anthropic-compatible subset through providers such as local Ollama.
 - [x] `AnthropicToolsExtension` owns tool schema injection, streamed tool-call
   reconstruction, tool-call/result mapping, and tool interop declarations.
-- [x] `AnthropicReasoningExtension` owns thinking configuration, UI,
-  enablement, streamed thinking, redacted thinking, effort, and signature
-  preservation.
+- [x] `AnthropicReasoningExtension` owns streamed thinking, redacted thinking,
+  public reasoning metadata, native-history reconstruction, and signature
+  preservation without owning request-body configuration or UI.
+- [x] Anthropic reasoning request fields use the generic request-options
+  config/UI contract, while provider beta selection and beta-header composition
+  remain explicit `AnthropicProvider` configuration.
 - [ ] `AnthropicUsageExtension` owns public usage metadata, cache accounting,
   formatting, turn/session totals, duration/TPS interoperability, and usage
   UI.
@@ -46,9 +49,10 @@ credential, request, streaming, extension, compatibility, and error contracts.
   another paid provider.
 - [x] The provider works for ordinary text requests without optional
   extensions or tools.
-- [x] Provider-specific feature configuration, UI, tags, enablement, and
-  public metadata remain in extensions even when transport mechanics require a
-  narrow provider hook.
+- [x] Request-body feature controls use `RequestOptionsFeature` when they map
+  directly to provider request keys; provider extensions retain
+  interpretation, native-history, public-metadata, and feature-test ownership,
+  while provider config owns SDK/beta transport selection.
 - [x] Provider request retry remains owned by `AnthropicProvider`.
 - [ ] Unsupported compatible-endpoint features are omitted or fail explicitly
   according to a compatibility profile.
@@ -204,7 +208,10 @@ cost.
 - Complete a multi-request application tool loop and persist/reload the native
   history before a later follow-up.
 
-###### 4. Core reasoning and simple effort UI
+###### 4. Original core reasoning and simple effort UI
+
+This original Stage 1 boundary was delivered and then replaced by the approved
+config-first Stage 1 follow-up below.
 
 - Expose:
   - `enable_reasoning`;
@@ -336,6 +343,117 @@ Stop for review before Stage 2. Record any SDK/compatible-endpoint mismatch,
 small-model limitation, or provider-native history change that would alter the
 approved Stage 2 compatibility plan.
 
+##### Stage 1 follow-up: config-first reasoning and continuity conformance
+
+###### 1. Reasoning extension boundary
+
+- Remove Anthropic reasoning request configuration and UI from
+  `AnthropicReasoningExtension`.
+- Remove automatic `thinking.type`, budget, effort, enablement, and display
+  request shaping from the extension.
+- Keep thinking/redacted-thinking extraction, visible reasoning metadata,
+  streaming deltas, signature preservation, provider-native reconstruction,
+  and reload behavior in the extension.
+- Surface visible reasoning whenever Anthropic returns it. Provider-native
+  omitted or redacted blocks remain preserved even when they contribute no
+  visible reasoning text.
+- Keep the extension usable without `RequestOptionsFeature`; request options
+  control how reasoning is requested, not whether returned reasoning can be
+  interpreted.
+
+###### 2. Raw request options and provider beta configuration
+
+- Use `request_options` and `request_options_ui` for request-body fields such
+  as `thinking`, `output_config`, `context_management`, cache controls, and
+  compatible-endpoint-specific fields.
+- Reserve provider-owned `messages`, `system`, and `stream` fields so request
+  options cannot bypass native-history or execution-mode invariants.
+- Add provider config arrays for SDK beta features and raw beta-header
+  features.
+- Select `client.beta.messages.create` when SDK beta features are configured;
+  otherwise use `client.messages.create`.
+- Compose beta identifiers deterministically, de-duplicate them, and allow an
+  explicit raw `anthropic-beta` header to take precedence.
+- Reject beta-only request fields without the required beta configuration
+  before transport.
+- Forward SDK-supported request fields normally and place unknown compatible
+  request-body fields in `extra_body` without overwriting explicit
+  `extra_body`.
+
+###### 3. Default request profiles
+
+- Keep `claude-anthropic` as the low-cost Haiku 4.5 manual-thinking profile
+  using raw `request_options.thinking.type=enabled` plus a bounded budget.
+- Expose Haiku request-options UI only for its supported manual/disabled
+  thinking shape; do not expose unsupported effort or interleaved controls.
+- Add `claude-sonnet-anthropic` using the current official Sonnet model,
+  adaptive thinking, request-options effort UI, the context-management beta,
+  and a keep-all thinking strategy.
+- Keep structured context-management edits as raw config until the generic
+  request-options UI supports editing arrays of objects.
+- Update default-config inspection and hosted smoke tests for both profiles
+  without moving reasoning UI back into the Anthropic extension.
+
+###### 4. Provider-package reasoning/tool continuity
+
+- Reuse the canonical bank-file fixture under
+  `core/python/tests/reasoning_test`.
+- Add Anthropic provider-package hosted tests for the standard reasoning/tool
+  continuity scenario in non-streaming and streaming modes. Require `Clock`,
+  non-empty first reasoning, valid file-read tool execution, complete
+  thinking/signature retention, and scratch-free native history.
+- Add the interrupted-user bank-file preservation scenario using adaptive
+  thinking and context management. The positive keep-all profile requires:
+  - final content containing `Clock`;
+  - non-empty first reasoning;
+  - absent or shorter second reasoning, demonstrating reuse rather than full
+    recomputation;
+  - unchanged client-side native thinking blocks and signatures.
+- Run the latest/current-turn-only profile as a strict expected-failure or an
+  evidence-backed negative assertion. The delivered Anthropic test verifies
+  server-reported cleared thinking because a newer thinking turn may carry the
+  checkpoint forward and still satisfy the semantic bank answer.
+- Allow bounded semantic retries only for model variability. Authentication,
+  request-shape, SDK-selection, and provider failures fail immediately.
+- Run the existing OpenRouter Claude bank-file cases as comparison evidence;
+  add only the missing interrupted-user preserved/negative profile coverage
+  in the OpenRouter provider package if it is not already present.
+
+###### 5. Portable conformance
+
+- Require the canonical streaming and non-streaming bank-file reasoning/tool
+  continuity test for every provider/profile that claims both reasoning and
+  tools.
+- Require the interrupted-user bank-file test when a profile claims reasoning
+  preservation across requests.
+- Define preserved acceptance as `Clock`, non-empty initial reasoning, and
+  absent or materially shorter follow-up reasoning.
+- Permit a strict expected-failure or documented negative test for a profile
+  intentionally retaining insufficient reasoning history.
+- Require provider-native reasoning state, signatures, and tool relationships
+  to remain structurally intact even when the server removes older reasoning
+  from active context.
+- Record this behavior in the public provider authoring standard, portable
+  technical specification and requirements, Anthropic package specification
+  and requirements, and package verification guidance.
+
+###### 6. Follow-up verification checkpoint
+
+The Stage 1 follow-up is complete when:
+
+- deterministic reasoning-extension and beta/request-options tests pass;
+- Haiku manual-thinking and Sonnet adaptive-thinking request shapes are
+  verified;
+- standard and beta SDK selection is verified in ordinary and streaming paths;
+- hosted Anthropic bank-file continuity passes in streaming and non-streaming
+  modes;
+- the keep-all adaptive/context-managed bank test passes with the standard
+  reasoning-size assertions;
+- the latest/current-turn profile has an evidence-backed negative assertion;
+- existing OpenRouter Claude conformance still passes;
+- default configuration, package docs, portable authoring guidance, and
+  requirement evidence match delivered behavior.
+
 #### Stage 2: compatibility and portable refinements
 
 Implement official, Ollama, and custom compatibility profiles, conservative
@@ -395,6 +513,15 @@ baseline.
   by auth plugins rather than frontends.
 - Decision: Stage 3 models interleaved thinking and preserved prior thinking as
   separate capabilities.
+- Decision: Anthropic request-body reasoning parameters are raw request
+  options, not a second normalized configuration API in
+  `AnthropicReasoningExtension`.
+- Decision: `AnthropicReasoningExtension` owns output interpretation and
+  provider-native reasoning continuity but contributes no config schema or UI.
+- Decision: provider `betas` and beta-header arrays select SDK/beta transport
+  mechanics; structured beta request bodies remain ordinary request options.
+- Decision: the canonical bank-file reasoning-size contract is the standard
+  reasoning/tool and cross-request preservation acceptance test.
 - Decision: server web search and web fetch belong to subtask 011.
 
 ### Documentation
@@ -415,6 +542,8 @@ baseline.
 - [x] Create provider package, descriptor, metadata, and test configuration.
 - [x] Complete Stage 1 core provider, tools, reasoning, usage, and deterministic
   acceptance.
+- [x] Complete the approved Stage 1 config-first reasoning, beta transport,
+  bank-file continuity, and portable conformance follow-up.
 - [ ] Complete Stage 2 compatibility profiles, Ollama effort/usage coverage,
   duration/TPS interoperability, and unsupported-field acceptance.
 - [ ] Complete Stage 3 official capability, interleaved/preserved thinking,
@@ -535,3 +664,100 @@ Findings:
   required cumulative input/output fields;
 - official capability-driven tags and compatibility profiles remain Stages 2
   and 3.
+
+### 2026-08-31 Stage 1 follow-up
+
+Completed follow-up scope:
+
+- remove request configuration and UI from `AnthropicReasoningExtension`;
+- use raw request options for all request-body reasoning and context-management
+  controls;
+- add provider beta-feature and beta-header configuration plus standard/beta
+  SDK selection;
+- keep Haiku manual and add current Sonnet adaptive/context-managed default
+  profiles;
+- port the canonical bank-file reasoning/tool and interrupted-user
+  preservation tests to the Anthropic provider package;
+- use the bank test's first-versus-second reasoning-size assertions for
+  preservation acceptance;
+- represent the latest/current-turn-only profile through an evidence-backed
+  negative assertion;
+- make these conditional tests part of the portable provider conformance
+  standard.
+
+Implementation:
+
+- `AnthropicReasoningExtension` now contributes no config schema, UI, feature
+  state, or request shaping. It always preserves and projects returned
+  thinking/redacted-thinking blocks and signatures.
+- Raw `request_options` now own manual, adaptive, disabled, display, effort,
+  context-management, and compatible custom request-body fields.
+- `AnthropicProvider` reserves `messages`, `system`, and `stream`; partitions
+  typed SDK arguments from compatible unknown fields; preserves explicit
+  `extra_body`; and forwards unknown fields through the SDK body escape hatch.
+- Provider `betas` selects the beta SDK Messages resource. `beta_headers`
+  supports raw beta-header features, identifiers are de-duplicated, and an
+  explicit `anthropic-beta` header takes precedence.
+- `context_management` fails before transport unless the required
+  `context-management-2025-06-27` beta is configured.
+- Non-streaming responses and streaming message starts preserve returned
+  `context_management.applied_edits` metadata.
+- Default config keeps `claude-anthropic` as the Haiku 4.5 manual-thinking
+  profile and adds `claude-sonnet-anthropic` with Sonnet 5 adaptive thinking,
+  summarized display, all effort levels, and keep-all context management.
+- The public provider authoring standard and portable specification now
+  require the canonical bank-file continuity tests conditionally for
+  reasoning-and-tools and cross-request-preservation profiles.
+
+Verification:
+
+- `pytest plugins/anthropic-compatible/tests -q`: 29 passed, 10 deselected.
+- `python -m pyright plugins/anthropic-compatible/src
+  plugins/anthropic-compatible/tests`: 0 errors.
+- Ruff and Black pass for all touched Python files.
+- `pytest plugins/anthropic-compatible/tests -m 'integration and ollama' -q`:
+  4 passed, 33 deselected with local `qwen3:0.6b`.
+- `pytest
+  plugins/anthropic-compatible/tests/test_anthropic_api_integration.py -m
+  'integration and api and anthropic' -q`: 2 passed.
+- The direct Anthropic bank-file suite passed Haiku 4.5 non-streaming,
+  Haiku 4.5 streaming, and Sonnet 5 adaptive/context-managed keep-all
+  preservation.
+- The Sonnet latest-turn-only test passes by asserting
+  `cleared_thinking_turns > 0` while complete client-side thinking history
+  remains present.
+- Existing OpenRouter Claude ordinary and streaming bank cases pass. Its
+  interrupted-user profile structurally retains native `reasoning_details`
+  but is recorded as a strict hosted expected failure because it recomputes
+  the bank result.
+- `pytest plugins/openrouter/tests/test_openrouter_reasoning_extension_unit.py
+  -q`: 30 passed.
+- The focused OpenRouter Claude hosted comparison produced two positive bank
+  passes and one expected interrupted-user failure.
+- `pytest
+  application/python/tests/test_terminal_application_default_config_anthropic_integration.py
+  -m 'integration and api and anthropic' -q`: 1 passed.
+- `pytest application/python/tests -q`: 359 passed, 91 deselected.
+- Documentation preparation and MkDocs build pass with existing repository
+  navigation, absolute-link, and griffe warnings.
+- `git diff --check` passes.
+
+Findings:
+
+- Sonnet 5 adaptive thinking may return an empty signed thinking block unless
+  `thinking.display` is explicitly `summarized`; the default Sonnet profile
+  sets that request option so reasoning-size conformance is observable.
+- `keep: {"type": "thinking_turns", "value": 1}` does not clear anything
+  when only one assistant thinking turn exists. The negative test adds a
+  controlled intermediate `WAIT` turn so the original bank reasoning becomes
+  eligible for clearing.
+- Even after older reasoning is cleared, the newest reasoning turn can carry
+  the bank checkpoint and still return `Clock`. Server-reported applied edits,
+  not a specific wrong answer, are therefore the stable negative assertion.
+- Hosted bank-test configs verify `ANTHROPIC_API_KEY` is present but use the
+  provider's fallback lookup instead of storing the secret in pytest-local
+  config that could be rendered in a failed assertion traceback.
+- The repository-wide OpenRouter fast suite currently has three unrelated
+  failures in provider tool-display metadata and web-search default-engine
+  expectations. The touched OpenRouter reasoning unit and hosted comparison
+  slices pass or xfail as documented.

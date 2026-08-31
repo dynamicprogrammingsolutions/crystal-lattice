@@ -1,13 +1,10 @@
-"""Anthropic thinking configuration and metadata extension."""
+"""Anthropic thinking metadata and native-history extension."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from agent_core.types import ProviderExtensionPlugin
-
-
-EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 
 
 def _reasoning_blocks(native: dict[str, Any]) -> list[dict[str, Any]]:
@@ -31,60 +28,17 @@ class AnthropicReasoningExtension(ProviderExtensionPlugin):
         return ["provider:anthropic", "supports_reasoning"]
 
     def get_config_schema(self) -> dict[str, Any]:
-        return {
-            "enable_reasoning": {"type": "boolean", "default": False},
-            "reasoning_effort": {
-                "type": "string",
-                "enum": list(EFFORT_LEVELS),
-                "description": (
-                    "Control response effort. Availability depends on the selected "
-                    "Anthropic model."
-                ),
-            },
-            "reasoning_budget_tokens": {"type": "integer", "default": 1024},
-            "show_reasoning": {"type": "boolean", "default": True},
-        }
+        return {}
 
     def get_ui_elements(
         self,
         config: dict[str, Any],
         context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        return [
-            {
-                "type": "checkbox",
-                "key": "enable_reasoning",
-                "label": "Reasoning",
-            },
-            {
-                "type": "select",
-                "key": "reasoning_effort",
-                "label": "Reasoning effort",
-                "options": [
-                    {"value": level, "label": level} for level in EFFORT_LEVELS
-                ],
-                "description": "Available effort levels depend on the selected model.",
-            },
-            {
-                "type": "checkbox",
-                "key": "show_reasoning",
-                "label": "Show reasoning",
-            },
-        ]
+        return []
 
     def init(self, config: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
-        effort = config.get("reasoning_effort")
-        return {
-            **state,
-            "anthropic_reasoning": {
-                "enabled": bool(config.get("enable_reasoning", False)),
-                "effort": effort if effort in EFFORT_LEVELS else None,
-                "budget_tokens": max(
-                    1, int(config.get("reasoning_budget_tokens") or 1024)
-                ),
-                "show": bool(config.get("show_reasoning", True)),
-            },
-        }
+        return state
 
     def initialize_request(
         self,
@@ -93,28 +47,7 @@ class AnthropicReasoningExtension(ProviderExtensionPlugin):
         *,
         context: dict[str, Any] | None = None,
     ):
-        settings = dict(state.get("anthropic_reasoning") or {})
-        if not settings.get("enabled"):
-            request = dict(state.get("request") or {})
-            payload = dict(request.get("payload") or {})
-            payload["thinking"] = {"type": "disabled"}
-            return list(native_messages), {
-                **state,
-                "request": {**request, "payload": payload},
-            }
-        request = dict(state.get("request") or {})
-        payload = dict(request.get("payload") or {})
-        payload["thinking"] = {
-            "type": "enabled",
-            "budget_tokens": int(settings.get("budget_tokens") or 1024),
-        }
-        effort = settings.get("effort")
-        if effort in EFFORT_LEVELS:
-            payload["output_config"] = {"effort": effort}
-        return list(native_messages), {
-            **state,
-            "request": {**request, "payload": payload},
-        }
+        return list(native_messages), state
 
     def to_native_messages(
         self,
@@ -161,9 +94,6 @@ class AnthropicReasoningExtension(ProviderExtensionPlugin):
         if len(messages) != len(native_messages):
             return list(messages)
         output: list[dict[str, Any]] = []
-        show_reasoning = bool(
-            (state or {}).get("anthropic_reasoning", {}).get("show", True)
-        )
         for native, message in zip(native_messages, messages):
             blocks = _reasoning_blocks(native)
             if not blocks:
@@ -178,7 +108,7 @@ class AnthropicReasoningExtension(ProviderExtensionPlugin):
                 **dict(message.get("metadata") or {}),
                 "anthropic_reasoning_blocks": blocks,
             }
-            if reasoning and show_reasoning:
+            if reasoning:
                 metadata["reasoning"] = reasoning
             output.append({**message, "metadata": metadata})
         return output
@@ -207,13 +137,6 @@ class AnthropicReasoningExtension(ProviderExtensionPlugin):
             )
         thinking = delta.get("thinking")
         if not isinstance(thinking, str) or not thinking:
-            return (
-                list(partial_messages),
-                list(final_messages),
-                list(native_messages),
-                state,
-            )
-        if not bool((state.get("anthropic_reasoning") or {}).get("show", True)):
             return (
                 list(partial_messages),
                 list(final_messages),

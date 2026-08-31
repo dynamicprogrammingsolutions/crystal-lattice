@@ -855,7 +855,57 @@
       "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
       "provider": "anthropic",
       "model": "claude-haiku-4-5-20251001",
-      "reasoning_effort": null,
+      "request_options": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 1024
+        }
+      },
+      "request_options_ui": {
+        "thinking": {
+          "type": ["disabled", "enabled"],
+          "budget_tokens": "number"
+        }
+      },
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
+    },
+    "claude-sonnet-anthropic": {
+      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "betas": ["context-management-2025-06-27"],
+      "request_options": {
+        "thinking": {
+          "type": "adaptive",
+          "display": "summarized"
+        },
+        "output_config": {
+          "effort": "high"
+        },
+        "context_management": {
+          "edits": [
+            {
+              "type": "clear_thinking_20251015",
+              "keep": "all"
+            }
+          ]
+        }
+      },
+      "request_options_ui": {
+        "thinking": {
+          "type": ["disabled", "adaptive"],
+          "display": ["summarized", "omitted"]
+        },
+        "output_config": {
+          "effort": ["low", "medium", "high", "xhigh", "max"]
+        }
+      },
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/claude-tools"
       ],

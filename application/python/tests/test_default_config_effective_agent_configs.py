@@ -51,7 +51,35 @@ def test_default_config_declares_provider_qualified_claude_agents() -> None:
     )
     assert config["agents"]["claude-anthropic"]["provider"] == "anthropic"
     assert config["agents"]["claude-anthropic"]["model"] == "claude-haiku-4-5-20251001"
-    assert config["agents"]["claude-anthropic"]["reasoning_effort"] is None
+    assert config["agents"]["claude-anthropic"]["request_options"] == {
+        "thinking": {"type": "enabled", "budget_tokens": 1024}
+    }
+    assert config["agents"]["claude-anthropic"]["request_options_ui"] == {
+        "thinking": {
+            "type": ["disabled", "enabled"],
+            "budget_tokens": "number",
+        }
+    }
+    assert config["agents"]["claude-sonnet-anthropic"]["provider"] == "anthropic"
+    assert config["agents"]["claude-sonnet-anthropic"]["model"] == "claude-sonnet-5"
+    assert config["agents"]["claude-sonnet-anthropic"]["betas"] == [
+        "context-management-2025-06-27"
+    ]
+    assert config["agents"]["claude-sonnet-anthropic"]["request_options"] == {
+        "thinking": {
+            "type": "adaptive",
+            "display": "summarized",
+        },
+        "output_config": {"effort": "high"},
+        "context_management": {
+            "edits": [
+                {
+                    "type": "clear_thinking_20251015",
+                    "keep": "all",
+                }
+            ]
+        },
+    }
     assert "path:${env:BUILTIN_PLUGINS}/anthropic-compatible" in config["plugins"]
     assert config["providers"]["anthropic"] == {
         "mixin_refs": ["provider_defaults"],
@@ -269,7 +297,32 @@ def test_default_config_effective_agent_configs_stay_intact(
         "claude-anthropic": {
             "provider": "anthropic",
             "model": "claude-haiku-4-5-20251001",
-            "reasoning_effort": None,
+            "request_options": {"thinking": {"type": "enabled", "budget_tokens": 1024}},
+            "web_search_enabled": True,
+            "web_search_provider": "gemini_api",
+            "mcp_enabled": False,
+            "mcp_reuse_runtime": True,
+            "mcp_fail_on_startup_error": False,
+        },
+        "claude-sonnet-anthropic": {
+            "provider": "anthropic",
+            "model": "claude-sonnet-5",
+            "betas": ["context-management-2025-06-27"],
+            "request_options": {
+                "thinking": {
+                    "type": "adaptive",
+                    "display": "summarized",
+                },
+                "output_config": {"effort": "high"},
+                "context_management": {
+                    "edits": [
+                        {
+                            "type": "clear_thinking_20251015",
+                            "keep": "all",
+                        }
+                    ]
+                },
+            },
             "web_search_enabled": True,
             "web_search_provider": "gemini_api",
             "mcp_enabled": False,

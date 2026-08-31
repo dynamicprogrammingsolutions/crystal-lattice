@@ -14,7 +14,7 @@ AnthropicToolsExtension
   tool schemas, tool use/results, streamed argument reconstruction
 
 AnthropicReasoningExtension
-  thinking configuration, effort, thinking blocks, signatures
+  thinking blocks, signatures, streaming projection, native reconstruction
 
 AnthropicUsageExtension
   public usage metadata, formatting, turn/session totals, TPS inputs
@@ -66,10 +66,17 @@ Provider-owned baseline keys:
 | `compatibility_profile` | Named compatibility profile |
 | `compatibility` | Explicit capability/auth/request overrides |
 | `headers` | Non-secret additional headers permitted by policy |
+| `betas` | SDK beta feature identifiers; selects beta Messages transport |
+| `beta_headers` | Raw beta-header identifiers for stable or compatible transport |
 
-Extension-owned keys are defined by their extension schemas. Request options
-that do not have a provider-specific user contract may continue through the
-generic request-options feature.
+Request-body fields, including `thinking`, `output_config`, and
+`context_management`, use the generic request-options feature. The reasoning
+extension contributes no config schema or UI. `messages`, `system`, and
+`stream` remain provider-owned and cannot be replaced by request options.
+
+SDK-supported request fields are passed normally. Unknown compatible request
+fields are merged into `extra_body`, with an explicit `extra_body` value taking
+precedence. Beta-only fields require matching configured beta identifiers.
 
 Config wins over direct environment lookup. A missing `api_key` may use
 `ANTHROPIC_API_KEY` as a fallback only for API auth.
@@ -129,9 +136,9 @@ must not replace unknown accumulator keys.
 2. The provider converts core history to Anthropic-native history.
 3. The provider initializes the Messages request, auth headers, compatibility
    state, and empty accumulator.
-4. Extensions add tool schemas, reasoning controls, usage state, and caching.
-5. Generic request options apply after provider-specific extension shaping
-   according to established priority.
+4. Extensions add tool schemas, usage state, caching, and response
+   interpretation state.
+5. Generic request options add direct provider request fields.
 6. The provider performs ordinary or streaming transport.
 7. The provider reduces native content-block events into complete native
    assistant history.
@@ -156,6 +163,12 @@ The provider may own inseparable transport mechanics such as retrying a
 fast-mode request, parsing a provider-native event used by an extension, or
 closing the active stream. Those mechanics must consume normalized extension
 state and must not independently expose feature config or UI.
+
+For direct request-option features, the generic request-options feature owns
+request injection and declarative UI. The provider-specific extension owns
+response interpretation, native-history reconstruction, public metadata,
+tests, and documentation. The provider owns stable/beta SDK selection and beta
+header composition.
 
 ## Prompt caching
 
@@ -208,8 +221,9 @@ through lifecycle hooks and clients without moving retry or auth ownership.
 ### Stage 1
 
 API-key configuration, basic model discovery, SDK Messages ordinary/streaming
-transport, native history, cancellation, tools, core reasoning with simple
-effort UI, and normalized formatted usage with turn/session totals.
+transport, native history, cancellation, tools, raw request-option reasoning,
+beta transport configuration, reasoning continuity, and normalized formatted
+usage with turn/session totals.
 
 ### Stage 2
 
@@ -220,13 +234,13 @@ and duration/TPS interoperability.
 ### Stage 3
 
 Official capability-driven UI, independent interleaved-thinking and
-preserved-thinking behavior, Anthropic-specific effort/adaptive/budget
-controls, automatic prompt caching with selectable TTL, reported cache usage,
-and selective hosted verification.
+preserved-thinking profiles, automatic prompt caching with selectable TTL,
+reported cache usage, and selective hosted verification.
 
 ## Follow-up feature boundary
 
-Server web tools, fast mode/service tiers, native compaction/context editing,
+Server web tools, fast mode/service tiers, higher-level native
+compaction/context-editing policy,
 Files/PDFs/citations, token counting, advanced server tools, image attachments,
 cost estimation, and portable request errors extend this package through
 separate tasks. Each must update this specification or add a linked package

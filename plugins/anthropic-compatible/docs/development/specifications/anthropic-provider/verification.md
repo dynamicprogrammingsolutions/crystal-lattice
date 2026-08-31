@@ -13,6 +13,9 @@ Use local fake HTTP/SSE fixtures for:
 - content-block streaming;
 - partial tool JSON;
 - thinking, redacted thinking, and signatures;
+- raw manual, adaptive, disabled, effort, display, and context-management
+  request options;
+- standard/beta SDK selection and beta-header composition;
 - initial/final usage;
 - cache request shaping;
 - safe SDK error messages and provider-owned retry behavior;
@@ -65,12 +68,24 @@ Selective hosted tests cover behavior unavailable through Ollama:
 - ordinary and streaming requests;
 - complete Claude tool loop;
 - adaptive/extended thinking and signature continuity;
+- canonical bank-file reasoning/tool continuity in ordinary and streaming
+  modes;
+- interrupted-user bank-file preservation with first/follow-up reasoning-size
+  assertions;
+- strict negative profiles for insufficient reasoning retention;
 - automatic and one-hour prompt caching;
 - cache-read and cache-creation usage;
 - selectable cache TTL;
 - safe SDK rate-limit/error detail and provider-owned retries where
   deterministic fixtures are insufficient;
 - cancellation against a real stream.
+
+The provider-specific implementation is
+[`tests/test_reasoning_tools_conformance_integration.py`](../../../../tests/test_reasoning_tools_conformance_integration.py)
+and uses the repository's
+[canonical bank-file fixture](../../../../../../core/python/tests/reasoning_test/README.md).
+The portable comparison is the
+[reference OpenAI-compatible test](../../../../../reference-openai-compatible-provider/tests/test_fireworks_tools_reasoning_integration_original.py).
 
 Hosted tests use `integration`, `api`, and `anthropic` markers and document
 credential and cost requirements.
@@ -84,6 +99,9 @@ credential and cost requirements.
 - Tool IDs survive execution and reload.
 - Tool schemas and calls use the active request-bound interop registry.
 - Thinking block order and signatures survive tool rounds.
+- The canonical bank-file result is `Clock`.
+- Preserved interrupted-user reasoning has non-empty initial reasoning and
+  absent or materially shorter follow-up reasoning.
 - Usage remains correct when fields arrive at different stream phases.
 - Duration/TPS derives from the standard turn-cumulative usage fields.
 - Cache controls do not appear on unsupported profiles.

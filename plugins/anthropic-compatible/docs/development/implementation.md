@@ -33,9 +33,11 @@ does not make the provider the owner of the corresponding public feature.
 `AnthropicToolsExtension` owns tool schema conversion, call/result projection,
 partial input JSON, and Anthropic tool interop.
 
-`AnthropicReasoningExtension` owns thinking configuration and UI, request
-shaping, streamed reasoning, redacted thinking, signatures, and reasoning
-metadata.
+`AnthropicReasoningExtension` owns streamed reasoning, redacted thinking,
+signatures, reasoning metadata, and native-history reconstruction. It
+contributes no request config or UI. `RequestOptionsFeature` supplies raw
+`thinking`, `output_config`, `context_management`, and other request-body
+fields.
 
 `AnthropicUsageExtension` owns public token metadata, formatting, turn/session
 accumulation, and the standard cumulative fields consumed by performance
@@ -47,14 +49,14 @@ keys:
 ```text
 anthropic_runtime
 anthropic_tools
-anthropic_reasoning
 anthropic_usage
 ```
 
 ## Streaming sequence
 
 1. The provider initializes a minimal Messages payload.
-2. Tools and reasoning extensions add their request fields.
+2. Tools add schemas and the generic request-options feature adds direct
+   request fields.
 3. The SDK yields events normalized to plain dictionaries.
 4. The provider updates a lossless ordered assistant block accumulator.
 5. Extensions project tool calls, reasoning partials, and usage.

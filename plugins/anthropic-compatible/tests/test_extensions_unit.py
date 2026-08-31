@@ -142,43 +142,17 @@ def test_tools_extension_does_not_double_wrap_native_tool_result() -> None:
     ]
 
 
-def test_reasoning_extension_owns_config_request_and_round_trip() -> None:
+def test_reasoning_extension_has_no_request_config_or_ui_and_round_trips() -> None:
     extension = AnthropicReasoningExtension()
-    schema = extension.get_config_schema()
-    assert schema["reasoning_effort"]["enum"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    elements = {element["key"]: element for element in extension.get_ui_elements({})}
-    assert elements["enable_reasoning"]["type"] == "checkbox"
-    assert elements["reasoning_effort"]["type"] == "select"
-    assert [option["value"] for option in elements["reasoning_effort"]["options"]] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert elements["show_reasoning"]["type"] == "checkbox"
+    assert extension.get_config_schema() == {}
+    assert extension.get_ui_elements({}) == []
     state = extension.init(
-        {
-            "enable_reasoning": True,
-            "reasoning_effort": "low",
-            "reasoning_budget_tokens": 512,
-        },
-        _base_state(),
+        {"request_options": {"thinking": {"type": "adaptive"}}}, _base_state()
     )
 
     _native, state = extension.initialize_request([], state)
 
-    assert state["request"]["payload"]["thinking"] == {
-        "type": "enabled",
-        "budget_tokens": 512,
-    }
-    assert state["request"]["payload"]["output_config"] == {"effort": "low"}
+    assert state["request"]["payload"] == {"model": "m", "messages": []}
 
     native = {
         "role": "assistant",
@@ -197,32 +171,6 @@ def test_reasoning_extension_owns_config_request_and_round_trip() -> None:
     )
 
 
-def test_reasoning_extension_sends_xhigh_and_max_effort() -> None:
-    extension = AnthropicReasoningExtension()
-    for effort in ("xhigh", "max"):
-        state = extension.init(
-            {
-                "enable_reasoning": True,
-                "reasoning_effort": effort,
-                "reasoning_budget_tokens": 512,
-            },
-            _base_state(),
-        )
-
-        _native, state = extension.initialize_request([], state)
-
-        assert state["request"]["payload"]["output_config"] == {"effort": effort}
-
-
-def test_reasoning_extension_explicitly_disables_thinking() -> None:
-    extension = AnthropicReasoningExtension()
-    state = extension.init({"enable_reasoning": False}, _base_state())
-
-    _native, state = extension.initialize_request([], state)
-
-    assert state["request"]["payload"]["thinking"] == {"type": "disabled"}
-
-
 def test_reasoning_stream_delta_is_chunk_local() -> None:
     extension = AnthropicReasoningExtension()
     partials, _, _, _ = extension.process_chunk(
@@ -239,9 +187,8 @@ def test_reasoning_stream_delta_is_chunk_local() -> None:
     assert partials[0]["_metadata"]["reasoning"] == "new"
 
 
-def test_reasoning_display_can_be_hidden_without_dropping_native_blocks() -> None:
+def test_reasoning_always_surfaces_visible_text_and_preserves_native_blocks() -> None:
     extension = AnthropicReasoningExtension()
-    state = extension.init({"show_reasoning": False}, _base_state())
     native = {
         "role": "assistant",
         "content": [
@@ -251,9 +198,9 @@ def test_reasoning_display_can_be_hidden_without_dropping_native_blocks() -> Non
     }
     message = {"role": "assistant", "content": "answer", "metadata": {}}
 
-    rebuilt = extension.from_native_messages([native], [message], state)
+    rebuilt = extension.from_native_messages([native], [message], _base_state())
 
-    assert "reasoning" not in rebuilt[0]["metadata"]
+    assert rebuilt[0]["metadata"]["reasoning"] == "private"
     assert rebuilt[0]["metadata"]["anthropic_reasoning_blocks"][0]["signature"] == "sig"
 
 

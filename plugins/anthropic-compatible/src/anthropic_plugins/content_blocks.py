@@ -128,7 +128,13 @@ def reduce_event(
                 "_metadata": {
                     "anthropic": {
                         key: raw_message.get(key)
-                        for key in ("id", "model", "stop_reason", "stop_sequence")
+                        for key in (
+                            "id",
+                            "model",
+                            "stop_reason",
+                            "stop_sequence",
+                            "context_management",
+                        )
                         if raw_message.get(key) is not None
                     }
                 },

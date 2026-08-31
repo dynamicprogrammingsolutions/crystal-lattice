@@ -219,6 +219,10 @@ def test_default_config_claude_agent_uses_claude_tools(
             "provider": "anthropic",
             "model": "claude-haiku-4-5-20251001",
         },
+        "claude-sonnet-anthropic": {
+            "provider": "anthropic",
+            "model": "claude-sonnet-5",
+        },
     }
     for agent_id, expected in expected_agents.items():
         _core, base_config, _session = app.create_session(agent_id)
@@ -253,7 +257,11 @@ def test_default_config_claude_agent_uses_claude_tools(
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
     assert "claude" not in config["agents"]
-    for agent_id in ("claude-openrouter", "claude-anthropic"):
+    for agent_id in (
+        "claude-openrouter",
+        "claude-anthropic",
+        "claude-sonnet-anthropic",
+    ):
         claude_agent = config["agents"][agent_id]
         assert "claude_mcp_defaults" in claude_agent["mixin_refs"]
         assert claude_agent["plugins"] == ["path:${env:BUILTIN_PLUGINS}/claude-tools"]

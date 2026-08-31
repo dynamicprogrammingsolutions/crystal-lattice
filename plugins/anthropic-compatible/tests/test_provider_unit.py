@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 from anthropic_plugins.content_blocks import reduce_event
@@ -42,6 +43,8 @@ class FakeModels:
 class FakeClient:
     def __init__(self, response: Any):
         self.messages: Any = FakeMessages(response)
+        self.beta_messages: Any = FakeMessages(response)
+        self.beta = SimpleNamespace(messages=self.beta_messages)
         self.models: Any = FakeModels()
         self.closed = False
 
@@ -56,6 +59,8 @@ def test_provider_identity_schema_and_tags() -> None:
     assert provider.name == "anthropic"
     assert schema["model"]["required"] is True
     assert schema["base_url"]["default"] == "https://api.anthropic.com"
+    assert schema["betas"]["default"] == []
+    assert schema["beta_headers"]["default"] == []
     assert "supports_tools" in provider.get_tags({}, [])
     assert "supports_reasoning" in provider.get_tags({}, [])
     assert "supports_usage" in provider.get_tags({}, [])
@@ -186,6 +191,220 @@ def test_sdk_client_uses_provider_owned_retry_and_transport_config(monkeypatch) 
     assert captured["timeout"] == 12
     assert captured["max_retries"] == 4
     assert captured["default_headers"]["anthropic-version"] == "2023-06-01"
+
+
+def test_standard_request_composes_beta_headers_once() -> None:
+    provider = AnthropicProvider()
+    config = {
+        "beta_headers": [
+            "interleaved-thinking-2025-05-14",
+            "interleaved-thinking-2025-05-14",
+        ]
+    }
+    payload = {
+        "model": "m",
+        "max_tokens": 8,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+
+    kwargs, use_beta = provider._request_kwargs(config, payload, stream=False)
+
+    assert use_beta is False
+    assert kwargs["extra_headers"]["anthropic-beta"] == (
+        "interleaved-thinking-2025-05-14"
+    )
+
+
+def test_beta_only_field_promotes_beta_headers_to_sdk_betas() -> None:
+    provider = AnthropicProvider()
+    config = {"beta_headers": ["context-management-2025-06-27"]}
+    payload = {
+        "model": "m",
+        "max_tokens": 8,
+        "messages": [{"role": "user", "content": "hi"}],
+        "context_management": {
+            "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
+        },
+    }
+
+    kwargs, use_beta = provider._request_kwargs(config, payload, stream=False)
+
+    assert use_beta is True
+    assert kwargs["betas"] == ["context-management-2025-06-27"]
+    assert "extra_headers" not in kwargs
+
+
+def test_request_kwargs_preserve_transport_fields_and_forward_unknown_body() -> None:
+    provider = AnthropicProvider()
+    state = provider.init({"model": "m", "api_key": "secret"})
+    native = [
+        {"role": "system", "content": "system"},
+        {"role": "user", "content": "hello"},
+    ]
+    native, state = provider.initialize_request(native, state)
+    state["request"]["payload"] = {
+        **state["request"]["payload"],
+        "messages": [{"role": "user", "content": "overridden"}],
+        "system": "overridden",
+        "stream": "wrong",
+        "thinking": {"type": "adaptive"},
+        "compatible_option": {"value": 1},
+        "extra_body": {
+            "compatible_option": {"value": 2},
+            "explicit_only": True,
+        },
+    }
+
+    payload = provider._request_payload(state)
+    kwargs, use_beta = provider._request_kwargs(state["config"], payload, stream=True)
+
+    assert use_beta is False
+    assert kwargs["messages"] == [{"role": "user", "content": "hello"}]
+    assert kwargs["system"] == "system"
+    assert kwargs["stream"] is True
+    assert kwargs["thinking"] == {"type": "adaptive"}
+    assert kwargs["extra_body"] == {
+        "compatible_option": {"value": 2},
+        "explicit_only": True,
+    }
+
+
+def test_beta_request_uses_beta_sdk_and_combines_beta_identifiers(monkeypatch) -> None:
+    response = Dumpable(
+        {
+            "id": "msg_beta",
+            "model": "claude-test",
+            "role": "assistant",
+            "content": [{"type": "text", "text": "Hello"}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 3, "output_tokens": 2},
+            "context_management": {
+                "applied_edits": [
+                    {
+                        "type": "clear_thinking_20251015",
+                        "cleared_thinking_turns": 1,
+                    }
+                ]
+            },
+        }
+    )
+    client = FakeClient(response)
+    provider = AnthropicProvider()
+    monkeypatch.setattr(provider, "_client", lambda config: client)
+    config = {
+        "model": "claude-test",
+        "api_key": "secret",
+        "betas": ["context-management-2025-06-27"],
+        "beta_headers": [
+            "interleaved-thinking-2025-05-14",
+            "context-management-2025-06-27",
+        ],
+    }
+    state = provider.init(config)
+    native, state = provider.initialize_request(
+        [{"role": "user", "content": "Hi"}], state
+    )
+    state["request"]["payload"]["context_management"] = {
+        "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
+    }
+
+    _partials, finals, _history, _state = provider.call_api(native, state)
+
+    assert client.messages.calls == []
+    assert client.beta_messages.calls[0]["stream"] is False
+    assert client.beta_messages.calls[0]["betas"] == [
+        "context-management-2025-06-27",
+        "interleaved-thinking-2025-05-14",
+    ]
+    assert (
+        finals[0]["_metadata"]["anthropic"]["context_management"]["applied_edits"][0][
+            "cleared_thinking_turns"
+        ]
+        == 1
+    )
+
+
+def test_beta_stream_uses_beta_sdk(monkeypatch) -> None:
+    events = [
+        Dumpable(
+            {
+                "type": "message_start",
+                "message": {
+                    "id": "msg_beta_stream",
+                    "model": "claude-test",
+                    "content": [],
+                    "usage": {"input_tokens": 1, "output_tokens": 0},
+                },
+            }
+        ),
+        Dumpable({"type": "message_stop"}),
+    ]
+    client = FakeClient(events)
+    provider = AnthropicProvider()
+    monkeypatch.setattr(provider, "_client", lambda config: client)
+    config = {
+        "model": "claude-test",
+        "api_key": "secret",
+        "betas": ["context-management-2025-06-27"],
+    }
+    state = provider.init(config)
+    native, state = provider.initialize_request(
+        [{"role": "user", "content": "Hi"}], state
+    )
+    state["request"]["payload"]["context_management"] = {
+        "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
+    }
+
+    streamed = list(provider.stream_api(native, state))
+
+    assert [event["type"] for event in streamed] == [
+        "message_start",
+        "message_stop",
+    ]
+    assert client.messages.calls == []
+    assert client.beta_messages.calls[0]["stream"] is True
+    assert client.beta_messages.calls[0]["betas"] == ["context-management-2025-06-27"]
+
+
+def test_explicit_beta_header_takes_precedence_over_beta_arrays() -> None:
+    provider = AnthropicProvider()
+    config = {
+        "betas": ["context-management-2025-06-27"],
+        "beta_headers": ["interleaved-thinking-2025-05-14"],
+        "headers": {"anthropic-beta": "context-management-2025-06-27,custom-beta"},
+    }
+    payload = {
+        "model": "m",
+        "max_tokens": 8,
+        "messages": [{"role": "user", "content": "hi"}],
+        "context_management": {
+            "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
+        },
+    }
+
+    kwargs, use_beta = provider._request_kwargs(config, payload, stream=False)
+
+    assert use_beta is True
+    assert "betas" not in kwargs
+
+
+def test_context_management_requires_matching_beta() -> None:
+    provider = AnthropicProvider()
+    payload = {
+        "model": "m",
+        "max_tokens": 8,
+        "messages": [{"role": "user", "content": "hi"}],
+        "context_management": {
+            "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
+        },
+    }
+
+    try:
+        provider._request_kwargs({}, payload, stream=False)
+    except RuntimeError as exc:
+        assert "context-management-2025-06-27" in str(exc)
+    else:
+        raise AssertionError("expected missing beta configuration error")
 
 
 def test_cancel_request_closes_active_stream_and_client() -> None:

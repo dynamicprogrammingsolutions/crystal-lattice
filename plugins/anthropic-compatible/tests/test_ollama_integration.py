@@ -11,6 +11,7 @@ import pytest
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
 from agent_core import AgentCore, Session
+from plugins.request_options_feature import RequestOptionsFeature
 
 from anthropic_plugins import (
     AnthropicProvider,
@@ -50,6 +51,7 @@ def _require_ollama(config: dict[str, Any]) -> None:
 
 def _core(*, tool: type | None = None) -> AgentCore:
     core = AgentCore()
+    core.register_feature(RequestOptionsFeature)
     core.register_provider(
         AnthropicProvider,
         extensions=[
@@ -110,7 +112,10 @@ class AddTool:
 @pytest.mark.integration
 @pytest.mark.ollama
 def test_ollama_ordinary_streaming_usage_and_reload() -> None:
-    config = _config(enable_reasoning=False, max_tokens=64)
+    config = _config(
+        request_options={"thinking": {"type": "disabled"}},
+        max_tokens=64,
+    )
     _require_ollama(config)
     core = _core()
     session = core.add_message(
@@ -142,9 +147,10 @@ def test_ollama_ordinary_streaming_usage_and_reload() -> None:
 @pytest.mark.ollama
 def test_ollama_reasoning_stream_is_visible_and_preserved() -> None:
     config = _config(
-        enable_reasoning=True,
-        reasoning_effort="low",
-        reasoning_budget_tokens=64,
+        request_options={
+            "thinking": {"type": "enabled", "budget_tokens": 64},
+            "output_config": {"effort": "low"},
+        },
     )
     _require_ollama(config)
     core = _core()
@@ -181,7 +187,7 @@ def test_ollama_reasoning_stream_is_visible_and_preserved() -> None:
 @pytest.mark.integration
 @pytest.mark.ollama
 def test_ollama_tool_round_and_turn_cumulative_usage() -> None:
-    config = _config(enable_reasoning=False)
+    config = _config(request_options={"thinking": {"type": "disabled"}})
     _require_ollama(config)
     core = _core(tool=AddTool)
     session = core.add_message(
@@ -230,12 +236,16 @@ def test_ollama_tool_round_and_turn_cumulative_usage() -> None:
 @pytest.mark.integration
 @pytest.mark.ollama
 def test_agent_application_loads_bundle_and_completes_request(tmp_path: Path) -> None:
-    config = _config(enable_reasoning=False, max_tokens=64)
+    config = _config(
+        request_options={"thinking": {"type": "disabled"}},
+        max_tokens=64,
+    )
     _require_ollama(config)
     plugin_root = Path(__file__).resolve().parents[1]
+    request_options_root = plugin_root.parent / "feature-request-options"
     app_config = {
         "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
-        "plugins": [f"path:{plugin_root}"],
+        "plugins": [f"path:{plugin_root}", f"path:{request_options_root}"],
         "providers": {"anthropic_local": config},
         "agents": {"default": {"provider": "anthropic_local"}},
     }
