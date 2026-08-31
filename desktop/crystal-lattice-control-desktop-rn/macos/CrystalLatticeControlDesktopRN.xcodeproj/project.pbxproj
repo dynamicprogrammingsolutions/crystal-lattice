@@ -14,19 +14,29 @@
 		514201552437B4B40078DB4F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 514201532437B4B40078DB4F /* Main.storyboard */; };
 		514201582437B4B40078DB4F /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 514201572437B4B40078DB4F /* main.m */; };
 		5885FD2ABEAD4A72BF171608 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = AB85723B3B404E1E97A72B48 /* Fonts */; };
+		8511A5CB7F0EEA26F5AEBDF8 /* libPods-CrystalLatticeControlDesktopRN-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F75F6C0EDC82A9FC4070C341 /* libPods-CrystalLatticeControlDesktopRN-macOS.a */; };
 		8D1000010000000000000001 /* ProgressiveScrollListUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000020000000000000001 /* ProgressiveScrollListUITests.swift */; };
 		8D1000110000000000000001 /* TranscriptScrollPersistenceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000120000000000000001 /* TranscriptScrollPersistenceUITests.swift */; };
 		8D1000210000000000000001 /* SessionFiltersPopoverUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000220000000000000001 /* SessionFiltersPopoverUITests.swift */; };
 		8D1000310000000000000001 /* TranscriptRangeNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000320000000000000001 /* TranscriptRangeNavigationUITests.swift */; };
 		8D1000410000000000000001 /* MarkdownDisplayMenuUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000420000000000000001 /* MarkdownDisplayMenuUITests.swift */; };
 		8D1000510000000000000001 /* ConnectionsPanelUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000520000000000000001 /* ConnectionsPanelUITests.swift */; };
-		8511A5CB7F0EEA26F5AEBDF8 /* libPods-CrystalLatticeControlDesktopRN-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F75F6C0EDC82A9FC4070C341 /* libPods-CrystalLatticeControlDesktopRN-macOS.a */; };
 		9A6C6A4F88C14999A6E50C11 /* DesktopWindowManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */; };
 		B1C2D3E4F5A60718293A4B6C /* MacCheckboxManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5C /* MacCheckboxManager.mm */; };
 		B1C2D3E4F5A60718293A4B6D /* MacSelectManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5D /* MacSelectManager.mm */; };
 		B1C2D3E4F5A60718293A4B6F /* MacScrollViewMetrics.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5F /* MacScrollViewMetrics.mm */; };
 		B1C2D3E4F5A60718293A4B70 /* MacAttachmentPicker.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B60 /* MacAttachmentPicker.mm */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		8D1000090000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 514201482437B4B30078DB4F;
+			remoteInfo = "CrystalLatticeControlDesktopRN-macOS";
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* CrystalLatticeControlDesktopRN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrystalLatticeControlDesktopRN.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -40,12 +50,12 @@
 		514201592437B4B40078DB4F /* CrystalLatticeControlDesktopRN.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CrystalLatticeControlDesktopRN.entitlements; sourceTree = "<group>"; };
 		5990908CD441EB630A5FC7CF /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8D1000020000000000000001 /* ProgressiveScrollListUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressiveScrollListUITests.swift; sourceTree = "<group>"; };
+		8D1000030000000000000001 /* CrystalLatticeControlDesktopRN-macOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CrystalLatticeControlDesktopRN-macOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D1000120000000000000001 /* TranscriptScrollPersistenceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptScrollPersistenceUITests.swift; sourceTree = "<group>"; };
 		8D1000220000000000000001 /* SessionFiltersPopoverUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFiltersPopoverUITests.swift; sourceTree = "<group>"; };
 		8D1000320000000000000001 /* TranscriptRangeNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptRangeNavigationUITests.swift; sourceTree = "<group>"; };
 		8D1000420000000000000001 /* MarkdownDisplayMenuUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDisplayMenuUITests.swift; sourceTree = "<group>"; };
 		8D1000520000000000000001 /* ConnectionsPanelUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsPanelUITests.swift; sourceTree = "<group>"; };
-		8D1000030000000000000001 /* CrystalLatticeControlDesktopRN-macOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CrystalLatticeControlDesktopRN-macOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A6C6A4D88C14999A6E50C11 /* DesktopWindowManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DesktopWindowManager.h; sourceTree = "<group>"; };
 		9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DesktopWindowManager.mm; sourceTree = "<group>"; };
 		AB85723B3B404E1E97A72B48 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
@@ -172,16 +182,6 @@
 		};
 /* End PBXGroup section */
 
-/* Begin PBXContainerItemProxy section */
-		8D1000090000000000000001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 514201482437B4B30078DB4F;
-			remoteInfo = "CrystalLatticeControlDesktopRN-macOS";
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXNativeTarget section */
 		13B07F861A680F5B00A75B9A /* CrystalLatticeControlDesktopRN-iOS */ = {
 			isa = PBXNativeTarget;
@@ -258,6 +258,8 @@
 					};
 					8D10000A0000000000000001 = {
 						CreatedOnToolsVersion = 15.0;
+						DevelopmentTeam = 73Q43R2PD4;
+						ProvisioningStyle = Automatic;
 						TestTargetID = 514201482437B4B30078DB4F;
 					};
 				};
@@ -324,7 +326,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "export NODE_BINARY=node\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
+			shellScript = "export NODE_BINARY=\"/Users/ferenci84/.nvm/versions/node/v20.19.5/bin/node\"\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
 		};
 		038EBB609777869271167CC2 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -410,7 +412,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "export NODE_BINARY=node\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
+			shellScript = "export NODE_BINARY=\"/Users/ferenci84/.nvm/versions/node/v20.19.5/bin/node\"\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -569,56 +571,6 @@
 			};
 			name = Release;
 		};
-		8D10000C0000000000000001 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 73Q43R2PD4;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "CrystalLatticeControlDesktopRN-macOSUITests";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.CrystalLatticeControlDesktopRN-macOSUITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = "CrystalLatticeControlDesktopRN-macOS";
-			};
-			name = Debug;
-		};
-		8D10000D0000000000000001 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 73Q43R2PD4;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "CrystalLatticeControlDesktopRN-macOSUITests";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.CrystalLatticeControlDesktopRN-macOSUITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = "CrystalLatticeControlDesktopRN-macOS";
-			};
-			name = Release;
-		};
 		83CBBA201A601CBA00E9B192 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -735,6 +687,48 @@
 			};
 			name = Release;
 		};
+		8D10000C0000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 73Q43R2PD4;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "CrystalLatticeControlDesktopRN-macOSUITests";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.CrystalLatticeControlDesktopRN-macOSUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "CrystalLatticeControlDesktopRN-macOS";
+			};
+			name = Debug;
+		};
+		8D10000D0000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 73Q43R2PD4;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "CrystalLatticeControlDesktopRN-macOSUITests";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.CrystalLatticeControlDesktopRN-macOSUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "CrystalLatticeControlDesktopRN-macOS";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -756,15 +750,6 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		8D10000B0000000000000001 /* Build configuration list for PBXNativeTarget "CrystalLatticeControlDesktopRN-macOSUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				8D10000C0000000000000001 /* Debug */,
-				8D10000D0000000000000001 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
 		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "CrystalLatticeControlDesktopRN" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -773,6 +758,15 @@
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
+		};
+		8D10000B0000000000000001 /* Build configuration list for PBXNativeTarget "CrystalLatticeControlDesktopRN-macOSUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8D10000C0000000000000001 /* Debug */,
+				8D10000D0000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 	};
