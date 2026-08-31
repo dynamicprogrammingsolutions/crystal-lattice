@@ -1,5 +1,6 @@
 artifacts/detox/
 artifacts/notification-visual/
+artifacts/website-visual/
 ios/.xcode.env.local
 fastlane/.env
 fastlane/Preview.html

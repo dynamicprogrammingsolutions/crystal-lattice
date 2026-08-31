@@ -56,7 +56,7 @@ Depends On: `tasks/20260825-crystal-lattice-product-positioning-and-website/090-
    `tasks/20260825-crystal-lattice-product-positioning-and-website/080-competitor-category-and-multi-agent-research.md:1-119`
    — prior external evidence used to select participants and prompts without
    leading them to desired answers.
-6. `landing_page/research/README.md:32-84` — minimized retained evidence and
+6. `landing_page/research/README.md:42-94` — minimized retained evidence and
    private/raw exclusions.
 
 ## Known facts and supporting details

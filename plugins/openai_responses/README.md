@@ -336,6 +336,10 @@ Usage metadata is attached to assistant messages, including formatted prompt,
 completion, cached-token, and cost fields. This is useful in the terminal UI
 and other clients that render message footers or status bars.
 
+API-backed turns label monetary values as `cost`. ChatGPT-backed turns use the
+same configured API pricing tables for estimation and therefore label their
+message-footer values as `estimated cost` and `estimated turn`.
+
 ### Prompt caching
 
 Prompt caching controls are available through:
@@ -493,6 +497,8 @@ loaded.
   `auth_mode` is `chatgpt`.
 - `reasoning_context`: optional string enum `["auto", "current_turn",
   "all_turns"]`, GPT-5.6 family only.
+- `show_reasoning_context_footer`: set to `false` to keep reasoning-context
+  behavior and metadata while hiding its assistant-message footer.
 
 See [Reasoning controls](docs/development/reasoning-controls.md) for the full
 shaping rules, silent-drop behavior, metadata footers, Pro mode billing, and
@@ -511,6 +517,14 @@ models whose id contains `gpt-5`.
 
 - `pricing_snapshot_path`: optional override for the checked-in pricing snapshot
 - `show_usage`: set to `false` to hide usage footer/status UI elements
+- `usage_message_footer_fields`: optional list that filters message-footer
+  fields while preserving plugin-defined order. Supported values are `input`,
+  `cached`, `cache_write`, `estimated_cached`, `completion`, `auth`, `tier`,
+  `mode`, `cost`, `turn_cost`, `turn_reasoning`, `turn_input`, `turn_cached`,
+  and `turn_output`. Omitting the key preserves the complete existing footer;
+  an empty list hides message-level usage while allowing the status total.
+- `show_usage_status_total`: set to `false` to hide cumulative cost from the
+  chat status bar while retaining selected message-footer usage
 - `show_estimated_cached_tokens`: set to `true` to show ChatGPT estimated cached-token footers
 - `show_openai_auth_mode`: set to `true` to show the effective auth mode (`API` or `ChatGPT`) in usage footers
 
@@ -544,6 +558,11 @@ returns promptly, rewrites provider-native history after the provider call
 completes, and rebuilds the visible transcript from the compacted native
 output.
 
+Users can compact the complete visible history, provide an explicit exclusive
+end index, or invoke `Compact native history up to here` from an individual
+message. The message-level action includes the selected message in the
+compacted prefix and uses the same background operation.
+
 While compaction runs, a dismissible warning banner reports the current phase
 and elapsed time approximately every 15 seconds and offers a `Cancel compaction`
 action. Canceling stops the operation; the session is not changed.
@@ -554,6 +573,19 @@ and you cannot start a request while compaction is running.
 Successful completion updates the session and leaves a dismissible success
 banner. Provider, output-validation, and concurrent-history failures leave a
 dismissible persistent error banner with a Retry action.
+
+A successful compaction commit creates a full session snapshot immediately
+before the compacted state is saved:
+
+```text
+Before compacting conversation [:277]
+```
+
+Cancellation, provider failure, application interruption, and conflicting
+commits do not retain an automatic compaction snapshot. Automatic snapshots
+are enabled by default and are not pruned or limited. See the
+[session snapshot guide](../../application/python/docs/session-snapshots.md)
+for storage, restoration, and manual deletion.
 
 The synchronous provider-extension compatibility action remains available as
 `compact_native_history_sync`, but it has no default UI element.
@@ -571,8 +603,9 @@ The bundle also exposes a session action that toggles this view mode:
 - `Collapse compacted messages`
 - `Expand compacted messages`
 
-The action changes the visible projection only. Retained native history stays
-canonical and is rebuilt using the updated session override.
+The toggle appears only after the session contains compacted history. It
+changes the visible projection only. Retained native history stays canonical
+and is rebuilt using the updated session override.
 
 By default, native compaction follows the same effective auth mode as normal
 Responses requests, and the selected mode selects the upstream compaction

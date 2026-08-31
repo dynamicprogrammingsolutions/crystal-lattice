@@ -115,7 +115,7 @@ Optionally bootstrap `latest.txt` while testing:
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/upload-installer.sh \
   --profile test \
-  --latest-version 0.1.0
+  --latest-version 0.1.1
 ```
 
 Inspect the generated installer without uploading:
@@ -163,7 +163,11 @@ The role trusts release tags matching:
 refs/tags/crystal-lattice-cli-v*
 ```
 
-It also trusts one branch for workflow testing, defaulting to `main`.
+It also trusts the `cli-release` GitHub environment and one branch for workflow
+testing, defaulting to `main`. The GitHub configuration script restricts the
+environment to tags matching `crystal-lattice-cli-v*`; this restriction is
+required because environment-scoped OIDC tokens use an environment subject
+instead of the tag ref subject.
 
 Preview GitHub variable/secret updates:
 
@@ -193,6 +197,14 @@ CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID
 CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME
 ```
 
+It also creates or updates the `cli-release` environment and requires its only
+deployment branch policy to be:
+
+```text
+type: tag
+name: crystal-lattice-cli-v*
+```
+
 For production, run the same commands with `--profile prod` after the
 production stack exists.
 
@@ -204,7 +216,7 @@ Publish already-built local release assets to the testing domain:
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
   --profile test \
   --assets-dir dist/crystal-lattice-python-runtime \
-  --version 0.1.0
+  --version 0.1.1
 ```
 
 This validates all four expected archives, uploads a generated installer,
@@ -217,7 +229,7 @@ Dry-run a release:
 ```bash
 deploy/aws-cli-downloads/release.sh \
   --profile test \
-  --version 0.1.0 \
+  --version 0.1.1 \
   --dry-run
 ```
 
@@ -226,13 +238,34 @@ Create and push the release tag, then watch GitHub Actions:
 ```bash
 deploy/aws-cli-downloads/release.sh \
   --profile test \
-  --version 0.1.0 \
+  --version 0.1.1 \
   --push-tag \
   --watch
 ```
 
 The script validates the local version and tag, then lets GitHub Actions run
 the official matrix build. It does not build all release archives locally.
+
+On a release tag, each read-only matrix job uploads its smoke-tested archive as
+a one-day GitHub Actions artifact. One protected `cli-release` publish job
+downloads and verifies all four archives, creates or updates the GitHub Release,
+uploads the archives, and makes the release public. This keeps GitHub Release
+write authority out of the matrix jobs. `workflow_dispatch` runs build and
+smoke-test jobs without storing archives or publishing a release.
+
+The selected `--profile` must match the repository variables configured with
+`configure-github-actions-vars.sh`. The release script refuses to create a tag
+when the selected stack outputs and GitHub variables differ. It also requires:
+
+- a clean `main` worktree whose `HEAD` exactly matches remote `origin/main`;
+- the `CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME` GitHub secret to exist;
+- a new local and remote release tag.
+
+With `--watch`, the script finds the tag-triggered workflow by release commit
+SHA, watches that specific run with failure propagation, and prints the GitHub
+Release URL. If a tag-triggered job fails, fix configuration and rerun failed
+jobs when the tag commit itself is valid. Do not move or delete a published tag
+without an explicit release-recovery decision.
 
 ## Promote Existing GitHub Release
 
@@ -241,7 +274,7 @@ Promote an existing GitHub Release to the testing domain:
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/promote-github-release.sh \
   --profile test \
-  --version 0.1.0 \
+  --version 0.1.1 \
   --repo dynamicprogrammingsolutions/crystal-lattice
 ```
 
@@ -250,7 +283,7 @@ Promote the same GitHub Release to production:
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/promote-github-release.sh \
   --profile prod \
-  --version 0.1.0 \
+  --version 0.1.1 \
   --repo dynamicprogrammingsolutions/crystal-lattice
 ```
 
@@ -269,6 +302,20 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
   --version 0.1.0
 ```
 
+Preview promotion without downloading assets or mutating AWS:
+
+```bash
+deploy/aws-cli-downloads/promote-github-release.sh \
+  --profile test \
+  --version 0.1.1 \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --dry-run
+```
+
+The dry run prints the GitHub download and publish commands. Real promotion
+downloads and validates all four current runtime archives before changing
+`latest.txt`.
+
 ## Smoke Testing
 
 Smoke-test the testing download URL:
@@ -282,7 +329,7 @@ Smoke-test a specific URL/version:
 ```bash
 deploy/aws-cli-downloads/smoke.sh \
   --base-url https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
-  --version 0.1.0
+  --version 0.1.1
 ```
 
 On macOS and Linux, the smoke script also runs the installer into temporary
@@ -328,7 +375,7 @@ Pinned install examples should set `VERSION` for the `bash` process:
 
 ```bash
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | \
-  VERSION=0.1.0 \
+  VERSION=0.1.1 \
   bash
 ```
 

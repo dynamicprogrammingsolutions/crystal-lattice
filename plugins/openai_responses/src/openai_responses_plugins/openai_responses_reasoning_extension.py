@@ -126,6 +126,14 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                     "both normalize to omission (the API default applies)."
                 ),
             },
+            "show_reasoning_context_footer": {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": (
+                    "Show the effective reasoning context in assistant message footers."
+                ),
+            },
         }
 
     def _resolve_model_id(
@@ -240,17 +248,21 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         # does not fabricate a value for models or responses that do not
         # report an effective context. Mirrors the usage extension's
         # ``message_footer`` pattern for ``usage_service_tier``.
-        elements.append(
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.openai_responses_reasoning.context",
-                "template": "context: {{data}}",
-                "condition": {
-                    "path": "metadata.openai_responses_reasoning.context",
-                    "exists": True,
-                },
-            }
-        )
+        if (
+            not isinstance(config, dict)
+            or config.get("show_reasoning_context_footer") is not False
+        ):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.openai_responses_reasoning.context",
+                    "template": "context: {{data}}",
+                    "condition": {
+                        "path": "metadata.openai_responses_reasoning.context",
+                        "exists": True,
+                    },
+                }
+            )
 
         return elements
 

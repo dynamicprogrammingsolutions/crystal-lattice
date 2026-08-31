@@ -5,9 +5,17 @@ Static marketing site for Crystal Lattice. Built with Astro and deployed as a pr
 ## Documentation
 
 - [`docs/index.md`](docs/index.md) maps the package documentation.
+- [`docs/visual-asset-framework.md`](docs/visual-asset-framework.md) explains
+  how to define assets, pipelines, commands, lifecycle callbacks, and custom
+  rules through the visual asset framework.
+- [`docs/visual-assets.md`](docs/visual-assets.md) documents the available
+  image, capture, fixture, derivative, and website-presentation processing
+  pipelines.
 - [`docs/development/index.md`](docs/development/index.md) routes current
   content-system documentation, product-website content targets, and research
   knowledge.
+- [`docs/development/visual-content-and-screenshot-generation.md`](docs/development/visual-content-and-screenshot-generation.md)
+  documents visual asset framework internals and extension boundaries.
 - [`AGENTS.md`](AGENTS.md) defines website-specific content, claim, research,
   visual, and verification boundaries.
 
@@ -33,6 +41,7 @@ landing_page/
 ├── docs/                   # Package docs, development knowledge, specifications
 ├── research/               # Retained normalized website research evidence
 ├── artifacts/              # Ignored raw research, previews, and draft captures
+├── visual_assets/          # Executable visual catalog and reviewed source masters
 ├── src/
 │   ├── pages/              # One file = one route
 │   │   ├── index.astro     # /
@@ -63,8 +72,7 @@ landing_page/
 │
 ├── public/                 # Copied as-is to dist/
 │   ├── icon.svg            # Favicon and nav logo (light theme)
-│   ├── icon_dark.svg       # Favicon and nav logo (dark theme)
-│   └── cl-mobile-frame.png # Phone mockup image on /mobile
+│   └── icon_dark.svg       # Favicon and nav logo (dark theme)
 │
 ├── Dockerfile              # Multi-stage build: Node (yarn build) → nginx:alpine
 ├── nginx.conf              # Serves dist/ with long-cache headers on /_astro/
@@ -85,7 +93,17 @@ The active theme is stored in `localStorage` under `cl-theme` and applied by an 
 yarn dev        # dev server at localhost:4321
 yarn build      # outputs to dist/
 yarn preview    # serves dist/ locally (same as production)
+yarn visual-assets:list
+yarn visual-assets:check
+yarn test:visual
 ```
+
+`yarn visual-assets:update` regenerates approved public image derivatives from
+the reviewed source masters and executable asset catalog.
+`yarn visual-assets:capture` and `yarn visual-assets:promote-source` provide an
+explicit candidate-to-reviewed-source lifecycle for generated captures.
+`yarn test:visual:headed` runs the same visual contracts with visible browser
+windows.
 
 ## Public URL Configuration
 

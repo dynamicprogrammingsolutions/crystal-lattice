@@ -169,7 +169,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <View style={styles.row}>
+    <View testID={`message-bubble-${index}`} style={styles.row}>
       <View style={[styles.bubble, styles.userBubble]}>
         <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] User`}</Text>
         <MessageAttachmentsPreview
@@ -192,7 +192,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
           )
         ) : null}
         {footerParts.length > 0 && (
-          <View style={styles.footerRow}>
+          <View testID={`message-footer-${index}`} style={styles.footerRow}>
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
@@ -288,7 +288,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <View style={styles.row}>
+    <View testID={`message-bubble-${index}`} style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] System`}</Text>
@@ -341,7 +341,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
           />
         )}
         {footerParts.length > 0 && (
-          <View style={styles.footerRow}>
+          <View testID={`message-footer-${index}`} style={styles.footerRow}>
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
@@ -405,7 +405,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   }, [footerElements, message]);
 
   return (
-    <View style={styles.row}>
+    <View testID={`message-bubble-${index}`} style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>
@@ -461,7 +461,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
           />
         )}
         {footerParts.length > 0 && (
-          <View style={styles.footerRow}>
+          <View testID={`message-footer-${index}`} style={styles.footerRow}>
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}
@@ -605,7 +605,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <View style={styles.row}>
+    <View testID={`message-bubble-${index}`} style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
@@ -826,7 +826,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
           />
         )}
         {footerParts.length > 0 && (
-          <View style={styles.footerRow}>
+          <View testID={`message-footer-${index}`} style={styles.footerRow}>
             <SelectablePlainText
               text={footerParts.join('   ')}
               style={styles.footerText}

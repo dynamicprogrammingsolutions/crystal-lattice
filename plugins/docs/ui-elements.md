@@ -304,6 +304,15 @@ def get_ui_elements(self, state, config, tags, models):
 | `dialog` | object | Dialog configuration (see below) |
 | `condition` | object | Optional visibility condition (see below) |
 
+Frontends combine plugin-provided actions with their native actions by
+ascending finite `order`. Missing orders sort after ordered actions. Equal
+orders preserve the original frontend/plugin declaration order, so plugin
+authors can choose broad ordering bands without relying on plugin load order.
+
+For example, a frontend-native Reload action at order `0`, a plugin Copy
+session action at `10`, and a frontend Settings action at `90` appear in that
+sequence in the same menu.
+
 #### Parameter mappings (`param_map`)
 
 Maps action parameters to context values using `$` prefixes:

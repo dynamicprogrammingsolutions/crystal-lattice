@@ -21,10 +21,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build Static Sites
+  deploy:
+    name: Build and Deploy Static Sites
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    environment: production-sites
+    permissions:
+      contents: read
+      # Required by the AWS deployment step after both sites are built.
+      id-token: write
     env:
       PUBLIC_CRYSTAL_LATTICE_SITE_URL: ${{ vars.PUBLIC_CRYSTAL_LATTICE_SITE_URL }}
       PUBLIC_CRYSTAL_LATTICE_DOCS_URL: ${{ vars.PUBLIC_CRYSTAL_LATTICE_DOCS_URL }}
@@ -60,42 +65,14 @@ jobs:
           python -m pip install -r docs_site/requirements.txt
           python docs_site/scripts/build_mkdocs_site.py
 
-      - name: Upload static-site artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: static-sites
-          path: |
-            landing_page/dist
-            docs_site/dist
-          if-no-files-found: error
-          retention-days: 1
-
-  deploy:
-    name: Deploy Static Sites
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    environment: production-sites
-    permissions:
-      contents: read
-      # Required only for AWS OIDC in this deployment job.
-      id-token: write
-    env:
-      AWS_REGION: ${{ vars.AWS_REGION }}
-      LANDING_BUCKET: ${{ vars.LANDING_BUCKET }}
-      DOCS_BUCKET: ${{ vars.DOCS_BUCKET }}
-      LANDING_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.LANDING_CLOUDFRONT_DISTRIBUTION_ID }}
-      DOCS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.DOCS_CLOUDFRONT_DISTRIBUTION_ID }}
-      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-
-    steps:
-      - name: Download static-site artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: static-sites
-          path: .
-
       - name: Validate Deployment Configuration
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          LANDING_BUCKET: ${{ vars.LANDING_BUCKET }}
+          DOCS_BUCKET: ${{ vars.DOCS_BUCKET }}
+          LANDING_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.LANDING_CLOUDFRONT_DISTRIBUTION_ID }}
+          DOCS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.DOCS_CLOUDFRONT_DISTRIBUTION_ID }}
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
         run: |
           test -n "${AWS_REGION}"
           test -n "${LANDING_BUCKET}"
@@ -107,10 +84,13 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
-          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Deploy Landing Site
+        env:
+          LANDING_BUCKET: ${{ vars.LANDING_BUCKET }}
+          LANDING_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.LANDING_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           aws s3 sync landing_page/dist/ "s3://${LANDING_BUCKET}/" --delete
           aws cloudfront create-invalidation \
@@ -118,6 +98,9 @@ jobs:
             --paths "/*"
 
       - name: Deploy Docs Site
+        env:
+          DOCS_BUCKET: ${{ vars.DOCS_BUCKET }}
+          DOCS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.DOCS_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           aws s3 sync docs_site/dist/ "s3://${DOCS_BUCKET}/" --delete
 

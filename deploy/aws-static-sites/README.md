@@ -148,6 +148,12 @@ export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev
 The deploy workflow uses GitHub Actions OIDC to assume a narrow AWS role. Do not
 create long-lived AWS access keys for this deployment path.
 
+The workflow is bound to GitHub environment `production-sites`. The IAM role
+trusts that environment subject, and the GitHub environment must restrict
+deployment to `main`. The branch restriction belongs to GitHub because an OIDC
+token for a job that references an environment identifies the environment
+rather than the branch in its subject.
+
 The helper scripts read CloudFormation stack outputs automatically. You do not
 need to copy values from `up.sh` into GitHub by hand.
 
@@ -163,7 +169,7 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/create-github-oidc-role.sh \
   --region us-east-1 \
   --github-owner dynamicprogrammingsolutions \
   --github-repo crystal-lattice \
-  --github-branch main
+  --github-environment production-sites
 ```
 
 Preview the GitHub repository variable/secret updates:
@@ -210,45 +216,14 @@ gh workflow run deploy-static-sites.yml \
   --ref task/20260614-aws-static-sites-docs-deployment
 ```
 
-After the workflow file exists on the default branch, you can manually dispatch
-it against another branch:
+Do not rotate the production IAM trust policy to a feature branch. The
+`production-sites` environment and IAM role are a matched production boundary,
+and its GitHub deployment branch policy allows only `main`.
 
-```bash
-export BRANCH_NAME="task/20260614-aws-static-sites-docs-deployment"
-
-gh workflow run deploy-static-sites.yml \
-  --repo dynamicprogrammingsolutions/crystal-lattice \
-  --ref "$BRANCH_NAME"
-```
-
-When testing from a branch, update the AWS OIDC role trust policy to trust that
-branch:
-
-```bash
-export BRANCH_NAME="task/20260614-aws-static-sites-docs-deployment"
-
-ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/create-github-oidc-role.sh \
-  --profile test \
-  --static-stack-name crystal-lattice-static-sites-test \
-  --role-stack-name crystal-lattice-static-sites-github-oidc-test \
-  --region us-east-1 \
-  --github-owner dynamicprogrammingsolutions \
-  --github-repo crystal-lattice \
-  --github-branch "$BRANCH_NAME"
-```
-
-After branch testing, restore the role trust policy to `main`:
-
-```bash
-ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/create-github-oidc-role.sh \
-  --profile test \
-  --static-stack-name crystal-lattice-static-sites-test \
-  --role-stack-name crystal-lattice-static-sites-github-oidc-test \
-  --region us-east-1 \
-  --github-owner dynamicprogrammingsolutions \
-  --github-repo crystal-lattice \
-  --github-branch main
-```
+Use the local build commands for branch validation. If a branch requires an
+end-to-end AWS deployment test, create a separate GitHub environment, workflow
+configuration, IAM role, and test static-site stack rather than weakening the
+production environment.
 
 Check workflow runs and logs:
 
@@ -275,7 +250,7 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/create-github-oidc-role.sh \
   --region us-east-1 \
   --github-owner dynamicprogrammingsolutions \
   --github-repo crystal-lattice \
-  --github-branch main
+  --github-environment production-sites
 ```
 
 Preview the GitHub repository variable/secret updates:

@@ -20,7 +20,11 @@ market research.
       suitable for early-user and reviewer-facing use.
 
 Parent Task: `tasks/20260825-crystal-lattice-product-positioning-and-website/000-main.md`
-Depends On: `tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md`
+
+Depends On:
+
+- `tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md`
+- `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md`
 
 ## Scope
 
@@ -38,15 +42,18 @@ placeholder after a separate roadmap update.
 2. `tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md:1-125`
    plus its completed outputs — required current product, configured-agent,
    provider/account, feature, and evidence baseline. Stop if incomplete.
-3. `landing_page/docs/development/specifications/product-website-content/content-spec.md:1-305`
+3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-241`
+   plus its accepted early visual manifest, public assets, browser validation,
+   and completion evidence. Stop if incomplete.
+4. `landing_page/docs/development/specifications/product-website-content/content-spec.md:1-305`
    — complete current content target, terminology, compatibility, proof, and
    progressive-revision requirements.
-4. `landing_page/docs/development/specifications/product-website-content/requirements.md:6-22`
+5. `landing_page/docs/development/specifications/product-website-content/requirements.md:6-23`
    — live target state and evidence mapping.
-5. `landing_page/docs/development/content-system.md:7-148` — current authored
+6. `landing_page/docs/development/content-system.md:7-161` — current authored
    sources, rendering, assets, extension points, boundaries, and verification.
-6. `landing_page/src/content/pages/home.yaml:1-452`,
-   `landing_page/src/content/pages/mobile.yaml:1-122`, and
+7. `landing_page/src/content/pages/home.yaml:1-441`,
+   `landing_page/src/content/pages/mobile.yaml:1-119`, and
    `landing_page/src/content/markdown/privacy.md:1-104` — current public
    product, mobile, and privacy content to audit before editing.
 
@@ -66,6 +73,9 @@ placeholder after a separate roadmap update.
 - This rewrite exists so early users are not blocked by later market research.
 - The current public sources include visible planning placeholders and
   explicitly unverified examples.
+- Task 025 owns the reviewed early visual baseline and minimal asset workflow;
+  this task consumes those accepted outputs rather than independently
+  re-importing or selecting screenshots.
 - The approved current baseline is coding-agent-first, runs on the user's
   computer, and distinguishes Crystal Lattice profiles from official upstream
   applications and sessions.
@@ -126,9 +136,10 @@ early understanding and first success. Hide or remove incomplete proof rather
 than replacing it with speculative content.
 
 Use verified product screenshots already available only when they match the
-current product. Validate build, links, responsive behavior, accessibility,
-commands, and reviewer-facing facts. Prepare production deployment and request
-the required confirmation before remote mutation.
+current product and the task-025 visual manifest. Validate build, links,
+responsive behavior, accessibility, commands, and reviewer-facing facts.
+Prepare production deployment and request the required confirmation before
+remote mutation.
 
 ### Implementation decisions and open questions
 
@@ -148,6 +159,7 @@ the required confirmation before remote mutation.
 ### Task checklist
 
 - [ ] Reconcile the current page against the compatibility baseline.
+- [ ] Confirm the accepted task-025 visual baseline and asset checks.
 - [ ] Update the content target and affected requirements.
 - [ ] Rewrite the homepage and affected product routes.
 - [ ] Remove public placeholders and unverified examples.

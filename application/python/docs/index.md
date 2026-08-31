@@ -12,8 +12,10 @@ terminal interface, HTTP API, local discovery, and bridge connectivity.
   configuration.
 - [Application configuration](configuration.md): configure agents, providers,
   plugin packages, mixins, placeholders, and plugin installation policy.
-- [Package README](../README.md): installation, HTTP/mobile connectivity,
-  cloud, distribution, and release guidance.
+- [Session snapshots](session-snapshots.md): manual and automatic recovery
+  points, readonly selection, restoration, storage, and deletion.
+- [Package README](../README.md): installation, terminal, HTTP/mobile
+  connectivity, cloud, distribution, and release guidance.
 
 ## Development
 

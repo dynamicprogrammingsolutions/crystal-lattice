@@ -19,6 +19,7 @@ Documentation:
 - [Quickstart](docs/quickstart.md)
 - [Terminal guide](docs/terminal.md)
 - [Application configuration](docs/configuration.md)
+- [Session snapshots](docs/session-snapshots.md)
 - [Application runtime development](docs/development/index.md)
 
 ## Installation
@@ -42,7 +43,7 @@ The default install locations are:
 Pinned install:
 
 ```bash
-curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | VERSION=0.1.0 bash
+curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | VERSION=0.1.1 bash
 ```
 
 Review-first install:
@@ -705,6 +706,10 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 - `POST /sessions/{session_id}/messages` - append a message.
 - `POST /sessions/{session_id}/send` - run the model/tool loop.
 - `POST /sessions/{session_id}/send_message` - append and send in one call.
+- `GET` and `POST /sessions/{session_id}/snapshots` - list or create session
+  recovery points. Message deletion and successful OpenAI native compaction
+  also create automatic pre-mutation snapshots; see the
+  [session snapshot guide](docs/session-snapshots.md).
 - `GET /events` - poll request/session events.
 - `GET /application/notifications` - load the active application-notification
   snapshot; use `include_terminal=true` for terminal records.
@@ -819,10 +824,10 @@ dist/crystal-lattice-python-runtime/
 Bundled-Python archive names look like:
 
 ```text
-crystal-lattice-python-runtime-v0.1.0-linux-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-darwin-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-darwin-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-windows-amd64.zip
+crystal-lattice-python-runtime-v0.1.1-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-windows-amd64.zip
 ```
 
 From that full package, users can create optimized config-specific PyInstaller
@@ -856,10 +861,10 @@ dist/crystal-lattice/
 Bundled-Python runtime archive names look like:
 
 ```text
-crystal-lattice-python-runtime-v0.1.0-linux-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-darwin-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-darwin-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-windows-amd64.zip
+crystal-lattice-python-runtime-v0.1.1-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-windows-amd64.zip
 ```
 
 PyInstaller does not cross-compile. Build Linux, macOS, and Windows optimized
@@ -992,7 +997,7 @@ Manual republish:
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
   --profile prod \
   --assets-dir dist/crystal-lattice-python-runtime \
-  --version 0.1.0
+  --version 0.1.1
 ```
 
 To change or retire the public download endpoint, use the deployment scripts in
@@ -1018,8 +1023,11 @@ Manual dry run:
 gh workflow run release-crystal-lattice-cli.yml
 ```
 
-Manual runs execute tests, build every platform archive, smoke-test the
-archives, and upload workflow artifacts. They do not publish a GitHub Release.
+Manual runs execute tests, build every platform archive, and smoke-test the
+archives. They do not store Actions artifacts or publish a GitHub Release. On a
+release tag, each read-only matrix job stores its archive as a one-day Actions
+artifact. One protected publish job downloads and verifies all four archives,
+uploads them to the GitHub Release, and makes the release public.
 
 Local workflow validation:
 
@@ -1043,15 +1051,14 @@ act workflow_dispatch \
 ```
 
 `act` can validate the Linux-shaped workflow path locally. It cannot prove the
-native macOS or Windows runners, and `actions/upload-artifact` may require
-GitHub's hosted runtime token even after the local build and smoke test pass.
+native macOS or Windows runners or the GitHub Release upload path.
 
 Official releases are created by pushing a tag that matches the CLI package
 version:
 
 ```bash
-git tag crystal-lattice-cli-v0.1.0
-git push origin crystal-lattice-cli-v0.1.0
+git tag crystal-lattice-cli-v0.1.1
+git push origin crystal-lattice-cli-v0.1.1
 ```
 
 The tag must match `application/python/pyproject.toml`'s `project.version`.

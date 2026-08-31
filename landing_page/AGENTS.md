@@ -9,6 +9,8 @@ Before changing the website, read:
 
 - `README.md`
 - `docs/index.md`
+- `docs/visual-asset-framework.md`
+- `docs/visual-assets.md`
 - `docs/development/index.md`
 - `docs/development/content-system.md`
 - `docs/development/specifications/product-website-content/index.md`
@@ -33,6 +35,8 @@ For positioning or research work, also read:
   review records when research tasks create them.
 - `artifacts/` contains disposable raw responses, caches, browser output,
   previews, and intermediate screenshots. The directory is ignored.
+- `visual_assets/` contains the executable visual catalog and reviewed,
+  sanitized source masters used to reproduce public derivatives.
 - `public/` contains approved files shipped by the website.
 
 Do not copy task phases, requirement IDs, approval state, research confidence
@@ -73,9 +77,16 @@ labels, or internal progress into public website content.
   recordings.
 - Keep draft captures under `artifacts/`; move only approved production files
   to `public/`.
-- A planned screenshot-generation system belongs in a task or future
-  content-system specification until implemented. Current development pages
-  describe only delivered behavior.
+- Follow
+  `docs/visual-asset-framework.md` when adding framework assets, commands,
+  lifecycle callbacks, pipelines, custom rules, or catalog commands.
+- Follow
+  `docs/visual-assets.md` when selecting or changing concrete image, capture,
+  fixture, derivative, or website-presentation processing.
+- Follow
+  `docs/development/visual-content-and-screenshot-generation.md` when changing
+  catalog dispatch, runtime services, lifecycle composition, mutation safety,
+  or other visual-asset architecture.
 
 ## Verification
 

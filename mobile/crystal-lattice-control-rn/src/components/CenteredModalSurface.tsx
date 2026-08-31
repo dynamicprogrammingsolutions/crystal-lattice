@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -8,28 +8,28 @@ import {
   View,
   type StyleProp,
   type ViewStyle,
-} from 'react-native';
+} from "react-native";
 
-import { useTheme, type Theme } from '../theme';
+import { useTheme, type Theme } from "../theme";
 
 export interface CenteredModalSurfaceProps {
   visible: boolean;
+  testID?: string;
   onRequestClose: () => void;
   children: React.ReactNode;
   overlayChildren?: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
   keyboardAvoiding?: boolean;
-  testID?: string;
 }
 
 const CenteredModalSurface: React.FC<CenteredModalSurfaceProps> = ({
   visible,
+  testID,
   onRequestClose,
   children,
   overlayChildren,
   contentStyle,
   keyboardAvoiding = false,
-  testID,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -41,17 +41,24 @@ const CenteredModalSurface: React.FC<CenteredModalSurfaceProps> = ({
   const content = (
     <>
       <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} />
-      <View testID={testID} style={[styles.content, contentStyle]}>{children}</View>
+      <View testID={testID} style={[styles.content, contentStyle]}>
+        {children}
+      </View>
       {overlayChildren}
     </>
   );
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onRequestClose}>
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onRequestClose}
+    >
       {keyboardAvoiding ? (
         <KeyboardAvoidingView
           style={styles.overlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           keyboardVerticalOffset={0}
         >
           {content}
@@ -68,15 +75,15 @@ const createStyles = (theme: Theme) =>
     overlay: {
       flex: 1,
       backgroundColor: theme.modalBackdrop,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: "center",
+      alignItems: "center",
     },
     content: {
-      width: '90%',
-      maxHeight: '80%',
+      width: "90%",
+      maxHeight: "80%",
       backgroundColor: theme.surface,
       borderRadius: 12,
-      overflow: 'hidden',
+      overflow: "hidden",
     },
   });
 

@@ -11,6 +11,7 @@ from typing import Any, Dict
 import pytest
 
 from agent_app.application_future import AgentApplication
+from agent_app.managed_processes import get_managed_process_registry
 from agent_app.operations import get_application_operation_service
 from agent_app.request_execution import SessionOperationBusyError
 from agent_core import Message, Session
@@ -259,6 +260,17 @@ def test_background_action_returns_promptly_and_publishes_heartbeats(
     native_messages = saved.metadata.get("native_messages")
     assert isinstance(native_messages, list)
     assert native_messages[-1]["type"] == "compaction"
+    snapshots = app.list_session_snapshots(session_id)
+    assert len(snapshots) == 1
+    snapshot = snapshots[0]
+    assert snapshot.reason == "Before compacting conversation [:1]"
+    assert snapshot.metadata == {
+        "origin": "automatic",
+        "plugin": "openai_responses_native_compaction_app",
+        "action": "compact_native_history",
+        "operation_id": result["operation_id"],
+        "range": {"start": 0, "end": 1},
+    }
     completed_notification = app.list_session_notifications(session_id)[0]
     assert completed_notification["status"] == "pending"
     assert completed_notification["severity"] == "success"
@@ -267,6 +279,17 @@ def test_background_action_returns_promptly_and_publishes_heartbeats(
     assert completed_notification["display"]["dismissible"] is True
     assert completed_notification["title"] == "Native compaction complete"
     assert completed_notification["ui_effects"] == {"reload_session_ids": [session_id]}
+    restored = app.restore_session_snapshot(session_id, snapshot.snapshot_id)
+    assert restored.metadata["native_messages"] == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hello"}],
+        }
+    ]
+    restored_notification = app.list_session_notifications(session_id)[0]
+    assert restored_notification["id"] == completed_notification["id"]
+    assert restored_notification["severity"] == "success"
     app.close()
 
 
@@ -439,6 +462,7 @@ def test_cancel_action_interrupts_transport_and_discards_result(
     assert current is not None
     assert current.messages == baseline.messages
     assert current.metadata["native_messages"] == baseline.metadata["native_messages"]
+    assert app.list_session_snapshots(session_id) == []
     notification = app.list_session_notifications(session_id)[0]
     assert notification["status"] == "pending"
     assert notification["severity"] == "warning"
@@ -476,6 +500,7 @@ def test_provider_failure_keeps_persistent_retry_notification(
         "compact_native_history"
     )
     assert "ui_effects" not in notification
+    assert app.list_session_snapshots(session_id) == []
     app.close()
 
 
@@ -559,6 +584,47 @@ def test_concurrent_history_change_fails_without_overwriting_current_session(
     assert saved is not None
     assert [message.content for message in saved.messages] == ["hello", "new turn"]
     assert app.list_session_notifications(session_id)[0]["severity"] == "error"
+    assert app.list_session_snapshots(session_id) == []
+    app.close()
+
+
+def test_failed_compaction_save_removes_provisional_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, session_id = _build_app(tmp_path, monkeypatch)
+    result = _start(app, session_id)
+    transport = _ControlledTransport.instances[0]
+    assert transport.started.wait(2)
+
+    original_save = app.save_session
+
+    def fail_compaction_save(session: Session, *args: Any, **kwargs: Any) -> Any:
+        native_messages = (
+            session.metadata.get("native_messages")
+            if isinstance(session.metadata, dict)
+            else None
+        )
+        if (
+            isinstance(native_messages, list)
+            and native_messages
+            and isinstance(native_messages[-1], dict)
+            and native_messages[-1].get("type") == "compaction"
+        ):
+            raise RuntimeError("save failed")
+        return original_save(session, *args, **kwargs)
+
+    monkeypatch.setattr(app, "save_session", fail_compaction_save)
+    transport.release.set()
+
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            result["operation_id"]
+        )
+        is None
+    )
+    assert app.list_session_snapshots(session_id) == []
+    assert app.list_session_notifications(session_id)[0]["severity"] == "error"
     app.close()
 
 
@@ -591,6 +657,70 @@ def test_session_ui_uses_application_owned_background_action(
     )
     assert compaction["plugin"] == "openai_responses_native_compaction_app"
     assert compaction["action_owner"] == "application"
+
+    through_message = next(
+        item
+        for item in schema
+        if item.get("id") == "compact_native_history_through_message"
+    )
+    assert through_message["ui_type"] == "message_action"
+    assert through_message["order"] == 25
+    assert through_message["action_id"] == "compact_native_history"
+    assert through_message["action_owner"] == "application"
+    assert through_message["param_map"] == {
+        "session_id": "$session.session_id",
+        "message_index": "$message.index",
+    }
+    app.close()
+
+
+def test_message_action_compacts_through_selected_visible_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, session_id = _build_app(tmp_path, monkeypatch)
+
+    result = app.execute_application_action(
+        "openai_responses_native_compaction_app",
+        "compact_native_history",
+        {"session_id": session_id, "message_index": 0},
+        context={"session_id": session_id},
+    )
+
+    process = get_managed_process_registry(app.get_runtime_store()).get(
+        result["operation_id"]
+    )
+    assert isinstance(process, process_module.OpenAIResponsesNativeCompactionProcess)
+    assert process._end_index == 1
+
+    _ControlledTransport.instances[0].release.set()
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            result["operation_id"]
+        )
+        is None
+    )
+    app.close()
+
+
+@pytest.mark.parametrize("message_index", [-1, 1])
+def test_message_action_rejects_invalid_visible_message_index(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    message_index: Any,
+) -> None:
+    app, session_id = _build_app(tmp_path, monkeypatch)
+
+    with pytest.raises(
+        ValueError, match="message_index must identify a visible session message"
+    ):
+        app.execute_application_action(
+            "openai_responses_native_compaction_app",
+            "compact_native_history",
+            {"session_id": session_id, "message_index": message_index},
+            context={"session_id": session_id},
+        )
+
     app.close()
 
 

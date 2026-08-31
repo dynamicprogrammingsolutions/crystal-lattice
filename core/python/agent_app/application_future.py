@@ -618,6 +618,7 @@ class AgentApplication:
         )
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
+        self._request_cancellations_lock = threading.RLock()
         self._cancelled_requests: set[str] = set()
         self._request_cancellations: Dict[str, RequestCancellation] = {}
         self._session_request_coordinator = SessionRequestCoordinator(
@@ -2590,10 +2591,29 @@ class AgentApplication:
         if not isinstance(request_id, str) or not request_id:
             raise ValueError("request_id must be a non-empty string")
 
-        self._cancelled_requests.add(request_id)
-        cancellation = self._request_cancellations.get(request_id)
+        with self._request_cancellations_lock:
+            self._cancelled_requests.add(request_id)
+            cancellation = self._request_cancellations.get(request_id)
         if cancellation is not None:
             cancellation.cancel()
+
+    def _register_request_cancellation(
+        self,
+        request_id: str,
+    ) -> RequestCancellation:
+        """Atomically register live cancellation after honoring early requests."""
+
+        with self._request_cancellations_lock:
+            cancellation = RequestCancellation(
+                cancelled=request_id in self._cancelled_requests
+            )
+            self._request_cancellations[request_id] = cancellation
+            return cancellation
+
+    def _clear_request_cancellation(self, request_id: str) -> None:
+        with self._request_cancellations_lock:
+            self._cancelled_requests.discard(request_id)
+            self._request_cancellations.pop(request_id, None)
 
     def start_session_request(
         self,
@@ -3673,6 +3693,19 @@ class AgentApplication:
             )
         if live.to_dict() != restored.to_dict():
             self._session_store.create_snapshot(live, reason="before restore")
+        live_metadata = live.metadata if isinstance(live.metadata, dict) else {}
+        restored_metadata = (
+            dict(restored.metadata) if isinstance(restored.metadata, dict) else {}
+        )
+        if "notifications" in live_metadata:
+            restored_metadata["notifications"] = live_metadata["notifications"]
+        else:
+            restored_metadata.pop("notifications", None)
+        restored = Session(
+            session_id=restored.session_id,
+            messages=restored.messages,
+            metadata=restored_metadata,
+        )
         self._snapshot_selection_store.clear_selected_snapshot(session_id)
         saved = self.save_session(restored, acquire_lock=False)
         return saved
@@ -4167,8 +4200,7 @@ class AgentApplication:
             self.record_checkpoint(session.session_id, None)
             return
 
-        cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
-        self._request_cancellations[rid] = cancellation
+        cancellation = self._register_request_cancellation(rid)
 
         def _is_cancelled() -> bool:
             return cancellation.is_cancelled()
@@ -4395,5 +4427,4 @@ class AgentApplication:
                     )
                     continue
         finally:
-            self._cancelled_requests.discard(rid)
-            self._request_cancellations.pop(rid, None)
+            self._clear_request_cancellation(rid)

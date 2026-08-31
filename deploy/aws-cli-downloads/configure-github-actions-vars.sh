@@ -10,6 +10,8 @@ REPO="dynamicprogrammingsolutions/crystal-lattice"
 ROLE_STACK_NAME=""
 ROLE_ARN=""
 DRY_RUN=0
+GITHUB_ENVIRONMENT="cli-release"
+GITHUB_TAG_PATTERN="crystal-lattice-cli-v*"
 
 usage() {
   cat <<'USAGE'
@@ -22,6 +24,8 @@ Options:
   --repo OWNER/REPO            GitHub repository. Default: dynamicprogrammingsolutions/crystal-lattice.
   --role-stack-name NAME       CloudFormation stack with AwsRoleToAssume output.
   --role-arn ARN               Use this role ARN instead of reading role stack output.
+  --github-environment NAME    Release environment. Default: cli-release.
+  --github-tag-pattern GLOB    Allowed release tags. Default: crystal-lattice-cli-v*.
   --dry-run                    Print gh commands without mutating GitHub.
   --help, -h                   Show this help.
 USAGE
@@ -34,6 +38,8 @@ while [ "$#" -gt 0 ]; do
     --repo) REPO="$2"; shift 2 ;;
     --role-stack-name) ROLE_STACK_NAME="$2"; shift 2 ;;
     --role-arn) ROLE_ARN="$2"; shift 2 ;;
+    --github-environment) GITHUB_ENVIRONMENT="$2"; shift 2 ;;
+    --github-tag-pattern) GITHUB_TAG_PATTERN="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) args+=("$1"); shift ;;
@@ -106,7 +112,40 @@ set_variable CLI_DOWNLOADS_BASE_URL "$downloads_base_url"
 set_variable CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID "$downloads_distribution_id"
 run_gh secret set CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME --repo "$REPO" --body "$ROLE_ARN"
 
+environment_endpoint="repos/${REPO}/environments/${GITHUB_ENVIRONMENT}"
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo "DRY RUN: configure GitHub environment $GITHUB_ENVIRONMENT with custom tag policy $GITHUB_TAG_PATTERN"
+else
+  printf '%s\n' \
+    '{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}' |
+    gh api --method PUT "$environment_endpoint" --input - >/dev/null
+
+  policy_lines="$(
+    gh api "$environment_endpoint/deployment-branch-policies" \
+      --jq '.branch_policies[] | "\(.type)|\(.name)"'
+  )"
+  if ! printf '%s\n' "$policy_lines" |
+    grep -Fxq "tag|$GITHUB_TAG_PATTERN"; then
+    gh api \
+      --method POST \
+      "$environment_endpoint/deployment-branch-policies" \
+      -f name="$GITHUB_TAG_PATTERN" \
+      -f type=tag >/dev/null
+    policy_lines="$(
+      gh api "$environment_endpoint/deployment-branch-policies" \
+        --jq '.branch_policies[] | "\(.type)|\(.name)"'
+    )"
+  fi
+
+  if [ "$policy_lines" != "tag|$GITHUB_TAG_PATTERN" ]; then
+    echo "GitHub environment $GITHUB_ENVIRONMENT has unexpected deployment policies:" >&2
+    printf '%s\n' "$policy_lines" >&2
+    exit 1
+  fi
+fi
+
 echo "Configured CLI download GitHub Actions settings for $REPO ($PROFILE)."
 echo "Download stack: $STACK_NAME"
 echo "Role stack: $ROLE_STACK_NAME"
 echo "Base URL: $downloads_base_url"
+echo "Release environment: $GITHUB_ENVIRONMENT ($GITHUB_TAG_PATTERN)"
