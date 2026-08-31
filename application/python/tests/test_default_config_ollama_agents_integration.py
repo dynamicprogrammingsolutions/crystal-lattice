@@ -131,6 +131,7 @@ def test_default_config_ollama_agent_reasoning_and_tool_call(
     # Set dummy env vars for all providers (only ollama is used, but the config
     # references all provider keys).
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
     monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")

@@ -453,6 +453,13 @@
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1"
     },
+    "anthropic": {
+      "mixin_refs": ["provider_defaults"],
+      "provider": "anthropic",
+      "auth_mode": "api",
+      "api_key": "${env:ANTHROPIC_API_KEY}",
+      "base_url": "https://api.anthropic.com"
+    },
     "openrouter_image_generation": {
       "mixin_refs": ["provider_defaults"],
       "provider": "openrouter_image_generation",
@@ -513,6 +520,7 @@
   },
   "plugins": [
     "path:${env:BUILTIN_PLUGINS}/openrouter",
+    "path:${env:BUILTIN_PLUGINS}/anthropic-compatible",
     "plugins.tool_gating_feature.ToolGatingFeature",
     "path:${env:BUILTIN_PLUGINS}/feature-request-options",
     "path:${env:BUILTIN_PLUGINS}/feature-system-message",
@@ -556,6 +564,7 @@
       "env_file": "${env:CONFIG_DIR}/.env",
       "editable_env_keys": [
         "OPENROUTER_API_KEY",
+        "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
         "FIREWORKS_API_KEY",
         "ZAI_API_KEY"
@@ -563,6 +572,7 @@
       "provider_env_keys": {
         "openrouter": "OPENROUTER_API_KEY",
         "openrouter_image_generation": "OPENROUTER_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
         "fireworks": "FIREWORKS_API_KEY",
         "zai": "ZAI_API_KEY"
@@ -822,7 +832,7 @@
         "type": "kimi"
       }
     },
-    "claude": {
+    "claude-openrouter": {
       "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
@@ -836,6 +846,19 @@
           "allow_fallbacks": false
         }
       },
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
+    },
+    "claude-anthropic": {
+      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "reasoning_effort": null,
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,

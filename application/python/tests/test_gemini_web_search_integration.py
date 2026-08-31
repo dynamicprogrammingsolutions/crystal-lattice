@@ -63,6 +63,7 @@ def _make_agent_app(
     from agent_app.events import InMemoryEventStore
 
     monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_api_key)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("GEMINI_API_KEY", gemini_api_key)
     if tavily_api_key:
         monkeypatch.setenv("TAVILY_API_KEY", tavily_api_key)

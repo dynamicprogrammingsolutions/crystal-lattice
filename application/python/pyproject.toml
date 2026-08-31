@@ -67,6 +67,7 @@ markers = [
     "gemini: tests requiring Gemini credentials",
     "openai: tests requiring OpenAI credentials",
     "openrouter: OpenRouter integration tests",
+    "anthropic: tests requiring Anthropic credentials",
     "manual_integration: semiautomated tests requiring a human or saved auth state",
     "terminal_ui: deterministic pseudo-terminal UI tests",
 ]

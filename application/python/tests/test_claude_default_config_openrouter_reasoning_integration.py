@@ -67,6 +67,10 @@ def test_agent_application_default_config_claude_reads_files_and_reasons(
     monkeypatch.chdir(workspace)
 
     monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
+    monkeypatch.setenv(
+        "ANTHROPIC_API_KEY",
+        os.getenv("ANTHROPIC_API_KEY", "test-anthropic-key"),
+    )
     monkeypatch.setenv("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", "test-gemini-key"))
     monkeypatch.setenv("TAVILY_API_KEY", os.getenv("TAVILY_API_KEY", "test-tavily-key"))
     monkeypatch.setenv("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", "test-openai-key"))
@@ -91,6 +95,8 @@ def test_agent_application_default_config_claude_reads_files_and_reasons(
         / "default_config"
         / "config.json"
     )
+    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
     monkeypatch.setenv(
         "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
     )
@@ -99,7 +105,7 @@ def test_agent_application_default_config_claude_reads_files_and_reasons(
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
     assert app.get_config_errors() == []
 
-    core, base_config, session = app.create_session("claude")
+    core, base_config, session = app.create_session("claude-openrouter")
     assert base_config["request_options"]["provider"] == {
         "order": ["anthropic"],
         "allow_fallbacks": False,

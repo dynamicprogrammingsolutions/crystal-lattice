@@ -321,7 +321,13 @@ model requests require the corresponding credentials, for example:
 ```bash
 export OPENAI_API_KEY=...
 export OPENROUTER_API_KEY=...
+export ANTHROPIC_API_KEY=...
 ```
+
+The default Claude routes are provider-qualified:
+
+- `claude-openrouter` uses Claude through OpenRouter.
+- `claude-anthropic` uses the direct Anthropic API.
 
 For no-key development from a source checkout, use the echo config:
 

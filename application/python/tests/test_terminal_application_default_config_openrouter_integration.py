@@ -90,6 +90,10 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
     workspace = _prepare_workspace(tmp_path)
     monkeypatch.chdir(workspace)
     monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
+    monkeypatch.setenv(
+        "ANTHROPIC_API_KEY",
+        os.getenv("ANTHROPIC_API_KEY", "test-anthropic-key"),
+    )
     # Set dummy env vars for all providers referenced by the default config
     # (only openrouter is used by the agents under test, but the config loader
     # validates all provider keys and reports env_missing errors).
@@ -160,7 +164,7 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
             "expected_tools": {"ReadFile"},
             "expected_text": "KIMI integration line",
         },
-        "claude": {
+        "claude-openrouter": {
             "prompt": "Use the Read tool to read claude.txt and reply with exactly the first line.",
             "expected_tools": {"Read"},
             "expected_text": "CLAUDE integration line",
