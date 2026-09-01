@@ -244,6 +244,53 @@ def test_usage_extension_formats_turn_and_session_totals() -> None:
     assert metadata["usage_turn_output_tokens_cumulative"] == 9
     assert metadata["usage_input_tokens_cumulative"] == 30
     assert history[-1]["_metadata"]["usage_prompt_tokens_formatted"] == "20"
+    assert metadata["turn"] == {
+        "id": 1,
+        "has_tool_calls": False,
+        "is_terminal": True,
+    }
+
+
+def test_usage_extension_keeps_one_turn_id_across_tool_generations() -> None:
+    extension = AnthropicUsageExtension()
+    user = {"role": "user", "content": "add"}
+    tool_call = {
+        "role": "assistant",
+        "content": [{"type": "tool_use", "id": "tool_1", "name": "add", "input": {}}],
+        "_metadata": {"anthropic_usage": {"input_tokens": 5, "output_tokens": 2}},
+    }
+    tool_result = {
+        "role": "user",
+        "content": [{"type": "tool_result", "tool_use_id": "tool_1", "content": "5"}],
+        "_metadata": {"core_role": "tool"},
+    }
+    final = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "5"}],
+        "_metadata": {"anthropic_usage": {"input_tokens": 8, "output_tokens": 1}},
+    }
+
+    first_finals, first_history, _state = extension.finalize(
+        [tool_call],
+        [user, tool_call],
+        {"anthropic_usage": {"raw": tool_call["_metadata"]["anthropic_usage"]}},
+    )
+    second_finals, _history, _state = extension.finalize(
+        [final],
+        [*first_history, tool_result, final],
+        {"anthropic_usage": {"raw": final["_metadata"]["anthropic_usage"]}},
+    )
+
+    first_turn = first_finals[-1]["_metadata"]["turn"]
+    second_metadata = second_finals[-1]["_metadata"]
+    assert first_turn == {"id": 1, "has_tool_calls": True, "is_terminal": False}
+    assert second_metadata["turn"] == {
+        "id": 1,
+        "has_tool_calls": False,
+        "is_terminal": True,
+    }
+    assert second_metadata["usage_turn_input_tokens_cumulative"] == 13
+    assert second_metadata["usage_turn_output_tokens_cumulative"] == 3
 
 
 def test_usage_ui_can_be_hidden_without_disabling_accounting() -> None:

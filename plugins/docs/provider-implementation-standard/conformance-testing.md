@@ -18,7 +18,7 @@ Cover the provider without network credentials:
 - full native history;
 - cancellation lifecycle;
 - provider error categories;
-- compatibility profiles and overrides.
+- compatible-endpoint configuration and advertised tags.
 
 Each provider extension covers:
 
@@ -59,8 +59,8 @@ Use at least one real tool consumer rather than testing only private helpers.
 
 ## Reasoning and tool continuity
 
-Every provider/profile that claims both reasoning and tools runs the canonical
-bank-file reasoning test in ordinary and streaming modes.
+Every provider configuration that advertises both reasoning and tools runs the
+canonical bank-file reasoning test in ordinary and streaming modes.
 
 Repository sources:
 
@@ -80,18 +80,19 @@ The test:
   tool IDs, and result relationships;
 - leaves no partial JSON or reducer scratch state in completed history.
 
-A profile that claims reasoning preservation across an inserted user request
-also runs the interrupted-user bank variant. Preserved acceptance requires:
+A configuration that claims reasoning preservation across an inserted user
+request also runs the interrupted-user bank variant. Preserved acceptance
+requires:
 
 - final content containing `Clock`;
 - non-empty initial reasoning;
 - absent or materially shorter follow-up reasoning, showing reuse rather than
   a complete recomputation.
 
-A profile intentionally retaining insufficient reasoning history may record
-the same positive contract as a strict expected failure or use a documented
-negative assertion. Deterministic tests still prove the configured history
-policy independently from model-semantic behavior.
+A configuration intentionally retaining insufficient reasoning history may
+record the same positive contract as a strict expected failure or use a
+documented negative assertion. Deterministic tests still prove the configured
+history policy independently from model-semantic behavior.
 
 ## Application integration
 
@@ -108,7 +109,7 @@ Exercise the public application/core boundary for:
 Direct route-function calls do not count as HTTP integration, and mocked
 frontend tests do not count as backend integration.
 
-## Local-compatible profile
+## Local-compatible configuration
 
 When the protocol has a practical local implementation:
 
@@ -116,7 +117,8 @@ When the protocol has a practical local implementation:
 - check endpoint and selected model availability;
 - run with the correct integration/provider markers;
 - test the documented supported subset;
-- test omission of unsupported features.
+- verify every advertised baseline or optional feature tag through the real
+  endpoint.
 
 A skip without enabling the required gate is reported as not run.
 
@@ -144,9 +146,9 @@ Reload the session through a new core/application instance and verify:
 - attachment references remain usable;
 - the next request completes.
 
-## Acceptance of a provider profile
+## Acceptance of a provider configuration
 
-A profile is accepted only when:
+A configuration is accepted only when:
 
 - required tests are collected;
 - commands exit successfully;

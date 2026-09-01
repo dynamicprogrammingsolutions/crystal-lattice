@@ -82,7 +82,7 @@ An Ollama setup remains explicit:
 {
   "base_url": "http://localhost:11434",
   "api_key": "ollama",
-  "model": "qwen3:0.6b"
+  "model": "qwen3.5:0.8b"
 }
 ```
 
@@ -134,7 +134,12 @@ Every non-baseline optional capability must have:
 
 The required local Ollama configuration verifies model discovery, ordinary and
 streaming requests, tools, thinking, usage, raw effort passthrough, and
-duration/TPS interoperability with `qwen3:0.6b`.
+duration/TPS interoperability with `qwen3.5:0.8b`.
+
+A separate slow test uses `granite4.2:3b` to prove that Anthropic
+`output_config.effort` changes reasoning size. It compares five `low` and five
+`high` samples using the median and a calibrated 2.0x margin. The request omits
+`thinking.type` so Ollama applies the graded effort value.
 
 Tests do not infer behavioral support merely because an endpoint accepts an
 unrelated raw request option.

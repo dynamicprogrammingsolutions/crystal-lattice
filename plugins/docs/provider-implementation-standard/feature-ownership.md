@@ -54,7 +54,7 @@ own only:
 - streaming accumulation;
 - native-history reconstruction and continuation state;
 - public metadata;
-- capability/profile documentation and tests.
+- capability/configuration documentation and tests.
 
 This boundary is appropriate for versioned or compatible protocols where one
 normalized feature schema would hide valid request shapes. The provider still
@@ -67,7 +67,8 @@ Package documentation must identify:
 - which request fields are passed through directly;
 - which fields are reserved by the provider;
 - how beta or alternate transports are selected;
-- which endpoint profiles accept each request shape.
+- which compatible endpoint configurations have been tested with each request
+  shape.
 
 ## Feature plugins
 

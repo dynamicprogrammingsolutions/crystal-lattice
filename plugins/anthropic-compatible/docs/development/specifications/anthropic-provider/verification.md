@@ -54,6 +54,11 @@ Run with the Anthropic-compatible endpoint and a selected local model:
 - cancellation where the endpoint and client permit it;
 - endpoint-owned errors for explicitly configured unsupported request options.
 
+General local tests default to `qwen3.5:0.8b`. The dedicated slow
+reasoning-effort test defaults to `granite4.2:3b`, sends only
+`output_config.effort`, and requires median `high` reasoning size to be at
+least twice median `low` reasoning size across five attempts per level.
+
 Tests use `integration` and `ollama` markers. A skipped gated test is not a
 successful verification run unless the gate was enabled and the skip is
 expected for the selected model.
@@ -102,6 +107,7 @@ credential and cost requirements.
 - Preserved interrupted-user reasoning has non-empty initial reasoning and
   absent or materially shorter follow-up reasoning.
 - Usage remains correct when fields arrive at different stream phases.
+- One stable turn ID spans provider generations separated by tool results.
 - Duration/TPS derives from the standard turn-cumulative usage fields.
 - Automatic cache controls appear only when the prompt-caching extension is
   enabled by its required capability tag.

@@ -40,8 +40,8 @@ contributes no request config or UI. `RequestOptionsFeature` supplies raw
 fields.
 
 `AnthropicUsageExtension` owns public token metadata, formatting, turn/session
-accumulation, and the standard cumulative fields consumed by performance
-extensions.
+accumulation, stable turn IDs and terminal/tool-call state, and the standard
+cumulative fields consumed by performance extensions.
 
 Extensions use shared provider state but keep feature state under namespaced
 keys:
@@ -70,7 +70,9 @@ anthropic_usage
 - `test_extensions_unit.py`: isolated extension ownership and mapping.
 - `test_stack_integration.py`: deterministic Core stack and persistence.
 - `test_ollama_integration.py`: real local Messages transport and application
-  loading.
+  loading, model discovery, effort passthrough, usage, and Duration/TPS.
+- `test_ollama_reasoning_effort_integration.py`: slow local Granite low/high
+  reasoning-size effectiveness.
 - `test_anthropic_api_integration.py`: minimal official API verification.
 
 The deterministic tests define exact behavior. Ollama tests prove real

@@ -71,7 +71,7 @@ For a substantial package, document:
 - provider and extension responsibility split;
 - native history invariants;
 - stream reducer and test seams;
-- compatibility profiles;
+- compatible endpoint configuration, tags, presets, and limitations;
 - security/redaction;
 - important test commands;
 - links to the owning specification.

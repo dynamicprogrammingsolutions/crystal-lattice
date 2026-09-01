@@ -152,6 +152,30 @@ def test_model_discovery_normalizes_sdk_models(monkeypatch) -> None:
     assert client.closed is True
 
 
+def test_model_discovery_skips_invalid_and_duplicate_ids(monkeypatch) -> None:
+    class DuplicateModels:
+        def list(self, **_: Any) -> list[Dumpable]:
+            return [
+                Dumpable({"id": "model-a", "display_name": "Model A"}),
+                Dumpable({"id": ""}),
+                Dumpable({"object": "model"}),
+                Dumpable({"id": "model-a", "display_name": "Duplicate"}),
+                Dumpable({"id": "model-b"}),
+            ]
+
+    client = FakeClient(response=None)
+    client.models = DuplicateModels()
+    provider = AnthropicProvider()
+    monkeypatch.setattr(provider, "_client", lambda config: client)
+
+    models = provider.get_models({"api_key": "secret"})
+
+    assert [model["id"] for model in models] == ["model-a", "model-b"]
+    assert models[0]["name"] == "Model A"
+    assert models[1]["name"] == "model-b"
+    assert client.closed is True
+
+
 def test_model_discovery_failure_returns_empty_list(monkeypatch) -> None:
     class BrokenModels:
         def list(self, **_: Any) -> Any:
@@ -499,6 +523,40 @@ def test_stream_reducer_preserves_text_thinking_signature_and_tool_json() -> Non
         {"type": "tool_use", "id": "tool_1", "name": "echo", "input": {"x": 1}},
         {"type": "text", "text": "done"},
     ]
+
+
+def test_stream_reducer_tolerates_unknown_events_blocks_and_deltas() -> None:
+    accumulator = None
+    events = [
+        {
+            "type": "message_start",
+            "message": {"id": "msg_1", "model": "m", "content": []},
+        },
+        {"type": "compatible_vendor_event", "value": {"ignored": True}},
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "compatible_block", "value": "start"},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "compatible_delta", "value": "delta"},
+        },
+        {"type": "content_block_stop", "index": 0},
+        {"type": "message_stop"},
+    ]
+
+    completed = False
+    for event in events:
+        _partial, accumulator, completed = reduce_event(accumulator, event)
+
+    assert completed is True
+    assert isinstance(accumulator, dict)
+    block = accumulator["content"][0]
+    assert block["type"] == "compatible_block"
+    assert block["value"] == "start"
+    assert block["_unknown_deltas"] == [{"type": "compatible_delta", "value": "delta"}]
 
 
 def test_error_redacts_configured_api_key(monkeypatch) -> None:

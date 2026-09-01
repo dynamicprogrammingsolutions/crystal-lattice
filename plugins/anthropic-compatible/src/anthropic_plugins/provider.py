@@ -222,11 +222,17 @@ class AnthropicProvider(ProviderPlugin):
         try:
             page = client.models.list(limit=1000)
             models: list[dict[str, Any]] = []
+            seen_ids: set[str] = set()
             for model in page:
                 raw = object_to_dict(model)
                 model_id = raw.get("id")
-                if not isinstance(model_id, str) or not model_id:
+                if (
+                    not isinstance(model_id, str)
+                    or not model_id
+                    or model_id in seen_ids
+                ):
                     continue
+                seen_ids.add(model_id)
                 models.append(
                     {
                         "id": model_id,

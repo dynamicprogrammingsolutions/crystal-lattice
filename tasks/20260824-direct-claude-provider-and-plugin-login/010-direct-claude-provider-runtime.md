@@ -126,22 +126,24 @@ subtask 020.
 - The local `../pi` Anthropic provider demonstrates indexed SSE content-block
   reduction, partial tool JSON, thinking signatures, cache compatibility
   controls, and multiple Anthropic-compatible endpoints.
-- Local Ollama currently has `qwen3:0.6b` installed with completion, tools, and
-  thinking capabilities. It is the preferred low-cost Stage 1 integration
-  model.
-- Local Ollama also has `qwen3.5:0.8b` installed with completion, tools, and
-  thinking capabilities. It is the local fallback only when the preferred
-  0.6B model cannot reliably exercise a required behavior.
+- Local Ollama has `qwen3:0.6b` installed with completion, tools, and thinking
+  capabilities. It was the preferred low-cost Stage 1 integration model.
+- Local Ollama has `qwen3.5:0.8b` installed with completion, tools, thinking,
+  and vision capabilities. It is the default model for every new general local
+  integration test from Stage 2 onward.
+- Ollama Granite 4.2 3B is the smallest identified local model with documented
+  graded reasoning effort (`low` and `high`). It is used only by the dedicated
+  slow reasoning-size effectiveness test.
 - Hosted Stage 1 verification assumes `ANTHROPIC_API_KEY` will be present in the
   repository-root `.env` before hosted tests are run.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 Stage 1 and its config-first reasoning/conformance follow-up were completed
-under the previously approved plan. The detailed Stage 2 plan below is Draft
-and requires approval before compatibility implementation begins.
+under the previously approved plan. The detailed Stage 2 plan below was
+approved on 2026-09-01.
 
 Create the first-party package under `plugins/anthropic-compatible` using the
 Anthropic SDK, current provider-plugin conventions, and the approved package
@@ -540,7 +542,7 @@ cost estimation remain separate subtasks.
 - Add deterministic tests for official, OpenAI-style, malformed,
   timeout/failure, and duplicate model entries.
 - Add an enabled Ollama test proving that the local catalog includes the
-  configured `qwen3:0.6b` model. The current local probe confirms that the SDK
+  configured `qwen3.5:0.8b` model. The current local probe confirms that the SDK
   can read Ollama's `/v1/models`, but the response contains IDs rather than
   optional capability metadata.
 - Do not add a separate model-catalog URL until a real compatible endpoint is
@@ -603,7 +605,7 @@ cost estimation remain separate subtasks.
   - `feature-request-options`;
   - `timestamp-extension`;
   through their normal plugin package specs.
-- Run that test against local `qwen3:0.6b` and assert:
+- Run that test against local `qwen3.5:0.8b` and assert:
   - positive request and turn duration;
   - positive output-token turn total;
   - positive `turn_tps` and formatted TPS;
@@ -615,11 +617,12 @@ cost estimation remain separate subtasks.
 
 ###### 7. Ollama reasoning and effort matrix
 
-- Continue using local `qwen3:0.6b` as the required Stage 2 model. Use local
-  `qwen3.5:0.8b` only when a documented model-specific failure prevents a
-  required tools/thinking test.
+- Use local `qwen3.5:0.8b` as the default model for every new general Ollama
+  test.
+- Keep `OLLAMA_ANTHROPIC_MODEL` as an explicit environment override, but do
+  not fall back automatically to `qwen3:0.6b`.
 - Do not use an Ollama cloud model for required Stage 2 acceptance.
-- Verify:
+- With `qwen3.5:0.8b`, verify:
   - disabled thinking omits visible reasoning;
   - enabled thinking returns and preserves a non-empty thinking block;
   - a budget value is accepted, without asserting budget enforcement;
@@ -628,9 +631,25 @@ cost estimation remain separate subtasks.
 - The current local probe accepted all five values while returning similar
   short reasoning sizes. Stage 2 records only request acceptance and does not
   use reasoning length as evidence that the endpoint honors those levels.
-- Do not repeat the expensive multi-sample effort-discrimination benchmark
-  from the reference OpenAI-compatible provider. Behavioral effort comparison
-  belongs only to a profile/model that explicitly claims enforcement.
+- Add a dedicated `slow_integration` + `ollama` effectiveness test using
+  `OLLAMA_ANTHROPIC_EFFORT_MODEL`, default `granite4.2:3b`.
+- Port the multi-sample median reasoning-length method from
+  `plugins/reference-openai-compatible-provider/tests/test_ollama_integration_reasoning_effort.py`.
+- Compare Granite `low` versus `high` using only
+  `request_options.output_config.effort`; do not also send `thinking.type`,
+  because Ollama gives explicit `thinking.type` precedence and would ignore
+  the effort level.
+- Run a bounded prompt calibration after installing Granite:
+  - begin with the existing correctness-versus-performance prompt;
+  - collect five low and five high samples;
+  - inspect at least the median ratio and sample separation;
+  - select a stable prompt and margin from observed Granite data;
+  - require a meaningful positive margin without copying the GLM-specific
+    threshold blindly.
+- Once Ollama and Granite are available, effort rejection, repeated empty
+  reasoning, or insufficient reasoning-size separation fails rather than
+  skipping. Skips are limited to a missing server or missing explicitly
+  required model before the gate is enabled.
 - Keep prompts short and deterministic and do not assert exact prose or
   reasoning quality.
 
@@ -647,9 +666,11 @@ cost estimation remain separate subtasks.
   1. model discovery plus ordinary/streaming/reload;
   2. enabled/disabled thinking and effort passthrough;
   3. tool call/result/final response with cumulative usage;
-  4. public application Duration/TPS interoperability.
+  4. public application Duration/TPS interoperability;
+  5. slow Granite low/high reasoning-size effectiveness.
 - A skipped local test is not success. Run with the Ollama marker enabled and
-  confirm `qwen3:0.6b` is collected and used.
+  confirm `qwen3.5:0.8b` and `granite4.2:3b` are collected and used by their
+  respective tests.
 
 ###### 9. Selective official regression
 
@@ -689,8 +710,10 @@ Stage 2 is ready for review when:
 - the package fast suite and focused compatibility tests pass;
 - baseline provider tags remain stable for official Anthropic and Ollama;
 - official and OpenAI-style model catalogs normalize correctly;
-- enabled local `qwen3:0.6b` tests pass for discovery, streaming, tools,
+- enabled local `qwen3.5:0.8b` tests pass for discovery, streaming, tools,
   thinking, usage, effort passthrough, and application Duration/TPS;
+- the enabled local Granite 4.2 3B low/high reasoning-size test passes with
+  its calibrated non-flaky margin;
 - explicit incompatible Ollama request options surface normal sanitized
   provider errors rather than being hidden by local filtering;
 - the one bounded hosted official regression passes;
@@ -747,6 +770,9 @@ baseline.
   inspectable config, not provider-internal profiles.
 - Decision: Ollama effort values remain raw request-option passthrough. Local
   acceptance does not create a capability key or tag.
+- Decision: `qwen3.5:0.8b` is the default for all new general Ollama tests.
+- Decision: `granite4.2:3b` is the dedicated local reasoning-effort
+  effectiveness model because it documents graded low/high thinking levels.
 - Decision: subtask 021 owns configuration variants, consumer configuration
   documentation migration, and direct Anthropic default-agent consolidation;
   Stage 2 does not edit those surfaces while that work proceeds concurrently.
@@ -800,7 +826,7 @@ baseline.
   acceptance.
 - [x] Complete the approved Stage 1 config-first reasoning, beta transport,
   bank-file continuity, and portable conformance follow-up.
-- [ ] Complete Stage 2 compatible discovery, Ollama effort/usage coverage, and
+- [x] Complete Stage 2 compatible discovery, Ollama effort/usage coverage, and
   duration/TPS interoperability.
 - [ ] Complete Stage 3 official capability, interleaved/preserved thinking,
   automatic caching/TTL, and hosted acceptance.
@@ -840,6 +866,83 @@ baseline.
   weakening conservative defaults.
 
 ## Implementation Notes
+
+### 2026-09-01 Stage 2 execution started
+
+The user approved the revised Stage 2 plan and implementation.
+
+- All new general Ollama tests default to `qwen3.5:0.8b`.
+- Historical Stage 1 evidence remains unchanged and continues to record
+  `qwen3:0.6b`.
+- A dedicated slow local test will use `granite4.2:3b` to compare low/high
+  reasoning sizes.
+- The Granite request must use only `output_config.effort`; sending
+  `thinking.type` at the same time causes Ollama to prioritize the boolean
+  thinking mode and ignore the graded effort.
+
+### 2026-09-01 Stage 2 implementation
+
+Implemented:
+
+- `qwen3.5:0.8b` is the default for all new general Anthropic-compatible
+  Ollama tests;
+- model discovery de-duplicates IDs while preserving the first normalized
+  descriptor and continues to accept Ollama's OpenAI-style catalog through the
+  Anthropic SDK;
+- deterministic stream coverage includes unknown top-level events, block
+  types, and deltas;
+- five raw effort values (`low`, `medium`, `high`, `xhigh`, `max`) traverse the
+  Anthropic-compatible endpoint with Qwen 3.5;
+- `AnthropicUsageExtension` emits stable turn IDs plus tool-call/terminal turn
+  state so `DurationExtension` can sum multiple provider generations separated
+  by tool results;
+- application-loaded ordinary and two-generation tool flows expose persisted
+  duration and turn TPS;
+- the dedicated slow Granite 4.2 3B test compares five `low` and five `high`
+  reasoning samples using median character length and a calibrated 2.0x
+  threshold;
+- package, provider-specification, portable-requirement, and public provider
+  authoring documentation now describe the delivered compatible endpoint
+  contract.
+
+Granite calibration:
+
+- first five-sample run:
+  - low: `[98, 76, 117, 92, 105]`, median `98`;
+  - high: `[625, 581, 982, 1174, 628]`, median `628`;
+- observed median ratio: `6.41`;
+- minimum high sample divided by maximum low sample: `4.96`;
+- maintained threshold: `2.0x` median, deliberately below the observed
+  separation.
+
+Verification:
+
+- `pytest plugins/anthropic-compatible/tests -q`: 32 passed, 18 deselected;
+- `pytest plugins/anthropic-compatible/tests/test_ollama_integration.py -m
+  'integration and ollama' -q`: 11 passed using local `qwen3.5:0.8b`;
+- `pytest
+  plugins/anthropic-compatible/tests/test_ollama_reasoning_effort_integration.py
+  -m 'integration and ollama and slow_integration' -q`: passed using local
+  `granite4.2:3b`;
+- focused official Anthropic model-discovery/non-streaming/usage regression:
+  passed;
+- `pytest application/python/tests -q`: 370 passed, 92 deselected;
+- package Black, Ruff, and Pyright checks pass;
+- documentation preparation and MkDocs build pass with existing repository
+  navigation, source-link, and griffe warnings;
+- `git diff --check` passes.
+
+Findings:
+
+- Ollama 0.32.6 maps Anthropic `output_config.effort` to its native graded
+  thinking level only when `thinking.type` is absent;
+- Qwen 3 and Qwen 3.5 accept effort labels but did not show a positive
+  low/high reasoning-size signal, so they remain passthrough coverage rather
+  than effectiveness evidence;
+- Granite 4.2 3B provides a strong stable low/high reasoning-size signal while
+  remaining small enough for required local verification;
+- Anthropic-compatible application tool loops needed stable usage-owned turn
+  metadata for correct cumulative Duration/TPS behavior.
 
 ### 2026-08-30 Stage 1 implementation
 

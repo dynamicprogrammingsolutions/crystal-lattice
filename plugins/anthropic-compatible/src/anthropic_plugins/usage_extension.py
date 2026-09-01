@@ -104,6 +104,28 @@ def _turn_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return messages[boundary:]
 
 
+def _current_turn_id(messages: list[dict[str, Any]]) -> int:
+    turn_id = 0
+    for message in messages:
+        metadata = message.get("_metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
+        if message.get("role") == "user" and metadata.get("core_role") != "tool":
+            turn_id += 1
+    return max(turn_id, 1)
+
+
+def _has_tool_calls(message: dict[str, Any]) -> bool:
+    metadata = message.get("_metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    calls = metadata.get("tool_calls")
+    if isinstance(calls, list) and calls:
+        return True
+    content = message.get("content")
+    return isinstance(content, list) and any(
+        isinstance(block, dict) and block.get("type") == "tool_use" for block in content
+    )
+
+
 class AnthropicUsageExtension(ProviderExtensionPlugin):
     name = "anthropic_usage"
     version = "0.1.0"
@@ -200,13 +222,20 @@ class AnthropicUsageExtension(ProviderExtensionPlugin):
         session = _sum_usage([*prefix, *final_messages])
         turn = _sum_usage(_turn_messages([*prefix, *final_messages]))
         public = _usage_metadata(current_usage, turn=turn, session=session)
+        turn_id = _current_turn_id([*prefix, *final_messages])
 
         updated_finals: list[dict[str, Any]] = []
         for message in final_messages:
+            has_tool_calls = _has_tool_calls(message)
             metadata = {
                 **dict(message.get("_metadata") or {}),
                 "anthropic_usage": raw,
                 **public,
+                "turn": {
+                    "id": turn_id,
+                    "has_tool_calls": has_tool_calls,
+                    "is_terminal": not has_tool_calls,
+                },
             }
             updated_finals.append({**message, "_metadata": metadata})
         updated_history = [*prefix, *updated_finals]

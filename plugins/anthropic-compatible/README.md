@@ -18,7 +18,8 @@ The package currently provides:
   and beta headers;
 - formatted per-message, turn, and session usage through
   `AnthropicUsageExtension`;
-- local Ollama compatibility for text, streaming, tools, thinking, and usage.
+- local Ollama compatibility for discovery, text, streaming, tools, thinking,
+  usage, duration/TPS, and reasoning-effort passthrough.
 
 Prompt caching, image attachments, OAuth, cost estimation, server tools, and
 native compaction are not part of the current implementation.
@@ -76,7 +77,7 @@ Resolved `api_key` configuration is authoritative. Direct
 Start Ollama and install a model with the required capabilities:
 
 ```bash
-ollama pull qwen3:0.6b
+ollama pull qwen3.5:0.8b
 ```
 
 Example:
@@ -91,7 +92,7 @@ Example:
       "provider": "anthropic",
       "api_key": "ollama",
       "base_url": "http://localhost:11434",
-      "model": "qwen3:0.6b",
+      "model": "qwen3.5:0.8b",
       "timeout": 60,
       "max_tokens": 512
     }
@@ -107,6 +108,11 @@ Example:
 Compatible endpoints may omit official capabilities or reject fields that the
 official API accepts. The current local contract covers text, streaming,
 tools, thinking, and usage.
+
+Raw reasoning effort values use `request_options.output_config.effort`.
+Ollama validates and interprets the selected model's supported levels. Do not
+also set `thinking.type` when testing graded effort because Ollama gives the
+explicit boolean thinking mode precedence.
 
 ## Provider configuration
 
@@ -210,7 +216,9 @@ request fields are forwarded through the SDK body escape hatch.
 - formatted token counts;
 - cumulative input/output totals for a multi-generation tool turn;
 - session-cumulative totals;
-- stable turn totals used by performance extensions.
+- stable turn IDs and terminal/tool-call state;
+- stable turn totals used by performance extensions, including
+  `DurationExtension` turn TPS.
 
 The extension does not calculate monetary cost or estimate missing cached
 tokens.
@@ -226,8 +234,23 @@ pytest plugins/anthropic-compatible/tests -q
 Local Ollama:
 
 ```bash
-pytest plugins/anthropic-compatible/tests -m "integration and ollama" -q
+pytest plugins/anthropic-compatible/tests \
+  -m "integration and ollama and not slow_integration" -q
 ```
+
+The normal local suite defaults to `qwen3.5:0.8b`. Override it with
+`OLLAMA_ANTHROPIC_MODEL`.
+
+Reasoning-effort effectiveness uses Granite 4.2 3B:
+
+```bash
+ollama pull granite4.2:3b
+pytest \
+  plugins/anthropic-compatible/tests/test_ollama_reasoning_effort_integration.py \
+  -m "integration and ollama and slow_integration" -q
+```
+
+Override that model with `OLLAMA_ANTHROPIC_EFFORT_MODEL`.
 
 Hosted Anthropic:
 
