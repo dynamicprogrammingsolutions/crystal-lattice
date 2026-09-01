@@ -12,24 +12,23 @@ Messages protocol and make tool/history interoperability harder to maintain.
 Use one `anthropic` provider with:
 
 - official capability-based model discovery;
-- named compatibility profiles;
-- explicit compatibility overrides;
-- conservative defaults when capabilities are absent;
+- baseline streaming, tools, reasoning, and usage tags;
+- explicit boolean capability configuration only for non-baseline optional
+  extension tags;
+- reusable ordinary application mixins/presets for compatible endpoints;
 - one provider-native history contract.
 
-Capability precedence is:
+Capability keys are added with their owning optional extension. False or
+omitted capabilities emit no optional feature tag. Capability config does not
+filter requests or replace endpoint validation.
 
-1. explicit override;
-2. published model capability;
-3. named profile;
-4. conservative default.
-
-Ollama is the required local compatible profile and integration target.
+Ollama is the required local compatible configuration and integration target.
 
 ## Consequences
 
 - Official model support does not depend on hardcoded name patterns.
 - Compatible endpoints can share the baseline provider without claiming full
   Anthropic behavior.
-- Unsupported request fields are omitted deterministically.
-- Profile and override tests become part of the provider's acceptance boundary.
+- Compatible presets remain inspectable configuration.
+- Capability/tag and real-endpoint tests become part of the provider's
+  acceptance boundary.

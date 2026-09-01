@@ -64,8 +64,9 @@ provider extensions from published capabilities rather than hardcoded model
 name patterns.
 
 Compatible endpoints may expose only model IDs. In that case the UI remains
-usable and capability-dependent features stay conservative until config or a
-known compatibility profile declares support.
+usable. Baseline tools, reasoning, and usage remain available, while
+non-baseline optional extensions require their own explicit boolean
+capability.
 
 ### Ordinary and tool-enabled conversations
 
@@ -81,10 +82,9 @@ With the standard extension bundle enabled, users can:
 ### Compatible local endpoint
 
 An Ollama configuration uses the same `anthropic` provider and a different
-base URL. The provider advertises only the compatible-local subset and omits
-unsupported caching, PDF, citation, token-count, request-metadata, and
-tool-choice fields. Image support is delivered and verified by the separate
-attachment subtask.
+base URL. Baseline tools, reasoning, and usage require no capability
+declaration. Request options remain transparent and endpoint-validated. Image
+support is delivered and verified by the separate attachment subtask.
 
 ### Failure behavior
 
@@ -101,8 +101,8 @@ and client boundaries.
   reused rather than forked.
 - The provider accepts future OAuth credentials only through the credential
   contract refined by the OAuth task.
-- Compatible endpoints can disable unsupported request fields without
-  changing the official Anthropic profile.
+- Compatible endpoint presets are ordinary application configuration rather
+  than hidden provider profiles.
 
 ## Non-goals
 

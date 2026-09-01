@@ -15,8 +15,9 @@ credential, request, streaming, extension, compatibility, and error contracts.
 - [ ] Official Anthropic model discovery uses `/v1/models`, retains published
   capability metadata, and derives capability tags and model UI options from
   the response.
-- [ ] Configurable base and model-discovery URLs support the documented
-  Anthropic-compatible subset through providers such as local Ollama.
+- [ ] A configurable base URL supports the documented Anthropic-compatible
+  subset and SDK-derived model discovery through providers such as local
+  Ollama.
 - [x] `AnthropicToolsExtension` owns tool schema injection, streamed tool-call
   reconstruction, tool-call/result mapping, and tool interop declarations.
 - [x] `AnthropicReasoningExtension` owns streamed thinking, redacted thinking,
@@ -54,8 +55,8 @@ credential, request, streaming, extension, compatibility, and error contracts.
   interpretation, native-history, public-metadata, and feature-test ownership,
   while provider config owns SDK/beta transport selection.
 - [x] Provider request retry remains owned by `AnthropicProvider`.
-- [ ] Unsupported compatible-endpoint features are omitted or fail explicitly
-  according to a compatibility profile.
+- [ ] Optional non-baseline provider extensions are enabled only when an
+  explicit boolean capability emits the tag required by that extension.
 - [x] Deterministic unit/contract coverage precedes local Ollama and selective
   hosted Anthropic tests.
 - [x] Batch processing and structured outputs are outside this task.
@@ -136,7 +137,11 @@ subtask 020.
 
 ## Execution plan
 
-Status: Approved
+Status: Draft
+
+Stage 1 and its config-first reasoning/conformance follow-up were completed
+under the previously approved plan. The detailed Stage 2 plan below is Draft
+and requires approval before compatibility implementation begins.
 
 Create the first-party package under `plugins/anthropic-compatible` using the
 Anthropic SDK, current provider-plugin conventions, and the approved package
@@ -291,8 +296,8 @@ fallback and do not weaken deterministic acceptance to accommodate a small
 model.
 
 Stage 1 local tests prove that the SDK/provider can traverse a real compatible
-endpoint. Exhaustive profile differences, unsupported-field omission, and
-effort-level behavior remain Stage 2.
+endpoint. Compatible discovery, effort passthrough, and duration/TPS behavior
+remain Stage 2.
 
 ###### 8. Minimal hosted Anthropic verification
 
@@ -456,14 +461,246 @@ The Stage 1 follow-up is complete when:
 
 #### Stage 2: compatibility and portable refinements
 
-Implement official, Ollama, and custom compatibility profiles, conservative
-capability precedence, compatible model discovery, header/request differences,
-unknown-event tolerance, and unsupported-field omission.
+Implement compatible model discovery, unknown-event tolerance, Ollama
+reasoning/effort verification, and usage/performance refinements.
 
 Run enabled Ollama tests for ordinary requests, streaming, tools, reasoning,
 usage, and effort-level behavior. Verify `DurationExtension` compatibility and
 turn TPS through the standard cumulative usage metadata. Image attachments and
 cost estimation remain separate subtasks.
+
+##### Stage 2 detailed execution plan
+
+###### 1. Stage boundary and concurrent-work isolation
+
+- Keep Stage 2 centered on the Anthropic-compatible provider package,
+  compatible discovery, portable provider requirements, and focused
+  cross-plugin acceptance tests.
+- Do not implement prompt caching, official capability-driven reasoning UI,
+  attachments, cost estimation, server tools, native compaction, OAuth, or the
+  structured provider-error contract.
+- Do not modify subtask 021, its application configuration-composition
+  specification, or its consumer documentation migration while another agent
+  is executing that work.
+- Do not consolidate or otherwise restructure the default Anthropic agents in
+  this stage. Subtask 021 owns that change.
+- Keep existing official Anthropic and compatible baseline behavior stable.
+
+###### 2. Baseline tags and optional capability boundary
+
+- Keep these provider tags unconditional because they describe the baseline
+  Messages contract shared by the official Anthropic API and compatible APIs
+  in scope:
+  - `provider:anthropic`;
+  - `supports_streaming`;
+  - `supports_tools`;
+  - `supports_reasoning`;
+  - `supports_usage`.
+- Do not add `tools`, `reasoning`, or `usage` to capability configuration or
+  endpoint presets.
+- Reserve boolean capability-to-tag configuration for non-baseline optional
+  extensions that are not supported by all compatible APIs.
+- Add a capability key only together with the extension that consumes its tag.
+  Task 010's first concrete use is Stage 3 prompt caching:
+
+  ```json
+  {
+    "capabilities": {
+      "prompt_caching": true
+    }
+  }
+  ```
+
+- `prompt_caching: true` emits the tag required by
+  `AnthropicPromptCachingExtension`; false or omission emits no tag.
+- The official configuration may enable that capability. Ollama and generic
+  compatible configurations omit it.
+- Future tasks may add similarly narrow keys for their own optional
+  extensions, but Stage 2 does not introduce speculative capability keys.
+- Capability booleans remain tag-only. They do not validate, remove, rewrite,
+  classify, or document request options.
+- Do not add a runtime `compatibility_profile` selector or hidden built-in
+  profile data.
+
+###### 3. Compatible model discovery
+
+- Use the Anthropic SDK Models API derived from `base_url` as the only Stage 2
+  discovery transport.
+- Normalize:
+  - official Anthropic model objects;
+  - OpenAI-style `{"data": [...]}` catalogs;
+  - minimal ID/name-only entries.
+- Preserve raw model data and published capabilities.
+- Accept missing capability metadata without inventing per-model support.
+- Stage 2 does not automatically convert arbitrary model capability data into
+  tags. Official capability-to-UI behavior remains Stage 3 and is separate
+  from explicit extension capability configuration.
+- Keep discovery failure behavior unchanged: return `[]`, emit bounded
+  redacted diagnostics, and permit explicit model entry.
+- Add deterministic tests for official, OpenAI-style, malformed,
+  timeout/failure, and duplicate model entries.
+- Add an enabled Ollama test proving that the local catalog includes the
+  configured `qwen3:0.6b` model. The current local probe confirms that the SDK
+  can read Ollama's `/v1/models`, but the response contains IDs rather than
+  optional capability metadata.
+- Do not add a separate model-catalog URL until a real compatible endpoint is
+  found whose catalog cannot be reached through the SDK-derived path. Such an
+  endpoint can still use explicit manual `model` configuration.
+
+###### 4. Request passthrough and provider errors
+
+- Do not add compatibility-specific request filtering or validation.
+- Preserve the existing provider-owned invariants:
+  - `messages`, history-derived `system`, and `stream` remain reserved;
+  - SDK beta selection and required beta identifiers remain provider-owned;
+  - explicit `extra_body` wins over inferred unknown compatible fields.
+- Generic request options continue to pass requested fields to the Anthropic
+  SDK or its body escape hatch.
+- If a user explicitly configures a request shape that a compatible endpoint
+  does not support, let the endpoint reject it and surface the normal sanitized
+  provider error.
+- Non-baseline optional extensions avoid automatically generating feature
+  fields when their required capability tag is absent. Baseline tools,
+  reasoning, and usage extensions remain enabled.
+- Do not add special handling for Ollama metadata, tool-choice modes, adaptive
+  thinking, effort values, context management, cache controls, or unknown
+  request fields in Stage 2.
+- Deterministic tests prove that baseline extensions remain active and explicit
+  raw request options still reach transport without compatible-endpoint
+  filtering.
+
+###### 5. Streaming and compatible event tolerance
+
+- Keep the existing lossless content-block reducer.
+- Add deterministic coverage for:
+  - unknown top-level stream events;
+  - unknown block types;
+  - unknown block deltas;
+  - usage appearing only at message start or message delta;
+  - streams missing optional stop or usage fields;
+  - premature termination.
+- Unknown optional events must not fail an otherwise valid stream.
+- Runtime scratch fields remain absent from provider-native history sent on a
+  later request.
+- Do not claim support for Ollama mid-stream Anthropic error events unless a
+  real local test demonstrates them.
+
+###### 6. Usage completion and Duration/TPS interoperability
+
+- Keep `AnthropicUsageExtension` as the sole owner of token normalization and
+  usage UI.
+- Verify ordinary, streaming, reasoning, and tool-generation usage with:
+  - per-message counts;
+  - turn-cumulative input/output totals;
+  - session-cumulative totals;
+  - missing optional cache/reasoning fields defaulting safely;
+  - persistence/reload.
+- Add deterministic execution-order acceptance proving the usage extension
+  attaches cumulative token fields before `DurationExtension` calculates turn
+  TPS.
+- Add a public application integration test that loads:
+  - `anthropic-compatible`;
+  - `feature-request-options`;
+  - `timestamp-extension`;
+  through their normal plugin package specs.
+- Run that test against local `qwen3:0.6b` and assert:
+  - positive request and turn duration;
+  - positive output-token turn total;
+  - positive `turn_tps` and formatted TPS;
+  - native-history persistence and reload of duration/TPS metadata.
+- Extend the real tool round to verify that the terminal generation's turn
+  duration and TPS include the prior tool-call generation rather than only the
+  final request.
+- Do not add cost or cached-token estimation to usage in Stage 2.
+
+###### 7. Ollama reasoning and effort matrix
+
+- Continue using local `qwen3:0.6b` as the required Stage 2 model. Use local
+  `qwen3.5:0.8b` only when a documented model-specific failure prevents a
+  required tools/thinking test.
+- Do not use an Ollama cloud model for required Stage 2 acceptance.
+- Verify:
+  - disabled thinking omits visible reasoning;
+  - enabled thinking returns and preserves a non-empty thinking block;
+  - a budget value is accepted, without asserting budget enforcement;
+  - `low`, `medium`, `high`, `xhigh`, and `max` effort values can be forwarded
+    explicitly without request-shape failure.
+- The current local probe accepted all five values while returning similar
+  short reasoning sizes. Stage 2 records only request acceptance and does not
+  use reasoning length as evidence that the endpoint honors those levels.
+- Do not repeat the expensive multi-sample effort-discrimination benchmark
+  from the reference OpenAI-compatible provider. Behavioral effort comparison
+  belongs only to a profile/model that explicitly claims enforcement.
+- Keep prompts short and deterministic and do not assert exact prose or
+  reasoning quality.
+
+###### 8. Deterministic and local compatibility matrix
+
+- Add deterministic provider/extension tests for:
+  - current unconditional baseline tags;
+  - official and Ollama parity for baseline extension activation;
+  - model discovery normalization;
+  - missing usage and optional event fields;
+  - explicit incompatible request options reaching the SDK request rather than
+    being filtered by provider compatibility code.
+- Keep the enabled local suite focused:
+  1. model discovery plus ordinary/streaming/reload;
+  2. enabled/disabled thinking and effort passthrough;
+  3. tool call/result/final response with cumulative usage;
+  4. public application Duration/TPS interoperability.
+- A skipped local test is not success. Run with the Ollama marker enabled and
+  confirm `qwen3:0.6b` is collected and used.
+
+###### 9. Selective official regression
+
+- Use deterministic tests for official request parity and compatible catalog
+  normalization.
+- After local and fast suites pass, run one paid official regression:
+  - official model discovery;
+  - one tiny bounded ordinary response;
+  - usage presence.
+- Do not rerun the hosted bank-file reasoning matrix for Stage 2 unless
+  deterministic or local evidence shows that compatible-discovery or usage
+  changes altered official request construction.
+- Continue reading the API key from the repository-root `.env` through the
+  existing test gate.
+
+###### 10. Documentation, specification, and evidence
+
+- Update the package compatibility specification with the delivered baseline
+  contract, transparent compatible configuration, discovery behavior, and
+  Ollama evidence.
+- Update `ANTH-008`, `ANTH-012`, `ANTH-014`, and related verification evidence.
+- Update `PPI-004`, `PPI-005`, `PPI-009`, and `PPI-011` where Stage 2 provides
+  reusable evidence.
+- Update the package README and implementation guide with:
+  - official and Ollama configuration examples;
+  - raw effort passthrough and endpoint-owned validation;
+  - Duration/TPS verification.
+- Update the public provider compatibility and usage/performance standards
+  only for reusable behavior actually delivered.
+- Do not edit the consumer application configuration pages or default-agent
+  restructuring owned by subtask 021.
+
+###### 11. Stage 2 checkpoint
+
+Stage 2 is ready for review when:
+
+- the package fast suite and focused compatibility tests pass;
+- baseline provider tags remain stable for official Anthropic and Ollama;
+- official and OpenAI-style model catalogs normalize correctly;
+- enabled local `qwen3:0.6b` tests pass for discovery, streaming, tools,
+  thinking, usage, effort passthrough, and application Duration/TPS;
+- explicit incompatible Ollama request options surface normal sanitized
+  provider errors rather than being hidden by local filtering;
+- the one bounded hosted official regression passes;
+- Pyright, Ruff, Black, package documentation preparation, and MkDocs build
+  pass;
+- Anthropic and portable requirement evidence is current.
+
+Stop for review before Stage 3. Record any compatible endpoint behavior that
+would require provider-specific request rewriting or would expand prompt
+caching, attachments, cost, compaction, or error-contract scope.
 
 #### Stage 3: Anthropic-specific capabilities
 
@@ -489,17 +726,35 @@ baseline.
 - Decision: resolved config is the primary API-key source; direct
   `ANTHROPIC_API_KEY` lookup is fallback-only.
 - Decision: official Anthropic and Anthropic-compatible endpoints use one
-  provider with explicit compatibility profiles rather than separate provider
-  classes.
+  provider with explicit configuration and reusable mixin/preset examples
+  rather than separate provider classes or hidden runtime profiles.
 - Decision: use the official Anthropic Python SDK for request, streaming,
   model, and error transport, configured with the selected base URL.
 - Decision: provider transport and native mapping remain usable without
   extensions.
+- Decision: streaming, tools, reasoning, and usage are baseline provider tags
+  and are not repeated in capability configuration.
+- Decision: `capabilities` is reserved for non-baseline optional extensions
+  that are not supported by every compatible API.
+- Decision: capability keys are added only with their owning extension. Task
+  010 first uses `prompt_caching` in Stage 3.
+- Decision: a true optional capability emits the owning extension's required
+  tag; false or omission emits no tag. No support-status vocabulary is added.
+- Decision: capability config does not rewrite, remove, validate, or document
+  request options. Explicit incompatible request options reach the endpoint
+  and surface the normal sanitized provider error.
+- Decision: official Anthropic and Ollama configurations remain ordinary
+  inspectable config, not provider-internal profiles.
+- Decision: Ollama effort values remain raw request-option passthrough. Local
+  acceptance does not create a capability key or tag.
+- Decision: subtask 021 owns configuration variants, consumer configuration
+  documentation migration, and direct Anthropic default-agent consolidation;
+  Stage 2 does not edit those surfaces while that work proceeds concurrently.
 - Decision: tools, reasoning, usage, and prompt caching are separate provider
   extensions.
-- Decision: automatic prompt caching is enabled by default for the official
-  Anthropic profile, exposes a selectable supported TTL, and is disabled unless
-  declared supported for compatible endpoints.
+- Decision: automatic prompt caching exposes a selectable supported TTL and is
+  enabled only when `capabilities.prompt_caching` emits its extension's
+  required tag. Official Anthropic may enable it in Stage 3; Ollama does not.
 - Decision: usage remains separate from prompt caching; cache-read/write
   counts are surfaced by the usage extension.
 - Decision: image attachments and multimodal image-result handling belong to
@@ -529,7 +784,8 @@ baseline.
 - Implement against the package-owned specification and update its requirements
   throughout delivery.
 - Add the package README and current user docs for installation,
-  configuration, API keys, model discovery, compatibility profiles, tools,
+  configuration, API keys, model discovery, compatible endpoint capabilities,
+  presets, tools,
   reasoning, usage, caching, errors, and hosted tests when those
   behaviors are delivered.
 - Add package development documentation mapping implementation entry points to
@@ -544,8 +800,8 @@ baseline.
   acceptance.
 - [x] Complete the approved Stage 1 config-first reasoning, beta transport,
   bank-file continuity, and portable conformance follow-up.
-- [ ] Complete Stage 2 compatibility profiles, Ollama effort/usage coverage,
-  duration/TPS interoperability, and unsupported-field acceptance.
+- [ ] Complete Stage 2 compatible discovery, Ollama effort/usage coverage, and
+  duration/TPS interoperability.
 - [ ] Complete Stage 3 official capability, interleaved/preserved thinking,
   automatic caching/TTL, and hosted acceptance.
 - [x] Add safe generic error messages and provider-owned retry behavior.
@@ -560,9 +816,8 @@ baseline.
   shaping, metadata, usage formatting, and operation without unrelated
   extensions.
 - Application integration proves ordinary and tool-enabled requests.
-- Ollama integration proves the `messages-basic`, `messages-agent`, and
-  `compatible-local` profiles, effort behavior, usage, and duration/TPS
-  interoperability for supported capabilities.
+- Ollama integration proves the baseline compatible-local contract, effort
+  passthrough, usage, and duration/TPS interoperability.
 - Hosted Anthropic tests prove capability discovery, caching, thinking
   continuity, and official authentication/error behavior.
 - Cancellation and sanitized provider failures produce the current expected
@@ -576,8 +831,9 @@ baseline.
 - Tool-result payloads do not lose display or provider-native metadata.
 - Usage degrades safely when compatible providers omit cache or partial-stream
   fields.
-- Prompt-cache settings are omitted for Ollama and other profiles that do not
-  declare support.
+- Prompt-cache settings are not generated when the prompt-caching extension is
+  disabled by an absent capability tag. Explicit raw cache settings remain
+  endpoint-validated request options.
 - Interleaved thinking and preserved prior thinking are independently
   capability-gated and verified.
 - Unknown model capability fields are preserved or ignored safely without
@@ -662,8 +918,8 @@ Findings:
   effort behavior remains Stage 2;
 - duration/TPS integration remains Stage 2 even though Stage 1 now emits its
   required cumulative input/output fields;
-- official capability-driven tags and compatibility profiles remain Stages 2
-  and 3.
+- non-baseline capability tags and official model-derived capability/UI
+  behavior remain Stage 3.
 
 ### 2026-08-31 Stage 1 follow-up
 

@@ -45,8 +45,9 @@ Provider and extension state remains plain mappings. SDK objects and event
 types are normalized at the provider boundary and are not persisted in native
 history.
 
-Compatible profiles must be tested through the same SDK transport. The package
-does not maintain a second direct-HTTP Messages implementation.
+Compatible endpoint configurations must be tested through the same SDK
+transport. The package does not maintain a second direct-HTTP Messages
+implementation.
 
 ## Configuration
 
@@ -58,13 +59,11 @@ Provider-owned baseline keys:
 | `auth_mode` | Baseline value `api`; future values `oauth` and `auto` |
 | `api_key` | Resolved API key; primary credential input |
 | `base_url` | Messages API root |
-| `models_url` | Optional model-discovery URL override |
 | `model` | Selected discovered or explicitly entered model ID |
 | `anthropic_version` | API version header value |
 | `timeout` | Request timeout |
 | `max_retries` | Generic pre-stream transport retry limit when supported |
-| `compatibility_profile` | Named compatibility profile |
-| `compatibility` | Explicit capability/auth/request overrides |
+| `capabilities` | Boolean flags for non-baseline optional extensions only |
 | `headers` | Non-secret additional headers permitted by policy |
 | `betas` | SDK beta feature identifiers; selects beta Messages transport |
 | `beta_headers` | Raw beta-header identifiers for stable or compatible transport |
@@ -83,7 +82,8 @@ Config wins over direct environment lookup. A missing `api_key` may use
 
 ## Model discovery
 
-The default model URL is `<base_url>/v1/models` unless `models_url` is set.
+The Anthropic SDK derives model discovery from `base_url` and requests its
+standard `/v1/models` resource.
 
 Official model responses are normalized into model descriptors containing:
 
@@ -99,11 +99,14 @@ fields are preserved in the model descriptor or ignored safely. Missing
 capabilities never cause optimistic enablement.
 
 Compatible OpenAI-style model responses containing `data[*].id` are accepted.
-When no capabilities are present, the selected compatibility profile supplies
-conservative defaults.
+When model capabilities are absent, no model support is invented. Baseline
+streaming, tools, reasoning, and usage tags remain provider-defined.
+Non-baseline extensions use their own explicit boolean capabilities.
 
 Model discovery failures return an empty model list and log a bounded,
-redacted warning. They do not prevent explicit model entry.
+redacted warning. They do not prevent explicit model entry. A separate
+model-catalog URL is not part of the baseline because no supported compatible
+endpoint currently requires one.
 
 ## Provider state
 
@@ -122,7 +125,7 @@ Recommended request state:
         "role": "assistant",
         "content": [],
     },
-    "compatibility": {...},
+    "capabilities": {...},
     "raw_usage": None,
 }
 ```
@@ -174,15 +177,16 @@ header composition.
 
 Prompt caching is baseline and extension-owned.
 
-The official profile defaults to automatic caching. Baseline settings include:
+The official configuration may enable automatic caching through the
+prompt-caching capability tag. Baseline settings include:
 
 - enabled/disabled;
 - `prompt_cache_ttl` with supported values `5m` and `1h`.
 
-The extension writes request-only automatic cache controls. The usage
-extension surfaces cache-read and cache-creation counts. Compatible profiles
-that do not declare caching support omit all cache fields. Explicit breakpoint
-selection and cache-management actions are outside 010.
+The extension writes request-only automatic cache controls only when its
+required capability tag is present. The usage extension surfaces cache-read
+and cache-creation counts. Explicit raw cache options remain endpoint-validated.
+Explicit breakpoint selection and cache-management actions are outside 010.
 
 ## Attachments
 
@@ -227,9 +231,8 @@ usage with turn/session totals.
 
 ### Stage 2
 
-Official/Ollama/custom compatibility profiles, compatible model discovery,
-unsupported-field omission, Ollama tools/reasoning/usage/effort verification,
-and duration/TPS interoperability.
+Compatible model discovery, Ollama tools/reasoning/usage/effort passthrough
+verification, and duration/TPS interoperability.
 
 ### Stage 3
 

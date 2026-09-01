@@ -20,7 +20,7 @@ Use local fake HTTP/SSE fixtures for:
 - cache request shaping;
 - safe SDK error messages and provider-owned retry behavior;
 - cancellation before connect, during response, and after completion;
-- compatible-profile omission of unsupported fields.
+- explicit capability-to-tag mapping and extension disablement.
 
 Fixtures assert on request and data structures rather than logs.
 
@@ -52,8 +52,7 @@ Run with the Anthropic-compatible endpoint and a selected local model:
 - effort-level acceptance and behavioral effect where the selected model
   permits a stable comparison;
 - cancellation where the endpoint and client permit it;
-- omission of caching, PDF, citation, request-metadata, token-count, and
-  unsupported tool-choice fields.
+- endpoint-owned errors for explicitly configured unsupported request options.
 
 Tests use `integration` and `ollama` markers. A skipped gated test is not a
 successful verification run unless the gate was enabled and the skip is
@@ -104,7 +103,8 @@ credential and cost requirements.
   absent or materially shorter follow-up reasoning.
 - Usage remains correct when fields arrive at different stream phases.
 - Duration/TPS derives from the standard turn-cumulative usage fields.
-- Cache controls do not appear on unsupported profiles.
+- Automatic cache controls appear only when the prompt-caching extension is
+  enabled by its required capability tag.
 - Credentials and authorization values are absent from logs, errors, sessions,
   notifications, and fixtures.
 - Direct provider failures do not select OpenRouter.

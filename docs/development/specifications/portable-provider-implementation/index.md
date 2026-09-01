@@ -9,7 +9,8 @@ It covers:
 - provider transport and native-message responsibilities;
 - provider extension ownership;
 - model discovery and capability tags;
-- official and compatible endpoint profiles;
+- shared baseline protocol tags, optional compatible-endpoint capabilities,
+  and reusable configuration presets;
 - normalized usage, cost-estimation, cache-estimation, and duration/TPS
   interoperability;
 - streaming, native history, cancellation, and error contracts;

@@ -116,23 +116,35 @@ configuration. Providers should not infer unstable capability sets from model
 names when authoritative metadata or explicit compatibility config is
 available.
 
-## Compatibility profiles
+## Compatible endpoint capabilities and presets
 
 A provider protocol may be implemented by official and compatible endpoints.
 One provider may support them when:
 
 - the native message/history contract is coherent;
-- differences are represented through named profiles or explicit overrides;
-- unsupported fields are omitted or rejected before transport;
+- non-baseline optional plugin features are gated by explicit provider tags;
+- reusable endpoint setups remain ordinary inspectable configuration or
+  mixins;
+- explicit request options retain their provider-native meaning;
 - errors identify the actual endpoint/provider;
-- tests cover each claimed profile.
+- tests cover each claimed capability.
 
-Capability precedence:
+Baseline protocol tags shared by all supported endpoints remain
+provider-defined and need not be repeated in capability config.
 
-1. explicit disable or override;
-2. authoritative model/endpoint capability;
-3. named profile;
-4. conservative default.
+When a provider uses explicit capability configuration for non-baseline
+optional plugin gating:
+
+- values are booleans;
+- true emits the documented optional-feature tag;
+- false or omission emits no tag;
+- capabilities do not double as request validation or endpoint documentation.
+
+An optional extension whose required tag is absent does not automatically add
+its request fields. If a user explicitly supplies an incompatible native
+request option, the endpoint/provider error may report the incompatibility.
+Portable conformance does not require providers to pre-validate or filter every
+compatible-endpoint difference.
 
 Compatibility must not mean silent fallback to a different transport,
 provider, or paid account.
@@ -283,7 +295,7 @@ Every provider package covers:
 - cancellation;
 - error normalization;
 - extension enablement/disablement;
-- compatibility overrides.
+- compatible-endpoint capability/tag configuration.
 - normalized usage and formatting when usage is supported;
 - turn/session cumulative usage and duration/TPS compatibility;
 - cost-estimation provenance and pricing-catalog behavior when cost estimation
@@ -297,9 +309,10 @@ material.
 
 ### Local compatible endpoint
 
-Protocols with a practical local implementation should define a local
-compatibility profile and run enabled integration tests for the supported
-subset. Unsupported capabilities require negative/omission tests.
+Protocols with a practical local implementation should provide explicit local
+configuration or a reusable preset and run enabled integration tests for every
+advertised capability. Tests need not duplicate endpoint validation for every
+explicit incompatible request option.
 
 ### Hosted provider
 
@@ -312,17 +325,17 @@ enabled and the skip is expected.
 
 ### Reasoning and tools
 
-Every provider/profile claiming both reasoning and tools runs the canonical
-bank-file reasoning continuity test in streaming and non-streaming modes.
-Profiles claiming preservation across an inserted user request also run the
-interrupted-user variant and verify that follow-up reasoning is absent or
-materially shorter than the initial reasoning while the result remains
-`Clock`.
+Every provider configuration claiming both reasoning and tools runs the
+canonical bank-file reasoning continuity test in streaming and non-streaming
+modes. Configurations claiming preservation across an inserted user request
+also run the interrupted-user variant and verify that follow-up reasoning is
+absent or materially shorter than the initial reasoning while the result
+remains `Clock`.
 
-Profiles intentionally retaining insufficient reasoning history use a strict
-expected failure or documented negative assertion. Provider-native reasoning
-state and tool relationships remain structurally valid regardless of the
-server-side retention policy.
+Configurations intentionally retaining insufficient reasoning history use a
+strict expected failure or documented negative assertion. Provider-native
+reasoning state and tool relationships remain structurally valid regardless of
+the server-side retention policy.
 
 ## Documentation
 
@@ -333,7 +346,7 @@ Each substantial provider package documents:
 - configuration and credential sources;
 - model discovery;
 - supported extensions;
-- compatibility profiles;
+- compatible endpoint configuration, capabilities, and presets;
 - tools and native-history limitations;
 - errors, retries, and cancellation;
 - deterministic and hosted test commands;
