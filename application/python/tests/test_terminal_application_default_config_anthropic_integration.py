@@ -110,6 +110,10 @@ def test_terminal_application_default_config_anthropic_reads_file(
     last_failure: tuple[str, list[str]] | None = None
     for _attempt in range(2):
         session = term_app.start_new_session(agent_id="claude-anthropic")
+        session = term_app.update_override(
+            "model",
+            "claude-haiku-4-5-20251001",
+        )
         ui_by_key = {
             element["key"]: element
             for element in term_app.session_ui_elements()
@@ -135,7 +139,18 @@ def test_terminal_application_default_config_anthropic_reads_file(
         assert loaded is not None
         _core, base_config, final_session = loaded
         assert base_config["provider"] == "anthropic"
-        assert base_config["model"] == "claude-haiku-4-5-20251001"
+        assert base_config["model"] == "claude-sonnet-5"
+        effective_config = agent_app.resolve_effective_config(
+            base_config,
+            final_session,
+        )
+        assert effective_config["model"] == "claude-haiku-4-5-20251001"
+        assert effective_config["request_options"] == {
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 1024,
+            }
+        }
 
         final_text = str(final_session.messages[-1].content or "").strip()
         tool_names = _tool_names_from_events(

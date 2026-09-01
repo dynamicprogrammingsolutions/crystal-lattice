@@ -217,10 +217,6 @@ def test_default_config_claude_agent_uses_claude_tools(
         },
         "claude-anthropic": {
             "provider": "anthropic",
-            "model": "claude-haiku-4-5-20251001",
-        },
-        "claude-sonnet-anthropic": {
-            "provider": "anthropic",
             "model": "claude-sonnet-5",
         },
     }
@@ -260,8 +256,11 @@ def test_default_config_claude_agent_uses_claude_tools(
     for agent_id in (
         "claude-openrouter",
         "claude-anthropic",
-        "claude-sonnet-anthropic",
     ):
         claude_agent = config["agents"][agent_id]
         assert "claude_mcp_defaults" in claude_agent["mixin_refs"]
         assert claude_agent["plugins"] == ["path:${env:BUILTIN_PLUGINS}/claude-tools"]
+    assert (
+        "claude_anthropic_model_variants"
+        in config["agents"]["claude-anthropic"]["mixin_refs"]
+    )

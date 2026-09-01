@@ -444,6 +444,136 @@
           }
         }
       }
+    },
+    "claude_anthropic_model_variants": {
+      "$variants": [
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:haiku|sonnet|opus)-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "request_options": {
+            "thinking": {
+              "type": "enabled",
+              "budget_tokens": 1024
+            }
+          },
+          "request_options_ui": {
+            "thinking": {
+              "type": ["disabled", "enabled"],
+              "budget_tokens": "number"
+            }
+          }
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:sonnet|opus)-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "beta_headers": ["interleaved-thinking-2025-05-14"]
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-opus-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "request_options": {
+            "output_config": {
+              "effort": "high"
+            }
+          },
+          "request_options_ui": {
+            "output_config": {
+              "effort": ["low", "medium", "high"]
+            }
+          }
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:(?:sonnet|opus)-4-6|sonnet-5|opus-4-(?:7|8)|opus-5|(?:fable|mythos)-5|mythos-preview)$"
+            }
+          },
+          "betas": ["context-management-2025-06-27"],
+          "request_options": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "output_config": {
+              "effort": "high"
+            },
+            "context_management": {
+              "edits": [
+                {
+                  "type": "clear_thinking_20251015",
+                  "keep": "all"
+                }
+              ]
+            }
+          },
+          "request_options_ui": {
+            "thinking": {
+              "display": ["summarized", "omitted"]
+            }
+          }
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:sonnet|opus)-4-6$"
+            }
+          },
+          "request_options_ui": {
+            "thinking": {
+              "type": ["disabled", "adaptive"]
+            },
+            "output_config": {
+              "effort": ["low", "medium", "high", "max"]
+            }
+          }
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:sonnet-5|opus-4-(?:7|8))$"
+            }
+          },
+          "request_options_ui": {
+            "thinking": {
+              "type": ["disabled", "adaptive"]
+            },
+            "output_config": {
+              "effort": ["low", "medium", "high", "xhigh", "max"]
+            }
+          }
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:opus-5|(?:fable|mythos)-5)$"
+            }
+          },
+          "request_options_ui": {
+            "output_config": {
+              "effort": ["low", "medium", "high", "xhigh", "max"]
+            }
+          }
+        },
+        {
+          "$when": {
+            "model": "claude-mythos-preview"
+          },
+          "request_options_ui": {
+            "output_config": {
+              "effort": ["low", "medium", "high", "max"]
+            }
+          }
+        }
+      ]
     }
   },
   "providers": {
@@ -852,60 +982,13 @@
       "web_search_provider": "gemini_api"
     },
     "claude-anthropic": {
-      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
-      "provider": "anthropic",
-      "model": "claude-haiku-4-5-20251001",
-      "request_options": {
-        "thinking": {
-          "type": "enabled",
-          "budget_tokens": 1024
-        }
-      },
-      "request_options_ui": {
-        "thinking": {
-          "type": ["disabled", "enabled"],
-          "budget_tokens": "number"
-        }
-      },
-      "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults",
+        "claude_anthropic_model_variants"
       ],
-      "gemini_api_key": "${env:GEMINI_API_KEY}",
-      "tavily_api_key": "${env:TAVILY_API_KEY}",
-      "web_search_enabled": true,
-      "web_search_provider": "gemini_api"
-    },
-    "claude-sonnet-anthropic": {
-      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
       "provider": "anthropic",
       "model": "claude-sonnet-5",
-      "betas": ["context-management-2025-06-27"],
-      "request_options": {
-        "thinking": {
-          "type": "adaptive",
-          "display": "summarized"
-        },
-        "output_config": {
-          "effort": "high"
-        },
-        "context_management": {
-          "edits": [
-            {
-              "type": "clear_thinking_20251015",
-              "keep": "all"
-            }
-          ]
-        }
-      },
-      "request_options_ui": {
-        "thinking": {
-          "type": ["disabled", "adaptive"],
-          "display": ["summarized", "omitted"]
-        },
-        "output_config": {
-          "effort": ["low", "medium", "high", "xhigh", "max"]
-        }
-      },
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/claude-tools"
       ],

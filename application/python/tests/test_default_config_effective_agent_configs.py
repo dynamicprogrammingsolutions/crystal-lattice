@@ -50,35 +50,21 @@ def test_default_config_declares_provider_qualified_claude_agents() -> None:
         config["agents"]["claude-openrouter"]["model"] == "anthropic/claude-haiku-4.5"
     )
     assert config["agents"]["claude-anthropic"]["provider"] == "anthropic"
-    assert config["agents"]["claude-anthropic"]["model"] == "claude-haiku-4-5-20251001"
-    assert config["agents"]["claude-anthropic"]["request_options"] == {
-        "thinking": {"type": "enabled", "budget_tokens": 1024}
+    assert config["agents"]["claude-anthropic"]["model"] == "claude-sonnet-5"
+    assert "claude-sonnet-anthropic" not in config["agents"]
+    assert (
+        "claude_anthropic_model_variants"
+        in config["agents"]["claude-anthropic"]["mixin_refs"]
+    )
+    variants = config["mixins"]["claude_anthropic_model_variants"]["$variants"]
+    assert len(variants) == 8
+    assert variants[0]["request_options"]["thinking"] == {
+        "type": "enabled",
+        "budget_tokens": 1024,
     }
-    assert config["agents"]["claude-anthropic"]["request_options_ui"] == {
-        "thinking": {
-            "type": ["disabled", "enabled"],
-            "budget_tokens": "number",
-        }
-    }
-    assert config["agents"]["claude-sonnet-anthropic"]["provider"] == "anthropic"
-    assert config["agents"]["claude-sonnet-anthropic"]["model"] == "claude-sonnet-5"
-    assert config["agents"]["claude-sonnet-anthropic"]["betas"] == [
-        "context-management-2025-06-27"
-    ]
-    assert config["agents"]["claude-sonnet-anthropic"]["request_options"] == {
-        "thinking": {
-            "type": "adaptive",
-            "display": "summarized",
-        },
-        "output_config": {"effort": "high"},
-        "context_management": {
-            "edits": [
-                {
-                    "type": "clear_thinking_20251015",
-                    "keep": "all",
-                }
-            ]
-        },
+    assert variants[3]["request_options"]["thinking"] == {
+        "type": "adaptive",
+        "display": "summarized",
     }
     assert "path:${env:BUILTIN_PLUGINS}/anthropic-compatible" in config["plugins"]
     assert config["providers"]["anthropic"] == {
@@ -91,6 +77,109 @@ def test_default_config_declares_provider_qualified_claude_agents() -> None:
     app_config = config["application"]["application_config"]
     assert "ANTHROPIC_API_KEY" in app_config["editable_env_keys"]
     assert app_config["provider_env_keys"]["anthropic"] == "ANTHROPIC_API_KEY"
+
+
+@pytest.mark.integration
+def test_default_config_claude_anthropic_variants_follow_model_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.chdir(workspace)
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
+    monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
+    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
+    monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
+
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+    )
+    assert app.get_config_errors() == []
+
+    core, base_config, session = app.create_session("claude-anthropic")
+    sonnet_config = app.resolve_effective_config(base_config, session)
+    assert sonnet_config["model"] == "claude-sonnet-5"
+    assert sonnet_config["betas"] == ["context-management-2025-06-27"]
+    assert sonnet_config["request_options"]["thinking"] == {
+        "type": "adaptive",
+        "display": "summarized",
+    }
+
+    haiku_session = session.__class__(
+        session_id=session.session_id,
+        messages=session.messages,
+        metadata={
+            **session.metadata,
+            "overrides": {"model": "claude-haiku-4-5-20251001"},
+        },
+    )
+    haiku_config = app.resolve_effective_config(base_config, haiku_session)
+    assert haiku_config["request_options"] == {
+        "thinking": {"type": "enabled", "budget_tokens": 1024}
+    }
+    assert "betas" not in haiku_config
+    haiku_ui = core.get_ui_schema(config=haiku_config)
+    haiku_ui_keys = {
+        element["key"] for element in haiku_ui if isinstance(element.get("key"), str)
+    }
+    assert "request_options__thinking__type" in haiku_ui_keys
+    assert "request_options__thinking__budget_tokens" in haiku_ui_keys
+    assert "request_options__output_config__effort" not in haiku_ui_keys
+
+    sonnet_ui = core.get_ui_schema(config=sonnet_config)
+    sonnet_ui_by_key = {
+        element["key"]: element
+        for element in sonnet_ui
+        if isinstance(element.get("key"), str)
+    }
+    assert [
+        option["value"]
+        for option in sonnet_ui_by_key["request_options__output_config__effort"][
+            "options"
+        ]
+    ] == ["low", "medium", "high", "xhigh", "max"]
+
+    opus_session = session.__class__(
+        session_id=session.session_id,
+        messages=session.messages,
+        metadata={
+            **session.metadata,
+            "overrides": {"model": "claude-opus-4-5-20251101"},
+        },
+    )
+    opus_config = app.resolve_effective_config(base_config, opus_session)
+    assert opus_config["beta_headers"] == ["interleaved-thinking-2025-05-14"]
+    assert opus_config["request_options"]["thinking"] == {
+        "type": "enabled",
+        "budget_tokens": 1024,
+    }
+    assert opus_config["request_options"]["output_config"] == {"effort": "high"}
 
 
 @pytest.mark.integration
@@ -296,16 +385,6 @@ def test_default_config_effective_agent_configs_stay_intact(
         },
         "claude-anthropic": {
             "provider": "anthropic",
-            "model": "claude-haiku-4-5-20251001",
-            "request_options": {"thinking": {"type": "enabled", "budget_tokens": 1024}},
-            "web_search_enabled": True,
-            "web_search_provider": "gemini_api",
-            "mcp_enabled": False,
-            "mcp_reuse_runtime": True,
-            "mcp_fail_on_startup_error": False,
-        },
-        "claude-sonnet-anthropic": {
-            "provider": "anthropic",
             "model": "claude-sonnet-5",
             "betas": ["context-management-2025-06-27"],
             "request_options": {
@@ -375,10 +454,11 @@ def test_default_config_effective_agent_configs_stay_intact(
     }
 
     for agent_id, expected in cases.items():
-        _core, base_config, _session = app.create_session(agent_id)
+        _core, base_config, session = app.create_session(agent_id)
+        effective_config = app.resolve_effective_config(base_config, session)
         for key, expected_value in expected.items():
-            assert base_config[key] == expected_value, (
+            assert effective_config[key] == expected_value, (
                 agent_id,
                 key,
-                base_config.get(key),
+                effective_config.get(key),
             )

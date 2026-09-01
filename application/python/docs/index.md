@@ -10,8 +10,15 @@ terminal interface, HTTP API, local discovery, and bridge connectivity.
 - [Terminal guide](terminal.md): use slash commands, indexed message headers,
   progress indicators, compact tool results, message history, and terminal
   configuration.
-- [Application configuration](configuration.md): configure agents, providers,
-  plugin packages, mixins, placeholders, and plugin installation policy.
+- [Application configuration](configuration.md): configuration layers and
+  focused guides for plugins, placeholders, mixins, variants, and system
+  messages.
+- [Plugin configuration](configuration-plugins.md): package specs, enablement,
+  installation policy, Node tools, and Bash tools.
+- [Configuration mixins](configuration-mixins.md): reusable fragments and
+  recursive shallow/deep merge behavior.
+- [Configuration variants](configuration-variants.md): model-selected
+  request, UI, beta, and feature configuration.
 - [Session snapshots](session-snapshots.md): manual and automatic recovery
   points, readonly selection, restoration, storage, and deletion.
 - [Package README](../README.md): installation, terminal, HTTP/mobile

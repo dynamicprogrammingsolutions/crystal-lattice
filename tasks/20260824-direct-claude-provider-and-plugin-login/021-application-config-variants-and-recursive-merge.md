@@ -8,25 +8,25 @@ Parent Task: `tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md
 
 ## Requirements checklist
 
-- [ ] Application configuration supports ordered `$variants` at provider,
+- [x] Application configuration supports ordered `$variants` at provider,
   agent, mixin, and nested mapping scopes.
-- [ ] Variant conditions support exact scalar matching and the `$matches`
+- [x] Variant conditions support exact scalar matching and the `$matches`
   regular-expression operator against the immutable effective-config selector.
-- [ ] `$merge` supports string shorthand and a parent-scoped object form with
+- [x] `$merge` supports string shorthand and a parent-scoped object form with
   a default mode plus key-specific `shallow` and `deep` lists.
-- [ ] The recursive merge implementation is shared by mixin expansion,
+- [x] The recursive merge implementation is shared by mixin expansion,
   provider-to-agent composition, and variant overlays.
-- [ ] Existing `mixin_policy`, `mixin_refs`, and `mixin_merge` configurations
+- [x] Existing `mixin_policy`, `mixin_refs`, and `mixin_merge` configurations
   retain their current behavior and compatibility.
-- [ ] Variant selection is reevaluated after model overrides, explicit
+- [x] Variant selection is reevaluated after model overrides, explicit
   session/request overrides win, and prior-model values do not leak.
-- [ ] Variants cannot change provider or plugin topology after startup.
-- [ ] One `claude-anthropic` default agent selects the correct supported
+- [x] Variants cannot change provider or plugin topology after startup.
+- [x] One `claude-anthropic` default agent selects the correct supported
   reasoning, effort, beta, context-management, and UI configuration for
   Claude 4.5 and newer model families without a separate Sonnet agent.
-- [ ] Deterministic tests cover the merge interpreter, mixins, variants,
+- [x] Deterministic tests cover the merge interpreter, mixins, variants,
   effective config, model switching, diagnostics, and default configuration.
-- [ ] Consumer configuration documentation is split into focused current-state
+- [x] Consumer configuration documentation is split into focused current-state
   pages for plugin configuration, placeholders, mixins, variants, and system
   messages while preserving the existing configuration landing URL.
 
@@ -82,7 +82,7 @@ It does not own:
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 Implement the specification in three bounded work areas.
 
@@ -164,9 +164,9 @@ configuration. Raw request options remain available.
   helper; it receives only already-resolved configuration.
 - Decision: the direct Anthropic defaults use configuration variants rather
   than provider-owned model pattern logic.
-- Open: confirm the exact primary Sonnet model ID present in model discovery
-  when execution begins; this changes only the default selected model, not the
-  variant contract.
+- Decision: the consolidated direct Anthropic agent defaults to
+  `claude-sonnet-5`; the hosted low-cost smoke selects Haiku 4.5 through a
+  session model override.
 
 ### Documentation
 
@@ -205,22 +205,22 @@ with the implementation commit, not during target-only planning.
 
 ### Task checklist
 
-- [ ] Extract a package-owned recursive merge interpreter from current config
+- [x] Extract a package-owned recursive merge interpreter from current config
   helpers.
-- [ ] Preserve and retest existing mixin expansion and provider/agent merge
+- [x] Preserve and retest existing mixin expansion and provider/agent merge
   behavior.
-- [ ] Add recursive parent-scoped `$merge` parsing, validation, and stripping.
-- [ ] Add the isolated `$variants` condition interpreter.
-- [ ] Integrate variants into effective config and initial session/core
+- [x] Add recursive parent-scoped `$merge` parsing, validation, and stripping.
+- [x] Add the isolated `$variants` condition interpreter.
+- [x] Integrate variants into effective config and initial session/core
   construction.
-- [ ] Reject runtime topology changes and malformed special-key expressions.
-- [ ] Add the Claude model-variant mixin and consolidate direct Anthropic
+- [x] Reject runtime topology changes and malformed special-key expressions.
+- [x] Add the Claude model-variant mixin and consolidate direct Anthropic
   agents.
-- [ ] Add focused merge, mixin, variant, effective-config, UI, and default
+- [x] Add focused merge, mixin, variant, effective-config, UI, and default
   configuration tests.
-- [ ] Migrate and verify consumer configuration documentation.
-- [ ] Update specification requirements and evidence.
-- [ ] Run package, application, documentation preparation, and documentation
+- [x] Migrate and verify consumer configuration documentation.
+- [x] Update specification requirements and evidence.
+- [x] Run package, application, documentation preparation, and documentation
   build verification.
 
 ### Requirement verification
@@ -258,3 +258,69 @@ with the implementation commit, not during target-only planning.
 - Run the feature-request-options package tests.
 - Run focused default-config tests, then `pytest application/python/tests -q`.
 - Run documentation preparation and a normal MkDocs build.
+
+## Implementation Notes
+
+### 2026-08-31
+
+- Added `agent_app/config_merge.py` as the shared immutable recursive merge
+  interpreter and `agent_app/config_variants.py` as the isolated condition and
+  variant interpreter.
+- Static mixin composition preserves nested merge directives until
+  provider-to-agent composition consumes them. Final runtime config strips all
+  merge and variant controls.
+- `resolve_request_config` now builds one immutable selector, resolves variants
+  from the unchanged base, and applies explicit overrides last.
+- Application startup validates mixin, merge, and variant errors as fatal
+  configuration errors with exact paths.
+- New-session and agent-switch core construction uses the initial effective
+  config so model-selected tags and UI are available immediately.
+- The bundled config now has one direct `claude-anthropic` agent, defaults to
+  `claude-sonnet-5`, and uses `claude_anthropic_model_variants` for Claude 4.5,
+  4.6, Sonnet 5, current Opus, Fable, and Mythos profiles.
+- The hosted default-config smoke explicitly selects
+  `claude-haiku-4-5-20251001`, preserving the lower-cost verification path.
+- Consumer configuration documentation was split while retaining
+  `configuration.md` as the stable landing page.
+
+## Completion Notes
+
+Completed the approved configuration-composition implementation.
+
+Requirement evidence:
+
+- `ACFG-001` through `ACFG-008`: shared merge/variant implementation and 38
+  focused composition plus legacy-mixin tests.
+- `ACFG-009` and `ACFG-010`: default config raw/effective tests, dedicated
+  model-switch/UI integration, Claude helper tests, and hosted Haiku Read-tool
+  smoke.
+- `ACFG-011`: focused consumer pages, package indexes, implementation map,
+  successful documentation preparation, and successful MkDocs build.
+- `ACFG-012`: Core fast suite `499 passed, 26 deselected, 1 xfailed`;
+  application fast suite `370 passed, 92 deselected`; request-options package
+  `27 passed`.
+
+Additional verification:
+
+- Pyright reports zero errors for the new merge/variant modules and their
+  focused tests.
+- Ruff, Black, JSON parsing, and `git diff --check` pass for the scoped work.
+- The real Anthropic default-config smoke passes after selecting Haiku through
+  a session override.
+
+Findings and deviations:
+
+- Nested merge directives require two-stage handling: preserve during static
+  mixin composition, consume during final provider-to-agent composition.
+- The broader existing
+  `test_default_config_effective_agent_configs_stay_intact` integration test
+  still fails before its agent assertions because two unrelated session-search
+  UI elements omit `main_search: false`. The new Claude variant integration
+  test is separate and passes.
+- The documentation build retains existing navigation, source-test-link,
+  absolute-link, and generated-reference warnings.
+
+## Post-completion follow-up
+
+The final full Core run after adding the last three edge-case tests completed
+with `502 passed, 26 deselected, 1 xfailed`.

@@ -26,7 +26,7 @@ terminal while preserving the existing OpenRouter Claude option.
 - [ ] Existing `claude-tools` work with the direct provider.
 - [ ] Existing OpenRouter-based Claude agents remain available and are not
   silently replaced.
-- [ ] Application configuration can select model-specific Anthropic settings
+- [x] Application configuration can select model-specific Anthropic settings
   through reusable configuration variants without requiring separate direct
   Anthropic agents for Haiku and Sonnet.
 - [ ] Provider-specific follow-ups add server web tools, fast mode and service
@@ -72,7 +72,7 @@ terminal while preserving the existing OpenRouter Claude option.
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/018-provider-cost-estimation-and-pricing-catalog.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/019-portable-provider-request-errors.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/020-claude-authentication-plugin.md`
-- [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/021-application-config-variants-and-recursive-merge.md`
+- [x] `tasks/20260824-direct-claude-provider-and-plugin-login/021-application-config-variants-and-recursive-merge.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/030-claude-client-and-terminal-integration.md`
 
 ## Workstreams
@@ -167,7 +167,7 @@ or materially different security boundaries.
 - [ ] Execute the portable request-error follow-up 019 when the standard
   request-error work is planned.
 - [ ] Execute and verify OAuth authentication subtask 020.
-- [ ] Execute and verify configuration composition subtask 021.
+- [x] Execute and verify configuration composition subtask 021.
 - [ ] Execute and verify frontend/terminal integration subtask 030.
 - [ ] Run selective local-compatible, real-provider, and saved-login smoke
   tests.
