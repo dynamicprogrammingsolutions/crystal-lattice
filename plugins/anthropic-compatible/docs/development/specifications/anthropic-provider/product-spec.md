@@ -21,6 +21,8 @@ Package users need to:
 - run the existing Claude-compatible tool bundle;
 - configure reasoning request fields through raw request options while the
   reasoning extension preserves and interprets provider-native thinking;
+- use model-specific official reasoning controls when the selected model
+  advertises them;
 - enable or disable usage displays, prompt caching, and image attachments
   through provider extensions delivered by their owning tasks;
 - point the provider at a compatible local or hosted endpoint;
@@ -74,6 +76,7 @@ The provider works as an ordinary text provider without optional extensions.
 With the standard extension bundle enabled, users can:
 
 - stream text and thinking;
+- select supported manual/adaptive thinking and exact effort levels;
 - invoke Claude-compatible tools;
 - continue after tool results;
 - inspect formatted input, output, cache-read, and cache-write usage;

@@ -6,7 +6,9 @@ from agent_core import AgentCore, Session
 from plugins.request_options_feature import RequestOptionsFeature
 
 from anthropic_plugins import (
+    AnthropicPromptCachingExtension,
     AnthropicProvider,
+    AnthropicReasoningControlsExtension,
     AnthropicReasoningExtension,
     AnthropicToolsExtension,
     AnthropicUsageExtension,
@@ -114,6 +116,113 @@ def test_provider_operates_without_extensions() -> None:
         }
     ]
     assert len(new_session.metadata["native_messages"]) == 2
+
+
+def test_reasoning_controls_and_prompt_caching_run_through_core_stack() -> None:
+    ScriptedMessages.calls = []
+    ScriptedMessages.responses = [
+        _message(
+            content=[{"type": "text", "text": "configured"}],
+            usage={"input_tokens": 1, "output_tokens": 1},
+        )
+    ]
+    core = _core(
+        extensions=[
+            AnthropicReasoningControlsExtension,
+            AnthropicPromptCachingExtension,
+            AnthropicUsageExtension,
+        ]
+    )
+    config = {
+        "provider": "anthropic",
+        "model": "scripted",
+        "api_key": "test",
+        "capabilities": {
+            "anthropic_reasoning_controls": True,
+            "prompt_caching": True,
+        },
+        "anthropic_reasoning_capabilities": {
+            "thinking_types": ["adaptive"],
+            "effort_levels": ["low", "high"],
+        },
+        "anthropic_reasoning_mode": "adaptive",
+        "anthropic_reasoning_effort": "high",
+        "anthropic_reasoning_display": "summarized",
+        "prompt_cache_ttl": "1h",
+    }
+    session = core.add_message(
+        core.create_session(),
+        "user",
+        "hello",
+        config=config,
+    )
+
+    _session, finals = core.send_request(session, config)
+
+    assert finals[-1]["content"] == "configured"
+    request = ScriptedMessages.calls[-1]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "display": "summarized",
+    }
+    assert request["output_config"] == {"effort": "high"}
+    assert request["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+
+
+def test_reasoning_controls_auto_enable_from_selected_model_fallback() -> None:
+    ScriptedMessages.calls = []
+    ScriptedMessages.responses = [
+        _message(
+            content=[{"type": "text", "text": "configured"}],
+            usage={"input_tokens": 1, "output_tokens": 1},
+        )
+    ]
+    core = _core(extensions=[AnthropicReasoningControlsExtension])
+    config = {
+        "provider": "anthropic",
+        "model": "claude-sonnet-5",
+        "api_key": "test",
+        "anthropic_reasoning_mode": "adaptive",
+        "anthropic_reasoning_effort": "xhigh",
+    }
+    session = core.add_message(
+        core.create_session(),
+        "user",
+        "hello",
+        config=config,
+    )
+
+    core.send_request(session, config)
+
+    request = ScriptedMessages.calls[-1]
+    assert request["thinking"] == {"type": "adaptive"}
+    assert request["output_config"] == {"effort": "xhigh"}
+
+
+def test_prompt_caching_extension_is_inactive_without_capability_tag() -> None:
+    ScriptedMessages.calls = []
+    ScriptedMessages.responses = [
+        _message(
+            content=[{"type": "text", "text": "plain"}],
+            usage={"input_tokens": 1, "output_tokens": 1},
+        )
+    ]
+    core = _core(extensions=[AnthropicPromptCachingExtension])
+    config = {
+        "provider": "anthropic",
+        "model": "scripted",
+        "api_key": "test",
+    }
+    session = core.add_message(
+        core.create_session(),
+        "user",
+        "hello",
+        config=config,
+    )
+
+    core.send_request(session, config)
+
+    assert "cache_control" not in ScriptedMessages.calls[-1]
 
 
 def test_full_stack_persists_reasoning_usage_and_native_history() -> None:

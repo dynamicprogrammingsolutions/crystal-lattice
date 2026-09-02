@@ -225,6 +225,10 @@ def test_usage_extension_formats_turn_and_session_totals() -> None:
                 "output_tokens": 5,
                 "cache_read_input_tokens": 7,
                 "cache_creation_input_tokens": 3,
+                "cache_creation": {
+                    "ephemeral_5m_input_tokens": 2,
+                    "ephemeral_1h_input_tokens": 1,
+                },
                 "output_tokens_details": {"thinking_tokens": 2},
             }
         },
@@ -239,10 +243,14 @@ def test_usage_extension_formats_turn_and_session_totals() -> None:
     assert metadata["usage_prompt_tokens"] == 20
     assert metadata["usage_cached_tokens"] == 7
     assert metadata["usage_cache_write_tokens"] == 3
+    assert metadata["usage_cache_write_5m_tokens"] == 2
+    assert metadata["usage_cache_write_1h_tokens"] == 1
     assert metadata["usage_reasoning_tokens"] == 2
     assert metadata["usage_turn_input_tokens_cumulative"] == 30
     assert metadata["usage_turn_output_tokens_cumulative"] == 9
     assert metadata["usage_input_tokens_cumulative"] == 30
+    assert metadata["usage_cache_write_5m_tokens_cumulative"] == 2
+    assert metadata["usage_cache_write_1h_tokens_cumulative"] == 1
     assert history[-1]["_metadata"]["usage_prompt_tokens_formatted"] == "20"
     assert metadata["turn"] == {
         "id": 1,

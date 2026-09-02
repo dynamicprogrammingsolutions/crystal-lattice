@@ -33,19 +33,20 @@ baseline features in a `capabilities` mapping.
 Boolean capabilities are reserved for non-baseline optional extensions that
 are not supported by every compatible API.
 
-A key is added only with the extension that consumes its tag. Task 010 first
-uses this contract for prompt caching:
+A key is added only with the extension that consumes its tag. Task 010 uses
+this contract for official reasoning controls and prompt caching:
 
 ```json
 {
   "capabilities": {
+    "anthropic_reasoning_controls": true,
     "prompt_caching": true
   }
 }
 ```
 
-`prompt_caching: true` emits the tag required by
-`AnthropicPromptCachingExtension`. False or omission emits no tag.
+`anthropic_reasoning_controls: true` and `prompt_caching: true` emit the tags
+required by their owning extensions. False or omission emits no tag.
 
 The mapping does not:
 
@@ -86,9 +87,9 @@ An Ollama setup remains explicit:
 }
 ```
 
-The official configuration may add
-`capabilities.prompt_caching: true` when the prompt-caching extension is
-delivered. Ollama does not.
+The official configuration enables reasoning controls and prompt caching.
+Ollama enables neither and continues using baseline reasoning plus raw request
+options.
 
 ## Model discovery
 

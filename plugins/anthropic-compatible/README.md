@@ -13,16 +13,20 @@ The package currently provides:
 - tool schemas, calls, and results through `AnthropicToolsExtension`;
 - thinking, redacted thinking, signatures, and native-history reconstruction
   through `AnthropicReasoningExtension`;
-- raw request-body reasoning controls through `RequestOptionsFeature`;
+- official capability-driven reasoning settings and UI through
+  `AnthropicReasoningControlsExtension`;
+- raw request-body overrides through `RequestOptionsFeature`;
 - standard and beta Anthropic SDK requests with configurable beta features
   and beta headers;
 - formatted per-message, turn, and session usage through
   `AnthropicUsageExtension`;
+- automatic 5-minute or 1-hour prompt caching through
+  `AnthropicPromptCachingExtension`;
 - local Ollama compatibility for discovery, text, streaming, tools, thinking,
   usage, duration/TPS, and reasoning-effort passthrough.
 
-Prompt caching, image attachments, OAuth, cost estimation, server tools, and
-native compaction are not part of the current implementation.
+Image attachments, OAuth, cost estimation, server tools, and native compaction
+are not part of the current implementation.
 
 ## Installation
 
@@ -57,6 +61,10 @@ Example application configuration:
       "api_key": "${env:ANTHROPIC_API_KEY}",
       "base_url": "https://api.anthropic.com",
       "model": "<discovered model id>",
+      "capabilities": {
+        "anthropic_reasoning_controls": true,
+        "prompt_caching": true
+      },
       "timeout": 300,
       "max_tokens": 4096
     }
@@ -156,7 +164,20 @@ The reasoning extension contributes no request config or UI. It interprets
 thinking and redacted-thinking blocks, streams visible reasoning, and
 preserves signatures and complete native blocks needed for continuation.
 
-Configure request behavior through raw request options. Manual thinking:
+`AnthropicReasoningControlsExtension` separately uses official model
+capabilities or known Claude model fallbacks to expose exact mode and effort
+options. Its settings are:
+
+- `anthropic_reasoning_mode`;
+- `anthropic_reasoning_effort`;
+- `anthropic_reasoning_budget_tokens`;
+- `anthropic_reasoning_display`.
+
+See [Anthropic reasoning controls](docs/reasoning-controls.md) for capability
+precedence, request mapping, compatible endpoint opt-in, and the complete
+copyable `$variants` fallback.
+
+Raw request options remain available as the final override. Manual thinking:
 
 ```json
 {
@@ -207,12 +228,38 @@ Register the request-options feature whenever these fields are used. The
 provider reserves `messages`, `system`, and `stream`; unknown compatible
 request fields are forwarded through the SDK body escape hatch.
 
+## Prompt caching extension
+
+Enable the official capability:
+
+```json
+{
+  "capabilities": {
+    "prompt_caching": true
+  }
+}
+```
+
+The extension defaults to:
+
+```json
+{
+  "enable_prompt_caching": true,
+  "prompt_cache_ttl": "5m"
+}
+```
+
+`prompt_cache_ttl` accepts `5m` or `1h`. The extension adds top-level automatic
+`cache_control` for the request only. It does not add cache markers to retained
+native history. Explicit raw `request_options.cache_control` wins.
+
 ## Usage extension
 
 `AnthropicUsageExtension` exposes:
 
 - input, output, total, thinking, cache-read, and cache-creation tokens when
   reported;
+- separate 5-minute and 1-hour cache-creation token counts;
 - formatted token counts;
 - cumulative input/output totals for a multi-generation tool turn;
 - session-cumulative totals;

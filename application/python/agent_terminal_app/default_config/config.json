@@ -453,18 +453,8 @@
               "$matches": "^claude-(?:haiku|sonnet|opus)-4-5(?:$|-\\d{8}$)"
             }
           },
-          "request_options": {
-            "thinking": {
-              "type": "enabled",
-              "budget_tokens": 1024
-            }
-          },
-          "request_options_ui": {
-            "thinking": {
-              "type": ["disabled", "enabled"],
-              "budget_tokens": "number"
-            }
-          }
+          "anthropic_reasoning_mode": "manual",
+          "anthropic_reasoning_budget_tokens": 1024
         },
         {
           "$when": {
@@ -480,16 +470,7 @@
               "$matches": "^claude-opus-4-5(?:$|-\\d{8}$)"
             }
           },
-          "request_options": {
-            "output_config": {
-              "effort": "high"
-            }
-          },
-          "request_options_ui": {
-            "output_config": {
-              "effort": ["low", "medium", "high"]
-            }
-          }
+          "anthropic_reasoning_effort": "high"
         },
         {
           "$when": {
@@ -498,14 +479,10 @@
             }
           },
           "betas": ["context-management-2025-06-27"],
+          "anthropic_reasoning_mode": "adaptive",
+          "anthropic_reasoning_effort": "high",
+          "anthropic_reasoning_display": "summarized",
           "request_options": {
-            "thinking": {
-              "type": "adaptive",
-              "display": "summarized"
-            },
-            "output_config": {
-              "effort": "high"
-            },
             "context_management": {
               "edits": [
                 {
@@ -513,63 +490,6 @@
                   "keep": "all"
                 }
               ]
-            }
-          },
-          "request_options_ui": {
-            "thinking": {
-              "display": ["summarized", "omitted"]
-            }
-          }
-        },
-        {
-          "$when": {
-            "model": {
-              "$matches": "^claude-(?:sonnet|opus)-4-6$"
-            }
-          },
-          "request_options_ui": {
-            "thinking": {
-              "type": ["disabled", "adaptive"]
-            },
-            "output_config": {
-              "effort": ["low", "medium", "high", "max"]
-            }
-          }
-        },
-        {
-          "$when": {
-            "model": {
-              "$matches": "^claude-(?:sonnet-5|opus-4-(?:7|8))$"
-            }
-          },
-          "request_options_ui": {
-            "thinking": {
-              "type": ["disabled", "adaptive"]
-            },
-            "output_config": {
-              "effort": ["low", "medium", "high", "xhigh", "max"]
-            }
-          }
-        },
-        {
-          "$when": {
-            "model": {
-              "$matches": "^claude-(?:opus-5|(?:fable|mythos)-5)$"
-            }
-          },
-          "request_options_ui": {
-            "output_config": {
-              "effort": ["low", "medium", "high", "xhigh", "max"]
-            }
-          }
-        },
-        {
-          "$when": {
-            "model": "claude-mythos-preview"
-          },
-          "request_options_ui": {
-            "output_config": {
-              "effort": ["low", "medium", "high", "max"]
             }
           }
         }
@@ -588,7 +508,11 @@
       "provider": "anthropic",
       "auth_mode": "api",
       "api_key": "${env:ANTHROPIC_API_KEY}",
-      "base_url": "https://api.anthropic.com"
+      "base_url": "https://api.anthropic.com",
+      "capabilities": {
+        "anthropic_reasoning_controls": true,
+        "prompt_caching": true
+      }
     },
     "openrouter_image_generation": {
       "mixin_refs": ["provider_defaults"],

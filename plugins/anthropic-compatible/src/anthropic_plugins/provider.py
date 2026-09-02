@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import os
-from threading import Lock
+import queue
+from threading import Lock, Thread
 from typing import Any, Iterator
 
 from agent_core.types import ProviderPlugin, ProviderRequestCancelled
@@ -165,6 +166,10 @@ class AnthropicProvider(ProviderPlugin):
                 "items": {"type": "string"},
                 "default": [],
             },
+            "capabilities": {
+                "type": "object",
+                "default": {},
+            },
         }
 
     def get_ui_elements(
@@ -194,13 +199,32 @@ class AnthropicProvider(ProviderPlugin):
     def get_tags(
         self, config: dict[str, Any], models: list[dict[str, Any]]
     ) -> list[str]:
-        return [
+        tags = [
             "provider:anthropic",
             "supports_streaming",
             "supports_tools",
             "supports_reasoning",
             "supports_usage",
         ]
+        capabilities = config.get("capabilities")
+        capabilities = capabilities if isinstance(capabilities, dict) else {}
+        if capabilities.get("prompt_caching") is True:
+            tags.append("supports_prompt_caching")
+
+        controls = capabilities.get("anthropic_reasoning_controls")
+        if controls is True:
+            tags.append("supports_anthropic_reasoning_controls")
+        elif controls is not False:
+            selected = config.get("model")
+            if isinstance(selected, str) and any(
+                model.get("id") == selected
+                and isinstance(model.get("anthropic_reasoning_controls"), dict)
+                and bool(model["anthropic_reasoning_controls"])
+                for model in models
+                if isinstance(model, dict)
+            ):
+                tags.append("supports_anthropic_reasoning_controls")
+        return tags
 
     def _client(self, config: dict[str, Any]) -> Any:
         api_key = _effective_api_key(config)
@@ -545,10 +569,40 @@ class AnthropicProvider(ProviderPlugin):
             if request_id:
                 with self._lock:
                     self._active[request_id] = (stream, client)
-            for event in stream:
+            events: queue.Queue[tuple[str, Any]] = queue.Queue()
+
+            def _read_stream() -> None:
+                try:
+                    for event in stream:
+                        events.put(("event", event))
+                except BaseException as exc:
+                    events.put(("error", exc))
+                finally:
+                    events.put(("done", None))
+
+            reader = Thread(
+                target=_read_stream,
+                name=f"anthropic-stream-{request_id or 'request'}",
+                daemon=True,
+            )
+            reader.start()
+            while True:
                 if request_id and request_id in self._cancelled:
                     raise ProviderRequestCancelled(request_id)
-                yield object_to_dict(event)
+                try:
+                    kind, value = events.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                if kind == "event":
+                    yield object_to_dict(value)
+                    continue
+                if kind == "error":
+                    if request_id and request_id in self._cancelled:
+                        raise ProviderRequestCancelled(request_id) from value
+                    if isinstance(value, BaseException):
+                        raise value
+                    raise RuntimeError("Anthropic stream failed")
+                break
         except ProviderRequestCancelled:
             raise
         except Exception as exc:

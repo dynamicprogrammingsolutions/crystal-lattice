@@ -122,12 +122,14 @@ def test_terminal_application_default_config_anthropic_reads_file(
         assert "enable_reasoning" not in ui_by_key
         assert "reasoning_effort" not in ui_by_key
         assert "show_reasoning" not in ui_by_key
-        assert ui_by_key["request_options__thinking__type"]["type"] == "select"
+        assert ui_by_key["anthropic_reasoning_mode"]["type"] == "select"
         assert [
             option["value"]
-            for option in ui_by_key["request_options__thinking__type"]["options"]
-        ] == ["disabled", "enabled"]
-        assert ui_by_key["request_options__thinking__budget_tokens"]["type"] == "number"
+            for option in ui_by_key["anthropic_reasoning_mode"]["options"]
+        ] == ["disabled", "manual"]
+        assert ui_by_key["anthropic_reasoning_budget_tokens"]["type"] == "number"
+        assert ui_by_key["enable_prompt_caching"]["type"] == "checkbox"
+        assert ui_by_key["prompt_cache_ttl"]["type"] == "select"
         term_app.append_user_message(
             f"Use the Read tool to read {target.resolve()} and reply with "
             "exactly the first line."
@@ -145,12 +147,9 @@ def test_terminal_application_default_config_anthropic_reads_file(
             final_session,
         )
         assert effective_config["model"] == "claude-haiku-4-5-20251001"
-        assert effective_config["request_options"] == {
-            "thinking": {
-                "type": "enabled",
-                "budget_tokens": 1024,
-            }
-        }
+        assert effective_config["anthropic_reasoning_mode"] == "manual"
+        assert effective_config["anthropic_reasoning_budget_tokens"] == 1024
+        assert "request_options" not in effective_config
 
         final_text = str(final_session.messages[-1].content or "").strip()
         tool_names = _tool_names_from_events(

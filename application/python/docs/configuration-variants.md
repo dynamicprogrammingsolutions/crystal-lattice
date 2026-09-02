@@ -175,12 +175,8 @@ adaptive thinking for Sonnet 5:
               "$matches": "^claude-haiku-4-5(?:$|-\\d{8}$)"
             }
           },
-          "request_options": {
-            "thinking": {
-              "type": "enabled",
-              "budget_tokens": 1024
-            }
-          }
+          "anthropic_reasoning_mode": "manual",
+          "anthropic_reasoning_budget_tokens": 1024
         },
         {
           "$when": {
@@ -191,15 +187,9 @@ adaptive thinking for Sonnet 5:
           "betas": [
             "context-management-2025-06-27"
           ],
-          "request_options": {
-            "thinking": {
-              "type": "adaptive",
-              "display": "summarized"
-            },
-            "output_config": {
-              "effort": "high"
-            }
-          }
+          "anthropic_reasoning_mode": "adaptive",
+          "anthropic_reasoning_display": "summarized",
+          "anthropic_reasoning_effort": "high"
         }
       ]
     }
@@ -214,8 +204,10 @@ adaptive thinking for Sonnet 5:
 }
 ```
 
-Unknown models receive no inferred settings unless another variant matches.
-Raw request options remain available.
+The Anthropic reasoning-controls extension derives available settings from
+official model capabilities and known model fallbacks. These variants select
+defaults. Unknown models receive no inferred defaults unless another variant
+matches. Raw request options remain available.
 
 ## Diagnostics
 

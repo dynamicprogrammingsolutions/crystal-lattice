@@ -12,10 +12,10 @@ credential, request, streaming, extension, compatibility, and error contracts.
 - [x] API-key authentication consumes resolved `config["api_key"]` as the
   primary credential input, with direct environment lookup only as a secondary
   fallback.
-- [ ] Official Anthropic model discovery uses `/v1/models`, retains published
+- [x] Official Anthropic model discovery uses `/v1/models`, retains published
   capability metadata, and derives capability tags and model UI options from
   the response.
-- [ ] A configurable base URL supports the documented Anthropic-compatible
+- [x] A configurable base URL supports the documented Anthropic-compatible
   subset and SDK-derived model discovery through providers such as local
   Ollama.
 - [x] `AnthropicToolsExtension` owns tool schema injection, streamed tool-call
@@ -26,10 +26,10 @@ credential, request, streaming, extension, compatibility, and error contracts.
 - [x] Anthropic reasoning request fields use the generic request-options
   config/UI contract, while provider beta selection and beta-header composition
   remain explicit `AnthropicProvider` configuration.
-- [ ] `AnthropicUsageExtension` owns public usage metadata, cache accounting,
+- [x] `AnthropicUsageExtension` owns public usage metadata, cache accounting,
   formatting, turn/session totals, duration/TPS interoperability, and usage
   UI.
-- [ ] `AnthropicPromptCachingExtension` is included in the baseline and owns
+- [x] `AnthropicPromptCachingExtension` is included in the baseline and owns
   automatic caching configuration, selectable supported TTL, UI, request
   shaping, and cache-usage collection.
 - [x] Claude-compatible tool schemas, calls, native history, reasoning, usage,
@@ -55,7 +55,7 @@ credential, request, streaming, extension, compatibility, and error contracts.
   interpretation, native-history, public-metadata, and feature-test ownership,
   while provider config owns SDK/beta transport selection.
 - [x] Provider request retry remains owned by `AnthropicProvider`.
-- [ ] Optional non-baseline provider extensions are enabled only when an
+- [x] Optional non-baseline provider extensions are enabled only when an
   explicit boolean capability emits the tag required by that extension.
 - [x] Deterministic unit/contract coverage precedes local Ollama and selective
   hosted Anthropic tests.
@@ -142,8 +142,9 @@ subtask 020.
 Status: Approved
 
 Stage 1 and its config-first reasoning/conformance follow-up were completed
-under the previously approved plan. The detailed Stage 2 plan below was
-approved on 2026-09-01.
+under the previously approved plan. Stage 2 was approved and completed on
+2026-09-01. The revised reasoning-controls shape and Stage 3 implementation
+were approved on 2026-09-02.
 
 Create the first-party package under `plugins/anthropic-compatible` using the
 Anthropic SDK, current provider-plugin conventions, and the approved package
@@ -727,20 +728,435 @@ caching, attachments, cost, compaction, or error-contract scope.
 
 #### Stage 3: Anthropic-specific capabilities
 
-Apply official model capabilities to tags/UI. Distinguish interleaved thinking
-from preservation of prior thinking, add official adaptive/manual effort and
-budget behavior, and complete hosted thinking continuity.
+Apply official model capabilities to model-specific reasoning controls without
+moving official-only settings into the compatible
+`AnthropicReasoningExtension`.
+Distinguish interleaved thinking from prior-thinking preservation, add
+automatic prompt caching with selectable TTL, complete reported cache usage,
+and finish selective official Anthropic acceptance.
 
-Add simple automatic prompt caching with an enabled toggle and selectable
-supported TTL (`5m` or `1h`). Report provider cache-read and cache-creation usage through
-`AnthropicUsageExtension`. Complete selective hosted model-discovery,
-streaming, tool, reasoning, caching, usage, error-message, retry, and
-cancellation verification.
+##### Stage 3 detailed execution plan
 
-Run the existing Claude tool package through the provider and fix only
-provider-boundary incompatibilities demonstrated by realistic tests. Do not
-move provider-specific features from subtasks 011 through 019 into this
-baseline.
+###### 1. Stage boundary and concurrent-work isolation
+
+- Keep Stage 3 centered on:
+  - official model capability normalization;
+  - capability-gated official Anthropic reasoning controls;
+  - `AnthropicPromptCachingExtension`;
+  - cache usage reporting;
+  - interleaved-versus-preserved thinking conformance;
+  - selective official error, retry, cancellation, and Claude-tool acceptance.
+- Subtask 022 owns the portable model picker, rich session settings,
+  frontend placement, manual model entry, and mobile/desktop rendering. Stage
+  3 may enrich model descriptors but does not implement that frontend contract.
+- Reuse the delivered `$variants` configuration language. Do not replace or
+  remove the current `claude_anthropic_model_variants` mixin merely because
+  live model metadata is available.
+- Do not implement server web tools, fast mode/service tiers, native
+  compaction, attachments, Files/PDFs/citations, cost estimation, OAuth, or the
+  structured provider-error contract owned by subtasks 011 through 020.
+- Structured outputs and batch processing remain excluded even though the
+  official model catalog reports those capabilities.
+
+###### 2. Official model capability normalization
+
+The live official Models API on 2026-09-02 returns authoritative nested
+capabilities. The observed catalog contains 10 models and fields for:
+
+- manual and adaptive thinking support;
+- exact effort support for `low`, `medium`, `high`, `xhigh`, and `max`;
+- context-management operations;
+- images, PDFs, citations, structured outputs, batch, and code execution.
+
+Prompt caching is not present in the model capability object.
+
+Implement `AnthropicReasoningControlsExtension.get_models` normalization
+helpers that:
+
+- preserve the complete raw `capabilities` mapping;
+- identify the selected model by exact discovered ID;
+- extract supported thinking types in stable order;
+- extract supported effort values in stable order:
+  `low`, `medium`, `high`, `xhigh`, `max`;
+- retain context-management operation support as descriptor metadata;
+- ignore unknown future capability fields safely;
+- produce no optimistic optional UI when capabilities are absent.
+
+Add a normalized descriptor subtree:
+
+```json
+{
+  "anthropic_reasoning_controls": {
+    "thinking_types": ["adaptive"],
+    "effort_levels": ["low", "medium", "high", "xhigh", "max"],
+    "adaptive_interleaving": true,
+    "context_management": {
+      "clear_thinking_20251015": true
+    }
+  }
+}
+```
+
+`interleaved_thinking` may be derived automatically for adaptive-thinking
+models because official adaptive thinking interleaves thinking around tool
+calls. Manual-thinking interleaving is request/beta dependent and is not
+inferred from model metadata alone.
+
+When no authoritative descriptor is available, apply extension-owned regex
+fallbacks equivalent to the delivered configuration variants:
+
+- Haiku/Sonnet/Opus 4.5: manual thinking;
+- Opus 4.5: low/medium/high effort;
+- Sonnet/Opus 4.6: manual and adaptive thinking plus
+  low/medium/high/max effort;
+- Sonnet 5, Opus 4.7/4.8, Opus 5, and Fable 5: adaptive thinking plus
+  low/medium/high/xhigh/max effort;
+- Mythos preview fallback: adaptive thinking plus
+  low/medium/high/max effort.
+
+Explicit `anthropic_reasoning_capabilities` config overrides both discovered
+and regex-derived descriptor details.
+
+###### 3. Anthropic reasoning controls extension
+
+Create and register `AnthropicReasoningControlsExtension`.
+
+Responsibilities:
+
+- normalize official model reasoning capabilities through `get_models`;
+- provide the known regex fallback when descriptors are absent;
+- contribute exact model-specific reasoning controls and UI;
+- translate normalized controls into Anthropic request fields;
+- leave returned reasoning interpretation and history reconstruction in
+  `AnthropicReasoningExtension`.
+
+Enablement:
+
+- provider tag: `supports_anthropic_reasoning_controls`;
+- required tags:
+  - `provider:anthropic`;
+  - `supports_anthropic_reasoning_controls`.
+- explicit `capabilities.anthropic_reasoning_controls: false` disables the
+  tag;
+- explicit true enables it;
+- otherwise the provider detects the selected enriched model descriptor.
+
+Compatible endpoint overrides may supply:
+
+```json
+{
+  "capabilities": {
+    "anthropic_reasoning_controls": true
+  },
+  "anthropic_reasoning_capabilities": {
+    "thinking_types": ["enabled"],
+    "effort_levels": [],
+    "adaptive_interleaving": false
+  }
+}
+```
+
+Extension-owned settings:
+
+- `anthropic_reasoning_mode`: `disabled`, `manual`, or `adaptive`;
+- `anthropic_reasoning_effort`: supported discovered/fallback values;
+- `anthropic_reasoning_budget_tokens`: numeric manual-thinking budget,
+  default `1024`;
+- `anthropic_reasoning_display`: `summarized` or `omitted`.
+
+UI behavior:
+
+- mode options contain `disabled` plus only supported thinking modes;
+- map official `enabled` to the user-facing `manual` mode;
+- effort options exactly match the selected descriptor;
+- show budget input when manual thinking is supported;
+- show display options when thinking is supported;
+- if explicit capability enablement has no discovered, regex, or configured
+  details, expose no invented select options while still honoring explicitly
+  configured values.
+
+Request mapping:
+
+- disabled -> `thinking.type=disabled`;
+- manual -> `thinking.type=enabled` plus budget and optional display;
+- adaptive -> `thinking.type=adaptive` plus optional display;
+- effort -> `output_config.effort`;
+- preserve unrelated keys already present in `thinking` and `output_config`;
+- run before `RequestOptionsFeature`, so raw `request_options` remains the
+  final escape hatch and wins on conflict.
+
+Default configuration migration:
+
+- change `claude_anthropic_model_variants` from raw thinking/effort
+  `request_options` and `request_options_ui` to extension-owned defaults;
+- retain provider `betas`, `beta_headers`, and raw
+  `request_options.context_management`;
+- add official provider capability enablement so regex fallback and controls
+  remain available when model discovery fails;
+- do not change compatible Ollama configuration, which continues using only
+  `AnthropicReasoningExtension` and raw request options.
+
+Document the complete equivalent capability rules as copyable `$variants`
+snippets. The snippets set `anthropic_reasoning_capabilities` by model regex so
+users can inspect, copy, and alter the same rules when an extension fallback is
+incorrect for their endpoint or future model.
+
+Do not add model-derived UI behavior to generic `RequestOptionsFeature` in
+Stage 3.
+
+###### 4. Prompt-caching capability and extension
+
+Add explicit provider config:
+
+```json
+{
+  "capabilities": {
+    "prompt_caching": true
+  }
+}
+```
+
+Provider behavior:
+
+- emit `supports_prompt_caching` only when
+  `capabilities.prompt_caching is true`;
+- omit the tag when false or absent;
+- do not infer prompt caching from model ID or Models API capabilities.
+
+Create and register `AnthropicPromptCachingExtension` with required tags:
+
+- `provider:anthropic`;
+- `supports_prompt_caching`.
+
+Extension config:
+
+- `enable_prompt_caching`: boolean, default `true`;
+- `prompt_cache_ttl`: enum `5m` or `1h`, default `5m`.
+
+Extension UI:
+
+- enabled checkbox;
+- TTL selector.
+
+Request shaping:
+
+- use the official top-level automatic caching request field:
+
+  ```json
+  {
+    "cache_control": {
+      "type": "ephemeral",
+      "ttl": "5m"
+    }
+  }
+  ```
+
+- do not mutate system/message/tool blocks merely to add manual breakpoints;
+- run before `RequestOptionsFeature` so an explicit raw
+  `request_options.cache_control` remains authoritative;
+- add no cache markers to provider-native history;
+- when the extension is disabled, add nothing and do not remove explicit raw
+  cache options.
+
+This is intentionally simpler than the older OpenRouter Claude caching
+extension, which injects and later strips block-level markers.
+
+###### 5. Cache usage normalization
+
+Keep all usage interpretation in `AnthropicUsageExtension`.
+
+In addition to existing total cache-read and cache-creation counts, normalize
+the official `usage.cache_creation` breakdown:
+
+- `ephemeral_5m_input_tokens`;
+- `ephemeral_1h_input_tokens`.
+
+Expose formatted per-message, turn-cumulative, and session-cumulative fields
+for:
+
+- cache reads;
+- total cache creation;
+- 5-minute cache creation;
+- 1-hour cache creation.
+
+Preserve the raw usage object and never synthesize a provider-reported cache
+class. Cost estimation remains subtask 018.
+
+###### 6. Interleaved versus preserved thinking
+
+Document and test these as separate behaviors:
+
+- **Interleaved thinking:** the model generates new thinking after a tool
+  result within the same user turn.
+- **Preserved prior thinking:** earlier signed thinking remains available
+  across a later user turn and may reduce recomputation.
+
+Interleaved acceptance:
+
+- use an adaptive-thinking official model;
+- complete a tool call and tool result;
+- require non-empty thinking both before the tool call and after the tool
+  result;
+- preserve ordered thinking, signatures, tool-use, and tool-result blocks;
+- leave no reducer scratch state.
+
+Preservation acceptance:
+
+- retain the existing interrupted-user bank-file keep-all test;
+- retain the latest/current-turn clearing negative assertion;
+- keep the first-versus-follow-up reasoning-size contract;
+- do not represent preservation as an automatic model capability because it
+  depends on request history and context-management policy.
+
+Manual interleaving:
+
+- continue supporting explicit beta headers through provider config;
+- let the controls extension describe whether manual interleaving needs a
+  beta, but do not silently add the beta;
+- verify request construction deterministically;
+- keep provider beta arrays explicit.
+
+###### 7. Deterministic acceptance
+
+Add deterministic tests for:
+
+- real official capability payload shapes for:
+  - Haiku 4.5 manual thinking without effort;
+  - Opus 4.5 manual thinking with low/medium/high effort;
+  - Sonnet/Opus 4.6 adaptive and manual thinking with
+    low/medium/high/max effort;
+  - Sonnet/Opus/Fable 5 adaptive thinking with
+    low/medium/high/xhigh/max effort;
+- unknown and partial capability objects;
+- regex fallback capability descriptors;
+- explicit capability-descriptor precedence over discovered and fallback
+  values;
+- controls extension config, UI, and request mapping;
+- raw request-options precedence over controls extension output;
+- prompt-caching capability tag gating;
+- extension schema, UI, enablement, 5m/1h request shaping, and raw override
+  precedence;
+- operation without the caching extension;
+- per-message/turn/session cache usage and TTL breakdown;
+- cache fields arriving at different streaming phases;
+- adaptive interleaved reasoning/tool native-history order;
+- manual interleaving beta request construction;
+- sanitized authentication/validation errors;
+- provider-owned SDK retry through a deterministic local HTTP/SDK fixture;
+- cancellation cleanup and no partial-history append.
+
+Fast deterministic tests remain the source of truth for exact request and
+metadata structures.
+
+###### 8. Selective hosted Anthropic acceptance
+
+Use the repository-root `ANTHROPIC_API_KEY` and discovered official models.
+
+1. **Capability catalog and UI**
+   - fetch the official model catalog;
+   - assert representative discovered capability matrices;
+   - verify the controls extension UI matches those matrices;
+   - verify explicit capability details and raw request options still win.
+
+2. **Prompt caching**
+   - use an available model with a 1024-token minimum cacheable prefix,
+     preferring `claude-sonnet-4-6`;
+   - generate a unique deterministic system prefix above the minimum;
+   - test `5m` in non-streaming mode;
+   - test `1h` in streaming mode;
+   - first request requires positive cache creation;
+   - immediate follow-up requires positive cache read;
+   - verify the matching 5m or 1h cache-creation breakdown;
+   - verify no cache marker is retained in native history.
+
+3. **Adaptive interleaving**
+   - use the current low-cost adaptive model capable of the required tool flow;
+   - require thinking before and after the tool result;
+   - verify signatures and ordered native history.
+
+4. **Preservation regression**
+   - rerun the existing keep-all interrupted-user bank test;
+   - rerun the current-turn clearing negative case;
+   - do not duplicate the full Stage 1 bank matrix.
+
+5. **Errors and cancellation**
+   - run one official invalid-auth error test using a deliberately invalid key;
+   - run one bounded cancellation-after-first-partial stream test;
+   - do not deliberately provoke hosted rate limits or overloads;
+   - use deterministic fixtures for retry behavior.
+
+6. **Claude tool package**
+   - rerun the existing direct Anthropic/default-config Read-tool smoke;
+   - fix only provider-boundary incompatibilities exposed by that realistic
+     flow.
+
+Hosted cache tests use the minimum prompt and output sizes needed to prove a
+real write and hit. They do not become broad model matrices.
+
+###### 9. Default configuration and package integration
+
+- Add `capabilities.prompt_caching: true` to the official direct Anthropic
+  provider configuration.
+- Add `capabilities.anthropic_reasoning_controls: true` to the official direct
+  Anthropic provider configuration.
+- Rely on extension defaults for enabled caching and `5m` TTL unless the
+  effective agent config explicitly overrides them.
+- Do not add prompt caching to Ollama-compatible configuration.
+- Migrate current model-selected reasoning defaults to extension-owned keys,
+  retain context-management/beta configuration, and verify the extension
+  fallback rules against official capability fixtures.
+- Do not edit model-picker/rich UI fields owned by subtask 022.
+- Add default-config inspection and hosted smoke assertions for:
+  - caching extension activation;
+  - caching UI;
+  - reasoning-controls activation and exact model-specific UI.
+
+###### 10. Documentation, specification, and evidence
+
+- Update the Anthropic package README and implementation guide with:
+  - official capability-derived request UI;
+  - normalized reasoning-controls settings;
+  - copyable equivalent `$variants` capability snippets;
+  - compatible-endpoint fallback behavior;
+  - automatic caching and TTL;
+  - raw override precedence;
+  - cache usage fields;
+  - interleaved versus preserved thinking;
+  - hosted cache and cancellation commands.
+- Update the package specification, verification guide, and requirements
+  `ANTH-001`, `ANTH-003`, `ANTH-009`, `ANTH-012`, `ANTH-013`, `ANTH-015`, and
+  `ANTH-017`.
+- Update portable provider requirements for provider-specific controls
+  extensions, authoritative capability descriptors, explicit fallback
+  metadata, and optional extension gating.
+- Update public provider and request-options authoring docs only with delivered
+  reusable behavior.
+- Keep subtask 022's rich model-picker and frontend documentation untouched.
+
+###### 11. Stage 3 checkpoint
+
+Stage 3 is ready for review when:
+
+- the package fast suite passes;
+- official capability fixtures and regex fallbacks generate exact
+  thinking/effort controls;
+- explicit capability details and raw request options win;
+- `AnthropicReasoningControlsExtension` is independently registered and absent
+  for ordinary Ollama configuration;
+- `AnthropicPromptCachingExtension` is independently registered and gated by
+  `capabilities.prompt_caching`;
+- deterministic 5m/1h request and usage tests pass;
+- hosted 5m and 1h write/hit tests pass;
+- adaptive interleaved thinking and existing preservation/clearing cases pass;
+- official invalid-auth and cancellation tests pass;
+- provider-owned retry passes through a deterministic SDK/HTTP fixture;
+- the direct Claude Read-tool smoke passes;
+- application and request-options regression suites pass;
+- Pyright, Ruff, Black, documentation preparation, and MkDocs build pass;
+- requirement evidence is current.
+
+Stop for review after Stage 3. Do not absorb follow-up features from subtasks
+011 through 020 or frontend work from subtask 022.
 
 ### Implementation decisions and open questions
 
@@ -781,6 +1197,43 @@ baseline.
 - Decision: automatic prompt caching exposes a selectable supported TTL and is
   enabled only when `capabilities.prompt_caching` emits its extension's
   required tag. Official Anthropic may enable it in Stage 3; Ollama does not.
+- Decision: `AnthropicReasoningExtension` remains the compatible reasoning
+  output/history interpreter and contributes no request controls or UI.
+- Decision: `AnthropicReasoningControlsExtension` owns official-style
+  reasoning settings, model-specific UI, and request shaping.
+- Decision: `AnthropicReasoningControlsExtension.get_models` normalizes
+  official descriptors and applies known model-regex fallbacks when
+  authoritative capability details are absent.
+- Decision: explicit `anthropic_reasoning_capabilities` overrides discovered
+  and regex-derived control details.
+- Decision: the extension owns Anthropic-prefixed mode, effort, budget, and
+  display settings. Raw `request_options` runs later and wins.
+- Decision: the extension emits no invented select options when explicit
+  enablement has no discovered, regex, or configured capability details.
+- Decision: the complete regex fallback matrix is documented as equivalent
+  copyable `$variants` snippets.
+- Decision: provider beta arrays and context-management bodies remain explicit
+  provider/raw request configuration.
+- Decision: do not add model-derived UI behavior to generic
+  `RequestOptionsFeature`.
+- Decision: reasoning controls are separate from subtask 022's rich model
+  picker and frontend placement contract.
+- Decision: no model-capability tag is added unless an active plugin consumes
+  it. Stage 3 adds `supports_anthropic_reasoning_controls` and
+  `supports_prompt_caching`.
+- Decision: official automatic caching uses top-level `cache_control`, not
+  persisted block-level cache markers.
+- Decision: `enable_prompt_caching` defaults to true and
+  `prompt_cache_ttl` defaults to `5m` when the caching extension is enabled.
+- Decision: explicit raw `request_options.cache_control` wins over automatic
+  caching request shaping.
+- Decision: cache-read and cache-creation interpretation, including 5m/1h
+  breakdowns, remains owned by `AnthropicUsageExtension`.
+- Decision: interleaved thinking is generation around tool results within one
+  user turn; preserved thinking is cross-user-turn history behavior. The
+  provider does not collapse them into one capability.
+- Decision: hosted acceptance does not deliberately provoke rate limits or
+  overloads; retry behavior uses a deterministic SDK/HTTP fixture.
 - Decision: usage remains separate from prompt caching; cache-read/write
   counts are surfaced by the usage extension.
 - Decision: image attachments and multimodal image-result handling belong to
@@ -828,7 +1281,7 @@ baseline.
   bank-file continuity, and portable conformance follow-up.
 - [x] Complete Stage 2 compatible discovery, Ollama effort/usage coverage, and
   duration/TPS interoperability.
-- [ ] Complete Stage 3 official capability, interleaved/preserved thinking,
+- [x] Complete Stage 3 official capability, interleaved/preserved thinking,
   automatic caching/TTL, and hosted acceptance.
 - [x] Add safe generic error messages and provider-owned retry behavior.
 - [x] Document delivered behavior and limitations.
@@ -866,6 +1319,65 @@ baseline.
   weakening conservative defaults.
 
 ## Implementation Notes
+
+### 2026-09-02 Stage 3 implementation
+
+Implemented:
+
+- `AnthropicReasoningControlsExtension` as a separate official-style controls
+  extension while retaining `AnthropicReasoningExtension` for compatible
+  reasoning output and history;
+- official capability normalization for thinking modes, exact effort levels,
+  context-management operations, and adaptive interleaving;
+- extension-owned regex fallback rules for known Claude 4.5, 4.6, 4.7/4.8,
+  Claude 5, Fable, and Mythos model IDs;
+- explicit `anthropic_reasoning_capabilities` precedence over discovered and
+  fallback details;
+- model-specific mode, effort, budget, and display UI plus request shaping,
+  with raw `request_options` retaining final precedence;
+- copyable equivalent `$variants` fallback and default-setting snippets in the
+  package reasoning-controls guide;
+- `AnthropicPromptCachingExtension` with explicit capability gating,
+  enabled/disabled UI, selectable `5m`/`1h` TTL, and top-level automatic
+  `cache_control`;
+- cache-read, total cache-creation, 5-minute creation, and 1-hour creation
+  usage fields with formatted, turn, and session totals;
+- responsive hosted stream cancellation using a daemon SDK reader and
+  cancellation-aware provider queue;
+- deterministic real-SDK retry verification through a local HTTP overload
+  fixture;
+- direct Anthropic default configuration migrated from raw reasoning UI to
+  extension-owned controls while retaining explicit beta and context
+  management configuration.
+
+Hosted verification:
+
+- the live official model catalog returned 10 capability-bearing model
+  descriptors;
+- representative Haiku 4.5, Sonnet 4.6, and Sonnet 5 reasoning capability and
+  UI assertions passed;
+- automatic `5m` non-streaming and `1h` streaming cache writes and immediate
+  cache hits passed;
+- sequential adaptive interleaving passed by requiring a hidden-number tool
+  result before a second dependent add-tool call;
+- invalid authentication remained sanitized;
+- cancellation after streaming started returned
+  `ProviderRequestCancelled` promptly;
+- the existing keep-all preservation and current-turn clearing tests passed;
+- the default-config direct Claude Read-tool smoke passed.
+
+Findings:
+
+- adaptive interleaving does not guarantee visible thinking before or after a
+  tool call when the remaining action is trivial; a sequential dependent
+  two-tool scenario is required for stable observable acceptance;
+- the SDK stream wrapper's ordinary close path does not reliably interrupt a
+  blocked synchronous read from another thread, so provider-level polling is
+  required for responsive cancellation;
+- official prompt caching works through top-level request-only
+  `cache_control`; no block-level marker cleanup is required;
+- prompt caching is not published in the Models API capability object and
+  therefore remains an explicit optional provider capability.
 
 ### 2026-09-01 Stage 2 execution started
 
@@ -1120,3 +1632,69 @@ Findings:
   failures in provider tool-display metadata and web-search default-engine
   expectations. The touched OpenRouter reasoning unit and hosted comparison
   slices pass or xfail as documented.
+
+## Completion Notes
+
+Completed on 2026-09-02.
+
+Outcome:
+
+- The direct API-key Anthropic provider baseline is complete through all three
+  approved checkpoints.
+- Official Anthropic and compatible Ollama endpoints share one provider and
+  complete native Messages history.
+- Tools, compatible reasoning interpretation, official reasoning controls,
+  usage, and prompt caching have separate extension ownership.
+- Official reasoning controls use authoritative model capabilities, explicit
+  capability-detail overrides, and documented regex fallbacks.
+- Automatic prompt caching supports selectable `5m` and `1h` TTL and reports
+  official cache-read/write usage classes.
+- Interleaved tool-turn thinking and cross-user-turn thinking preservation are
+  distinct documented and tested behaviors.
+
+Requirement evidence:
+
+- `ANTH-001` through `ANTH-009`, `ANTH-012` through `ANTH-015`, `ANTH-017`,
+  and `ANTH-018` have implementation, verification, and documentation
+  evidence in the package requirements table.
+- Portable provider requirements record transport/extension ownership,
+  compatible endpoint behavior, usage/TPS, capability-driven controls, and
+  conformance evidence.
+- OAuth, attachments, cost estimation, structured provider errors, server
+  tools, native compaction, PDFs/citations, and other approved follow-ups
+  remain in their separate subtasks.
+
+Verification:
+
+- package fast suite: 59 passed, 24 deselected;
+- local Qwen 3.5 compatibility: 11 passed;
+- local Granite reasoning-effort effectiveness: passed;
+- Stage 3 official capability/cache/interleaving/error/cancellation suite:
+  6 passed;
+- existing preservation and clearing regressions: 2 passed;
+- direct default-config Anthropic Read-tool smoke: passed;
+- application fast suite: 370 passed, 92 deselected;
+- Black, Ruff, and Pyright pass;
+- documentation preparation and MkDocs build pass with existing warnings;
+- `git diff --check` passes.
+
+Plan deviations and findings:
+
+- The temporary generic model-derived `RequestOptionsFeature` UI expansion was
+  not implemented. Official controls moved into
+  `AnthropicReasoningControlsExtension`, while raw request options remain the
+  final override.
+- The one-tool interleaving scenario was replaced by a sequential dependent
+  two-tool scenario because adaptive models may omit visible thinking when the
+  post-tool action is trivial.
+- Hosted stream cancellation required a provider-side reader queue because
+  closing the synchronous SDK stream from another thread did not reliably
+  interrupt a blocked read.
+- The broader default-config integration assertion expecting explicit
+  `main_search: false` on secondary search filters remains unrelated and
+  failing; the session-search plugin currently omits that false-valued field.
+  Anthropic-specific default-config tests pass.
+
+The parent task status was not edited because
+`tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md` has
+concurrent uncommitted changes owned by another agent.

@@ -115,15 +115,17 @@ Thinking and redacted-thinking blocks are preserved exactly and in order in
 client-side native history. Tool rounds must not strip, reorder, rewrite, or
 synthesize signatures.
 
-Request-body thinking controls use raw request options. Server-side retention
-may be model-default or controlled through beta context management, while the
-client retains the complete native history. The canonical bank-file
-conformance test verifies tool-turn continuity, and its interrupted-user
-variant verifies profiles that claim cross-request reasoning preservation.
+Official-style thinking controls use `AnthropicReasoningControlsExtension`
+when its capability tag is active. Raw request options run later and remain the
+final request override. Server-side retention may be model-default or
+controlled through beta context management, while the client retains the
+complete native history. The canonical bank-file conformance test verifies
+tool-turn continuity, and its interrupted-user variant verifies
+configurations that claim cross-request reasoning preservation.
 
-When a compatible endpoint does not support thinking signatures, the selected
-profile defines whether thinking is omitted, converted to text, or replayed
-with an allowed empty signature.
+When a compatible endpoint does not support thinking signatures, its explicit
+configuration defines whether thinking is omitted, converted to text, or
+replayed with an allowed empty signature.
 
 ## Stop reasons
 

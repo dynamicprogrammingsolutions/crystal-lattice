@@ -37,6 +37,24 @@ Typical responsibilities:
 - **Hot-path accumulation:** during streaming, accumulate deltas into the shared accumulator `state["accumulator"]`.
 - **Interop mapping:** map provider-native fields ↔ core `message["metadata"]` so apps and the tool loop can work.
 
+### Splitting compatible interpretation from provider-specific controls
+
+When compatible endpoints share response and history semantics but only the
+official API publishes a rich model-control contract, use two extensions:
+
+- a baseline interpretation extension for streamed output, public metadata,
+  signatures, and native-history reconstruction;
+- a capability-gated controls extension for model capability normalization,
+  exact settings/UI, and request shaping.
+
+The controls extension may enrich model descriptors through `get_models` before
+dependency resolution. The provider can then emit the tag required by that
+extension for the selected enriched model or from explicit config.
+
+Raw request options should run later and remain the final escape hatch. When
+the controls extension uses regex fallbacks for known model IDs, package docs
+should include equivalent copyable configuration variants.
+
 ---
 
 ## Enabling extensions with tags

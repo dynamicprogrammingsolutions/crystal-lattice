@@ -5,12 +5,16 @@
     "anthropic_plugins.provider.AnthropicProvider",
     "anthropic_plugins.tools_extension.AnthropicToolsExtension",
     "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
-    "anthropic_plugins.usage_extension.AnthropicUsageExtension"
+    "anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension",
+    "anthropic_plugins.usage_extension.AnthropicUsageExtension",
+    "anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension"
   ],
   "kinds": {
     "anthropic_plugins.provider.AnthropicProvider": "providers",
     "anthropic_plugins.tools_extension.AnthropicToolsExtension": "extensions",
     "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension": "extensions",
-    "anthropic_plugins.usage_extension.AnthropicUsageExtension": "extensions"
+    "anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension": "extensions",
+    "anthropic_plugins.usage_extension.AnthropicUsageExtension": "extensions",
+    "anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension": "extensions"
   }
 }

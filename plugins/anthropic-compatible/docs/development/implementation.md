@@ -5,9 +5,12 @@
 - `anthropic_plugins.provider.AnthropicProvider`
 - `anthropic_plugins.tools_extension.AnthropicToolsExtension`
 - `anthropic_plugins.reasoning_extension.AnthropicReasoningExtension`
+- `anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension`
 - `anthropic_plugins.usage_extension.AnthropicUsageExtension`
+- `anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension`
 
-All four classes are registered by `agent_plugin.json`.
+All five extension classes plus the provider are registered by
+`agent_plugin.json`.
 
 ## Provider boundary
 
@@ -35,13 +38,20 @@ partial input JSON, and Anthropic tool interop.
 
 `AnthropicReasoningExtension` owns streamed reasoning, redacted thinking,
 signatures, reasoning metadata, and native-history reconstruction. It
-contributes no request config or UI. `RequestOptionsFeature` supplies raw
-`thinking`, `output_config`, `context_management`, and other request-body
-fields.
+contributes no request config or UI.
+
+`AnthropicReasoningControlsExtension` normalizes official model capability
+data, supplies known Claude regex fallbacks, contributes model-specific UI,
+and maps normalized settings into `thinking` and `output_config`.
+`RequestOptionsFeature` remains the final raw request override.
 
 `AnthropicUsageExtension` owns public token metadata, formatting, turn/session
 accumulation, stable turn IDs and terminal/tool-call state, and the standard
 cumulative fields consumed by performance extensions.
+
+`AnthropicPromptCachingExtension` owns automatic top-level cache configuration,
+enabled/TTL UI, and capability gating. Cache usage remains in
+`AnthropicUsageExtension`.
 
 Extensions use shared provider state but keep feature state under namespaced
 keys:
@@ -74,6 +84,9 @@ anthropic_usage
 - `test_ollama_reasoning_effort_integration.py`: slow local Granite low/high
   reasoning-size effectiveness.
 - `test_anthropic_api_integration.py`: minimal official API verification.
+- `test_anthropic_stage3_api_integration.py`: official capability descriptors,
+  prompt caching, adaptive interleaving, authentication errors, and
+  cancellation.
 
 The deterministic tests define exact behavior. Ollama tests prove real
 compatible transport. Hosted tests cover only official API behavior that the

@@ -18,6 +18,8 @@ def _format_tokens(value: int) -> str:
 def _normalized_usage(raw: dict[str, Any]) -> dict[str, int]:
     details = raw.get("output_tokens_details")
     details = details if isinstance(details, dict) else {}
+    cache_creation = raw.get("cache_creation")
+    cache_creation = cache_creation if isinstance(cache_creation, dict) else {}
     input_tokens = _integer(raw.get("input_tokens"))
     output_tokens = _integer(raw.get("output_tokens"))
     return {
@@ -26,6 +28,8 @@ def _normalized_usage(raw: dict[str, Any]) -> dict[str, int]:
         "total": input_tokens + output_tokens,
         "cached": _integer(raw.get("cache_read_input_tokens")),
         "cache_write": _integer(raw.get("cache_creation_input_tokens")),
+        "cache_write_5m": _integer(cache_creation.get("ephemeral_5m_input_tokens")),
+        "cache_write_1h": _integer(cache_creation.get("ephemeral_1h_input_tokens")),
         "reasoning": _integer(details.get("thinking_tokens")),
     }
 
@@ -54,6 +58,14 @@ def _usage_metadata(
         "usage_cached_tokens_formatted": _format_tokens(usage["cached"]),
         "usage_cache_write_tokens": usage["cache_write"],
         "usage_cache_write_tokens_formatted": _format_tokens(usage["cache_write"]),
+        "usage_cache_write_5m_tokens": usage["cache_write_5m"],
+        "usage_cache_write_5m_tokens_formatted": _format_tokens(
+            usage["cache_write_5m"]
+        ),
+        "usage_cache_write_1h_tokens": usage["cache_write_1h"],
+        "usage_cache_write_1h_tokens_formatted": _format_tokens(
+            usage["cache_write_1h"]
+        ),
         "usage_reasoning_tokens": usage["reasoning"],
         "usage_reasoning_tokens_formatted": _format_tokens(usage["reasoning"]),
         "usage_turn_input_tokens_cumulative": turn["input"],
@@ -66,6 +78,8 @@ def _usage_metadata(
         "usage_turn_cache_write_tokens_cumulative_formatted": _format_tokens(
             turn["cache_write"]
         ),
+        "usage_turn_cache_write_5m_tokens_cumulative": turn["cache_write_5m"],
+        "usage_turn_cache_write_1h_tokens_cumulative": turn["cache_write_1h"],
         "usage_turn_reasoning_tokens_cumulative": turn["reasoning"],
         "usage_turn_reasoning_tokens_cumulative_formatted": _format_tokens(
             turn["reasoning"]
@@ -75,6 +89,8 @@ def _usage_metadata(
         "usage_total_tokens_cumulative": session["total"],
         "usage_cached_tokens_cumulative": session["cached"],
         "usage_cache_write_tokens_cumulative": session["cache_write"],
+        "usage_cache_write_5m_tokens_cumulative": session["cache_write_5m"],
+        "usage_cache_write_1h_tokens_cumulative": session["cache_write_1h"],
         "usage_reasoning_tokens_cumulative": session["reasoning"],
     }
 
@@ -86,6 +102,8 @@ def _sum_usage(messages: list[dict[str, Any]]) -> dict[str, int]:
         "total": 0,
         "cached": 0,
         "cache_write": 0,
+        "cache_write_5m": 0,
+        "cache_write_1h": 0,
         "reasoning": 0,
     }
     for message in messages:
@@ -159,6 +177,16 @@ class AnthropicUsageExtension(ProviderExtensionPlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.usage_cache_write_tokens_formatted",
                 "template": "Cache write: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_cache_write_5m_tokens_formatted",
+                "template": "Cache 5m: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_cache_write_1h_tokens_formatted",
+                "template": "Cache 1h: {{data}}",
             },
             {
                 "ui_type": "message_footer",

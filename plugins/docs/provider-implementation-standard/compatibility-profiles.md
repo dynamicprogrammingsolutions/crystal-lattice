@@ -41,6 +41,11 @@ Keep optional capability settings minimal:
 Capability or tag config should not select credentials, endpoints, models, or
 headers unless those values are ordinary explicit provider configuration.
 
+When a package uses model-name regex fallbacks for optional capability details,
+publish equivalent copyable configuration variants. Users must be able to
+override an outdated alias or future model mapping without patching plugin
+code.
+
 ## Inspectable presets
 
 Compatible endpoint convenience setups should be ordinary inspectable

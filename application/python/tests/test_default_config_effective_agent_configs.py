@@ -57,15 +57,13 @@ def test_default_config_declares_provider_qualified_claude_agents() -> None:
         in config["agents"]["claude-anthropic"]["mixin_refs"]
     )
     variants = config["mixins"]["claude_anthropic_model_variants"]["$variants"]
-    assert len(variants) == 8
-    assert variants[0]["request_options"]["thinking"] == {
-        "type": "enabled",
-        "budget_tokens": 1024,
-    }
-    assert variants[3]["request_options"]["thinking"] == {
-        "type": "adaptive",
-        "display": "summarized",
-    }
+    assert len(variants) == 4
+    assert variants[0]["anthropic_reasoning_mode"] == "manual"
+    assert variants[0]["anthropic_reasoning_budget_tokens"] == 1024
+    assert variants[2]["anthropic_reasoning_effort"] == "high"
+    assert variants[3]["anthropic_reasoning_mode"] == "adaptive"
+    assert variants[3]["anthropic_reasoning_display"] == "summarized"
+    assert variants[3]["anthropic_reasoning_effort"] == "high"
     assert "path:${env:BUILTIN_PLUGINS}/anthropic-compatible" in config["plugins"]
     assert config["providers"]["anthropic"] == {
         "mixin_refs": ["provider_defaults"],
@@ -73,6 +71,10 @@ def test_default_config_declares_provider_qualified_claude_agents() -> None:
         "auth_mode": "api",
         "api_key": "${env:ANTHROPIC_API_KEY}",
         "base_url": "https://api.anthropic.com",
+        "capabilities": {
+            "anthropic_reasoning_controls": True,
+            "prompt_caching": True,
+        },
     }
     app_config = config["application"]["application_config"]
     assert "ANTHROPIC_API_KEY" in app_config["editable_env_keys"]
@@ -126,9 +128,13 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
     sonnet_config = app.resolve_effective_config(base_config, session)
     assert sonnet_config["model"] == "claude-sonnet-5"
     assert sonnet_config["betas"] == ["context-management-2025-06-27"]
-    assert sonnet_config["request_options"]["thinking"] == {
-        "type": "adaptive",
-        "display": "summarized",
+    assert sonnet_config["anthropic_reasoning_mode"] == "adaptive"
+    assert sonnet_config["anthropic_reasoning_display"] == "summarized"
+    assert sonnet_config["anthropic_reasoning_effort"] == "high"
+    assert sonnet_config["request_options"] == {
+        "context_management": {
+            "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
+        }
     }
 
     haiku_session = session.__class__(
@@ -140,17 +146,17 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
         },
     )
     haiku_config = app.resolve_effective_config(base_config, haiku_session)
-    assert haiku_config["request_options"] == {
-        "thinking": {"type": "enabled", "budget_tokens": 1024}
-    }
+    assert haiku_config["anthropic_reasoning_mode"] == "manual"
+    assert haiku_config["anthropic_reasoning_budget_tokens"] == 1024
+    assert "request_options" not in haiku_config
     assert "betas" not in haiku_config
     haiku_ui = core.get_ui_schema(config=haiku_config)
     haiku_ui_keys = {
         element["key"] for element in haiku_ui if isinstance(element.get("key"), str)
     }
-    assert "request_options__thinking__type" in haiku_ui_keys
-    assert "request_options__thinking__budget_tokens" in haiku_ui_keys
-    assert "request_options__output_config__effort" not in haiku_ui_keys
+    assert "anthropic_reasoning_mode" in haiku_ui_keys
+    assert "anthropic_reasoning_budget_tokens" in haiku_ui_keys
+    assert "anthropic_reasoning_effort" not in haiku_ui_keys
 
     sonnet_ui = core.get_ui_schema(config=sonnet_config)
     sonnet_ui_by_key = {
@@ -160,9 +166,7 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
     }
     assert [
         option["value"]
-        for option in sonnet_ui_by_key["request_options__output_config__effort"][
-            "options"
-        ]
+        for option in sonnet_ui_by_key["anthropic_reasoning_effort"]["options"]
     ] == ["low", "medium", "high", "xhigh", "max"]
 
     opus_session = session.__class__(
@@ -175,11 +179,10 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
     )
     opus_config = app.resolve_effective_config(base_config, opus_session)
     assert opus_config["beta_headers"] == ["interleaved-thinking-2025-05-14"]
-    assert opus_config["request_options"]["thinking"] == {
-        "type": "enabled",
-        "budget_tokens": 1024,
-    }
-    assert opus_config["request_options"]["output_config"] == {"effort": "high"}
+    assert opus_config["anthropic_reasoning_mode"] == "manual"
+    assert opus_config["anthropic_reasoning_budget_tokens"] == 1024
+    assert opus_config["anthropic_reasoning_effort"] == "high"
+    assert "request_options" not in opus_config
 
 
 @pytest.mark.integration

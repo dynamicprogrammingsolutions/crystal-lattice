@@ -15,9 +15,12 @@ Use local fake HTTP/SSE fixtures for:
 - thinking, redacted thinking, and signatures;
 - raw manual, adaptive, disabled, effort, display, and context-management
   request options;
+- official reasoning-control descriptors, regex fallbacks, UI, and request
+  mapping;
 - standard/beta SDK selection and beta-header composition;
 - initial/final usage;
 - cache request shaping;
+- 5-minute and 1-hour cache usage breakdown;
 - safe SDK error messages and provider-owned retry behavior;
 - cancellation before connect, during response, and after completion;
 - explicit capability-to-tag mapping and extension disablement.
@@ -58,6 +61,10 @@ General local tests default to `qwen3.5:0.8b`. The dedicated slow
 reasoning-effort test defaults to `granite4.2:3b`, sends only
 `output_config.effort`, and requires median `high` reasoning size to be at
 least twice median `low` reasoning size across five attempts per level.
+
+Official Stage 3 tests additionally cover capability-derived controls,
+automatic 5-minute and 1-hour cache writes/hits, sequential adaptive
+interleaving, invalid authentication, and cancellation after streaming starts.
 
 Tests use `integration` and `ollama` markers. A skipped gated test is not a
 successful verification run unless the gate was enabled and the skip is

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 from typing import Any
 
@@ -61,6 +64,7 @@ def test_provider_identity_schema_and_tags() -> None:
     assert schema["base_url"]["default"] == "https://api.anthropic.com"
     assert schema["betas"]["default"] == []
     assert schema["beta_headers"]["default"] == []
+    assert schema["capabilities"]["default"] == {}
     assert "supports_tools" in provider.get_tags({}, [])
     assert "supports_reasoning" in provider.get_tags({}, [])
     assert "supports_usage" in provider.get_tags({}, [])
@@ -580,3 +584,77 @@ def test_error_redacts_configured_api_key(monkeypatch) -> None:
         assert "<redacted>" in str(exc)
     else:
         raise AssertionError("expected request error")
+
+
+def test_sdk_retries_transient_overload_before_visible_output() -> None:
+    class Handler(BaseHTTPRequestHandler):
+        attempts = 0
+
+        def do_POST(self) -> None:  # noqa: N802
+            type(self).attempts += 1
+            length = int(self.headers.get("content-length", "0"))
+            self.rfile.read(length)
+            if type(self).attempts == 1:
+                self.send_response(529)
+                self.send_header("content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "error": {
+                                "type": "overloaded_error",
+                                "message": "temporary overload",
+                            },
+                        }
+                    ).encode("utf-8")
+                )
+                return
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "id": "msg_retry",
+                        "type": "message",
+                        "role": "assistant",
+                        "model": "claude-test",
+                        "content": [{"type": "text", "text": "recovered"}],
+                        "stop_reason": "end_turn",
+                        "stop_sequence": None,
+                        "usage": {"input_tokens": 1, "output_tokens": 1},
+                    }
+                ).encode("utf-8")
+            )
+
+        def log_message(self, format: str, *args: Any) -> None:
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    provider = AnthropicProvider()
+    config = {
+        "model": "claude-test",
+        "api_key": "test",
+        "base_url": f"http://127.0.0.1:{server.server_port}",
+        "timeout": 10,
+        "max_retries": 1,
+        "max_tokens": 8,
+    }
+    state = provider.init(config)
+    native, state = provider.initialize_request(
+        [{"role": "user", "content": "hello"}],
+        state,
+    )
+
+    try:
+        _partials, finals, _history, _state = provider.call_api(native, state)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert Handler.attempts == 2
+    assert finals[0]["content"] == [{"type": "text", "text": "recovered"}]

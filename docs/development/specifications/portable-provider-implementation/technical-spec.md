@@ -69,6 +69,20 @@ request-options feature may own injection and declarative UI while the
 provider-specific extension retains response interpretation, native-history,
 metadata, tests, and documentation.
 
+A provider may split generic interpretation from provider-specific controls:
+
+- a baseline extension interprets and preserves response/native-history data
+  shared by compatible endpoints;
+- a capability-gated controls extension enriches model descriptors, owns exact
+  provider-specific settings and UI, and maps those settings into request
+  fields;
+- raw request options execute later as the final protocol escape hatch.
+
+Authoritative model descriptors win over package fallbacks. Packages that use
+regex fallbacks for known models document equivalent copyable configuration
+variants so users can override or repair the mapping without changing plugin
+code.
+
 The provider may execute mechanics that cannot be separated from transport,
 including retrying a feature-specific request or parsing a shared event. Those
 mechanics consume normalized extension state and do not independently define
@@ -110,6 +124,10 @@ Model descriptors:
 - retain provider-published capability data where useful;
 - derive stable tags used by extension resolution;
 - preserve conservative behavior when capabilities are absent.
+
+Feature-owning extensions may enrich descriptors with normalized capability
+subtrees used by their own UI and request shaping. Explicit capability details
+may override discovered or fallback values.
 
 Discovery failures return an empty list rather than preventing explicit model
 configuration. Providers should not infer unstable capability sets from model
