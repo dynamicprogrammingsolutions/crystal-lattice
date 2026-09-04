@@ -8,6 +8,8 @@ The package currently provides:
 - ordinary and streaming Messages requests through the Anthropic Python SDK;
 - API-key configuration;
 - model discovery;
+- discovered-model dropdowns, manual model IDs, and compact composer model
+  selection through the standard configuration UI contract;
 - complete provider-native content-block history;
 - request cancellation;
 - tool schemas, calls, and results through `AnthropicToolsExtension`;

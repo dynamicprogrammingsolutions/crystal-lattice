@@ -114,5 +114,13 @@ If the endpoint has an authoritative catalog:
 - return an empty list on discovery failure;
 - keep manual model entry usable.
 
+Provider UI represents a discovered model catalog as one ordinary
+`ui_type: "config"` element with `type: "dropdown"`. It retains a text fallback
+when discovery is unavailable, permits explicit string model IDs, and may make
+the same setting available around the composer through self-contained
+`rich_ui.kind: "dropdown"` metadata. Model selection always writes the
+ordinary `model` session override; it does not use a provider-specific UI type
+or action endpoint.
+
 Do not make optimistic feature claims from an unknown model name when
 authoritative capabilities or explicit compatibility config are absent.

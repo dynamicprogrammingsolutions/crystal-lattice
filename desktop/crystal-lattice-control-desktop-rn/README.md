@@ -19,6 +19,10 @@ Metro + TS are configured to handle symlinks (`desktop/crystal-lattice-control-d
 
 - [Home, Watchlist, History, status, and session tabs](docs/home-and-session-navigation.md)
 
+## Development documentation
+
+- [Desktop development](docs/development/index.md)
+
 # Getting Started
 
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.

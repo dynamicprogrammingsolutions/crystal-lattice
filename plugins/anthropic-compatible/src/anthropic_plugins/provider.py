@@ -186,11 +186,27 @@ class AnthropicProvider(ProviderPlugin):
             and isinstance(model.get("id"), str)
             and model["id"]
         ]
-        model_ui = (
-            {"type": "select", "key": "model", "label": "Model", "options": options}
-            if options
-            else {"type": "text", "key": "model", "label": "Model"}
-        )
+        model_ui = {
+            "ui_type": "config",
+            "type": "dropdown" if options else "text",
+            "key": "model",
+            "label": "Model",
+            **({"options": options} if options else {}),
+            "allow_custom_value": True,
+            "custom_value_label": "Other model…",
+            "custom_value_placeholder": "Enter a model ID",
+            "rich_ui": {
+                "kind": "dropdown",
+                "label": "Model",
+                "options": options,
+                "allow_custom_value": True,
+                "custom_value_label": "Other model…",
+                "custom_value_placeholder": "Enter a model ID",
+                "placements": ["composer"],
+                "default_pinned": True,
+                "icon": "cpu",
+            },
+        }
         return [
             model_ui,
             {"type": "text", "key": "base_url", "label": "Base URL"},

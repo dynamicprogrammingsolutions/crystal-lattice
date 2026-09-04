@@ -26,3 +26,21 @@ Maintainer entry points:
 - `src/home/DesktopHomeWorkspaceContext.tsx`
 - `src/tabs/desktopWorkspaceState.ts`
 - `src/status/DesktopConnectionSessionStatusReader.ts`
+
+## Rich session settings and actions
+
+`ChatPane` renders normalized config-rich dropdowns and rich session actions
+at their declared `session_header` or `composer` placement. Config changes use
+the ordinary session-settings controller. Rich action controls use the
+ordinary action runner.
+
+Compact dropdowns and rich lists open through the native popover coordinator.
+The full Session Settings window renders `type: "dropdown"` with `MacSelect`
+and exposes custom string entry when `allow_custom_value` is enabled.
+
+Maintainer entry points:
+
+- `src/chat/ChatPane.tsx`
+- `src/windows/SessionSettingsWindow.tsx`
+- `src/native/MacSelect.tsx`
+- `src/windows/desktopPopoverCoordinator.ts`

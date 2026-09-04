@@ -29,6 +29,9 @@ terminal while preserving the existing OpenRouter Claude option.
 - [x] Application configuration can select model-specific Anthropic settings
   through reusable configuration variants without requiring separate direct
   Anthropic agents for Haiku and Sonnet.
+- [x] The direct Anthropic provider exposes its discovered and manually
+  entered model setting through the portable rich configuration UI contract
+  across mobile and desktop.
 - [ ] Provider-specific follow-ups add server web tools, fast mode and service
   tiers, native compaction, image attachments, files/PDFs, token counting,
   cost estimation, portable request errors, and advanced server tools without
@@ -73,6 +76,7 @@ terminal while preserving the existing OpenRouter Claude option.
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/019-portable-provider-request-errors.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/020-claude-authentication-plugin.md`
 - [x] `tasks/20260824-direct-claude-provider-and-plugin-login/021-application-config-variants-and-recursive-merge.md`
+- [x] `tasks/20260824-direct-claude-provider-and-plugin-login/022-portable-rich-session-settings-and-model-picker-ui.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/030-claude-client-and-terminal-integration.md`
 
 ## Workstreams
@@ -86,6 +90,9 @@ terminal while preserving the existing OpenRouter Claude option.
 - Configuration composition: subtask 021; this adds reusable model-selected
   variants and one recursive merge contract shared with existing mixins, then
   consolidates the direct Anthropic default agents.
+- Portable rich session settings: subtask 022; this standardizes model
+  dropdowns, config-owned rich controls, chat placements, and frontend
+  rendering without requiring one application plugin per setting.
 - Client and terminal integration: subtask 030.
 
 ## Supporting facts
@@ -168,6 +175,7 @@ or materially different security boundaries.
   request-error work is planned.
 - [ ] Execute and verify OAuth authentication subtask 020.
 - [x] Execute and verify configuration composition subtask 021.
+- [x] Execute and verify portable rich session-settings subtask 022.
 - [ ] Execute and verify frontend/terminal integration subtask 030.
 - [ ] Run selective local-compatible, real-provider, and saved-login smoke
   tests.

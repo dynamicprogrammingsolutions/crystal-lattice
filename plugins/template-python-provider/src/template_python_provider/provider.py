@@ -159,8 +159,38 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
         tags: List[str],
         models: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
+        model_options = [
+            {
+                "value": str(model["id"]),
+                "label": str(model.get("name") or model["id"]),
+            }
+            for model in models
+            if isinstance(model, dict)
+            and isinstance(model.get("id"), str)
+            and model["id"]
+        ]
         return [
-            {"type": "text", "key": "model", "label": "Model"},
+            {
+                "ui_type": "config",
+                "type": "dropdown" if model_options else "text",
+                "key": "model",
+                "label": "Model",
+                **({"options": model_options} if model_options else {}),
+                "allow_custom_value": True,
+                "custom_value_label": "Other model…",
+                "custom_value_placeholder": "Enter a model ID",
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Model",
+                    "options": model_options,
+                    "allow_custom_value": True,
+                    "custom_value_label": "Other model…",
+                    "custom_value_placeholder": "Enter a model ID",
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "icon": "cpu",
+                },
+            },
             {"type": "text", "key": "base_url", "label": "Base URL"},
             {"type": "text", "key": "api_key", "label": "API key"},
             {"type": "checkbox", "key": "debug_stream", "label": "Debug stream"},

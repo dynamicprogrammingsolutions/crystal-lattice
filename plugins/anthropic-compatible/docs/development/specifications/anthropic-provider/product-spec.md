@@ -61,12 +61,14 @@ overrides config.
 ### Model selection
 
 The official endpoint supplies model choices and capabilities through model
-discovery. The UI uses the discovered model ID and display name and enables
-provider extensions from published capabilities rather than hardcoded model
-name patterns.
+discovery. The UI presents the catalog as a dropdown, accepts an explicit
+model ID outside the catalog, and makes the same ordinary `model` setting
+available around the composer. Provider extensions are enabled from published
+capabilities rather than hardcoded model name patterns.
 
 Compatible endpoints may expose only model IDs. In that case the UI remains
-usable. Baseline tools, reasoning, and usage remain available, while
+usable through manual entry. Baseline tools, reasoning, and usage remain
+available, while
 non-baseline optional extensions require their own explicit boolean
 capability.
 

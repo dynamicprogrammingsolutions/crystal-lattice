@@ -134,6 +134,64 @@ configuration. Providers should not infer unstable capability sets from model
 names when authoritative metadata or explicit compatibility config is
 available.
 
+## Portable model-selection UI
+
+A provider with a selectable string model exposes one ordinary
+`ui_type: "config"` element bound to `key: "model"`.
+
+- A non-empty authoritative catalog uses `type: "dropdown"` and string
+  value/label options.
+- Missing or failed discovery uses `type: "text"` so explicit model IDs remain
+  usable.
+- String dropdowns may set `allow_custom_value: true` so users can enter a
+  model ID outside the discovered catalog.
+- Provider model selection writes the ordinary session `model` override. It
+  does not define a provider-specific UI type or application action.
+
+The same config element may include a self-contained compact presentation:
+
+```json
+{
+  "ui_type": "config",
+  "type": "dropdown",
+  "key": "model",
+  "label": "Model",
+  "options": [
+    {"value": "provider/model-a", "label": "Model A"}
+  ],
+  "allow_custom_value": true,
+  "custom_value_label": "Other model…",
+  "custom_value_placeholder": "Enter a model ID",
+  "rich_ui": {
+    "kind": "dropdown",
+    "label": "Model",
+    "options": [
+      {"value": "provider/model-a", "label": "Model A"}
+    ],
+    "allow_custom_value": true,
+    "custom_value_label": "Other model…",
+    "custom_value_placeholder": "Enter a model ID",
+    "placements": ["composer"],
+    "default_pinned": true,
+    "icon": "cpu"
+  }
+}
+```
+
+The containing config element owns setting identity, effective-value
+resolution, mutation, defaults, disabled state, and reset behavior. `rich_ui`
+owns compact presentation and repeats its label, options, custom-entry text,
+icon, placement, and pinning fields. A rich renderer does not implicitly
+inherit those presentation fields from the containing element.
+
+Initial chat placements are `session_header` and `composer`. Placement is
+additive: the complete setting remains available in Session Settings.
+Unknown rich kinds remain transportable and fall back to the ordinary setting.
+
+Ordinary `session_action` elements may use their existing rich toggle/list
+contract at the same chat placements. The ordinary action and dialog remain
+the execution and fallback path.
+
 ## Compatible endpoint capabilities and presets
 
 A provider protocol may be implemented by official and compatible endpoints.

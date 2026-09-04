@@ -463,9 +463,29 @@ class MyOpenAICompatibleProvider(ProviderPlugin):
             for m in models
             if isinstance(m.get("id"), str) and m.get("id")
         ]
-        if options:
-            return [{"type": "select", "key": "model", "label": "Model", "options": options}]
-        return [{"type": "text", "key": "model", "label": "Model id"}]
+        return [
+            {
+                "ui_type": "config",
+                "type": "dropdown" if options else "text",
+                "key": "model",
+                "label": "Model",
+                **({"options": options} if options else {}),
+                "allow_custom_value": True,
+                "custom_value_label": "Other model…",
+                "custom_value_placeholder": "Enter a model ID",
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Model",
+                    "options": options,
+                    "allow_custom_value": True,
+                    "custom_value_label": "Other model…",
+                    "custom_value_placeholder": "Enter a model ID",
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "icon": "cpu",
+                },
+            }
+        ]
 ```
 
 Notes:
@@ -473,6 +493,11 @@ Notes:
 - The `"capabilities"` field above is a provider-defined convention used only by this provider.
   The core does not interpret it; only the tags matter outside the provider.
 - Prefer stable tag names like `provider:...` and `supports_...` so that extensions can depend on them.
+- Use `dropdown`, rather than `select`, for a discovered model catalog.
+  Preserve explicit model IDs with text fallback and custom string entry.
+- A composer model selector is the same ordinary config element with
+  self-contained `rich_ui`; do not define a provider-specific UI type or a
+  second mutation path.
 
 ### 2) Implement `init` and `initialize_request`
 

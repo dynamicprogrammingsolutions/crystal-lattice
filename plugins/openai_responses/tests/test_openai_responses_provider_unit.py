@@ -1262,6 +1262,23 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
             {"label": "GPT-5 Mini", "value": "gpt-5-mini"},
             {"label": "gpt-4.1-mini", "value": "gpt-4.1-mini"},
         ],
+        "allow_custom_value": True,
+        "custom_value_label": "Other model…",
+        "custom_value_placeholder": "Enter a model ID",
+        "rich_ui": {
+            "kind": "dropdown",
+            "label": "Model",
+            "options": [
+                {"label": "GPT-5 Mini", "value": "gpt-5-mini"},
+                {"label": "gpt-4.1-mini", "value": "gpt-4.1-mini"},
+            ],
+            "allow_custom_value": True,
+            "custom_value_label": "Other model…",
+            "custom_value_placeholder": "Enter a model ID",
+            "placements": ["composer"],
+            "default_pinned": True,
+            "icon": "cpu",
+        },
     }
     assert elements[1] == {
         "ui_type": "config",
@@ -1288,17 +1305,6 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
         "label": "Terminal error max retries",
     }
     assert elements[4] == {
-        "ui_type": "model_picker",
-        "key": "model",
-        "attachment_type": "dropdown",
-        "display_placement": "left",
-        "options": [
-            {"label": "GPT-5 Mini", "value": "gpt-5-mini"},
-            {"label": "gpt-4.1-mini", "value": "gpt-4.1-mini"},
-        ],
-        "label": "model",
-    }
-    assert elements[5] == {
         "ui_type": "composer_attachment",
         "key": "openai_responses:attachment:image",
         "attachment_type": "image",
@@ -1321,6 +1327,20 @@ def test_get_ui_elements_falls_back_to_text_when_models_are_unavailable() -> Non
         "type": "text",
         "key": "model",
         "label": "OpenAI Model",
+        "allow_custom_value": True,
+        "custom_value_label": "Other model…",
+        "custom_value_placeholder": "Enter a model ID",
+        "rich_ui": {
+            "kind": "dropdown",
+            "label": "Model",
+            "options": [],
+            "allow_custom_value": True,
+            "custom_value_label": "Other model…",
+            "custom_value_placeholder": "Enter a model ID",
+            "placements": ["composer"],
+            "default_pinned": True,
+            "icon": "cpu",
+        },
     }
     assert elements[1]["ui_type"] == "config"
     assert elements[1]["key"] == "auth_mode"
@@ -1328,9 +1348,7 @@ def test_get_ui_elements_falls_back_to_text_when_models_are_unavailable() -> Non
     assert elements[2]["key"] == "enable_terminal_error_retries"
     assert elements[3]["ui_type"] == "config"
     assert elements[3]["key"] == "terminal_error_max_retries"
-    assert elements[4]["ui_type"] == "model_picker"
-    assert elements[4]["options"] == []
-    assert elements[5]["ui_type"] == "composer_attachment"
+    assert elements[4]["ui_type"] == "composer_attachment"
 
 
 def test_init_uses_env_api_key_when_not_in_config(

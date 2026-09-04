@@ -52,9 +52,16 @@ import {
   selectTranscriptRangeRestoreAnchor,
   storeSessionAttachment,
   generateIdempotencyKey,
+  getDefaultPinnedConfigRichUiKeys,
   getTranscriptRangeControlPresentation,
+  isSessionActionPlacedAt,
+  normalizeSessionActionRichUiElements,
   planTranscriptRangeControlAction,
+  selectConfigRichUiControls,
+  type ConfigRichDropdownUi,
+  type ConfigRichUiControl,
   type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
+  type SessionActionRichUiElement,
   type TranscriptRangeControlAction,
   type RunActionContext,
   type AttachmentDraftStatus,
@@ -64,7 +71,10 @@ import {
   ACTIONS_MENU_BAR_ITEM_WIDTH,
   ApplicationActionDialog,
   ActionsMenuBar,
+  RichConfigDropdownControl,
   SessionActionsBar,
+  SessionListRichActionControl,
+  SessionListRichActionList,
   SessionNotificationsHost,
   SESSION_ACTIONS,
   type ActionDefinition,
@@ -72,6 +82,8 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 import { useChatController, useAgentsController } from '@crystal-lattice/frontend-sdk-react';
 import {
+  buildConfigSchemaByKey,
+  buildSessionSettingItems,
   useHydrateControllerFromCache,
   useSessionContextController,
   useSessionSettingsController,
@@ -95,13 +107,13 @@ import {
   shouldClearPendingRequestRecovery,
   type PendingRequestRecovery,
 } from './chatRecovery';
-import OptionsPickerModal from './components/OptionsPickerModal';
 import SessionSettingsModal from './components/SessionSettingsModal';
 import SessionPluginsModal from './components/SessionPluginsModal';
 import SessionSnapshotsModal from './components/SessionSnapshotsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
+import OptionsPickerModal from './components/OptionsPickerModal';
 import {
   MobileDisplayHost,
   useNotificationDismissalCache,
@@ -214,9 +226,11 @@ type ComposerAttachmentUiElement = SharedComposerAttachmentUiElement & ComposerA
   metadata_ui?: AttachmentMetadataUi;
 };
 
-type ModelPickerUiElement = ComposerActionUiElementBase & {
-  ui_type: 'model_picker';
-  display_placement: 'left';
+type ComposerRichConfigControl = {
+  control: ConfigRichUiControl;
+  effectiveValue: unknown;
+  hasOverride: boolean;
+  disabled: boolean;
 };
 
 type MultipartPartDraft = {
@@ -510,11 +524,8 @@ type ChatComposerProps = {
   attachmentsBelowStrip: AttachmentLike[];
   attachmentsCount: number;
   onOpenAttachmentsManage: (side: AttachmentDraftSide) => void;
-  pinnedModelPickerElements: ModelPickerUiElement[];
-  normalizeSelectOptions: (raw: ComposerActionOptions | undefined) => Array<{ value: string; label: string }>;
-  sessionOverrides: Record<string, any>;
-  sessionBaseConfig: Record<string, any>;
-  onOpenModelPicker: (element: ModelPickerUiElement) => void;
+  pinnedRichConfigControls: ComposerRichConfigControl[];
+  onOpenRichConfigControl: (control: ComposerRichConfigControl) => void;
   composerActions: ActionDefinition[];
   pinnedComposerActions: string[];
   pinnedComposerActionsForBar: string[];
@@ -528,6 +539,7 @@ type ChatComposerProps = {
   activeRequestId: string | null;
   attachmentActionInProgress: boolean;
   isActive: boolean;
+  renderPinnedComposerAction?: (params: any) => React.ReactNode | undefined;
   onOpenAppendAs: (text: string) => void;
   onSend: (text: string) => void;
 };
@@ -541,11 +553,8 @@ const ChatComposer = React.memo(React.forwardRef<ChatComposerHandle, ChatCompose
     attachmentsBelowStrip,
     attachmentsCount,
     onOpenAttachmentsManage,
-    pinnedModelPickerElements,
-    normalizeSelectOptions,
-    sessionOverrides,
-    sessionBaseConfig,
-    onOpenModelPicker,
+    pinnedRichConfigControls,
+    onOpenRichConfigControl,
     composerActions,
     pinnedComposerActions,
     pinnedComposerActionsForBar,
@@ -559,6 +568,7 @@ const ChatComposer = React.memo(React.forwardRef<ChatComposerHandle, ChatCompose
     activeRequestId,
     attachmentActionInProgress,
     isActive,
+    renderPinnedComposerAction,
     onOpenAppendAs,
     onSend,
   }, ref) {
@@ -591,51 +601,26 @@ const ChatComposer = React.memo(React.forwardRef<ChatComposerHandle, ChatCompose
         <View style={styles.composerMainColumn}>
           <View style={styles.composerTopRow}>
             <View style={styles.composerInlineSelectRow}>
-              {pinnedModelPickerElements.map((el) => {
-                const key = typeof el.key === 'string' && el.key.trim() ? el.key : '';
-                if (!key) return null;
-                const options = normalizeSelectOptions(el.options);
-                const elementDefault =
-                  typeof (el as any).default === 'string' ? (el as any).default : undefined;
-                const effectiveValue =
-                  sessionOverrides[key] ??
-                  sessionBaseConfig[key] ??
-                  elementDefault ??
-                  options[0]?.value ??
-                  '';
-                const selectedLabel =
-                  options.find((option) => option.value === effectiveValue)?.label ??
-                  String(effectiveValue);
-                const label =
-                  (typeof el.label === 'string' && el.label.trim() ? el.label : key);
-                const isSelect =
-                  el.attachment_type === 'select' ||
-                  el.attachment_type === 'options' ||
-                  el.attachment_type === 'dropdown';
-                if (!isSelect) return null;
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    style={styles.composerInlineSelectButton}
-                    onPress={() => onOpenModelPicker(el)}
-                    disabled={
-                      sendInProgress ||
-                      !!pendingRequestRecovery ||
-                      !!activeRequestId ||
-                      attachmentActionInProgress ||
-                      options.length === 0
-                    }
-                  >
-                    <Text style={styles.composerInlineSelectLabel} numberOfLines={1}>
-                      {label}:
-                    </Text>
-                    <Text style={styles.composerInlineSelectValue} numberOfLines={1}>
-                      {selectedLabel}
-                    </Text>
-                    <Icon name="chevron-down" size={10} color={theme.textSecondary} />
-                  </TouchableOpacity>
-                );
-              })}
+              {pinnedRichConfigControls.map((entry) => (
+                <RichConfigDropdownControl
+                  key={entry.control.element.key}
+                  control={entry.control}
+                  value={entry.effectiveValue}
+                  disabled={
+                    entry.disabled ||
+                    sendInProgress ||
+                    !!pendingRequestRecovery ||
+                    !!activeRequestId ||
+                    attachmentActionInProgress
+                  }
+                  placement="composer"
+                  renderIcon={({ name, size, color }) => (
+                    <Icon name={name} size={size} color={color} />
+                  )}
+                  testID={`composer-rich-config-${entry.control.element.key}`}
+                  onPress={() => onOpenRichConfigControl(entry)}
+                />
+              ))}
             </View>
             <ActionsMenuBar<ActionDefinition>
               title="Composer actions"
@@ -656,6 +641,7 @@ const ChatComposer = React.memo(React.forwardRef<ChatComposerHandle, ChatCompose
               onAction={onComposerAction}
               isActionDisabled={(key) => isComposerActionDisabled(key, hasDraftMessage)}
               isActive={isActive}
+              renderPinnedAction={renderPinnedComposerAction}
             />
           </View>
 
@@ -849,14 +835,22 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [connectionId],
   );
 
-  const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
+  const {
+    pinned: pinnedSessionActions,
+    setPinned: setPinnedSessionActions,
+    hasStoredPreference: hasStoredSessionActionPreference,
+  } =
     usePersistentPinnedActions<SessionActionKey>(
       scopedSessionActionsStorageKey,
       defaultPinnedSessionActions,
       { migrateFromKeys: [STORAGE_KEY_SESSION_ACTIONS] },
     );
 
-  const { pinned: pinnedComposerActions, setPinned: setPinnedComposerActions } =
+  const {
+    pinned: pinnedComposerActions,
+    setPinned: setPinnedComposerActions,
+    hasStoredPreference: hasStoredComposerActionPreference,
+  } =
     usePersistentPinnedActions<string>(
       scopedComposerActionsStorageKey,
       ['resend', 'cancel'],
@@ -898,10 +892,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     null,
   );
   const [pluginsVisible, setPluginsVisible] = useState(false);
-  const [sessionOverrides, setSessionOverrides] = useState<Record<string, any>>({});
-  const [sessionBaseConfig, setSessionBaseConfig] = useState<Record<string, any>>({});
-  const [composerLeftSelectModalElement, setComposerLeftSelectModalElement] =
-    useState<ModelPickerUiElement | null>(null);
+  const [activeRichConfigControl, setActiveRichConfigControl] =
+    useState<ComposerRichConfigControl | null>(null);
+  const [activeRichSessionAction, setActiveRichSessionAction] =
+    useState<SessionActionRichUiElement | null>(null);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const {
@@ -1248,7 +1242,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       initialSummary: sessionSummary,
       enabled: !!(backend && isActive),
     });
-  const { controller: sessionSettingsController } = useSessionSettingsController({
+  const {
+    controller: sessionSettingsController,
+    state: sessionSettingsState,
+  } = useSessionSettingsController({
     backend,
     cacheKey: connectionId ?? 'default',
     sessionId,
@@ -1422,17 +1419,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }) as ComposerAttachmentUiElement[];
   }, [uiSchemaElements]);
 
-  const modelPickerElements: ModelPickerUiElement[] = useMemo(() => {
-    return (uiSchemaElements || []).filter((el) => {
-      if (!el || el.ui_type !== 'model_picker') return false;
-      const typed = el as any;
-      if (typeof typed.attachment_type !== 'string' || !typed.attachment_type.trim()) return false;
-      return typed.display_placement === 'left';
-    }) as ModelPickerUiElement[];
-  }, [uiSchemaElements]);
-
   const getComposerActionKey = useCallback(
-    (el: ComposerAttachmentUiElement | ModelPickerUiElement) => {
+    (el: ComposerAttachmentUiElement) => {
       const pluginName =
         typeof (el as any).plugin === 'string' && (el as any).plugin
           ? String((el as any).plugin)
@@ -1452,13 +1440,91 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     return map;
   }, [composerAttachmentElementsAll, getComposerActionKey]);
 
-  const modelPickerElementByActionKey = useMemo(() => {
-    const map: Record<string, ModelPickerUiElement> = {};
-    for (const el of modelPickerElements) {
-      map[getComposerActionKey(el)] = el;
-    }
-    return map;
-  }, [getComposerActionKey, modelPickerElements]);
+  const configSchemaByKey = useMemo(
+    () => buildConfigSchemaByKey(sessionSettingsState?.configSchema ?? []),
+    [sessionSettingsState?.configSchema],
+  );
+  const sessionSettingItems = useMemo(
+    () =>
+      buildSessionSettingItems({
+        elements: sessionSettingsState?.elements ?? [],
+        overrides: sessionSettingsState?.overrides ?? {},
+        baseConfig: sessionSettingsState?.baseConfig ?? {},
+        schemaByKey: configSchemaByKey,
+      }),
+    [
+      configSchemaByKey,
+      sessionSettingsState?.baseConfig,
+      sessionSettingsState?.elements,
+      sessionSettingsState?.overrides,
+    ],
+  );
+  const sessionSettingItemByKey = useMemo(
+    () =>
+      Object.fromEntries(
+        sessionSettingItems.map((item) => [item.key, item]),
+      ),
+    [sessionSettingItems],
+  );
+  const composerRichConfigControls = useMemo(() => {
+    const selected = selectConfigRichUiControls(
+      sessionSettingsState?.elements ?? [],
+      'composer',
+    );
+    return selected.controls
+      .filter((control) => control.richUi.kind === 'dropdown')
+      .map((control) => {
+        const item = sessionSettingItemByKey[control.element.key];
+        return {
+          control,
+          effectiveValue: item?.effectiveValue,
+          hasOverride: item?.hasOverride ?? false,
+          disabled: item?.disabled ?? false,
+        } satisfies ComposerRichConfigControl;
+      });
+  }, [sessionSettingItemByKey, sessionSettingsState?.elements]);
+  const composerRichConfigControlByActionKey = useMemo(
+    () =>
+      Object.fromEntries(
+        composerRichConfigControls.map((entry) => [
+          `config:${entry.control.element.key}`,
+          entry,
+        ]),
+      ),
+    [composerRichConfigControls],
+  );
+
+  const normalizedSessionActions = useMemo(
+    () => normalizeSessionActionRichUiElements(visibleSessionActions).elements,
+    [visibleSessionActions],
+  );
+  const headerSessionActions = useMemo(
+    () =>
+      normalizedSessionActions.filter(
+        (element) =>
+          !element.rich_ui ||
+          isSessionActionPlacedAt(element, 'session_header'),
+      ),
+    [normalizedSessionActions],
+  );
+  const composerSessionActions = useMemo(
+    () =>
+      normalizedSessionActions.filter(
+        (element) =>
+          !!element.rich_ui && isSessionActionPlacedAt(element, 'composer'),
+      ),
+    [normalizedSessionActions],
+  );
+  const composerSessionActionByActionKey = useMemo(
+    () =>
+      Object.fromEntries(
+        composerSessionActions.map((element) => [
+          `session_action:${element.id}`,
+          element,
+        ]),
+      ),
+    [composerSessionActions],
+  );
 
   const composerActions: ActionDefinition[] = useMemo(() => {
     const builtins: ActionDefinition[] = [
@@ -1466,7 +1532,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
     ];
 
-    const uiActions: ActionDefinition[] = [...composerAttachmentElementsAll, ...modelPickerElements].map(
+    const attachmentActions: ActionDefinition[] = composerAttachmentElementsAll.map(
       (el) => {
         const key = getComposerActionKey(el);
         const label =
@@ -1490,72 +1556,137 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         } as ActionDefinition;
       },
     );
+    const configActions: ActionDefinition[] = composerRichConfigControls.map(
+      (entry) => {
+        const richUi = entry.control.richUi as ConfigRichDropdownUi;
+        return {
+          key: `config:${entry.control.element.key}`,
+          label: richUi.label,
+          iconName: richUi.icon ?? 'sliders',
+        };
+      },
+    );
+    const sessionActions: ActionDefinition[] = composerSessionActions.map(
+      (element) => ({
+        key: `session_action:${element.id}`,
+        label: element.label,
+        iconName:
+          typeof element.icon === 'string' ? element.icon : 'zap',
+        order: typeof element.order === 'number' ? element.order : undefined,
+      }),
+    );
 
-    return [...uiActions, ...builtins];
-  }, [composerAttachmentElementsAll, getComposerActionKey, modelPickerElements]);
+    return [
+      ...configActions,
+      ...sessionActions,
+      ...attachmentActions,
+      ...builtins,
+    ];
+  }, [
+    composerAttachmentElementsAll,
+    composerRichConfigControls,
+    composerSessionActions,
+    getComposerActionKey,
+  ]);
 
-  /** Left-side model pickers that are pinned, so they show in the inline row. */
-  const pinnedModelPickerElements = useMemo(() => {
-    return modelPickerElements.filter((el) => {
-      const actionKey = getComposerActionKey(el);
-      return pinnedComposerActions.includes(actionKey);
-    });
-  }, [getComposerActionKey, modelPickerElements, pinnedComposerActions]);
-
-  /** Pinned model picker keys are shown in the inline row only, not as icons in the action bar. */
-  const pinnedComposerActionsForBar = useMemo(() => {
-    const leftKeys = new Set(modelPickerElements.map((el) => getComposerActionKey(el)));
-    return pinnedComposerActions.filter((key) => !leftKeys.has(key));
-  }, [getComposerActionKey, modelPickerElements, pinnedComposerActions]);
-
+  const defaultPinnedComposerUiActionKeys = useMemo(
+    () => [
+      ...getDefaultPinnedConfigRichUiKeys(
+        composerRichConfigControls.map((entry) => entry.control),
+      ).map((key) => `config:${key}`),
+      ...composerSessionActions
+        .filter((element) => element.rich_ui?.default_pinned === true)
+        .map((element) => `session_action:${element.id}`),
+    ],
+    [composerRichConfigControls, composerSessionActions],
+  );
   useEffect(() => {
-    if (!backend || !sessionId || modelPickerElements.length === 0) return;
-    let cancelled = false;
-    Promise.all([backend.getSessionOverrides(sessionId), backend.getSessionBaseConfig(sessionId)])
-      .then(([overrides, baseConfig]) => {
-        if (!cancelled) {
-          setSessionOverrides(overrides ?? {});
-          setSessionBaseConfig(baseConfig ?? {});
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [backend, sessionId, modelPickerElements.length]);
+    if (
+      hasStoredComposerActionPreference ||
+      defaultPinnedComposerUiActionKeys.length === 0
+    ) {
+      return;
+    }
+    setPinnedComposerActions((current) => [
+      ...current,
+      ...defaultPinnedComposerUiActionKeys.filter(
+        (key) => !current.includes(key),
+      ),
+    ]);
+  }, [
+    defaultPinnedComposerUiActionKeys,
+    hasStoredComposerActionPreference,
+    setPinnedComposerActions,
+  ]);
 
-  const normalizeSelectOptions = useCallback(
-    (raw: ComposerActionOptions | undefined): Array<{ value: string; label: string }> => {
-      if (!Array.isArray(raw)) return [];
-      return raw
-        .map((opt) => {
-          if (typeof opt === 'string') return { value: opt, label: opt };
-          if (opt && typeof opt === 'object' && typeof (opt as any).value === 'string') {
-            const value = (opt as any).value;
-            const label = typeof (opt as any).label === 'string' ? (opt as any).label : value;
-            return { value, label };
-          }
-          return null;
-        })
-        .filter((v): v is { value: string; label: string } => v !== null);
-    },
-    [],
+  const defaultPinnedHeaderSessionActionKeys = useMemo(
+    () =>
+      headerSessionActions
+        .filter((element) => element.rich_ui?.default_pinned === true)
+        .map((element) => element.id),
+    [headerSessionActions],
+  );
+  useEffect(() => {
+    if (
+      hasStoredSessionActionPreference ||
+      defaultPinnedHeaderSessionActionKeys.length === 0
+    ) {
+      return;
+    }
+    setPinnedSessionActions((current) => [
+      ...current,
+      ...defaultPinnedHeaderSessionActionKeys.filter(
+        (key) => !current.includes(key),
+      ),
+    ]);
+  }, [
+    defaultPinnedHeaderSessionActionKeys,
+    hasStoredSessionActionPreference,
+    setPinnedSessionActions,
+  ]);
+
+  const pinnedRichConfigControls = useMemo(
+    () =>
+      composerRichConfigControls.filter((entry) =>
+        pinnedComposerActions.includes(
+          `config:${entry.control.element.key}`,
+        ),
+      ),
+    [composerRichConfigControls, pinnedComposerActions],
   );
 
-  const handleComposerLeftSelectOption = useCallback(
+  const pinnedComposerActionsForBar = useMemo(() => {
+    const inlineKeys = new Set(
+      composerRichConfigControls.map(
+        (entry) => `config:${entry.control.element.key}`,
+      ),
+    );
+    return pinnedComposerActions.filter((key) => !inlineKeys.has(key));
+  }, [composerRichConfigControls, pinnedComposerActions]);
+
+  const handleRichConfigValue = useCallback(
     async (key: string, value: string) => {
-      if (!backend || !sessionId) return;
-      setComposerLeftSelectModalElement(null);
+      if (!sessionSettingsController) return;
+      setActiveRichConfigControl(null);
       try {
-        await backend.patchSessionOverrides(sessionId, { [key]: value });
-        setSessionOverrides((prev) => ({ ...prev, [key]: value }));
-        sessionUiSchemaController?.invalidate();
-        sessionUiSchemaController?.load();
+        await sessionSettingsController.patchOverride(key, value);
       } catch {
-        // leave modal closed
+        // Controller state captures errors.
       }
     },
-    [backend, sessionId, sessionUiSchemaController],
+    [sessionSettingsController],
+  );
+  const handleRichConfigReset = useCallback(
+    async (key: string) => {
+      if (!sessionSettingsController) return;
+      setActiveRichConfigControl(null);
+      try {
+        await sessionSettingsController.deleteOverride(key);
+      } catch {
+        // Controller state captures errors.
+      }
+    },
+    [sessionSettingsController],
   );
 
   const hasDraftMessage = attachmentsAbove.length > 0 || attachmentsBelow.length > 0;
@@ -1625,14 +1756,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const pluginSessionActionDefs = useMemo(
     () =>
-      visibleSessionActions.map((el) => ({
+      headerSessionActions.map((el) => ({
         key: el.id,
         label: el.label,
         iconName: (el as any).icon || 'zap',
         defaultPinned: false,
         order: typeof el.order === 'number' ? el.order : undefined,
       })),
-    [visibleSessionActions],
+    [headerSessionActions],
   );
 
   const pluginMessageActionDefs = useMemo(
@@ -3235,9 +3366,29 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return;
       }
 
-      const modelPicker = modelPickerElementByActionKey[key];
-      if (modelPicker) {
-        setComposerLeftSelectModalElement(modelPicker);
+      const richConfig = composerRichConfigControlByActionKey[key];
+      if (richConfig) {
+        setActiveRichConfigControl(richConfig);
+        return;
+      }
+
+      const richSessionAction = composerSessionActionByActionKey[key];
+      if (richSessionAction) {
+        refreshSessionContextInBackground();
+        if (richSessionAction.rich_ui?.kind === 'toggle') {
+          executePluginAction(richSessionAction, {
+            sessionId,
+            connectionId: connectionId ?? undefined,
+            sessionSummary: currentSessionSummary ?? undefined,
+          }).catch(() => {});
+        } else if (richSessionAction.rich_ui?.kind === 'list') {
+          setActiveRichSessionAction(richSessionAction);
+        } else {
+          openPluginDialogForElement(richSessionAction, {
+            kind: 'session',
+            sessionSummary: currentSessionSummary,
+          });
+        }
         return;
       }
 
@@ -3248,10 +3399,17 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     },
     [
       composerAttachmentElementByActionKey,
+      composerRichConfigControlByActionKey,
+      composerSessionActionByActionKey,
+      connectionId,
+      currentSessionSummary,
+      executePluginAction,
       handleCancel,
       handlePickAttachment,
       handleResend,
-      modelPickerElementByActionKey,
+      openPluginDialogForElement,
+      refreshSessionContextInBackground,
+      sessionId,
     ],
   );
 
@@ -3273,7 +3431,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return sendInProgress || !activeRequestId;
       }
 
-      if (composerAttachmentElementByActionKey[key] || modelPickerElementByActionKey[key]) {
+      if (
+        composerAttachmentElementByActionKey[key] ||
+        composerRichConfigControlByActionKey[key] ||
+        composerSessionActionByActionKey[key]
+      ) {
         return (
           sendInProgress ||
           !!pendingRequestRecovery ||
@@ -3291,7 +3453,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       attachmentPickInProgress,
       backend,
       composerAttachmentElementByActionKey,
-      modelPickerElementByActionKey,
+      composerRichConfigControlByActionKey,
+      composerSessionActionByActionKey,
       hasDraftMessage,
       pendingRequestRecovery,
       sendInProgress,
@@ -3448,12 +3611,128 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
 
-    const pluginEl = visibleSessionActions.find((el) => el.id === action);
+    const pluginEl = headerSessionActions.find((el) => el.id === action);
     if (pluginEl) {
       refreshSessionContextInBackground();
-      openPluginDialogForElement(pluginEl, { kind: 'session', sessionSummary: currentSessionSummary });
+      if (pluginEl.rich_ui?.kind === 'toggle') {
+        await executePluginAction(pluginEl, {
+          sessionId,
+          connectionId: connectionId ?? undefined,
+          sessionSummary: currentSessionSummary ?? undefined,
+        });
+      } else if (pluginEl.rich_ui?.kind === 'list') {
+        setActiveRichSessionAction(pluginEl);
+      } else {
+        openPluginDialogForElement(pluginEl, {
+          kind: 'session',
+          sessionSummary: currentSessionSummary,
+        });
+      }
     }
   };
+
+  const executeRichSessionAction = useCallback(
+    (
+      element: SessionActionRichUiElement,
+      dialogValues?: Record<string, string | boolean>,
+    ) => {
+      return executePluginAction(element, {
+        sessionId,
+        connectionId: connectionId ?? undefined,
+        sessionSummary: currentSessionSummary ?? undefined,
+        dialogValues,
+      });
+    },
+    [
+      connectionId,
+      currentSessionSummary,
+      executePluginAction,
+      sessionId,
+    ],
+  );
+
+  const renderPinnedHeaderSessionAction = useCallback(
+    (params: any) => {
+      const element = headerSessionActions.find(
+        (candidate) => candidate.id === params.action.key,
+      );
+      if (!element?.rich_ui) {
+        return undefined;
+      }
+      return (
+        <SessionListRichActionControl
+          element={element as any}
+          session={
+            currentSessionSummary ?? {
+              session_id: sessionId,
+              modified: 0,
+              preview: '',
+              metadata: {},
+            }
+          }
+          placement="session_header"
+          disabled={params.disabled}
+          onExecuteAction={(selected, values) => {
+            executeRichSessionAction(selected as any, values).catch(() => {});
+          }}
+          onPresentRichList={(selected) =>
+            setActiveRichSessionAction(selected as any)
+          }
+          renderIcon={({ name, size, color }) => (
+            <Icon name={name} size={size} color={color} />
+          )}
+          testID={`session-rich-action-${element.id}-session-header`}
+        />
+      );
+    },
+    [
+      currentSessionSummary,
+      executeRichSessionAction,
+      headerSessionActions,
+      sessionId,
+    ],
+  );
+
+  const renderPinnedComposerSessionAction = useCallback(
+    (params: any) => {
+      const element =
+        composerSessionActionByActionKey[params.action.key];
+      if (!element?.rich_ui) {
+        return undefined;
+      }
+      return (
+        <SessionListRichActionControl
+          element={element as any}
+          session={
+            currentSessionSummary ?? {
+              session_id: sessionId,
+              modified: 0,
+              preview: '',
+              metadata: {},
+            }
+          }
+          placement="composer"
+          disabled={params.disabled}
+          onExecuteAction={(selected, values) => {
+            executeRichSessionAction(selected as any, values).catch(() => {});
+          }}
+          onPresentRichList={(selected) =>
+            setActiveRichSessionAction(selected as any)
+          }
+          renderIcon={({ name, size, color }) => (
+            <Icon name={name} size={size} color={color} />
+          )}
+          testID={`session-rich-action-${element.id}-composer`}
+        />
+      );
+    },
+    [
+      composerSessionActionByActionKey,
+      currentSessionSummary,
+      executeRichSessionAction,
+      sessionId,
+    ],
+  );
 
   const getPinnedActionsForRole = (role: string): MessageActionKey[] => {
     const allowedKeys = ALL_MESSAGE_ACTIONS
@@ -4092,6 +4371,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	                  ((sendInProgress || resumeRecoveryInProgress) && action === 'reload')
 	                }
 	                extraActions={pluginSessionActionDefs}
+	                renderPinnedAction={renderPinnedHeaderSessionAction}
 	                isActive={isActive}
 	                modalContentStyle={styles.sessionActionsModalContent}
 	              />
@@ -4287,11 +4567,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           setAttachmentsManageSide(side);
           setAttachmentsManageVisible(true);
         }}
-        pinnedModelPickerElements={pinnedModelPickerElements}
-        normalizeSelectOptions={normalizeSelectOptions}
-        sessionOverrides={sessionOverrides}
-        sessionBaseConfig={sessionBaseConfig}
-        onOpenModelPicker={setComposerLeftSelectModalElement}
+        pinnedRichConfigControls={pinnedRichConfigControls}
+        onOpenRichConfigControl={setActiveRichConfigControl}
         composerActions={composerActions}
         pinnedComposerActions={pinnedComposerActions}
         pinnedComposerActionsForBar={pinnedComposerActionsForBar}
@@ -4305,6 +4582,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         activeRequestId={activeRequestId}
         attachmentActionInProgress={attachmentActionInProgress}
         isActive={isActive}
+        renderPinnedComposerAction={renderPinnedComposerSessionAction}
         onOpenAppendAs={openAppendAsModal}
         onSend={(text) => {
           handleSend(text).catch(() => {});
@@ -4626,23 +4904,83 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        onRequestClose={() => setSettingsVisible(false)}
 	      />
 	      <OptionsPickerModal
-	        visible={!!composerLeftSelectModalElement}
+	        visible={!!activeRichConfigControl}
+	        useModal={false}
 	        options={
-	          composerLeftSelectModalElement
-	            ? normalizeSelectOptions(composerLeftSelectModalElement.options)
+	          activeRichConfigControl?.control.richUi.kind === 'dropdown'
+	            ? (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
+	                .options.map((option) => ({
+	                  value: option.value,
+	                  label: option.label,
+	                }))
 	            : []
 	        }
+	        selectedValue={
+	          activeRichConfigControl?.effectiveValue == null
+	            ? ''
+	            : String(activeRichConfigControl.effectiveValue)
+	        }
+	        allowCustomValue={
+	          activeRichConfigControl?.control.richUi.kind === 'dropdown' &&
+	          (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
+	            .allow_custom_value === true
+	        }
+	        customValueLabel={
+	          activeRichConfigControl?.control.richUi.kind === 'dropdown'
+	            ? (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
+	                .custom_value_label
+	            : undefined
+	        }
+	        customValuePlaceholder={
+	          activeRichConfigControl?.control.richUi.kind === 'dropdown'
+	            ? (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
+	                .custom_value_placeholder
+	            : undefined
+	        }
+	        showReset={activeRichConfigControl?.hasOverride === true}
+	        resetLabel="Reset to configured model"
 	        onSelect={(value) => {
-	          if (composerLeftSelectModalElement?.key != null) {
-	            handleComposerLeftSelectOption(
-	              String(composerLeftSelectModalElement.key),
+	          if (activeRichConfigControl) {
+	            handleRichConfigValue(
+	              activeRichConfigControl.control.element.key,
 	              value,
 	            );
 	          }
-	          setComposerLeftSelectModalElement(null);
 	        }}
-	        onRequestClose={() => setComposerLeftSelectModalElement(null)}
+	        onReset={() => {
+	          if (activeRichConfigControl) {
+	            handleRichConfigReset(
+	              activeRichConfigControl.control.element.key,
+	            );
+	          }
+	        }}
+	        onRequestClose={() => setActiveRichConfigControl(null)}
 	      />
+	      {activeRichSessionAction ? (
+	        <View style={styles.modalOverlay}>
+	          <View style={styles.richSessionActionModalContent}>
+	            <SessionListRichActionList
+	              element={activeRichSessionAction as any}
+	              session={
+	                currentSessionSummary ?? {
+	                  session_id: sessionId,
+	                  modified: 0,
+	                  preview: '',
+	                  metadata: {},
+	                }
+	              }
+	              testIDPrefix={`session-rich-list-${activeRichSessionAction.id}`}
+	              onExecuteAction={(values) => {
+	                executeRichSessionAction(
+	                  activeRichSessionAction,
+	                  values,
+	                ).catch(() => {});
+	              }}
+	              onRequestClose={() => setActiveRichSessionAction(null)}
+	            />
+	          </View>
+	        </View>
+	      ) : null}
 	      <SessionPluginsModal
 	        backend={backend}
 	        sessionId={sessionId}
@@ -5010,6 +5348,22 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 16,
+    },
+    richConfigModalContent: {
+      width: '88%',
+      height: '72%',
+      maxHeight: '80%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    richSessionActionModalContent: {
+      width: '84%',
+      height: '56%',
+      maxHeight: '75%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      overflow: 'hidden',
     },
     modalTitle: {
       fontSize: 18,

@@ -163,6 +163,118 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     );
   });
 
+  const RichConfigDropdownControl = ({
+    control,
+    value,
+    disabled,
+    onPress,
+    testID,
+  }) =>
+    React.createElement(
+      Pressable,
+      { testID, disabled, onPress },
+      React.createElement(
+        Text,
+        null,
+        `${control.richUi.label}: ${String(value ?? '')}`,
+      ),
+    );
+
+  const RichConfigDropdownPanel = ({
+    richUi,
+    hasOverride,
+    onSelect,
+    onCustomValue,
+    onReset,
+    testIDPrefix = 'rich-config-dropdown',
+  }) => {
+    const [customValue, setCustomValue] = React.useState('');
+    return React.createElement(
+      View,
+      { testID: testIDPrefix },
+      richUi.options.map((option) =>
+        React.createElement(
+          Pressable,
+          {
+            key: option.value,
+            testID: `${testIDPrefix}-option-${option.value}`,
+            onPress: () => onSelect(option.value),
+          },
+          React.createElement(Text, null, option.label),
+        ),
+      ),
+      richUi.allow_custom_value
+        ? React.createElement(
+            View,
+            null,
+            React.createElement(TextInput, {
+              testID: `${testIDPrefix}-custom-input`,
+              value: customValue,
+              onChangeText: setCustomValue,
+            }),
+            React.createElement(Pressable, {
+              testID: `${testIDPrefix}-custom-submit`,
+              onPress: () => onCustomValue(customValue),
+            }),
+          )
+        : null,
+      hasOverride
+        ? React.createElement(Pressable, {
+            testID: `${testIDPrefix}-reset`,
+            onPress: onReset,
+          })
+        : null,
+    );
+  };
+
+  const SessionListRichActionControl = ({
+    element,
+    onExecuteAction,
+    onPresentRichList,
+    testID,
+  }) =>
+    React.createElement(
+      Pressable,
+      {
+        testID,
+        onPress: () => {
+          if (element.rich_ui?.kind === 'toggle') {
+            onExecuteAction(element);
+          } else {
+            onPresentRichList(element);
+          }
+        },
+      },
+      React.createElement(Text, null, element.label),
+    );
+
+  const SessionListRichActionList = ({
+    element,
+    onExecuteAction,
+    onRequestClose,
+    testIDPrefix,
+  }) =>
+    React.createElement(
+      View,
+      { testID: testIDPrefix },
+      (element.rich_ui?.options || []).map((option) =>
+        React.createElement(
+          Pressable,
+          {
+            key: String(option.value),
+            testID: `${testIDPrefix}-option-${String(option.value)}`,
+            onPress: () => {
+              onRequestClose();
+              onExecuteAction({
+                [element.rich_ui.input_name]: option.value,
+              });
+            },
+          },
+          React.createElement(Text, null, option.label),
+        ),
+      ),
+    );
+
   return {
     ...homeWorkspace,
     ...reorderGeometry,
@@ -312,18 +424,64 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       );
     },
 
-    ActionsMenuBar: ({ baseActions = [], extraActions = [], menuButtonTestID }) =>
-      React.createElement(
+    RichConfigDropdownControl,
+    RichConfigDropdownPanel,
+    SessionListRichActionControl,
+    SessionListRichActionList,
+    ActionsMenuBar: ({
+      baseActions = [],
+      extraActions = [],
+      menuButtonTestID,
+      pinned = [],
+      pinnedKeysForBar,
+      renderPinnedAction,
+      onAction,
+    }) => {
+      const actions = [...baseActions, ...extraActions];
+      const barKeys = pinnedKeysForBar ?? pinned;
+      return React.createElement(
         View,
         { testID: menuButtonTestID },
-        [...baseActions, ...extraActions].map((action) =>
+        actions
+          .filter((action) => barKeys.includes(action.key))
+          .map((action) => {
+            const custom = renderPinnedAction?.({
+              action,
+              disabled: false,
+              iconName: action.iconName ?? null,
+              iconColor: '#007AFF',
+              onPress: () => onAction?.(action.key),
+            });
+            if (custom !== undefined) {
+              return React.createElement(
+                React.Fragment,
+                { key: action.key },
+                custom,
+              );
+            }
+            return React.createElement(
+              Pressable,
+              {
+                key: action.key,
+                testID: `action-menu-pinned-${String(action.key).replace(/\u0000/g, '-')}`,
+                onPress: () => onAction?.(action.key),
+              },
+              React.createElement(Text, null, action.label),
+            );
+          }),
+        actions.map((action) =>
           React.createElement(
-            Text,
-            { key: action.key, testID: `action-menu-item-${String(action.key).replace(/\u0000/g, '-')}` },
-            action.label,
+            Pressable,
+            {
+              key: `menu:${action.key}`,
+              testID: `action-menu-item-${String(action.key).replace(/\u0000/g, '-')}`,
+              onPress: () => onAction?.(action.key),
+            },
+            React.createElement(Text, null, action.label),
           ),
         ),
-      ),
+      );
+    },
     NotificationBanner: ({ display, onDismiss, onFollowupAction, disabledActionIds = [] }) =>
       React.createElement(
         View,
@@ -473,6 +631,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       session,
       testID,
       onExecuteAction,
+      onPresentRichList,
     }) => {
       const richUi = element.rich_ui || {};
       const valuePath =
@@ -483,7 +642,10 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
         accessibilityState: {
           selected: value === richUi.active_value,
         },
-        onPress: () => onExecuteAction(element),
+        onPress: () =>
+          richUi.kind === 'list'
+            ? onPresentRichList(element)
+            : onExecuteAction(element),
       });
     },
     ApplicationActionDialog: ({ visible }: { visible: boolean }) => (visible ? React.createElement(View, null) : null),

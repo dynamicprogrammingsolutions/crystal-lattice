@@ -24,6 +24,7 @@ def disable_fmt_consteval
   contents = File.read(fmt_header)
 
   if contents.include?(enabled)
+    File.chmod(File.stat(fmt_header).mode | 0200, fmt_header)
     File.write(fmt_header, contents.gsub(enabled, disabled))
     Pod::UI.puts 'Disabled fmt consteval for Apple clang compatibility'.yellow
   elsif contents.include?(disabled)

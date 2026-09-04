@@ -123,14 +123,20 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 "key": "model",
                 "label": "OpenRouter Model",
                 **({"options": model_options} if use_dropdown else {}),
-            },
-            {
-                "ui_type": "model_picker",
-                "key": "model",
-                "attachment_type": "dropdown",
-                "display_placement": "left",
-                "options": model_options,
-                "label": "model",
+                "allow_custom_value": True,
+                "custom_value_label": "Other model…",
+                "custom_value_placeholder": "Enter a model ID",
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Model",
+                    "options": model_options,
+                    "allow_custom_value": True,
+                    "custom_value_label": "Other model…",
+                    "custom_value_placeholder": "Enter a model ID",
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "icon": "cpu",
+                },
             },
             {
                 "ui_type": "composer_attachment",
@@ -336,9 +342,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         session_id = asset_ref.get("session_id")
         asset_id = asset_ref.get("asset_id")
         if not isinstance(session_id, str) or not isinstance(asset_id, str):
-            raise ValueError(
-                "[openrouter_responses_provider] invalid session asset reference"
-            )
+            raise ValueError("[openrouter_responses_provider] invalid session asset reference")
         record = store.load(session_id, asset_id)
         if record.attachment_type != expected_attachment_type:
             raise ValueError(
@@ -391,9 +395,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             internal.pop(key, None)
         return internal
 
-    def _message_item_text_and_images(
-        self, content: Any
-    ) -> Tuple[str, List[Dict[str, Any]]]:
+    def _message_item_text_and_images(self, content: Any) -> Tuple[str, List[Dict[str, Any]]]:
         text_parts: List[str] = []
         images: List[Dict[str, Any]] = []
         if not isinstance(content, list):
@@ -503,7 +505,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         for candidate in assistant_candidates:
             candidate_md = candidate.get("metadata") or {}
             phase_entry: JsonObject = {
-                "content": candidate.get("content") if isinstance(candidate.get("content"), str) else "",
+                "content": (
+                    candidate.get("content") if isinstance(candidate.get("content"), str) else ""
+                ),
                 "native_index": candidate.get("_segment_native_index"),
             }
             phase = candidate_md.get("phase")
@@ -532,7 +536,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
 
         out: JsonObject = {
             "role": "assistant",
-            "content": canonical.get("content") if canonical is not None and isinstance(canonical.get("content"), str) else "",
+            "content": (
+                canonical.get("content")
+                if canonical is not None and isinstance(canonical.get("content"), str)
+                else ""
+            ),
             "metadata": metadata,
         }
         if canonical is not None:
@@ -581,7 +589,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                         if isinstance(url, str) and url:
                             parts.append({"type": "input_image", "image_url": url})
 
-                item: Dict[str, Any] = {"type": "message", "role": role, "content": parts}
+                item: Dict[str, Any] = {
+                    "type": "message",
+                    "role": role,
+                    "content": parts,
+                }
                 if role == "assistant" and isinstance(md, dict):
                     phase = md.get("phase")
                     if isinstance(phase, str) and phase:
@@ -662,7 +674,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                         "tool_call_id",
                     ],
                 )
-                item: Dict[str, Any] = {"type": "function_call_output", "call_id": tcid, "output": output}
+                item: Dict[str, Any] = {
+                    "type": "function_call_output",
+                    "call_id": tcid,
+                    "output": output,
+                }
                 if internal_md:
                     item["_metadata"] = internal_md
                 native.append(item)
@@ -711,11 +727,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     tool_result = {
                         "type": "provider_native_tool_result",
                         "format": "openai.responses",
-                        "output": [
-                            dict(part)
-                            for part in raw_output
-                            if isinstance(part, dict)
-                        ],
+                        "output": [dict(part) for part in raw_output if isinstance(part, dict)],
                         "text": output,
                     }
                     display = provider_native_tool_result_display(
@@ -751,7 +763,10 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 _flush_response_segment()
                 role = m.get("role", "assistant")
                 content = m.get("content", "")
-                core_msg: Dict[str, Any] = {"role": role, "content": content if isinstance(content, str) else ""}
+                core_msg: Dict[str, Any] = {
+                    "role": role,
+                    "content": content if isinstance(content, str) else "",
+                }
                 internal_md = self._core_metadata_from_native_internal(m.get("_metadata"))
                 core_msg["metadata"] = {**internal_md, "native_indices": [native_index]}
                 normalized.append(core_msg)
@@ -759,7 +774,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
 
             itype = m.get("type")
             internal_md = self._core_metadata_from_native_internal(m.get("_metadata"))
-            rid = internal_md.get("response_id") if isinstance(internal_md.get("response_id"), str) else None
+            rid = (
+                internal_md.get("response_id")
+                if isinstance(internal_md.get("response_id"), str)
+                else None
+            )
             if rid is not None:
                 response_items.setdefault(rid, []).append(m)
 
@@ -782,7 +801,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 if isinstance(phase, str) and phase:
                     core_md.setdefault("phase", phase)
                 core_md.setdefault("native_indices", [native_index])
-                core_msg: Dict[str, Any] = {"role": role, "content": text, "metadata": core_md}
+                core_msg: Dict[str, Any] = {
+                    "role": role,
+                    "content": text,
+                    "metadata": core_md,
+                }
                 if images:
                     core_msg["multipartContent"] = images
                 normalized.append(core_msg)
@@ -806,11 +829,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     tool_result = {
                         "type": "provider_native_tool_result",
                         "format": "openai.responses",
-                        "output": [
-                            dict(part)
-                            for part in raw_output
-                            if isinstance(part, dict)
-                        ],
+                        "output": [dict(part) for part in raw_output if isinstance(part, dict)],
                         "text": output,
                     }
                     display = provider_native_tool_result_display(
@@ -858,7 +877,8 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             candidate_indices = [
                 idx
                 for idx, msg in enumerate(normalized)
-                if msg.get("role") == "assistant" and (msg.get("metadata") or {}).get("response_id") == rid
+                if msg.get("role") == "assistant"
+                and (msg.get("metadata") or {}).get("response_id") == rid
             ]
             if not candidate_indices:
                 continue
@@ -939,7 +959,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 "type": "custom_tool_call",
                 "call_id": inspected.call_id,
                 "name": inspected.tool_name,
-                "input": inspected.payload if isinstance(inspected.payload, str) else "",
+                "input": (inspected.payload if isinstance(inspected.payload, str) else ""),
             }
             if inspected.payload_format:
                 item["input_format"] = inspected.payload_format
@@ -956,7 +976,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             ),
         }
 
-    def _build_request_body(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_request_body(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         request = state["request"]
         override = request.get("messages")
         items = override if isinstance(override, list) else native_messages
@@ -1016,7 +1038,12 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             if isinstance(response_id, str) and response_id:
                 base_internal = item.get("_metadata")
                 base_internal_dict = base_internal if isinstance(base_internal, dict) else {}
-                out.append({**item, "_metadata": {**base_internal_dict, "response_id": response_id}})
+                out.append(
+                    {
+                        **item,
+                        "_metadata": {**base_internal_dict, "response_id": response_id},
+                    }
+                )
             else:
                 out.append(item)
 
@@ -1052,7 +1079,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         logger = get_logger("openrouter_responses_provider")
 
         try:
-            payload = {**self._build_request_body(native_messages, state), "include": ['reasoning.encrypted_content'], "stream": False}
+            payload = {
+                **self._build_request_body(native_messages, state),
+                "include": ["reasoning.encrypted_content"],
+                "stream": False,
+            }
             logger.info(
                 "sending request",
                 payload=str({**payload, "input": "stripped", "tools": "stripped"}),
@@ -1084,7 +1115,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
 
         return [], annotated, [*native_messages, *annotated], state
 
-    def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+    def stream_api(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Iterator[Dict[str, Any]]:
         request = state["request"]
         logger = get_logger("openrouter_responses_provider")
 
@@ -1094,7 +1127,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         if isinstance(debug_path, str) and debug_path:
             debug_file = Path(debug_path)
 
-        payload: Dict[str, Any] = {**self._build_request_body(native_messages, state), "include": ['reasoning.encrypted_content'], "stream": True}
+        payload: Dict[str, Any] = {
+            **self._build_request_body(native_messages, state),
+            "include": ["reasoning.encrypted_content"],
+            "stream": True,
+        }
         logger.info(
             "sending streaming request",
             payload=str({**payload, "input": "stripped", "tools": "stripped"}),
@@ -1130,7 +1167,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                         dbg_handle = debug_file.open("a", encoding="utf-8")
                         dbg_handle.write("\n--- stream start ---\n")
 
-                    for event_name, data, raw in self._iter_sse_frames(r.iter_lines(decode_unicode=True)):
+                    for event_name, data, raw in self._iter_sse_frames(
+                        r.iter_lines(decode_unicode=True)
+                    ):
                         if dbg_handle is not None:
                             dbg_handle.write("\n--- frame ---\n")
                             for ln in raw:
@@ -1161,7 +1200,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         except requests.RequestException as e:
             raise RuntimeError(f"OpenRouter /responses stream failed: {e}") from e
 
-    def _iter_sse_frames(self, lines: Iterator[str]) -> Iterator[Tuple[Optional[str], str, List[str]]]:
+    def _iter_sse_frames(
+        self, lines: Iterator[str]
+    ) -> Iterator[Tuple[Optional[str], str, List[str]]]:
         event_name: Optional[str] = None
         data_lines: List[str] = []
         raw_lines: List[str] = []
@@ -1221,7 +1262,13 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         ):
             delta = event.get("delta")
             if isinstance(delta, str) and delta:
-                emitted_partials.append({"role": "assistant", "content": "", "_metadata": {"reasoning": delta}})
+                emitted_partials.append(
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "_metadata": {"reasoning": delta},
+                    }
+                )
 
         if etype in ("response.completed", "response.done"):
             resp = event.get("response")
@@ -1364,7 +1411,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     #   {"type":"url_citation","url_citation":{...}}
                     # or a flat shape:
                     #   {"type":"url_citation","url":...,"title":...,...}
-                    payload = ann.get("url_citation") if isinstance(ann.get("url_citation"), dict) else ann
+                    payload = (
+                        ann.get("url_citation")
+                        if isinstance(ann.get("url_citation"), dict)
+                        else ann
+                    )
                     if not isinstance(payload, dict):
                         continue
                     entry: JsonObject = {}

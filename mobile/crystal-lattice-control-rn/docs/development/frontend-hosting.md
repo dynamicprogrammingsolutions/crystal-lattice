@@ -91,3 +91,24 @@ rehydration are verified through production component integration against the
 real Python HTTP backend. AsyncStorage reconstruction is covered by component
 tests and the mobile manual checkpoint; B-2 does not add a failure-injection
 Detox harness because presentation geometry is unchanged.
+
+## Rich session settings and actions
+
+`SessionChatScreen` consumes normalized rich config controls and session
+actions from the shared frontend SDK.
+
+- Config controls at `composer` use the same effective value and
+  `SessionSettingsController` mutations as the full Session Settings modal.
+- Rich dropdowns support discovered options, explicit custom string values,
+  and reset.
+- Session actions default to the header and may opt into the composer through
+  `rich_ui.placements`.
+- Rich toggle/list controls invoke the ordinary action and keep its dialog as
+  fallback.
+- Connection-scoped pin preferences preserve explicit user choices; plugin
+  `default_pinned` values apply only before a preference is stored.
+
+The deterministic production-screen harness is
+`src/testing/MobileRichSessionUiHarness.tsx`. Component coverage is in
+`__tests__/RichSessionUi.test.tsx`; simulator coverage is in
+`e2e/richSessionUi.e2e.test.ts`.

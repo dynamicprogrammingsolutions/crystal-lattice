@@ -121,6 +121,15 @@ redacted warning. They do not prevent explicit model entry. A separate
 model-catalog URL is not part of the baseline because no supported compatible
 endpoint currently requires one.
 
+`AnthropicProvider.get_ui_elements` maps non-empty discovered models to one
+ordinary `model` config dropdown and maps failed or empty discovery to a text
+input. Both forms allow explicit string model IDs. The element includes a
+self-contained `rich_ui.kind: "dropdown"` composer presentation that repeats
+its label, options, custom-entry text, icon, placement, and default pinning.
+The compact control and full Session Settings editor both mutate the ordinary
+session `model` override; the provider does not define a separate model-picker
+UI type or action.
+
 ## Provider state
 
 Recommended request state:

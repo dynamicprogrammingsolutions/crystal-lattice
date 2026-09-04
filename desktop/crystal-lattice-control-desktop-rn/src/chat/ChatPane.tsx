@@ -19,6 +19,10 @@ import {
   ActionsMenuBar,
   ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
+  RichConfigDropdownControl,
+  RichConfigDropdownPanel,
+  SessionListRichActionControl,
+  SessionListRichActionList,
   SessionRequestStatusIndicator,
   useTheme,
   type ActionDefinition,
@@ -41,24 +45,33 @@ import {
   deleteSessionAttachment,
   deriveSessionListPresentationFromGroups,
   filterFooterElements,
+  getDefaultPinnedConfigRichUiKeys,
   groupSessionListFields,
+  isSessionActionPlacedAt,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
+  normalizeSessionActionRichUiElements,
   normalizeActionDisplayForSurface,
   NotificationUiEffectObserver,
   observeSessionNotificationUiEffects,
   runApplicationAction,
+  selectConfigRichUiControls,
   selectSessionAssetId,
   selectDisplayContent,
   selectTranscriptRangeRestoreAnchor,
   storeSessionAttachment,
   subscribeSessionRefreshInvalidations,
   type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
+  type ConfigRichDropdownUi,
+  type ConfigRichUiControl,
+  type SessionActionRichUiElement,
   type AttachmentDraftStatus,
   type TranscriptViewportAnchorCandidate,
 } from '@crystal-lattice/frontend-sdk';
 import {
   useApplicationPlugins,
+  buildConfigSchemaByKey,
+  buildSessionSettingItems,
   useChatController,
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
@@ -305,6 +318,13 @@ type ComposerAttachmentUiElement = SharedComposerAttachmentUiElement & {
   [k: string]: any;
 };
 
+type ComposerRichConfigControl = {
+  control: ConfigRichUiControl;
+  effectiveValue: unknown;
+  hasOverride: boolean;
+  disabled: boolean;
+};
+
 type ComposerAttachmentDraft = {
   draftId: string;
   type: string;
@@ -460,8 +480,13 @@ export const ChatPane = React.memo(function ChatPane({
     useState<AttachmentBackgroundOperation>(null);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  const [activeRichConfigControl, setActiveRichConfigControl] =
+    useState<ComposerRichConfigControl | null>(null);
+  const [activeRichSessionAction, setActiveRichSessionAction] =
+    useState<SessionActionRichUiElement | null>(null);
   const composerRef = useRef<MacTextViewHandle | null>(null);
   const attachmentPlusButtonRef = useRef<any>(null);
+  const richConfigControlRefs = useRef<Record<string, any>>({});
   const attemptedInitialLoadRef = useRef(false);
   const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistKeyRef = useRef<string | null>(null);
@@ -514,7 +539,11 @@ export const ChatPane = React.memo(function ChatPane({
     return `${PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE}:${connectionId}`;
   }, [connectionId]);
 
-  const { pinned: pinnedSessionActionKeys, setPinned: setPinnedSessionActionKeys } =
+  const {
+    pinned: pinnedSessionActionKeys,
+    setPinned: setPinnedSessionActionKeys,
+    hasStoredPreference: hasStoredSessionActionPreference,
+  } =
     usePersistentPinnedActions<ActionKey>({
       store: asyncStorageKeyValueStore,
       key: pinnedSessionActionsStorageKey,
@@ -525,7 +554,11 @@ export const ChatPane = React.memo(function ChatPane({
     return `${PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE}:${connectionId}`;
   }, [connectionId]);
 
-  const { pinned: pinnedComposerActionKeys, setPinned: setPinnedComposerActionKeys } =
+  const {
+    pinned: pinnedComposerActionKeys,
+    setPinned: setPinnedComposerActionKeys,
+    hasStoredPreference: hasStoredComposerActionPreference,
+  } =
     usePersistentPinnedActions<ActionKey>({
       store: asyncStorageKeyValueStore,
       key: pinnedComposerActionsStorageKey,
@@ -596,7 +629,10 @@ export const ChatPane = React.memo(function ChatPane({
     sessionId,
     enabled: !!(backend && isActive),
   });
-  useSessionSettingsController({
+  const {
+    controller: sessionSettingsController,
+    state: sessionSettingsState,
+  } = useSessionSettingsController({
     backend,
     cacheKey: connectionId,
     sessionId,
@@ -676,6 +712,90 @@ export const ChatPane = React.memo(function ChatPane({
         uiType: 'message_action',
       }),
     [sessionAppUiElements, uiSchemaElements],
+  );
+  const configSchemaByKey = useMemo(
+    () => buildConfigSchemaByKey(sessionSettingsState?.configSchema ?? []),
+    [sessionSettingsState?.configSchema],
+  );
+  const sessionSettingItems = useMemo(
+    () =>
+      buildSessionSettingItems({
+        elements: sessionSettingsState?.elements ?? [],
+        overrides: sessionSettingsState?.overrides ?? {},
+        baseConfig: sessionSettingsState?.baseConfig ?? {},
+        schemaByKey: configSchemaByKey,
+      }),
+    [
+      configSchemaByKey,
+      sessionSettingsState?.baseConfig,
+      sessionSettingsState?.elements,
+      sessionSettingsState?.overrides,
+    ],
+  );
+  const sessionSettingItemByKey = useMemo(
+    () =>
+      Object.fromEntries(
+        sessionSettingItems.map((item) => [item.key, item]),
+      ),
+    [sessionSettingItems],
+  );
+  const composerRichConfigControls = useMemo(() => {
+    const selected = selectConfigRichUiControls(
+      sessionSettingsState?.elements ?? [],
+      'composer',
+    );
+    return selected.controls
+      .filter((control) => control.richUi.kind === 'dropdown')
+      .map((control) => {
+        const item = sessionSettingItemByKey[control.element.key];
+        return {
+          control,
+          effectiveValue: item?.effectiveValue,
+          hasOverride: item?.hasOverride ?? false,
+          disabled: item?.disabled ?? false,
+        } satisfies ComposerRichConfigControl;
+      });
+  }, [sessionSettingItemByKey, sessionSettingsState?.elements]);
+  const composerRichConfigControlByActionKey = useMemo(
+    () =>
+      Object.fromEntries(
+        composerRichConfigControls.map((entry) => [
+          `config:${entry.control.element.key}`,
+          entry,
+        ]),
+      ),
+    [composerRichConfigControls],
+  );
+  const normalizedSessionActions = useMemo(
+    () => normalizeSessionActionRichUiElements(visibleSessionActions).elements,
+    [visibleSessionActions],
+  );
+  const headerSessionActions = useMemo(
+    () =>
+      normalizedSessionActions.filter(
+        (element) =>
+          !element.rich_ui ||
+          isSessionActionPlacedAt(element, 'session_header'),
+      ),
+    [normalizedSessionActions],
+  );
+  const composerSessionActions = useMemo(
+    () =>
+      normalizedSessionActions.filter(
+        (element) =>
+          !!element.rich_ui && isSessionActionPlacedAt(element, 'composer'),
+      ),
+    [normalizedSessionActions],
+  );
+  const composerSessionActionByActionKey = useMemo(
+    () =>
+      Object.fromEntries(
+        composerSessionActions.map((element) => [
+          `session_action:${element.id}`,
+          element,
+        ]),
+      ),
+    [composerSessionActions],
   );
   const footerElements = useMemo(
     () => filterFooterElements(uiSchemaElements),
@@ -763,7 +883,7 @@ export const ChatPane = React.memo(function ChatPane({
       return [];
     }
 
-    return (visibleSessionActions || [])
+    return headerSessionActions
       .map((el) => ({
         key: el.id,
         label: el.label,
@@ -771,7 +891,102 @@ export const ChatPane = React.memo(function ChatPane({
         order: typeof el.order === 'number' ? el.order : undefined,
       }))
       .filter((def) => typeof def.key === 'string' && def.key);
-  }, [backend, visibleSessionActions]);
+  }, [backend, headerSessionActions]);
+
+  const composerPluginActionDefs: ActionDefinition[] = useMemo(
+    () => [
+      ...composerRichConfigControls.map((entry) => {
+        const richUi = entry.control.richUi as ConfigRichDropdownUi;
+        return {
+          key: `config:${entry.control.element.key}`,
+          label: richUi.label,
+          iconName: richUi.icon ?? 'sliders',
+        };
+      }),
+      ...composerSessionActions.map((element) => ({
+        key: `session_action:${element.id}`,
+        label: element.label,
+        iconName:
+          typeof element.icon === 'string' ? element.icon : 'zap',
+        order: typeof element.order === 'number' ? element.order : undefined,
+      })),
+    ],
+    [composerRichConfigControls, composerSessionActions],
+  );
+
+  const defaultPinnedComposerUiActionKeys = useMemo(
+    () => [
+      ...getDefaultPinnedConfigRichUiKeys(
+        composerRichConfigControls.map((entry) => entry.control),
+      ).map((key) => `config:${key}`),
+      ...composerSessionActions
+        .filter((element) => element.rich_ui?.default_pinned === true)
+        .map((element) => `session_action:${element.id}`),
+    ],
+    [composerRichConfigControls, composerSessionActions],
+  );
+  useEffect(() => {
+    if (
+      hasStoredComposerActionPreference ||
+      defaultPinnedComposerUiActionKeys.length === 0
+    ) {
+      return;
+    }
+    setPinnedComposerActionKeys((current) => [
+      ...current,
+      ...defaultPinnedComposerUiActionKeys.filter(
+        (key) => !current.includes(key),
+      ),
+    ]);
+  }, [
+    defaultPinnedComposerUiActionKeys,
+    hasStoredComposerActionPreference,
+    setPinnedComposerActionKeys,
+  ]);
+
+  const defaultPinnedHeaderSessionActionKeys = useMemo(
+    () =>
+      headerSessionActions
+        .filter((element) => element.rich_ui?.default_pinned === true)
+        .map((element) => element.id),
+    [headerSessionActions],
+  );
+  useEffect(() => {
+    if (
+      hasStoredSessionActionPreference ||
+      defaultPinnedHeaderSessionActionKeys.length === 0
+    ) {
+      return;
+    }
+    setPinnedSessionActionKeys((current) => [
+      ...current,
+      ...defaultPinnedHeaderSessionActionKeys.filter(
+        (key) => !current.includes(key),
+      ),
+    ]);
+  }, [
+    defaultPinnedHeaderSessionActionKeys,
+    hasStoredSessionActionPreference,
+    setPinnedSessionActionKeys,
+  ]);
+
+  const pinnedRichConfigControls = useMemo(
+    () =>
+      composerRichConfigControls.filter((entry) =>
+        pinnedComposerActionKeys.includes(
+          `config:${entry.control.element.key}`,
+        ),
+      ),
+    [composerRichConfigControls, pinnedComposerActionKeys],
+  );
+  const pinnedComposerActionKeysForBar = useMemo(() => {
+    const inlineKeys = new Set(
+      composerRichConfigControls.map(
+        (entry) => `config:${entry.control.element.key}`,
+      ),
+    );
+    return pinnedComposerActionKeys.filter((key) => !inlineKeys.has(key));
+  }, [composerRichConfigControls, pinnedComposerActionKeys]);
 
   const pluginMessageActionDefs: MessageActionDefinition[] = useMemo(() => {
     if (!backend) {
@@ -2200,6 +2415,226 @@ export const ChatPane = React.memo(function ChatPane({
     ],
   );
 
+  const richActionSession = useMemo<SessionSummary>(
+    () =>
+      sessionSummary ?? {
+        session_id: sessionId,
+        modified: 0,
+        preview: '',
+        metadata: {},
+      },
+    [sessionId, sessionSummary],
+  );
+
+  const executeRichSessionAction = useCallback(
+    (
+      element: SessionActionRichUiElement,
+      dialogValues?: Record<string, string | boolean>,
+    ) =>
+      executePluginAction(element, {
+        sessionId,
+        connectionId,
+        sessionSummary: richActionSession,
+        dialogValues,
+      }),
+    [
+      connectionId,
+      executePluginAction,
+      richActionSession,
+      sessionId,
+    ],
+  );
+
+  const openRichConfigDropdown = useCallback(
+    (entry: ComposerRichConfigControl, anchorTag?: number) => {
+      if (
+        entry.control.richUi.kind !== 'dropdown' ||
+        !sessionSettingsController
+      ) {
+        return;
+      }
+      const richUi = entry.control.richUi as ConfigRichDropdownUi;
+      const id = `rich-config:${connectionId}:${sessionId}:${entry.control.element.key}`;
+      setActiveRichConfigControl(entry);
+      openDesktopPopover({
+        id,
+        title: richUi.label,
+        accessibilityId: `rich-config-dropdown-${entry.control.element.key}`,
+        anchorTag:
+          anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
+        width: 420,
+        height: Math.min(
+          520,
+          110 + richUi.options.length * 44 +
+            (richUi.allow_custom_value ? 150 : 0) +
+            (entry.hasOverride ? 44 : 0),
+        ),
+        onRequestClose: () => setActiveRichConfigControl(null),
+        content: (
+          <RichConfigDropdownPanel
+            richUi={richUi}
+            selectedValue={
+              entry.effectiveValue == null ? '' : String(entry.effectiveValue)
+            }
+            hasOverride={entry.hasOverride}
+            testIDPrefix={`rich-config-dropdown-${entry.control.element.key}`}
+            onSelect={(value) => {
+              sessionSettingsController
+                .patchOverride(entry.control.element.key, value)
+                .finally(() => {
+                  setActiveRichConfigControl(null);
+                  closeDesktopPopover(id);
+                });
+            }}
+            onCustomValue={(value) => {
+              sessionSettingsController
+                .patchOverride(entry.control.element.key, value)
+                .finally(() => {
+                  setActiveRichConfigControl(null);
+                  closeDesktopPopover(id);
+                });
+            }}
+            onReset={() => {
+              sessionSettingsController
+                .deleteOverride(entry.control.element.key)
+                .finally(() => {
+                  setActiveRichConfigControl(null);
+                  closeDesktopPopover(id);
+                });
+            }}
+            onRequestClose={() => {
+              setActiveRichConfigControl(null);
+              closeDesktopPopover(id);
+            }}
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+          />
+        ),
+      });
+    },
+    [connectionId, sessionId, sessionSettingsController],
+  );
+
+  const openRichSessionActionList = useCallback(
+    (element: SessionActionRichUiElement, anchorTag?: number) => {
+      if (element.rich_ui?.kind !== 'list') {
+        return;
+      }
+      const id = `rich-session-action:${connectionId}:${sessionId}:${element.id}`;
+      const optionCount =
+        Array.isArray((element.rich_ui as any).options)
+          ? (element.rich_ui as any).options.length
+          : 0;
+      setActiveRichSessionAction(element);
+      openDesktopPopover({
+        id,
+        title: element.label,
+        accessibilityId: `session-rich-list-${element.id}`,
+        anchorTag:
+          anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
+        width: 380,
+        height: Math.min(
+          460,
+          70 + optionCount * 46,
+        ),
+        onRequestClose: () => setActiveRichSessionAction(null),
+        content: (
+          <SessionListRichActionList
+            element={element as any}
+            session={richActionSession}
+            testIDPrefix={`session-rich-list-${element.id}`}
+            onExecuteAction={(values) => {
+              executeRichSessionAction(element, values).catch(() => {});
+            }}
+            onRequestClose={() => {
+              setActiveRichSessionAction(null);
+              closeDesktopPopover(id);
+            }}
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+          />
+        ),
+      });
+    },
+    [
+      connectionId,
+      executeRichSessionAction,
+      richActionSession,
+      sessionId,
+    ],
+  );
+
+  const renderPinnedHeaderSessionAction = useCallback(
+    (params: any) => {
+      const element = headerSessionActions.find(
+        (candidate) => candidate.id === params.action.key,
+      );
+      if (!element?.rich_ui) {
+        return undefined;
+      }
+      return (
+        <SessionListRichActionControl
+          element={element as any}
+          session={richActionSession}
+          placement="session_header"
+          disabled={params.disabled}
+          onExecuteAction={(selected, values) => {
+            executeRichSessionAction(selected as any, values).catch(() => {});
+          }}
+          onPresentRichList={(selected) =>
+            openRichSessionActionList(selected as any)
+          }
+          renderIcon={({ name, size, color }) => (
+            <Icon name={name} size={size} color={color} />
+          )}
+          testID={`session-rich-action-${element.id}-session-header`}
+        />
+      );
+    },
+    [
+      executeRichSessionAction,
+      headerSessionActions,
+      openRichSessionActionList,
+      richActionSession,
+    ],
+  );
+
+  const renderPinnedComposerSessionAction = useCallback(
+    (params: any) => {
+      const element =
+        composerSessionActionByActionKey[params.action.key];
+      if (!element?.rich_ui) {
+        return undefined;
+      }
+      return (
+        <SessionListRichActionControl
+          element={element as any}
+          session={richActionSession}
+          placement="composer"
+          disabled={params.disabled}
+          onExecuteAction={(selected, values) => {
+            executeRichSessionAction(selected as any, values).catch(() => {});
+          }}
+          onPresentRichList={(selected) =>
+            openRichSessionActionList(selected as any)
+          }
+          renderIcon={({ name, size, color }) => (
+            <Icon name={name} size={size} color={color} />
+          )}
+          testID={`session-rich-action-${element.id}-composer`}
+        />
+      );
+    },
+    [
+      composerSessionActionByActionKey,
+      executeRichSessionAction,
+      openRichSessionActionList,
+      richActionSession,
+    ],
+  );
+
   const handleDisplayFollowupAction = useCallback(
     async (
       entry: ActionDisplayEntry,
@@ -2676,24 +3111,69 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
-      const pluginEl = visibleSessionActions.find((el) => el.id === key);
+      const pluginEl = headerSessionActions.find((el) => el.id === key);
       if (pluginEl) {
-        openPluginDialogForElement(pluginEl, {
-          kind: 'session',
-          sessionSummary: sessionSummary ?? null,
-        });
+        if (pluginEl.rich_ui?.kind === 'toggle') {
+          executeRichSessionAction(pluginEl).catch(() => {});
+        } else if (pluginEl.rich_ui?.kind === 'list') {
+          openRichSessionActionList(pluginEl);
+        } else {
+          openPluginDialogForElement(pluginEl, {
+            kind: 'session',
+            sessionSummary: sessionSummary ?? null,
+          });
+        }
       }
     },
     [
       backend,
       connectionId,
       connectionName,
+      executeRichSessionAction,
       handleReload,
+      headerSessionActions,
       openPluginDialogForElement,
       openAgentPickerForSwitch,
       openMessageLimitPopover,
-      visibleSessionActions,
+      openRichSessionActionList,
       sessionId,
+      sessionSummary,
+    ],
+  );
+
+  const handleComposerActionWithPlugins = useCallback(
+    (key: ActionKey) => {
+      const richConfig = composerRichConfigControlByActionKey[key];
+      if (richConfig) {
+        openRichConfigDropdown(richConfig);
+        return;
+      }
+
+      const richSessionAction = composerSessionActionByActionKey[key];
+      if (richSessionAction) {
+        if (richSessionAction.rich_ui?.kind === 'toggle') {
+          executeRichSessionAction(richSessionAction).catch(() => {});
+        } else if (richSessionAction.rich_ui?.kind === 'list') {
+          openRichSessionActionList(richSessionAction);
+        } else {
+          openPluginDialogForElement(richSessionAction, {
+            kind: 'session',
+            sessionSummary: sessionSummary ?? null,
+          });
+        }
+        return;
+      }
+
+      handleComposerAction(key);
+    },
+    [
+      composerRichConfigControlByActionKey,
+      composerSessionActionByActionKey,
+      executeRichSessionAction,
+      handleComposerAction,
+      openPluginDialogForElement,
+      openRichConfigDropdown,
+      openRichSessionActionList,
       sessionSummary,
     ],
   );
@@ -3112,6 +3592,7 @@ export const ChatPane = React.memo(function ChatPane({
             pinned={pinnedSessionActionKeys}
             onChangePinned={(next) => setPinnedSessionActionKeys(next)}
             onAction={handleSessionAction}
+            renderPinnedAction={renderPinnedHeaderSessionAction}
             isActionDisabled={(key) => {
 	              if (pluginActionRunning) {
 	                return true;
@@ -3396,7 +3877,43 @@ export const ChatPane = React.memo(function ChatPane({
 
         <View style={styles.composerArea}>
           <View style={styles.composerHeaderRow}>
-            <View style={styles.composerHeaderLeft} />
+            <View style={styles.composerHeaderLeft}>
+              {pinnedRichConfigControls.map((entry) => {
+                const key = entry.control.element.key;
+                return (
+                  <RichConfigDropdownControl
+                    key={key}
+                    buttonRef={(ref) => {
+                      richConfigControlRefs.current[key] = ref;
+                    }}
+                    control={entry.control}
+                    value={entry.effectiveValue}
+                    disabled={
+                      entry.disabled ||
+                      !canRunComposerActions ||
+                      sendInFlight ||
+                      !!chatState?.activeRequestId ||
+                      attachmentActionInProgress
+                    }
+                    placement="composer"
+                    renderIcon={({ name, size, color }) => (
+                      <Icon name={name} size={size} color={color} />
+                    )}
+                    testID={`composer-rich-config-${key}`}
+                    onPress={() => {
+                      const node = richConfigControlRefs.current[key];
+                      const tag = node
+                        ? (findNodeHandle(node) as any)
+                        : null;
+                      openRichConfigDropdown(
+                        entry,
+                        typeof tag === 'number' ? tag : undefined,
+                      );
+                    }}
+                  />
+                );
+              })}
+            </View>
             <View style={styles.composerHeaderRight}>
               <ActionsMenuBar<ActionDefinition>
                 title="Composer actions"
@@ -3404,9 +3921,12 @@ export const ChatPane = React.memo(function ChatPane({
                 isActive={isActive}
                 renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
                 baseActions={BUILTIN_COMPOSER_ACTIONS}
+                extraActions={composerPluginActionDefs}
                 pinned={pinnedComposerActionKeys}
+                pinnedKeysForBar={pinnedComposerActionKeysForBar}
                 onChangePinned={(next) => setPinnedComposerActionKeys(next)}
-                onAction={handleComposerAction}
+                onAction={handleComposerActionWithPlugins}
+                renderPinnedAction={renderPinnedComposerSessionAction}
                 isActionDisabled={(key) => {
                   if (!canRunComposerActions) {
                     return true;

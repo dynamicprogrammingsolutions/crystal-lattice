@@ -91,6 +91,9 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   BOOL enableDesktopWorkspaceHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_DESKTOP_WORKSPACE_HARNESS") ||
       LaunchArgumentPresent(@"--desktop-workspace-harness");
+  BOOL enableRichSessionUiHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_RICH_SESSION_UI_HARNESS") ||
+      LaunchArgumentPresent(@"--rich-session-ui-harness");
   BOOL enableAnyTestHarness =
       enableScrollTestHarness ||
       enableTranscriptScrollPersistenceHarness ||
@@ -99,11 +102,14 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       enableNotificationRailHarness ||
       enableMarkdownGeometryHarness ||
       enableConnectionsPanelHarness ||
-      enableDesktopWorkspaceHarness;
+      enableDesktopWorkspaceHarness ||
+      enableRichSessionUiHarness;
   if (enableAnyTestHarness) {
     RCTDevLoadingViewSetEnabled(NO);
   }
-  self.moduleName = enableDesktopWorkspaceHarness
+  self.moduleName = enableRichSessionUiHarness
+      ? @"DesktopRichSessionUiHarness"
+      : (enableDesktopWorkspaceHarness
       ? @"DesktopWorkspaceHarness"
       : (enableConnectionsPanelHarness
       ? @"DesktopConnectionsPanelHarness"
@@ -119,7 +125,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
              ? @"TranscriptScrollPersistenceHarness"
              : (enableScrollTestHarness
                     ? @"ProgressiveScrollHarness"
-                    : @"CrystalLatticeControlDesktopRN")))))));
+                    : @"CrystalLatticeControlDesktopRN"))))))));
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
   NSInteger markdownBaseFontSize = [self loadMarkdownBaseFontSizePreference];
@@ -385,6 +391,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       EnvironmentFlagEnabled(@"CLC_ENABLE_MARKDOWN_GEOMETRY_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_CONNECTIONS_PANEL_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_DESKTOP_WORKSPACE_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_RICH_SESSION_UI_HARNESS") ||
       LaunchArgumentPresent(@"--scroll-test-harness") ||
       LaunchArgumentPresent(@"--transcript-scroll-persistence-harness") ||
       LaunchArgumentPresent(@"--transcript-range-navigation-harness") ||
@@ -392,7 +399,8 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       LaunchArgumentPresent(@"--notification-rail-harness") ||
       LaunchArgumentPresent(@"--markdown-geometry-harness") ||
       LaunchArgumentPresent(@"--connections-panel-harness") ||
-      LaunchArgumentPresent(@"--desktop-workspace-harness")) {
+      LaunchArgumentPresent(@"--desktop-workspace-harness") ||
+      LaunchArgumentPresent(@"--rich-session-ui-harness")) {
     return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
   }
 

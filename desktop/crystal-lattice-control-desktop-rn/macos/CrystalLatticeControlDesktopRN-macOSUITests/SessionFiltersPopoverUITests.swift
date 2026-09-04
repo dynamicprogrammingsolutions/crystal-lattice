@@ -1,6 +1,72 @@
 import XCTest
 
 final class SessionFiltersPopoverUITests: XCTestCase {
+  func testRichSessionUiModelAndPlacedActions() throws {
+    let app = XCUIApplication()
+    app.launchEnvironment["CLC_ENABLE_RICH_SESSION_UI_HARNESS"] = "1"
+    app.launch()
+
+    let harness = app.windows["DesktopRichSessionUiHarnessWindow"]
+    XCTAssertTrue(harness.waitForExistence(timeout: 15))
+
+    let model = element(app, "composer-rich-config-model")
+    XCTAssertTrue(model.waitForExistence(timeout: 10))
+    waitForLabel(model, "Model: Claude A")
+    model.click()
+
+    var nativePopover = harness.popovers.firstMatch
+    XCTAssertTrue(nativePopover.waitForExistence(timeout: 10), app.debugDescription)
+    let option = element(
+      nativePopover,
+      "rich-config-dropdown-model-option-claude-b"
+    )
+    XCTAssertTrue(option.waitForExistence(timeout: 10))
+    option.click()
+    waitForLabel(model, "Model: Claude B", timeout: 10)
+
+    model.click()
+    nativePopover = harness.popovers.firstMatch
+    XCTAssertTrue(nativePopover.waitForExistence(timeout: 10), app.debugDescription)
+    let customInput = element(
+      nativePopover,
+      "rich-config-dropdown-model-custom-input"
+    )
+    XCTAssertTrue(customInput.waitForExistence(timeout: 10), app.debugDescription)
+    customInput.click()
+    customInput.typeText("vendor/custom-model")
+    element(nativePopover, "rich-config-dropdown-model-custom-submit").click()
+    waitForLabel(model, "Model: vendor/custom-model", timeout: 10)
+
+    model.click()
+    nativePopover = harness.popovers.firstMatch
+    XCTAssertTrue(nativePopover.waitForExistence(timeout: 10), app.debugDescription)
+    element(nativePopover, "rich-config-dropdown-model-reset").click()
+    waitForLabel(model, "Model: Claude A", timeout: 10)
+
+    let toggle = element(
+      app,
+      "session-rich-action-toggle_feature-session-header"
+    )
+    XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+    waitForLabel(toggle, "Toggle feature: Off")
+    toggle.click()
+    waitForLabel(toggle, "Toggle feature: On", timeout: 10)
+
+    let status = element(app, "session-rich-action-set_status-composer")
+    XCTAssertTrue(status.waitForExistence(timeout: 10))
+    waitForLabel(status, "Set status: To do")
+    status.click()
+    nativePopover = harness.popovers.firstMatch
+    XCTAssertTrue(nativePopover.waitForExistence(timeout: 10), app.debugDescription)
+    let done = element(
+      nativePopover,
+      "session-rich-list-set_status-option-done"
+    )
+    XCTAssertTrue(done.waitForExistence(timeout: 10))
+    done.click()
+    waitForLabel(status, "Set status: Done", timeout: 10)
+  }
+
   override func setUpWithError() throws {
     continueAfterFailure = false
   }

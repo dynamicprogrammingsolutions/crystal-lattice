@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,9 +10,9 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { useTheme, type Theme } from '../theme';
+import { useTheme, type Theme } from "../theme";
 
 export type OptionItem = { value: string; label: string };
 
@@ -20,6 +22,13 @@ export interface OptionsPickerModalProps {
   onSelect: (value: string) => void;
   onRequestClose: () => void;
   useModal?: boolean;
+  selectedValue?: string;
+  allowCustomValue?: boolean;
+  customValueLabel?: string;
+  customValuePlaceholder?: string;
+  showReset?: boolean;
+  resetLabel?: string;
+  onReset?: () => void;
 }
 
 /**
@@ -31,16 +40,34 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
   onSelect,
   onRequestClose,
   useModal = true,
+  selectedValue = "",
+  allowCustomValue = false,
+  customValueLabel = "Other value…",
+  customValuePlaceholder = "Enter a value",
+  showReset = false,
+  resetLabel = "Reset to configured value",
+  onReset,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
+  const [customValue, setCustomValue] = useState("");
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    const selectedIsDeclared = options.some(
+      (option) => option.value === selectedValue,
+    );
+    setCustomValue(selectedIsDeclared ? "" : selectedValue);
+  }, [options, selectedValue, visible]);
 
   const filteredOptions = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return options;
     return options.filter((opt) => {
-      const text = `${opt.label ?? ''} ${opt.value ?? ''}`.toLowerCase();
+      const text = `${opt.label ?? ""} ${opt.value ?? ""}`.toLowerCase();
       return text.includes(q);
     });
   }, [options, search]);
@@ -49,11 +76,17 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
 
   const handleSelect = (value: string) => {
     onSelect(value);
-    setSearch('');
+    setSearch("");
+  };
+  const handleCustomSelect = () => {
+    const nextValue = customValue.trim();
+    if (nextValue) {
+      handleSelect(nextValue);
+    }
   };
 
   const handleClose = () => {
-    setSearch('');
+    setSearch("");
     onRequestClose();
   };
 
@@ -61,7 +94,10 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
     <TouchableWithoutFeedback onPress={handleClose}>
       <View style={styles.overlay}>
         <TouchableWithoutFeedback onPress={() => {}}>
-          <View style={styles.content}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.content}
+          >
             <TextInput
               style={styles.searchInput}
               placeholder="Search..."
@@ -87,6 +123,53 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
                 </TouchableOpacity>
               ))}
             </ScrollView>
+            {allowCustomValue ? (
+              <View style={styles.customSection}>
+                <Text style={styles.customLabel}>{customValueLabel}</Text>
+                <TextInput
+                  testID="options-picker-custom-input"
+                  accessibilityLabel={customValueLabel}
+                  style={styles.customInput}
+                  placeholder={customValuePlaceholder}
+                  placeholderTextColor={theme.textSecondary}
+                  value={customValue}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={handleCustomSelect}
+                  onChangeText={setCustomValue}
+                />
+                <TouchableOpacity
+                  testID="options-picker-custom-submit"
+                  accessibilityRole="button"
+                  accessibilityLabel="Use custom value"
+                  style={[
+                    styles.button,
+                    styles.primaryButton,
+                    !customValue.trim() && styles.disabledButton,
+                  ]}
+                  disabled={!customValue.trim()}
+                  onPress={handleCustomSelect}
+                >
+                  <Text style={styles.primaryButtonText}>Use value</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            {showReset && onReset ? (
+              <TouchableOpacity
+                testID="options-picker-reset"
+                accessibilityRole="button"
+                accessibilityLabel={resetLabel}
+                style={styles.resetButton}
+                onPress={() => {
+                  onReset();
+                  setSearch("");
+                  setCustomValue("");
+                }}
+              >
+                <Text style={styles.resetButtonText}>{resetLabel}</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
               style={[styles.button, styles.secondaryButton]}
               accessibilityRole="button"
@@ -96,7 +179,7 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
             >
               <Text style={styles.buttonTextSecondary}>Cancel</Text>
             </TouchableOpacity>
-          </View>
+          </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </View>
     </TouchableWithoutFeedback>
@@ -107,7 +190,12 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
   }
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={handleClose}
+    >
       {content}
     </Modal>
   );
@@ -118,12 +206,12 @@ const createStyles = (theme: Theme) =>
     overlay: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: theme.modalBackdrop,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: "center",
+      alignItems: "center",
     },
     content: {
-      width: '85%',
-      maxHeight: '70%',
+      width: "85%",
+      maxHeight: "70%",
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 16,
@@ -144,6 +232,25 @@ const createStyles = (theme: Theme) =>
       maxHeight: 320,
       marginVertical: 8,
     },
+    customSection: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.border,
+      paddingTop: 10,
+      gap: 8,
+    },
+    customLabel: {
+      color: theme.text,
+      fontWeight: "700",
+    },
+    customInput: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      color: theme.text,
+      backgroundColor: theme.surface,
+    },
     item: {
       paddingVertical: 12,
       paddingHorizontal: 8,
@@ -157,7 +264,7 @@ const createStyles = (theme: Theme) =>
     },
     button: {
       marginTop: 8,
-      alignSelf: 'flex-end',
+      alignSelf: "flex-end",
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 8,
@@ -165,10 +272,31 @@ const createStyles = (theme: Theme) =>
     secondaryButton: {
       backgroundColor: theme.surfaceAlt,
     },
+    primaryButton: {
+      backgroundColor: theme.primary,
+    },
+    disabledButton: {
+      opacity: 0.45,
+    },
+    primaryButtonText: {
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
+      fontWeight: "600",
+      color: theme.textOnPrimary,
+    },
+    resetButton: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+    },
+    resetButtonText: {
+      color: theme.danger,
+      fontWeight: "700",
+    },
     buttonTextSecondary: {
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
-      fontWeight: '600',
+      fontWeight: "600",
       color: theme.text,
     },
   });

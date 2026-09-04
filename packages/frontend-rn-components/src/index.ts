@@ -154,6 +154,14 @@ export {
 
 export type { SessionActionsBarProps } from './actions/SessionActionsBar';
 export { SessionActionsBar } from './actions/SessionActionsBar';
+export type {
+  RichConfigDropdownControlProps,
+  RichConfigDropdownPanelProps,
+} from './actions/RichConfigDropdown';
+export {
+  RichConfigDropdownControl,
+  RichConfigDropdownPanel,
+} from './actions/RichConfigDropdown';
 
 export type {
   SessionListActionsBarProps,

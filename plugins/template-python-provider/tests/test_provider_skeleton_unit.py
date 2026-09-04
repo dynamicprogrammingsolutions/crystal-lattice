@@ -23,6 +23,24 @@ def test_tags_include_streaming_capability() -> None:
     assert "supports_streaming" in tags
 
 
+def test_model_ui_uses_the_portable_rich_dropdown() -> None:
+    provider = TemplateProvider()
+
+    elements = provider.get_ui_elements(
+        {"model": "m"},
+        tags=[],
+        models=[{"id": "m", "name": "Model M"}],
+    )
+
+    model = elements[0]
+    assert model["type"] == "dropdown"
+    assert model["options"] == [{"value": "m", "label": "Model M"}]
+    assert model["allow_custom_value"] is True
+    assert model["rich_ui"]["kind"] == "dropdown"
+    assert model["rich_ui"]["options"] == model["options"]
+    assert model["rich_ui"]["placements"] == ["composer"]
+
+
 def test_default_message_conversion_shapes() -> None:
     provider = TemplateProvider()
 

@@ -266,14 +266,20 @@ class OpenRouterProvider(ProviderPlugin):
                 "key": "model",
                 "label": "Openrouter Model",
                 **({"options": model_options} if use_dropdown else {}),
-            },
-            {
-                "ui_type": "model_picker",
-                "key": "model",
-                "attachment_type": "dropdown",
-                "display_placement": "left",
-                "options": model_options,
-                "label": "model",
+                "allow_custom_value": True,
+                "custom_value_label": "Other model…",
+                "custom_value_placeholder": "Enter a model ID",
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Model",
+                    "options": model_options,
+                    "allow_custom_value": True,
+                    "custom_value_label": "Other model…",
+                    "custom_value_placeholder": "Enter a model ID",
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "icon": "cpu",
+                },
             },
         ]
 

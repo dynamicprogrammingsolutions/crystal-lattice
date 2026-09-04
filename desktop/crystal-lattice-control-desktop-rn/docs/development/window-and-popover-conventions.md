@@ -11,6 +11,7 @@ Current macOS conventions:
 | Notification/action modal request | Inline fallback in message/detail rail |
 | Connection/application banner | Message/detail-area rail |
 | Session inline/banner/modal | Active ChatPane rail |
+| Compact config dropdown or rich session-action list | Native `NSPopover` |
 
 Do not introduce React Native `Modal` for desktop notification flows; the
 current macOS runtime does not provide a reliable implementation.

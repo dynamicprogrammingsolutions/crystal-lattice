@@ -16,6 +16,7 @@ import { MobileNotificationUiEffectsHarness } from "./src/testing/MobileNotifica
 import { MobileConnectionsSettingsHarness } from "./src/testing/MobileConnectionsSettingsHarness";
 import { MobileHomeHarness } from "./src/testing/MobileHomeHarness";
 import { MobileWebsiteVisualHarness } from "./src/testing/MobileWebsiteVisualHarness";
+import { MobileRichSessionUiHarness } from "./src/testing/MobileRichSessionUiHarness";
 import { name as appName } from "./app.json";
 
 const RootComponent = (props) => {
@@ -40,6 +41,8 @@ const RootComponent = (props) => {
     Component = MobileConnectionsSettingsHarness;
   } else if (props?.clcHomeHarness === "1") {
     Component = MobileHomeHarness;
+  } else if (props?.clcRichSessionUiHarness === "1") {
+    Component = MobileRichSessionUiHarness;
   }
   return React.createElement(Component, props);
 };
@@ -91,3 +94,7 @@ AppRegistry.registerComponent(
   () => MobileConnectionsSettingsHarness
 );
 AppRegistry.registerComponent("MobileHomeHarness", () => MobileHomeHarness);
+AppRegistry.registerComponent(
+  "MobileRichSessionUiHarness",
+  () => MobileRichSessionUiHarness
+);

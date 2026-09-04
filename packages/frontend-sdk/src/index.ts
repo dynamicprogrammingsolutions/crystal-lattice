@@ -355,6 +355,30 @@ export type { SessionApplicationUiSchemaControllerState } from './uiSchema/sessi
 export { SessionApplicationUiSchemaController } from './uiSchema/sessionApplicationUiSchemaController';
 
 export type {
+  ChatRichUiPlacement,
+  ConfigRichDropdownUi,
+  ConfigRichUi,
+  ConfigRichUiBase,
+  ConfigRichUiControl,
+  ConfigRichUiElement,
+  RichDropdownOption,
+  RichUiDiagnostic,
+  RichUiNormalizationResult,
+  SessionActionRichUiElement,
+  UnknownConfigRichUi,
+} from './uiSchema/richUi';
+export {
+  CHAT_RICH_UI_PLACEMENTS,
+  getDefaultPinnedConfigRichUiKeys,
+  getSessionActionRichUiPlacements,
+  isSessionActionPlacedAt,
+  normalizeConfigRichUiElement,
+  normalizeSessionActionRichUiElement,
+  normalizeSessionActionRichUiElements,
+  selectConfigRichUiControls,
+} from './uiSchema/richUi';
+
+export type {
   SessionSettingsControllerState,
   SessionSettingsStatusTone,
 } from './sessionSettings/sessionSettingsController';

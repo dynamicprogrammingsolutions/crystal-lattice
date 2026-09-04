@@ -164,6 +164,15 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
         for element in sonnet_ui
         if isinstance(element.get("key"), str)
     }
+    model_ui = sonnet_ui_by_key["model"]
+    assert model_ui["type"] in {"dropdown", "text"}
+    assert model_ui["allow_custom_value"] is True
+    assert model_ui["rich_ui"]["kind"] == "dropdown"
+    assert model_ui["rich_ui"]["label"] == "Model"
+    assert model_ui["rich_ui"]["options"] == model_ui.get("options", [])
+    assert model_ui["rich_ui"]["placements"] == ["composer"]
+    assert model_ui["rich_ui"]["default_pinned"] is True
+    assert all(element.get("ui_type") != "model_picker" for element in sonnet_ui)
     assert [
         option["value"]
         for option in sonnet_ui_by_key["anthropic_reasoning_effort"]["options"]
