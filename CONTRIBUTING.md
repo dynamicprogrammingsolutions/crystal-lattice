@@ -24,8 +24,8 @@ authorization.
 4. **Supervise implementation:** Authorize the accepted plan and make sure new
    discoveries return to you when they change requirements or material
    decisions.
-5. **Question and verify:** Ask what automated tests actually ran, perform
-   applicable human testing, consider independent AI review, and inspect the
+5. **Question and verify:** Ask what automated tests actually ran, complete
+   applicable human checkpoints, consider independent AI review, and inspect the
    resulting change.
 6. **Plan findings and deliver:** Treat every follow-up as another planned
    change. Commit, open a pull request, or merge only after explicit human
@@ -171,6 +171,26 @@ behavior affects a consumer, the owning user documentation must be updated.
 The same person may shape and finally review a small change, but those are
 still distinct decisions.
 
+## What Humans Review
+
+Five recurring concerns can help you direct a review:
+
+- **Requirements and outcomes:** Is the requested behavior present without
+  important omissions or unapproved additions?
+- **Scope and placement:** Does the work stay within the accepted boundary and
+  belong in the parts of the system being changed?
+- **Design and complexity:** Are important choices understandable, and is the
+  solution no more complicated than the outcome requires?
+- **Verification:** Do the planned or completed tests provide confidence at
+  the real boundaries?
+- **Documentation and remaining work:** Are consumer documentation,
+  limitations, deferred work, and unverified results visible?
+
+You do not need to perform every detailed check yourself. Inspect what matters
+to your decision, ask the implementing agent focused questions, or request an
+independent review. Task structure, links, identifiers, status fields, and
+other record maintenance remain agent work.
+
 ## Human-Led AI-Assisted Workflow
 
 ### 1. Brainstorm and Shape the Change
@@ -217,7 +237,8 @@ Questions worth asking include:
 ### 2. Review Specifications, Requirements, and Tasks
 
 Once the direction is clear, ask the agent what durable records are useful.
-The agent can draft them; your job is to review the decisions they express.
+The agent can draft them; your job is to understand and accept the intended
+outcomes, boundaries, and important decisions.
 
 ```text
 Turn our agreed direction into the appropriate specifications, requirements,
@@ -225,21 +246,39 @@ and task structure. Bring back the important scope and design decisions for my
 review.
 ```
 
-Look for substance rather than mechanical perfection:
+Check first that the requirements represent what you meant:
 
-- Does the proposed behavior solve the problem you described?
-- Are the affected users and observable workflows represented?
-- Are boundaries and non-goals clear?
-- Are important failure, compatibility, security, privacy, persistence,
-  migration, and rollout concerns visible?
-- Are unresolved requirement questions still presented as questions?
-- Are the requirements understandable as outcomes that could be accepted?
-- Is the task split useful for review, or does it fragment one coherent
-  change?
+- Are any requested outcomes missing?
+- Did the proposal add behavior or constraints that you did not ask for?
+- Are two requirements describing the same outcome?
+- Does a requirement prescribe a class, component, mechanism, or file layout
+  that belongs in the implementation plan instead?
 
-The agent can audit requirement IDs, links, status fields, and other
-consistency details. Ask for that audit when useful; you do not need to perform
-it manually.
+Implementation constraints may be legitimate when they protect a public
+contract, security boundary, compatibility guarantee, ownership boundary, or
+persisted data. Ask why a specific mechanism must be part of the requirement
+when that reason is not apparent.
+
+Then review the proposed boundary:
+
+- What is explicitly outside the work?
+- Which consumers and major parts of the system are affected?
+- Does the task combine capabilities that could be decided or delivered
+  separately?
+- Which product, compatibility, security, persistence, or migration decisions
+  require your approval?
+
+Useful follow-ups include:
+
+```text
+Summarize how the requirements cover what I asked for. Call out anything you
+added, left out, or represented more than once.
+```
+
+```text
+Which requirements prescribe implementation choices, and why are those
+choices necessary constraints rather than plan details?
+```
 
 ### 3. Review and Approve the Plan
 
@@ -258,31 +297,49 @@ Before making the change, inspect the relevant code and give me a brief plan,
 including the tests and documentation affected.
 ```
 
-The plan should let you answer:
+Start with requirement coverage:
 
-- What will change, and what will remain unchanged?
-- Does it satisfy the accepted requirements?
-- Does it preserve public contracts and compatibility?
-- Are security, persistence, migration, failure, and operational behavior
-  addressed where relevant?
-- Which current user documentation will change for affected consumers?
-- Does an existing specification need an update?
-- What could cause the work to return for another decision?
+```text
+Map the plan to the accepted requirements and call out anything that is
+deferred, only partially covered, or still depends on a decision.
+```
+
+Review unexpected scope or placement without trying to reconstruct the entire
+architecture yourself:
+
+- Which packages or major components will change, and why?
+- Does each planned change support an accepted outcome?
+- Is behavior being added at the part of the system that owns it?
+- Is a related change being included that needs a separate decision?
+
+Ask the agent to explain important design choices:
+
+```text
+Explain the main design choices, the assumptions they depend on, and any
+simpler alternative that was rejected.
+```
+
+Pay particular attention to assumptions about provider behavior, native
+platforms, external services, framework capabilities, or existing ownership.
+A small experiment or real integration request may be more useful than
+approving a detailed design built on an unverified assumption.
 
 #### Review the Test Strategy
 
 AI will normally create and run the automated tests. Before approving the
-plan, make sure the proposed evidence matches the behavior:
+plan, understand what confidence each layer will add:
 
 | Evidence | Question for the plan |
 |---|---|
 | Unit tests | Which rules, edge cases, and failure behavior will they isolate? |
-| Integration tests | Which real package, service, transport, persistence, provider, or native boundary will they cross? |
-| End-to-end tests | Which public user or deployment journey will they exercise without a test-only shortcut? |
-| Manual testing | Which visual, accessibility, device, installation, upgrade, or operational result needs human observation? |
+| Integration tests | Which real package, service, transport, persistence, provider, or native boundary will they cross, and through which production adapter or API? |
+| End-to-end tests | Which public user or deployment journey will they exercise through production components? |
+| Human checkpoint | What perception, exploration, product judgment, or real environment cannot be represented faithfully by an automated assertion? |
 
 Not every change needs every kind of evidence. The important point is to make
-the boundary choice explicit before implementation.
+the boundary choice explicit before implementation. Also ask which current
+user documentation changes for affected consumers and whether an existing
+specification target changes.
 
 ### 4. Authorize and Supervise Implementation
 
@@ -298,16 +355,13 @@ For a conversational plan:
 That plan looks right. Please implement it.
 ```
 
-You do not need to direct every edit. Watch instead for evidence that the work
-has crossed an accepted boundary or encountered a new material decision.
+You do not need to direct every edit. For longer work, ask at a meaningful
+checkpoint:
 
-Useful questions during a longer implementation include:
-
-- Are you still within the approved scope?
-- Did repository inspection change any assumptions?
-- Has the implementation exposed a requirement or compatibility question?
-- Is a planned test unable to exercise the real boundary?
-- Has consumer or maintainer documentation impact changed?
+```text
+Has implementation changed any accepted requirement, scope boundary,
+important design assumption, verification plan, or documentation impact?
+```
 
 If the answer changes the required outcome, contract, ownership, persisted
 data, security model, or another important decision, return to planning before
@@ -315,42 +369,44 @@ authorizing that work.
 
 ### 5. Question the Evidence and Review the Result
 
-An implementation summary is the start of review, not proof by itself. Ask for
-the evidence at the level you need:
+An implementation summary is the start of review. Begin with a concise account
+of the result and its limits:
 
 ```text
-Tell me which unit, integration, and end-to-end tests actually ran, what
-boundary each one exercised, whether anything skipped or failed, what remains
-unverified, and which documentation changed.
+Summarize what was delivered, what changed from the plan, which tests actually
+ran, what remains unverified, and what documentation was updated.
 ```
 
-Check that:
+Follow up where the answer affects acceptance:
 
-- reported commands actually collected and completed the intended tests;
-- a direct function test is not described as HTTP integration;
-- a mocked frontend test is not described as backend integration;
-- a simulator harness is not described as a network end-to-end test;
-- skips, collection failures, teardown errors, open handles, and background
-  failures are not counted as successful runs;
-- test-only shortcuts do not hide the behavior the test claims to cover;
-- documentation claims match the implemented behavior;
-- unrelated changes are not mixed into the diff.
+- Which requirements are incomplete, skipped, or still unverified?
+- Were unexpected files, packages, or behaviors changed, and do they belong
+  there?
+- Did the change introduce unnecessary or duplicated behavior, configuration,
+  compatibility paths, fallbacks, or abstractions?
+- Did the tests reach the production paths they claim to cover, or stop
+  earlier in setup, collection, harness selection, transport, or teardown?
+- Is consumer documentation current, and is this the completion of the whole
+  task, one stage, or a follow-up?
 
-#### Prepare and Perform Human Testing
+#### Choose Automated or Human Testing
 
-Use human testing when a meaningful result must be observed in a UI, terminal,
-installation, upgrade, real device, external service, accessibility flow, or
-operational procedure. An agent can prepare the steps:
+If a checkpoint is a repeatable sequence with a machine-observable result, ask
+for an automated integration or end-to-end test. Examples include changing a
+setting and checking persisted state, invoking an action and checking dialog
+content, navigating a simulator flow, or restarting a service and checking
+recovery.
+
+Use a human checkpoint when it adds perception, exploration, product judgment,
+or a real environment that automation cannot faithfully represent. Examples
+include judging whether a long dialog is readable, whether a workflow is
+understandable, how a gesture feels, or how the product behaves with real
+hardware and services.
 
 ```text
-Prepare a short human test checklist for <change or requirement>, including
-setup, actions, and expected observable results.
+Review the proposed human checkpoints. Which ones add real human judgment, and
+which should become automated integration or end-to-end tests?
 ```
-
-Human verification is complete only when a human performs the test or directly
-confirms it. An AI-generated checklist, simulation, screenshot description, or
-automated assertion does not become human evidence by being recorded in a
-task.
 
 #### Request Independent AI Review
 
@@ -359,20 +415,35 @@ work independently:
 
 ```text
 Independently review the current change against <task or specification>.
-Report concrete findings by severity and include file references.
+Focus on correctness, scope, verification, and unnecessary complexity. Report
+concrete findings with file references.
 ```
 
-The reviewing agent advises you. It does not accept the implementation,
-resolve whether a risk is acceptable, or complete human verification.
+Add a focus that matters to the task, such as:
 
-Your final review decides whether:
+- requirement coverage and verification;
+- scope and ownership;
+- complexity and duplication;
+- security, persistence, or compatibility;
+- native interaction, accessibility, or consumer documentation.
 
-- the intended outcome was achieved;
-- the implementation stayed within accepted scope;
-- test and documentation evidence is sufficient;
-- applicable human testing was completed;
-- review findings were evaluated;
-- security, compatibility, and operational risks are acceptable.
+You can also request a narrow review:
+
+```text
+Review only requirement coverage and verification. Identify anything missing,
+skipped, or supported by weaker evidence than the summary claims.
+```
+
+```text
+Review the change for scope and design. Look for misplaced or duplicated
+behavior and complexity the accepted requirements do not need.
+```
+
+The reviewing agent advises you. It may miss problems or report findings that
+do not hold, so evaluate each finding before acting on it.
+
+Use the findings as input. You decide whether the outcome was achieved and
+whether the remaining gaps and risks are acceptable.
 
 ### 6. Plan Findings and Authorize Delivery
 
@@ -392,17 +463,10 @@ verification and documentation.
 ```
 
 When the final result and evidence are acceptable, explicitly grant only the
-delivery action you intend. For example:
+delivery action you intend:
 
 ```text
 Create a focused commit for the completed work in <task path>.
-```
-
-Or:
-
-```text
-Open a pull request for the reviewed commits and summarize the verified
-boundaries and remaining limitations.
 ```
 
 Describing a commit, pull request, deployment, or merge as the next workflow
@@ -458,9 +522,9 @@ current user and maintainer documentation
 | Current user documentation | What consumers can rely on in the delivered product |
 | Current implementation documentation | How maintainers understand and operate the delivered implementation |
 
-AI normally drafts and maintains these records. Review the product meaning and
-material decisions; ask an implementing or reviewing agent to check mechanical
-consistency.
+AI normally drafts and maintains these records. Review the intended behavior,
+important boundaries, decisions, evidence, and remaining work. The agent
+maintains the record structure and consistency.
 
 For the repository rules, see:
 
@@ -475,168 +539,34 @@ is a compact example. Its product specification explains observable behavior,
 its technical specification explains the implementation contract, and its
 requirements show the live outcome set.
 
-## Repository and Pull-Request Essentials
+## Prepare and Review the Pull Request
 
-### Find the Owning Package
+After the commits have been reviewed, explicitly ask the agent to prepare the
+pull request:
 
-Start with the README and public development documentation for the package or
-subsystem that owns the behavior:
-
-- Repository-wide:
-  [development documentation](docs/development/index.md),
-  [documentation structure](docs/development/repository/documentation.md), and
-  [architecture](ARCHITECTURE.md)
-- Core SDK:
-  [package README](core/python/README.md) and
-  [development index](core/python/docs/development/index.md)
-- Terminal/server application:
-  [package README](application/python/README.md),
-  [documentation index](application/python/docs/index.md), and
-  [feature-development guide](application/python/docs/development/terminal-and-http-features.md)
-- Plugins:
-  [shared plugin-authoring documentation](plugins/docs/index.md) and the
-  individual plugin's README
-- Shared frontend:
-  [frontend SDK](packages/frontend-sdk/README.md),
-  [React bindings](packages/frontend-sdk-react/README.md), and
-  [React Native components](packages/frontend-rn-components/README.md)
-- Applications:
-  [mobile](mobile/crystal-lattice-control-rn/README.md) and
-  [desktop](desktop/crystal-lattice-control-desktop-rn/README.md)
-- Services:
-  [bridge](bridge-elixir/README.md) and
-  [cloud orchestrator](cloud-orchestrator/README.md)
-- Sites:
-  [landing page](landing_page/README.md) and
-  [documentation site](docs_site/README.md)
-
-Ask the agent to search existing issues before opening a duplicate. A prior
-issue is useful for large or user-visible changes but is not required for a
-small, focused fix. See [SUPPORT.md](SUPPORT.md) for bug, feature, support, and
-sensitive-report routing.
-
-Use the owning package's entry point for prerequisites, installation, and test
-commands. The Core/application environment starts with the
-[root Core development quickstart](README.md#core-development-quickstart).
-
-### Verify Tests and Documentation
-
-Before accepting a change, ask the agent:
-
-- which focused checks and package suites ran;
-- which integration, hosted-API, Docker, native, or e2e checks applied;
-- which applicable checks could not run and why;
-- whether any test skipped or failed before or after its assertions;
-- which consumer and maintainer documentation changed;
-- whether generated documentation was regenerated through its owning process
-  rather than edited directly.
-
-If consumer behavior changed, user documentation must change with it. If
-implementation, architecture, testing, or maintenance behavior changed, the
-owning development documentation must stay current.
-
-### Required Public Pull-Request Checks
-
-Public pull requests run four credential-free checks:
-
-- `Public CI / Repository checks`
-- `Public CI / Python unit tests`
-- `Public CI / Frontend package tests`
-- `Public CI / Landing and docs build`
-
-The
-[Public CI workflow](.github/workflows/public-ci.yml) is the executable source
-of truth. These practical local commands cover its main validation boundaries.
-
-Repository checks:
-
-```bash
-git diff --check
-python scripts/check_github_actions_security.py
+```text
+Open a pull request from the reviewed commits. Summarize the outcome, actual
+scope, tests and human checks performed, documentation updated, and remaining
+limitations. Do not merge it.
 ```
 
-If `actionlint` is installed, it is a useful additional local workflow check:
+Before accepting or merging it, check that:
 
-```bash
-actionlint .github/workflows/*.yml
-```
+- the pull request contains the work you reviewed;
+- its description matches the accepted outcome and scope;
+- test and human-check claims are accurate;
+- deferred work, limitations, and unresolved findings are visible;
+- the target branch, reviewers, and requested delivery action are correct.
 
-Python unit tests:
+Opening a pull request does not authorize a merge or deployment.
 
-```bash
-python -m pip install \
-  -e "core/python[dev]" \
-  -e application/python \
-  -e "plugins/openai_responses[dev]" \
-  -e plugins/tool-compat-shared \
-  -e plugins/mcp-shared \
-  -e plugins/web-fetch-shared
-pytest core/python/tests -q -m "not integration"
-pytest application/python/tests -q -m "not integration and not docker"
-```
+### Project Policies
 
-Shared frontend package tests:
-
-```bash
-npm ci
-npm --workspace @crystal-lattice/frontend-sdk test
-npm --workspace @crystal-lattice/frontend-sdk-react test
-npm --workspace @crystal-lattice/frontend-rn-components test
-```
-
-Landing-page and documentation builds:
-
-```bash
-yarn --cwd landing_page install --frozen-lockfile
-yarn --cwd landing_page build
-python -m pip install -r docs_site/requirements.txt
-python docs_site/scripts/prepare_mkdocs_site.py
-(cd docs_site && mkdocs build)
-```
-
-Required public CI intentionally excludes hosted-provider tests, Docker/cloud
-integration, mobile/desktop native builds, native UI tests, signing,
-TestFlight, and deployment. Their absence from required CI does not make them
-unnecessary when a change crosses those boundaries.
-
-### Review the Pull Request
-
-Make sure the pull-request description:
-
-- explains the outcome and affected boundary;
-- links the relevant issue when one exists;
-- lists the tests and human checks actually performed;
-- identifies user-documentation, compatibility, security, privacy,
-  deployment, and data-migration effects;
-- calls out meaningful deferred work or known limitations.
-
-Do not accept a claim that a skipped or gated test passed. Keep unrelated
-formatting, generated output, and cleanup out of the same pull request unless
-they are part of the accepted scope.
-
-### Sensitive and Local Data
-
-Never commit credentials, tokens, private keys, personal data, private
-conversations, runtime session data, unnormalized captured logs, local user
-paths, build caches, or other machine-specific files.
-
-Sanitize logs and screenshots before attaching them to issues or pull
-requests. If you discover a possible vulnerability or exposed credential,
-follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
-
-### Contribution License
-
-Contributions are accepted under the license that applies to the file or
-subtree being changed. Most original Crystal Lattice material is Apache-2.0,
-while more specific license and notice files may apply within a subtree. See
-[LICENSE](LICENSE) and [LICENSING.md](LICENSING.md) before contributing.
-
-By intentionally submitting a contribution for inclusion, you agree that it
-may be distributed under the applicable project or subtree license. The
-project does not currently require a separate contributor license agreement or
+Use [SUPPORT.md](SUPPORT.md) for issue and support routing and
+[SECURITY.md](SECURITY.md) for sensitive security reports. Contribution terms
+are defined by [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md); the project
+does not currently require a separate contributor license agreement or
 Developer Certificate of Origin signoff.
-
-### Participation
 
 Be respectful, constructive, and specific. Assume good faith, discuss the
 technical or user outcome rather than the person, and make space for

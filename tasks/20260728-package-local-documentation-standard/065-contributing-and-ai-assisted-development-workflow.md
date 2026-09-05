@@ -41,13 +41,15 @@ prompts that rely on standing repository guidance.
 - [x] Each major workflow step identifies only the owner or collaboration
   relevant to that step; the guide does not force both human and AI work into
   every stage.
-- [x] Manual verification is defined as work actually performed or directly
-  confirmed by a human.
+- [x] Human checkpoints are reserved for perception, exploration, product
+  judgment, or real environments that automation cannot faithfully represent;
+  repeatable procedures with machine-observable results become automated
+  integration or end-to-end tests.
 - [x] AI review is advisory and cannot complete a human-verification or
   acceptance requirement.
-- [x] The guide distinguishes automated verification, manual testing,
-  implementing-agent self-review, independent AI review, final human review,
-  and human delivery authorization.
+- [x] The guide distinguishes automated verification, human checkpoints,
+  independent AI review, final human acceptance, and human delivery
+  authorization.
 - [ ] The guide explains that applicable `AGENTS.md` and task guidance must
   actually reach the model through its developer/system message or first user
   message and shows humans how to inspect the effective instructions.
@@ -64,11 +66,17 @@ prompts that rely on standing repository guidance.
 - [x] Example prompts assume repository guidance is already active and do not
   restate generic coding, testing, documentation, or task-file rules.
 - [x] Human review questions appear at the relevant workflow stages and focus
-  on scope, decisions, evidence, and remaining uncertainty rather than
-  mechanical bookkeeping.
-- [x] Unit, integration, end-to-end, and manual evidence are prominent; the
+  on requirements and outcomes, scope and placement, design and complexity,
+  verification, documentation, and remaining work without repeating those
+  categories as a rigid template.
+- [x] Human review can identify missing, expanded, redundant, skipped, or
+  unverified requirements; unexpected scope or placement; unnecessary
+  complexity; weak evidence; and incomplete documentation through direct
+  inspection or focused follow-up questions.
+- [x] Unit, integration, end-to-end, and human evidence are prominent; the
   guide assumes AI creates and runs automated tests while humans review the
-  planned boundaries and reported results.
+  planned boundaries, production paths, reported results, and remaining need
+  for human judgment.
 - [x] The guide gives humans a clear conceptual model of specifications,
   requirements, tasks, execution plans, current user documentation, and current
   implementation documentation, with links and a compact worked example.
@@ -78,10 +86,16 @@ prompts that rely on standing repository guidance.
 - [x] Commit authorization remains explicit; describing commit as the final
   stage does not grant an agent permission to commit.
 - [x] The guide links to the documentation structure, specification standard,
-  task guidance, and package-specific development entry points instead of
-  duplicating all commands.
+  task guidance, and compact project-policy routes without duplicating package
+  discovery or CI command catalogs.
 - [x] Supporting online references are preserved in a compact further-reading
   or rationale section without interrupting the main workflow.
+- [x] Independent AI review uses one short general prompt, optional
+  task-specific focus phrases, and a few focused examples rather than one
+  exhaustive checklist prompt.
+- [x] Pull-request guidance assumes AI prepares the pull request and gives the
+  human a concise review of outcome, scope, evidence, limitations, and delivery
+  authorization.
 - [x] The frontend and terminal setting paths for including task guidance are
   documented.
 - [ ] The system-message feature exposes a session action that compiles the
@@ -562,13 +576,40 @@ Preserve these under a compact "Further reading" or rationale section:
   evidence, and preserved the prior public contribution policy.
 - Drafted package-owned target documentation for the system-message inspection
   action, mobile/desktop/terminal task-guidance paths, and proxy
-  `--hide-headers` behavior. These product-dependent files remain uncommitted
-  until the product stage is confirmed and implemented.
+  `--hide-headers` behavior.
 - Focused documentation verification passed: `git diff --check`; structural
   target assertions; local Markdown links and anchors across seven changed
   documents; Markdown rendering with fenced code and tables; and preservation
   checks for public CI, pull-request, security, licensing, participation, and
   truthful-test-reporting guidance. Human readability review remains pending.
+- September 5, 2026 checkpoint commits: `4e55e170` records the task and
+  requirements state; `755b5e3c` records the complete documentation draft.
+  The human explicitly requested documentation-first commit ordering under the
+  repository policy introduced by `a4adb728`; product implementation and
+  verification remain pending.
+- September 5, 2026 human-review consolidation: The human approved a final
+  rewrite that retains five review concerns as a light conceptual model rather
+  than repeated headings. Stage-specific questions will concentrate on
+  requirements, scope/placement, design/complexity, verification, and
+  documentation/remaining state only where each concern helps a realistic
+  human decision. Task-file mechanics remain agent-owned. Manual checkpoints,
+  independent-review prompts, and pull-request guidance will be simplified as
+  described in the approved conversation plan.
+- September 5, 2026 consolidated rewrite: Updated the documentation-standard
+  product and technical targets, `DOCFLOW-006`, and `CONTRIBUTING.md`. The
+  guide now introduces the five review concerns once, uses concise
+  stage-specific questions, distinguishes automatable checks from human
+  judgment, offers a short independent-review prompt with optional focus
+  areas, and replaces repository command catalogs with compact pull-request
+  guidance.
+- Focused consolidation verification passed: `git diff --check`; structural
+  assertions for the six stages, five one-time review concerns, prompt
+  placement, removed sections, manual/automated boundary, and compact
+  pull-request flow; local link and anchor validation across five changed
+  documents; Markdown rendering with tables and fenced code; and preservation
+  checks for instruction inspection, consumer-documentation obligations,
+  project policy links, participation, and Further Reading. Human readability
+  and product behavior remain pending.
 
 ## Execution plan
 
@@ -1007,8 +1048,10 @@ At plan review, prompt the human to ask:
 - which package, service, transport, persistence, provider, or native boundary
   needs integration testing;
 - which public user or deployment journey needs end-to-end testing;
-- which visual, accessibility, device, installation, upgrade, or operational
-  behavior needs human testing.
+- whether each integration or end-to-end harness reaches the real production
+  component, schema, adapter, API, service, provider, or native path;
+- which result still needs human perception, exploration, product judgment, or
+  a real environment that automation cannot faithfully represent.
 
 At implementation review, prompt the human to ask:
 
@@ -1021,10 +1064,11 @@ At implementation review, prompt the human to ask:
   path.
 
 Use a compact evidence table or equivalent visual to distinguish unit,
-integration, end-to-end, and manual evidence. Do not tell humans to write the
-tests or manually audit mechanical requirement/test linkages. Suggest asking
-the implementing or reviewing agent for a focused audit when detailed
-cross-checking is useful.
+integration, end-to-end, and human evidence. If a proposed human checkpoint is
+a repeatable sequence with a machine-observable result, direct it to automated
+integration or end-to-end coverage. Do not tell humans to write tests or audit
+task-file traceability. Suggest focused follow-up questions or an independent
+review when detailed cross-checking is useful.
 
 ### 6. Explain specifications, requirements, tasks, plans, and current docs
 
@@ -1041,11 +1085,11 @@ essentials. Explain the records by the decisions they help a human make:
   behavior.
 
 Make clear that AI normally drafts and updates these documents. Human review
-focuses on whether the problem, intended behavior, boundaries, non-goals,
-risks, alternatives, failure behavior, compatibility, security, persistence,
-migration, and unresolved decisions are understandable and acceptable.
-Mechanical consistency checks may be delegated to an implementing or reviewing
-agent.
+focuses on whether the intended outcomes, scope and placement, important
+design choices, verification, consumer documentation, remaining work, and
+unresolved decisions are understandable and acceptable. Agents own task-file
+structure, traceability, links, status mechanics, and other record-maintenance
+details.
 
 Link the documentation and specification standards, `TASKS-v7`, and a compact
 worked example. The recommended example is
@@ -1069,17 +1113,22 @@ requested enhancement, or “while you are there” change is new work:
 This loop applies even when the follow-up looks small. It prevents findings
 resolution from becoming an unreviewed expansion of the approved change.
 
-### 8. Rewrite repository and pull-request essentials from the same viewpoint
+### 8. Replace repository essentials with compact pull-request guidance
 
-Preserve package routes, public CI commands, pull-request expectations,
-sensitive-data and security guidance, licensing, participation, and further
-reading.
+Remove package-discovery catalogs, reproduced public-CI commands, detailed
+file-safety instructions, and repeated testing/documentation guidance that
+agents receive elsewhere.
 
-Recast testing and documentation statements as things the human confirms in
-the plan or asks the agent to report after implementation. Keep commands where
-they are useful for understanding or reproducing repository-wide CI, but do
-not imply that humans normally write the code, tests, or documentation
-themselves.
+Add a natural prompt authorizing an agent to prepare a pull request from the
+reviewed commits. Give the human a short final review covering:
+
+- whether the pull request contains the reviewed outcome and scope;
+- whether test and human-check claims are accurate;
+- whether limitations, deferred work, and unresolved findings are visible;
+- whether the target branch and requested delivery action are correct.
+
+Retain concise routes to `SECURITY.md`, `SUPPORT.md`, `LICENSE`, and
+`LICENSING.md`, the short participation statement, and Further Reading.
 
 ### 9. Apply smaller editorial adjustments
 
@@ -1094,6 +1143,10 @@ After the structural rewrite:
   test, document, or self-review;
 - keep role and authorization distinctions without forcing both human and AI
   activity into every paragraph;
+- introduce the five human-review concerns once and use only the relevant
+  concern at each stage rather than repeating a fixed category template;
+- use a short general independent-review prompt, optional focus phrases, and a
+  few focused examples instead of one exhaustive reviewer prompt;
 - use concrete descriptions such as conversational plan, task plan, staged
   plan, integration test, or end-to-end test;
 - review the complete document for navigation, perceived reading effort,
@@ -1130,11 +1183,10 @@ Execution is staged:
 1. commit the approved task and documentation-standard specification changes;
 2. draft the contributor guide and related package documentation, including
    the intended product-assisted inspection workflow;
-3. present the documentation for human confirmation without implementing the
-   action or proxy flag;
-4. after separate confirmation, implement and verify the product changes;
-5. commit product-dependent current documentation only with the implementation
-   that makes its claims true.
+3. preserve the documentation draft in the user-requested checkpoint commits;
+4. consolidate the human-review workflow and present it for human confirmation
+   without implementing the action or proxy flag;
+5. after separate confirmation, implement and verify the product changes.
 
 ### Implementation decisions and open questions
 
@@ -1206,20 +1258,28 @@ separate human confirmation.
   dialog presentation.
 - [x] Document the terminal and frontend Session-settings paths.
 - [ ] Add and verify the proxy `--hide-headers` logging flag.
-- [x] Draft the system-message, frontend, and proxy package documentation;
-  keep product-dependent claims uncommitted until implementation.
+- [x] Draft and checkpoint the system-message, frontend, and proxy package
+  documentation in the user-requested documentation-first order.
 - [x] Rewrite the quick workflow and process-scaling model around human
   responsibility and planning for every change.
 - [x] Separate the specification decision from change size.
 - [x] Integrate realistic prompts into their workflow stages.
 - [x] Add instruction-delivery and request-inspection guidance.
-- [x] Make human review of unit, integration, end-to-end, and manual evidence
+- [x] Consolidate stage-specific human review around requirements, scope and
+  placement, design and complexity, verification, documentation, and remaining
+  work without turning the categories into a repeated template.
+- [x] Distinguish automatable integration/end-to-end procedures from human
+  perception, exploration, product judgment, and real-environment checkpoints.
+- [x] Replace the generic independent-review prompt with a short default,
+  optional focus phrases, and focused examples.
+- [x] Make human review of unit, integration, end-to-end, and human evidence
   prominent.
 - [x] Explain specification, requirement, task, plan, and current-documentation
   roles for human reviewers.
 - [x] Add the follow-up planning loop.
-- [x] Reframe repository and pull-request essentials around human supervision.
-- [x] Apply the smaller editorial and repetition cleanup.
+- [x] Replace repository essentials with compact AI-prepared pull-request
+  guidance and human review.
+- [x] Apply the final editorial and repetition cleanup.
 - [x] Run focused structural, rendering, link, terminology, scope, and
   preservation verification.
 - [x] Update task and specification evidence without claiming human
@@ -1234,9 +1294,10 @@ separate human confirmation.
 | Specification and documentation decisions | The guide treats specification need independently from immediate change size, requires affected existing targets to stay current, requires specifications for large new features, and requires user-documentation updates for every consumer-affecting change. |
 | Integrated prompts | Every required prompt scenario appears at its workflow stage; the brainstorming example is realistic freehand context, while later prompts avoid repeating standing rules. |
 | Instruction delivery | The guide explains how to ensure `AGENTS.md` and task guidance reached the model, documents terminal and frontend setting paths, and provides the on-demand Crystal Lattice dialog plus a verified proxy inspection path. |
-| Test evidence | Unit, integration, end-to-end, and manual boundaries are prominent at plan and completion review; humans evaluate evidence without being assigned mechanical test-authoring or traceability work. |
+| Human review | Requirements, scope and placement, design and complexity, verification, documentation, and remaining work guide the relevant stage without becoming a repeated template or a task-maintenance checklist for humans. |
+| Test evidence | Unit, integration, end-to-end, and human boundaries are prominent at plan and completion review; deterministic machine-observable procedures become automated tests, and humans evaluate the remaining judgment boundary. |
 | Record roles | Human inspection confirms that specifications, requirements, tasks, plans, and current docs are explained through decisions and review questions, with a compact worked example. |
-| Existing contributor policy | Diff inspection confirms package routes, public CI, pull-request, security, sensitive-data, licensing, participation, and further-reading guidance remains accurate and discoverable. |
+| Pull request and policies | The agent-prepared pull-request prompt and compact human review cover outcome, scope, evidence, limitations, and delivery; security, support, licensing, participation, and further-reading routes remain discoverable. |
 | System-message inspection side change | Plugin and application integration tests confirm the action compiles the effective message without an LLM request or session mutation and supported frontends present it in a dialog; package docs explain the action and setting paths. |
 | Proxy inspection side change | Focused Node tests confirm `--hide-headers` suppresses all logged request headers without changing forwarded headers, default behavior remains compatible, and package docs present the flag as a recommendation with header/body sensitivity warnings. |
 

@@ -358,17 +358,37 @@ standing and task-specific context belongs without embedding the full
 contributor workflow in agent instructions.
 
 AI normally drafts specifications, requirements, tasks, plans, code, automated
-tests, and documentation. Human review focuses on outcomes and material
-decisions: scope, boundaries, non-goals, alternatives, compatibility, failure
-behavior, security, persistence, migration, consumer impact, and remaining
-uncertainty. Mechanical traceability or consistency checks may be delegated to
-an implementing or reviewing agent.
+tests, and documentation. Five recurring concerns help humans direct review:
+requirements and outcomes, scope and placement, design and complexity,
+verification, and current documentation or remaining work. The guide uses
+these concerns only where they help a stage; it does not repeat them as a
+mandatory template. Humans may inspect the important result directly or ask
+the implementing or reviewing agent focused follow-up questions. Agents remain
+responsible for task-file structure, traceability maintenance, and other
+record-consistency work.
 
 Unit, integration, end-to-end, and manual evidence are distinct. At plan
 review, the human asks which boundaries each kind of evidence will cover. At
 completion, the human checks what actually ran, what it demonstrated, what
-failed or skipped, and what remains unverified. AI review remains advisory;
-manual verification and final acceptance remain human responsibilities.
+failed or skipped, and what remains unverified. The guide asks whether
+integration and end-to-end harnesses reached the claimed production path.
+Repeatable procedures with machine-observable outcomes belong in automated
+tests; human checkpoints are reserved for perception, exploration, product
+judgment, or a real environment that automation does not faithfully
+represent.
+
+Independent AI review remains advisory. The guide provides a short general
+review prompt, optional task-specific focus phrases, and a small number of
+focused examples rather than one exhaustive prompt. Final acceptance and
+delivery authorization remain human decisions.
+
+Repository contribution guidance is compact. Package discovery, ordinary
+commands, CI reproduction, detailed file-safety rules, and documentation
+maintenance remain in agent and package guidance. `CONTRIBUTING.md` instead
+provides a pull-request submission prompt and a short human review covering
+outcome, scope, evidence, limitations, and the requested delivery action.
+Security, support, licensing, and participation remain discoverable through
+concise policy links.
 
 The specific product features used to inspect messages are owned by their
 packages. Their implementation, tests, and package documentation are not part

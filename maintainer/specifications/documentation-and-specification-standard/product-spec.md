@@ -66,9 +66,11 @@ multi-part work uses task-owned staged plans.
 The contributor workflow helps the human verify that applicable repository and
 task guidance actually reached the model, review important specification and
 task decisions, question planned and completed unit/integration/end-to-end
-evidence, perform or directly confirm human verification, and explicitly
-authorize delivery. Stage-specific prompt examples appear where they are used
-and assume standing instructions are already active.
+evidence, identify where human judgment is still useful, and explicitly
+authorize delivery. Human review concentrates on requirements and outcomes,
+scope and placement, design and complexity, verification, and current
+documentation or remaining work. Stage-specific prompt examples appear where
+they are used and assume standing instructions are already active.
 
 Specification need is considered separately from immediate change size.
 Existing specifications remain current whenever their target behavior or
@@ -116,7 +118,7 @@ for major changes when they materially improve clarity.
   is planned before implementation.
 - Help humans verify effective instruction delivery and review AI-produced
   specifications, task plans, automated evidence, documentation, and delivery
-  readiness without assigning them mechanical bookkeeping.
+  readiness through understandable decisions and focused follow-up questions.
 - Keep specification decisions independent from immediate change size and
   require current user-documentation updates for consumer-affecting behavior.
 - Make ordinary changes understandable primarily through Git history.
@@ -205,8 +207,10 @@ documentation effects, and implementation plan before authorizing work.
 
 After implementation, the human asks what unit, integration, and end-to-end
 tests ran, what each one demonstrated, what user documentation changed, and
-what remains unverified. Applicable manual testing is performed or directly
-confirmed by a human. Findings return through planning before implementation,
+what remains unverified. Repeatable checkpoints with machine-observable
+results become automated tests; human checkpoints focus on perception,
+exploration, product judgment, or a real environment automation does not
+faithfully represent. Findings return through planning before implementation,
 and delivery occurs only after explicit human authorization.
 
 ## Approved August 18 calibration extension
