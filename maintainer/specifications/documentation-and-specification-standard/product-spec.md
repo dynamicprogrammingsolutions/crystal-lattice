@@ -57,6 +57,25 @@ may use broader repository context to make a decision, but does not copy task,
 phase, requirement, approval, evidence, or maintainer context into a document
 whose readers do not have that context.
 
+A human contributor can begin with a rough description and use AI-assisted
+brainstorming to research the repository, compare approaches, and shape the
+change. Every change and follow-up receives a reviewed plan before
+implementation; a small change may use a conversational plan while complex or
+multi-part work uses task-owned staged plans.
+
+The contributor workflow helps the human verify that applicable repository and
+task guidance actually reached the model, review important specification and
+task decisions, question planned and completed unit/integration/end-to-end
+evidence, perform or directly confirm human verification, and explicitly
+authorize delivery. Stage-specific prompt examples appear where they are used
+and assume standing instructions are already active.
+
+Specification need is considered separately from immediate change size.
+Existing specifications remain current whenever their target behavior or
+design changes, large new features require specifications, and other work may
+justify specifying an existing feature or durable contract. Current user
+documentation is updated whenever delivered behavior affects a consumer.
+
 ## Specification and current state
 
 Specifications describe intended targets and may temporarily differ from
@@ -92,6 +111,13 @@ for major changes when they materially improve clarity.
   boundaries when a compliant workflow is unavailable.
 - Use requirements as the live traceability record.
 - Keep the process proportional and avoid placeholder documentation.
+- Provide a human-led contributor workflow in which every change and follow-up
+  is planned before implementation.
+- Help humans verify effective instruction delivery and review AI-produced
+  specifications, task plans, automated evidence, documentation, and delivery
+  readiness without assigning them mechanical bookkeeping.
+- Keep specification decisions independent from immediate change size and
+  require current user-documentation updates for consumer-affecting behavior.
 - Make ordinary changes understandable primarily through Git history.
 - Verify that representative agents can apply the authored instructions
   through reusable maintainer-owned behavioral evaluation while keeping model
@@ -167,6 +193,19 @@ wording is evaluated only after the baseline exposes the boundary failure in at
 least one representative model run. The same seed, task prompt, fixture, and
 assertions are then reused to compare concise and, only when needed, expanded
 guidance variants.
+
+### Human-led AI-assisted change
+
+A contributor describes a desired change in ordinary freehand language and
+asks an agent to research and brainstorm it. The human reviews the proposed
+scope, specification decision, requirements, test boundaries, user
+documentation effects, and implementation plan before authorizing work.
+
+After implementation, the human asks what unit, integration, and end-to-end
+tests ran, what each one demonstrated, what user documentation changed, and
+what remains unverified. Applicable manual testing is performed or directly
+confirmed by a human. Findings return through planning before implementation,
+and delivery occurs only after explicit human authorization.
 
 ## Approved August 18 calibration extension
 

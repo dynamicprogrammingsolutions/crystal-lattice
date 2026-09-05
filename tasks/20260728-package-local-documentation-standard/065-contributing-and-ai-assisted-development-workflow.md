@@ -8,7 +8,7 @@ Specification:
 `maintainer/specifications/documentation-and-specification-standard/index.md`
 
 Requirement IDs:
-`DOCFLOW-001`, `DOCFLOW-004`
+`DOCFLOW-001`, `DOCFLOW-004`–`DOCFLOW-006`
 
 # Contributing and AI-Assisted Development Workflow
 
@@ -21,10 +21,21 @@ prompts that rely on standing repository guidance.
 
 - [ ] Root `CONTRIBUTING.md` is the concise contributor entry point for the
   recommended development workflow.
+- [ ] The guide is organized around what a human initiates, reviews, questions,
+  decides, verifies, accepts, and authorizes when AI produces the detailed
+  plans, code, tests, and documentation.
 - [ ] The guide begins with a short six-step quick workflow that is easy to
   scan and follow.
-- [x] The guide explains how to scale the process for small changes, normal
-  features/bug fixes, and high-risk or cross-package changes.
+- [ ] Small, normal, and high-risk changes all follow planning,
+  implementation, verification, and review, while the form and detail of the
+  plan vary with the work.
+- [ ] Every initial change and follow-up is planned before implementation.
+- [ ] Specification need is considered independently from immediate change
+  size: affected existing specifications are updated when their target
+  changes, large new features require specifications, and other work may
+  justify specifying an existing feature or durable contract.
+- [ ] Current user documentation is updated whenever a change affects a
+  consumer.
 - [x] Human owner, implementing agent, and reviewing agent responsibilities are
   defined once near the beginning.
 - [x] Each major workflow step identifies only the owner or collaboration
@@ -37,17 +48,33 @@ prompts that rely on standing repository guidance.
 - [x] The guide distinguishes automated verification, manual testing,
   implementing-agent self-review, independent AI review, final human review,
   and human delivery authorization.
-- [x] The guide explains which instructions belong in the developer message,
+- [ ] The guide explains that applicable `AGENTS.md` and task guidance must
+  actually reach the model through its developer/system message or first user
+  message and shows humans how to inspect the effective instructions.
+- [ ] The guide explains which context belongs in the developer/system message,
   `AGENTS.md`, `TASKS-v7`, package docs, specifications, and task-specific user
   prompts.
-- [x] The guide explains when a longer prompt is appropriate and discourages
-  repeating standing repository rules in every prompt.
-- [x] Concise example prompts cover brainstorming, specification/task creation,
-  subtask planning, approved implementation, manual-test preparation,
-  independent review, findings resolution, and authorized commit.
-- [x] Example prompts assume repository guidance is already active and do not
+- [ ] Planning begins with a brainstorming process whose realistic freehand
+  prompt combines intent, high-level context, requested research or
+  suggestions, uncertainty, and additional details.
+- [ ] Inline workflow prompts cover brainstorming, specification/task
+  creation, subtask planning, approved implementation, manual-test preparation,
+  independent review, findings resolution, follow-up planning, and authorized
+  commit.
+- [ ] Example prompts assume repository guidance is already active and do not
   restate generic coding, testing, documentation, or task-file rules.
-- [ ] Human plan-review and final-review checklists are concise and practical.
+- [ ] Human review questions appear at the relevant workflow stages and focus
+  on scope, decisions, evidence, and remaining uncertainty rather than
+  mechanical bookkeeping.
+- [ ] Unit, integration, end-to-end, and manual evidence are prominent; the
+  guide assumes AI creates and runs automated tests while humans review the
+  planned boundaries and reported results.
+- [ ] The guide gives humans a clear conceptual model of specifications,
+  requirements, tasks, execution plans, current user documentation, and current
+  implementation documentation, with links and a compact worked example.
+- [ ] A separate follow-up section requires investigation, planning,
+  specification reconsideration, consumer-documentation review, verification,
+  and human approval before follow-up implementation and delivery.
 - [x] Commit authorization remains explicit; describing commit as the final
   stage does not grant an agent permission to commit.
 - [x] The guide links to the documentation structure, specification standard,
@@ -55,6 +82,17 @@ prompts that rely on standing repository guidance.
   duplicating all commands.
 - [x] Supporting online references are preserved in a compact further-reading
   or rationale section without interrupting the main workflow.
+- [ ] The frontend and terminal setting paths for including task guidance are
+  documented.
+- [ ] The system-message feature exposes a session action that compiles the
+  effective developer/system message on demand and presents it in a dialog
+  through supported frontends.
+- [ ] The OpenAI inspection proxy supports an optional `--hide-headers` flag
+  that suppresses all request-header logging without changing forwarding, and
+  the guide recommends the flag while explaining that users remain responsible
+  for secrets and sensitive request content on their own computers.
+- [ ] The system-message feature, affected frontend paths, and inspection proxy
+  package documentation describe the new behavior.
 
 ## Supporting details
 
@@ -69,7 +107,7 @@ Prefer:
 - roles defined once;
 - short owner labels;
 - optional or conditional activities called out as such;
-- prompts collected in one section after the workflow;
+- prompt examples placed at the workflow stages where a human uses them;
 - compact human review checklists;
 - links to detailed standards instead of repeating them.
 - enough explanation, examples, illustrations, and code blocks to make the
@@ -107,15 +145,23 @@ remain distinct even when performed by one person.
 
 1. Quick workflow
 2. Choose the appropriate process
-3. Recommended AI-assisted workflow
-4. How to prompt an agent
-5. Example prompts
-6. Human review checklists
+3. Make sure the agent received the project instructions
+4. Human-led AI-assisted workflow with inline prompts
+5. Planning and reviewing follow-up changes
+6. Understand specifications, tasks, plans, docs, and evidence
 7. Repository and pull-request essentials
 8. Further reading
 ```
 
-## Approved six-step workflow
+## First implementation workflow reference
+
+The following workflow records the direction used for checkpoint
+`4c476620377343fbc93401f2493becafe9684d75`. Human review superseded its
+agent-centric presentation, detached prompt catalog, and size-linked
+specification framing. The current target is defined by the requirements near
+the top of this task and the Draft follow-up execution plan below. Retain this
+section only as context for comparing the first checkpoint with the follow-up;
+do not use it as the current writing direction.
 
 ### 1. Shape the change
 
@@ -492,6 +538,23 @@ Preserve these under a compact "Further reading" or rationale section:
   Engineering Practices, and NIST references. The two approved OpenAI
   references returned HTTP 403 to automated requests; they remain preserved,
   but this run does not claim they were mechanically reachable.
+- September 5, 2026 follow-up: Human review changed the contributor guide's
+  point of view, prompt placement, planning model, instruction-inspection
+  guidance, test-evidence emphasis, and specification/task explanation. The
+  accepted requirement direction is recorded in this task and the
+  documentation-standard specification; the rewrite remains in a separate
+  Draft follow-up plan.
+- The same review approved two bounded side product improvements that remain
+  outside the documentation-standard specification: an on-demand compiled
+  system-message action presented through frontend dialogs and an optional
+  proxy flag that suppresses request-header logging. Their implementation,
+  tests, and package documentation are part of the follow-up task scope.
+- September 5, 2026 approval: The human approved the follow-up plan and
+  authorized the documentation stage. The system-message action and proxy flag
+  remain a later product stage that requires separate human confirmation.
+  Target documentation may be drafted first, but product-dependent current
+  claims must not be committed separately from the implementation that makes
+  them true.
 
 ## Execution plan
 
@@ -729,3 +792,456 @@ After implementation and focused verification:
 - Ask a human reviewer to locate the normal-feature path, plan-approval gate,
   manual-testing rule, AI-review role, and commit-authorization rule without
   using search.
+
+## Follow-up execution plan
+
+Status: Approved
+
+Commit `4c476620377343fbc93401f2493becafe9684d75` is the first
+implementation checkpoint. Human review found that the guide still reads too
+much like instructions for an implementing agent. This follow-up will rewrite
+it as a guide for the human who shapes, supervises, questions, accepts, and
+authorizes AI-produced work.
+
+The six-stage workflow, separation of human and AI roles, manual-verification
+boundary, advisory AI review, explicit delivery authorization, existing public
+contribution policy, and compact further reading remain. The information
+architecture, point of view, prompt placement, planning model, instruction
+inspection, testing discussion, and specification/task explanation will
+change materially.
+
+The task and documentation-standard requirements have been updated to the
+approved target. Approval authorizes the documentation rewrite first. The
+system-message action and proxy flag must not be implemented until the human
+confirms the product stage.
+
+### 1. Reframe the complete guide around human responsibility
+
+Rewrite the opening and six-step quick workflow so each stage tells the human
+what to initiate, understand, review, question, approve, verify, or authorize:
+
+1. brainstorm and shape the change with an agent;
+2. review any proposed specifications, requirements, and task decomposition;
+3. review and approve the implementation plan;
+4. authorize and supervise AI implementation against that plan;
+5. question the evidence, perform applicable human testing, and review the
+   result;
+6. plan and resolve findings before explicitly authorizing delivery.
+
+Keep the three role definitions short. Use the rest of the guide to explain
+human decision points rather than repeating rules an implementing agent should
+already receive through its instructions.
+
+Every change requires planning before implementation. The amount of detail and
+whether the plan is recorded only in conversation or in a task vary with the
+work:
+
+- a small local change may use a short conversational plan;
+- a normal feature or bug fix normally uses an investigated task plan;
+- high-risk or multi-part work normally uses staged plans approved one
+  executable task at a time.
+
+The small, normal, and high-risk paths will show the same
+planning-to-implementation-to-verification lifecycle. Avoid repeatedly using
+“proportionate” or another abstract process label; name the concrete planning
+form instead.
+
+### 2. Treat specification need as a separate decision
+
+Do not derive specification need from the size of the immediate change.
+Explain these rules independently from the process-scaling table:
+
+- when the affected behavior already has a specification, update that
+  specification whenever its target behavior or design changes, even for a
+  small implementation change;
+- a large new feature requires a specification;
+- for other work, explicitly consider whether a new specification would
+  clarify an existing feature, durable behavior, public contract, or important
+  design;
+- a small change may therefore be the trigger for specifying an existing
+  feature.
+
+At brainstorming, specification review, planning, and final review, give the
+human useful questions about existing targets, intended behavior, design
+boundaries, non-goals, failure cases, compatibility, security, persistence,
+migration, and unresolved decisions.
+
+Current user documentation must be updated whenever a change affects a
+consumer. This obligation is independent of change size and of whether a new
+specification is created. The guide will tell the human to identify affected
+consumers during planning and to ask which user documentation changed and how
+its claims were checked when reviewing the completed work.
+
+### 3. Integrate realistic prompts into the workflow
+
+Remove the standalone example-prompt catalog. Put each prompt at the stage
+where a human would use it.
+
+Start planning with an explicitly named brainstorming process. Its example
+will be one realistic freehand paragraph containing:
+
+- what the human wants to do;
+- relevant high-level context and an initial idea;
+- uncertainty or constraints;
+- what help is requested, such as research, suggestions, comparison, an
+  outline, or a plan;
+- additional product, user, compatibility, or operational details.
+
+The remaining prompts will be short because standing project and task
+instructions should already be active. They will communicate only the current
+stage, relevant paths or findings, human concerns or decisions, and newly
+granted authority.
+
+Place the existing required scenarios within the workflow:
+
+- brainstorming in shape/planning;
+- specification and task preparation in record/decompose;
+- subtask planning in plan review;
+- approved implementation in implementation supervision;
+- manual-test preparation and independent review in validation;
+- accepted-findings resolution and commit authorization in delivery.
+
+Add a follow-up-change prompt in the separate follow-up loop. Remove prompt
+sentences that merely restate generic agent testing, documentation,
+task-maintenance, or no-commit rules already supplied by standing
+instructions.
+
+### 4. Teach humans to verify instruction delivery
+
+Replace the current “standing guidance is maintained once” framing with the
+operational requirement that project guidance must actually reach the model.
+
+Explain that the human should confirm, before relying on short prompts, that:
+
+- the applicable root and package `AGENTS.md` content is present in the
+  developer/system message or first user message;
+- task guidance is present when task files are active;
+- the selected agent receives the expected planning, authority, testing,
+  documentation, task, and safety rules.
+
+Document both Crystal Lattice setting paths for enabling task guidance:
+
+- terminal: `/set include_tasks true`;
+- mobile: open the active conversation in **Messages**, use the Settings gear
+  to open **Session settings**, and enable **Include TASKS Guidance**;
+- desktop: open the active chat, use its Settings action to open the
+  **Session settings** window, and enable **Include TASKS Guidance**.
+
+Verify these labels and paths against the production frontends during
+implementation before publishing them.
+
+Add a side product improvement to `feature-system-message`: a session action
+that compiles the effective developer/system message on demand and presents it
+in a dialog. The action should:
+
+- be available from the normal session-action surface when the feature is
+  active;
+- use the effective session configuration and applicable system-message
+  template rather than requiring an LLM request first;
+- include conditional task guidance and current `AGENTS.md` content exactly as
+  the normal compilation path would;
+- work when the provider sends the result as a native system message or as
+  top-level instructions;
+- return the existing native history unchanged and avoid changing the session
+  merely to inspect the message;
+- show an understandable empty/error state when no effective message can be
+  compiled;
+- use the standard action/display contracts and present the result as a
+  dialog in supported mobile and desktop frontends.
+
+Prefer extracting one pure compilation helper shared by request initialization
+and the inspection action so the displayed text cannot drift from the text
+sent to a provider. Add plugin unit tests, application-level action tests, and
+frontend tests that cover action discovery, execution, dialog presentation,
+task-guidance inclusion, and providers using top-level instructions.
+
+Use existing action and display contracts rather than silently broadening
+generic action-display behavior. If a supported frontend cannot present this
+action in a dialog without changing that cross-package contract, pause and
+propose the required update to the owning action-display specification before
+changing the contract.
+
+For another coding agent, document the request-inspection flow through
+`tools/openai-proxy/proxy.js`. Add an optional universal `--hide-headers` flag
+to the proxy:
+
+- the flag suppresses logging all incoming request headers;
+- it affects logging only and does not remove or change headers forwarded to
+  the target;
+- existing behavior remains available when the flag is absent;
+- usage/help output shows the flag for OpenAI-compatible and Anthropic paths.
+
+Add focused proxy tests for argument parsing and request logging with and
+without the flag. Create package-owned proxy documentation with startup,
+base-URL, inspection, and security guidance.
+
+Recommend `--hide-headers` when inspecting prompts because authorization and
+other headers may contain secrets. Present this as a warning and
+recommendation, not a ban: users control their own computers, provider
+connections, credentials, terminal output, and retained logs. Also explain
+that request bodies can contain private prompts, source, and conversation
+content even when headers are hidden.
+
+### 5. Make automated test evidence prominent
+
+Explain that AI normally creates and runs automated tests while the human
+decides whether the planned and reported evidence is convincing.
+
+At plan review, prompt the human to ask:
+
+- which behavior belongs in unit tests;
+- which package, service, transport, persistence, provider, or native boundary
+  needs integration testing;
+- which public user or deployment journey needs end-to-end testing;
+- which visual, accessibility, device, installation, upgrade, or operational
+  behavior needs human testing.
+
+At implementation review, prompt the human to ask:
+
+- which unit, integration, and end-to-end commands actually ran;
+- what boundary each test crossed;
+- whether any tests skipped, failed to collect, or ended with teardown or
+  background-process errors;
+- what remains unverified;
+- whether test-only shortcuts weakened a claimed integration or end-to-end
+  path.
+
+Use a compact evidence table or equivalent visual to distinguish unit,
+integration, end-to-end, and manual evidence. Do not tell humans to write the
+tests or manually audit mechanical requirement/test linkages. Suggest asking
+the implementing or reviewing agent for a focused audit when detailed
+cross-checking is useful.
+
+### 6. Explain specifications, requirements, tasks, plans, and current docs
+
+Add a high-level specification-driven-development section under repository
+essentials. Explain the records by the decisions they help a human make:
+
+- a specification describes intended behavior and design;
+- requirements make the intended completed outcomes and live state visible;
+- a task records approved scope, decomposition, findings, and completion;
+- an execution plan explains how the next concrete task will be implemented
+  and verified;
+- current user documentation explains what consumers can rely on now;
+- current implementation documentation explains delivered maintainer
+  behavior.
+
+Make clear that AI normally drafts and updates these documents. Human review
+focuses on whether the problem, intended behavior, boundaries, non-goals,
+risks, alternatives, failure behavior, compatibility, security, persistence,
+migration, and unresolved decisions are understandable and acceptable.
+Mechanical consistency checks may be delegated to an implementing or reviewing
+agent.
+
+Link the documentation and specification standards, `TASKS-v7`, and a compact
+worked example. The recommended example is
+`docs/development/specifications/application-runtime-reload/`: its index,
+product specification, technical specification, and requirements total about
+62 lines and visibly separate the document roles.
+
+### 7. Add an explicit follow-up planning loop
+
+Add a separate section explaining that a review finding, discovered bug,
+requested enhancement, or “while you are there” change is new work:
+
+1. ask the agent to investigate its effect on accepted scope and design;
+2. plan the follow-up before implementation;
+3. update affected existing specifications;
+4. consider whether the discovery justifies a new specification;
+5. include user-documentation changes whenever consumers are affected;
+6. approve the revised plan;
+7. implement, rerun affected evidence, and repeat human review.
+
+This loop applies even when the follow-up looks small. It prevents findings
+resolution from becoming an unreviewed expansion of the approved change.
+
+### 8. Rewrite repository and pull-request essentials from the same viewpoint
+
+Preserve package routes, public CI commands, pull-request expectations,
+sensitive-data and security guidance, licensing, participation, and further
+reading.
+
+Recast testing and documentation statements as things the human confirms in
+the plan or asks the agent to report after implementation. Keep commands where
+they are useful for understanding or reproducing repository-wide CI, but do
+not imply that humans normally write the code, tests, or documentation
+themselves.
+
+### 9. Apply smaller editorial adjustments
+
+After the structural rewrite:
+
+- remove the detached example-prompts and human-checklists sections after
+  integrating their useful content into the relevant workflow stages;
+- replace agent-protocol labels such as repeated `Owner` and `Output` blocks
+  with human-oriented headings such as “What to decide” and “Questions to
+  ask” where they improve the flow;
+- remove repeated descriptions of how well an implementing agent should code,
+  test, document, or self-review;
+- keep role and authorization distinctions without forcing both human and AI
+  activity into every paragraph;
+- use concrete descriptions such as conversational plan, task plan, staged
+  plan, integration test, or end-to-end test;
+- review the complete document for navigation, perceived reading effort,
+  duplicate advice, and realistic prompts.
+
+### 10. Update requirements, state, and evidence after approval
+
+The human approved this follow-up's requirement direction and resolved its
+material questions. Before rewriting the guide:
+
+1. revise the task requirements before rewriting the guide;
+2. update the task's supporting details that currently require prompts in a
+   separate section or describe the workflow from the implementing agent's
+   viewpoint;
+3. update the parent task's affected workflow decision/supporting text only
+   where it would otherwise contradict the approved follow-up;
+4. set `DOCFLOW-001` back to `In progress` while the rewrite is underway;
+5. update the documentation-standard specification and requirements to capture
+   the revised contributor-workflow outcomes without making the
+   system-message action or proxy flag part of that specification;
+6. preserve commit `4c476620377343fbc93401f2493becafe9684d75` as the first
+   implementation/review checkpoint;
+7. rerun structural, rendering, local-link/anchor, terminology, scope, and
+   prior-policy-preservation checks;
+8. add focused assertions for inline prompts, planning at all change levels,
+   follow-up planning, specification rules, mandatory consumer-documentation
+   updates, instruction-inspection guidance, and unit/integration/e2e/manual
+   evidence;
+9. leave final readability and practical-usability requirements incomplete
+   until human confirmation.
+
+Execution is staged:
+
+1. commit the approved task and documentation-standard specification changes;
+2. draft the contributor guide and related package documentation, including
+   the intended product-assisted inspection workflow;
+3. present the documentation for human confirmation without implementing the
+   action or proxy flag;
+4. after separate confirmation, implement and verify the product changes;
+5. commit product-dependent current documentation only with the implementation
+   that makes its claims true.
+
+### Implementation decisions and open questions
+
+Decided by the human review:
+
+- The guide is a human supervision and decision-making guide, not an
+  implementing-agent handbook.
+- Every change and follow-up is planned before implementation.
+- Planning depth and specification need are separate decisions.
+- An affected existing specification is updated whenever its target behavior
+  or design changes, even for a small change.
+- A large new feature requires a specification; other changes may justify
+  specifying an existing feature regardless of immediate size.
+- Current user documentation is updated whenever consumers are affected.
+- Prompt examples appear inside the workflow and do not repeat standing agent
+  rules.
+- Automated tests are prominent, including integration and end-to-end tests;
+  AI normally creates/runs them and the human evaluates the plan and evidence.
+- Avoid repeated use of “proportionate.”
+- The guide documents terminal and frontend Session-settings paths for
+  including task guidance.
+- The system-message feature gains an on-demand session action whose effective
+  compiled message is presented in a dialog through supported frontends.
+- The proxy gains an optional universal `--hide-headers` logging flag. The
+  contributor guide recommends it and warns about header/body sensitivity
+  while leaving credential and local-computer responsibility with the user.
+- The application-runtime-reload specification is the accepted compact worked
+  example.
+- “Large feature” remains a principle-based judgment without line, file, or
+  task-count thresholds.
+
+No requirement questions or material design decisions remain open. Exact
+action identifiers, icon choice, dialog copy, helper extraction boundaries,
+test-file placement, and CLI parser structure are local implementation choices
+within the approved behavior.
+
+The system-message action and proxy flag are side product improvements. They
+are task requirements and require package-owned tests and documentation, but
+they are not requirements of the documentation-and-specification standard and
+must not be added to its product or technical target.
+
+The documentation stage is authorized. The product stage remains blocked on
+separate human confirmation.
+
+### Documentation
+
+- Rewrite root `CONTRIBUTING.md`.
+- Update this task's requirements, supporting details, plan state,
+  implementation notes, and evidence after approval.
+- Update the documentation-standard product/technical target and requirements
+  only for the human-led contributor workflow.
+- Update affected parent-task workflow decisions/supporting text only where
+  necessary to avoid contradiction.
+- Update `plugins/feature-system-message/README.md` for the inspection action
+  and effective-message behavior.
+- Update the mobile and desktop package documentation with the frontend
+  Session-settings path and compiled-message action path.
+- Create package-owned `tools/openai-proxy/README.md` documentation for the
+  proxy flag, startup, configuration, and security considerations.
+- Do not update `AGENTS.md`, `TASKS-v7`, or the worked example specification.
+
+### Task checklist
+
+- [x] Obtain approval for the revised task/specification requirements and open
+  decisions.
+- [x] Update the accepted requirements/specification and set live state to
+  `In progress`.
+- [ ] Add and verify the system-message compiled-content session action and
+  dialog presentation.
+- [ ] Document the terminal and frontend Session-settings paths.
+- [ ] Add and verify the proxy `--hide-headers` logging flag.
+- [ ] Update the system-message, frontend, and proxy package documentation.
+- [ ] Rewrite the quick workflow and process-scaling model around human
+  responsibility and planning for every change.
+- [ ] Separate the specification decision from change size.
+- [ ] Integrate realistic prompts into their workflow stages.
+- [ ] Add instruction-delivery and safe request-inspection guidance.
+- [ ] Make human review of unit, integration, end-to-end, and manual evidence
+  prominent.
+- [ ] Explain specification, requirement, task, plan, and current-documentation
+  roles for human reviewers.
+- [ ] Add the follow-up planning loop.
+- [ ] Reframe repository and pull-request essentials around human supervision.
+- [ ] Apply the smaller editorial and repetition cleanup.
+- [ ] Run focused structural, rendering, link, terminology, scope, and
+  preservation verification.
+- [ ] Update task and specification evidence without claiming human
+  readability verification.
+
+### Requirement verification
+
+| Requirement group | Planned acceptance evidence |
+|---|---|
+| Human focus | Human inspection can follow the complete workflow as actions, questions, decisions, and authorization owned by the human; detailed implementing-agent rules are not the organizing frame. |
+| Planning | Structural inspection confirms every small, normal, and high-risk path includes planning before implementation, and the follow-up section repeats that gate. |
+| Specification and documentation decisions | The guide treats specification need independently from immediate change size, requires affected existing targets to stay current, requires specifications for large new features, and requires user-documentation updates for every consumer-affecting change. |
+| Integrated prompts | Every required prompt scenario appears at its workflow stage; the brainstorming example is realistic freehand context, while later prompts avoid repeating standing rules. |
+| Instruction delivery | The guide explains how to ensure `AGENTS.md` and task guidance reached the model, documents terminal and frontend setting paths, and provides the on-demand Crystal Lattice dialog plus a verified proxy inspection path. |
+| Test evidence | Unit, integration, end-to-end, and manual boundaries are prominent at plan and completion review; humans evaluate evidence without being assigned mechanical test-authoring or traceability work. |
+| Record roles | Human inspection confirms that specifications, requirements, tasks, plans, and current docs are explained through decisions and review questions, with a compact worked example. |
+| Existing contributor policy | Diff inspection confirms package routes, public CI, pull-request, security, sensitive-data, licensing, participation, and further-reading guidance remains accurate and discoverable. |
+| System-message inspection side change | Plugin and application integration tests confirm the action compiles the effective message without an LLM request or session mutation and supported frontends present it in a dialog; package docs explain the action and setting paths. |
+| Proxy inspection side change | Focused Node tests confirm `--hide-headers` suppresses all logged request headers without changing forwarded headers, default behavior remains compatible, and package docs present the flag as a recommendation with header/body sensitivity warnings. |
+
+### Additional implementation verification
+
+- Validate all changed local Markdown links and anchors.
+- Render the Markdown with tables and fenced code enabled.
+- Check that the quick workflow still has six stages and that prompts are
+  nested under the corresponding detailed stages.
+- Check that each process-scaling row includes planning before implementation.
+- Check for explicit existing-specification, large-feature-specification,
+  follow-up-planning, and consumer-documentation rules.
+- Check for explicit unit, integration, end-to-end, and manual evidence.
+- Run focused feature-system-message unit and application integration tests.
+- Run focused frontend action discovery/presentation tests on mobile and
+  desktop and the relevant shared frontend package tests when shared behavior
+  changes.
+- Run the proxy's focused Node tests with and without `--hide-headers`.
+- Check that proxy guidance recommends `--hide-headers`, warns that request
+  bodies may still be sensitive, and leaves local credential/log responsibility
+  with the user.
+- Compare retained public-contribution sections with commit `4c476620`.
+- Run `git diff --check`.
