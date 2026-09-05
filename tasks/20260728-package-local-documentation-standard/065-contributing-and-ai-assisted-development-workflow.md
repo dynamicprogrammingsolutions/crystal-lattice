@@ -21,20 +21,20 @@ prompts that rely on standing repository guidance.
 
 - [ ] Root `CONTRIBUTING.md` is the concise contributor entry point for the
   recommended development workflow.
-- [ ] The guide is organized around what a human initiates, reviews, questions,
+- [x] The guide is organized around what a human initiates, reviews, questions,
   decides, verifies, accepts, and authorizes when AI produces the detailed
   plans, code, tests, and documentation.
 - [ ] The guide begins with a short six-step quick workflow that is easy to
   scan and follow.
-- [ ] Small, normal, and high-risk changes all follow planning,
+- [x] Small, normal, and high-risk changes all follow planning,
   implementation, verification, and review, while the form and detail of the
   plan vary with the work.
-- [ ] Every initial change and follow-up is planned before implementation.
-- [ ] Specification need is considered independently from immediate change
+- [x] Every initial change and follow-up is planned before implementation.
+- [x] Specification need is considered independently from immediate change
   size: affected existing specifications are updated when their target
   changes, large new features require specifications, and other work may
   justify specifying an existing feature or durable contract.
-- [ ] Current user documentation is updated whenever a change affects a
+- [x] Current user documentation is updated whenever a change affects a
   consumer.
 - [x] Human owner, implementing agent, and reviewing agent responsibilities are
   defined once near the beginning.
@@ -51,28 +51,28 @@ prompts that rely on standing repository guidance.
 - [ ] The guide explains that applicable `AGENTS.md` and task guidance must
   actually reach the model through its developer/system message or first user
   message and shows humans how to inspect the effective instructions.
-- [ ] The guide explains which context belongs in the developer/system message,
+- [x] The guide explains which context belongs in the developer/system message,
   `AGENTS.md`, `TASKS-v7`, package docs, specifications, and task-specific user
   prompts.
-- [ ] Planning begins with a brainstorming process whose realistic freehand
+- [x] Planning begins with a brainstorming process whose realistic freehand
   prompt combines intent, high-level context, requested research or
   suggestions, uncertainty, and additional details.
-- [ ] Inline workflow prompts cover brainstorming, specification/task
+- [x] Inline workflow prompts cover brainstorming, specification/task
   creation, subtask planning, approved implementation, manual-test preparation,
   independent review, findings resolution, follow-up planning, and authorized
   commit.
-- [ ] Example prompts assume repository guidance is already active and do not
+- [x] Example prompts assume repository guidance is already active and do not
   restate generic coding, testing, documentation, or task-file rules.
-- [ ] Human review questions appear at the relevant workflow stages and focus
+- [x] Human review questions appear at the relevant workflow stages and focus
   on scope, decisions, evidence, and remaining uncertainty rather than
   mechanical bookkeeping.
-- [ ] Unit, integration, end-to-end, and manual evidence are prominent; the
+- [x] Unit, integration, end-to-end, and manual evidence are prominent; the
   guide assumes AI creates and runs automated tests while humans review the
   planned boundaries and reported results.
-- [ ] The guide gives humans a clear conceptual model of specifications,
+- [x] The guide gives humans a clear conceptual model of specifications,
   requirements, tasks, execution plans, current user documentation, and current
   implementation documentation, with links and a compact worked example.
-- [ ] A separate follow-up section requires investigation, planning,
+- [x] A separate follow-up section requires investigation, planning,
   specification reconsideration, consumer-documentation review, verification,
   and human approval before follow-up implementation and delivery.
 - [x] Commit authorization remains explicit; describing commit as the final
@@ -82,7 +82,7 @@ prompts that rely on standing repository guidance.
   duplicating all commands.
 - [x] Supporting online references are preserved in a compact further-reading
   or rationale section without interrupting the main workflow.
-- [ ] The frontend and terminal setting paths for including task guidance are
+- [x] The frontend and terminal setting paths for including task guidance are
   documented.
 - [ ] The system-message feature exposes a session action that compiles the
   effective developer/system message on demand and presents it in a dialog
@@ -555,6 +555,20 @@ Preserve these under a compact "Further reading" or rationale section:
   Target documentation may be drafted first, but product-dependent current
   claims must not be committed separately from the implementation that makes
   them true.
+- September 5, 2026 documentation stage: Rewrote `CONTRIBUTING.md` around
+  human decisions and supervision, moved all prompt examples into the
+  workflow, separated specification need from planning depth, added explicit
+  follow-up planning and human review of unit/integration/end-to-end/manual
+  evidence, and preserved the prior public contribution policy.
+- Drafted package-owned target documentation for the system-message inspection
+  action, mobile/desktop/terminal task-guidance paths, and proxy
+  `--hide-headers` behavior. These product-dependent files remain uncommitted
+  until the product stage is confirmed and implemented.
+- Focused documentation verification passed: `git diff --check`; structural
+  target assertions; local Markdown links and anchors across seven changed
+  documents; Markdown rendering with fenced code and tables; and preservation
+  checks for public CI, pull-request, security, licensing, participation, and
+  truthful-test-reporting guidance. Human readability review remains pending.
 
 ## Execution plan
 
@@ -1190,24 +1204,25 @@ separate human confirmation.
   `In progress`.
 - [ ] Add and verify the system-message compiled-content session action and
   dialog presentation.
-- [ ] Document the terminal and frontend Session-settings paths.
+- [x] Document the terminal and frontend Session-settings paths.
 - [ ] Add and verify the proxy `--hide-headers` logging flag.
-- [ ] Update the system-message, frontend, and proxy package documentation.
-- [ ] Rewrite the quick workflow and process-scaling model around human
+- [x] Draft the system-message, frontend, and proxy package documentation;
+  keep product-dependent claims uncommitted until implementation.
+- [x] Rewrite the quick workflow and process-scaling model around human
   responsibility and planning for every change.
-- [ ] Separate the specification decision from change size.
-- [ ] Integrate realistic prompts into their workflow stages.
-- [ ] Add instruction-delivery and safe request-inspection guidance.
-- [ ] Make human review of unit, integration, end-to-end, and manual evidence
+- [x] Separate the specification decision from change size.
+- [x] Integrate realistic prompts into their workflow stages.
+- [x] Add instruction-delivery and request-inspection guidance.
+- [x] Make human review of unit, integration, end-to-end, and manual evidence
   prominent.
-- [ ] Explain specification, requirement, task, plan, and current-documentation
+- [x] Explain specification, requirement, task, plan, and current-documentation
   roles for human reviewers.
-- [ ] Add the follow-up planning loop.
-- [ ] Reframe repository and pull-request essentials around human supervision.
-- [ ] Apply the smaller editorial and repetition cleanup.
-- [ ] Run focused structural, rendering, link, terminology, scope, and
+- [x] Add the follow-up planning loop.
+- [x] Reframe repository and pull-request essentials around human supervision.
+- [x] Apply the smaller editorial and repetition cleanup.
+- [x] Run focused structural, rendering, link, terminology, scope, and
   preservation verification.
-- [ ] Update task and specification evidence without claiming human
+- [x] Update task and specification evidence without claiming human
   readability verification.
 
 ### Requirement verification
