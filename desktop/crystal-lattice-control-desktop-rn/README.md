@@ -141,6 +141,21 @@ npm run test:macos-ui:session-filters
 The focused command launches a deterministic harness that renders the
 production sessions panel and shared filter controls.
 
+### Inspect agent instructions
+
+Crystal Lattice compiles project guidance into the effective
+developer/system message used by an agent session. To include task-file
+guidance:
+
+1. Open the active chat.
+2. Select **Settings**.
+3. In the **Session settings** window, enable **Include TASKS Guidance**.
+
+Open the chat's session actions and select **Show compiled system message** to
+display the effective message in a dialog. Inspection does not send a model
+request or add to the conversation. Check that the expected project
+instructions and, when enabled, task guidance are present.
+
 ## Step 3: Modify your app
 
 Now that you have successfully run the app, let's make changes!

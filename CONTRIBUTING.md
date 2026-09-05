@@ -5,374 +5,475 @@ Native, Elixir, deployment tooling, documentation, and first-party plugins.
 Focused fixes, tests, documentation improvements, and well-scoped feature
 proposals are welcome.
 
-This guide describes the recommended human-led, AI-assisted development
-workflow. Scale it to the change: a local correction should stay lightweight,
-while a cross-package or high-risk change needs durable decisions and stronger
-verification.
+This guide is for the human directing AI-assisted development. The agent may
+prepare most of the research, plans, code, tests, documentation, and review
+material; the human remains responsible for intent, important decisions,
+verification that requires human judgment, acceptance, and delivery
+authorization.
 
 ## Quick Workflow
 
-1. **Shape the change:** Agree on the problem, outcome, scope, constraints, and
-   important questions.
-2. **Record and decompose it:** Create only the specifications, requirements,
-   tasks, and subtasks justified by the change.
-3. **Plan the next task:** Have the implementing agent investigate and propose
-   a plan; the human owner approves material decisions before implementation.
-4. **Implement and verify:** The implementing agent changes the code and
-   documentation, runs appropriate automated checks, and reviews the full
-   diff.
-5. **Validate and review:** Perform applicable human testing, consider an
-   independent AI review, and complete the final human review.
-6. **Address findings and deliver:** Resolve accepted findings, rerun affected
-   checks, and commit, open a pull request, or merge only with explicit human
+1. **Brainstorm and shape:** Describe what you want in ordinary language, then
+   use an agent to research the repository, test assumptions, and clarify the
+   intended outcome.
+2. **Review the records:** Decide whether specifications are involved, review
+   the proposed requirements and boundaries, and use tasks when durable scope
+   or decomposition is useful.
+3. **Approve a plan:** Require a plan before every implementation, then review
+   its scope, decisions, tests, documentation, and human-verification needs.
+4. **Supervise implementation:** Authorize the accepted plan and make sure new
+   discoveries return to you when they change requirements or material
+   decisions.
+5. **Question and verify:** Ask what automated tests actually ran, perform
+   applicable human testing, consider independent AI review, and inspect the
+   resulting change.
+6. **Plan findings and deliver:** Treat every follow-up as another planned
+   change. Commit, open a pull request, or merge only after explicit human
    authorization.
 
-## Choose the Appropriate Process
+Every change follows this lifecycle. A small correction can move through it in
+one short conversation; complex work benefits from durable specifications,
+tasks, and staged plans.
 
-These are proportional defaults, not rigid bureaucracy.
+## Before You Start: Check the Agent's Instructions
 
-| Change | Recommended process |
+Short task prompts work only when the model actually receives the project's
+standing guidance. A file existing in the repository is not enough by itself.
+
+Before relying on an agent, make sure its developer/system message—or, if the
+agent has no project-instruction mechanism, the first user message—contains:
+
+- the applicable root and package `AGENTS.md` guidance;
+- the repository's task guidance when task files are in use;
+- the expected authority, safety, planning, testing, documentation, and
+  delivery rules.
+
+Asking the agent what it received is a useful first check, but inspecting the
+effective message or outgoing request is stronger evidence.
+
+### Inspect Instructions in Crystal Lattice
+
+Task guidance is optional in Crystal Lattice sessions. Enable it before
+planning or changing a tracked task:
+
+- **Mobile:** open the active conversation in **Messages**, select the Settings
+  gear, open **Session settings**, and enable **Include TASKS Guidance**.
+- **Desktop:** open the active chat, select **Settings**, open the
+  **Session settings** window, and enable **Include TASKS Guidance**.
+- **Terminal:** run:
+
+  ```text
+  /set include_tasks true
+  ```
+
+From the session actions, select **Show compiled system message**. Crystal
+Lattice compiles the current developer/system message on demand and displays it
+in a dialog. Check that the expected `AGENTS.md` content and, when enabled,
+task guidance are present. This inspection does not send a request to the
+model or alter the conversation.
+
+### Inspect Requests from Other Agents
+
+For agents that let you override their provider base URL, the repository's
+[OpenAI inspection proxy](tools/openai-proxy/README.md) can show the actual
+outgoing JSON request.
+
+Install its dependencies and start it for an OpenAI-compatible endpoint:
+
+```bash
+npm --prefix tools/openai-proxy ci
+node tools/openai-proxy/proxy.js \
+  https://api.openai.com/v1 \
+  3000 \
+  /v1 \
+  --hide-headers
+```
+
+Point the agent's provider base URL at `http://127.0.0.1:3000/v1`, submit a
+prompt, and inspect the proxy's request body and expanded `LONG_TEXT_*`
+sections. The exact base-URL setting depends on the agent.
+
+For an Anthropic endpoint:
+
+```bash
+node tools/openai-proxy/proxy.js \
+  https://api.anthropic.com \
+  3000 \
+  /v1 \
+  --hide-headers
+```
+
+`--hide-headers` is recommended when inspecting prompts because authorization
+and other headers may contain secrets. It suppresses header logging; it does
+not remove headers from the forwarded request. Request bodies may still
+contain private prompts, source code, file paths, and conversation content.
+You are responsible for the credentials, provider connection, terminal
+output, and retained logs on your computer.
+
+### Where Context Belongs
+
+Use the inspected message to confirm that recurring rules are active. Keep the
+task prompt focused on information that is new for the current conversation.
+
+| Location | What it contributes |
 |---|---|
-| Small, local change | Briefly clarify scope, implement and test, review the diff, then deliver |
-| Normal feature or bug fix | Use a task and approved plan, implement, run automated verification and applicable manual testing, then review |
-| High-risk or cross-package change | Use specifications and traceable requirements, decompose into reviewable tasks, verify integrations and manual boundaries, obtain independent AI review, then seek human acceptance |
+| Developer/system message | Platform-wide behavior, authority, safety, and tool-use rules |
+| Root and package `AGENTS.md` | Repository and package constraints, ownership, important paths, verification, and documentation routes |
+| [`TASKS-v7`](agents/TASKS-v7.md) | Task creation, planning, approval, status, evidence, and completion rules |
+| Package documentation | Current setup, supported behavior, architecture, testing, and maintenance guidance |
+| Specifications and requirements | Intended behavior and design, completed outcomes, live state, verification, documentation, and evidence |
+| Current user prompt | Your objective, new context, requested stage, decisions, concerns, and authority granted now |
 
-A change becomes higher risk when it affects public contracts, security or
-privacy, persisted data, compatibility, migrations, deployment, several
-packages, native platforms, or difficult-to-reverse operations.
+## Choose the Working Process
+
+Every level includes planning, implementation, verification, and review. The
+working record and depth change; the lifecycle does not.
+
+| Change | Plan before implementation | Implementation and review |
+|---|---|---|
+| Small, local correction | Ask for a brief plan in the conversation and confirm that it addresses the intended boundary | Let the agent implement after approval, run focused checks, and review the diff and reported evidence |
+| Normal feature or bug fix | Use an investigated task plan when the work benefits from durable scope, decisions, or evidence | Review unit and integration coverage, applicable e2e or manual checks, consumer documentation, and the complete result |
+| High-risk or multi-part work | Use staged plans, usually through a main task and reviewable subtasks | Approve one executable stage at a time; review integration, e2e, operational, migration, security, and human-verification evidence where relevant |
+
+Risk increases when work affects public contracts, security or privacy,
+persisted data, compatibility, migrations, deployment, multiple packages,
+native platforms, or difficult-to-reverse operations.
+
+### Decide About Specifications Separately
+
+Do not use the size of the immediate edit as the only reason to create or skip
+a specification.
+
+- If the affected behavior already has a specification, ask the agent to
+  update it whenever the intended behavior or design changes.
+- A large new feature requires a specification.
+- For other work, consider whether a specification would make an existing
+  feature, durable behavior, public contract, or important design easier to
+  understand and maintain.
+- A small change can reveal that an existing feature should be specified.
+
+Ask the agent to find the governing specifications before planning. If it
+proposes no specification work, understand why the existing target remains
+accurate or why no durable target is useful.
+
+Current user documentation follows a different rule: whenever delivered
+behavior affects a consumer, the owning user documentation must be updated.
 
 ## Roles
 
-- **Human owner:** Defines intent, resolves requirement questions, approves
-  plans and material decisions, performs or directly confirms human
-  verification, reviews the result, and authorizes delivery.
-- **Implementing agent:** Investigates, plans, implements, runs automated
-  verification, updates documentation and work records, self-reviews the
-  complete change, and prepares evidence.
-- **Reviewing agent:** Independently inspects the proposed change and reports
-  findings. It advises the human owner; it does not approve or accept the
-  change.
+- **Human owner:** Owns intent, requirement decisions, plan approval,
+  human verification, acceptance, and delivery authorization.
+- **Implementing agent:** Researches, proposes records and plans, implements
+  approved work, produces evidence, and reports discoveries for human review.
+- **Reviewing agent:** Independently reports risks and findings for the human
+  owner; it does not approve the change or satisfy human verification.
 
-For small work, one person may be both the human owner and final reviewer.
-Those activities remain distinct even when the same person performs them.
+The same person may shape and finally review a small change, but those are
+still distinct decisions.
 
-## Recommended AI-Assisted Workflow
+## Human-Led AI-Assisted Workflow
 
-### 1. Shape the Change
+### 1. Brainstorm and Shape the Change
 
-**Owner:** Human-led, with AI assistance.
+Start with what you actually know. You do not need to turn an early idea into a
+formal requirements document before speaking to an agent.
 
-Clarify:
+A useful initial description usually contains:
 
-- the problem and intended outcome;
-- who is affected;
-- goals and non-goals;
-- constraints and compatibility expectations;
-- unknowns and requirement questions;
-- whether the change is small, normal, or high risk.
+- what you want and why;
+- enough product or technical context to explain the current situation;
+- your initial idea, if you have one;
+- uncertainties, constraints, examples, or user feedback;
+- the kind of help you want now: suggestions, repository research, external
+  research, alternatives, an outline, or a plan.
 
-An agent can inspect relevant documentation and code, identify missing context,
-and compare materially different approaches. It should not implement during
-this step.
+Real initial prompts are often one freehand paragraph:
 
-**Output:** An agreed problem statement, scope, and set of open questions.
+```text
+I want to <what I want to change> because <why it matters>. At the moment
+<high-level context about the product, users, or implementation>, and my
+initial thought is <possible direction>, but I am not sure about <important
+unknown or tradeoff>. Please inspect the relevant parts of the repository,
+research <anything that needs research>, suggest alternatives where useful,
+and help me outline the intended behavior, boundaries, and a sensible plan.
+Some additional details are <examples, constraints, compatibility needs, user
+feedback, or non-goals>.
+```
 
-This is the stage where a longer initial prompt is often useful. Product
-context, external requirements, user feedback, and business or domain
-constraints may not exist in the repository.
+Treat the result as a conversation, not as an answer to approve immediately.
+Ask follow-up questions until the important outcome and choices are
+understandable.
 
-### 2. Record and Decompose the Work
+Questions worth asking include:
 
-**Owner:** The implementing agent drafts; the human owner approves material
-scope and requirements.
+- What assumptions did you make?
+- What does the current implementation actually do?
+- Which consumers and packages are affected?
+- What alternatives have meaningfully different tradeoffs?
+- What should explicitly remain out of scope?
+- Is any important behavior already specified?
+- Which decisions need me rather than the implementing agent?
 
-Depending on the change:
+### 2. Review Specifications, Requirements, and Tasks
 
-- create or update product, technical, and requirements specifications;
-- create one task or a main task with subtasks;
-- link tasks to specification requirement IDs;
-- record dependencies and responsibility boundaries;
-- preserve unresolved requirement questions;
-- defer detailed plans for later subtasks when they depend on earlier
-  discoveries.
+Once the direction is clear, ask the agent what durable records are useful.
+The agent can draft them; your job is to review the decisions they express.
 
-A small change with one straightforward outcome and no durable contract may
-use a task or agreed conversational scope without a separate specification.
-Substantive, compatibility-sensitive, or cross-package work generally benefits
-from durable specifications and requirements.
+```text
+Turn our agreed direction into the appropriate specifications, requirements,
+and task structure. Bring back the important scope and design decisions for my
+review.
+```
 
-See the
-[specification policy](docs/development/repository/specifications.md) and
-[task-file guidance](agents/TASKS-v7.md) for the repository's detailed rules.
+Look for substance rather than mechanical perfection:
 
-**Output:** Durable specifications when justified and a reviewable
-decomposition of the work.
+- Does the proposed behavior solve the problem you described?
+- Are the affected users and observable workflows represented?
+- Are boundaries and non-goals clear?
+- Are important failure, compatibility, security, privacy, persistence,
+  migration, and rollout concerns visible?
+- Are unresolved requirement questions still presented as questions?
+- Are the requirements understandable as outcomes that could be accepted?
+- Is the task split useful for review, or does it fragment one coherent
+  change?
 
-### 3. Plan and Approve the Next Task
+The agent can audit requirement IDs, links, status fields, and other
+consistency details. Ask for that audit when useful; you do not need to perform
+it manually.
 
-**Owner:** The implementing agent plans; the human owner approves.
+### 3. Review and Approve the Plan
 
-For the next executable task, the implementing agent:
+Require a plan before implementation, including for a follow-up or a small
+change. For tracked work:
 
-- reads the task, its parent and dependencies, linked specifications, and
-  relevant package guidance;
-- inspects the current implementation rather than planning from assumptions;
-- writes a Draft execution plan;
-- identifies implementation boundaries, risks, documentation, automated
-  checks, and applicable human verification;
-- waits for approval before implementation.
+```text
+Investigate and propose the execution plan for <task path>. I especially want
+to review <boundary, risk, test strategy, or decision>.
+```
 
-The human owner checks requirement coverage, scope, contracts, compatibility,
-security, persistence, migration, test realism, and human-verification needs.
+For a small conversational change:
 
-**Output:** An approved execution plan for the next task.
+```text
+Before making the change, inspect the relevant code and give me a brief plan,
+including the tests and documentation affected.
+```
 
-### 4. Implement and Verify
+The plan should let you answer:
 
-**Owner:** Implementing agent.
+- What will change, and what will remain unchanged?
+- Does it satisfy the accepted requirements?
+- Does it preserve public contracts and compatibility?
+- Are security, persistence, migration, failure, and operational behavior
+  addressed where relevant?
+- Which current user documentation will change for affected consumers?
+- Does an existing specification need an update?
+- What could cause the work to return for another decision?
 
-The implementing agent:
+#### Review the Test Strategy
 
-- implements the approved plan through coherent, reviewable checkpoints;
-- adds or updates tests when behavior changes;
-- runs focused checks while developing and the required package, integration,
-  type, lint, or build checks before completion;
-- updates current documentation and work records;
-- updates specifications and requirements when implementation discoveries
-  change the accepted design or live state;
-- stops for human input when requirements or material decisions must change;
-- reviews the complete diff before presenting the result;
-- does not commit unless explicitly authorized.
+AI will normally create and run the automated tests. Before approving the
+plan, make sure the proposed evidence matches the behavior:
 
-Automated verification is evidence produced by tools such as tests, builds,
-linters, type checkers, schema checks, and link checks. It does not replace
-human testing of a meaningful visual, operational, accessibility, installation,
-or real-device boundary.
-
-Implementing-agent self-review is also distinct from independent review. Before
-handoff, the implementing agent should inspect the complete diff for accidental
-changes, missing requirements, weak tests, stale documentation, and avoidable
-complexity.
-
-**Output:** An implemented change with automated evidence, a self-reviewed
-diff, and current documentation and work records.
-
-### 5. Validate and Review
-
-**Owner:** Depends on the activity. Not every change needs every activity.
-
-#### Manual testing — human, when applicable
-
-Use manual testing for meaningful user-visible or operational boundaries such
-as UI behavior, CLI workflows, installation, upgrades, real-device behavior,
-external service integration, accessibility, visual behavior, and recovery
-procedures.
-
-An agent may prepare the checklist, setup instructions, and expected results.
-Manual verification is complete only when a human actually performs the work
-or directly confirms it. An agent cannot turn a proposed checklist or its own
-simulation into human-verification evidence.
-
-When there is no meaningful manual boundary, record `Not applicable` with a
-short reason.
-
-#### Independent AI review — recommended for normal and high-risk changes
-
-A reviewing agent can inspect the requirements, specifications, plan,
-implementation, tests, evidence, security, compatibility, failure behavior,
-documentation, and unnecessary complexity.
-
-Independent AI review is advisory. The reviewer reports findings but does not
-approve the change, satisfy a human-verification requirement, or make the final
-acceptance decision. It may be skipped for a very small change when its cost
-exceeds its likely value.
-
-#### Final human review — required before acceptance
-
-The human reviewer decides:
-
-- whether the intended outcome was achieved;
-- whether the implementation matches the accepted scope;
-- whether the tests are meaningful and exercise the claimed boundaries;
-- whether automated and manual evidence is sufficient;
-- whether AI-review findings were evaluated and resolved appropriately;
-- whether security, compatibility, and operational risks are acceptable;
-- whether documentation and migration guidance are current;
-- whether unrelated or accidental changes are present.
-
-**Output:** Accepted or rejected findings and a human acceptance decision.
-
-### 6. Address Findings and Deliver
-
-**Owner:** The implementing agent addresses accepted findings; the human owner
-authorizes delivery.
-
-The implementing agent:
-
-- fixes accepted findings;
-- updates implementation, tests, documentation, specifications, requirements,
-  and task evidence as needed;
-- reruns affected verification;
-- reports blocked checks and remaining limitations honestly;
-- records completion evidence when the work is complete.
-
-The human owner:
-
-- confirms that unresolved findings are acceptable;
-- completes any remaining human verification;
-- explicitly authorizes a commit, pull request, or merge.
-
-Describing delivery as the final stage does not grant an agent permission to
-commit. A commit request must be explicit.
-
-**Output:** A focused, reviewed change with final evidence and authorized
-delivery.
-
-## How to Prompt an Agent
-
-### Put Standing Rules in Standing Guidance
-
-Recurring instructions should live where they can be maintained once:
-
-| Location | What belongs there |
+| Evidence | Question for the plan |
 |---|---|
-| Developer message | Platform-wide agent behavior, authority, safety, and tool-use rules |
-| Root and package `AGENTS.md` | Repository and package constraints, ownership, important files, verification, and documentation routes |
-| [`TASKS-v7`](agents/TASKS-v7.md) | Task-file creation, planning, approval, status, evidence, and completion rules when task guidance is active |
-| Package documentation | Package-specific setup, supported behavior, architecture, testing, and maintenance |
-| Specifications and requirements | Durable target behavior, design decisions, live implementation state, verification, documentation, and evidence |
-| Task-specific user prompt | The current objective, new context, requested stage, scope boundaries, and authority newly granted by the human |
+| Unit tests | Which rules, edge cases, and failure behavior will they isolate? |
+| Integration tests | Which real package, service, transport, persistence, provider, or native boundary will they cross? |
+| End-to-end tests | Which public user or deployment journey will they exercise without a test-only shortcut? |
+| Manual testing | Which visual, accessibility, device, installation, upgrade, or operational result needs human observation? |
 
-Testing expectations, documentation placement, task structure, commit
-authorization, security rules, and review standards should not be copied into
-every prompt when standing repository guidance already supplies them.
+Not every change needs every kind of evidence. The important point is to make
+the boundary choice explicit before implementation.
 
-### Use a Longer Prompt When the Context Is New
+### 4. Authorize and Supervise Implementation
 
-A longer prompt is appropriate when introducing:
-
-- a new product idea or user need;
-- external requirements or business/domain constraints;
-- user feedback not recorded in the repository;
-- desired behavior that cannot be inferred from current code or docs;
-- a material scope or requirements change.
-
-Even then, focus the prompt on the missing context and requested outcome. The
-examples below are concise delegation examples, not complete instruction
-templates; they assume the repository guidance is already active.
-
-## Example Prompts
-
-### Brainstorm a Change
+Once you accept the plan, grant implementation authority plainly:
 
 ```text
-I want to add <capability> because <problem or user need>.
-
-Known context:
-- <important fact>
-- <external constraint>
-- <desired behavior>
-
-Help me refine the goal, scope, non-goals, requirements, and important
-questions. Inspect the repository where useful. Compare materially different
-approaches, but do not implement anything yet.
+I approve the plan in <task path>. Proceed with the implementation.
 ```
 
-### Create Specifications and Tasks
+For a conversational plan:
 
 ```text
-Using the agreed scope, create the necessary specifications and task files.
-
-Preserve unresolved questions, approved decisions, requirement IDs, and
-supporting references. Do not implement the change.
+That plan looks right. Please implement it.
 ```
 
-### Plan a Subtask
+You do not need to direct every edit. Watch instead for evidence that the work
+has crossed an accepted boundary or encountered a new material decision.
+
+Useful questions during a longer implementation include:
+
+- Are you still within the approved scope?
+- Did repository inspection change any assumptions?
+- Has the implementation exposed a requirement or compatibility question?
+- Is a planned test unable to exercise the real boundary?
+- Has consumer or maintainer documentation impact changed?
+
+If the answer changes the required outcome, contract, ownership, persisted
+data, security model, or another important decision, return to planning before
+authorizing that work.
+
+### 5. Question the Evidence and Review the Result
+
+An implementation summary is the start of review, not proof by itself. Ask for
+the evidence at the level you need:
 
 ```text
-Prepare the execution plan for <task path>.
-
-Inspect the relevant current implementation and update the task with a Draft
-plan. Highlight material decisions, risks, and the verification boundary. Do
-not implement until I approve the plan.
+Tell me which unit, integration, and end-to-end tests actually ran, what
+boundary each one exercised, whether anything skipped or failed, what remains
+unverified, and which documentation changed.
 ```
 
-### Implement an Approved Subtask
+Check that:
+
+- reported commands actually collected and completed the intended tests;
+- a direct function test is not described as HTTP integration;
+- a mocked frontend test is not described as backend integration;
+- a simulator harness is not described as a network end-to-end test;
+- skips, collection failures, teardown errors, open handles, and background
+  failures are not counted as successful runs;
+- test-only shortcuts do not hide the behavior the test claims to cover;
+- documentation claims match the implemented behavior;
+- unrelated changes are not mixed into the diff.
+
+#### Prepare and Perform Human Testing
+
+Use human testing when a meaningful result must be observed in a UI, terminal,
+installation, upgrade, real device, external service, accessibility flow, or
+operational procedure. An agent can prepare the steps:
 
 ```text
-The plan in <task path> is approved. Implement the task and keep its state
-current.
-
-Run the relevant verification and update linked specifications when
-implementation discoveries require it. Do not commit.
+Prepare a short human test checklist for <change or requirement>, including
+setup, actions, and expected observable results.
 ```
 
-### Prepare Manual Testing
+Human verification is complete only when a human performs the test or directly
+confirms it. An AI-generated checklist, simulation, screenshot description, or
+automated assertion does not become human evidence by being recorded in a
+task.
+
+#### Request Independent AI Review
+
+For normal, high-risk, or unfamiliar changes, another agent can inspect the
+work independently:
 
 ```text
-Prepare a concise human test checklist for <task or requirement path>.
-
-Include setup, actions, expected observable results, and the requirement IDs
-covered. Do not claim that any manual step has been performed.
+Independently review the current change against <task or specification>.
+Report concrete findings by severity and include file references.
 ```
 
-### Request an Independent AI Review
+The reviewing agent advises you. It does not accept the implementation,
+resolve whether a risk is acceptable, or complete human verification.
+
+Your final review decides whether:
+
+- the intended outcome was achieved;
+- the implementation stayed within accepted scope;
+- test and documentation evidence is sufficient;
+- applicable human testing was completed;
+- review findings were evaluated;
+- security, compatibility, and operational risks are acceptable.
+
+### 6. Plan Findings and Authorize Delivery
+
+Decide which findings to accept, reject, or defer. Accepted findings still need
+a plan:
 
 ```text
-Review the current changes against <task path> and its linked specifications.
-
-Focus on correctness, requirement gaps, security, compatibility, failure
-behavior, test validity, and documentation drift. Report findings by severity
-with file references. Do not modify files or approve the change.
+Assess the accepted findings <finding references> and propose the required
+plan updates before changing the implementation.
 ```
 
-### Address Review Findings
+After approving that plan:
 
 ```text
-Address the accepted findings <finding references>.
-
-Update the implementation, tests, documentation, task evidence, and linked
-specifications where required. Rerun affected verification. Do not commit.
+I approve the findings plan. Please implement it and report the affected
+verification and documentation.
 ```
 
-### Authorize a Commit
+When the final result and evidence are acceptable, explicitly grant only the
+delivery action you intend. For example:
 
 ```text
-Create a focused commit for the completed work in <task path>. Include only
-the approved in-scope files and use the repository's commit-message
-conventions. Record the commit SHA in the task and linked requirements
-evidence.
+Create a focused commit for the completed work in <task path>.
 ```
 
-This last prompt grants commit authority for the described completed work. A
-request to implement, test, review, or prepare a change does not.
+Or:
 
-## Human Review Checklists
+```text
+Open a pull request for the reviewed commits and summarize the verified
+boundaries and remaining limitations.
+```
 
-### Plan Review
+Describing a commit, pull request, deployment, or merge as the next workflow
+stage does not authorize it. The human owner grants that authority explicitly.
 
-- Does the plan satisfy the accepted requirements?
-- Are scope and non-goals clear?
-- Are public contracts and compatibility addressed?
-- Are security, persistence, migration, and failure behavior covered where
-  relevant?
-- Will the proposed tests exercise the claimed boundaries?
-- Is meaningful manual verification identified?
-- Is the work divided into reviewable checkpoints?
+## Plan Every Follow-Up
 
-### Final Review
+A review finding, newly discovered bug, requested enhancement, or “while you
+are there” improvement is another change. Its plan may be short, but it comes
+before implementation.
 
-- Does the result solve the intended problem?
-- Does the diff match the approved scope?
-- Are there unrelated changes?
-- Are the tests meaningful, and would they detect the relevant regression?
-- Did the required automated checks actually run?
-- Was applicable manual testing performed or directly confirmed by a human?
-- Were AI-review findings evaluated?
-- Are current documentation and target specifications consistent with their
-  respective roles?
-- Are security, compatibility, and operational concerns acceptable?
-- Is the change ready to commit or merge?
+```text
+I want to follow up with <finding or additional change>. First investigate how
+it affects the accepted scope, specifications, tests, and consumer
+documentation, then propose the updated plan.
+```
+
+Before approving the follow-up, decide:
+
+1. Does it change accepted requirements or only implementation detail?
+2. Does it change the target of an existing specification?
+3. Does the discovery justify a new specification?
+4. Which consumers and current user documentation are affected?
+5. Which automated and human evidence must be repeated or added?
+6. Is it still part of the same reviewable change?
+
+Then repeat implementation, evidence review, applicable human testing, and
+delivery authorization.
+
+## Understand the Project Records
+
+Specifications, requirements, tasks, plans, and current documentation answer
+different questions. They work together; they are not interchangeable.
+
+```text
+rough intent
+    ↓
+specification target and requirements
+    ↓
+task scope and approved execution plan
+    ↓
+implementation and verification evidence
+    ↓
+current user and maintainer documentation
+```
+
+| Record | What it helps you decide |
+|---|---|
+| Specification | What behavior and design the project is aiming for |
+| Requirements | Which completed outcomes matter and whether implementation, verification, and documentation are current |
+| Task | What scope was approved, how work is divided, and what findings or completion evidence matter |
+| Execution plan | How the next concrete task will be implemented and verified |
+| Current user documentation | What consumers can rely on in the delivered product |
+| Current implementation documentation | How maintainers understand and operate the delivered implementation |
+
+AI normally drafts and maintains these records. Review the product meaning and
+material decisions; ask an implementing or reviewing agent to check mechanical
+consistency.
+
+For the repository rules, see:
+
+- [Specification standard](docs/development/standards/specifications.md)
+- [Repository specification policy](docs/development/repository/specifications.md)
+- [Task-file guidance](agents/TASKS-v7.md)
+- [Documentation structure](docs/development/repository/documentation.md)
+
+The
+[application runtime reload specification](docs/development/specifications/application-runtime-reload/index.md)
+is a compact example. Its product specification explains observable behavior,
+its technical specification explains the implementation contract, and its
+requirements show the live outcome set.
 
 ## Repository and Pull-Request Essentials
 
@@ -409,31 +510,30 @@ subsystem that owns the behavior:
   [landing page](landing_page/README.md) and
   [documentation site](docs_site/README.md)
 
-Search existing issues before opening a duplicate. A prior issue is useful for
-large or user-visible changes but is not required for a small, focused fix.
-See [SUPPORT.md](SUPPORT.md) for bug, feature, support, and sensitive-report
-routing.
+Ask the agent to search existing issues before opening a duplicate. A prior
+issue is useful for large or user-visible changes but is not required for a
+small, focused fix. See [SUPPORT.md](SUPPORT.md) for bug, feature, support, and
+sensitive-report routing.
 
-### Setup, Tests, and Documentation
+Use the owning package's entry point for prerequisites, installation, and test
+commands. The Core/application environment starts with the
+[root Core development quickstart](README.md#core-development-quickstart).
 
-Use the owning package's entry point for prerequisites, installation, and
-ordinary test commands. For example, the Core/application development
-environment is documented in the
-[root Core development quickstart](README.md#core-development-quickstart);
-plugin, frontend, native application, service, and site setup belongs to the
-linked package guidance above.
+### Verify Tests and Documentation
 
-For every change:
+Before accepting a change, ask the agent:
 
-- start with focused tests for the boundary you changed;
-- add or update tests for public behavior and bug fixes;
-- run integration, hosted-API, Docker, native, or end-to-end checks when the
-  change crosses those boundaries;
-- do not treat a skipped or gated test as passed;
-- report checks that could not run and why;
-- update documentation owned by the changed package when installation,
-  configuration, APIs, behavior, or contributor workflows change;
-- do not edit generated documentation trees directly.
+- which focused checks and package suites ran;
+- which integration, hosted-API, Docker, native, or e2e checks applied;
+- which applicable checks could not run and why;
+- whether any test skipped or failed before or after its assertions;
+- which consumer and maintainer documentation changed;
+- whether generated documentation was regenerated through its owning process
+  rather than edited directly.
+
+If consumer behavior changed, user documentation must change with it. If
+implementation, architecture, testing, or maintenance behavior changed, the
+owning development documentation must stay current.
 
 ### Required Public Pull-Request Checks
 
@@ -446,8 +546,7 @@ Public pull requests run four credential-free checks:
 
 The
 [Public CI workflow](.github/workflows/public-ci.yml) is the executable source
-of truth. The following practical local commands cover its main validation
-boundaries.
+of truth. These practical local commands cover its main validation boundaries.
 
 Repository checks:
 
@@ -456,8 +555,7 @@ git diff --check
 python scripts/check_github_actions_security.py
 ```
 
-If `actionlint` is installed, it is also a useful additional local workflow
-check:
+If `actionlint` is installed, it is a useful additional local workflow check:
 
 ```bash
 actionlint .github/workflows/*.yml
@@ -498,23 +596,23 @@ python docs_site/scripts/prepare_mkdocs_site.py
 
 Required public CI intentionally excludes hosted-provider tests, Docker/cloud
 integration, mobile/desktop native builds, native UI tests, signing,
-TestFlight, and deployment. Those checks still apply when a change crosses
-their boundary; run and report them explicitly rather than treating their
-absence from required CI as evidence that they are unnecessary.
+TestFlight, and deployment. Their absence from required CI does not make them
+unnecessary when a change crosses those boundaries.
 
-### Pull Requests
+### Review the Pull Request
 
-Keep pull requests focused enough to review and validate. In the description:
+Make sure the pull-request description:
 
-- explain the outcome and affected boundary;
-- link the relevant issue when one exists;
-- list the tests and manual checks actually performed;
-- identify public documentation, compatibility, security, privacy, deployment,
-  or data-migration effects;
-- call out meaningful deferred work or known limitations.
+- explains the outcome and affected boundary;
+- links the relevant issue when one exists;
+- lists the tests and human checks actually performed;
+- identifies user-documentation, compatibility, security, privacy,
+  deployment, and data-migration effects;
+- calls out meaningful deferred work or known limitations.
 
-Do not claim that a skipped or gated test passed. Avoid unrelated formatting,
-generated output, or cleanup in the same pull request.
+Do not accept a claim that a skipped or gated test passed. Keep unrelated
+formatting, generated output, and cleanup out of the same pull request unless
+they are part of the accepted scope.
 
 ### Sensitive and Local Data
 
@@ -522,9 +620,9 @@ Never commit credentials, tokens, private keys, personal data, private
 conversations, runtime session data, unnormalized captured logs, local user
 paths, build caches, or other machine-specific files.
 
-Sanitize logs and screenshots before attaching them to issues or pull requests.
-If you discover a possible vulnerability or exposed credential, follow
-[SECURITY.md](SECURITY.md) instead of opening a public issue.
+Sanitize logs and screenshots before attaching them to issues or pull
+requests. If you discover a possible vulnerability or exposed credential,
+follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ### Contribution License
 

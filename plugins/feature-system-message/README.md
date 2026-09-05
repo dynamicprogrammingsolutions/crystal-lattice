@@ -47,6 +47,37 @@ When the application asks the feature for UI schema, the runtime namespace also 
 
 If `runtime_code` exports a zero-argument `get_ui_elements()` function, the feature calls it and merges the returned list into the UI schema.
 
+## Inspect the Effective Message
+
+The feature contributes a **Show compiled system message** session action.
+Run it from the active conversation's actions to compile the effective
+developer/system message and display it in a dialog.
+
+The dialog uses the same compilation path as an ordinary model request. It
+therefore reflects:
+
+- the effective session configuration;
+- the selected system-message template and variables;
+- conditional sections such as task guidance;
+- current repository instructions loaded through configured helpers;
+- providers that send a native system message or top-level instructions.
+
+Inspection does not call the model, add a conversation message, or replace
+provider-native history. When no effective message is configured, the dialog
+explains that there is no compiled message to display.
+
+In the default Crystal Lattice configuration, enable task guidance before
+inspection when it should be included:
+
+- terminal: `/set include_tasks true`;
+- mobile: **Messages** → Settings gear → **Session settings** →
+  **Include TASKS Guidance**;
+- desktop: active chat → **Settings** → **Session settings** →
+  **Include TASKS Guidance**.
+
+The action is available through the ordinary session-action schema, so
+frontends do not need provider-specific inspection logic.
+
 ## Example
 
 ```json
@@ -199,7 +230,9 @@ Variable-level `runtime_code` helpers may also export `get_ui_elements()`. The f
   `state["request"]["messages"]`; this feature preserves existing request message
   overrides while rendering the final system message.
 
-See [application/python/agent_terminal_app/default_config/config.json](application/python/agent_terminal_app/default_config/config.json) for a multi-vendor example that follows this pattern.
+See
+[application/python/agent_terminal_app/default_config/config.json](../../application/python/agent_terminal_app/default_config/config.json)
+for a multi-vendor example that follows this pattern.
 
 ## License
 

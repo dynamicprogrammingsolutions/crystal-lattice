@@ -155,6 +155,23 @@ Use the displayed index to print the complete stored result:
 Changing `/tool-output` affects the current terminal process. It does not
 rewrite the application configuration or persist a per-session override.
 
+## Inspecting agent instructions
+
+Task guidance is a per-session setting. Enable it before working with tracked
+tasks:
+
+```text
+/set include_tasks true
+```
+
+Use the **Show compiled system message** session action to compile and display
+the effective developer/system message without sending a model request or
+changing the conversation. Check that the expected repository instructions
+and task guidance are present before relying on a short task prompt.
+
+The mobile and desktop frontends expose the same task toggle through the
+active conversation's **Session settings**.
+
 ## Listing and editing messages
 
 Useful forms include:
