@@ -164,13 +164,11 @@ tasks:
 /set include_tasks true
 ```
 
-Use the **Show compiled system message** session action to compile and display
-the effective developer/system message without sending a model request or
-changing the conversation. Check that the expected repository instructions
-and task guidance are present before relying on a short task prompt.
-
 The mobile and desktop frontends expose the same task toggle through the
-active conversation's **Session settings**.
+active conversation's **Session settings**. They also expose a **Show compiled
+system message** session action that displays the effective message without
+sending a model request or changing the session. The interactive terminal does
+not currently provide a generic session-action browser.
 
 ## Listing and editing messages
 

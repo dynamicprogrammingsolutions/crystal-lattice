@@ -65,7 +65,6 @@ import {
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { desktopEventBus } from '../events/desktopEventBus';
 import { PanelHeader } from '../ui/PanelHeader';
-import { ActionResultModal } from '../ui/ActionResultModal';
 import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import {
@@ -443,7 +442,6 @@ function SessionsPanelInner({
   });
 
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
-  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
   const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
   const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
 
@@ -463,7 +461,6 @@ function SessionsPanelInner({
       );
       return;
     }
-    setActionResultDisplay(null);
     setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
   }, [backend, connectionId]);
 
@@ -877,16 +874,6 @@ function SessionsPanelInner({
           }
         />
       ))}
-      <ActionResultModal
-        visible={!!actionResultDisplay}
-        display={actionResultDisplay?.display ?? null}
-        activeActionId={activeDisplayActionId}
-        onRequestClose={() => setActionResultDisplay(null)}
-        onFollowupAction={(action, formValues) => {
-          if (!actionResultDisplay) return;
-          handleDisplayFollowupAction(actionResultDisplay, action, formValues);
-        }}
-      />
       <PanelHeader
         title="Sessions"
         subtitle={subtitle}

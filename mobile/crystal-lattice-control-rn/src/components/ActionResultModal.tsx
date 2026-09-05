@@ -72,6 +72,8 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
                 variantLabel={VARIANT_LABELS[variant]}
                 footerDismissLabel={null}
                 fieldRenderers={fieldRenderers}
+                bounded
+                bodyTestID={testID ? `${testID}-body` : undefined}
               />
             ) : null}
           </View>

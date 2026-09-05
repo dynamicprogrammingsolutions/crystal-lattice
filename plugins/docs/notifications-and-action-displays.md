@@ -58,6 +58,12 @@ return {
 A direct display is not stored as a notification and has no notification
 create/update/resolve lifecycle.
 
+Mobile renders direct modal displays in its standard action-result overlay.
+Desktop renders direct modal displays in a separate action-display window.
+Lengthy bodies remain bounded and scroll inside either surface. Desktop
+application and session notification modal requests continue to use their
+documented inline fallback.
+
 ## Notification record
 
 Application and session notifications use the same basic record:
@@ -568,7 +574,7 @@ Supported presentations are:
 |---|---|---|---|
 | Application notification | Mobile Sessions; desktop connection rail | Rejected | Mobile Sessions modal; desktop inline fallback |
 | Session notification | Matching mobile Chat; active desktop ChatPane | Matching session region | Matching mobile Chat modal; desktop inline fallback |
-| Direct action display | Owning action surface | Owning action surface | Mobile modal; desktop inline fallback |
+| Direct action display | Owning action surface | Owning action surface | Mobile modal; desktop action-display window |
 
 Supported semantic variants are:
 

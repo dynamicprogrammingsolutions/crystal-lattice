@@ -41,14 +41,22 @@ describe('display presentation envelopes', () => {
     ).toThrow('Application notifications do not support inline presentation');
   });
 
-  it('normalizes desktop modal displays to inline', () => {
-    const envelope = normalizeDisplayEnvelope({
+  it('normalizes desktop notification modals to inline', () => {
+    const notification = normalizeDisplayEnvelope({
       source: 'session_notification',
       display: { format: 'text', body: 'Body', presentation: 'modal' },
     });
     expect(
-      normalizeDisplayEnvelopeForHost(envelope, 'desktop').display.presentation,
+      normalizeDisplayEnvelopeForHost(notification, 'desktop').display.presentation,
     ).toBe('inline');
+
+    const action = normalizeDisplayEnvelope({
+      source: 'action_response',
+      display: { format: 'text', body: 'Body', presentation: 'modal' },
+    });
+    expect(
+      normalizeDisplayEnvelopeForHost(action, 'desktop').display.presentation,
+    ).toBe('modal');
   });
 
   it('classifies connection and session display ownership', () => {

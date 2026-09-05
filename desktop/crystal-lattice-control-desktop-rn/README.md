@@ -152,8 +152,9 @@ guidance:
 3. In the **Session settings** window, enable **Include TASKS Guidance**.
 
 Open the chat's session actions and select **Show compiled system message** to
-display the effective message in a dialog. Inspection does not send a model
-request or add to the conversation. Check that the expected project
+display the effective message in a separate action-display window. Inspection
+does not send a model request, save the session, or add to the conversation.
+Lengthy prompts scroll inside the window. Check that the expected project
 instructions and, when enabled, task guidance are present.
 
 ## Step 3: Modify your app

@@ -1197,6 +1197,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       ))}
 
       <ActionResultModal
+        testID="session-list-action-result-modal"
         visible={!!actionResultDisplay}
         display={actionResultDisplay?.display ?? null}
         activeActionId={activeDisplayActionId}

@@ -30,14 +30,14 @@ describe('normalizeActionDisplayForSurface', () => {
     ).toEqual({ ...DISPLAY, presentation: 'modal' });
   });
 
-  it('normalizes desktop modal action responses to inline', () => {
+  it('preserves desktop modal action responses', () => {
     expect(
       normalizeActionDisplayForSurface({
         display: { ...DISPLAY, presentation: 'modal' },
         surface: 'session_action',
         host: 'desktop',
       }),
-    ).toEqual({ ...DISPLAY, presentation: 'inline' });
+    ).toEqual({ ...DISPLAY, presentation: 'modal' });
   });
 
   it('returns null when no display exists', () => {

@@ -8,6 +8,7 @@ jest.mock('react-native/Libraries/Utilities/Platform', () => ({
 }));
 
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
 import type { ActionDisplayPayload } from '@crystal-lattice/frontend-sdk';
 
@@ -49,6 +50,30 @@ const DISPLAY_WITH_FORM: ActionDisplayPayload = {
 };
 
 describe('ActionDisplayCard', () => {
+  it('bounds a lengthy text body in a scroll view', () => {
+    const body = Array.from(
+      { length: 300 },
+      (_, index) => `Instruction line ${index}`,
+    ).join('\n');
+
+    render(
+      <ActionDisplayCard
+        display={{
+          format: 'text',
+          title: 'Compiled system message',
+          body,
+        }}
+        bounded
+        bodyTestID="long-action-display-body"
+      />,
+    );
+
+    expect(screen.getByText(body)).toBeTruthy();
+    const bodyScroll = screen.getByTestId('long-action-display-body');
+    expect(bodyScroll).toBeTruthy();
+    expect(StyleSheet.flatten(bodyScroll.props.style).maxHeight).toBe(420);
+  });
+
   it('submits embedded form values with follow-up action', () => {
     const onFollowupAction = jest.fn();
 

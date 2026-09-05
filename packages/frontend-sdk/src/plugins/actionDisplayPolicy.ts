@@ -12,17 +12,11 @@ export function normalizeActionDisplayForSurface(options: {
   surface: ActionDisplaySurface;
   host: ActionDisplayHost;
 }): ActionDisplayPayload | null {
-  const { display, host } = options;
+  const { display } = options;
   if (!display) {
     return null;
   }
 
   const presentation = display.presentation ?? 'modal';
-  return {
-    ...display,
-    presentation:
-      host === 'desktop' && presentation === 'modal'
-        ? 'inline'
-        : presentation,
-  };
+  return { ...display, presentation };
 }

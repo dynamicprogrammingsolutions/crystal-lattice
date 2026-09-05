@@ -30,8 +30,13 @@ defaults are:
 - direct action response: `modal`.
 
 Application notifications reject `inline`. Desktop currently normalizes
-notification and action-response `modal` presentation to inline cards in the
-message/detail area.
+notification `modal` presentation to inline cards in the message/detail area.
+Direct action responses requesting `modal` open a standard desktop action
+display window. Mobile continues to use its standard modal overlay.
+
+Modal and window presentations bound lengthy bodies to the available viewport
+and provide an internal scroll area. Closing a direct-display window remains a
+frontend-local dismissal and does not mutate the owning session.
 
 Dismiss behavior depends on display ownership:
 

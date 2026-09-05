@@ -63,8 +63,14 @@ therefore reflects:
 - providers that send a native system message or top-level instructions.
 
 Inspection does not call the model, add a conversation message, or replace
-provider-native history. When no effective message is configured, the dialog
-explains that there is no compiled message to display.
+provider-native history. The action is explicitly non-mutating, so it does not
+save the session, change its modification time, or report it as updated. When
+no effective message is configured, the dialog explains that there is no
+compiled message to display.
+
+Mobile presents the result in a bounded modal and desktop opens a separate
+action-display window. Lengthy prompts scroll inside the display while the
+title and Close control remain available.
 
 In the default Crystal Lattice configuration, enable task guidance before
 inspection when it should be included:

@@ -78,6 +78,9 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   BOOL enableConnectionsPanelHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_CONNECTIONS_PANEL_HARNESS") ||
       LaunchArgumentPresent(@"--connections-panel-harness");
+  BOOL enableActionDisplayHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_ACTION_DISPLAY_HARNESS") ||
+      LaunchArgumentPresent(@"--action-display-harness");
   BOOL enableAnyTestHarness =
       enableScrollTestHarness ||
       enableTranscriptScrollPersistenceHarness ||
@@ -85,11 +88,14 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       enableSessionFiltersPopoverHarness ||
       enableNotificationRailHarness ||
       enableMarkdownGeometryHarness ||
-      enableConnectionsPanelHarness;
+      enableConnectionsPanelHarness ||
+      enableActionDisplayHarness;
   if (enableAnyTestHarness) {
     RCTDevLoadingViewSetEnabled(NO);
   }
-  self.moduleName = enableConnectionsPanelHarness
+  self.moduleName = enableActionDisplayHarness
+      ? @"DesktopActionDisplayHarness"
+      : (enableConnectionsPanelHarness
       ? @"DesktopConnectionsPanelHarness"
       : (enableMarkdownGeometryHarness
       ? @"DesktopMarkdownGeometryHarness"
@@ -103,7 +109,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
              ? @"TranscriptScrollPersistenceHarness"
              : (enableScrollTestHarness
                     ? @"ProgressiveScrollHarness"
-                    : @"CrystalLatticeControlDesktopRN"))))));
+                    : @"CrystalLatticeControlDesktopRN")))))));
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
   NSInteger markdownBaseFontSize = [self loadMarkdownBaseFontSizePreference];
@@ -352,13 +358,15 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       EnvironmentFlagEnabled(@"CLC_ENABLE_NOTIFICATION_RAIL_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_MARKDOWN_GEOMETRY_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_CONNECTIONS_PANEL_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_ACTION_DISPLAY_HARNESS") ||
       LaunchArgumentPresent(@"--scroll-test-harness") ||
       LaunchArgumentPresent(@"--transcript-scroll-persistence-harness") ||
       LaunchArgumentPresent(@"--transcript-range-navigation-harness") ||
       LaunchArgumentPresent(@"--session-filters-popover-harness") ||
       LaunchArgumentPresent(@"--notification-rail-harness") ||
       LaunchArgumentPresent(@"--markdown-geometry-harness") ||
-      LaunchArgumentPresent(@"--connections-panel-harness")) {
+      LaunchArgumentPresent(@"--connections-panel-harness") ||
+      LaunchArgumentPresent(@"--action-display-harness")) {
     return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
   }
 

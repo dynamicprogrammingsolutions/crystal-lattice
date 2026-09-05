@@ -26,9 +26,13 @@ prompts that rely on standing repository guidance.
   plans, code, tests, and documentation.
 - [ ] The guide begins with a short six-step quick workflow that is easy to
   scan and follow.
-- [x] Small, normal, and high-risk changes all follow planning,
-  implementation, verification, and review, while the form and detail of the
-  plan vary with the work.
+- [x] Stage 2 decides whether work needs no task file, one task, or a main task
+  with subtasks; every choice still leads to an approved implementation plan,
+  implementation, verification, and human assessment.
+- [x] Each task or subtask represents an independently deliverable feature,
+  correction, enabling capability, or acceptance outcome rather than dividing
+  one feature into backend, frontend, test, documentation, or other technical
+  touch-point tasks.
 - [x] Every initial change and follow-up is planned before implementation.
 - [x] Specification need is considered independently from immediate change
   size: affected existing specifications are updated when their target
@@ -36,8 +40,9 @@ prompts that rely on standing repository guidance.
   justify specifying an existing feature or durable contract.
 - [x] Current user documentation is updated whenever a change affects a
   consumer.
-- [x] Human owner, implementing agent, and reviewing agent responsibilities are
-  defined once near the beginning.
+- [x] The opening and relevant workflow stages distinguish AI preparation,
+  independent AI advice, human decisions and acceptance, and explicit human
+  delivery authorization without a standalone role section.
 - [x] Each major workflow step identifies only the owner or collaboration
   relevant to that step; the guide does not force both human and AI work into
   every stage.
@@ -50,7 +55,7 @@ prompts that rely on standing repository guidance.
 - [x] The guide distinguishes automated verification, human checkpoints,
   independent AI review, final human acceptance, and human delivery
   authorization.
-- [ ] The guide explains that applicable `AGENTS.md` and task guidance must
+- [x] The guide explains that applicable `AGENTS.md` and task guidance must
   actually reach the model through its developer/system message or first user
   message and shows humans how to inspect the effective instructions.
 - [x] The guide explains which context belongs in the developer/system message,
@@ -78,8 +83,12 @@ prompts that rely on standing repository guidance.
   planned boundaries, production paths, reported results, and remaining need
   for human judgment.
 - [x] The guide gives humans a clear conceptual model of specifications,
-  requirements, tasks, execution plans, current user documentation, and current
-  implementation documentation, with links and a compact worked example.
+  requirements, tasks, feature-oriented subtasks, execution plans, current
+  user documentation, and current implementation documentation, with links
+  and a compact worked example.
+- [x] The six detailed stages use direct action headings: brainstorm and shape,
+  decide and record, plan, implement, verify and assess, and resolve and
+  deliver.
 - [x] A separate follow-up section requires investigation, planning,
   specification reconsideration, consumer-documentation review, verification,
   and human approval before follow-up implementation and delivery.
@@ -98,14 +107,17 @@ prompts that rely on standing repository guidance.
   authorization.
 - [x] The frontend and terminal setting paths for including task guidance are
   documented.
-- [ ] The system-message feature exposes a session action that compiles the
+- [x] The system-message feature exposes a session action that compiles the
   effective developer/system message on demand and presents it in a dialog
   through supported frontends.
-- [ ] The OpenAI inspection proxy supports an optional `--hide-headers` flag
+- [x] The mobile modal and desktop window keep lengthy compiled prompts
+  readable in a bounded scrollable content area, with automated native or
+  production-screen coverage of long-content scrolling.
+- [x] The OpenAI inspection proxy supports an optional `--hide-headers` flag
   that suppresses all request-header logging without changing forwarding, and
   the guide recommends the flag while explaining that users remain responsible
   for secrets and sensitive request content on their own computers.
-- [ ] The system-message feature, affected frontend paths, and inspection proxy
+- [x] The system-message feature, affected frontend paths, and inspection proxy
   package documentation describe the new behavior.
 
 ## Supporting details
@@ -118,7 +130,8 @@ Prefer:
 
 - a quick summary before detailed explanation;
 - six major steps rather than a long sequence of micro-stages;
-- roles defined once;
+- responsibilities introduced in the opening and reinforced only where a
+  stage needs them;
 - short owner labels;
 - optional or conditional activities called out as such;
 - prompt examples placed at the workflow stages where a human uses them;
@@ -137,20 +150,12 @@ Avoid:
 - burying the workflow under research citations;
 - prompts that repeat the full developer message.
 
-### Roles
+### Responsibility boundaries
 
-Define these once near the beginning:
-
-- **Human owner:** Defines intent, resolves requirement questions, approves
-  plans, performs human verification, reviews the result, and authorizes
-  delivery.
-- **Implementing agent:** Investigates, plans, implements, runs automated
-  verification, updates documentation and work records, and prepares evidence.
-- **Reviewing agent:** Independently inspects the proposed change and reports
-  findings. It does not approve the change.
-
-The same human may be both owner and reviewer for small work. The activities
-remain distinct even when performed by one person.
+The opening distinguishes AI preparation and independent advice from human
+intent, decisions, acceptance, checkpoints, and delivery authority. Relevant
+stages reinforce those boundaries without a standalone role catalog or a
+repeated role matrix.
 
 ### Recommended document structure
 
@@ -158,12 +163,18 @@ remain distinct even when performed by one person.
 # Contributing
 
 1. Quick workflow
-2. Choose the appropriate process
-3. Make sure the agent received the project instructions
-4. Human-led AI-assisted workflow with inline prompts
-5. Planning and reviewing follow-up changes
-6. Understand specifications, tasks, plans, docs, and evidence
-7. Repository and pull-request essentials
+2. Short instruction-delivery prerequisite
+3. Five human-review concerns
+4. Human-led workflow:
+   - brainstorm and shape
+   - decide and record specifications/tasks
+   - plan
+   - implement
+   - verify and assess
+   - resolve and deliver
+5. Follow-up planning
+6. Detailed instruction inspection
+7. Pull-request review and project policies
 8. Further reading
 ```
 
@@ -565,7 +576,8 @@ Preserve these under a compact "Further reading" or rationale section:
   tests, and package documentation are part of the follow-up task scope.
 - September 5, 2026 approval: The human approved the follow-up plan and
   authorized the documentation stage. The system-message action and proxy flag
-  remain a later product stage that requires separate human confirmation.
+  remained a later product stage at that checkpoint and required separate
+  human confirmation.
   Target documentation may be drafted first, but product-dependent current
   claims must not be committed separately from the implementation that makes
   them true.
@@ -609,7 +621,81 @@ Preserve these under a compact "Further reading" or rationale section:
   documents; Markdown rendering with tables and fenced code; and preservation
   checks for instruction inspection, consumer-documentation obligations,
   project policy links, participation, and Further Reading. Human readability
-  and product behavior remain pending.
+  and product behavior remained pending at that checkpoint.
+- September 5, 2026 product implementation: Added reusable
+  `mutates_session: false` feature/provider-extension session actions; the
+  application now skips writable-session gating, persistence, synthetic
+  mutation IDs, and reload effects for those actions. Existing mutating actions
+  retain their default rebuild/persistence behavior.
+- Added `show_compiled_system_message` to `SystemMessageFeature`. It executes
+  the existing request-initialization pipeline, supports top-level
+  instructions and ordinary/Responses-style system messages, honors effective
+  session overrides such as `include_tasks`, returns exact text in a direct
+  modal display, leaves the session file unchanged, and suppresses the normal
+  compiled-history stamp/log side effect during inspection.
+- Mobile retains its standard action-result modal; mobile and desktop action
+  cards now bound lengthy bodies to a scroll view. Desktop direct modal action
+  responses route through the global display owner into a generic native React
+  window. Desktop notification modal requests retain inline fallback.
+- The local inspection proxy now supports `--hide-headers`, keeps default
+  logging compatible, rejects invalid CLI input, and forwards hidden
+  authorization/custom headers unchanged. Node unit/subprocess integration
+  covers both modes.
+- Verification completed:
+  - core default suite: 481 passed, 26 deselected, 1 expected xfail;
+  - focused core/application non-mutating action tests: 20 passed;
+  - feature-system-message unit tests: 34 passed;
+  - compiled-message application integration: 1 passed;
+  - frontend SDK: 317 passed;
+  - mobile: 163 Jest tests, TypeScript, 1 real-backend compiled-message modal
+    integration, and focused 300-line scroll assertions passed;
+  - desktop: 122 Jest tests and focused 300-line window scroll assertions
+    passed;
+  - proxy: 4 Node unit/subprocess integration tests passed;
+  - Python Ruff/Black, JavaScript syntax, Swift parse, and focused Markdown
+    checks passed.
+- Verification limitations:
+  - the complete application suite reported 368 passed and four reload-owner
+    failures after a cached plugin loaded an AnyIO version requiring
+    `typing_extensions.sentinel`; the same four tests passed in a fresh
+    isolated process;
+  - the complete feature package reported 40 passed and seven existing
+    environment/fixture failures. The two legacy request tests fail on current
+    session-conflict behavior, while five portable-default tests fail on stale
+    mixin fixtures and the global `typing_extensions` version. The new action
+    tests pass independently;
+  - desktop TypeScript reaches existing URL, optional-string, and theme typing
+    errors outside the changed lines;
+  - macOS XCUITest is authored and registered, but did not run because the
+    worktree lacked CocoaPods support files and `pod install` stopped on an
+    existing Hermes local-podspec/lock mismatch. No Podfile or lockfile was
+    changed.
+- Final documentation preparation and MkDocs build passed with the existing
+  navigation, absolute-link, Griffe indentation, and unresolved-reference
+  warnings. Sixteen changed Markdown files rendered and passed local link and
+  anchor validation. `git diff --check`, JavaScript syntax checks, Swift parse,
+  Xcode project parsing, and the final focused long-content tests passed.
+- September 5, 2026 final contributor-guide structure: Removed the standalone
+  Roles and process-selection sections. Stage 2 now owns the independent
+  specification and task-record decisions, explains no-task/single-task/main-
+  and-subtask choices in a table, and requires each subtask to deliver an
+  independently acceptable feature or capability rather than a backend,
+  frontend, testing, or documentation slice. The record model now appears in
+  stage 2, stage 3 plans the already selected unit of work, and stages 4–6 use
+  direct action headings.
+- The detailed instruction-inspection guide moved after the workflow while a
+  short prerequisite and anchor remain near the beginning. Accepted findings
+  now use the separate follow-up loop instead of duplicating it in stage 6.
+  Terminology consistently distinguishes automated verification, human
+  checkpoints, human assessment, and delivery authorization.
+- Focused validation of the final structure passed: direct action-stage order;
+  independent specification and task-record decisions; no-task/single-task/
+  main-and-subtask table; record creation before decomposition review;
+  feature-oriented subtask examples and touch-point counterexamples; separate
+  stage-2 and stage-3 return paths; 14 actual prompt examples plus four
+  commands, filename examples, or illustrations; Markdown rendering; local
+  link and anchor checks; terminology and policy checks; and focused
+  `git diff --check`. Human readability confirmation remains pending.
 
 ## Execution plan
 
@@ -1228,8 +1314,8 @@ are task requirements and require package-owned tests and documentation, but
 they are not requirements of the documentation-and-specification standard and
 must not be added to its product or technical target.
 
-The documentation stage is authorized. The product stage remains blocked on
-separate human confirmation.
+The documentation and product stages are implemented. Final human
+readability, practical-usefulness, and dialog acceptance remain pending.
 
 ### Documentation
 
@@ -1254,14 +1340,26 @@ separate human confirmation.
   decisions.
 - [x] Update the accepted requirements/specification and set live state to
   `In progress`.
-- [ ] Add and verify the system-message compiled-content session action and
+- [x] Add and verify the system-message compiled-content session action and
   dialog presentation.
 - [x] Document the terminal and frontend Session-settings paths.
-- [ ] Add and verify the proxy `--hide-headers` logging flag.
+- [x] Add and verify the proxy `--hide-headers` logging flag.
 - [x] Draft and checkpoint the system-message, frontend, and proxy package
   documentation in the user-requested documentation-first order.
 - [x] Rewrite the quick workflow and process-scaling model around human
   responsibility and planning for every change.
+- [x] Remove standalone Roles and process-selection sections and integrate
+  their useful information into the opening and relevant workflow stages.
+- [x] Put specification and task-record decisions in stage 2, using a table
+  for no task file, one task, or a main task with subtasks.
+- [x] Require feature- or capability-oriented task decomposition and keep
+  backend, frontend, tests, and documentation with the outcome they support.
+- [x] Move the record model into stage 2 and make stage 3 plan the unit already
+  selected there.
+- [x] Rename stages 2–6 with direct action headings and remove the duplicated
+  findings-planning loop from stage 6.
+- [x] Move detailed instruction inspection after the workflow while preserving
+  the short prerequisite near the beginning.
 - [x] Separate the specification decision from change size.
 - [x] Integrate realistic prompts into their workflow stages.
 - [x] Add instruction-delivery and request-inspection guidance.
@@ -1321,3 +1419,269 @@ separate human confirmation.
   with the user.
 - Compare retained public-contribution sections with commit `4c476620`.
 - Run `git diff --check`.
+
+## Remaining product improvements execution plan
+
+Status: Approved
+
+The documentation workflow is committed through `3f2ac09c`. The remaining
+work is limited to the two product improvements already required by this task:
+
+1. expose the effective compiled developer/system message as a non-mutating
+   session action and present its direct result in a dialog on mobile and
+   desktop;
+2. add optional request-header hiding to the local OpenAI inspection proxy
+   without changing forwarded headers.
+
+Ground-truth inspection found two shared contracts that must be addressed for
+the documented system-message behavior to be true:
+
+- core-side feature and provider-extension session actions are currently
+  mutation-oriented: they must return full native history, are rebuilt and
+  saved by the application, and report the session as updated;
+- mobile honors direct `presentation: "modal"` displays, while desktop
+  intentionally normalizes modal action responses to inline cards. Desktop
+  already has native React-window infrastructure suitable for a real dialog.
+
+The system-message feature already compiles message and top-level-instructions
+forms during request initialization. `AgentCore.initialize_action_request()`
+can execute the same provider/feature initialization path for an action
+without sending a provider request. The product change should reuse that path
+rather than add a second template renderer.
+
+The proxy currently uses positional argument parsing, logs every incoming
+request header, has no test script, and starts its server as soon as
+`proxy.js` is loaded. The flag work therefore needs a small testable CLI/logging
+boundary plus a subprocess integration check.
+
+### 1. Update the related action specifications before code
+
+Do not add these product contracts to the documentation-and-specification
+standard.
+
+Update the existing cross-package specifications that own them:
+
+- extend `docs/development/specifications/sessions-actions/` with a
+  read-only/non-mutating session-action contract;
+- extend `docs/development/specifications/action-display/` so desktop direct
+  action responses can honor `presentation: "modal"` through a standard
+  action-display window, while application and session notification modal
+  fallbacks remain inline;
+- add stable requirements for both behaviors and leave them incomplete until
+  implementation and verification are present.
+
+The current task requirements already cover the system-message action,
+frontend dialog, proxy flag, and package documentation. They do not need a
+scope change unless terminal execution is added.
+
+### 2. Add an explicit non-mutating session-action contract
+
+Add an optional action-definition field such as:
+
+```json
+{
+  "mutates_session": false
+}
+```
+
+The default remains mutating for compatibility.
+
+For a non-mutating action:
+
+- `AgentCore` permits a display-only result without `native_messages` or
+  `session_metadata`;
+- the core returns the original `Session` object and rejects session-mutation
+  fields from an action declared non-mutating;
+- `AgentApplication` does not require a writable live-session view merely to
+  execute the action, does not save the session, and does not synthesize
+  `updated_session_ids` or reload effects;
+- HTTP action envelopes remain unchanged apart from truthfully empty mutation
+  and UI-effect sets when the plugin supplies them;
+- existing mutating feature and provider-extension actions retain their
+  current rebuild, persistence, conflict, and refresh behavior.
+
+Keep this contract generic. Do not add a system-message-specific exception in
+the application layer.
+
+### 3. Add the compiled-system-message feature action
+
+Extend `SystemMessageFeature` with:
+
+- logical action ID `show_compiled_system_message`;
+- one `session_action` UI element labelled **Show compiled system message**;
+- `mutates_session: false`;
+- no action inputs or confirmation dialog.
+
+Action execution should call `AgentCore.initialize_action_request()` with the
+provided native history, request runtime, and request context. This preserves:
+
+- contributions from earlier provider/features;
+- request-scoped `system_message_variables`;
+- effective session overrides, including **Include TASKS Guidance**;
+- ordinary provider-native system-message form;
+- OpenAI Responses-style top-level `instructions`.
+
+Extract the displayed text from initialized request state in this order:
+
+1. non-empty top-level `request.instructions`;
+2. the last system/developer message in request override messages;
+3. the last system/developer message in initialized native messages.
+
+Support both ordinary role/content messages and Responses-style input-message
+items. Return a transient direct display with:
+
+- `format: "text"` so inspection preserves exact text;
+- title **Compiled system message**;
+- `presentation: "modal"`;
+- an informational, dismissible display;
+- an understandable empty result when no effective message exists.
+
+The action must not call the provider streaming/request API, append messages,
+persist compiled metadata, update the session file, or change its modified
+time. Keep normal request compilation and existing compiled-content metadata
+behavior unchanged.
+
+### 4. Present direct modal action displays on supported frontends
+
+Mobile already has the required modal presentation in `SessionsScreen` and
+`SessionChatScreen`. Add focused coverage using the real
+feature-system-message backend path; avoid adding plugin-specific mobile UI.
+
+For desktop, implement generic direct-action modal presentation:
+
+- preserve `presentation: "modal"` for direct action responses in the shared
+  frontend policy;
+- continue normalizing modal application/session notifications to inline on
+  desktop;
+- route direct modal envelopes from Sessions and Chat through the existing
+  desktop global display owner;
+- add one reusable `ActionDisplayWindow` backed by
+  `DesktopWindowManager.openReactWindow()` and the existing
+  `ActionDisplayCard`;
+- retain connection/session context, direct-display local dismissal, embedded
+  forms, and generic follow-up actions;
+- keep banner and inline presentation unchanged;
+- close or replace the active modal predictably when a newer direct modal is
+  presented.
+- keep lengthy action-display bodies inside a bounded scrollable content area
+  on mobile and desktop, and verify scrolling with a long compiled prompt.
+
+Use the native React-window convention rather than relying on React Native
+`Modal`, which the desktop window guidance currently treats as unreliable.
+Do not add system-message-specific handling to `ChatPane`, `SessionsPanel`, or
+the native window manager.
+
+### 5. Add the proxy header-hiding flag
+
+Refactor the proxy entrypoint only enough to test argument parsing and request
+logging without starting a server on import.
+
+Implement:
+
+- optional `--hide-headers`, accepted after the required endpoint/port and
+  optional base path;
+- backward-compatible endpoint, port, and default-base-path behavior;
+- clear failure for unknown flags or extra positional arguments;
+- help/examples covering OpenAI-compatible and Anthropic use;
+- a fixed hidden marker instead of serializing header names or values when the
+  flag is active;
+- unchanged forwarding of all original headers except the existing hop-by-hop
+  removals.
+
+Add a Node built-in test script. Cover the pure parser/logger and a subprocess
+integration in which a local target receives authorization and custom headers
+while the proxy output contains none of their names or values. Also prove that
+the default mode still logs headers.
+
+### 6. Reconcile package and contract documentation
+
+The target documentation was committed before implementation at the human's
+explicit request. Update it to match final verified behavior:
+
+- `plugins/feature-system-message/README.md`;
+- mobile instruction-inspection documentation and index;
+- desktop README and window/action-display development guidance;
+- terminal documentation, clarifying that the terminal exposes the task toggle
+  but the compiled-message dialog is a mobile/desktop action unless terminal
+  execution is separately approved;
+- `tools/openai-proxy/README.md`;
+- `plugins/docs/actions.md` for non-mutating session actions;
+- `plugins/docs/notifications-and-action-displays.md`;
+- action-display and sessions-action specifications and requirements.
+
+Update `CONTRIBUTING.md` only if implementation changes a label, path, or
+verified behavior already described there.
+
+### Implementation decisions and open questions
+
+1. **Approved — generic non-mutating session actions:** Use
+   `mutates_session: false` as a reusable action-definition contract, with
+   mutating behavior remaining the default. This is preferable to saving an
+   unchanged session or adding a system-message-specific application bypass.
+2. **Approved — desktop direct-action windows:** Use real
+   desktop window presentation for all direct action displays requesting
+   `modal`, while notification modal requests retain their current inline
+   fallback. This is preferable to plugin-specific frontend logic, but it
+   changes the presentation of other direct modal action results on desktop.
+3. **Approved boundary — terminal execution:** Add no new terminal
+   slash command or generic action browser in this task. Keep
+   `/set include_tasks true` as the terminal setting path and describe the
+   compiled-message dialog as available in mobile and desktop.
+4. **Local implementation choices:** Exact icon, order, empty-state copy,
+   desktop window dimensions, replacement behavior for two rapidly presented
+   modals, helper filenames, and proxy module split do not require separate
+   approval if they preserve the contracts above.
+
+### Documentation
+
+- Update the action-display and sessions-action specifications before their
+  implementations.
+- Reconcile the already committed feature, frontend, terminal, proxy, and
+  contributor documentation with verified behavior.
+- Update package development documentation for the read-only action path and
+  desktop native action-display window.
+- Do not add the side product contracts to the
+  documentation-and-specification standard.
+
+### Task checklist
+
+- [x] Obtain approval for the two material recommendations and terminal
+  requirement boundary.
+- [x] Update action-display and sessions-action specifications/requirements.
+- [x] Implement and verify non-mutating session actions.
+- [x] Implement and verify the compiled-system-message feature action.
+- [x] Verify the actual feature action through the HTTP/frontend SDK boundary.
+- [x] Verify mobile action discovery, execution, and modal presentation.
+- [x] Implement and verify generic desktop direct-action modal windows.
+- [x] Implement and verify proxy `--hide-headers`.
+- [x] Reconcile package and contract documentation.
+- [x] Update task and requirement evidence.
+- [ ] Complete applicable human dialog/readability verification.
+
+### Requirement verification
+
+| Requirement group | Planned acceptance evidence |
+|---|---|
+| Non-mutating action | Core/application tests prove `mutates_session: false` actions can return display-only results, work without a writable mutation path, do not save or change session files, and leave existing mutating actions compatible. |
+| Compiled message | Plugin tests and application HTTP integration prove the action uses request initialization, includes request-scoped variables and task guidance, supports message/instructions forms, returns exact text, makes no model request, and leaves the session unchanged. |
+| Mobile dialog | A production-screen component/integration path executes the real session action and presents the returned compiled text through the standard mobile action-result modal; a lengthy prompt remains bounded and scrollable. |
+| Desktop dialog | Shared-policy and desktop tests prove direct modal action displays open the generic native React window with correct ownership/dismissal, while notification modal fallback and inline/banner behavior remain compatible; a lengthy prompt remains bounded and scrollable. |
+| Proxy flag | Node unit/subprocess integration proves hidden mode logs no incoming header names or values, forwards headers unchanged, rejects malformed CLI input, and preserves default logging behavior. |
+| Documentation | Package and cross-package docs describe the delivered action, setting paths, read-only action contract, desktop direct-modal behavior, proxy usage, and security limitations. |
+
+### Additional implementation verification
+
+- Run the feature-system-message default and application integration suites.
+- Run focused core and application session-action suites plus the full default
+  core/application suites because the mutation contract is shared.
+- Run frontend SDK action runner/display policy tests and the full default
+  frontend SDK suite.
+- Run mobile component and real-backend integration tests, TypeScript, and a
+  focused production-screen iOS/Android action-dialog scenario if the existing
+  native harness can exercise the session action without a test-only UI path.
+- Run desktop component/integration tests, TypeScript, and a focused macOS
+  XCUITest that opens and closes the native action-display window.
+- Run proxy Node tests against a local target process.
+- Run documentation rendering/link checks and `git diff --check`.
+- Record unavailable native or environment-gated checks as not run, not
+  passed.

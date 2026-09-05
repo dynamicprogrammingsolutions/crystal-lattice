@@ -63,6 +63,12 @@ change. Every change and follow-up receives a reviewed plan before
 implementation; a small change may use a conversational plan while complex or
 multi-part work uses task-owned staged plans.
 
+Before implementation planning, the human decides whether to update or create
+a specification and whether the work needs no task file, one task, or a main
+task with subtasks. Subtasks follow independently deliverable feature or
+capability boundaries rather than separating one feature into backend,
+frontend, testing, or documentation phases.
+
 The contributor workflow helps the human verify that applicable repository and
 task guidance actually reached the model, review important specification and
 task decisions, question planned and completed unit/integration/end-to-end

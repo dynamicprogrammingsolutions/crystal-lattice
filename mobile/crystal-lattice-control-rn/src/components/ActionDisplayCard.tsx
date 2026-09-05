@@ -32,6 +32,8 @@ export interface ActionDisplayCardProps {
   variantLabel?: string;
   footerDismissLabel?: string | null;
   compact?: boolean;
+  bounded?: boolean;
+  bodyTestID?: string;
   fieldRenderers?: ApplicationActionDialogFieldRenderers;
 }
 
@@ -43,10 +45,15 @@ const ActionDisplayCard: React.FC<ActionDisplayCardProps> = ({
   variantLabel,
   footerDismissLabel,
   compact = false,
+  bounded = false,
+  bodyTestID,
   fieldRenderers,
 }) => {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme, compact), [theme, compact]);
+  const styles = useMemo(
+    () => createStyles(theme, compact, bounded),
+    [theme, compact, bounded],
+  );
   const formRef = useRef<ApplicationActionFormHandle | null>(null);
 
   const body = display.body ?? '';
@@ -87,7 +94,11 @@ const ActionDisplayCard: React.FC<ActionDisplayCardProps> = ({
         ) : null}
       </View>
 
-      <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.bodyContent}>
+      <ScrollView
+        testID={bodyTestID}
+        style={styles.bodyScroll}
+        contentContainerStyle={styles.bodyContent}
+      >
         {display.format === 'text' ? (
           <Text style={styles.bodyText}>{body}</Text>
         ) : (
@@ -137,7 +148,7 @@ const ActionDisplayCard: React.FC<ActionDisplayCardProps> = ({
   );
 };
 
-const createStyles = (theme: Theme, compact: boolean) =>
+const createStyles = (theme: Theme, compact: boolean, bounded: boolean) =>
   StyleSheet.create({
     card: {
       borderRadius: 16,
@@ -145,6 +156,8 @@ const createStyles = (theme: Theme, compact: boolean) =>
       borderWidth: 1,
       borderColor: theme.border,
       padding: compact ? 14 : 18,
+      flexShrink: bounded ? 1 : 0,
+      maxHeight: bounded ? '100%' : undefined,
     },
     header: {
       marginBottom: 12,
@@ -187,7 +200,8 @@ const createStyles = (theme: Theme, compact: boolean) =>
     },
     bodyScroll: {
       flexGrow: 0,
-      maxHeight: compact ? 220 : undefined,
+      flexShrink: bounded ? 1 : 0,
+      maxHeight: compact ? 220 : bounded ? 420 : undefined,
     },
     bodyContent: {
       paddingBottom: 8,

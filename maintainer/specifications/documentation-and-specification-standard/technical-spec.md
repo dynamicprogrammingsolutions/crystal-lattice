@@ -327,14 +327,23 @@ links to this meta-specification.
 ## Human-led contributor workflow
 
 Root `CONTRIBUTING.md` is written for the human directing AI-assisted
-development. Its six-stage workflow covers brainstorming, review of durable
-records and decomposition, plan approval, implementation supervision,
-verification/review, and findings resolution/delivery.
+development. Its six-stage workflow covers brainstorming and shaping, deciding
+and recording the work, implementation planning, implementation, verification
+and assessment, and findings resolution and delivery.
 
-Every initial change and follow-up has a plan before implementation. Planning
-may remain a short conversation for a local change, use one task execution
-plan for normal work, or use staged task plans for high-risk and multi-part
-work. Specification need is a separate decision:
+Every initial change and follow-up has a plan before implementation. During
+the record stage, the human decides whether the work needs no task file, one
+task, or a main task with subtasks. No task file leads to a conversational
+plan; one task owns one coherent plan; subtasks are planned one independently
+deliverable unit at a time.
+
+Subtasks follow feature or capability boundaries with independently acceptable
+outcomes. Backend, frontend, tests, documentation, database changes, or other
+technical touch points remain implementation work within the task that owns
+the outcome unless one is itself an independently deliverable capability with
+real consumers and acceptance evidence.
+
+Specification need is a separate decision made during the same record stage:
 
 - update an affected existing specification when its target behavior or design
   changes;

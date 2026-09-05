@@ -4671,6 +4671,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        onCancel={handleCancelPluginDialog}
 	      />
         <ActionResultModal
+          testID="session-action-result-modal"
           visible={!!actionResultDisplay}
           display={actionResultDisplay?.display ?? null}
           activeActionId={activeDisplayActionId}

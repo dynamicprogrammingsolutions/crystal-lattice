@@ -81,6 +81,13 @@ class ContextRecordingFeature:
                 "inputs": {},
             },
             {
+                "id": "inspect_context",
+                "label": "Inspect context",
+                "description": "Return a display without changing the session.",
+                "inputs": {},
+                "mutates_session": False,
+            },
+            {
                 "id": "record_context_with_trigger",
                 "label": "Record context with trigger",
                 "description": "Record context when triggered by lifecycle.",
@@ -105,12 +112,23 @@ class ContextRecordingFeature:
         context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
+        if action_id == "inspect_context":
+            return {
+                "display": {
+                    "format": "text",
+                    "body": "Context inspected",
+                    "presentation": "modal",
+                }
+            }
+
         # Record the context
         if isinstance(context, dict):
-            ContextRecordingFeature._captured_contexts.append({
-                **context,
-                "_action_id": action_id,
-            })
+            ContextRecordingFeature._captured_contexts.append(
+                {
+                    **context,
+                    "_action_id": action_id,
+                }
+            )
 
         return {
             "native_messages": native_messages,

@@ -23,4 +23,5 @@ message**. The app displays the current effective message in a dialog without
 sending a model request or adding to the conversation.
 
 Check that the dialog contains the expected project instructions and, when
-enabled, task guidance. Close the dialog when inspection is complete.
+enabled, task guidance. Lengthy messages remain inside a bounded scrollable
+area. Close the dialog when inspection is complete.

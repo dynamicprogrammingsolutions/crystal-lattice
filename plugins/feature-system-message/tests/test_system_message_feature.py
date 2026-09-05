@@ -5,13 +5,22 @@ from __future__ import annotations
 import subprocess
 from typing import Dict, Any, List
 
+from agent_core import AgentCore
 from feature_system_message.system_message_feature import SystemMessageFeature
+from plugins.echo_openai_like_provider import EchoOpenAILikeProvider
 
 
 def _simple_native(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Helper to build a naive provider-native list from core messages."""
 
     return [{"role": m["role"], "content": m.get("content", "")} for m in messages]
+
+
+def _core_with_system_message_feature() -> AgentCore:
+    core = AgentCore()
+    core.register_provider(EchoOpenAILikeProvider)
+    core.register_feature(SystemMessageFeature)
+    return core
 
 
 def _write_runtime_code(tmp_path, body: str | None = None):
@@ -50,6 +59,121 @@ def test_normalize_string_system_message() -> None:
     assert cfg["as_instructions"] is False
     assert cfg["template"] == "Hello {{NAME}}"
     assert cfg["variables"] == {}
+
+
+def test_exposes_non_mutating_compiled_message_action_and_ui() -> None:
+    feature = SystemMessageFeature()
+
+    actions = feature.get_actions({})
+    assert actions == [
+        {
+            "id": "show_compiled_system_message",
+            "label": "Show compiled system message",
+            "description": (
+                "Compile and display the effective developer/system message "
+                "without sending a model request."
+            ),
+            "inputs": {},
+            "mutates_session": False,
+        }
+    ]
+
+    element = next(
+        item
+        for item in feature.get_ui_elements({})
+        if item.get("id") == "show_compiled_system_message"
+    )
+    assert element["ui_type"] == "session_action"
+    assert element["action_id"] == "show_compiled_system_message"
+
+
+def test_inspection_action_compiles_long_top_level_instructions_without_mutation() -> (
+    None
+):
+    core = _core_with_system_message_feature()
+    long_section = "\n".join(
+        f"Instruction line {index}: preserve this exact content."
+        for index in range(300)
+    )
+    config: Dict[str, Any] = {
+        "provider": "echo_openai_like",
+        "model": "test-model",
+        "system_message_as_instructions": True,
+        "system_message": {
+            "template": "# Compiled instructions\n\n{{LONG_SECTION}}",
+            "variables": {"LONG_SECTION": long_section},
+        },
+    }
+    session = core.create_session()
+
+    inspected_session, result = core.execute_session_action(
+        session,
+        config,
+        plugin_id="system_message",
+        action_id="show_compiled_system_message",
+        params={},
+    )
+
+    assert inspected_session is session
+    assert result["display"] == {
+        "display_id": "compiled-system-message",
+        "format": "text",
+        "title": "Compiled system message",
+        "body": f"# Compiled instructions\n\n{long_section}",
+        "variant": "info",
+        "presentation": "modal",
+        "dismissible": True,
+    }
+
+
+def test_inspection_action_compiles_user_system_message(capsys) -> None:
+    core = _core_with_system_message_feature()
+    config: Dict[str, Any] = {
+        "provider": "echo_openai_like",
+        "model": "test-model",
+        "system_message": {
+            "template": "Ignored",
+            "variables": {"NAME": "Ada"},
+        },
+    }
+    session = core.create_session()
+    session = core.add_message(session, "system", "Hello {{NAME}}", config=config)
+    capsys.readouterr()
+
+    inspected_session, result = core.execute_session_action(
+        session,
+        config,
+        plugin_id="system_message",
+        action_id="show_compiled_system_message",
+        params={},
+    )
+
+    assert inspected_session is session
+    assert result["display"]["body"] == "Hello Ada"
+    assert capsys.readouterr().out == ""
+
+
+def test_inspection_action_returns_empty_state_without_effective_message() -> None:
+    core = _core_with_system_message_feature()
+    config: Dict[str, Any] = {
+        "provider": "echo_openai_like",
+        "model": "test-model",
+        "system_message": "",
+    }
+    session = core.create_session()
+
+    inspected_session, result = core.execute_session_action(
+        session,
+        config,
+        plugin_id="system_message",
+        action_id="show_compiled_system_message",
+        params={},
+    )
+
+    assert inspected_session is session
+    assert result["display"]["body"] == (
+        "No effective developer/system message is configured for this session."
+    )
 
 
 def test_normalize_system_message_as_instructions_flag() -> None:
@@ -226,7 +350,9 @@ def test_state_system_message_variables_override_config_values() -> None:
     assert override[0]["content"] == "Hello State User"
 
 
-def test_existing_request_messages_are_preserved_when_rendering_system_message() -> None:
+def test_existing_request_messages_are_preserved_when_rendering_system_message() -> (
+    None
+):
     feature = SystemMessageFeature()
 
     config = {
@@ -334,7 +460,9 @@ def test_system_message_files_variable_loaded_relative_to_cwd(
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
+        cfg["variables"]
+    )
 
     assert resolved["CTX"] == "File-based context"
 
@@ -349,7 +477,9 @@ def test_text_variable_object_form() -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
+        cfg["variables"]
+    )
 
     assert resolved["NAME"] == "Tester"
 
@@ -369,7 +499,9 @@ def test_code_variable_uses_python_file(tmp_path) -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
+        cfg["variables"]
+    )
 
     assert resolved["VAL"] == "FROM-CODE-FEATURE"
 
@@ -440,7 +572,9 @@ def test_inline_code_has_no_default_helper_context_without_runtime_code() -> Non
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
+        cfg["variables"]
+    )
 
     assert resolved["VAL"] == ""
 
@@ -463,7 +597,9 @@ def test_inline_code_block_uses_value_variable() -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
+        cfg["variables"]
+    )
 
     assert resolved["VAL"] == "Rendered from block"
 
@@ -482,7 +618,9 @@ def test_condition_inline_code_on_text_variable() -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
+        cfg["variables"]
+    )
 
     assert resolved["VAL"] == ""
     assert SystemMessageFeature._render_template(cfg["template"], resolved) == "Hello"
@@ -507,7 +645,9 @@ def test_condition_inline_code_on_files_variable_skips_file_reads(monkeypatch) -
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
+        cfg["variables"]
+    )
 
     assert resolved["VAL"] == ""
 
@@ -529,7 +669,9 @@ def test_condition_code_uses_external_helper_file(tmp_path) -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
+        cfg["variables"]
+    )
 
     assert resolved["VAL"] == "from text"
 
@@ -644,19 +786,19 @@ def test_runtime_code_zero_arg_get_ui_elements_uses_runtime_globals(tmp_path) ->
         models=[{"id": "openai/gpt-5.4"}],
     )
 
-    assert len(elements) == 1
-    assert elements[0]["key"] == "codex_personality"
-    assert elements[0]["type"] == "select"
-    assert elements[0]["label"] == "openai/gpt-5.4|supports_tools|openai/gpt-5.4"
+    config_elements = [item for item in elements if item.get("ui_type") == "config"]
+    assert len(config_elements) == 1
+    assert config_elements[0]["key"] == "codex_personality"
+    assert config_elements[0]["type"] == "select"
+    assert config_elements[0]["label"] == (
+        "openai/gpt-5.4|supports_tools|openai/gpt-5.4"
+    )
 
 
 def test_variable_runtime_code_augments_request_context(tmp_path) -> None:
     runtime_file = _write_runtime_code(
         tmp_path,
-        body=(
-            "def greeting():\n"
-            "    return f\"hello from {CONFIG['model']}\"\n"
-        ),
+        body=("def greeting():\n" "    return f\"hello from {CONFIG['model']}\"\n"),
     )
 
     config = {
@@ -718,10 +860,11 @@ def test_variable_runtime_code_contributes_ui_schema(tmp_path) -> None:
         models=[{"id": "openai/gpt-5.4"}],
     )
 
-    assert len(elements) == 1
-    assert elements[0]["key"] == "include_tasks"
-    assert elements[0]["type"] == "checkbox"
-    assert elements[0]["default"] is False
+    config_elements = [item for item in elements if item.get("ui_type") == "config"]
+    assert len(config_elements) == 1
+    assert config_elements[0]["key"] == "include_tasks"
+    assert config_elements[0]["type"] == "checkbox"
+    assert config_elements[0]["default"] is False
 
 
 def test_system_message_dynamic_variables_change_between_configs() -> None:
@@ -734,7 +877,9 @@ def test_system_message_dynamic_variables_change_between_configs() -> None:
         },
     }
     cfg1 = SystemMessageFeature._extract_plugin_config(config1)
-    resolved1, _metadata_updates1 = SystemMessageFeature._resolve_variables(cfg1["variables"])
+    resolved1, _metadata_updates1 = SystemMessageFeature._resolve_variables(
+        cfg1["variables"]
+    )
     assert resolved1["VAL"] == "one"
 
     # Second config with updated value
@@ -746,7 +891,9 @@ def test_system_message_dynamic_variables_change_between_configs() -> None:
         },
     }
     cfg2 = SystemMessageFeature._extract_plugin_config(config2)
-    resolved2, _metadata_updates2 = SystemMessageFeature._resolve_variables(cfg2["variables"])
+    resolved2, _metadata_updates2 = SystemMessageFeature._resolve_variables(
+        cfg2["variables"]
+    )
     assert resolved2["VAL"] == "two"
 
 

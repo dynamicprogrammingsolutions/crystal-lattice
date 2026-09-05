@@ -38,11 +38,13 @@ import {
   resolveAttachmentActionPluginId,
   deleteSessionAttachment,
   deriveSessionListPresentationFromGroups,
+  emitDisplayPresentation,
   filterFooterElements,
   groupSessionListFields,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
   normalizeActionDisplayForSurface,
+  normalizeDisplayEnvelope,
   NotificationUiEffectObserver,
   observeSessionNotificationUiEffects,
   runApplicationAction,
@@ -2107,13 +2109,31 @@ export const ChatPane = React.memo(function ChatPane({
     sessionSummary,
   ]);
 
-  const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
-    const nextEntry = createDisplayEntry(
-      { ...display, presentation: 'inline' },
-      context,
-    );
-    setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
-  }, []);
+  const presentActionDisplay = useCallback(
+    (display: ActionDisplayPayload, context: RunActionContext) => {
+      if ((display.presentation ?? 'modal') === 'modal' && backend) {
+        emitDisplayPresentation(
+          backend,
+          normalizeDisplayEnvelope({
+            source: 'action_response',
+            ownershipScope: 'session',
+            connectionId,
+            sessionId,
+            display,
+          }),
+        );
+        return;
+      }
+      const nextEntry = createDisplayEntry(
+        { ...display, presentation: 'inline' },
+        context,
+      );
+      setInlineActionDisplays((current) =>
+        upsertInlineDisplay(current, nextEntry),
+      );
+    },
+    [backend, connectionId, sessionId],
+  );
 
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {

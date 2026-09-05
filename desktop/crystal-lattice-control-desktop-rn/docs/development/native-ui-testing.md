@@ -29,6 +29,14 @@ disclosure control:
 npm run test:macos-ui:connections
 ```
 
+The action-display harness emits a direct modal response through the production
+global display owner. Its focused XCUITest opens the native React window,
+scrolls a 300-line compiled-message body, and closes the window:
+
+```bash
+npm run test:macos-ui:action-display
+```
+
 Harnesses report theme-derived values and measured frames. Native assertions
 compare those values and relative geometry instead of copying display-preset
 numbers, allowing preset tuning without rewriting native tests.

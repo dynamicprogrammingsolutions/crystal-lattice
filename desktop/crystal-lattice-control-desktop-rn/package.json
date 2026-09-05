@@ -17,6 +17,7 @@
     "test:macos-ui:session-filters": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/SessionFiltersPopoverUITests",
     "test:macos-ui:connections": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/ConnectionsPanelUITests",
     "test:macos-ui:transcript-range": "CLC_ENABLE_TRANSCRIPT_RANGE_NAVIGATION_HARNESS=1 FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/TranscriptRangeNavigationUITests",
+    "test:macos-ui:action-display": "CLC_ENABLE_ACTION_DISPLAY_HARNESS=1 FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/ActionDisplayWindowUITests",
     "pod-install": "cd macos && pod install && cd .."
   },
   "dependencies": {

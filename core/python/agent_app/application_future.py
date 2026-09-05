@@ -3349,7 +3349,6 @@ class AgentApplication:
                 session_id = context.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
-        self._require_live_session_writable(session_id)
 
         action_params = dict(params)
         action_params.pop("session_id", None)
@@ -3368,6 +3367,13 @@ class AgentApplication:
         effective_config = self.resolve_effective_config(
             base_config, session, overrides
         )
+        action_mutates_session = core.session_action_mutates(
+            effective_config,
+            plugin_id,
+            action_id,
+        )
+        if action_mutates_session:
+            self._require_live_session_writable(session_id)
 
         try:
             new_session, result = core.execute_session_action(
@@ -3388,16 +3394,6 @@ class AgentApplication:
                 getattr(exc, "details", {}) or {},
             ) from exc
 
-        self.save_session(
-            new_session,
-            reconcile=True,
-            baseline_session=session,
-            baseline_file_state=baseline_file_state,
-            conflict_prefix="Concurrent session modification detected while executing action; ",
-            backup_on_conflict=True,
-            acquire_lock=True,
-        )
-
         if not isinstance(result, dict):
             result = {}
 
@@ -3408,6 +3404,27 @@ class AgentApplication:
             result.get("ui_effects")
             if isinstance(result.get("ui_effects"), dict)
             else {}
+        )
+
+        if not action_mutates_session:
+            return {
+                **result,
+                "mutations": {
+                    "created_session_ids": [],
+                    "updated_session_ids": [],
+                    "deleted_session_ids": [],
+                },
+                "ui_effects": ui_effects,
+            }
+
+        self.save_session(
+            new_session,
+            reconcile=True,
+            baseline_session=session,
+            baseline_file_state=baseline_file_state,
+            conflict_prefix="Concurrent session modification detected while executing action; ",
+            backup_on_conflict=True,
+            acquire_lock=True,
         )
 
         reload_ids = ui_effects.get("reload_session_ids")

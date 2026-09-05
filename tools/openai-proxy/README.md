@@ -81,11 +81,24 @@ or in a system/developer message, depending on the provider protocol.
 The proxy forwards requests to the configured target, including streaming
 requests. Stop it with <kbd>Ctrl</kbd>+<kbd>C</kbd>.
 
+## Tests
+
+Run the parser, logging, and local forwarding tests with:
+
+```bash
+npm --prefix tools/openai-proxy test
+```
+
+The integration cases start local target and proxy processes. They verify that
+hidden mode logs only `Headers: [hidden]` while authorization and custom
+headers still reach the target, and that default mode retains header logging.
+
 ## Headers, Credentials, and Private Content
 
 Use `--hide-headers` when request headers are not needed for diagnosis. The
-flag suppresses all incoming request headers from proxy logs. It changes only
-logging: the original headers are still forwarded to the provider.
+flag replaces all incoming request-header names and values with a fixed
+`Headers: [hidden]` marker. It changes only logging: the original headers are
+still forwarded to the provider.
 
 This is a recommendation, not a security boundary. You control the process and
 its output on your computer and remain responsible for:

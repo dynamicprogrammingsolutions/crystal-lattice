@@ -26,6 +26,7 @@ import { usePersistedConnections } from './connections/usePersistedConnections';
 import { useOpenConnections } from './connections/useOpenConnections';
 import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
 import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWindowManager';
+import { dismissActiveActionDisplayWindowFromSystem } from './windows/actionDisplayWindowCoordinator';
 import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
 import { cancelAttachmentMetadataWindowFromSystem } from './windows/attachmentMetadataCoordinator';
 import { clearActiveSessionPluginsWindow } from './windows/sessionPluginsCoordinator';
@@ -727,6 +728,9 @@ export function DesktopRoot({
         }
         if (windowKey === 'serverSettings') {
           setActiveServerSettingsWindow(null);
+        }
+        if (windowKey === 'actionDisplay') {
+          dismissActiveActionDisplayWindowFromSystem();
         }
       },
     );

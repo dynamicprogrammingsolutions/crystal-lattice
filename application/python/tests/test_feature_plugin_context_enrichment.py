@@ -195,6 +195,52 @@ class TestApplicationContextEnrichment:
         assert len(contexts) == 1
         assert contexts[0]["_action_id"] == "record_context"
 
+    def test_application_non_mutating_session_action_does_not_save(
+        self, tmp_path: Path, clear_captured_contexts: None
+    ) -> None:
+        app = _make_app(tmp_path, _minimal_config())
+        core, base_config, session = app.create_session("default")
+        session = core.add_message(session, "user", "Test", None, base_config)
+        app.save_session(session)
+        before = app.get_session_file_state(session.session_id)
+
+        result = app.execute_session_action(
+            plugin_id="context_recording",
+            action_id="inspect_context",
+            params={"session_id": session.session_id},
+        )
+
+        assert result["display"]["body"] == "Context inspected"
+        assert result["mutations"] == {
+            "created_session_ids": [],
+            "updated_session_ids": [],
+            "deleted_session_ids": [],
+        }
+        assert result["ui_effects"] == {}
+        assert app.get_session_file_state(session.session_id) == before
+
+    def test_application_non_mutating_session_action_allows_snapshot_view(
+        self, tmp_path: Path, clear_captured_contexts: None
+    ) -> None:
+        app = _make_app(tmp_path, _minimal_config())
+        core, base_config, session = app.create_session("default")
+        session = core.add_message(session, "user", "Test", None, base_config)
+        app.save_session(session)
+        snapshot = app.create_session_snapshot(
+            session.session_id,
+            reason="read-only-action-test",
+        )
+        app.select_session_snapshot(session.session_id, snapshot.snapshot_id)
+
+        result = app.execute_session_action(
+            plugin_id="context_recording",
+            action_id="inspect_context",
+            params={"session_id": session.session_id},
+        )
+
+        assert result["display"]["body"] == "Context inspected"
+        assert result["mutations"]["updated_session_ids"] == []
+
     def test_application_session_action_sees_request_initialized_state(
         self, tmp_path: Path, clear_captured_contexts: None
     ) -> None:

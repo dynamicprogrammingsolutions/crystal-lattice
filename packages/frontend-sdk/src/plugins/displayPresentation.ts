@@ -122,7 +122,8 @@ export function normalizeDisplayEnvelopeForHost(
 ): DisplayEnvelope {
   if (
     host === 'desktop' &&
-    envelope.display.presentation === 'modal'
+    envelope.display.presentation === 'modal' &&
+    envelope.source !== 'action_response'
   ) {
     return {
       ...envelope,
