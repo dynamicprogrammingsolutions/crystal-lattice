@@ -188,7 +188,8 @@ should say that they do not redefine the contract and identify:
 Plugin authoring and package-user guides describe current supported behavior in
 consumer vocabulary. Unimplemented proposals, task phases, requirement IDs,
 and temporary progress remain in specifications, requirements, and work
-tracking.
+tracking. Commit new current-behavior claims with their implementation unless
+the user explicitly asks for a different commit order.
 
 ## Source of truth and publication
 

@@ -42,6 +42,8 @@ boilerplate or reconstructed documentation to every package.
 - [x] Root `AGENTS.md` contains concise routing and update guidance and points to
   the effective repository policy, generic standards, and maintainer
   specification only when an agent is changing the standards themselves.
+- [x] The default documentation/code commit order yields to an explicit user
+  request for a different commit order.
 - [x] The standard does not require placeholder pages, duplicated boilerplate,
   or broad reverse engineering of undocumented packages.
 - [x] Initial major package roots are classified under the approved profiles,
@@ -196,6 +198,12 @@ long-form content merely to complete the shape.
   after defining the proportional specification file set. The one-off rerun
   instructions remain in the user handoff rather than persistent evaluation
   documentation.
+- September 5, 2026: The user explicitly requested that documentation rules
+  remain default agent guidance rather than prevent a different user-directed
+  commit order. Added the concise exception to the generic standard, Crystal
+  Lattice policy, root `AGENTS.md`, governing specification, and `DOCGEN-002`.
+  Test 15 remains a publication-accuracy scenario and now clarifies that its
+  prompt does not request a different commit order.
 
 ## Execution plan
 

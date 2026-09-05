@@ -141,7 +141,8 @@ Documentation is authored next to the package or subsystem that owns it.
   labels, or internal target links. Never mention an internal phase in user
   docs, even to label delivered or unimplemented work. Rewrite delivered
   capabilities in product terms and omit phase labels entirely. Commit new
-  claims with the code that makes them true.
+  claims with the code that makes them true, unless the user explicitly asks
+  for a different commit order.
 - Preserve document, audience, and source-of-truth boundaries. Information
   available from tasks,
   specifications, requirements, commits, AGENTS files, or maintainer workflows

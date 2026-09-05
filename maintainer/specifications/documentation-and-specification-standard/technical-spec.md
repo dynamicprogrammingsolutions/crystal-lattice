@@ -386,7 +386,8 @@ material.
 
 Public user and implementation/maintainer documentation must match committed
 code. A working tree may stage documentation first, but it is committed with
-the implementation that makes new current-state claims true.
+the implementation that makes new current-state claims true unless the user
+explicitly asks for a different commit order.
 
 Observable examples include a concrete expected result. Before completion,
 each documented result is compared with the current implementation or a test,

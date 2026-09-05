@@ -84,7 +84,8 @@ documentation, and evidence state.
 
 Task files are the default approval and execution record. Public user
 documentation and implementation/maintainer documentation describe current
-behavior and must remain consistent with committed code.
+behavior and normally remain consistent with committed code. A user may
+explicitly request a different commit order.
 
 Simple specification changes are normally committed with their implementation
 or in the immediately preceding commit. Separate target versions are optional
@@ -156,7 +157,8 @@ silently weaken shared semantics.
 
 An agent updates a target specification, requirements, implementation, tests,
 and current documentation. The spec and code are committed together or in two
-adjacent commits, while requirements show the live transition.
+adjacent commits, or in another order explicitly requested by the user, while
+requirements show the live transition.
 
 ### Major multi-commit change
 
