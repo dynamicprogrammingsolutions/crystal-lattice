@@ -63,12 +63,6 @@ change. Every change and follow-up receives a reviewed plan before
 implementation; a small change may use a conversational plan while complex or
 multi-part work uses task-owned staged plans.
 
-Before implementation planning, the human decides whether to update or create
-a specification and whether the work needs no task file, one task, or a main
-task with subtasks. Subtasks follow independently deliverable feature or
-capability boundaries rather than separating one feature into backend,
-frontend, testing, or documentation phases.
-
 The contributor workflow helps the human verify that applicable repository and
 task guidance actually reached the model, review important specification and
 task decisions, question planned and completed unit/integration/end-to-end
@@ -77,6 +71,12 @@ authorize delivery. Human review concentrates on requirements and outcomes,
 scope and placement, design and complexity, verification, and current
 documentation or remaining work. Stage-specific prompt examples appear where
 they are used and assume standing instructions are already active.
+
+The workflow calls out recurring agent mistakes such as missing or expanded
+requirements, misplaced changes, unnecessary complexity, weak verification
+boundaries, stale consumer documentation, and incomplete work presented as
+complete. Independent AI review and follow-up planning are separate numbered
+steps whose text makes clear when they apply.
 
 Specification need is considered separately from immediate change size.
 Existing specifications remain current whenever their target behavior or

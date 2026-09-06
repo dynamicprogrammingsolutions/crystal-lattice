@@ -26,13 +26,9 @@ prompts that rely on standing repository guidance.
   plans, code, tests, and documentation.
 - [ ] The guide begins with a short six-step quick workflow that is easy to
   scan and follow.
-- [x] Stage 2 decides whether work needs no task file, one task, or a main task
-  with subtasks; every choice still leads to an approved implementation plan,
-  implementation, verification, and human assessment.
-- [x] Each task or subtask represents an independently deliverable feature,
-  correction, enabling capability, or acceptance outcome rather than dividing
-  one feature into backend, frontend, test, documentation, or other technical
-  touch-point tasks.
+- [x] Small, normal, and high-risk changes all follow planning,
+  implementation, verification, and review, while the form and detail of the
+  plan vary with the work.
 - [x] Every initial change and follow-up is planned before implementation.
 - [x] Specification need is considered independently from immediate change
   size: affected existing specifications are updated when their target
@@ -78,27 +74,33 @@ prompts that rely on standing repository guidance.
   unverified requirements; unexpected scope or placement; unnecessary
   complexity; weak evidence; and incomplete documentation through direct
   inspection or focused follow-up questions.
+- [x] The guide names common agent mistakes involving requirement drift,
+  misplaced changes, unnecessary complexity or redundancy, weak verification
+  boundaries, stale consumer documentation, and incomplete work presented as
+  complete.
+- [x] Result review asks whether a proposed human check is a repeatable
+  mechanical check that should instead be automated.
 - [x] Unit, integration, end-to-end, and human evidence are prominent; the
   guide assumes AI creates and runs automated tests while humans review the
   planned boundaries, production paths, reported results, and remaining need
   for human judgment.
 - [x] The guide gives humans a clear conceptual model of specifications,
-  requirements, tasks, feature-oriented subtasks, execution plans, current
-  user documentation, and current implementation documentation, with links
-  and a compact worked example.
-- [x] The six detailed stages use direct action headings: brainstorm and shape,
-  decide and record, plan, implement, verify and assess, and resolve and
-  deliver.
+  requirements, tasks, current user documentation, and current implementation
+  documentation, with the implementation plan explained as part of its task
+  rather than as a separate record.
+- [x] Independent AI review and `Plan Every Follow-Up` are separate numbered
+  workflow steps, with their applicability explained by their text.
 - [x] A separate follow-up section requires investigation, planning,
   specification reconsideration, consumer-documentation review, verification,
   and human approval before follow-up implementation and delivery.
-- [x] Commit authorization remains explicit; describing commit as the final
-  stage does not grant an agent permission to commit.
+- [x] Pull-request preparation and review remain a separate section and retain
+  explicit merge/deployment boundaries without adding a redundant delivery
+  workflow step.
 - [x] The guide links to the documentation structure, specification standard,
   task guidance, and compact project-policy routes without duplicating package
   discovery or CI command catalogs.
-- [x] Supporting online references are preserved in a compact further-reading
-  or rationale section without interrupting the main workflow.
+- [x] Further Reading routes contributors to the most important maintained
+  project source documents.
 - [x] Independent AI review uses one short general prompt, optional
   task-specific focus phrases, and a few focused examples rather than one
   exhaustive checklist prompt.
@@ -696,6 +698,26 @@ Preserve these under a compact "Further reading" or rationale section:
   commands, filename examples, or illustrations; Markdown rendering; local
   link and anchor checks; terminology and policy checks; and focused
   `git diff --check`. Human readability confirmation remains pending.
+- September 6, 2026 final guide selection: The human selected the 18:47
+  contributor-guide version later recorded in `3f2ac09` as the strongest
+  baseline and restored it in `9a0d9670`. This decision supersedes the
+  September 5 structural experiment that removed process selection, moved
+  instruction inspection, embedded the records model in stage 2, and used
+  direct action-stage headings.
+- The final refinement removes only the standalone Roles and
+  automated-versus-human-testing sections, adds one mechanical-check question
+  to result review, makes independent review and `Plan Every Follow-Up`
+  numbered workflow steps, removes the redundant Plan Findings stage, keeps
+  the original follow-up wording with a prompt lead-in, renames the records
+  reference to Specifications and Tasks, folds implementation planning into
+  the Task row, and replaces external Further Reading with maintained project
+  source documents.
+- Focused final verification passed on September 6, 2026: `git diff --check`
+  for the five changed documentation files; structural assertions for the
+  seven numbered workflow sections, removed redundant sections, consolidated
+  review paragraph, follow-up prompt lead-in, Specifications and Tasks model,
+  and project-source Further Reading; Markdown rendering; and local link and
+  anchor validation. Human readability confirmation remains pending.
 
 ## Execution plan
 
@@ -1348,18 +1370,18 @@ readability, practical-usefulness, and dialog acceptance remain pending.
   documentation in the user-requested documentation-first order.
 - [x] Rewrite the quick workflow and process-scaling model around human
   responsibility and planning for every change.
-- [x] Remove standalone Roles and process-selection sections and integrate
-  their useful information into the opening and relevant workflow stages.
-- [x] Put specification and task-record decisions in stage 2, using a table
-  for no task file, one task, or a main task with subtasks.
-- [x] Require feature- or capability-oriented task decomposition and keep
-  backend, frontend, tests, and documentation with the outcome they support.
-- [x] Move the record model into stage 2 and make stage 3 plan the unit already
-  selected there.
-- [x] Rename stages 2–6 with direct action headings and remove the duplicated
-  findings-planning loop from stage 6.
-- [x] Move detailed instruction inspection after the workflow while preserving
-  the short prerequisite near the beginning.
+- [x] Remove the standalone Roles section while retaining the reviewed process
+  selection, instruction-inspection, and workflow structure.
+- [x] Remove the standalone automated-versus-human-testing subsection and add
+  one result-review question that redirects mechanical checks to automation.
+- [x] Make independent AI review and `Plan Every Follow-Up` separate numbered
+  workflow steps.
+- [x] Remove the redundant Plan Findings stage while preserving the original
+  follow-up wording and adding a prompt lead-in.
+- [x] Rename the records reference to Specifications and Tasks and explain the
+  implementation plan within the Task row rather than as a separate record.
+- [x] Replace external Further Reading with the most important maintained
+  project source documents.
 - [x] Separate the specification decision from change size.
 - [x] Integrate realistic prompts into their workflow stages.
 - [x] Add instruction-delivery and request-inspection guidance.

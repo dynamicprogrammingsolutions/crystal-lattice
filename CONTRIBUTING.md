@@ -27,9 +27,8 @@ authorization.
 5. **Question and verify:** Ask what automated tests actually ran, complete
    applicable human checkpoints, consider independent AI review, and inspect the
    resulting change.
-6. **Plan findings and deliver:** Treat every follow-up as another planned
-   change. Commit, open a pull request, or merge only after explicit human
-   authorization.
+6. **Plan every follow-up:** Treat every follow-up as another planned change
+   before implementation.
 
 Every change follows this lifecycle. A small correction can move through it in
 one short conversation; complex work benefits from durable specifications,
@@ -139,6 +138,10 @@ Risk increases when work affects public contracts, security or privacy,
 persisted data, compatibility, migrations, deployment, multiple packages,
 native platforms, or difficult-to-reverse operations.
 
+Some changes deserve staged plans and stronger evidence even when the
+immediate implementation appears small. Ask the agent which of these risks
+apply and how the proposed plan contains them.
+
 ### Decide About Specifications Separately
 
 Do not use the size of the immediate edit as the only reason to create or skip
@@ -159,18 +162,6 @@ accurate or why no durable target is useful.
 Current user documentation follows a different rule: whenever delivered
 behavior affects a consumer, the owning user documentation must be updated.
 
-## Roles
-
-- **Human owner:** Owns intent, requirement decisions, plan approval,
-  human verification, acceptance, and delivery authorization.
-- **Implementing agent:** Researches, proposes records and plans, implements
-  approved work, produces evidence, and reports discoveries for human review.
-- **Reviewing agent:** Independently reports risks and findings for the human
-  owner; it does not approve the change or satisfy human verification.
-
-The same person may shape and finally review a small change, but those are
-still distinct decisions.
-
 ## What Humans Review
 
 Five recurring concerns can help you direct a review:
@@ -186,10 +177,26 @@ Five recurring concerns can help you direct a review:
 - **Documentation and remaining work:** Are consumer documentation,
   limitations, deferred work, and unverified results visible?
 
-You do not need to perform every detailed check yourself. Inspect what matters
-to your decision, ask the implementing agent focused questions, or request an
-independent review. Task structure, links, identifiers, status fields, and
-other record maintenance remain agent work.
+### Common Agent Mistakes to Watch For
+
+AI agents can produce convincing plans and completion summaries even after an
+important boundary has drifted. Watch especially for:
+
+- a requirement that was omitted, unnecessarily expanded, duplicated, turned
+  into an implementation prescription, or left unverified;
+- code or documentation changed outside the accepted scope or placed in a
+  component that does not own the behavior;
+- abstractions, compatibility paths, configuration, workarounds, duplicate
+  behavior, or redundant tests that the accepted outcome does not need;
+- unit, mocked, or test-only paths presented as integration or end-to-end
+  evidence without exercising the real production boundary;
+- a confident completion claim that hides skipped checks, unresolved findings,
+  stale consumer documentation, remaining risk, or incomplete work.
+
+You do not need to establish every point from the diff yourself. Inspect what
+matters to your decision, ask the implementing agent to explain suspicious
+changes, or request a focused independent review. Task structure, links,
+identifiers, status fields, and other record maintenance remain agent work.
 
 ## Human-Led AI-Assisted Workflow
 
@@ -267,6 +274,10 @@ Then review the proposed boundary:
   separately?
 - Which product, compatibility, security, persistence, or migration decisions
   require your approval?
+
+For consumer-facing or operational changes, ask whether privacy, rollout,
+installation, upgrade, recovery, or accessibility behavior needs an explicit
+requirement or non-goal. Include only the concerns affected by the change.
 
 Useful follow-ups include:
 
@@ -386,29 +397,25 @@ Follow up where the answer affects acceptance:
   compatibility paths, fallbacks, or abstractions?
 - Did the tests reach the production paths they claim to cover, or stop
   earlier in setup, collection, harness selection, transport, or teardown?
+- Are you being asked to perform a repeatable mechanical check whose result an
+  automated test could reliably observe? If so, ask the agent to automate it.
 - Is consumer documentation current, and is this the completion of the whole
   task, one stage, or a follow-up?
 
-#### Choose Automated or Human Testing
+Test names do not establish what a test verified. Ask which public path
+actually ran and which boundaries were simulated.
 
-If a checkpoint is a repeatable sequence with a machine-observable result, ask
-for an automated integration or end-to-end test. Examples include changing a
-setting and checking persisted state, invoking an action and checking dialog
-content, navigating a simulator flow, or restarting a service and checking
-recovery.
+Installation, upgrade, recovery, accessibility, and real-service workflows may
+combine automated and human evidence. Automate repeatable state transitions
+and machine-observable results; use a human checkpoint only for the perception,
+exploration, or judgment the automated test cannot provide.
 
-Use a human checkpoint when it adds perception, exploration, product judgment,
-or a real environment that automation cannot faithfully represent. Examples
-include judging whether a long dialog is readable, whether a workflow is
-understandable, how a gesture feels, or how the product behaves with real
-hardware and services.
+Before accepting the result, decide whether the remaining security, privacy,
+compatibility, migration, data, deployment, and operational risks are
+understood and acceptable. Passing tests or receiving a favorable AI review
+does not make that decision.
 
-```text
-Review the proposed human checkpoints. Which ones add real human judgment, and
-which should become automated integration or end-to-end tests?
-```
-
-#### Request Independent AI Review
+### 6. Request Independent AI Review
 
 For normal, high-risk, or unfamiliar changes, another agent can inspect the
 work independently:
@@ -445,38 +452,13 @@ do not hold, so evaluate each finding before acting on it.
 Use the findings as input. You decide whether the outcome was achieved and
 whether the remaining gaps and risks are acceptable.
 
-### 6. Plan Findings and Authorize Delivery
-
-Decide which findings to accept, reject, or defer. Accepted findings still need
-a plan:
-
-```text
-Assess the accepted findings <finding references> and propose the required
-plan updates before changing the implementation.
-```
-
-After approving that plan:
-
-```text
-I approve the findings plan. Please implement it and report the affected
-verification and documentation.
-```
-
-When the final result and evidence are acceptable, explicitly grant only the
-delivery action you intend:
-
-```text
-Create a focused commit for the completed work in <task path>.
-```
-
-Describing a commit, pull request, deployment, or merge as the next workflow
-stage does not authorize it. The human owner grants that authority explicitly.
-
-## Plan Every Follow-Up
+### 7. Plan Every Follow-Up
 
 A review finding, newly discovered bug, requested enhancement, or “while you
 are there” improvement is another change. Its plan may be short, but it comes
 before implementation.
+
+For example:
 
 ```text
 I want to follow up with <finding or additional change>. First investigate how
@@ -496,9 +478,9 @@ Before approving the follow-up, decide:
 Then repeat implementation, evidence review, applicable human testing, and
 delivery authorization.
 
-## Understand the Project Records
+## Understand Specifications and Tasks
 
-Specifications, requirements, tasks, plans, and current documentation answer
+Specifications, requirements, tasks, and current documentation answer
 different questions. They work together; they are not interchangeable.
 
 ```text
@@ -506,7 +488,7 @@ rough intent
     ↓
 specification target and requirements
     ↓
-task scope and approved execution plan
+task scope, plan, and completion evidence
     ↓
 implementation and verification evidence
     ↓
@@ -517,8 +499,7 @@ current user and maintainer documentation
 |---|---|
 | Specification | What behavior and design the project is aiming for |
 | Requirements | Which completed outcomes matter and whether implementation, verification, and documentation are current |
-| Task | What scope was approved, how work is divided, and what findings or completion evidence matter |
-| Execution plan | How the next concrete task will be implemented and verified |
+| Task | What scope was approved, how work is divided, how the next concrete task will be implemented and verified, and what findings or completion evidence matter |
 | Current user documentation | What consumers can rely on in the delivered product |
 | Current implementation documentation | How maintainers understand and operate the delivered implementation |
 
@@ -575,19 +556,11 @@ repository.
 
 ## Further Reading
 
-These references provide additional rationale and techniques. They are not
-required reading for ordinary contributions.
+These maintained project documents provide the most useful next steps:
 
-- OpenAI, [Introducing Codex](https://openai.com/index/introducing-codex/)
-- OpenAI,
-  [Harness engineering](https://openai.com/index/harness-engineering/)
-- GitHub,
-  [About customizing GitHub Copilot responses](https://docs.github.com/en/copilot/concepts/prompting/response-customization)
-- GitHub,
-  [Responsible use of Copilot code review](https://docs.github.com/en/copilot/concepts/agents/code-review)
-- Google Engineering Practices,
-  [What to look for in a code review](https://google.github.io/eng-practices/review/reviewer/looking-for.html)
-- Google Engineering Practices,
-  [Small CLs](https://google.github.io/eng-practices/review/developer/small-cls.html)
-- NIST,
-  [Secure Software Development Framework](https://csrc.nist.gov/pubs/sp/800/218/final)
+- [Project overview and development quickstart](README.md)
+- [Development documentation](docs/development/index.md)
+- [Repository documentation policy](docs/development/repository/index.md)
+- [Documentation and specification standards](docs/development/standards/index.md)
+- [Plugin documentation](plugins/docs/index.md)
+- [Task-file and execution-plan guidance](agents/TASKS-v7.md)

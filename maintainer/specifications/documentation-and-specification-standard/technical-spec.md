@@ -327,23 +327,17 @@ links to this meta-specification.
 ## Human-led contributor workflow
 
 Root `CONTRIBUTING.md` is written for the human directing AI-assisted
-development. Its six-stage workflow covers brainstorming and shaping, deciding
-and recording the work, implementation planning, implementation, verification
-and assessment, and findings resolution and delivery.
+development. A short quick workflow introduces the ordinary path. The detailed
+workflow covers brainstorming and shaping, review of specifications,
+requirements, and tasks, plan review and approval, implementation supervision,
+evidence and result review, independent AI review, and follow-up planning.
+Independent review and follow-up are numbered steps; their text makes clear
+that they apply when useful or when additional work exists.
 
-Every initial change and follow-up has a plan before implementation. During
-the record stage, the human decides whether the work needs no task file, one
-task, or a main task with subtasks. No task file leads to a conversational
-plan; one task owns one coherent plan; subtasks are planned one independently
-deliverable unit at a time.
-
-Subtasks follow feature or capability boundaries with independently acceptable
-outcomes. Backend, frontend, tests, documentation, database changes, or other
-technical touch points remain implementation work within the task that owns
-the outcome unless one is itself an independently deliverable capability with
-real consumers and acceptance evidence.
-
-Specification need is a separate decision made during the same record stage:
+Every initial change and follow-up has a plan before implementation. Planning
+may remain a short conversation for a local change, use one task execution
+plan for normal work, or use staged task plans for high-risk and multi-part
+work. Specification need is a separate decision:
 
 - update an affected existing specification when its target behavior or design
   changes;
@@ -375,6 +369,13 @@ mandatory template. Humans may inspect the important result directly or ask
 the implementing or reviewing agent focused follow-up questions. Agents remain
 responsible for task-file structure, traceability maintenance, and other
 record-consistency work.
+
+The guide names common agent mistakes within those concerns: omitted,
+expanded, duplicated, implementation-shaped, or unverified requirements;
+changes outside the accepted scope or owning component; unnecessary
+abstractions, compatibility paths, configuration, workarounds, duplication, or
+tests; verification that does not cross the claimed production boundary; and
+completion claims that hide remaining work or stale consumer documentation.
 
 Unit, integration, end-to-end, and manual evidence are distinct. At plan
 review, the human asks which boundaries each kind of evidence will cover. At
