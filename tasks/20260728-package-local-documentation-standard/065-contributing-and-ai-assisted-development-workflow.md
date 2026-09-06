@@ -672,11 +672,17 @@ Preserve these under a compact "Further reading" or rationale section:
     mixin fixtures and the global `typing_extensions` version. The new action
     tests pass independently;
   - desktop TypeScript reaches existing URL, optional-string, and theme typing
-    errors outside the changed lines;
-  - macOS XCUITest is authored and registered, but did not run because the
-    worktree lacked CocoaPods support files and `pod install` stopped on an
-    existing Hermes local-podspec/lock mismatch. No Podfile or lockfile was
-    changed.
+    errors outside the changed lines.
+- September 6, 2026 merge and native verification: Merged `develop` into
+  `main`, merged the result back into the primary `develop` worktree, and
+  resolved the overlapping desktop harness/window registrations by preserving
+  both branches' capabilities. A merge-specific stale desktop modal-state
+  reference was corrected and covered by focused Jest tests.
+- The installed primary worktree completed a native Debug build and
+  `ActionDisplayWindowUITests`. The test opened the compiled-message window,
+  verified the 420-point long-content scroll view by observing its scrollbar
+  value change, and closed only the action-display window. The test no longer
+  force-terminates existing Crystal Lattice processes before launch.
 - Final documentation preparation and MkDocs build passed with the existing
   navigation, absolute-link, Griffe indentation, and unresolved-reference
   warnings. Sixteen changed Markdown files rendered and passed local link and

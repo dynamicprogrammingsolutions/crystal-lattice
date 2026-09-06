@@ -605,8 +605,10 @@ function SessionsPanelInner({
         return;
       }
       if (action.kind === 'run_action') {
-        if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
-          setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
+        if (action.preserve_display !== true) {
+          setInlineActionDisplays((current) =>
+            current.filter((item) => item.key !== entry.key),
+          );
         }
         setActiveDisplayActionId(action.id);
         try {

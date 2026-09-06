@@ -1,14 +1,20 @@
 import XCTest
 
 final class ActionDisplayWindowUITests: XCTestCase {
+  private func numericValue(_ element: XCUIElement) -> Double {
+    if let number = element.value as? NSNumber {
+      return number.doubleValue
+    }
+    if let text = element.value as? String,
+       let number = Double(text) {
+      return number
+    }
+    XCTFail("Expected numeric accessibility value for \(element)")
+    return 0
+  }
+
   override func setUpWithError() throws {
     continueAfterFailure = false
-    for application in NSRunningApplication.runningApplications(
-      withBundleIdentifier: "org.reactjs.native.CrystalLatticeControlDesktopRN"
-    ) {
-      application.forceTerminate()
-    }
-    RunLoop.current.run(until: Date().addingTimeInterval(0.3))
   }
 
   func testLongDirectActionDisplayOpensScrollableWindow() throws {
@@ -30,20 +36,22 @@ final class ActionDisplayWindowUITests: XCTestCase {
 
     let bodyScroll = actionWindow.scrollViews.firstMatch
     XCTAssertTrue(bodyScroll.waitForExistence(timeout: 10), app.debugDescription)
-    let body = actionWindow.staticTexts.containing(
-      NSPredicate(format: "label CONTAINS %@", "Instruction line 0:")
-    ).firstMatch
-    XCTAssertTrue(body.waitForExistence(timeout: 10), app.debugDescription)
-    let beforeY = body.frame.minY
+    let scrollBar = bodyScroll.scrollBars.firstMatch
+    XCTAssertTrue(scrollBar.waitForExistence(timeout: 10), app.debugDescription)
+    let beforeValue = numericValue(scrollBar)
 
     bodyScroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
       .scroll(byDeltaX: 0, deltaY: -500)
 
-    let moved = NSPredicate { _, _ in body.frame.minY < beforeY - 20 }
-    expectation(for: moved, evaluatedWith: body)
+    let moved = NSPredicate { _, _ in
+      self.numericValue(scrollBar) > beforeValue + 0.01
+    }
+    expectation(for: moved, evaluatedWith: scrollBar)
     waitForExpectations(timeout: 10)
 
-    let close = actionWindow.buttons["Close"]
+    let close = actionWindow.descendants(matching: .any).matching(
+      NSPredicate(format: "label == %@", "Close")
+    ).firstMatch
     XCTAssertTrue(close.waitForExistence(timeout: 10), app.debugDescription)
     close.click()
     let closed = NSPredicate(format: "exists == false")
