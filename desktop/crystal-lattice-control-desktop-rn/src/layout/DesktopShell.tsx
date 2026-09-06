@@ -4,17 +4,25 @@ import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
 export interface DesktopShellProps {
-  left: React.ReactNode;
+  activityRail: React.ReactNode;
+  panel: React.ReactNode;
   main: React.ReactNode;
 }
 
-export function DesktopShell({ left, main }: DesktopShellProps): React.JSX.Element {
+export function DesktopShell({
+  activityRail,
+  panel,
+  main,
+}: DesktopShellProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
     <View style={styles.root}>
-      <View style={styles.left}>{left}</View>
+      <View style={styles.left}>
+        <View style={styles.activityRail}>{activityRail}</View>
+        <View style={styles.panel}>{panel}</View>
+      </View>
       <View style={styles.main}>{main}</View>
     </View>
   );
@@ -29,9 +37,19 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       flexDirection: 'row',
     },
     left: {
-      width: 340,
+      flexDirection: 'row',
       borderRightWidth: separatorWidth,
       borderRightColor: theme.border,
+      backgroundColor: theme.backgroundAlt,
+    },
+    activityRail: {
+      width: 46,
+      borderRightWidth: separatorWidth,
+      borderRightColor: theme.border,
+      backgroundColor: theme.surfaceAlt,
+    },
+    panel: {
+      width: 340,
       backgroundColor: theme.backgroundAlt,
     },
     main: {

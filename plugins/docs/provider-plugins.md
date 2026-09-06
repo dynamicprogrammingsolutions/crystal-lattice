@@ -463,9 +463,36 @@ class MyOpenAICompatibleProvider(ProviderPlugin):
             for m in models
             if isinstance(m.get("id"), str) and m.get("id")
         ]
-        if options:
-            return [{"type": "select", "key": "model", "label": "Model", "options": options}]
-        return [{"type": "text", "key": "model", "label": "Model id"}]
+        return [
+            {
+                "ui_type": "config",
+                "type": "dropdown",
+                "key": "model",
+                "label": "Model",
+                "options": options,
+                "placeholder": "Search models or enter a model ID",
+                "custom_value": {
+                    "enabled": True,
+                    "pattern": r"^[^\s]+$",
+                    "option_label": "Use '{value}' as a custom model ID",
+                },
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Model",
+                    "show_label": False,
+                    "options": options,
+                    "placeholder": "Search models or enter a model ID",
+                    "custom_value": {
+                        "enabled": True,
+                        "pattern": r"^[^\s]+$",
+                        "option_label": "Use '{value}' as a custom model ID",
+                    },
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "icon": "cpu",
+                },
+            }
+        ]
 ```
 
 Notes:
@@ -473,6 +500,12 @@ Notes:
 - The `"capabilities"` field above is a provider-defined convention used only by this provider.
   The core does not interpret it; only the tags matter outside the provider.
 - Prefer stable tag names like `provider:...` and `supports_...` so that extensions can depend on them.
+- Use `dropdown`, rather than `select`, for a discovered model catalog.
+  Keep the custom-capable dropdown when discovery is empty so explicit model
+  IDs use the same searchable field.
+- A composer model selector is the same ordinary config element with
+  self-contained `rich_ui`; do not define a provider-specific UI type or a
+  second mutation path.
 
 ### 2) Implement `init` and `initialize_request`
 

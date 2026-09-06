@@ -45,6 +45,7 @@ from .config import (
     resolve_config_mixins,
     resolve_placeholders,
     resolve_request_config,
+    validate_resolved_config_variants,
 )
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
@@ -400,8 +401,11 @@ class AgentApplication:
             raw_config, env=resolution_env
         )
         mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
+        variant_errors = validate_resolved_config_variants(mixin_resolved_config)
         self._config: Dict[str, Any] = mixin_resolved_config
-        self._config_errors: List[Dict[str, Any]] = placeholder_errors + mixin_errors
+        self._config_errors: List[Dict[str, Any]] = (
+            placeholder_errors + mixin_errors + variant_errors
+        )
         self._resolved_env: Dict[str, str] = dict(resolution_env)
         self._runtime_env_overlay = RuntimeEnvOverlay(
             build_runtime_overlay_env(config_path, env_overrides=env_overrides)
@@ -783,6 +787,8 @@ class AgentApplication:
             and (
                 str(err.get("type") or "").startswith("plugin_")
                 or str(err.get("type") or "").startswith("mixin_")
+                or str(err.get("type") or "").startswith("config_merge_")
+                or str(err.get("type") or "").startswith("config_variant_")
             )
         ]
         if not fatal_errors:
@@ -3866,9 +3872,10 @@ class AgentApplication:
         base_cfg = self._get_agent_base_config(agent_id)
         plugin_runtime = self._get_agent_plugin_runtime(agent_id)
         enabled_ids = self._agent_plugin_ids.get(agent_id)
+        effective_config = resolve_request_config(base_cfg, None)
         core = self._build_core_with_enabled_ids(
             enabled_ids,
-            selected_provider_config=base_cfg,
+            selected_provider_config=effective_config,
             plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
 
@@ -4000,9 +4007,10 @@ class AgentApplication:
         base_cfg = self._get_agent_base_config(agent_id)
         plugin_runtime = self._get_agent_plugin_runtime(agent_id)
         enabled_ids = self._enabled_plugin_ids_for_session(agent_id, switched_metadata)
+        effective_config = resolve_request_config(base_cfg, None)
         core = self._build_core_with_enabled_ids(
             enabled_ids,
-            selected_provider_config=base_cfg,
+            selected_provider_config=effective_config,
             plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
         if previous_agent_unavailable:

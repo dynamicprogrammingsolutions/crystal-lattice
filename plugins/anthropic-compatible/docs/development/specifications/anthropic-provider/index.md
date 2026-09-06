@@ -27,7 +27,7 @@ Specification documents:
 - [Product specification](product-spec.md)
 - [Technical specification](technical-spec.md)
 - [Messages protocol](protocol.md)
-- [Compatibility profiles](compatibility.md)
+- [Compatible endpoint capabilities](compatibility.md)
 - [Security and errors](security-and-errors.md)
 - [Verification](verification.md)
 - [Requirements and evidence](requirements.md)

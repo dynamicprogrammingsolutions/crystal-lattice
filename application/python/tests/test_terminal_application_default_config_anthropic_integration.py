@@ -110,17 +110,26 @@ def test_terminal_application_default_config_anthropic_reads_file(
     last_failure: tuple[str, list[str]] | None = None
     for _attempt in range(2):
         session = term_app.start_new_session(agent_id="claude-anthropic")
+        session = term_app.update_override(
+            "model",
+            "claude-haiku-4-5-20251001",
+        )
         ui_by_key = {
             element["key"]: element
             for element in term_app.session_ui_elements()
             if isinstance(element, dict) and isinstance(element.get("key"), str)
         }
-        assert ui_by_key["enable_reasoning"]["type"] == "checkbox"
-        assert ui_by_key["reasoning_effort"]["type"] == "select"
+        assert "enable_reasoning" not in ui_by_key
+        assert "reasoning_effort" not in ui_by_key
+        assert "show_reasoning" not in ui_by_key
+        assert ui_by_key["anthropic_reasoning_mode"]["type"] == "select"
         assert [
-            option["value"] for option in ui_by_key["reasoning_effort"]["options"]
-        ] == ["low", "medium", "high", "xhigh", "max"]
-        assert ui_by_key["show_reasoning"]["type"] == "checkbox"
+            option["value"]
+            for option in ui_by_key["anthropic_reasoning_mode"]["options"]
+        ] == ["disabled", "manual"]
+        assert ui_by_key["anthropic_reasoning_budget_tokens"]["type"] == "number"
+        assert ui_by_key["enable_prompt_caching"]["type"] == "checkbox"
+        assert ui_by_key["prompt_cache_ttl"]["type"] == "select"
         term_app.append_user_message(
             f"Use the Read tool to read {target.resolve()} and reply with "
             "exactly the first line."
@@ -132,7 +141,15 @@ def test_terminal_application_default_config_anthropic_reads_file(
         assert loaded is not None
         _core, base_config, final_session = loaded
         assert base_config["provider"] == "anthropic"
-        assert base_config["model"] == "claude-haiku-4-5-20251001"
+        assert base_config["model"] == "claude-sonnet-5"
+        effective_config = agent_app.resolve_effective_config(
+            base_config,
+            final_session,
+        )
+        assert effective_config["model"] == "claude-haiku-4-5-20251001"
+        assert effective_config["anthropic_reasoning_mode"] == "manual"
+        assert effective_config["anthropic_reasoning_budget_tokens"] == 1024
+        assert "request_options" not in effective_config
 
         final_text = str(final_session.messages[-1].content or "").strip()
         tool_names = _tool_names_from_events(

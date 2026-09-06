@@ -1,4 +1,4 @@
-# Provider compatibility profiles
+# Compatible endpoint configuration
 
 ## When to share a provider
 
@@ -14,80 +14,92 @@ Use separate providers when compatibility requires materially different:
 - credential or security boundaries;
 - persisted native data.
 
-## Profile contents
+## Baseline tags
 
-A named profile may define:
+Provider tags describe the protocol features extensions can rely on.
 
-- base endpoint paths;
-- authentication header style;
-- version and feature headers;
-- model-discovery shape;
-- stream event support;
-- tool schema/call/result differences;
-- reasoning fields and continuation rules;
-- prompt-cache support;
-- attachment source types;
-- usage timing and fields;
-- error envelopes;
-- unsupported request options.
+Features implemented by every supported endpoint in the provider's documented
+baseline may remain unconditional tags. Do not require users to repeat those
+features in endpoint configuration.
 
-Profiles are immutable-by-convention data and should be directly testable.
+Every advertised baseline tag needs deterministic provider/extension coverage
+and real-endpoint verification for each documented compatible setup.
 
-## Capability precedence
+## Non-baseline optional features
 
-Resolve capability support in this order:
+Features not supported by every compatible endpoint require explicit gating.
+The owning package may use model metadata or a narrow boolean capability
+setting to emit the tag required by the optional extension.
 
-1. explicit configuration override;
-2. authoritative model or endpoint capability;
-3. named profile;
-4. conservative default.
+Keep optional capability settings minimal:
 
-An explicit disable wins. An endpoint incompatibility can restrict a
-model-advertised capability.
+- add a key only with the extension that consumes it;
+- use booleans when only enabled/disabled tag emission is required;
+- false or omission emits no optional-feature tag;
+- do not use capability config as a second endpoint-documentation language.
 
-## Unsupported features
+Capability or tag config should not select credentials, endpoints, models, or
+headers unless those values are ordinary explicit provider configuration.
 
-When a feature is unsupported:
+When a package uses model-name regex fallbacks for optional capability details,
+publish equivalent copyable configuration variants. Users must be able to
+override an outdated alias or future model mapping without patching plugin
+code.
 
-- do not send its request fields;
-- do not show misleading config UI;
-- do not synthesize success metadata;
-- report an explicit unsupported result when directly invoked;
-- leave unrelated provider behavior unchanged.
+## Inspectable presets
 
-Ignoring a field successfully is not evidence that the endpoint implements the
-feature.
+Compatible endpoint convenience setups should be ordinary inspectable
+configuration:
+
+- application mixins;
+- copied provider examples;
+- package-owned default-config fragments.
+
+A hidden named runtime profile is not required when the behavior can be
+expressed through normal config.
+
+## Request validation
+
+Providers preserve their protocol invariants, including history-owned message
+fields, stream mode, SDK method selection, and required transport headers.
+
+Portable compatibility does not require a provider to pre-validate or remove
+every request option that a compatible endpoint may reject. When a user
+explicitly sends an incompatible native request option, the normal sanitized
+provider error may remain the authoritative signal.
+
+An optional extension whose required tag is absent must not automatically add
+its feature request fields.
 
 ## Discovery
 
 Normalize the official model catalog first. Compatible catalogs may provide
-only IDs and names.
+only IDs and names or another common response envelope.
 
 If discovery fails:
 
 - return an empty list;
 - log a bounded redacted warning;
 - permit explicit model entry;
-- retain conservative feature defaults.
+- do not invent model capabilities.
 
 ## Authentication
 
-Credential source and header behavior may vary by profile, but:
-
-- resolved config remains primary;
-- secret values stay out of profile/model data;
-- diagnostics name the actual endpoint/profile;
-- failure never changes to another provider automatically.
+Resolved config remains the primary credential source. Secret values stay out
+of model data, capability config, logs, and public metadata. Failure never
+changes to another provider automatically.
 
 ## Testing a compatibility claim
 
-Every claimed profile needs:
+Every advertised feature needs:
 
-- deterministic request/response fixtures;
-- positive tests for supported features;
-- negative or omission tests for unsupported fields;
+- deterministic tag and extension behavior tests;
+- positive request/response tests;
 - at least one real endpoint test when practical;
-- documented model/config prerequisites.
+- documented model and config prerequisites.
+
+Tests need not duplicate endpoint validation for every explicitly incompatible
+request option.
 
 Do not label an endpoint fully compatible when only an ordinary text request
 has been tested.

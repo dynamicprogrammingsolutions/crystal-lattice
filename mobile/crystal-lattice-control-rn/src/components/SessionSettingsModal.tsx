@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -8,8 +8,12 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+} from "react-native";
+import type {
+  AgentBackend,
+  ConfigCustomValue,
+  RichDropdownOption,
+} from "@crystal-lattice/frontend-sdk";
 import {
   buildConfigSchemaByKey,
   buildSessionSettingItems,
@@ -17,12 +21,12 @@ import {
   useSessionSettingsController,
   type SessionSettingRenderCtx,
   type SessionSettingsRenderers,
-} from '@crystal-lattice/frontend-sdk-react';
-import Icon from 'react-native-vector-icons/Feather';
+} from "@crystal-lattice/frontend-sdk-react";
+import Icon from "react-native-vector-icons/Feather";
 
-import OptionsPickerModal from './OptionsPickerModal';
-import PanelModalFrame from './PanelModalFrame';
-import { useTheme, type Theme } from '../theme';
+import OptionsPickerModal from "./OptionsPickerModal";
+import PanelModalFrame from "./PanelModalFrame";
+import { useTheme, type Theme } from "../theme";
 
 export interface SessionSettingsModalProps {
   backend: AgentBackend | null;
@@ -34,7 +38,7 @@ export interface SessionSettingsModalProps {
 
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   backend,
-  cacheKey = 'default',
+  cacheKey = "default",
   sessionId,
   visible,
   onRequestClose,
@@ -42,12 +46,16 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const [pendingTextByKey, setPendingTextByKey] = useState<Record<string, string>>({});
+  const [pendingTextByKey, setPendingTextByKey] = useState<
+    Record<string, string>
+  >({});
   const [dropdownState, setDropdownState] = useState<{
     key: string;
     label: string;
-    options: { value: string; label: string }[];
+    options: RichDropdownOption[];
     selected: string;
+    placeholder?: string;
+    customValue?: ConfigCustomValue;
   } | null>(null);
 
   const controllerSessionId = visible ? sessionId : null;
@@ -60,7 +68,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const elements = settingsState?.elements ?? [];
   const schemaByKey = useMemo(
     () => buildConfigSchemaByKey(settingsState?.configSchema || []),
-    [settingsState?.configSchema],
+    [settingsState?.configSchema]
   );
   const savingKeys = settingsState?.savingKeys ?? [];
   const savingKeySet = useMemo(() => new Set(savingKeys), [savingKeys]);
@@ -82,7 +90,12 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       baseConfig: settingsState?.baseConfig || {},
       schemaByKey,
     });
-  }, [elements, schemaByKey, settingsState?.baseConfig, settingsState?.overrides]);
+  }, [
+    elements,
+    schemaByKey,
+    settingsState?.baseConfig,
+    settingsState?.overrides,
+  ]);
 
   const itemByKey = useMemo(() => {
     const byKey: Record<string, (typeof items)[number]> = {};
@@ -119,7 +132,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       return;
     }
     if (!controller) {
-      Alert.alert('No connection', 'Connect to a server to change settings.');
+      Alert.alert("No connection", "Connect to a server to change settings.");
       return;
     }
     try {
@@ -134,7 +147,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       return;
     }
     if (!controller) {
-      Alert.alert('No connection', 'Connect to a server to change settings.');
+      Alert.alert("No connection", "Connect to a server to change settings.");
       return;
     }
     try {
@@ -149,7 +162,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       return;
     }
     if (!controller) {
-      Alert.alert('No connection', 'Connect to a server to change settings.');
+      Alert.alert("No connection", "Connect to a server to change settings.");
       return;
     }
     const currentEffective = itemByKey[key]?.effectiveValue;
@@ -157,7 +170,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       pendingTextByKey[key] ??
       (currentEffective !== undefined && currentEffective !== null
         ? String(currentEffective)
-        : '');
+        : "");
     try {
       await controller.patchOverride(key, value);
     } catch {
@@ -170,7 +183,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       return;
     }
     if (!controller) {
-      Alert.alert('No connection', 'Connect to a server to change settings.');
+      Alert.alert("No connection", "Connect to a server to change settings.");
       return;
     }
     setPendingTextByKey((prev) => {
@@ -189,108 +202,133 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     return null;
   }
 
-  const normalizeOptions = (raw: any): { value: string; label: string }[] => {
+  const normalizeOptions = (raw: any): RichDropdownOption[] => {
     if (!Array.isArray(raw)) return [];
     return raw
       .map((opt) => {
-        if (typeof opt === 'string') {
+        if (typeof opt === "string") {
           return { value: opt, label: opt };
         }
-        if (opt && typeof opt === 'object') {
-          const value = typeof opt.value === 'string' ? opt.value : String(opt.value ?? '');
-          const label = typeof opt.label === 'string' ? opt.label : value;
-          return { value, label };
+        if (opt && typeof opt === "object") {
+          const value =
+            typeof opt.value === "string" ? opt.value : String(opt.value ?? "");
+          const label = typeof opt.label === "string" ? opt.label : value;
+          return {
+            value,
+            label,
+            ...(typeof opt.icon === "string" ? { icon: opt.icon } : {}),
+            ...(typeof opt.tone === "string" ? { tone: opt.tone } : {}),
+          };
         }
         return null;
       })
-      .filter((v) => v !== null) as { value: string; label: string }[];
+      .filter((v) => v !== null) as RichDropdownOption[];
   };
 
   const renderTextLike = (ctx: SessionSettingRenderCtx) => {
-      const { item } = ctx;
-      const key = item.key;
-      const hasPending = Object.prototype.hasOwnProperty.call(pendingTextByKey, key);
-      const pending = hasPending ? pendingTextByKey[key] : undefined;
+    const { item } = ctx;
+    const key = item.key;
+    const hasPending = Object.prototype.hasOwnProperty.call(
+      pendingTextByKey,
+      key
+    );
+    const pending = hasPending ? pendingTextByKey[key] : undefined;
 
-      const textValue =
-        pending ??
-        (item.effectiveValue !== undefined && item.effectiveValue !== null
-          ? String(item.effectiveValue)
-          : '');
+    const textValue =
+      pending ??
+      (item.effectiveValue !== undefined && item.effectiveValue !== null
+        ? String(item.effectiveValue)
+        : "");
 
-      return (
-        <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
-          <View style={styles.itemTextColumn}>
-            <View style={styles.itemLabelRow}>
-              <View style={styles.itemLabelChipColumn}>
-                <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
-                  {item.label}
-                </Text>
-                {item.tagLabel && (
-                  <View
+    return (
+      <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
+        <View style={styles.itemTextColumn}>
+          <View style={styles.itemLabelRow}>
+            <View style={styles.itemLabelChipColumn}>
+              <Text
+                style={[
+                  styles.itemLabel,
+                  item.disabled && styles.itemLabelDisabled,
+                ]}
+              >
+                {item.label}
+              </Text>
+              {item.tagLabel && (
+                <View
+                  style={
+                    item.tagLabel === "config"
+                      ? styles.tagConfig
+                      : styles.tagDefault
+                  }
+                >
+                  <Text
                     style={
-                      item.tagLabel === 'config'
-                        ? styles.tagConfig
-                        : styles.tagDefault
+                      item.tagLabel === "config"
+                        ? styles.tagTextConfig
+                        : styles.tagTextDefault
                     }
                   >
-                    <Text
-                      style={
-                        item.tagLabel === 'config'
-                          ? styles.tagTextConfig
-                          : styles.tagTextDefault
-                      }
-                    >
-                      {item.tagLabel}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              {item.hasOverride && (
-                <TouchableOpacity
-                  style={styles.trashRightOfLabel}
-                  onPress={() => ctx.actions.revertToDefault(key)}
-                  disabled={item.disabled}
-                >
-                  <Icon name="trash-2" size={14} color={theme.danger} />
-                </TouchableOpacity>
+                    {item.tagLabel}
+                  </Text>
+                </View>
               )}
             </View>
-            {item.description ? (
-              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
-                {item.description}
-              </Text>
-            ) : null}
-            <View style={styles.textRow}>
-              <TextInput
-                style={[styles.textInput, item.disabled && styles.textInputDisabled]}
-                value={textValue}
-                editable={!item.disabled}
-                onChangeText={(txt) =>
-                  setPendingTextByKey((prev) => ({
-                    ...prev,
-                    [key]: txt,
-                  }))
-                }
-                placeholder="Enter value"
-                placeholderTextColor={theme.textSecondary}
-              />
+            {item.hasOverride && (
               <TouchableOpacity
-                style={[styles.saveButton, item.disabled && styles.saveButtonDisabled]}
-                onPress={() => ctx.actions.saveText(key)}
-                disabled={savingKeySet.has(key) || item.disabled}
+                style={styles.trashRightOfLabel}
+                onPress={() => ctx.actions.revertToDefault(key)}
+                disabled={item.disabled}
               >
-                {savingKeySet.has(key) ? (
-                  <ActivityIndicator size="small" color={theme.textOnPrimary} />
-                ) : (
-                  <Text style={styles.saveButtonText}>Save</Text>
-                )}
+                <Icon name="trash-2" size={14} color={theme.danger} />
               </TouchableOpacity>
-            </View>
+            )}
+          </View>
+          {item.description ? (
+            <Text
+              style={[
+                styles.itemDescription,
+                item.disabled && styles.itemDescriptionDisabled,
+              ]}
+            >
+              {item.description}
+            </Text>
+          ) : null}
+          <View style={styles.textRow}>
+            <TextInput
+              style={[
+                styles.textInput,
+                item.disabled && styles.textInputDisabled,
+              ]}
+              value={textValue}
+              editable={!item.disabled}
+              onChangeText={(txt) =>
+                setPendingTextByKey((prev) => ({
+                  ...prev,
+                  [key]: txt,
+                }))
+              }
+              placeholder="Enter value"
+              placeholderTextColor={theme.textSecondary}
+            />
+            <TouchableOpacity
+              style={[
+                styles.saveButton,
+                item.disabled && styles.saveButtonDisabled,
+              ]}
+              onPress={() => ctx.actions.saveText(key)}
+              disabled={savingKeySet.has(key) || item.disabled}
+            >
+              {savingKeySet.has(key) ? (
+                <ActivityIndicator size="small" color={theme.textOnPrimary} />
+              ) : (
+                <Text style={styles.saveButtonText}>Save</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
-      );
-    };
+      </View>
+    );
+  };
 
   const renderers: SessionSettingsRenderers = {
     fallback: renderTextLike,
@@ -299,27 +337,32 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       const value =
         item.effectiveValue !== undefined && item.effectiveValue !== null
           ? String(item.effectiveValue)
-          : '';
+          : "";
 
       return (
         <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
           <View style={styles.itemTextColumn}>
             <View style={styles.itemLabelRow}>
               <View style={styles.itemLabelChipColumn}>
-                <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
                   {item.label}
                 </Text>
                 {item.tagLabel && (
                   <View
                     style={
-                      item.tagLabel === 'config'
+                      item.tagLabel === "config"
                         ? styles.tagConfig
                         : styles.tagDefault
                     }
                   >
                     <Text
                       style={
-                        item.tagLabel === 'config'
+                        item.tagLabel === "config"
                           ? styles.tagTextConfig
                           : styles.tagTextDefault
                       }
@@ -331,12 +374,17 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
               </View>
             </View>
             {item.description ? (
-              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
                 {item.description}
               </Text>
             ) : null}
             <View style={styles.readonlyValueBox}>
-              <Text style={styles.readonlyValueText}>{value || 'Not set'}</Text>
+              <Text style={styles.readonlyValueText}>{value || "Not set"}</Text>
             </View>
           </View>
         </View>
@@ -350,20 +398,25 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
           <View style={styles.itemTextColumn}>
             <View style={styles.itemLabelRow}>
               <View style={styles.itemLabelChipColumn}>
-                <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
                   {item.label}
                 </Text>
                 {item.tagLabel && (
                   <View
                     style={
-                      item.tagLabel === 'config'
+                      item.tagLabel === "config"
                         ? styles.tagConfig
                         : styles.tagDefault
                     }
                   >
                     <Text
                       style={
-                        item.tagLabel === 'config'
+                        item.tagLabel === "config"
                           ? styles.tagTextConfig
                           : styles.tagTextDefault
                       }
@@ -375,16 +428,24 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
               </View>
             </View>
             {item.description ? (
-              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
                 {item.description}
               </Text>
             ) : null}
           </View>
           <View style={styles.controlSwitchColumn}>
             <Switch
+              testID={`session-setting-checkbox-${item.key}`}
               value={boolValue}
               disabled={item.disabled}
-              onValueChange={(next) => ctx.actions.toggleCheckbox(item.key, next)}
+              onValueChange={(next) =>
+                ctx.actions.toggleCheckbox(item.key, next)
+              }
             />
             {item.hasOverride && (
               <TouchableOpacity
@@ -402,34 +463,44 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     select: (ctx: SessionSettingRenderCtx) => {
       const { item } = ctx;
       const options = normalizeOptions((item.element as any).options);
-      if (!options.length) {
+      const customValue =
+        (item.element as any).custom_value &&
+        typeof (item.element as any).custom_value === "object"
+          ? ((item.element as any).custom_value as ConfigCustomValue)
+          : undefined;
+      if (!options.length && customValue?.enabled !== true) {
         return null;
       }
 
       const selected =
-        typeof item.effectiveValue === 'string'
+        typeof item.effectiveValue === "string"
           ? item.effectiveValue
-          : String(item.effectiveValue ?? '');
+          : String(item.effectiveValue ?? "");
 
       return (
         <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
           <View style={styles.itemTextColumn}>
             <View style={styles.itemLabelRow}>
               <View style={styles.itemLabelChipColumn}>
-                <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
                   {item.label}
                 </Text>
                 {item.tagLabel && (
                   <View
                     style={
-                      item.tagLabel === 'config'
+                      item.tagLabel === "config"
                         ? styles.tagConfig
                         : styles.tagDefault
                     }
                   >
                     <Text
                       style={
-                        item.tagLabel === 'config'
+                        item.tagLabel === "config"
                           ? styles.tagTextConfig
                           : styles.tagTextDefault
                       }
@@ -450,7 +521,12 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
               )}
             </View>
             {item.description ? (
-              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
                 {item.description}
               </Text>
             ) : null}
@@ -464,7 +540,9 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
                       isSelected ? styles.chipSelected : styles.chip,
                       item.disabled && styles.chipDisabled,
                     ]}
-                    onPress={() => ctx.actions.selectOption(item.key, opt.value)}
+                    onPress={() =>
+                      ctx.actions.selectOption(item.key, opt.value)
+                    }
                     disabled={item.disabled}
                   >
                     <Text
@@ -472,8 +550,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
                         item.disabled
                           ? styles.chipTextDisabled
                           : isSelected
-                            ? styles.chipTextSelected
-                            : styles.chipText
+                          ? styles.chipTextSelected
+                          : styles.chipText
                       }
                     >
                       {opt.label}
@@ -489,13 +567,18 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     dropdown: (ctx: SessionSettingRenderCtx) => {
       const { item } = ctx;
       const options = normalizeOptions((item.element as any).options);
-      if (!options.length) {
+      const customValue =
+        (item.element as any).custom_value &&
+        typeof (item.element as any).custom_value === "object"
+          ? ((item.element as any).custom_value as ConfigCustomValue)
+          : undefined;
+      if (!options.length && customValue?.enabled !== true) {
         return null;
       }
       const selected =
-        typeof item.effectiveValue === 'string'
+        typeof item.effectiveValue === "string"
           ? item.effectiveValue
-          : String(item.effectiveValue ?? '');
+          : String(item.effectiveValue ?? "");
       const selectedLabel =
         options.find((o) => o.value === selected)?.label ?? selected;
       return (
@@ -503,20 +586,25 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
           <View style={styles.itemTextColumn}>
             <View style={styles.itemLabelRow}>
               <View style={styles.itemLabelChipColumn}>
-                <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
                   {item.label}
                 </Text>
                 {item.tagLabel && (
                   <View
                     style={
-                      item.tagLabel === 'config'
+                      item.tagLabel === "config"
                         ? styles.tagConfig
                         : styles.tagDefault
                     }
                   >
                     <Text
                       style={
-                        item.tagLabel === 'config'
+                        item.tagLabel === "config"
                           ? styles.tagTextConfig
                           : styles.tagTextDefault
                       }
@@ -537,12 +625,20 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
               )}
             </View>
             {item.description ? (
-              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
                 {item.description}
               </Text>
             ) : null}
             <TouchableOpacity
-              style={[styles.dropdownButton, item.disabled && styles.dropdownButtonDisabled]}
+              style={[
+                styles.dropdownButton,
+                item.disabled && styles.dropdownButtonDisabled,
+              ]}
               disabled={item.disabled}
               onPress={() => {
                 setDropdownState({
@@ -550,6 +646,11 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
                   label: item.label,
                   options,
                   selected,
+                  placeholder:
+                    typeof (item.element as any).placeholder === "string"
+                      ? (item.element as any).placeholder
+                      : undefined,
+                  customValue,
                 });
               }}
             >
@@ -569,10 +670,12 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     multiline: renderTextLike,
   };
 
-  const error = !backend ? 'No active connection' : settingsState?.error ?? null;
+  const error = !backend
+    ? "No active connection"
+    : settingsState?.error ?? null;
   const statusText = error || settingsState?.statusMessage;
-  const statusTone = error ? 'error' : settingsState?.statusTone ?? 'idle';
-  const showSpinner = !error && statusTone === 'busy';
+  const statusTone = error ? "error" : settingsState?.statusTone ?? "idle";
+  const showSpinner = !error && statusTone === "busy";
   const hasLoaded = settingsState?.lastLoadedAt != null;
 
   return (
@@ -591,6 +694,9 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
         <OptionsPickerModal
           visible={!!dropdownState}
           options={dropdownState?.options ?? []}
+          selectedValue={dropdownState?.selected ?? ""}
+          placeholder={dropdownState?.placeholder}
+          customValue={dropdownState?.customValue}
           useModal={false}
           onSelect={(value) => {
             if (dropdownState) {
@@ -634,9 +740,9 @@ const createStyles = (theme: Theme) =>
       marginBottom: 8,
     },
     itemRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
       paddingVertical: 6,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.border,
@@ -649,21 +755,21 @@ const createStyles = (theme: Theme) =>
       marginRight: 8,
     },
     itemLabelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flexWrap: 'wrap',
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
       marginBottom: 2,
     },
     itemLabelChipColumn: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      alignItems: 'center',
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
       flex: 1,
     },
     itemLabel: {
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
-      fontWeight: '500',
+      fontWeight: "500",
       color: theme.text,
       marginBottom: 2,
       marginRight: 4,
@@ -708,8 +814,8 @@ const createStyles = (theme: Theme) =>
       color: theme.textSecondary,
     },
     chipsRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexDirection: "row",
+      flexWrap: "wrap",
       marginTop: 6,
     },
     chip: {
@@ -752,8 +858,8 @@ const createStyles = (theme: Theme) =>
       color: theme.textSecondary,
     },
     textRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       marginTop: 6,
     },
     textInput: {
@@ -785,7 +891,7 @@ const createStyles = (theme: Theme) =>
       color: theme.textOnPrimary,
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
-      fontWeight: '600',
+      fontWeight: "600",
     },
     dropdownButtonDisabled: {
       backgroundColor: theme.surfaceAlt,
@@ -793,9 +899,9 @@ const createStyles = (theme: Theme) =>
     },
     controlSwitchColumn: {
       marginLeft: 8,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'flex-start',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-start",
     },
     trashBeforeSwitch: {
       paddingHorizontal: 4,
@@ -808,8 +914,8 @@ const createStyles = (theme: Theme) =>
       marginLeft: 4,
     },
     dropdownButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       paddingVertical: 8,
       paddingHorizontal: 10,
       backgroundColor: theme.surface,

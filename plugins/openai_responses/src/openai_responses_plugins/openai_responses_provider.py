@@ -280,14 +280,34 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 }
             )
 
-        use_dropdown = len(model_options) > 0
         return [
             {
                 "ui_type": "config",
-                "type": "dropdown" if use_dropdown else "text",
+                "type": "dropdown",
                 "key": "model",
                 "label": "OpenAI Model",
-                **({"options": model_options} if use_dropdown else {}),
+                "options": model_options,
+                "placeholder": "Search models or enter a model ID",
+                "custom_value": {
+                    "enabled": True,
+                    "pattern": r"^[^\s]+$",
+                    "option_label": "Use '{value}' as a custom model ID",
+                },
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Model",
+                    "show_label": False,
+                    "options": model_options,
+                    "placeholder": "Search models or enter a model ID",
+                    "custom_value": {
+                        "enabled": True,
+                        "pattern": r"^[^\s]+$",
+                        "option_label": "Use '{value}' as a custom model ID",
+                    },
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "icon": "cpu",
+                },
             },
             {
                 "ui_type": "config",
@@ -312,14 +332,6 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "type": "number",
                 "key": "terminal_error_max_retries",
                 "label": "Terminal error max retries",
-            },
-            {
-                "ui_type": "model_picker",
-                "key": "model",
-                "attachment_type": "dropdown",
-                "display_placement": "left",
-                "options": model_options,
-                "label": "model",
             },
             {
                 "ui_type": "composer_attachment",

@@ -62,7 +62,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"markdownBaseFontSizeChanged", @"markdownHeaderSizeChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"markdownBaseFontSizeChanged", @"markdownHeaderSizeChanged", @"recentSessionsWindowChanged", @"sessionDoubleClickActionChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
 }
 
 - (void)startObserving
@@ -90,6 +90,21 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleClearStoredSessionCaches:)
                                                name:CLCClearStoredSessionCachesNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleOpenGlobalSettings:)
+                                               name:CLCOpenGlobalSettingsNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleRecentSessionsWindowDidChange:)
+                                               name:CLCRecentSessionsWindowDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleSessionDoubleClickActionDidChange:)
+                                               name:CLCSessionDoubleClickActionDidChangeNotification
                                              object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
@@ -135,6 +150,18 @@ RCT_EXPORT_MODULE();
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCClearStoredSessionCachesNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCOpenGlobalSettingsNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCRecentSessionsWindowDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCSessionDoubleClickActionDidChangeNotification
                                                 object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
@@ -218,6 +245,40 @@ RCT_EXPORT_MODULE();
   [self sendEventWithName:@"clearStoredSessionCachesRequested" body:@{}];
 }
 
+- (void)handleOpenGlobalSettings:(__unused NSNotification *)notification
+{
+  [self openReactWindow:@{
+    @"windowKey" : @"globalSettings",
+    @"moduleName" : @"GlobalSettingsWindow",
+    @"title" : @"Settings",
+    @"width" : @560,
+    @"height" : @360,
+    @"initialProps" : @{},
+  }];
+}
+
+- (void)handleRecentSessionsWindowDidChange:(NSNotification *)notification
+{
+  NSString *value =
+      notification.userInfo[CLCRecentSessionsWindowUserInfoKey];
+  if (![value isKindOfClass:[NSString class]]) {
+    return;
+  }
+  [self sendEventWithName:@"recentSessionsWindowChanged"
+                     body:@{ @"recentSessionsWindow" : value }];
+}
+
+- (void)handleSessionDoubleClickActionDidChange:(NSNotification *)notification
+{
+  NSString *value =
+      notification.userInfo[CLCSessionDoubleClickActionUserInfoKey];
+  if (![value isKindOfClass:[NSString class]]) {
+    return;
+  }
+  [self sendEventWithName:@"sessionDoubleClickActionChanged"
+                     body:@{ @"sessionDoubleClickAction" : value }];
+}
+
 - (void)handleOpenNotificationTesting:(__unused NSNotification *)notification
 {
   [self openReactWindow:@{
@@ -294,6 +355,25 @@ RCT_EXPORT_METHOD(recordConnectionsPanelHarnessState:(NSDictionary *)state)
     return;
   }
   [data writeToFile:@"/tmp/clc-connections-panel-harness-state.json" atomically:YES];
+}
+
+RCT_EXPORT_METHOD(recordDesktopWorkspaceHarnessState:(NSDictionary *)state)
+{
+  NSMutableDictionary *payload = [NSMutableDictionary dictionary];
+  if ([state isKindOfClass:[NSDictionary class]]) {
+    [payload addEntriesFromDictionary:state];
+  }
+  payload[@"recordedAtMs"] =
+      @((long long)([[NSDate date] timeIntervalSince1970] * 1000));
+
+  NSError *error = nil;
+  NSData *data =
+      [NSJSONSerialization dataWithJSONObject:payload options:0 error:&error];
+  if (data == nil || error != nil) {
+    return;
+  }
+  [data writeToFile:@"/tmp/clc-desktop-workspace-harness-state.json"
+         atomically:YES];
 }
 
 RCT_EXPORT_METHOD(readProgressiveScrollHarnessCommand:(RCTPromiseResolveBlock)resolve
@@ -642,6 +722,62 @@ RCT_EXPORT_METHOD(openSessionSettingsWindow : (NSDictionary *)params)
 RCT_EXPORT_METHOD(closeSessionSettingsWindow)
 {
   [self closeReactWindow:@{ @"windowKey": @"sessionSettings" }];
+}
+
+RCT_REMAP_METHOD(getDesktopGlobalSettings,
+                 getDesktopGlobalSettingsWithResolver:(RCTPromiseResolveBlock)resolve
+                 rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  NSInteger baseFontSize =
+      [defaults integerForKey:@"CrystalLattice.MarkdownBaseFontSize"];
+  if (baseFontSize != 14 && baseFontSize != 15 &&
+      baseFontSize != 16 && baseFontSize != 17) {
+    baseFontSize = 15;
+  }
+  NSString *headerSize =
+      [defaults stringForKey:@"CrystalLattice.MarkdownHeaderSize"];
+  if (![headerSize isEqualToString:@"normal"] &&
+      ![headerSize isEqualToString:@"small"]) {
+    headerSize = @"normal";
+  }
+  NSString *recentSessionsWindow =
+      [defaults stringForKey:@"CrystalLattice.RecentSessionsWindow"];
+  if (![recentSessionsWindow isEqualToString:@"24h"] &&
+      ![recentSessionsWindow isEqualToString:@"3d"] &&
+      ![recentSessionsWindow isEqualToString:@"1w"]) {
+    recentSessionsWindow = @"3d";
+  }
+  NSString *sessionDoubleClickAction =
+      [defaults stringForKey:@"CrystalLattice.SessionDoubleClickAction"];
+  if (![sessionDoubleClickAction isEqualToString:@"preview"] &&
+      ![sessionDoubleClickAction isEqualToString:@"open"]) {
+    sessionDoubleClickAction = @"preview";
+  }
+  resolve(@{
+    @"baseFontSize" : @(baseFontSize),
+    @"headerSize" : headerSize,
+    @"recentSessionsWindow" : recentSessionsWindow,
+    @"sessionDoubleClickAction" : sessionDoubleClickAction,
+  });
+}
+
+RCT_EXPORT_METHOD(setDesktopGlobalSetting:(NSDictionary *)params)
+{
+  if (![params[@"key"] isKindOfClass:[NSString class]]) {
+    return;
+  }
+  id value = params[@"value"];
+  if (value == nil || value == (id)kCFNull) {
+    return;
+  }
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:CLCDesktopGlobalSettingRequestedNotification
+                    object:nil
+                  userInfo:@{
+                    CLCDesktopGlobalSettingKeyUserInfoKey : params[@"key"],
+                    CLCDesktopGlobalSettingValueUserInfoKey : value,
+                  }];
 }
 
 RCT_EXPORT_METHOD(openReactWindow : (NSDictionary *)params)

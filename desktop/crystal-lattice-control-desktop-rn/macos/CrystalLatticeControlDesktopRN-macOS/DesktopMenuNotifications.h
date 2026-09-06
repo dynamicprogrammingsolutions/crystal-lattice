@@ -24,3 +24,21 @@ static NSString *const CLCProgressiveScrollHarnessCommandUserInfoKey = @"command
 
 static NSNotificationName const CLCOpenNotificationTestingNotification =
     @"CrystalLattice.OpenNotificationTesting";
+
+static NSNotificationName const CLCOpenGlobalSettingsNotification =
+    @"CrystalLattice.OpenGlobalSettings";
+
+static NSNotificationName const CLCDesktopGlobalSettingRequestedNotification =
+    @"CrystalLattice.DesktopGlobalSettingRequested";
+static NSString *const CLCDesktopGlobalSettingKeyUserInfoKey = @"key";
+static NSString *const CLCDesktopGlobalSettingValueUserInfoKey = @"value";
+
+static NSNotificationName const CLCRecentSessionsWindowDidChangeNotification =
+    @"CrystalLattice.RecentSessionsWindowDidChange";
+static NSString *const CLCRecentSessionsWindowUserInfoKey =
+    @"recentSessionsWindow";
+
+static NSNotificationName const CLCSessionDoubleClickActionDidChangeNotification =
+    @"CrystalLattice.SessionDoubleClickActionDidChange";
+static NSString *const CLCSessionDoubleClickActionUserInfoKey =
+    @"sessionDoubleClickAction";

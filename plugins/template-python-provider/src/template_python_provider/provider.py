@@ -159,8 +159,45 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
         tags: List[str],
         models: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
+        model_options = [
+            {
+                "value": str(model["id"]),
+                "label": str(model.get("name") or model["id"]),
+            }
+            for model in models
+            if isinstance(model, dict)
+            and isinstance(model.get("id"), str)
+            and model["id"]
+        ]
         return [
-            {"type": "text", "key": "model", "label": "Model"},
+            {
+                "ui_type": "config",
+                "type": "dropdown",
+                "key": "model",
+                "label": "Model",
+                "options": model_options,
+                "placeholder": "Search models or enter a model ID",
+                "custom_value": {
+                    "enabled": True,
+                    "pattern": r"^[^\s]+$",
+                    "option_label": "Use '{value}' as a custom model ID",
+                },
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Model",
+                    "show_label": False,
+                    "options": model_options,
+                    "placeholder": "Search models or enter a model ID",
+                    "custom_value": {
+                        "enabled": True,
+                        "pattern": r"^[^\s]+$",
+                        "option_label": "Use '{value}' as a custom model ID",
+                    },
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "icon": "cpu",
+                },
+            },
             {"type": "text", "key": "base_url", "label": "Base URL"},
             {"type": "text", "key": "api_key", "label": "API key"},
             {"type": "checkbox", "key": "debug_stream", "label": "Debug stream"},

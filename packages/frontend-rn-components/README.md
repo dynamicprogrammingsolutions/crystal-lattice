@@ -19,6 +19,9 @@ npm test
 This package currently has fast Vitest coverage only; it does not define
 integration or e2e scripts.
 
+Development documentation starts at
+[docs/development/index.md](docs/development/index.md).
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

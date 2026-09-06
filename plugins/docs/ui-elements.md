@@ -118,9 +118,11 @@ def get_ui_elements(self, config, tags, models):
 | `options` | array | For `select`/`dropdown`: `["value", ...]` or `[{"value": "...", "label": "..."}, ...]` |
 | `default` | any | Default value shown when no override or config value exists |
 | `required` | boolean | Whether the field is required |
-| `placeholder` | string | Placeholder text for text inputs |
+| `placeholder` | string | Placeholder text for text inputs and searchable dropdowns |
 | `config_path` | string | Dotted path to nested config value (e.g., `"provider.api_key"`) |
 | `condition` | object | Optional visibility condition (see below) |
+| `custom_value` | object | Optional searchable-dropdown custom entry with `enabled`, `pattern`, and `option_label` |
+| `rich_ui` | object | Optional self-contained compact presentation in chat |
 
 #### Effective value resolution
 
@@ -216,6 +218,151 @@ def get_ui_elements(self, state, config=None, context=None):
 | `dropdown` | Dropdown menu (collapsed until clicked) |
 | `number` | Numeric input |
 
+#### Compact rich configuration
+
+An ordinary session configuration element may include `rich_ui` to make the
+same setting available as a compact control in chat. This does not define an
+action and does not require an application plugin. The containing config
+element remains the setting binding: its `key`, optional `config_path`,
+effective value, session override, schema/default source, disabled state, and
+reset behavior are authoritative.
+
+The compact presentation is self-contained. It repeats presentation fields
+such as `label`, `options`, custom-entry text, icon, pinning, and placements
+even when the full settings element uses the same values. A compact surface
+does not implicitly inherit those fields from the containing element.
+
+The supported rich config kinds are `dropdown` and `toggle`.
+
+```python
+model_options = [
+    {"value": model["id"], "label": model.get("name") or model["id"]}
+    for model in models
+]
+
+{
+    "ui_type": "config",
+    "type": "dropdown",
+    "key": "model",
+    "label": "Model",
+    "options": model_options,
+    "placeholder": "Search models or enter a model ID",
+    "custom_value": {
+        "enabled": True,
+        "pattern": r"^[^\s]+$",
+        "option_label": "Use '{value}' as a custom model ID",
+    },
+    "rich_ui": {
+        "kind": "dropdown",
+        "label": "Model",
+        "show_label": False,
+        "options": model_options,
+        "placeholder": "Search models or enter a model ID",
+        "custom_value": {
+            "enabled": True,
+            "pattern": r"^[^\s]+$",
+            "option_label": "Use '{value}' as a custom model ID",
+        },
+        "placements": ["composer"],
+        "default_pinned": True,
+        "icon": "cpu",
+    },
+}
+```
+
+`rich_ui.kind` identifies the compact renderer rather than merely identifying
+the element as a setting. Future kinds can define different validated shapes,
+such as `select`, `toggle`, or `text`.
+
+The rich dropdown fields are:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `kind` | string | Must be `dropdown` for this presentation |
+| `label` | string | Compact-surface label; required |
+| `options` | array | Self-contained string value/label options; may be empty only when `custom_value.enabled` is true |
+| `placeholder` | string | Text for the one field used to filter options or enter a custom value |
+| `custom_value` | object | Nested custom-entry declaration; repeat it on the containing config element |
+| `description` | string | Optional compact help text |
+| `icon` | string | Optional semantic icon name |
+| `show_label` | boolean | Whether the compact control visually shows `label:`; accessibility always retains the label |
+| `placements` | array | Ordered compact locations; initially `session_header` and `composer` |
+| `default_pinned` | boolean | Initial pin preference when the connection has no stored choice |
+
+`custom_value.enabled` enables custom values. `custom_value.pattern` is an
+optional ECMAScript regular expression applied as a full-value match.
+`custom_value.option_label` contains `{value}`, for example
+`"Use '{value}' as a custom model ID"`.
+
+The dropdown uses one field for both search and custom entry. A non-empty
+query filters labels and values case-insensitively. When the trimmed query does
+not exactly equal a declared value and satisfies the custom pattern, the list
+appends a synthetic custom option after the declared matches. Invalid custom
+configuration disables only the synthetic option; declared values remain
+usable.
+
+Options may add a theme-aware semantic tone and icon:
+
+```python
+{"value": "high", "label": "High", "icon": "chevron-up", "tone": "highlight"}
+```
+
+Supported tones are `primary`, `highlight`, `warning`, `success`, `danger`,
+and `muted`. The selected option controls the compact icon and tone. Frontends
+may apply a shorter host-specific visual character limit while preserving the
+full accessibility label and stored value.
+
+For manual testing without changing a production provider, load the
+[dummy rich configuration UI plugin](../dummy-rich-config-ui/README.md) and
+enable `dummy_rich_config_ui` for an agent. The plugin exposes all semantic
+option tones, distinct icons, a rich toggle, both chat placements, and a
+disabled-state example.
+
+Boolean checkbox settings may expose a compact toggle:
+
+```python
+{
+    "type": "checkbox",
+    "key": "enable_web_search",
+    "label": "Enable web search",
+    "rich_ui": {
+        "kind": "toggle",
+        "label": "Web search",
+        "show_label": False,
+        "icon": "globe",
+        "placements": ["composer"],
+        "default_pinned": True,
+        "options": [
+            {
+                "value": False,
+                "label": "Off",
+                "icon": "globe",
+                "tone": "primary",
+            },
+            {
+                "value": True,
+                "label": "On",
+                "icon": "globe",
+                "tone": "success",
+            },
+        ],
+    },
+}
+```
+
+A rich config toggle has exactly one `false` and one `true` option. Disabled
+controls are muted; absent option tones default to primary for false and
+success for true. Selecting the compact control patches the ordinary Boolean
+session override.
+
+Rich placement is additive. The complete setting remains available in Session
+Settings. Selecting a declared or custom value patches the ordinary session
+override; reset deletes that override. A custom value remains visible even
+when it is absent from a later discovery response.
+
+Unknown future rich kinds remain transportable. Frontends without a renderer
+ignore the compact presentation and retain the ordinary setting.
+
 ### Message footers (`ui_type == "message_footer"`)
 
 Per-message footer fields rendered under each message bubble. Frontends extract the specified data path from each message's metadata.
@@ -236,6 +383,7 @@ def get_ui_elements(self, config, tags, models):
 | `data` | string | Dotted JSON path into the message object (e.g., `"metadata.total_cost"`) |
 | `template` | string | Optional template string; `{{data}}` is replaced with the resolved value |
 | `condition` | object | Optional visibility condition (see below) |
+| `rich_ui` | object | Optional compact toggle/list presentation and placement |
 
 ### Status bar fields (`ui_type == "status_bar"`)
 
@@ -312,6 +460,25 @@ authors can choose broad ordering bands without relying on plugin load order.
 For example, a frontend-native Reload action at order `0`, a plugin Copy
 session action at `10`, and a frontend Settings action at `90` appear in that
 sequence in the same menu.
+
+#### Rich session actions in chat
+
+An ordinary `session_action` may use the same `rich_ui.kind: "toggle"` or
+`rich_ui.kind: "list"` contract documented for
+[session-list actions](#optional-rich-presentation-and-permanent-fallback).
+The ordinary `action_id`, parameter mapping, and dialog remain the permanent
+execution and fallback path.
+
+Chat placements are declared inside `rich_ui.placements`:
+
+- `session_header`: the session action area above the transcript;
+- `composer`: the action area around the message composer.
+
+When rich placement is omitted, a session action keeps its existing
+`session_header` behavior. A supported rich toggle invokes the ordinary action
+immediately. A supported rich list submits its selected option through
+`$dialog.<input_name>`. Unknown or malformed rich presentation falls back to
+the ordinary action dialog.
 
 #### Parameter mappings (`param_map`)
 
@@ -941,19 +1108,6 @@ Attachment UI hints for the message composer. Frontends use these to display att
 }
 ```
 
-### Model picker (`ui_type == "model_picker"`)
-
-Model selection UI for providers that support model switching.
-
-```python
-{
-    "ui_type": "model_picker",
-    "key": "model",
-    "label": "Select Model",
-    "order": 10,
-}
-```
-
 ---
 
 ## Conditional visibility (`condition`)
@@ -1039,17 +1193,36 @@ def get_ui_elements(
         label = label if isinstance(label, str) and label else model_id
         options.append({"value": model_id, "label": label})
 
-    if options:
-        return [
-            {
-                "type": "select",
-                "key": "model",
+    return [
+        {
+            "ui_type": "config",
+            "type": "dropdown",
+            "key": "model",
+            "label": "Model",
+            "options": options,
+            "placeholder": "Search models or enter a model ID",
+            "custom_value": {
+                "enabled": True,
+                "pattern": r"^[^\s]+$",
+                "option_label": "Use '{value}' as a custom model ID",
+            },
+            "rich_ui": {
+                "kind": "dropdown",
                 "label": "Model",
+                "show_label": False,
                 "options": options,
-            }
-        ]
-
-    return [{"type": "text", "key": "model", "label": "Model id"}]
+                "placeholder": "Search models or enter a model ID",
+                "custom_value": {
+                    "enabled": True,
+                    "pattern": r"^[^\s]+$",
+                    "option_label": "Use '{value}' as a custom model ID",
+                },
+                "placements": ["composer"],
+                "default_pinned": True,
+                "icon": "cpu",
+            },
+        }
+    ]
 ```
 
 Each model descriptor must include `"id": str`. Additional keys like `"name"` or capability metadata are provider-defined.

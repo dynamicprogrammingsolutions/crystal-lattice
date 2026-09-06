@@ -5,9 +5,12 @@
 - `anthropic_plugins.provider.AnthropicProvider`
 - `anthropic_plugins.tools_extension.AnthropicToolsExtension`
 - `anthropic_plugins.reasoning_extension.AnthropicReasoningExtension`
+- `anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension`
 - `anthropic_plugins.usage_extension.AnthropicUsageExtension`
+- `anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension`
 
-All four classes are registered by `agent_plugin.json`.
+All five extension classes plus the provider are registered by
+`agent_plugin.json`.
 
 ## Provider boundary
 
@@ -33,13 +36,22 @@ does not make the provider the owner of the corresponding public feature.
 `AnthropicToolsExtension` owns tool schema conversion, call/result projection,
 partial input JSON, and Anthropic tool interop.
 
-`AnthropicReasoningExtension` owns thinking configuration and UI, request
-shaping, streamed reasoning, redacted thinking, signatures, and reasoning
-metadata.
+`AnthropicReasoningExtension` owns streamed reasoning, redacted thinking,
+signatures, reasoning metadata, and native-history reconstruction. It
+contributes no request config or UI.
+
+`AnthropicReasoningControlsExtension` normalizes official model capability
+data, supplies known Claude regex fallbacks, contributes model-specific UI,
+and maps normalized settings into `thinking` and `output_config`.
+`RequestOptionsFeature` remains the final raw request override.
 
 `AnthropicUsageExtension` owns public token metadata, formatting, turn/session
-accumulation, and the standard cumulative fields consumed by performance
-extensions.
+accumulation, stable turn IDs and terminal/tool-call state, and the standard
+cumulative fields consumed by performance extensions.
+
+`AnthropicPromptCachingExtension` owns automatic top-level cache configuration,
+enabled/TTL UI, and capability gating. Cache usage remains in
+`AnthropicUsageExtension`.
 
 Extensions use shared provider state but keep feature state under namespaced
 keys:
@@ -47,14 +59,14 @@ keys:
 ```text
 anthropic_runtime
 anthropic_tools
-anthropic_reasoning
 anthropic_usage
 ```
 
 ## Streaming sequence
 
 1. The provider initializes a minimal Messages payload.
-2. Tools and reasoning extensions add their request fields.
+2. Tools add schemas and the generic request-options feature adds direct
+   request fields.
 3. The SDK yields events normalized to plain dictionaries.
 4. The provider updates a lossless ordered assistant block accumulator.
 5. Extensions project tool calls, reasoning partials, and usage.
@@ -68,8 +80,13 @@ anthropic_usage
 - `test_extensions_unit.py`: isolated extension ownership and mapping.
 - `test_stack_integration.py`: deterministic Core stack and persistence.
 - `test_ollama_integration.py`: real local Messages transport and application
-  loading.
+  loading, model discovery, effort passthrough, usage, and Duration/TPS.
+- `test_ollama_reasoning_effort_integration.py`: slow local Granite low/high
+  reasoning-size effectiveness.
 - `test_anthropic_api_integration.py`: minimal official API verification.
+- `test_anthropic_stage3_api_integration.py`: official capability descriptors,
+  prompt caching, adaptive interleaving, authentication errors, and
+  cancellation.
 
 The deterministic tests define exact behavior. Ollama tests prove real
 compatible transport. Hosted tests cover only official API behavior that the

@@ -9,7 +9,14 @@ import {
   View,
 } from 'react-native';
 
-import { ThemeProvider, useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  ThemeProvider,
+  useTheme,
+} from '@crystal-lattice/frontend-rn-components';
+import {
+  createConfigDropdownSuggestionEngine,
+  normalizeConfigDropdownPresentation,
+} from '@crystal-lattice/frontend-sdk';
 import {
   buildConfigSchemaByKey,
   buildSessionSettingItems,
@@ -26,6 +33,7 @@ import { useActiveSessionSettingsWindow } from './sessionSettingsCoordinator';
 import { clearActiveSessionSettingsWindow } from './sessionSettingsCoordinator';
 import { DesktopWindowManager } from './desktopWindowManager';
 import { MacCheckbox } from '../native/MacCheckbox';
+import { MacComboBox } from '../native/MacComboBox';
 import { MacSelect, type MacSelectOption } from '../native/MacSelect';
 
 export function SessionSettingsWindow(): React.JSX.Element {
@@ -42,13 +50,16 @@ function SessionSettingsWindowInner(): React.JSX.Element {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const active = useActiveSessionSettingsWindow();
 
-  const [pendingTextByKey, setPendingTextByKey] = useState<Record<string, string>>({});
+  const [pendingTextByKey, setPendingTextByKey] = useState<
+    Record<string, string>
+  >({});
 
   const backend = active?.state.backend ?? null;
   const sessionId = active?.state.sessionId ?? null;
   const cacheKey = active?.state.connectionId ?? 'default';
   const caps = backend?.getCapabilities?.();
-  const supported = !caps || (caps.sessionUiSchema && caps.sessionConfigOverrides);
+  const supported =
+    !caps || (caps.sessionUiSchema && caps.sessionConfigOverrides);
   const controllerSessionId = active && supported ? sessionId : null;
   const { controller, state: settingsState } = useSessionSettingsController({
     backend,
@@ -71,11 +82,16 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       baseConfig: settingsState?.baseConfig || {},
       schemaByKey,
     });
-  }, [elements, schemaByKey, settingsState?.baseConfig, settingsState?.overrides]);
+  }, [
+    elements,
+    schemaByKey,
+    settingsState?.baseConfig,
+    settingsState?.overrides,
+  ]);
 
   const itemByKey = useMemo(() => {
     const byKey: Record<string, SessionSettingItem> = {};
-    items.forEach((item) => {
+    items.forEach(item => {
       byKey[item.key] = item;
     });
     return byKey;
@@ -97,8 +113,8 @@ function SessionSettingsWindowInner(): React.JSX.Element {
   }, [active?.state.id]);
 
   useEffect(() => {
-    const allowedKeys = new Set(items.map((item) => item.key));
-    setPendingTextByKey((prev) => {
+    const allowedKeys = new Set(items.map(item => item.key));
+    setPendingTextByKey(prev => {
       const next: Record<string, string> = {};
       let changed = false;
       Object.entries(prev).forEach(([key, value]) => {
@@ -172,7 +188,10 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         return;
       }
 
-      const hasPending = Object.prototype.hasOwnProperty.call(pendingTextByKey, key);
+      const hasPending = Object.prototype.hasOwnProperty.call(
+        pendingTextByKey,
+        key,
+      );
       const pending = hasPending ? pendingTextByKey[key] : undefined;
       const currentEffective = itemByKey[key]?.effectiveValue;
       const value =
@@ -204,7 +223,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         return;
       }
 
-      setPendingTextByKey((prev) => {
+      setPendingTextByKey(prev => {
         const next = { ...prev };
         delete next[key];
         return next;
@@ -224,8 +243,10 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       if (!tagLabel) {
         return null;
       }
-      const tagStyle = tagLabel === 'config' ? styles.tagConfig : styles.tagDefault;
-      const tagTextStyle = tagLabel === 'config' ? styles.tagTextConfig : styles.tagTextDefault;
+      const tagStyle =
+        tagLabel === 'config' ? styles.tagConfig : styles.tagDefault;
+      const tagTextStyle =
+        tagLabel === 'config' ? styles.tagTextConfig : styles.tagTextDefault;
       return (
         <View style={tagStyle}>
           <Text style={tagTextStyle}>{tagLabel}</Text>
@@ -239,9 +260,13 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       }
       return (
         <Pressable
+          testID={`session-setting-reset-${ctx.item.key}`}
           onPress={() => ctx.actions.revertToDefault(ctx.item.key)}
           disabled={ctx.item.disabled}
-          style={(state) => [styles.resetButton, state.pressed && styles.resetButtonPressed]}
+          style={state => [
+            styles.resetButton,
+            state.pressed && styles.resetButtonPressed,
+          ]}
         >
           <Icon name="rotate-ccw" size={14} color={theme.textSecondary} />
           <Text style={styles.resetButtonText}>Reset</Text>
@@ -252,7 +277,10 @@ function SessionSettingsWindowInner(): React.JSX.Element {
     const renderTextLike = (ctx: SessionSettingRenderCtx) => {
       const { item, actions } = ctx;
       const key = item.key;
-      const hasPending = Object.prototype.hasOwnProperty.call(pendingTextByKey, key);
+      const hasPending = Object.prototype.hasOwnProperty.call(
+        pendingTextByKey,
+        key,
+      );
       const pending = hasPending ? pendingTextByKey[key] : undefined;
       const textValue =
         pending ??
@@ -266,7 +294,12 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
           <View style={styles.itemHeaderRow}>
             <View style={styles.itemTitleRow}>
-              <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+              <Text
+                style={[
+                  styles.itemLabel,
+                  item.disabled && styles.itemLabelDisabled,
+                ]}
+              >
                 {item.label}
               </Text>
               {renderTag(item.tagLabel)}
@@ -274,7 +307,12 @@ function SessionSettingsWindowInner(): React.JSX.Element {
             {renderReset(ctx)}
           </View>
           {item.description ? (
-            <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+            <Text
+              style={[
+                styles.itemDescription,
+                item.disabled && styles.itemDescriptionDisabled,
+              ]}
+            >
               {item.description}
             </Text>
           ) : null}
@@ -288,8 +326,8 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               value={textValue}
               multiline={multiline}
               editable={!item.disabled}
-              onChangeText={(txt) =>
-                setPendingTextByKey((prev) => ({
+              onChangeText={txt =>
+                setPendingTextByKey(prev => ({
                   ...prev,
                   [key]: txt,
                 }))
@@ -298,9 +336,10 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               placeholderTextColor={theme.textSecondary}
             />
             <Pressable
-              style={(state) => [
+              style={state => [
                 styles.saveButton,
-                (state.pressed || savingKeySet.has(key)) && styles.saveButtonPressed,
+                (state.pressed || savingKeySet.has(key)) &&
+                  styles.saveButtonPressed,
                 item.disabled && styles.saveButtonDisabled,
               ]}
               onPress={() => actions.saveText(key)}
@@ -309,7 +348,12 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               {savingKeySet.has(key) ? (
                 <ActivityIndicator size="small" color={theme.textOnPrimary} />
               ) : (
-                <Text style={[styles.saveButtonText, item.disabled && styles.saveButtonTextDisabled]}>
+                <Text
+                  style={[
+                    styles.saveButtonText,
+                    item.disabled && styles.saveButtonTextDisabled,
+                  ]}
+                >
                   Save
                 </Text>
               )}
@@ -322,18 +366,21 @@ function SessionSettingsWindowInner(): React.JSX.Element {
     const normalizeOptions = (raw: any): MacSelectOption[] => {
       if (!Array.isArray(raw)) return [];
       return raw
-        .map((opt) => {
+        .map(opt => {
           if (typeof opt === 'string') {
             return { value: opt, label: opt };
           }
           if (opt && typeof opt === 'object') {
-            const value = typeof opt.value === 'string' ? opt.value : String(opt.value ?? '');
+            const value =
+              typeof opt.value === 'string'
+                ? opt.value
+                : String(opt.value ?? '');
             const label = typeof opt.label === 'string' ? opt.label : value;
             return { value, label };
           }
           return null;
         })
-        .filter((v) => v !== null) as MacSelectOption[];
+        .filter(v => v !== null) as MacSelectOption[];
     };
 
     return {
@@ -345,17 +392,29 @@ function SessionSettingsWindowInner(): React.JSX.Element {
             : '';
 
         return (
-          <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
+          <View
+            style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}
+          >
             <View style={styles.itemHeaderRow}>
               <View style={styles.itemTitleRow}>
-                <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
                   {item.label}
                 </Text>
                 {renderTag(item.tagLabel)}
               </View>
             </View>
             {item.description ? (
-              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
                 {item.description}
               </Text>
             ) : null}
@@ -368,7 +427,9 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       checkbox: ({ item, actions }) => {
         const boolValue = Boolean(item.effectiveValue ?? false);
         return (
-          <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
+          <View
+            style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}
+          >
             <View style={styles.itemHeaderRow}>
               <View style={styles.itemTitleRow}>
                 <MacCheckbox
@@ -376,7 +437,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
                   label={item.label}
                   value={boolValue}
                   enabled={!item.disabled}
-                  onValueChange={(next) => actions.toggleCheckbox(item.key, next)}
+                  onValueChange={next => actions.toggleCheckbox(item.key, next)}
                 />
                 {renderTag(item.tagLabel)}
               </View>
@@ -385,19 +446,28 @@ function SessionSettingsWindowInner(): React.JSX.Element {
                   <Pressable
                     onPress={() => actions.revertToDefault(item.key)}
                     disabled={item.disabled}
-                    style={(state) => [
+                    style={state => [
                       styles.resetButton,
                       state.pressed && styles.resetButtonPressed,
                     ]}
                   >
-                    <Icon name="rotate-ccw" size={14} color={theme.textSecondary} />
+                    <Icon
+                      name="rotate-ccw"
+                      size={14}
+                      color={theme.textSecondary}
+                    />
                     <Text style={styles.resetButtonText}>Reset</Text>
                   </Pressable>
                 ) : null}
               </View>
             </View>
             {item.description ? (
-              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
                 {item.description}
               </Text>
             ) : null}
@@ -412,13 +482,22 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         }
 
         const selectedValue =
-          item.effectiveValue !== undefined && item.effectiveValue !== null ? String(item.effectiveValue) : '';
+          item.effectiveValue !== undefined && item.effectiveValue !== null
+            ? String(item.effectiveValue)
+            : '';
 
         return (
-          <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
+          <View
+            style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}
+          >
             <View style={styles.itemHeaderRow}>
               <View style={styles.itemTitleRow}>
-                <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
                   {item.label}
                 </Text>
                 {renderTag(item.tagLabel)}
@@ -427,18 +506,27 @@ function SessionSettingsWindowInner(): React.JSX.Element {
                 <Pressable
                   onPress={() => actions.revertToDefault(item.key)}
                   disabled={item.disabled}
-                  style={(state) => [
+                  style={state => [
                     styles.resetButton,
                     state.pressed && styles.resetButtonPressed,
                   ]}
                 >
-                  <Icon name="rotate-ccw" size={14} color={theme.textSecondary} />
+                  <Icon
+                    name="rotate-ccw"
+                    size={14}
+                    color={theme.textSecondary}
+                  />
                   <Text style={styles.resetButtonText}>Reset</Text>
                 </Pressable>
               ) : null}
             </View>
             {item.description ? (
-              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
                 {item.description}
               </Text>
             ) : null}
@@ -448,7 +536,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               selectedValue={selectedValue}
               placeholder="None"
               enabled={!item.disabled}
-              onValueChange={(value) => {
+              onValueChange={value => {
                 if (item.disabled) {
                   return;
                 }
@@ -466,10 +554,131 @@ function SessionSettingsWindowInner(): React.JSX.Element {
           </View>
         );
       },
+      dropdown: ({ item, actions, renderFallback }) => {
+        const normalized = normalizeConfigDropdownPresentation(item.element);
+        if (!normalized.value) {
+          return <>{renderFallback()}</>;
+        }
+        const presentation = normalized.value;
+        const options = presentation.options;
+        const customEnabled = presentation.custom_value?.enabled === true;
+
+        const selectedValue =
+          item.effectiveValue !== undefined && item.effectiveValue !== null
+            ? String(item.effectiveValue)
+            : '';
+        const hasPendingQuery = Object.prototype.hasOwnProperty.call(
+          pendingTextByKey,
+          item.key,
+        );
+        const query = hasPendingQuery
+          ? pendingTextByKey[item.key]
+          : selectedValue;
+        const suggestionEngine =
+          createConfigDropdownSuggestionEngine(presentation);
+        const suggestions = suggestionEngine.suggestions(
+          hasPendingQuery ? query : '',
+        );
+        const selectValue = (value: string) => {
+          setPendingTextByKey(current => ({ ...current, [item.key]: value }));
+          actions.selectOption(item.key, value);
+        };
+        const submitQuery = (value: string) => {
+          const candidate = value.trim();
+          const suggestion = suggestions.find(
+            option => option.value === candidate,
+          );
+          if (suggestion) {
+            selectValue(suggestion.value);
+          }
+        };
+
+        return (
+          <View
+            style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}
+          >
+            <View style={styles.itemHeaderRow}>
+              <View style={styles.itemTitleRow}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+                {renderTag(item.tagLabel)}
+              </View>
+              {renderReset({ item, actions, renderFallback })}
+            </View>
+            {item.description ? (
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
+                {item.description}
+              </Text>
+            ) : null}
+            {customEnabled ? (
+              <MacComboBox
+                testID={`session-setting-dropdown-${item.key}`}
+                accessibilityLabel={item.label}
+                style={styles.macSelect}
+                options={suggestions}
+                inputValue={query}
+                placeholder={presentation.placeholder}
+                enabled={!item.disabled}
+                onInputValueChange={value => {
+                  setPendingTextByKey(current => ({
+                    ...current,
+                    [item.key]: value,
+                  }));
+                }}
+                onValueChange={value => {
+                  if (!item.disabled && value) {
+                    selectValue(value);
+                  }
+                }}
+                onSubmit={value => {
+                  if (!item.disabled) {
+                    submitQuery(value);
+                  }
+                }}
+              />
+            ) : (
+              <MacSelect
+                testID={`session-setting-dropdown-${item.key}`}
+                accessibilityLabel={item.label}
+                style={styles.macSelect}
+                options={options.map(option => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+                selectedValue={selectedValue}
+                placeholder="None"
+                enabled={!item.disabled}
+                onValueChange={value => {
+                  if (!item.disabled && value) {
+                    actions.selectOption(item.key, value);
+                  }
+                }}
+              />
+            )}
+          </View>
+        );
+      },
       text: renderTextLike,
       multiline: renderTextLike,
     } satisfies SessionSettingsRenderers;
-  }, [pendingTextByKey, savingKeySet, styles, theme.textOnPrimary, theme.textSecondary]);
+  }, [
+    pendingTextByKey,
+    savingKeySet,
+    styles,
+    theme.textOnPrimary,
+    theme.textSecondary,
+  ]);
 
   if (!active) {
     return <View style={styles.root} />;
@@ -494,7 +703,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         </View>
 
         <Pressable
-          style={(state) => {
+          style={state => {
             const hovered = (state as any).hovered as boolean | undefined;
             return [
               styles.closeButton,
@@ -508,7 +717,9 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       </View>
 
       <View style={styles.statusLine}>
-        {showSpinner ? <ActivityIndicator size="small" color={theme.primary} /> : null}
+        {showSpinner ? (
+          <ActivityIndicator size="small" color={theme.primary} />
+        ) : null}
         {statusText ? (
           <Text
             style={[
@@ -516,8 +727,8 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               statusTone === 'error'
                 ? styles.statusTextError
                 : statusTone === 'success'
-                  ? styles.statusTextSuccess
-                  : null,
+                ? styles.statusTextSuccess
+                : null,
             ]}
             numberOfLines={1}
           >
@@ -527,7 +738,9 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       </View>
 
       {!error && hasLoaded && items.length === 0 ? (
-        <Text style={styles.helperText}>No configurable settings are available.</Text>
+        <Text style={styles.helperText}>
+          No configurable settings are available.
+        </Text>
       ) : null}
 
       {!error && items.length > 0 ? (
@@ -542,7 +755,10 @@ function SessionSettingsWindowInner(): React.JSX.Element {
           renderers={renderers}
           renderFrame={({ children }) => (
             <View style={styles.listContainer}>
-              <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+              <ScrollView
+                style={styles.list}
+                contentContainerStyle={styles.listContent}
+              >
                 {children}
               </ScrollView>
             </View>

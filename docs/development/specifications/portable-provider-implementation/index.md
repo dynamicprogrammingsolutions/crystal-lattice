@@ -8,8 +8,9 @@ It covers:
 
 - provider transport and native-message responsibilities;
 - provider extension ownership;
-- model discovery and capability tags;
-- official and compatible endpoint profiles;
+- model discovery, capability tags, and portable model-selection UI;
+- shared baseline protocol tags, optional compatible-endpoint capabilities,
+  and reusable configuration presets;
 - normalized usage, cost-estimation, cache-estimation, and duration/TPS
   interoperability;
 - streaming, native history, cancellation, and error contracts;
@@ -42,3 +43,4 @@ Active delivery work:
 - `tasks/20260824-direct-claude-provider-and-plugin-login/010-direct-claude-provider-runtime.md`
 - `tasks/20260824-direct-claude-provider-and-plugin-login/018-provider-cost-estimation-and-pricing-catalog.md`
 - `tasks/20260824-direct-claude-provider-and-plugin-login/019-portable-provider-request-errors.md`
+- `tasks/20260824-direct-claude-provider-and-plugin-login/022-portable-rich-session-settings-and-model-picker-ui.md`

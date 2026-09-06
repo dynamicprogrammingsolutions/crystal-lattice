@@ -11,14 +11,30 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle guard
 
 
 STATUS_OPTIONS: List[Dict[str, Any]] = [
-    {"value": "todo", "label": "To do", "tone": "muted"},
+    {
+        "value": "todo",
+        "label": "To do",
+        "icon": "circle",
+        "tone": "muted",
+    },
     {
         "value": "in_progress",
         "label": "In progress",
+        "icon": "clock",
         "tone": "primary",
     },
-    {"value": "blocked", "label": "Blocked", "tone": "danger"},
-    {"value": "done", "label": "Done", "tone": "success"},
+    {
+        "value": "blocked",
+        "label": "Blocked",
+        "icon": "alert-circle",
+        "tone": "danger",
+    },
+    {
+        "value": "done",
+        "label": "Done",
+        "icon": "check-circle",
+        "tone": "success",
+    },
 ]
 STATUS_VALUES = frozenset(option["value"] for option in STATUS_OPTIONS)
 STATUS_LABELS = {
@@ -107,6 +123,21 @@ class SessionStatusAppPlugin:
     ) -> List[Dict[str, Any]]:
         _ = config
         metadata_key = state.get("status_metadata_key") or "status"
+        status_dialog = {
+            "kind": "form",
+            "title": "Set status",
+            "inputs": [
+                {
+                    "name": "status",
+                    "type": "select",
+                    "label": "Status",
+                    "prefill_from": f"$session.metadata.{metadata_key}",
+                    "default": "todo",
+                    "options": STATUS_OPTIONS,
+                    "required": True,
+                }
+            ],
+        }
 
         elements: List[Dict[str, Any]] = [
             {
@@ -121,27 +152,36 @@ class SessionStatusAppPlugin:
                     "session_id": "$session.session_id",
                     "status": "$dialog.status",
                 },
-                "dialog": {
-                    "kind": "form",
-                    "title": "Set status",
-                    "inputs": [
-                        {
-                            "name": "status",
-                            "type": "select",
-                            "label": "Status",
-                            "prefill_from": f"$session.metadata.{metadata_key}",
-                            "default": "todo",
-                            "options": STATUS_OPTIONS,
-                            "required": True,
-                        }
-                    ],
-                },
+                "dialog": status_dialog,
                 "rich_ui": {
                     "kind": "list",
                     "value_path": f"metadata.{metadata_key}",
                     "missing_value": "todo",
                     "input_name": "status",
                     "default_pinned": False,
+                    "options": STATUS_OPTIONS,
+                },
+            },
+            {
+                "ui_type": "session_action",
+                "id": "set_session_status",
+                "label": "Set status",
+                "icon": "circle",
+                "order": 30,
+                "action_id": "set_session_status",
+                "fixed_params": {"source": "session"},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "status": "$dialog.status",
+                },
+                "dialog": status_dialog,
+                "rich_ui": {
+                    "kind": "list",
+                    "value_path": f"metadata.{metadata_key}",
+                    "missing_value": "todo",
+                    "input_name": "status",
+                    "default_pinned": False,
+                    "placements": ["session_header"],
                     "options": STATUS_OPTIONS,
                 },
             },

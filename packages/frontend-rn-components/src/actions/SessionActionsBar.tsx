@@ -9,6 +9,7 @@ import { ALL_SESSION_ACTIONS } from '../sessionActions';
 
 import type { MenuIconRenderer } from './ActionsMenuContent';
 import { ActionsMenuBar } from './ActionsMenuBar';
+import type { ActionsMenuPinnedRenderParams } from './types';
 
 export interface SessionActionsBarProps {
   pinned: SessionActionKey[];
@@ -19,19 +20,29 @@ export interface SessionActionsBarProps {
   isActionDisabled?: (action: SessionActionKey) => boolean;
   extraActions?: SessionActionDefinition[];
   availableActions?: SessionActionKey[];
+  pinnedKeysForBar?: SessionActionKey[];
   maxPinnedActionsForBar?: number;
+  pinnedRows?: 1 | 2;
+  secondPinnedRowPlacement?: 'above' | 'below';
   isActive?: boolean;
 
   title?: string;
   variant?: 'modal' | 'dropdown';
   modalContentStyle?: StyleProp<ViewStyle>;
   renderIcon?: MenuIconRenderer;
-  renderPinIcon?: (params: { pinned: boolean; size: number; color: string }) => React.ReactNode;
+  renderPinIcon?: (params: {
+    pinned: boolean;
+    size: number;
+    color: string;
+  }) => React.ReactNode;
   renderCloseIcon?: (params: {
     size: number;
     color: string;
     renderIcon?: MenuIconRenderer;
   }) => React.ReactNode;
+  renderPinnedAction?: (
+    params: ActionsMenuPinnedRenderParams<SessionActionDefinition>,
+  ) => React.ReactNode | undefined;
 }
 
 export function SessionActionsBar({
@@ -43,7 +54,10 @@ export function SessionActionsBar({
   isActionDisabled,
   extraActions,
   availableActions,
+  pinnedKeysForBar,
   maxPinnedActionsForBar,
+  pinnedRows,
+  secondPinnedRowPlacement,
   isActive,
   title,
   variant,
@@ -51,6 +65,7 @@ export function SessionActionsBar({
   renderIcon,
   renderPinIcon,
   renderCloseIcon,
+  renderPinnedAction,
 }: SessionActionsBarProps): React.JSX.Element {
   return (
     <ActionsMenuBar<SessionActionDefinition>
@@ -63,7 +78,10 @@ export function SessionActionsBar({
       baseActions={ALL_SESSION_ACTIONS}
       extraActions={extraActions}
       availableActions={availableActions}
+      pinnedKeysForBar={pinnedKeysForBar}
       maxPinnedActionsForBar={maxPinnedActionsForBar}
+      pinnedRows={pinnedRows}
+      secondPinnedRowPlacement={secondPinnedRowPlacement}
       pinned={pinned}
       onChangePinned={onChangePinned}
       onAction={onAction}
@@ -71,6 +89,7 @@ export function SessionActionsBar({
       menuButtonTestID={menuButtonTestID}
       isActionDisabled={isActionDisabled}
       isActive={isActive}
+      renderPinnedAction={renderPinnedAction}
     />
   );
 }

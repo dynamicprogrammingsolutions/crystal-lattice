@@ -98,6 +98,25 @@ def test_get_models_empty_when_api_returns_no_models(monkeypatch):
     assert models == []
 
 
+def test_model_ui_uses_portable_rich_dropdown() -> None:
+    provider = OpenRouterResponsesProvider()
+    elements = provider.get_ui_elements(
+        config={},
+        models=[{"id": "openai/gpt-test", "name": "GPT Test"}],
+    )
+
+    model = elements[0]
+    assert model["type"] == "dropdown"
+    assert model["custom_value"]["enabled"] is True
+    assert model["rich_ui"]["kind"] == "dropdown"
+    assert model["rich_ui"]["show_label"] is False
+    assert model["rich_ui"]["options"] == [
+        {"label": "GPT Test", "value": "openai/gpt-test"}
+    ]
+    assert model["rich_ui"]["placements"] == ["composer"]
+    assert all(element.get("ui_type") != "model_picker" for element in elements)
+
+
 def test_init():
     """Init creates initial state with config."""
     provider = OpenRouterResponsesProvider()

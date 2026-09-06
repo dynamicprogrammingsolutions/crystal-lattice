@@ -18,6 +18,7 @@ import {
   type SessionListListRichUi,
   type SessionListRichActionPlacement,
   type SessionSummary,
+  type ChatRichUiPlacement,
 } from '@crystal-lattice/frontend-sdk';
 
 import { useTheme } from '../theme';
@@ -27,6 +28,7 @@ import {
 } from '../sessionActions';
 import { ActionsMenuBar } from './ActionsMenuBar';
 import type { MenuIconRenderer } from './ActionsMenuContent';
+import { resolveSemanticToneColor } from './semanticTone';
 import type { ActionDefinition, ActionKey } from './types';
 
 const SUPPORTED_RICH_KINDS = new Set<string>(SESSION_LIST_RICH_ACTION_KINDS);
@@ -55,6 +57,8 @@ export interface SessionListActionsBarProps {
   menuButtonTestID?: string;
   isActionDisabled?: (key: ActionKey) => boolean;
   isActive?: boolean;
+  pinnedRows?: 1 | 2;
+  secondPinnedRowPlacement?: 'above' | 'below';
   renderIcon?: MenuIconRenderer;
   renderPinIcon?: (params: {
     pinned: boolean;
@@ -78,38 +82,10 @@ export interface SessionListRichActionListProps {
   testIDPrefix?: string;
 }
 
-export function resolveSemanticToneColor(
-  theme: ReturnType<typeof useTheme>,
-  tone:
-    | 'primary'
-    | 'highlight'
-    | 'warning'
-    | 'success'
-    | 'danger'
-    | 'muted'
-    | undefined,
-): string {
-  switch (tone) {
-    case 'highlight':
-      return theme.highlight;
-    case 'warning':
-      return theme.warning;
-    case 'success':
-      return theme.success;
-    case 'danger':
-      return theme.danger;
-    case 'muted':
-      return theme.textMuted;
-    case 'primary':
-    default:
-      return theme.primary;
-  }
-}
-
 export interface SessionListRichActionControlProps {
   element: SessionListActionElement;
   session: SessionSummary;
-  placement: SessionListRichActionPlacement;
+  placement: SessionListRichActionPlacement | ChatRichUiPlacement;
   disabled?: boolean;
   onExecuteAction: (
     element: SessionListActionElement,
@@ -143,9 +119,15 @@ export function SessionListRichActionControl(
     props.testID ??
     `session-rich-action-${props.session.session_id}-${props.element.id}-${props.placement}`;
   const isHeader =
-    props.placement === 'header_leading' || props.placement === 'header_trailing';
+    props.placement === 'header_leading' ||
+    props.placement === 'header_trailing' ||
+    props.placement === 'session_header';
   const iconName =
-    typeof props.element.icon === 'string' ? props.element.icon : null;
+    state.kind === 'list' && state.currentOption?.icon
+      ? state.currentOption.icon
+      : typeof props.element.icon === 'string'
+        ? props.element.icon
+        : null;
   const trigger = (event?: unknown) => {
     (event as any)?.stopPropagation?.();
     if (state.kind === 'toggle') {
@@ -161,8 +143,11 @@ export function SessionListRichActionControl(
         style={[styles.richButton, isHeader && styles.headerRichButton]}
         testID={testID}
         accessibilityRole="button"
-        accessibilityLabel={props.element.label}
-        accessibilityState={{ disabled: props.disabled, selected: state.active }}
+        accessibilityLabel={`${props.element.label}: ${state.active ? 'On' : 'Off'}`}
+        accessibilityState={{
+          disabled: props.disabled,
+          selected: state.active,
+        }}
         disabled={props.disabled}
         onPress={trigger}
       >
@@ -188,10 +173,7 @@ export function SessionListRichActionControl(
 
   return (
     <TouchableOpacity
-      style={[
-        styles.richListButton,
-        isHeader && styles.headerRichListButton,
-      ]}
+      style={[styles.richListButton, isHeader && styles.headerRichListButton]}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={`${props.element.label}: ${state.currentOption?.label ?? 'Unknown'}`}
@@ -199,9 +181,9 @@ export function SessionListRichActionControl(
       disabled={props.disabled}
       onPress={trigger}
     >
-      {iconName && props.renderIcon ? (
-        props.renderIcon({ name: iconName, size: isHeader ? 16 : 14, color })
-      ) : null}
+      {iconName && props.renderIcon
+        ? props.renderIcon({ name: iconName, size: isHeader ? 16 : 14, color })
+        : null}
       <Text
         numberOfLines={1}
         style={[
@@ -240,7 +222,10 @@ export function SessionListActionsBar(
   const pluginByKey = useMemo(
     () =>
       Object.fromEntries(
-        pluginDefinitions.map((definition) => [definition.key, definition.element]),
+        pluginDefinitions.map((definition) => [
+          definition.key,
+          definition.element,
+        ]),
       ) as Record<string, SessionListActionElement>,
     [pluginDefinitions],
   );
@@ -248,7 +233,9 @@ export function SessionListActionsBar(
     const requested = props.pinnedKeysForBar ?? props.pinned;
     return requested.filter((key) => {
       const element = pluginByKey[key];
-      return !element || isSessionListRichActionPlacedAt(element, 'actions_bar');
+      return (
+        !element || isSessionListRichActionPlacedAt(element, 'actions_bar')
+      );
     });
   }, [pluginByKey, props.pinned, props.pinnedKeysForBar]);
 
@@ -280,10 +267,7 @@ export function SessionListActionsBar(
       }
       props.onPresentRichList(element);
     },
-    [
-      pluginByKey,
-      props,
-    ],
+    [pluginByKey, props],
   );
 
   const renderPinnedAction = useCallback(
@@ -336,6 +320,8 @@ export function SessionListActionsBar(
       onAction={handleAction}
       isActionDisabled={props.isActionDisabled}
       isActive={props.isActive}
+      pinnedRows={props.pinnedRows}
+      secondPinnedRowPlacement={props.secondPinnedRowPlacement}
       menuButtonTestID={props.menuButtonTestID}
       renderIcon={props.renderIcon}
       renderPinIcon={props.renderPinIcon}
@@ -361,7 +347,10 @@ export function SessionListRichActionList(
   return (
     <View style={styles.listRoot} testID={prefix}>
       <View style={[styles.listHeader, { borderBottomColor: theme.border }]}>
-        <Text style={[styles.listTitle, { color: theme.text }]} numberOfLines={1}>
+        <Text
+          style={[styles.listTitle, { color: theme.text }]}
+          numberOfLines={1}
+        >
           {props.element.label}
         </Text>
         <Pressable
@@ -387,7 +376,10 @@ export function SessionListRichActionList(
               accessibilityRole="button"
               accessibilityLabel={`${option.label}${selected ? ' selected' : ''}`}
               accessibilityState={{ selected }}
-              style={[styles.listOption, selected && { backgroundColor: theme.surfaceAlt }]}
+              style={[
+                styles.listOption,
+                selected && { backgroundColor: theme.surfaceAlt },
+              ]}
               onPress={() => {
                 props.onRequestClose();
                 const dialogValues = buildSessionListRichListDialogValues(
@@ -401,12 +393,16 @@ export function SessionListRichActionList(
                 props.onExecuteAction(dialogValues);
               }}
             >
-              {option.icon && props.renderIcon ? (
-                props.renderIcon({ name: option.icon, size: 16, color })
-              ) : null}
-              <Text style={[styles.listOptionText, { color }]}>{option.label}</Text>
+              {option.icon && props.renderIcon
+                ? props.renderIcon({ name: option.icon, size: 16, color })
+                : null}
+              <Text style={[styles.listOptionText, { color }]}>
+                {option.label}
+              </Text>
               {selected ? (
-                <Text style={[styles.selectedMark, { color: theme.primary }]}>✓</Text>
+                <Text style={[styles.selectedMark, { color: theme.primary }]}>
+                  ✓
+                </Text>
               ) : null}
             </Pressable>
           );

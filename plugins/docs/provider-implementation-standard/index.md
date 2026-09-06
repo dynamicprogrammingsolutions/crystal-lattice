@@ -13,8 +13,8 @@ substantial provider implementation.
   streaming, native history, cancellation, errors, and redaction.
 - [Feature ownership](feature-ownership.md): provider versus extension,
   feature, tool, and application responsibilities.
-- [Compatibility profiles](compatibility-profiles.md): official and compatible
-  endpoints, model capabilities, overrides, and fallback rules.
+- [Compatible endpoint configuration](compatibility-profiles.md): shared
+  baseline tags, optional feature gating, inspectable presets, and tests.
 - [Conformance testing](conformance-testing.md): deterministic, application,
   local-compatible, and hosted verification.
 - [Usage, cost, and performance](usage-cost-and-performance.md): normalized

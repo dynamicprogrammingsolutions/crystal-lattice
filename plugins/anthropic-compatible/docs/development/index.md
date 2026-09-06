@@ -15,4 +15,5 @@ durable design of the Anthropic-compatible provider package.
   compatibility profiles, security, errors, and verification.
 
 Package-user installation and configuration documentation is maintained in the
-package `README.md`.
+package `README.md` and
+[Anthropic reasoning controls](../reasoning-controls.md).

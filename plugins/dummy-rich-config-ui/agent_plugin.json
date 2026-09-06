@@ -1,0 +1,8 @@
+{
+  "module": "dummy_rich_config_ui",
+  "subdirectory": ".",
+  "entries": ["dummy_rich_config_ui.DummyRichConfigUiFeature"],
+  "kinds": {
+    "dummy_rich_config_ui.DummyRichConfigUiFeature": "feature"
+  }
+}

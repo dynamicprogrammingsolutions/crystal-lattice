@@ -29,6 +29,8 @@
     "detox:test:transcript-range:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/transcriptRangeNavigation.e2e.test.ts --cleanup",
     "detox:test:session-list:ios": "detox test -c ios.sim.release e2e/sessionList.e2e.test.ts --cleanup",
     "detox:test:session-list:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/sessionList.e2e.test.ts --cleanup",
+    "detox:test:rich-session-ui:ios": "detox test -c ios.sim.release e2e/richSessionUi.e2e.test.ts --cleanup",
+    "detox:test:rich-session-ui:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/richSessionUi.e2e.test.ts --cleanup",
     "detox:test:home:ios": "detox test -c ios.sim.release e2e/home.e2e.test.ts --cleanup",
     "detox:test:home:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/home.e2e.test.ts --cleanup",
     "detox:test:notification-banner:ios": "detox test -c ios.sim.release e2e/notificationBanner.e2e.test.ts --cleanup",

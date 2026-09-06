@@ -8,6 +8,7 @@ import {
   normalizeMarkdownHeaderSize,
   type MarkdownBaseFontSize,
   type MarkdownHeaderSize,
+  type RecentSessionsWindow,
 } from '@crystal-lattice/frontend-rn-components';
 
 import { DesktopRoot } from './src/DesktopRoot';
@@ -19,12 +20,15 @@ import {
   parseTabStripStyle,
   type TabStripStyle,
 } from './src/tabs/tabStripStyle';
+import type { SessionOpenMode } from './src/settings/desktopGlobalSettings';
 
 export interface AppProps {
   initialTabStripStyle?: TabStripStyle;
   initialSessionsFollowActiveTabEnabled?: boolean;
   initialMarkdownBaseFontSize?: MarkdownBaseFontSize;
   initialMarkdownHeaderSize?: MarkdownHeaderSize;
+  initialRecentSessionsWindow?: RecentSessionsWindow;
+  initialSessionDoubleClickAction?: SessionOpenMode;
   enableScrollTestHarness?: boolean;
   enableMarkdownGeometryHarness?: boolean;
 }
@@ -60,6 +64,12 @@ export default function App(props: AppProps) {
               (props as any)?.initialMarkdownHeaderSize ??
                 DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.headerSize,
             )}
+            initialRecentSessionsWindow={
+              (props as any)?.initialRecentSessionsWindow
+            }
+            initialSessionDoubleClickAction={
+              (props as any)?.initialSessionDoubleClickAction
+            }
           />
         )}
       </View>

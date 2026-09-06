@@ -142,43 +142,17 @@ def test_tools_extension_does_not_double_wrap_native_tool_result() -> None:
     ]
 
 
-def test_reasoning_extension_owns_config_request_and_round_trip() -> None:
+def test_reasoning_extension_has_no_request_config_or_ui_and_round_trips() -> None:
     extension = AnthropicReasoningExtension()
-    schema = extension.get_config_schema()
-    assert schema["reasoning_effort"]["enum"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    elements = {element["key"]: element for element in extension.get_ui_elements({})}
-    assert elements["enable_reasoning"]["type"] == "checkbox"
-    assert elements["reasoning_effort"]["type"] == "select"
-    assert [option["value"] for option in elements["reasoning_effort"]["options"]] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert elements["show_reasoning"]["type"] == "checkbox"
+    assert extension.get_config_schema() == {}
+    assert extension.get_ui_elements({}) == []
     state = extension.init(
-        {
-            "enable_reasoning": True,
-            "reasoning_effort": "low",
-            "reasoning_budget_tokens": 512,
-        },
-        _base_state(),
+        {"request_options": {"thinking": {"type": "adaptive"}}}, _base_state()
     )
 
     _native, state = extension.initialize_request([], state)
 
-    assert state["request"]["payload"]["thinking"] == {
-        "type": "enabled",
-        "budget_tokens": 512,
-    }
-    assert state["request"]["payload"]["output_config"] == {"effort": "low"}
+    assert state["request"]["payload"] == {"model": "m", "messages": []}
 
     native = {
         "role": "assistant",
@@ -197,32 +171,6 @@ def test_reasoning_extension_owns_config_request_and_round_trip() -> None:
     )
 
 
-def test_reasoning_extension_sends_xhigh_and_max_effort() -> None:
-    extension = AnthropicReasoningExtension()
-    for effort in ("xhigh", "max"):
-        state = extension.init(
-            {
-                "enable_reasoning": True,
-                "reasoning_effort": effort,
-                "reasoning_budget_tokens": 512,
-            },
-            _base_state(),
-        )
-
-        _native, state = extension.initialize_request([], state)
-
-        assert state["request"]["payload"]["output_config"] == {"effort": effort}
-
-
-def test_reasoning_extension_explicitly_disables_thinking() -> None:
-    extension = AnthropicReasoningExtension()
-    state = extension.init({"enable_reasoning": False}, _base_state())
-
-    _native, state = extension.initialize_request([], state)
-
-    assert state["request"]["payload"]["thinking"] == {"type": "disabled"}
-
-
 def test_reasoning_stream_delta_is_chunk_local() -> None:
     extension = AnthropicReasoningExtension()
     partials, _, _, _ = extension.process_chunk(
@@ -239,9 +187,8 @@ def test_reasoning_stream_delta_is_chunk_local() -> None:
     assert partials[0]["_metadata"]["reasoning"] == "new"
 
 
-def test_reasoning_display_can_be_hidden_without_dropping_native_blocks() -> None:
+def test_reasoning_always_surfaces_visible_text_and_preserves_native_blocks() -> None:
     extension = AnthropicReasoningExtension()
-    state = extension.init({"show_reasoning": False}, _base_state())
     native = {
         "role": "assistant",
         "content": [
@@ -251,9 +198,9 @@ def test_reasoning_display_can_be_hidden_without_dropping_native_blocks() -> Non
     }
     message = {"role": "assistant", "content": "answer", "metadata": {}}
 
-    rebuilt = extension.from_native_messages([native], [message], state)
+    rebuilt = extension.from_native_messages([native], [message], _base_state())
 
-    assert "reasoning" not in rebuilt[0]["metadata"]
+    assert rebuilt[0]["metadata"]["reasoning"] == "private"
     assert rebuilt[0]["metadata"]["anthropic_reasoning_blocks"][0]["signature"] == "sig"
 
 
@@ -278,6 +225,10 @@ def test_usage_extension_formats_turn_and_session_totals() -> None:
                 "output_tokens": 5,
                 "cache_read_input_tokens": 7,
                 "cache_creation_input_tokens": 3,
+                "cache_creation": {
+                    "ephemeral_5m_input_tokens": 2,
+                    "ephemeral_1h_input_tokens": 1,
+                },
                 "output_tokens_details": {"thinking_tokens": 2},
             }
         },
@@ -292,11 +243,62 @@ def test_usage_extension_formats_turn_and_session_totals() -> None:
     assert metadata["usage_prompt_tokens"] == 20
     assert metadata["usage_cached_tokens"] == 7
     assert metadata["usage_cache_write_tokens"] == 3
+    assert metadata["usage_cache_write_5m_tokens"] == 2
+    assert metadata["usage_cache_write_1h_tokens"] == 1
     assert metadata["usage_reasoning_tokens"] == 2
     assert metadata["usage_turn_input_tokens_cumulative"] == 30
     assert metadata["usage_turn_output_tokens_cumulative"] == 9
     assert metadata["usage_input_tokens_cumulative"] == 30
+    assert metadata["usage_cache_write_5m_tokens_cumulative"] == 2
+    assert metadata["usage_cache_write_1h_tokens_cumulative"] == 1
     assert history[-1]["_metadata"]["usage_prompt_tokens_formatted"] == "20"
+    assert metadata["turn"] == {
+        "id": 1,
+        "has_tool_calls": False,
+        "is_terminal": True,
+    }
+
+
+def test_usage_extension_keeps_one_turn_id_across_tool_generations() -> None:
+    extension = AnthropicUsageExtension()
+    user = {"role": "user", "content": "add"}
+    tool_call = {
+        "role": "assistant",
+        "content": [{"type": "tool_use", "id": "tool_1", "name": "add", "input": {}}],
+        "_metadata": {"anthropic_usage": {"input_tokens": 5, "output_tokens": 2}},
+    }
+    tool_result = {
+        "role": "user",
+        "content": [{"type": "tool_result", "tool_use_id": "tool_1", "content": "5"}],
+        "_metadata": {"core_role": "tool"},
+    }
+    final = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "5"}],
+        "_metadata": {"anthropic_usage": {"input_tokens": 8, "output_tokens": 1}},
+    }
+
+    first_finals, first_history, _state = extension.finalize(
+        [tool_call],
+        [user, tool_call],
+        {"anthropic_usage": {"raw": tool_call["_metadata"]["anthropic_usage"]}},
+    )
+    second_finals, _history, _state = extension.finalize(
+        [final],
+        [*first_history, tool_result, final],
+        {"anthropic_usage": {"raw": final["_metadata"]["anthropic_usage"]}},
+    )
+
+    first_turn = first_finals[-1]["_metadata"]["turn"]
+    second_metadata = second_finals[-1]["_metadata"]
+    assert first_turn == {"id": 1, "has_tool_calls": True, "is_terminal": False}
+    assert second_metadata["turn"] == {
+        "id": 1,
+        "has_tool_calls": False,
+        "is_terminal": True,
+    }
+    assert second_metadata["usage_turn_input_tokens_cumulative"] == 13
+    assert second_metadata["usage_turn_output_tokens_cumulative"] == 3
 
 
 def test_usage_ui_can_be_hidden_without_disabling_accounting() -> None:

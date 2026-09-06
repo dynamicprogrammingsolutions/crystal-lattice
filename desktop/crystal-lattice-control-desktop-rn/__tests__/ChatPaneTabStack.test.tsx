@@ -18,17 +18,19 @@ jest.mock('@crystal-lattice/frontend-sdk-react', () => {
 
 jest.mock('../src/chat/ChatPane', () => {
   const React = require('react');
-  const { Text, View } = require('react-native');
+  const { Pressable, Text, View } = require('react-native');
 
   return {
     ChatPane: ({
       sessionId,
       isActive,
       cachedEntry,
+      onBeforeSessionMutation,
     }: {
       sessionId: string;
       isActive: boolean;
       cachedEntry: unknown;
+      onBeforeSessionMutation?: () => void;
     }) =>
       React.createElement(
         View,
@@ -36,6 +38,14 @@ jest.mock('../src/chat/ChatPane', () => {
         React.createElement(Text, null, `pane:${sessionId}`),
         React.createElement(Text, null, `active:${sessionId}:${isActive ? 'yes' : 'no'}`),
         React.createElement(Text, null, `cache:${sessionId}:${cachedEntry ? 'yes' : 'no'}`),
+        React.createElement(
+          Pressable,
+          {
+            testID: `mutate-${sessionId}`,
+            onPress: onBeforeSessionMutation,
+          },
+          React.createElement(Text, null, `mutate:${sessionId}`),
+        ),
       ),
   };
 });
@@ -177,5 +187,26 @@ describe('ChatPaneTabStack', () => {
     expect(screen.getByText('active:session-3:yes')).toBeTruthy();
     expect(screen.getByText('active:session-4:yes')).toBeTruthy();
     expect(screen.getByText('cache:session-1:yes')).toBeTruthy();
+  });
+
+  it('promotes the matching preview identity before a Chat mutation', () => {
+    const onPromotePreview = jest.fn();
+    const screen = render(
+      <ChatPaneTabStack
+        tabs={[tabs[0]]}
+        activeTabId={tabs[0].tabId}
+        styleVariant="toolbarTabs"
+        connectionNameById={{ 'conn-1': 'Connection One' }}
+        getBackend={() => null}
+        sessionsCache={sessionsCache}
+        messagesCache={messagesCache}
+        onUpdateCache={() => {}}
+        onOpenSessionTab={() => {}}
+        onPromotePreview={onPromotePreview}
+      />,
+    );
+    const { fireEvent } = require('@testing-library/react-native');
+    fireEvent.press(screen.getByTestId('mutate-session-1'));
+    expect(onPromotePreview).toHaveBeenCalledWith(tabs[0].tabId);
   });
 });

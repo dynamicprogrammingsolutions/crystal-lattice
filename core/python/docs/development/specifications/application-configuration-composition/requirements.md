@@ -1,0 +1,19 @@
+# Application configuration composition requirements
+
+These requirements track the live state relative to the
+[application configuration composition specification](index.md).
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| ACFG-001 | Named mixins resolve recursively, apply in order, detect missing references, cycles, and depth violations, and allow local provider/agent/mixin values to override inherited values. | Implemented | Automated | Documented | `agent_app/config.py`; `core/python/tests/test_application_layer_config.py`; `application/python/docs/configuration.md` |
+| ACFG-002 | Mixin and provider-to-agent composition support the current shallow/deep modes, with shallow as the built-in mixin default and arrays/scalars replacing. | Implemented | Automated | Documented | `agent_app/config.py`; shallow/deep mixin tests; application configuration guide |
+| ACFG-003 | One package-owned merge interpreter is used by mixin expansion, provider-to-agent composition, and variant overlays without mutating inputs. | Implemented | Automated | Documented | `agent_app/config_merge.py`; composition tests; implementation guide; subtask 021 |
+| ACFG-004 | `$merge` supports string shorthand and a recursive parent-scoped object with a default plus key-specific shallow/deep lists, strips directives, and reports invalid or duplicate assignments. | Implemented | Automated | Documented | merge-policy tests; mixin/variant consumer guides |
+| ACFG-005 | Existing `mixin_merge` remains a compatible root alias, `mixin_policy` defaults and depth remain valid, and conflicting alias/directive values fail clearly. | Implemented | Automated | Documented | legacy/equal/conflict tests; mixin guide |
+| ACFG-006 | `$variants` supports ordered exact and `$matches` conditions whose ordinary fields form recursively resolved overlays. | Implemented | Automated | Documented | `agent_app/config_variants.py`; exact/regex/order/nested tests; variants guide |
+| ACFG-007 | Variants may appear in traversed nested mappings, use one immutable selector per resolution, do not traverse arrays, and cannot change provider/plugin topology. | Implemented | Automated | Documented | nested/selector/array/protected-key tests; variants guide |
+| ACFG-008 | Effective config reevaluates variants after model overrides, applies explicit overrides last, removes control keys, and does not retain prior-model values. | Implemented | Automated | Documented | request-config and application model-switch tests; implementation guide |
+| ACFG-009 | The direct Anthropic default configuration uses reusable variants for supported Claude 4.5-and-newer request options, betas, reasoning UI, effort, and context-management behavior. | Implemented | Automated | Documented | bundled `claude_anthropic_model_variants`; raw/effective/default UI tests |
+| ACFG-010 | One `claude-anthropic` agent replaces separate direct Anthropic model-specific agents while existing OpenRouter Claude agents remain available. | Implemented | Automated | Documented | default config tests; package README; hosted Haiku override smoke |
+| ACFG-011 | Consumer configuration documentation is migrated into focused plugin, placeholder, mixin, variant, and system-message pages with `configuration.md` preserving the existing landing route. | Implemented | Automated | Documented | application docs index/pages; documentation preparation and build |
+| ACFG-012 | Deterministic and application tests cover merge modes, existing mixins, variants, diagnostics, effective config, model switching, generated UI, and default configuration. | Implemented | Automated | Documented | 38 focused tests; Core/application/request-options suites; implementation guide |

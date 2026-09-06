@@ -19,6 +19,8 @@ Documentation:
 - [Quickstart](docs/quickstart.md)
 - [Terminal guide](docs/terminal.md)
 - [Application configuration](docs/configuration.md)
+- [Configuration mixins](docs/configuration-mixins.md)
+- [Configuration variants](docs/configuration-variants.md)
 - [Session snapshots](docs/session-snapshots.md)
 - [Application runtime development](docs/development/index.md)
 
@@ -327,7 +329,12 @@ export ANTHROPIC_API_KEY=...
 The default Claude routes are provider-qualified:
 
 - `claude-openrouter` uses Claude through OpenRouter.
-- `claude-anthropic` uses the direct Anthropic API.
+- `claude-anthropic` uses the direct Anthropic API and selects model-specific
+  reasoning defaults, beta, and context-management settings through
+  configuration variants. The Anthropic reasoning-controls extension derives
+  available mode and effort UI from model capabilities or known fallbacks. It
+  defaults to Sonnet 5 and can select supported Haiku, Sonnet, Opus, Fable, and
+  Mythos models from model discovery.
 
 For no-key development from a source checkout, use the echo config:
 

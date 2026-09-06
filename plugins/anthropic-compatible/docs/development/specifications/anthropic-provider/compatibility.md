@@ -1,126 +1,146 @@
-# Anthropic compatibility profiles
+# Anthropic-compatible endpoint capabilities
 
 ## Purpose
 
-The `anthropic` provider supports the official Anthropic API and selected
-Anthropic-compatible endpoints through one transport and native-message model.
-Profiles describe verified differences without forking the provider or
-pretending every endpoint is feature-complete.
+The `anthropic` provider supports the official Anthropic API and compatible
+Messages endpoints through one transport and native-message model.
 
-## Profile model
+Compatible endpoint setup remains explicit. The provider does not select a
+hidden runtime profile or use capability configuration to rewrite requests.
 
-A profile supplies conservative defaults for:
+## Baseline provider tags
 
-- authentication header style;
-- Messages and model-discovery paths;
-- API version and beta headers;
-- streaming event support;
-- tool schema/call/result behavior;
-- tool-choice controls;
-- thinking mode and signature behavior;
-- prompt caching and retention;
-- image source types;
-- request metadata;
-- usage timing and fields;
-- model capability metadata;
-- error envelope behavior.
+The compatible APIs in the baseline contract support:
 
-Explicit configuration may override a documented profile capability. An
-override is visible in effective configuration and testable. Unknown endpoints
-start from conservative defaults.
+- streaming;
+- tools and tool results;
+- reasoning/thinking;
+- input/output usage.
 
-## `official-anthropic`
+The provider therefore emits these tags without capability configuration:
 
-The official profile:
+- `provider:anthropic`;
+- `supports_streaming`;
+- `supports_tools`;
+- `supports_reasoning`;
+- `supports_usage`.
 
-- uses API-key authentication from resolved config;
-- sends the required Anthropic API version;
-- uses `/v1/messages` and `/v1/models`;
-- consumes published model capabilities;
-- supports the baseline tool, reasoning, usage, and caching extension
-  contracts when the selected model advertises them;
-- preserves provider request IDs and error types;
-- enables automatic prompt caching by default.
+Ordinary official Anthropic and Ollama configurations do not repeat these
+baseline features in a `capabilities` mapping.
 
-OAuth refines authentication and headers later without changing the native
-Messages profile.
+## Optional capability configuration
 
-## `ollama`
+Boolean capabilities are reserved for non-baseline optional extensions that
+are not supported by every compatible API.
 
-The local Ollama profile targets its Anthropic-compatible API.
+A key is added only with the extension that consumes its tag. Task 010 uses
+this contract for official reasoning controls and prompt caching:
 
-Baseline expected support:
+```json
+{
+  "capabilities": {
+    "anthropic_reasoning_controls": true,
+    "prompt_caching": true
+  }
+}
+```
 
-- ordinary messages;
-- streaming content-block events;
-- system prompts and multi-turn history;
-- tool calls and tool results;
-- thinking/reasoning;
-- base64 image input;
-- input/output usage;
-- model IDs through `/v1/models`.
+`anthropic_reasoning_controls: true` and `prompt_caching: true` emit the tags
+required by their owning extensions. False or omission emits no tag.
 
-Unsupported or disabled by default:
+The mapping does not:
 
-- prompt caching;
-- one-hour cache retention;
-- PDFs and document blocks;
-- citations;
-- token counting;
-- request metadata;
-- forced/disabled named tool choice;
-- mid-stream Anthropic error events;
-- URL image sources.
+- select endpoints, models, credentials, headers, or SDK methods;
+- validate, remove, or rewrite request options;
+- describe unknown, partial, tolerated, or unsupported behavior;
+- replace endpoint documentation.
 
-Thinking-budget acceptance does not imply enforcement. The profile does not
-claim a capability solely because the endpoint tolerates its request field.
+Extensions whose required optional tag is absent remain disabled and therefore
+do not automatically add their feature request fields. Explicit raw request
+options still reach the provider transport. If an endpoint rejects them, the
+normal sanitized provider error informs the user.
 
-## `custom`
+Future feature tasks may add one boolean capability for their own extension
+when the feature is not part of the baseline compatible contract.
 
-The custom profile begins with:
+## Reusable configuration
 
-- ordinary Messages transport;
-- text streaming;
-- no optional features;
-- configured auth and headers;
-- optional `/v1/models` discovery.
+Convenience setups are ordinary application mixins or copied config, not
+provider-internal profiles.
 
-Users enable optional behavior through explicit compatibility overrides.
-Package docs must warn that overrides can cause provider validation failures.
+Official Anthropic configuration remains explicit:
 
-## Capability precedence
+```json
+{
+  "base_url": "https://api.anthropic.com",
+  "api_key": "${env:ANTHROPIC_API_KEY}"
+}
+```
 
-Effective support is resolved in this order:
+An Ollama setup remains explicit:
 
-1. explicit compatibility override;
-2. published model capability from the official model response;
-3. selected named profile;
-4. conservative disabled/default behavior.
+```json
+{
+  "base_url": "http://localhost:11434",
+  "api_key": "ollama",
+  "model": "qwen3.5:0.8b"
+}
+```
 
-An explicit disable always wins. A published capability does not override an
-endpoint-level incompatibility.
+The official configuration enables reasoning controls and prompt caching.
+Ollama enables neither and continues using baseline reasoning plus raw request
+options.
 
-## Model discovery response compatibility
+## Model discovery
 
-The provider accepts:
+The provider normalizes:
 
-- official Anthropic model data with capability fields;
-- OpenAI-style `data` arrays containing model IDs and optional names.
+- official Anthropic model data;
+- OpenAI-style `data` arrays containing model IDs and optional names;
+- minimal ID/name-only catalogs.
 
-Missing capabilities produce no optional feature tags. Discovery failure
-returns an empty list so users can enter a model ID manually.
+Published model capability data is preserved. Missing capabilities do not
+invent model support.
 
-## Testing profiles
+Discovery uses the Anthropic SDK path derived from `base_url`. Discovery
+failure returns an empty list so users can enter a model ID manually. A
+separate catalog URL can be added later if a real compatible endpoint requires
+one.
 
-- `messages-basic`: ordinary, streaming, system, multi-turn, stop/error.
-- `messages-agent`: tools/results, reasoning, usage, and cancellation.
-- `messages-images`: image inputs and multimodal tool results, owned by
-  subtask 017.
-- `anthropic-cache`: automatic caching, selectable supported TTL, and cache
-  usage.
-- `official-anthropic`: official discovery and baseline feature capability
-  gating.
-- `compatible-local`: Ollama-supported subset and explicit omission tests.
+## Request behavior
 
-Hosted compatible profiles may be added only with real public behavior and
-package-local tests.
+Capability configuration does not filter requests.
+
+- Provider-owned `messages`, history-derived `system`, and `stream` remain
+  protected.
+- SDK beta selection and beta-header composition remain provider transport
+  behavior.
+- Generic request options pass supported SDK fields normally.
+- Unknown compatible request fields use the SDK body escape hatch.
+- Explicit `extra_body` values retain precedence.
+- Endpoint validation failures surface through the provider's sanitized
+  request error.
+
+## Testing compatible configurations
+
+Baseline tools, reasoning, usage, and streaming behavior is covered directly
+by deterministic and real-endpoint tests.
+
+Every non-baseline optional capability must have:
+
+- deterministic tag/extension-gating tests;
+- positive deterministic feature tests;
+- at least one real endpoint test when practical;
+- documented endpoint and model prerequisites.
+
+The required local Ollama configuration verifies model discovery, ordinary and
+streaming requests, tools, thinking, usage, raw effort passthrough, and
+duration/TPS interoperability with `qwen3.5:0.8b`.
+
+A separate slow test uses `granite4.2:3b` to prove that Anthropic
+`output_config.effort` changes reasoning size. It compares five `low` and five
+`high` samples using the median and a calibrated 2.0x margin. The request omits
+`thinking.type` so Ollama applies the graded effort value.
+
+Tests do not infer behavioral support merely because an endpoint accepts an
+unrelated raw request option.

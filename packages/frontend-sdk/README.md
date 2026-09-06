@@ -20,6 +20,9 @@ The default Vitest config excludes `src/integration/**`, so this command is the
 safe everyday check for SDK logic, transports, reducers, plugin helpers, and
 other unit-style tests.
 
+Development documentation starts at
+[docs/development/index.md](docs/development/index.md).
+
 Integration and e2e suites live under `src/integration/__tests__` and are
 selected by explicit package scripts. Start with the detailed integration guide:
 

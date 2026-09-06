@@ -19,8 +19,12 @@ Package users need to:
 - discover supported models automatically;
 - send ordinary and streaming conversations;
 - run the existing Claude-compatible tool bundle;
-- enable or disable reasoning, usage displays, prompt caching, and image
-  attachments through provider extensions delivered by their owning tasks;
+- configure reasoning request fields through raw request options while the
+  reasoning extension preserves and interprets provider-native thinking;
+- use model-specific official reasoning controls when the selected model
+  advertises them;
+- enable or disable usage displays, prompt caching, and image attachments
+  through provider extensions delivered by their owning tasks;
 - point the provider at a compatible local or hosted endpoint;
 - understand which features a compatible endpoint does not support;
 - receive stable, redacted authentication, validation, rate-limit, provider,
@@ -57,13 +61,16 @@ overrides config.
 ### Model selection
 
 The official endpoint supplies model choices and capabilities through model
-discovery. The UI uses the discovered model ID and display name and enables
-provider extensions from published capabilities rather than hardcoded model
-name patterns.
+discovery. The UI presents the catalog as a dropdown, accepts an explicit
+model ID outside the catalog, and makes the same ordinary `model` setting
+available around the composer. Provider extensions are enabled from published
+capabilities rather than hardcoded model name patterns.
 
 Compatible endpoints may expose only model IDs. In that case the UI remains
-usable and capability-dependent features stay conservative until config or a
-known compatibility profile declares support.
+usable through manual entry. Baseline tools, reasoning, and usage remain
+available, while
+non-baseline optional extensions require their own explicit boolean
+capability.
 
 ### Ordinary and tool-enabled conversations
 
@@ -71,6 +78,7 @@ The provider works as an ordinary text provider without optional extensions.
 With the standard extension bundle enabled, users can:
 
 - stream text and thinking;
+- select supported manual/adaptive thinking and exact effort levels;
 - invoke Claude-compatible tools;
 - continue after tool results;
 - inspect formatted input, output, cache-read, and cache-write usage;
@@ -79,10 +87,9 @@ With the standard extension bundle enabled, users can:
 ### Compatible local endpoint
 
 An Ollama configuration uses the same `anthropic` provider and a different
-base URL. The provider advertises only the compatible-local subset and omits
-unsupported caching, PDF, citation, token-count, request-metadata, and
-tool-choice fields. Image support is delivered and verified by the separate
-attachment subtask.
+base URL. Baseline tools, reasoning, and usage require no capability
+declaration. Request options remain transparent and endpoint-validated. Image
+support is delivered and verified by the separate attachment subtask.
 
 ### Failure behavior
 
@@ -99,8 +106,8 @@ and client boundaries.
   reused rather than forked.
 - The provider accepts future OAuth credentials only through the credential
   contract refined by the OAuth task.
-- Compatible endpoints can disable unsupported request fields without
-  changing the official Anthropic profile.
+- Compatible endpoint presets are ordinary application configuration rather
+  than hidden provider profiles.
 
 ## Non-goals
 
@@ -108,10 +115,14 @@ and client boundaries.
 - Implementing OAuth login or refresh in the provider.
 - Silently falling back to OpenRouter or another provider.
 - Implementing server web search or web fetch in the baseline.
-- Implementing fast mode, service tiers, native compaction, context editing,
-  image attachments, Files API, PDFs, document citations, token counting,
+- Implementing fast mode, service tiers, general native compaction/context
+  editing policy, image attachments, Files API, PDFs, document citations, token counting,
   model-price cost estimation, structured provider request errors, code
   execution, tool search, or programmatic tool calling in the baseline.
 - Implementing Message Batches.
 - Implementing structured outputs.
 - Treating every Anthropic-compatible endpoint as feature-complete.
+
+The baseline does support raw beta context-management request options needed
+to verify reasoning-retention profiles. Higher-level compaction and context
+editing policy remains outside this provider baseline.

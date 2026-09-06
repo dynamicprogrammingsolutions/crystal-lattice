@@ -444,6 +444,56 @@
           }
         }
       }
+    },
+    "claude_anthropic_model_variants": {
+      "$variants": [
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:haiku|sonnet|opus)-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "anthropic_reasoning_mode": "manual",
+          "anthropic_reasoning_budget_tokens": 1024
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:sonnet|opus)-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "beta_headers": ["interleaved-thinking-2025-05-14"]
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-opus-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "anthropic_reasoning_effort": "high"
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:(?:sonnet|opus)-4-6|sonnet-5|opus-4-(?:7|8)|opus-5|(?:fable|mythos)-5|mythos-preview)$"
+            }
+          },
+          "betas": ["context-management-2025-06-27"],
+          "anthropic_reasoning_mode": "adaptive",
+          "anthropic_reasoning_effort": "high",
+          "anthropic_reasoning_display": "summarized",
+          "request_options": {
+            "context_management": {
+              "edits": [
+                {
+                  "type": "clear_thinking_20251015",
+                  "keep": "all"
+                }
+              ]
+            }
+          }
+        }
+      ]
     }
   },
   "providers": {
@@ -458,7 +508,11 @@
       "provider": "anthropic",
       "auth_mode": "api",
       "api_key": "${env:ANTHROPIC_API_KEY}",
-      "base_url": "https://api.anthropic.com"
+      "base_url": "https://api.anthropic.com",
+      "capabilities": {
+        "anthropic_reasoning_controls": true,
+        "prompt_caching": true
+      }
     },
     "openrouter_image_generation": {
       "mixin_refs": ["provider_defaults"],
@@ -852,10 +906,13 @@
       "web_search_provider": "gemini_api"
     },
     "claude-anthropic": {
-      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults",
+        "claude_anthropic_model_variants"
+      ],
       "provider": "anthropic",
-      "model": "claude-haiku-4-5-20251001",
-      "reasoning_effort": null,
+      "model": "claude-sonnet-5",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/claude-tools"
       ],

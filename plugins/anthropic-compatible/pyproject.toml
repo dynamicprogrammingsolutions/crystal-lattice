@@ -37,6 +37,7 @@ addopts = "-m 'not integration'"
 markers = [
   "integration: integration tests that call real services",
   "api: hosted API integration tests requiring credentials and potentially incurring cost",
+  "slow_integration: broad or multi-request integration tests run selectively",
   "anthropic: tests requiring Anthropic credentials",
   "ollama: tests exercising local Ollama integration",
 ]

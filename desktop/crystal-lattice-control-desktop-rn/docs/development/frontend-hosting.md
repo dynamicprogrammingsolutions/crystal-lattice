@@ -3,6 +3,11 @@
 `DesktopRoot` owns one application-notification controller for each open
 backend connection.
 
+It also owns one explicit-ID request-status polling consumer for Home, History,
+Sessions, tabs, and the active Chat pane. Status reads reuse open backends or
+use supported stateless closed-connection HTTP reads; polling never opens or
+focuses a connection.
+
 Connection-level notifications and application/session-list action responses
 from open connections render in one normal-flow message/detail-area rail with
 connection labels. The active ChatPane contributes its session notifications
@@ -23,3 +28,28 @@ Maintainer entry points:
 - `src/panels/SessionsPanel.tsx`
 - `src/chat/ChatPane.tsx`
 - `src/chat/ChatPanePlaceholder.tsx`
+- `src/home/DesktopHomeWorkspaceContext.tsx`
+- `src/tabs/desktopWorkspaceState.ts`
+- `src/status/DesktopConnectionSessionStatusReader.ts`
+
+## Rich session settings and actions
+
+`ChatPane` renders normalized config-rich dropdowns and rich session actions
+at their declared `session_header` or `composer` placement. Config changes use
+the ordinary session-settings controller. Rich action controls use the
+ordinary action runner.
+
+Compact dropdowns and rich lists open through the native popover coordinator.
+The full Session Settings window renders fixed-option dropdowns with
+`MacSelect`. Custom-capable dropdowns use the native `MacComboBox`, while
+portable filtering, regex validation, and synthetic custom options remain in
+the frontend SDK. The composer enables the shared two-row pinned-action layout
+with its second row below.
+
+Maintainer entry points:
+
+- `src/chat/ChatPane.tsx`
+- `src/windows/SessionSettingsWindow.tsx`
+- `src/native/MacSelect.tsx`
+- `src/native/MacComboBox.tsx`
+- `src/windows/desktopPopoverCoordinator.ts`

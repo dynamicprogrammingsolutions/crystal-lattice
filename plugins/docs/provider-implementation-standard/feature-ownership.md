@@ -43,6 +43,33 @@ config, UI, or enablement.
 This keeps the feature independently selectable even when the network code
 cannot be physically moved out of the provider.
 
+## Direct request-option features
+
+When a provider feature maps directly to request-body keys and preserving the
+native wire shape is important, the generic request-options feature may own
+request injection and declarative UI. The provider-specific extension may then
+own only:
+
+- provider-native response interpretation;
+- streaming accumulation;
+- native-history reconstruction and continuation state;
+- public metadata;
+- capability/configuration documentation and tests.
+
+This boundary is appropriate for versioned or compatible protocols where one
+normalized feature schema would hide valid request shapes. The provider still
+owns transport-only mechanics such as choosing a stable or beta SDK method,
+composing beta headers, reserving history-owned request fields, and routing
+unknown compatible fields through an SDK escape hatch.
+
+Package documentation must identify:
+
+- which request fields are passed through directly;
+- which fields are reserved by the provider;
+- how beta or alternate transports are selected;
+- which compatible endpoint configurations have been tested with each request
+  shape.
+
 ## Feature plugins
 
 Use a feature plugin for provider-portable cold-path behavior that can operate

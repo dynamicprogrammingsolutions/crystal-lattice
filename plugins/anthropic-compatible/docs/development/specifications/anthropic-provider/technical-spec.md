@@ -14,7 +14,11 @@ AnthropicToolsExtension
   tool schemas, tool use/results, streamed argument reconstruction
 
 AnthropicReasoningExtension
-  thinking configuration, effort, thinking blocks, signatures
+  thinking blocks, signatures, streaming projection, native reconstruction
+
+AnthropicReasoningControlsExtension
+  official capability normalization, regex fallback, reasoning UI,
+  thinking/effort request shaping
 
 AnthropicUsageExtension
   public usage metadata, formatting, turn/session totals, TPS inputs
@@ -24,8 +28,8 @@ AnthropicPromptCachingExtension
 ```
 
 The provider remains functional without the extensions. The 010 bundle
-registers these four extensions, and tag/capability resolution decides which
-are active for a request.
+registers five extensions, and tag/capability resolution decides which are
+active for a request.
 
 `AnthropicAttachmentsExtension`, portable cost estimation, and portable
 structured request errors are separate follow-ups.
@@ -45,8 +49,9 @@ Provider and extension state remains plain mappings. SDK objects and event
 types are normalized at the provider boundary and are not persisted in native
 history.
 
-Compatible profiles must be tested through the same SDK transport. The package
-does not maintain a second direct-HTTP Messages implementation.
+Compatible endpoint configurations must be tested through the same SDK
+transport. The package does not maintain a second direct-HTTP Messages
+implementation.
 
 ## Configuration
 
@@ -58,25 +63,33 @@ Provider-owned baseline keys:
 | `auth_mode` | Baseline value `api`; future values `oauth` and `auto` |
 | `api_key` | Resolved API key; primary credential input |
 | `base_url` | Messages API root |
-| `models_url` | Optional model-discovery URL override |
 | `model` | Selected discovered or explicitly entered model ID |
 | `anthropic_version` | API version header value |
 | `timeout` | Request timeout |
 | `max_retries` | Generic pre-stream transport retry limit when supported |
-| `compatibility_profile` | Named compatibility profile |
-| `compatibility` | Explicit capability/auth/request overrides |
+| `capabilities` | Boolean flags for non-baseline optional extensions only |
 | `headers` | Non-secret additional headers permitted by policy |
+| `betas` | SDK beta feature identifiers; selects beta Messages transport |
+| `beta_headers` | Raw beta-header identifiers for stable or compatible transport |
 
-Extension-owned keys are defined by their extension schemas. Request options
-that do not have a provider-specific user contract may continue through the
-generic request-options feature.
+`AnthropicReasoningExtension` contributes no config schema or UI.
+`AnthropicReasoningControlsExtension` owns normalized official thinking and
+effort settings and maps them to `thinking` and `output_config`. Raw
+`request_options` remains the final override and owns fields without a
+dedicated extension, including `context_management`. `messages`, `system`, and
+`stream` remain provider-owned and cannot be replaced by request options.
+
+SDK-supported request fields are passed normally. Unknown compatible request
+fields are merged into `extra_body`, with an explicit `extra_body` value taking
+precedence. Beta-only fields require matching configured beta identifiers.
 
 Config wins over direct environment lookup. A missing `api_key` may use
 `ANTHROPIC_API_KEY` as a fallback only for API auth.
 
 ## Model discovery
 
-The default model URL is `<base_url>/v1/models` unless `models_url` is set.
+The Anthropic SDK derives model discovery from `base_url` and requests its
+standard `/v1/models` resource.
 
 Official model responses are normalized into model descriptors containing:
 
@@ -91,12 +104,38 @@ Published capabilities control UI and extension enablement. Unknown capability
 fields are preserved in the model descriptor or ignored safely. Missing
 capabilities never cause optimistic enablement.
 
+`AnthropicReasoningControlsExtension.get_models` adds
+`anthropic_reasoning_controls` with normalized thinking types, effort levels,
+interleaving metadata, and relevant context-management operations. When the
+official descriptor is absent, extension-owned Claude model regex fallbacks
+provide the known matrix. Explicit `anthropic_reasoning_capabilities` config
+overrides discovered and fallback details.
+
 Compatible OpenAI-style model responses containing `data[*].id` are accepted.
-When no capabilities are present, the selected compatibility profile supplies
-conservative defaults.
+When model capabilities are absent, no model support is invented. Baseline
+streaming, tools, reasoning, and usage tags remain provider-defined.
+Non-baseline extensions use their own explicit boolean capabilities.
 
 Model discovery failures return an empty model list and log a bounded,
-redacted warning. They do not prevent explicit model entry.
+redacted warning. They do not prevent explicit model entry. A separate
+model-catalog URL is not part of the baseline because no supported compatible
+endpoint currently requires one.
+
+`AnthropicProvider.get_ui_elements` maps discovered models to one ordinary
+custom-capable `model` config dropdown and retains that dropdown with an empty
+option list when discovery fails. Nested `custom_value` settings validate
+explicit model IDs and supply the synthetic-option label. The element includes
+a self-contained `rich_ui.kind: "dropdown"` composer presentation that repeats
+its label, options, searchable custom entry, icon, placement, and default
+pinning while omitting the visual `Model:` prefix.
+The compact control and full Session Settings editor both mutate the ordinary
+session `model` override; the provider does not define a separate model-picker
+UI type or action.
+
+`AnthropicReasoningControlsExtension` adds a self-contained composer dropdown
+to its model-dependent reasoning-effort setting. Effort options use uniform
+value/label presentation; the extension remains the owner of capability gating
+and request shaping.
 
 ## Provider state
 
@@ -115,7 +154,7 @@ Recommended request state:
         "role": "assistant",
         "content": [],
     },
-    "compatibility": {...},
+    "capabilities": {...},
     "raw_usage": None,
 }
 ```
@@ -129,9 +168,9 @@ must not replace unknown accumulator keys.
 2. The provider converts core history to Anthropic-native history.
 3. The provider initializes the Messages request, auth headers, compatibility
    state, and empty accumulator.
-4. Extensions add tool schemas, reasoning controls, usage state, and caching.
-5. Generic request options apply after provider-specific extension shaping
-   according to established priority.
+4. Extensions add tool schemas, official reasoning controls, usage state,
+   caching, and response interpretation state.
+5. Generic request options add or override direct provider request fields.
 6. The provider performs ordinary or streaming transport.
 7. The provider reduces native content-block events into complete native
    assistant history.
@@ -157,19 +196,32 @@ fast-mode request, parsing a provider-native event used by an extension, or
 closing the active stream. Those mechanics must consume normalized extension
 state and must not independently expose feature config or UI.
 
+Provider-specific controls may use a separate extension when authoritative
+model capabilities define exact settings and UI. The controls extension owns
+capability normalization, documented fallbacks, UI, and request shaping. A
+separate reasoning extension may remain responsible for output interpretation
+and native history so compatible endpoints can use generic reasoning without
+official controls.
+
+Raw request options remain available and execute after normalized controls.
+The provider owns stable/beta SDK selection and beta header composition.
+
 ## Prompt caching
 
 Prompt caching is baseline and extension-owned.
 
-The official profile defaults to automatic caching. Baseline settings include:
+The official configuration may enable automatic caching through the
+prompt-caching capability tag. Baseline settings include:
 
 - enabled/disabled;
 - `prompt_cache_ttl` with supported values `5m` and `1h`.
 
-The extension writes request-only automatic cache controls. The usage
-extension surfaces cache-read and cache-creation counts. Compatible profiles
-that do not declare caching support omit all cache fields. Explicit breakpoint
-selection and cache-management actions are outside 010.
+The extension writes request-only top-level automatic cache controls only when
+its required capability tag is present. The usage extension surfaces
+cache-read, total cache-creation, 5-minute cache-creation, and 1-hour
+cache-creation counts. Explicit raw cache options remain endpoint-validated
+and override automatic shaping. Explicit breakpoint selection and
+cache-management actions are outside 010.
 
 ## Attachments
 
@@ -208,25 +260,25 @@ through lifecycle hooks and clients without moving retry or auth ownership.
 ### Stage 1
 
 API-key configuration, basic model discovery, SDK Messages ordinary/streaming
-transport, native history, cancellation, tools, core reasoning with simple
-effort UI, and normalized formatted usage with turn/session totals.
+transport, native history, cancellation, tools, raw request-option reasoning,
+beta transport configuration, reasoning continuity, and normalized formatted
+usage with turn/session totals.
 
 ### Stage 2
 
-Official/Ollama/custom compatibility profiles, compatible model discovery,
-unsupported-field omission, Ollama tools/reasoning/usage/effort verification,
-and duration/TPS interoperability.
+Compatible model discovery, Ollama tools/reasoning/usage/effort passthrough
+verification, and duration/TPS interoperability.
 
 ### Stage 3
 
-Official capability-driven UI, independent interleaved-thinking and
-preserved-thinking behavior, Anthropic-specific effort/adaptive/budget
-controls, automatic prompt caching with selectable TTL, reported cache usage,
-and selective hosted verification.
+Official capability-driven reasoning controls with documented regex fallback,
+independent interleaved and preserved thinking tests, automatic prompt caching
+with selectable TTL, reported cache usage, and selective hosted verification.
 
 ## Follow-up feature boundary
 
-Server web tools, fast mode/service tiers, native compaction/context editing,
+Server web tools, fast mode/service tiers, higher-level native
+compaction/context-editing policy,
 Files/PDFs/citations, token counting, advanced server tools, image attachments,
 cost estimation, and portable request errors extend this package through
 separate tasks. Each must update this specification or add a linked package

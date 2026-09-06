@@ -21,14 +21,30 @@ ROOT = Path(__file__).resolve().parents[3]
 PLUGIN_ROOT = ROOT / "plugins" / "session-status-app"
 MESSAGE_COUNT_PLUGIN_ROOT = ROOT / "plugins" / "session-message-count-meta-app"
 EXPECTED_OPTIONS = [
-    {"value": "todo", "label": "To do", "tone": "muted"},
+    {
+        "value": "todo",
+        "label": "To do",
+        "icon": "circle",
+        "tone": "muted",
+    },
     {
         "value": "in_progress",
         "label": "In progress",
+        "icon": "clock",
         "tone": "primary",
     },
-    {"value": "blocked", "label": "Blocked", "tone": "danger"},
-    {"value": "done", "label": "Done", "tone": "success"},
+    {
+        "value": "blocked",
+        "label": "Blocked",
+        "icon": "alert-circle",
+        "tone": "danger",
+    },
+    {
+        "value": "done",
+        "label": "Done",
+        "icon": "check-circle",
+        "tone": "success",
+    },
 ]
 
 
@@ -116,6 +132,12 @@ def test_status_plugin_exposes_consistent_ordinary_action_and_filter(
         if element.get("ui_type") == "session_list_action"
         and element.get("id") == "set_session_status"
     )
+    chat_action = next(
+        element
+        for element in elements
+        if element.get("ui_type") == "session_action"
+        and element.get("id") == "set_session_status"
+    )
     status_filter = next(
         element
         for element in elements
@@ -145,6 +167,14 @@ def test_status_plugin_exposes_consistent_ordinary_action_and_filter(
         "options": EXPECTED_OPTIONS,
     }
     assert action["rich_ui"]["options"] == status_input["options"]
+    assert chat_action["plugin"] == "session_status"
+    assert chat_action["action_id"] == action["action_id"]
+    assert chat_action["dialog"] == action["dialog"]
+    assert chat_action["param_map"] == action["param_map"]
+    assert chat_action["rich_ui"] == {
+        **action["rich_ui"],
+        "placements": ["session_header"],
+    }
 
     assert status_filter == {
         "ui_type": "session_list_filter",

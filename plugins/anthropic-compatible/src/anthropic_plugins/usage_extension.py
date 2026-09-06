@@ -18,6 +18,8 @@ def _format_tokens(value: int) -> str:
 def _normalized_usage(raw: dict[str, Any]) -> dict[str, int]:
     details = raw.get("output_tokens_details")
     details = details if isinstance(details, dict) else {}
+    cache_creation = raw.get("cache_creation")
+    cache_creation = cache_creation if isinstance(cache_creation, dict) else {}
     input_tokens = _integer(raw.get("input_tokens"))
     output_tokens = _integer(raw.get("output_tokens"))
     return {
@@ -26,6 +28,8 @@ def _normalized_usage(raw: dict[str, Any]) -> dict[str, int]:
         "total": input_tokens + output_tokens,
         "cached": _integer(raw.get("cache_read_input_tokens")),
         "cache_write": _integer(raw.get("cache_creation_input_tokens")),
+        "cache_write_5m": _integer(cache_creation.get("ephemeral_5m_input_tokens")),
+        "cache_write_1h": _integer(cache_creation.get("ephemeral_1h_input_tokens")),
         "reasoning": _integer(details.get("thinking_tokens")),
     }
 
@@ -54,6 +58,14 @@ def _usage_metadata(
         "usage_cached_tokens_formatted": _format_tokens(usage["cached"]),
         "usage_cache_write_tokens": usage["cache_write"],
         "usage_cache_write_tokens_formatted": _format_tokens(usage["cache_write"]),
+        "usage_cache_write_5m_tokens": usage["cache_write_5m"],
+        "usage_cache_write_5m_tokens_formatted": _format_tokens(
+            usage["cache_write_5m"]
+        ),
+        "usage_cache_write_1h_tokens": usage["cache_write_1h"],
+        "usage_cache_write_1h_tokens_formatted": _format_tokens(
+            usage["cache_write_1h"]
+        ),
         "usage_reasoning_tokens": usage["reasoning"],
         "usage_reasoning_tokens_formatted": _format_tokens(usage["reasoning"]),
         "usage_turn_input_tokens_cumulative": turn["input"],
@@ -66,6 +78,8 @@ def _usage_metadata(
         "usage_turn_cache_write_tokens_cumulative_formatted": _format_tokens(
             turn["cache_write"]
         ),
+        "usage_turn_cache_write_5m_tokens_cumulative": turn["cache_write_5m"],
+        "usage_turn_cache_write_1h_tokens_cumulative": turn["cache_write_1h"],
         "usage_turn_reasoning_tokens_cumulative": turn["reasoning"],
         "usage_turn_reasoning_tokens_cumulative_formatted": _format_tokens(
             turn["reasoning"]
@@ -75,6 +89,8 @@ def _usage_metadata(
         "usage_total_tokens_cumulative": session["total"],
         "usage_cached_tokens_cumulative": session["cached"],
         "usage_cache_write_tokens_cumulative": session["cache_write"],
+        "usage_cache_write_5m_tokens_cumulative": session["cache_write_5m"],
+        "usage_cache_write_1h_tokens_cumulative": session["cache_write_1h"],
         "usage_reasoning_tokens_cumulative": session["reasoning"],
     }
 
@@ -86,6 +102,8 @@ def _sum_usage(messages: list[dict[str, Any]]) -> dict[str, int]:
         "total": 0,
         "cached": 0,
         "cache_write": 0,
+        "cache_write_5m": 0,
+        "cache_write_1h": 0,
         "reasoning": 0,
     }
     for message in messages:
@@ -102,6 +120,28 @@ def _turn_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if message.get("role") == "user" and metadata.get("core_role") != "tool":
             boundary = index
     return messages[boundary:]
+
+
+def _current_turn_id(messages: list[dict[str, Any]]) -> int:
+    turn_id = 0
+    for message in messages:
+        metadata = message.get("_metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
+        if message.get("role") == "user" and metadata.get("core_role") != "tool":
+            turn_id += 1
+    return max(turn_id, 1)
+
+
+def _has_tool_calls(message: dict[str, Any]) -> bool:
+    metadata = message.get("_metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    calls = metadata.get("tool_calls")
+    if isinstance(calls, list) and calls:
+        return True
+    content = message.get("content")
+    return isinstance(content, list) and any(
+        isinstance(block, dict) and block.get("type") == "tool_use" for block in content
+    )
 
 
 class AnthropicUsageExtension(ProviderExtensionPlugin):
@@ -137,6 +177,16 @@ class AnthropicUsageExtension(ProviderExtensionPlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.usage_cache_write_tokens_formatted",
                 "template": "Cache write: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_cache_write_5m_tokens_formatted",
+                "template": "Cache 5m: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_cache_write_1h_tokens_formatted",
+                "template": "Cache 1h: {{data}}",
             },
             {
                 "ui_type": "message_footer",
@@ -200,13 +250,20 @@ class AnthropicUsageExtension(ProviderExtensionPlugin):
         session = _sum_usage([*prefix, *final_messages])
         turn = _sum_usage(_turn_messages([*prefix, *final_messages]))
         public = _usage_metadata(current_usage, turn=turn, session=session)
+        turn_id = _current_turn_id([*prefix, *final_messages])
 
         updated_finals: list[dict[str, Any]] = []
         for message in final_messages:
+            has_tool_calls = _has_tool_calls(message)
             metadata = {
                 **dict(message.get("_metadata") or {}),
                 "anthropic_usage": raw,
                 **public,
+                "turn": {
+                    "id": turn_id,
+                    "has_tool_calls": has_tool_calls,
+                    "is_terminal": not has_tool_calls,
+                },
             }
             updated_finals.append({**message, "_metadata": metadata})
         updated_history = [*prefix, *updated_finals]

@@ -267,7 +267,12 @@ export function usePersistentPinnedActionsFromContext<T extends string>(
   options?: {
     migrateFromKeys?: string[];
   },
-): { loaded: boolean; pinned: T[]; setPinned: Dispatch<SetStateAction<T[]>> } {
+): {
+  loaded: boolean;
+  pinned: T[];
+  hasStoredPreference: boolean;
+  setPinned: Dispatch<SetStateAction<T[]>>;
+} {
   const { entries, registerKey, setPinnedForKey } = usePinnedActionsContext();
 
   useEffect(() => {
@@ -281,10 +286,11 @@ export function usePersistentPinnedActionsFromContext<T extends string>(
   const entry = entries[storageKey];
   const pinned = (entry ? (entry.pinned as T[]) : ([] as T[]));
   const loaded = entry ? entry.loaded : false;
+  const hasStoredPreference = entry?.preferenceSource === 'stored';
 
   const setPinned: Dispatch<SetStateAction<T[]>> = (update) => {
     setPinnedForKey(storageKey, update as SetStateAction<string[]>);
   };
 
-  return { loaded, pinned, setPinned };
+  return { loaded, pinned, hasStoredPreference, setPinned };
 }

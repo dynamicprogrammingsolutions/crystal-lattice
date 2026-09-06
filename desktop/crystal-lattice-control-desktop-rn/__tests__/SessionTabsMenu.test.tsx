@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 
 jest.mock('react-native/Libraries/Utilities/Platform', () => ({
   default: {
@@ -57,5 +58,80 @@ describe('SessionTabs', () => {
 
     expect(screen.getByText('Actual subtitle')).toBeTruthy();
     expect(screen.queryByText('conn-123')).toBeNull();
+  });
+
+  it('renders fixed Home, one italic preview, status, promotion, and accessible reorder', () => {
+    const onPromotePreview = jest.fn();
+    const onReorderPermanent = jest.fn();
+    const now = jest
+      .spyOn(Date, 'now')
+      .mockReturnValueOnce(100)
+      .mockReturnValueOnce(200);
+    const screen = render(
+      <SessionTabs
+        permanentTabs={[
+          {
+            tabId: 'connection:one',
+            connectionId: 'connection',
+            sessionId: 'one',
+            title: 'One',
+          },
+          {
+            tabId: 'connection:two',
+            connectionId: 'connection',
+            sessionId: 'two',
+            title: 'Two',
+          },
+        ]}
+        previewTab={{
+          tabId: 'connection:preview',
+          connectionId: 'connection',
+          sessionId: 'preview',
+          title: 'Preview session',
+        }}
+        homeActive={false}
+        activeTabId="connection:preview"
+        styleVariant="toolbarTabs"
+        connectionNameById={{ connection: 'Local' }}
+        requestStatuses={{
+          connection: {
+            preview: {
+              session_id: 'preview',
+              request_id: null,
+              state: 'running',
+              basis: 'active_request',
+              session_modified: 1,
+            },
+          },
+        }}
+        onSelectHome={() => {}}
+        onSelectTab={() => {}}
+        onCloseTab={() => {}}
+        onPromotePreview={onPromotePreview}
+        onReorderPermanent={onReorderPermanent}
+      />,
+    );
+
+    expect(screen.getByTestId('desktop-home-tab')).toBeTruthy();
+    const previewText = screen.getByText('Preview session');
+    expect(StyleSheet.flatten(previewText.props.style).fontStyle).toBe('italic');
+    expect(
+      screen.getByLabelText('Request status: In progress'),
+    ).toBeTruthy();
+
+    const preview = screen.getByTestId(
+      'desktop-session-tab-connection:preview',
+    );
+    fireEvent.press(preview);
+    fireEvent.press(preview);
+    expect(onPromotePreview).toHaveBeenCalledWith('connection:preview');
+
+    fireEvent(
+      screen.getByTestId('desktop-session-tab-connection:one'),
+      'accessibilityAction',
+      { nativeEvent: { actionName: 'increment' } },
+    );
+    expect(onReorderPermanent).toHaveBeenCalledWith(0, 1);
+    now.mockRestore();
   });
 });

@@ -1,8 +1,8 @@
 import React from 'react';
 import {
   Platform,
+  Pressable,
   Text,
-  View,
   requireNativeComponent,
   type NativeSyntheticEvent,
   type ViewProps,
@@ -42,9 +42,22 @@ export function MacSelect({ onValueChange, ...props }: MacSelectProps): React.JS
       selected?.label ??
       (props.selectedValue ? props.selectedValue : props.placeholder ? props.placeholder : '');
     return (
-      <View style={props.style}>
+      <Pressable
+        testID={props.testID}
+        accessibilityLabel={props.accessibilityLabel}
+        style={props.style}
+        disabled={props.enabled === false}
+        onPress={() => {
+          if (props.options.length === 0) return;
+          const index = props.options.findIndex(
+            (option) => option.value === props.selectedValue,
+          );
+          const next = props.options[(index + 1) % props.options.length];
+          onValueChange?.(next.value);
+        }}
+      >
         <Text>{label}</Text>
-      </View>
+      </Pressable>
     );
   }
 

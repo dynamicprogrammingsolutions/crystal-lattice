@@ -20,6 +20,7 @@ import {
   ActionsMenuBar,
   ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
+  SessionRequestStatusIndicator,
   SessionListActionsBar,
   SessionListRichActionControl,
   SessionListRichActionList,
@@ -37,6 +38,7 @@ import type {
   SessionSummary,
   RunActionContext,
   SessionListActionElement,
+  SessionRequestStatus,
 } from '@crystal-lattice/frontend-sdk';
 import {
   applicationActionKey,
@@ -76,11 +78,19 @@ import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationA
 import { truncateByChars } from '../utils/text';
 import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
 import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
+import {
+  complementarySessionOpenMode,
+  sessionOpenModeLabel,
+  type SessionOpenMode,
+} from '../settings/desktopGlobalSettings';
+import {
+  resolveSessionItemClick,
+  type SessionItemClickMemory,
+} from '../sessions/sessionItemInteraction';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const PINNED_SESSIONS_HEADER_ACTIONS_STORAGE_KEY_BASE =
   'clc_pinned_sessions_header_actions_v1';
-const SESSION_DOUBLE_CLICK_MS = 300;
 const SESSIONS_STALE_MS = 30_000;
 type ActionDisplayEntry = {
   key: string;
@@ -136,6 +146,14 @@ export interface SessionsPanelProps {
     sessionId: string;
     title?: string;
     subtitle?: string | null;
+    mode?: SessionOpenMode;
+  }) => void;
+  sessionDoubleClickAction?: SessionOpenMode;
+  requestStatuses?: Readonly<Record<string, SessionRequestStatus>>;
+  sessionNotes?: Readonly<Record<string, string>>;
+  onEditSessionNote?: (params: {
+    sessionId: string;
+    title: string;
   }) => void;
 
   onUpdateOpenTabsPresentation?: (params: {
@@ -167,6 +185,10 @@ function SessionsPanelInner({
   followActiveTabEnabled = true,
   onUpdateCache,
   onOpenSessionTab,
+  sessionDoubleClickAction = 'preview',
+  requestStatuses = {},
+  sessionNotes = {},
+  onEditSessionNote,
   onUpdateOpenTabsPresentation,
 }: SessionsPanelProps): React.JSX.Element {
   const theme = useTheme();
@@ -794,7 +816,7 @@ function SessionsPanelInner({
     setWindowEnd(newEnd);
   }, [windowStart, filteredSessions.length]);
 
-  const lastClickRef = useRef<{ sessionId: string; atMs: number } | null>(null);
+  const lastClickRef = useRef<SessionItemClickMemory | null>(null);
 
   useEffect(() => {
     if (!connectionId) {
@@ -828,7 +850,7 @@ function SessionsPanelInner({
   }, [connectionId, fieldGroups, onUpdateOpenTabsPresentation, sessionsState?.sessions]);
 
   const openSession = useCallback(
-    (session: SessionSummary) => {
+    (session: SessionSummary, mode: SessionOpenMode = 'open') => {
       if (!connectionId) {
         return;
       }
@@ -839,6 +861,7 @@ function SessionsPanelInner({
         sessionId: session.session_id,
         title: presentation.title?.slice(0, 64) || session.session_id,
         subtitle: presentation.subtitle,
+        mode,
       });
     },
     [connectionId, fieldGroups, onOpenSessionTab],
@@ -846,17 +869,17 @@ function SessionsPanelInner({
 
   const handleRowPress = useCallback(
     (session: SessionSummary) => {
-      const now = Date.now();
-      const prev = lastClickRef.current;
-      lastClickRef.current = { sessionId: session.session_id, atMs: now };
-
       onUserSelectSessionId(session.session_id);
-
-      if (prev && prev.sessionId === session.session_id && now - prev.atMs <= SESSION_DOUBLE_CLICK_MS) {
-        openSession(session);
-      }
+      const result = resolveSessionItemClick({
+        previous: lastClickRef.current,
+        key: session.session_id,
+        nowMs: Date.now(),
+        doubleClickAction: sessionDoubleClickAction,
+      });
+      lastClickRef.current = result.next;
+      if (result.openMode) openSession(session, result.openMode);
     },
-    [onUserSelectSessionId, openSession],
+    [onUserSelectSessionId, openSession, sessionDoubleClickAction],
   );
 
   return (
@@ -1084,6 +1107,8 @@ function SessionsPanelInner({
               80,
             );
             const meta = presentation.meta;
+            const explicitOpenMode =
+              complementarySessionOpenMode(sessionDoubleClickAction);
             const headerLeadingAction = selectSessionListRichActionForPlacement(
               sessionListActions,
               'header_leading',
@@ -1186,21 +1211,65 @@ function SessionsPanelInner({
                       {meta}
                     </Text>
                   ) : null}
+                  <SessionRequestStatusIndicator
+                    status={requestStatuses[session.session_id] ?? null}
+                    variant="inline"
+                    testID={`desktop-session-request-status-${session.session_id}`}
+                  />
+                  {sessionNotes[session.session_id] ? (
+                    <Text
+                      style={styles.rowNote}
+                      numberOfLines={2}
+                      testID={`desktop-session-note-${session.session_id}`}
+                    >
+                      {sessionNotes[session.session_id]}
+                    </Text>
+                  ) : null}
                 </View>
 
-                <View style={styles.rowRight}>
+                <View
+                  style={styles.rowRight}
+                  testID={`desktop-session-actions-row-${session.session_id}`}
+                >
+                  {onEditSessionNote ? (
+                    <Pressable
+                      testID={`desktop-session-note-action-${session.session_id}`}
+                      accessibilityLabel={
+                        sessionNotes[session.session_id]
+                          ? 'Edit local note'
+                          : 'Add local note'
+                      }
+                      style={styles.localNoteButton}
+                      onPress={(event) => {
+                        (event as any)?.stopPropagation?.();
+                        onEditSessionNote({
+                          sessionId: session.session_id,
+                          title,
+                        });
+                      }}
+                    >
+                      <Icon
+                        name="edit-3"
+                        size={13}
+                        color={theme.textSecondary}
+                      />
+                    </Pressable>
+                  ) : null}
                   <Pressable
+                    testID={`desktop-session-${explicitOpenMode}-${session.session_id}`}
                     style={[
                       styles.openButton,
                       styles.openButtonVisible,
                     ]}
-                    pointerEvents={showRowControls ? 'auto' : 'none'}
+                    pointerEvents="auto"
                     onPress={(event) => {
                       (event as any)?.stopPropagation?.();
-                      openSession(session);
+                      openSession(session, explicitOpenMode);
                     }}
                   >
-                    <Text style={styles.openButtonText}>Open</Text>
+                    <Text style={styles.openButtonText}>
+                      {sessionOpenModeLabel(explicitOpenMode)}
+                    </Text>
                   </Pressable>
 
                   {sessionListActions.length > 0 ? (
@@ -1450,11 +1519,24 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
     },
+    rowNote: {
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
+      color: theme.textSecondary,
+      fontStyle: 'italic',
+    },
     rowRight: {
       flexDirection: 'row',
-      alignItems: 'flex-end',
+      alignItems: 'center',
       justifyContent: 'flex-end',
       gap: 4,
+    },
+    localNoteButton: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
     },
     openButton: {
       borderWidth: separatorWidth,

@@ -56,15 +56,32 @@ a failure.
 
 A provider-specific feature extension owns:
 
-- configuration schema;
-- UI declarations;
 - tags and required tags;
 - model/capability gating;
-- normalized feature state;
-- request shaping;
 - provider-native feature accumulation/finalization;
 - public metadata and displays;
 - feature-specific tests and docs.
+
+The extension also owns configuration, UI, normalized state, and request
+shaping when the package defines a provider-specific user contract. When the
+feature maps directly to versioned provider request keys, the generic
+request-options feature may own injection and declarative UI while the
+provider-specific extension retains response interpretation, native-history,
+metadata, tests, and documentation.
+
+A provider may split generic interpretation from provider-specific controls:
+
+- a baseline extension interprets and preserves response/native-history data
+  shared by compatible endpoints;
+- a capability-gated controls extension enriches model descriptors, owns exact
+  provider-specific settings and UI, and maps those settings into request
+  fields;
+- raw request options execute later as the final protocol escape hatch.
+
+Authoritative model descriptors win over package fallbacks. Packages that use
+regex fallbacks for known models document equivalent copyable configuration
+variants so users can override or repair the mapping without changing plugin
+code.
 
 The provider may execute mechanics that cannot be separated from transport,
 including retrying a feature-specific request or parsing a shared event. Those
@@ -89,6 +106,12 @@ with extensions and features.
 - Config names should align across provider packages when the concepts are
   genuinely equivalent.
 
+Providers using a typed SDK define how raw request options are partitioned
+between supported SDK arguments and an SDK body escape hatch. Messages,
+history-derived system content, and stream mode remain provider-owned. SDK
+variant selection, beta feature arrays, and beta-header composition remain
+provider transport configuration rather than frontend behavior.
+
 ## Model discovery and capabilities
 
 Providers should implement model discovery when the endpoint exposes an
@@ -102,28 +125,130 @@ Model descriptors:
 - derive stable tags used by extension resolution;
 - preserve conservative behavior when capabilities are absent.
 
+Feature-owning extensions may enrich descriptors with normalized capability
+subtrees used by their own UI and request shaping. Explicit capability details
+may override discovered or fallback values.
+
 Discovery failures return an empty list rather than preventing explicit model
 configuration. Providers should not infer unstable capability sets from model
 names when authoritative metadata or explicit compatibility config is
 available.
 
-## Compatibility profiles
+## Portable model-selection UI
+
+A provider with a selectable string model exposes one ordinary
+`ui_type: "config"` element bound to `key: "model"`.
+
+- The element uses `type: "dropdown"` and string value/label options, including
+  an empty option list when discovery fails.
+- Nested `custom_value` settings keep explicit model IDs usable through the
+  same searchable field when the authoritative catalog is incomplete or
+  unavailable.
+- Provider model selection writes the ordinary session `model` override. It
+  does not define a provider-specific UI type or application action.
+
+The same config element may include a self-contained compact presentation:
+
+```json
+{
+  "ui_type": "config",
+  "type": "dropdown",
+  "key": "model",
+  "label": "Model",
+  "options": [
+    {"value": "provider/model-a", "label": "Model A"}
+  ],
+  "placeholder": "Search models or enter a model ID",
+  "custom_value": {
+    "enabled": true,
+    "pattern": "^[^\\s]+$",
+    "option_label": "Use '{value}' as a custom model ID"
+  },
+  "rich_ui": {
+    "kind": "dropdown",
+    "label": "Model",
+    "show_label": false,
+    "options": [
+      {"value": "provider/model-a", "label": "Model A"}
+    ],
+    "placeholder": "Search models or enter a model ID",
+    "custom_value": {
+      "enabled": true,
+      "pattern": "^[^\\s]+$",
+      "option_label": "Use '{value}' as a custom model ID"
+    },
+    "placements": ["composer"],
+    "default_pinned": true,
+    "icon": "cpu"
+  }
+}
+```
+
+The containing config element owns setting identity, effective-value
+resolution, mutation, defaults, disabled state, and reset behavior. `rich_ui`
+owns compact presentation and repeats its label, options, searchable custom
+entry, icon, placement, and pinning fields. A rich renderer does not implicitly
+inherit those presentation fields from the containing element.
+
+The one dropdown input filters declared labels/values and offers a synthetic
+custom option when the trimmed query fully matches `custom_value.pattern`.
+Option entries may carry semantic `tone` and `icon` fields. Compact controls
+may hide their visual label and apply host-specific visual truncation while
+retaining the full accessibility value.
+
+Boolean settings may use `rich_ui.kind: "toggle"` with exactly one `false` and
+one `true` option. False defaults to the primary tone, true to success, and a
+disabled control to muted. A provider or feature adopts this presentation only
+within its own approved contract; portable UI support does not imply migrating
+unrelated plugins or request-option schemas.
+
+`plugins/dummy-rich-config-ui` is the reference manual-test consumer for
+semantic option icons and tones. It is disabled by default, can be enabled for
+an ordinary agent, and exercises dropdown, toggle, placement, pinning, and
+disabled-state rendering without affecting provider requests.
+
+Initial chat placements are `session_header` and `composer`. Placement is
+additive: the complete setting remains available in Session Settings.
+Unknown rich kinds remain transportable and fall back to the ordinary setting.
+
+Ordinary `session_action` elements may use their existing rich toggle/list
+contract at the same chat placements. The ordinary action and dialog remain
+the execution and fallback path.
+
+Composer hosts may explicitly enable a two-row pinned-action layout. The
+default remains one row. A two-row host declares whether the leftover row is
+above or below the primary row; both rows align from the right and excess
+controls remain available through the ordinary menu.
+
+## Compatible endpoint capabilities and presets
 
 A provider protocol may be implemented by official and compatible endpoints.
 One provider may support them when:
 
 - the native message/history contract is coherent;
-- differences are represented through named profiles or explicit overrides;
-- unsupported fields are omitted or rejected before transport;
+- non-baseline optional plugin features are gated by explicit provider tags;
+- reusable endpoint setups remain ordinary inspectable configuration or
+  mixins;
+- explicit request options retain their provider-native meaning;
 - errors identify the actual endpoint/provider;
-- tests cover each claimed profile.
+- tests cover each claimed capability.
 
-Capability precedence:
+Baseline protocol tags shared by all supported endpoints remain
+provider-defined and need not be repeated in capability config.
 
-1. explicit disable or override;
-2. authoritative model/endpoint capability;
-3. named profile;
-4. conservative default.
+When a provider uses explicit capability configuration for non-baseline
+optional plugin gating:
+
+- values are booleans;
+- true emits the documented optional-feature tag;
+- false or omission emits no tag;
+- capabilities do not double as request validation or endpoint documentation.
+
+An optional extension whose required tag is absent does not automatically add
+its request fields. If a user explicitly supplies an incompatible native
+request option, the endpoint/provider error may report the incompatibility.
+Portable conformance does not require providers to pre-validate or filter every
+compatible-endpoint difference.
 
 Compatibility must not mean silent fallback to a different transport,
 provider, or paid account.
@@ -274,7 +399,7 @@ Every provider package covers:
 - cancellation;
 - error normalization;
 - extension enablement/disablement;
-- compatibility overrides.
+- compatible-endpoint capability/tag configuration.
 - normalized usage and formatting when usage is supported;
 - turn/session cumulative usage and duration/TPS compatibility;
 - cost-estimation provenance and pricing-catalog behavior when cost estimation
@@ -288,9 +413,10 @@ material.
 
 ### Local compatible endpoint
 
-Protocols with a practical local implementation should define a local
-compatibility profile and run enabled integration tests for the supported
-subset. Unsupported capabilities require negative/omission tests.
+Protocols with a practical local implementation should provide explicit local
+configuration or a reusable preset and run enabled integration tests for every
+advertised capability. Tests need not duplicate endpoint validation for every
+explicit incompatible request option.
 
 ### Hosted provider
 
@@ -301,6 +427,20 @@ cost, latency, and provider selection.
 Skipped gated tests are reported as not run unless the gate was explicitly
 enabled and the skip is expected.
 
+### Reasoning and tools
+
+Every provider configuration claiming both reasoning and tools runs the
+canonical bank-file reasoning continuity test in streaming and non-streaming
+modes. Configurations claiming preservation across an inserted user request
+also run the interrupted-user variant and verify that follow-up reasoning is
+absent or materially shorter than the initial reasoning while the result
+remains `Clock`.
+
+Configurations intentionally retaining insufficient reasoning history use a
+strict expected failure or documented negative assertion. Provider-native
+reasoning state and tool relationships remain structurally valid regardless of
+the server-side retention policy.
+
 ## Documentation
 
 Each substantial provider package documents:
@@ -310,7 +450,7 @@ Each substantial provider package documents:
 - configuration and credential sources;
 - model discovery;
 - supported extensions;
-- compatibility profiles;
+- compatible endpoint configuration, capabilities, and presets;
 - tools and native-history limitations;
 - errors, retries, and cancellation;
 - deterministic and hosted test commands;

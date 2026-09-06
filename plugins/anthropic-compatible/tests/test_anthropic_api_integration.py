@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from agent_core import AgentCore
+from plugins.request_options_feature import RequestOptionsFeature
 
 from anthropic_plugins import (
     AnthropicProvider,
@@ -110,6 +111,7 @@ class AddTool:
 def test_anthropic_model_discovery_and_tiny_non_streaming_request() -> None:
     config = _config()
     core = AgentCore()
+    core.register_feature(RequestOptionsFeature)
     core.register_provider(
         AnthropicProvider,
         extensions=[AnthropicReasoningExtension, AnthropicUsageExtension],
@@ -121,7 +123,13 @@ def test_anthropic_model_discovery_and_tiny_non_streaming_request() -> None:
         config=config,
     )
 
-    _session, finals = core.send_request(session, {**config, "enable_reasoning": False})
+    _session, finals = core.send_request(
+        session,
+        {
+            **config,
+            "request_options": {"thinking": {"type": "disabled"}},
+        },
+    )
 
     assert finals and finals[-1]["content"].strip()
     assert finals[-1]["metadata"]["usage_prompt_tokens"] > 0
@@ -131,11 +139,11 @@ def test_anthropic_model_discovery_and_tiny_non_streaming_request() -> None:
 def test_anthropic_streamed_reasoning_tool_loop() -> None:
     config = {
         **_config(),
-        "enable_reasoning": True,
-        "reasoning_budget_tokens": 1024,
+        "request_options": {"thinking": {"type": "enabled", "budget_tokens": 1024}},
         "max_tokens": 1200,
     }
     core = AgentCore()
+    core.register_feature(RequestOptionsFeature)
     core.register_provider(
         AnthropicProvider,
         extensions=[
