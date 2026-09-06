@@ -63,6 +63,13 @@ change. Every change and follow-up receives a reviewed plan before
 implementation; a small change may use a conversational plan while complex or
 multi-part work uses task-owned staged plans.
 
+The quick workflow mirrors the seven detailed steps: brainstorming, reviewing
+specifications and tasks, approving a plan, supervising implementation,
+questioning evidence, requesting independent AI review when useful, and
+planning every follow-up. A three-scenario process table shows the normal task
+and specification forms for small local changes, normal features or bug fixes,
+and high-risk or cross-package changes.
+
 The contributor workflow helps the human verify that applicable repository and
 task guidance actually reached the model, review important specification and
 task decisions, question planned and completed unit/integration/end-to-end
@@ -77,6 +84,11 @@ requirements, misplaced changes, unnecessary complexity, weak verification
 boundaries, stale consumer documentation, and incomplete work presented as
 complete. Independent AI review and follow-up planning are separate numbered
 steps whose text makes clear when they apply.
+
+When subtasks are proposed, the human checks that each one delivers a usable,
+tested improvement or completes an isolated responsibility. Deliverable
+iterations use subtasks, while partial implementation and approval checkpoints
+remain stages inside one task.
 
 Specification need is considered separately from immediate change size.
 Existing specifications remain current whenever their target behavior or

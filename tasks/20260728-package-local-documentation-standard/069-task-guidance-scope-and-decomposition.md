@@ -43,8 +43,12 @@ agent-evaluation framework.
 - [ ] Task guidance uses one task by default and defines deterministic reasons
   for choosing a task directory.
 - [ ] A valid implementation subtask is either a working iteration that leaves
-  a usable, reviewable state or an isolated component, contract, decision, or
-  migration responsibility that can be completed and verified separately.
+  a usable, reviewable, tested improvement or an isolated component, contract,
+  decision, migration, or other responsibility that can be completed and
+  verified separately. Task guidance uses a subtask rather than an internal
+  stage when completing the iteration produces such a deliverable improvement;
+  internal stages remain appropriate for partial implementation or
+  execution/review checkpoints that cannot be accepted independently.
 - [ ] Every subtask identifies the parent requirements it advances, has clear
   slice-specific acceptance requirements, and declares only real blocking
   dependencies.
@@ -165,10 +169,13 @@ The shortest candidate should express these concepts:
 
 Possible concise wording:
 
-> Use one task by default. Split only when the approved requirements form
-> independently reviewable slices: an iteration that leaves a working solution,
-> or an isolated component, contract, decision, or migration boundary with
-> clear acceptance. Each subtask identifies the parent requirements it advances
+> Use one task by default. Split when the approved requirements form
+> independently reviewable slices: a working iteration that leaves a usable,
+> tested improvement, or an isolated component, contract, decision, migration,
+> or other responsibility with clear acceptance. Use a subtask rather than an
+> internal stage when completing the iteration produces a deliverable
+> improvement. Keep partial implementation and execution or review checkpoints
+> inside one task. Each subtask identifies the parent requirements it advances
 > and owns the implementation, tests, documentation, and evidence needed for
 > its slice. If all parts must land together before any requirement is
 > satisfied, keep one task.
@@ -186,6 +193,8 @@ A working-iteration subtask:
 - adds a specific capability or requirement group;
 - includes the verification and documentation needed for that addition;
 - leaves another usable and reviewable state;
+- is represented as a separate subtask rather than an internal stage when the
+  completed iteration is an independently deliverable improvement;
 - allows a later subtask to extend rather than complete unfinished basics.
 
 #### Isolated responsibility
@@ -629,6 +638,9 @@ Status: Draft
   supplemented by semantic unique-outcome and unmatched-outcome analysis.
 - Approved: task-directory cases require working iterations or isolated
   responsibilities rather than horizontal phase subtasks.
+- Approved: use a subtask rather than an internal stage when an iteration
+  leaves a usable, tested, independently deliverable improvement; keep partial
+  implementation and execution or review checkpoints inside one task.
 - Approved: exact expected task/subtask counts are scenario-specific, not a
   universal preference for fewer files.
 - Approved: GLM max and GPT high/xhigh profiles are used to expose the observed
@@ -687,7 +699,7 @@ maintainer guidance and evaluation infrastructure.
 |---|---|
 | Minimum sufficient requirements | Three single-task scenarios preserve the exact scenario-owned parent outcome count; structured assessment reports no unmatched required outcomes or optional work promoted to scope. |
 | Proportionate task choice | Direct and planned cases create one task or a task directory according to the scenario contract rather than model preference for more files. |
-| Subtask quality | Every child maps to parent requirements and is classified as a working iteration or isolated responsibility; no generic phase-only child owns implementation, tests, documentation, review, or deployment for another slice. |
+| Subtask quality | Every child maps to parent requirements and is classified as a working iteration or isolated responsibility; deliverable iterations use subtasks, partial implementation remains an internal stage, and no generic phase-only child owns implementation, tests, documentation, review, or deployment for another slice. |
 | Dependencies | Declared dependency graphs are acyclic and match actual contract, component, compatibility, or iteration blockers; independent siblings remain parallel. |
 | Planning-stage behavior | Compiled request and response evidence proves the selected TASKS guidance was present before requirements and task boundaries were proposed. |
 | Baseline-first causality | Exact current-guidance artifacts demonstrate the targeted failure before candidate wording; paired runs preserve repository, prompt, fixture, assertions, model, and effort. |

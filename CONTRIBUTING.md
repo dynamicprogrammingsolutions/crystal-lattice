@@ -16,18 +16,19 @@ authorization.
 1. **Brainstorm and shape:** Describe what you want in ordinary language, then
    use an agent to research the repository, test assumptions, and clarify the
    intended outcome.
-2. **Review the records:** Decide whether specifications are involved, review
-   the proposed requirements and boundaries, and use tasks when durable scope
-   or decomposition is useful.
+2. **Review specifications and tasks:** Decide whether specifications are
+   involved, review the proposed requirements and boundaries, and use tasks
+   when durable scope or decomposition is useful.
 3. **Approve a plan:** Require a plan before every implementation, then review
    its scope, decisions, tests, documentation, and human-verification needs.
 4. **Supervise implementation:** Authorize the accepted plan and make sure new
    discoveries return to you when they change requirements or material
    decisions.
 5. **Question and verify:** Ask what automated tests actually ran, complete
-   applicable human checkpoints, consider independent AI review, and inspect the
-   resulting change.
-6. **Plan every follow-up:** Treat every follow-up as another planned change
+   applicable human checkpoints, and inspect the resulting change.
+6. **Request independent AI review:** For normal, high-risk, or unfamiliar
+   changes, ask another agent to inspect the work and evaluate its findings.
+7. **Plan every follow-up:** Treat every follow-up as another planned change
    before implementation.
 
 Every change follows this lifecycle. A small correction can move through it in
@@ -123,44 +124,19 @@ task prompt focused on information that is new for the current conversation.
 | Specifications and requirements | Intended behavior and design, completed outcomes, live state, verification, documentation, and evidence |
 | Current user prompt | Your objective, new context, requested stage, decisions, concerns, and authority granted now |
 
-## Choose the Working Process
+## Choose the Appropriate Process
 
-Every level includes planning, implementation, verification, and review. The
-working record and depth change; the lifecycle does not.
+These are proportional defaults, not rigid bureaucracy.
 
-| Change | Plan before implementation | Implementation and review |
-|---|---|---|
-| Small, local correction | Ask for a brief plan in the conversation and confirm that it addresses the intended boundary | Let the agent implement after approval, run focused checks, and review the diff and reported evidence |
-| Normal feature or bug fix | Use an investigated task plan when the work benefits from durable scope, decisions, or evidence | Review unit and integration coverage, applicable e2e or manual checks, consumer documentation, and the complete result |
-| High-risk or multi-part work | Use staged plans, usually through a main task and reviewable subtasks | Approve one executable stage at a time; review integration, e2e, operational, migration, security, and human-verification evidence where relevant |
+| Change | Recommended process | Task file | Specification |
+|---|---|---|---|
+| Small, local change | Agree on a short plan, implement and test, then review the diff | Usually none | Update an existing specification if its target changes; create one only when a durable target is needed |
+| Normal feature or bug fix | Use an approved plan, implement, verify, then review | One task by default; use subtasks for independently deliverable iterations or responsibilities | Update affected specifications; create one for a large feature or another durable behavior or contract |
+| High-risk or cross-package change | Use explicit approval checkpoints, verify integrations and human boundaries, consider independent AI review, then seek human acceptance | One task for one coherent outcome; use a main task with subtasks for independently deliverable iterations or responsibilities | Update affected specifications; create one for a large feature or when the new contract, security, data, migration, or cross-package target needs to be maintained |
 
-Risk increases when work affects public contracts, security or privacy,
-persisted data, compatibility, migrations, deployment, multiple packages,
-native platforms, or difficult-to-reverse operations.
-
-Some changes deserve staged plans and stronger evidence even when the
-immediate implementation appears small. Ask the agent which of these risks
-apply and how the proposed plan contains them.
-
-### Decide About Specifications Separately
-
-Do not use the size of the immediate edit as the only reason to create or skip
-a specification.
-
-- If the affected behavior already has a specification, ask the agent to
-  update it whenever the intended behavior or design changes.
-- A large new feature requires a specification.
-- For other work, consider whether a specification would make an existing
-  feature, durable behavior, public contract, or important design easier to
-  understand and maintain.
-- A small change can reveal that an existing feature should be specified.
-
-Ask the agent to find the governing specifications before planning. If it
-proposes no specification work, understand why the existing target remains
-accurate or why no durable target is useful.
-
-Current user documentation follows a different rule: whenever delivered
-behavior affects a consumer, the owning user documentation must be updated.
+A change becomes higher risk when it affects public contracts, security or
+privacy, persisted data, compatibility, migrations, deployment, several
+packages, native platforms, or difficult-to-reverse operations.
 
 ## What Humans Review
 
@@ -278,6 +254,19 @@ Then review the proposed boundary:
 For consumer-facing or operational changes, ask whether privacy, rollout,
 installation, upgrade, recovery, or accessibility behavior needs an explicit
 requirement or non-goal. Include only the concerns affected by the change.
+
+#### Review Task Decomposition
+
+When subtasks are proposed, check that each one leaves a usable, tested
+improvement or completes an isolated responsibility that can be accepted
+separately. A minimum working version may be one subtask, with later subtasks
+adding independently valuable features.
+
+Use a subtask rather than an internal stage when completing it produces a
+deliverable improvement. Keep partial implementation and approval checkpoints
+as stages inside one task. Implementation, tests, documentation, and evidence
+stay with the outcome they support rather than becoming separate phase
+subtasks.
 
 Useful follow-ups include:
 

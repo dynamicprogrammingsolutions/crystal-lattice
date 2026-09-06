@@ -24,11 +24,17 @@ prompts that rely on standing repository guidance.
 - [x] The guide is organized around what a human initiates, reviews, questions,
   decides, verifies, accepts, and authorizes when AI produces the detailed
   plans, code, tests, and documentation.
-- [ ] The guide begins with a short six-step quick workflow that is easy to
-  scan and follow.
+- [ ] The guide begins with a short seven-step quick workflow that matches the
+  seven detailed workflow steps and is easy to scan and follow.
 - [x] Small, normal, and high-risk changes all follow planning,
   implementation, verification, and review, while the form and detail of the
   plan vary with the work.
+- [x] The process-selection section uses three recognizable change scenarios
+  and separately summarizes their normally applicable task-file and
+  specification forms without creating additional workflow stages.
+- [x] Stage 2 explains that subtasks represent independently deliverable
+  working iterations or isolated responsibilities, while partial
+  implementation and approval checkpoints remain stages within one task.
 - [x] Every initial change and follow-up is planned before implementation.
 - [x] Specification need is considered independently from immediate change
   size: affected existing specifications are updated when their target
@@ -61,9 +67,8 @@ prompts that rely on standing repository guidance.
   prompt combines intent, high-level context, requested research or
   suggestions, uncertainty, and additional details.
 - [x] Inline workflow prompts cover brainstorming, specification/task
-  creation, subtask planning, approved implementation, manual-test preparation,
-  independent review, findings resolution, follow-up planning, and authorized
-  commit.
+  creation, plan review, approved implementation, result review, independent
+  review, follow-up planning, and pull-request preparation.
 - [x] Example prompts assume repository guidance is already active and do not
   restate generic coding, testing, documentation, or task-file rules.
 - [x] Human review questions appear at the relevant workflow stages and focus
@@ -131,7 +136,7 @@ The guide is practical documentation, not a formal process specification.
 Prefer:
 
 - a quick summary before detailed explanation;
-- six major steps rather than a long sequence of micro-stages;
+- seven major steps rather than a long sequence of micro-stages;
 - responsibilities introduced in the opening and reinforced only where a
   stage needs them;
 - short owner labels;
@@ -718,6 +723,18 @@ Preserve these under a compact "Further reading" or rationale section:
   review paragraph, follow-up prompt lead-in, Specifications and Tasks model,
   and project-source Further Reading; Markdown rendering; and local link and
   anchor validation. Human readability confirmation remains pending.
+- September 6, 2026 process-selection and decomposition follow-up: Replaced
+  the process section with the approved three-scenario table and separate Task
+  file and Specification columns. Added concise stage-2 review guidance for
+  working iterations, isolated responsibilities, and partial internal stages;
+  aligned task 069's draft target; and corrected the Quick Workflow and
+  governing requirements to seven steps matching the detailed workflow.
+- Focused verification for this follow-up passed: the Quick Workflow and
+  detailed workflow contain the same seven ordered steps; the process table
+  contains exactly the three approved scenarios and four columns; stage 2 and
+  task 069 distinguish deliverable iteration subtasks from partial internal
+  stages; all seven changed Markdown files render; local links and anchors
+  resolve; and `git diff --check` passes.
 
 ## Execution plan
 
@@ -726,8 +743,8 @@ Status: Approved
 This subtask will restructure the existing root `CONTRIBUTING.md` into the
 human-facing entry point for the approved AI-assisted development workflow. It
 will preserve the useful public-contribution guidance already present while
-putting the six-step workflow, risk scaling, role boundaries, prompt examples,
-and human review aids first.
+putting the seven-step workflow, process choices, prompt examples, and human
+review aids first.
 
 The work changes documentation and its task/requirements evidence only. It
 does not change product code, runtime agent instructions, task-guidance
@@ -785,11 +802,12 @@ the guide line-for-line identical.
 
 Reorganize the guide so a contributor first encounters:
 
-1. a short six-step quick workflow;
-2. a compact small/normal/high-risk process-scaling table;
+1. a short seven-step quick workflow matching the detailed workflow;
+2. a compact small/normal/high-risk process table with task-file and
+   specification columns;
 3. one definition each for the human owner, implementing agent, and reviewing
    agent;
-4. the six detailed workflow steps with only the owner or collaboration
+4. the seven detailed workflow steps with only the owner or collaboration
    relevant to each step.
 
 Keep the document focused and easy to navigate, but do not optimize for source
@@ -879,7 +897,7 @@ After implementation and focused verification:
 
 ### Implementation decisions and open questions
 
-- The six-step structure, role definitions, conditional validation/review
+- The seven-step structure, role definitions, conditional validation/review
   activities, prompt placement, and example prompts are approved.
 - `CONTRIBUTING.md` is recommended guidance, not an invariant process for every
   one-line change.
@@ -915,7 +933,7 @@ After implementation and focused verification:
 - [x] Preserve applicable existing public-contribution guidance.
 - [x] Write quick workflow and process-scaling table.
 - [x] Define roles once.
-- [x] Write six-step workflow.
+- [x] Write seven-step workflow.
 - [x] Explain standing guidance versus task prompts.
 - [x] Add concise example prompts.
 - [x] Add human review checklists.
@@ -931,7 +949,7 @@ After implementation and focused verification:
 
 | Requirement group | Acceptance evidence |
 |---|---|
-| Readability | Rendered-document inspection confirms that the quick workflow, process-scaling table, six major steps, short owner labels, conditional activities, examples, and separate prompt section are easy to navigate without reading the standards first. Human confirmation remains required for final readability acceptance. |
+| Readability | Rendered-document inspection confirms that the quick workflow, process table, seven major steps, short owner labels, conditional activities, examples, and separate prompt section are easy to navigate without reading the standards first. Human confirmation remains required for final readability acceptance. |
 | Role separation | Human owner, implementing agent, and reviewing agent are defined once; manual verification, AI review, human acceptance, and delivery authorization remain distinct. |
 | Prompt guidance | All eight scenarios use concise, stage-specific prompts and concrete document/work terms without duplicating standing repository rules; longer-prompt guidance is explicit. |
 | Risk scaling | Small, normal, and high-risk paths are understandable and do not impose the full process on trivial work. |
@@ -945,7 +963,7 @@ After implementation and focused verification:
   `CONTRIBUTING.md`.
 - Render or preview the Markdown and inspect heading depth, table readability,
   prompt blocks, code blocks, and section navigation.
-- Search the guide for all six workflow stages, three risk levels, eight prompt
+- Search the guide for all seven workflow stages, three risk levels, eight prompt
   scenarios, the human-manual-verification rule, advisory AI-review boundary,
   and explicit commit authorization.
 - Confirm the guide does not use “artifact” as a generic label.
@@ -966,7 +984,7 @@ much like instructions for an implementing agent. This follow-up will rewrite
 it as a guide for the human who shapes, supervises, questions, accepts, and
 authorizes AI-produced work.
 
-The six-stage workflow, separation of human and AI roles, manual-verification
+The seven-stage workflow, separation of human and AI roles, manual-verification
 boundary, advisory AI review, explicit delivery authorization, existing public
 contribution policy, and compact further reading remain. The information
 architecture, point of view, prompt placement, planning model, instruction
@@ -980,7 +998,7 @@ confirms the product stage.
 
 ### 1. Reframe the complete guide around human responsibility
 
-Rewrite the opening and six-step quick workflow so each stage tells the human
+Rewrite the opening and seven-step quick workflow so each stage tells the human
 what to initiate, understand, review, question, approve, verify, or authorize:
 
 1. brainstorm and shape the change with an agent;
@@ -989,7 +1007,8 @@ what to initiate, understand, review, question, approve, verify, or authorize:
 4. authorize and supervise AI implementation against that plan;
 5. question the evidence, perform applicable human testing, and review the
    result;
-6. plan and resolve findings before explicitly authorizing delivery.
+6. request independent AI review when useful;
+7. plan every follow-up before implementation.
 
 Keep the three role definitions short. Use the rest of the guide to explain
 human decision points rather than repeating rules an implementing agent should
@@ -1012,7 +1031,8 @@ form instead.
 ### 2. Treat specification need as a separate decision
 
 Do not derive specification need from the size of the immediate change.
-Explain these rules independently from the process-scaling table:
+The process table may summarize normally applicable specification forms;
+explain the detailed rules during specification and task review:
 
 - when the affected behavior already has a specification, update that
   specification whenever its target behavior or design changes, even for a
@@ -1370,6 +1390,12 @@ readability, practical-usefulness, and dialog acceptance remain pending.
   documentation in the user-requested documentation-first order.
 - [x] Rewrite the quick workflow and process-scaling model around human
   responsibility and planning for every change.
+- [x] Match the seven-step Quick Workflow to the seven detailed workflow
+  steps.
+- [x] Use the approved three-scenario process table with Task file and
+  Specification columns.
+- [x] Add concise stage-2 task-decomposition review and align task 069's draft
+  subtask-versus-stage target.
 - [x] Remove the standalone Roles section while retaining the reviewed process
   selection, instruction-inspection, and workflow structure.
 - [x] Remove the standalone automated-versus-human-testing subsection and add
@@ -1425,7 +1451,8 @@ readability, practical-usefulness, and dialog acceptance remain pending.
 
 - Validate all changed local Markdown links and anchors.
 - Render the Markdown with tables and fenced code enabled.
-- Check that the quick workflow still has six stages and that prompts are
+- Check that the quick workflow and detailed workflow both have seven stages
+  in the same order and that prompts are
   nested under the corresponding detailed stages.
 - Check that each process-scaling row includes planning before implementation.
 - Check for explicit existing-specification, large-feature-specification,

@@ -327,23 +327,36 @@ links to this meta-specification.
 ## Human-led contributor workflow
 
 Root `CONTRIBUTING.md` is written for the human directing AI-assisted
-development. A short quick workflow introduces the ordinary path. The detailed
-workflow covers brainstorming and shaping, review of specifications,
-requirements, and tasks, plan review and approval, implementation supervision,
-evidence and result review, independent AI review, and follow-up planning.
-Independent review and follow-up are numbered steps; their text makes clear
-that they apply when useful or when additional work exists.
+development. A seven-step quick workflow mirrors the detailed workflow:
+brainstorming and shaping, review of specifications, requirements, and tasks,
+plan review and approval, implementation supervision, evidence and result
+review, independent AI review, and follow-up planning. Independent review and
+follow-up are numbered steps; their text makes clear that they apply when
+useful or when additional work exists.
+
+The process-selection table presents small local changes, normal features or
+bug fixes, and high-risk or cross-package changes as three recognizable
+scenarios. Separate columns summarize the normally applicable task-file and
+specification forms without making specification need or task decomposition
+automatic consequences of the process level.
 
 Every initial change and follow-up has a plan before implementation. Planning
 may remain a short conversation for a local change, use one task execution
-plan for normal work, or use staged task plans for high-risk and multi-part
-work. Specification need is a separate decision:
+plan for normal work, or use explicit approval checkpoints for high-risk and
+cross-package work. Specification need remains a separate decision:
 
 - update an affected existing specification when its target behavior or design
   changes;
 - require a specification for a large new feature;
 - for other work, consider whether a specification would clarify an existing
   feature, durable behavior, public contract, or important design.
+
+During stage 2, the human reviews whether each proposed subtask delivers a
+usable, tested improvement or completes an isolated responsibility. A minimum
+working version and later independently valuable features may be separate
+subtasks. Partial implementation and approval checkpoints remain stages within
+one task, and implementation, tests, documentation, and evidence stay with
+their owning outcome.
 
 Current user documentation changes whenever delivered behavior affects a
 consumer.
