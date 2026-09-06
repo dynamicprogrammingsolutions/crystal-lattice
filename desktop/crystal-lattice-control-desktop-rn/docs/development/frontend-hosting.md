@@ -35,12 +35,16 @@ the ordinary session-settings controller. Rich action controls use the
 ordinary action runner.
 
 Compact dropdowns and rich lists open through the native popover coordinator.
-The full Session Settings window renders `type: "dropdown"` with `MacSelect`
-and exposes custom string entry when `allow_custom_value` is enabled.
+The full Session Settings window renders fixed-option dropdowns with
+`MacSelect`. Custom-capable dropdowns use the native `MacComboBox`, while
+portable filtering, regex validation, and synthetic custom options remain in
+the frontend SDK. The composer enables the shared two-row pinned-action layout
+with its second row below.
 
 Maintainer entry points:
 
 - `src/chat/ChatPane.tsx`
 - `src/windows/SessionSettingsWindow.tsx`
 - `src/native/MacSelect.tsx`
+- `src/native/MacComboBox.tsx`
 - `src/windows/desktopPopoverCoordinator.ts`

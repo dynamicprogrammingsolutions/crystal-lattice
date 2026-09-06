@@ -14,6 +14,10 @@ import {
   useTheme,
 } from '@crystal-lattice/frontend-rn-components';
 import {
+  createConfigDropdownSuggestionEngine,
+  normalizeConfigDropdownPresentation,
+} from '@crystal-lattice/frontend-sdk';
+import {
   buildConfigSchemaByKey,
   buildSessionSettingItems,
   SessionSettingsHost,
@@ -29,6 +33,7 @@ import { useActiveSessionSettingsWindow } from './sessionSettingsCoordinator';
 import { clearActiveSessionSettingsWindow } from './sessionSettingsCoordinator';
 import { DesktopWindowManager } from './desktopWindowManager';
 import { MacCheckbox } from '../native/MacCheckbox';
+import { MacComboBox } from '../native/MacComboBox';
 import { MacSelect, type MacSelectOption } from '../native/MacSelect';
 
 export function SessionSettingsWindow(): React.JSX.Element {
@@ -255,6 +260,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       }
       return (
         <Pressable
+          testID={`session-setting-reset-${ctx.item.key}`}
           onPress={() => ctx.actions.revertToDefault(ctx.item.key)}
           disabled={ctx.item.disabled}
           style={state => [
@@ -549,23 +555,43 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         );
       },
       dropdown: ({ item, actions, renderFallback }) => {
-        const options = normalizeOptions((item.element as any).options);
-        const allowCustomValue =
-          (item.element as any).allow_custom_value === true;
-        if (options.length === 0 && !allowCustomValue) {
+        const normalized = normalizeConfigDropdownPresentation(item.element);
+        if (!normalized.value) {
           return <>{renderFallback()}</>;
         }
+        const presentation = normalized.value;
+        const options = presentation.options;
+        const customEnabled = presentation.custom_value?.enabled === true;
 
         const selectedValue =
           item.effectiveValue !== undefined && item.effectiveValue !== null
             ? String(item.effectiveValue)
             : '';
-        const selectedIsDeclared = options.some(
-          option => option.value === selectedValue,
+        const hasPendingQuery = Object.prototype.hasOwnProperty.call(
+          pendingTextByKey,
+          item.key,
         );
-        const customValue =
-          pendingTextByKey[item.key] ??
-          (selectedIsDeclared ? '' : selectedValue);
+        const query = hasPendingQuery
+          ? pendingTextByKey[item.key]
+          : selectedValue;
+        const suggestionEngine =
+          createConfigDropdownSuggestionEngine(presentation);
+        const suggestions = suggestionEngine.suggestions(
+          hasPendingQuery ? query : '',
+        );
+        const selectValue = (value: string) => {
+          setPendingTextByKey(current => ({ ...current, [item.key]: value }));
+          actions.selectOption(item.key, value);
+        };
+        const submitQuery = (value: string) => {
+          const candidate = value.trim();
+          const suggestion = suggestions.find(
+            option => option.value === candidate,
+          );
+          if (suggestion) {
+            selectValue(suggestion.value);
+          }
+        };
 
         return (
           <View
@@ -595,16 +621,43 @@ function SessionSettingsWindowInner(): React.JSX.Element {
                 {item.description}
               </Text>
             ) : null}
-            {options.length > 0 ? (
+            {customEnabled ? (
+              <MacComboBox
+                testID={`session-setting-dropdown-${item.key}`}
+                accessibilityLabel={item.label}
+                style={styles.macSelect}
+                options={suggestions}
+                inputValue={query}
+                placeholder={presentation.placeholder}
+                enabled={!item.disabled}
+                onInputValueChange={value => {
+                  setPendingTextByKey(current => ({
+                    ...current,
+                    [item.key]: value,
+                  }));
+                }}
+                onValueChange={value => {
+                  if (!item.disabled && value) {
+                    selectValue(value);
+                  }
+                }}
+                onSubmit={value => {
+                  if (!item.disabled) {
+                    submitQuery(value);
+                  }
+                }}
+              />
+            ) : (
               <MacSelect
                 testID={`session-setting-dropdown-${item.key}`}
                 accessibilityLabel={item.label}
                 style={styles.macSelect}
-                options={options}
-                selectedValue={selectedIsDeclared ? selectedValue : ''}
-                placeholder={
-                  selectedIsDeclared ? 'None' : selectedValue || 'None'
-                }
+                options={options.map(option => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+                selectedValue={selectedValue}
+                placeholder="None"
                 enabled={!item.disabled}
                 onValueChange={value => {
                   if (!item.disabled && value) {
@@ -612,68 +665,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
                   }
                 }}
               />
-            ) : null}
-            {allowCustomValue ? (
-              <View style={styles.textRow}>
-                <TextInput
-                  testID={`session-setting-dropdown-${item.key}-custom-input`}
-                  accessibilityLabel={
-                    typeof (item.element as any).custom_value_label === 'string'
-                      ? (item.element as any).custom_value_label
-                      : `Custom ${item.label}`
-                  }
-                  style={[
-                    styles.textInput,
-                    item.disabled && styles.textInputDisabled,
-                  ]}
-                  value={customValue}
-                  editable={!item.disabled}
-                  placeholder={
-                    typeof (item.element as any).custom_value_placeholder ===
-                    'string'
-                      ? (item.element as any).custom_value_placeholder
-                      : 'Enter a value'
-                  }
-                  placeholderTextColor={theme.textSecondary}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onChangeText={text =>
-                    setPendingTextByKey(current => ({
-                      ...current,
-                      [item.key]: text,
-                    }))
-                  }
-                />
-                <Pressable
-                  testID={`session-setting-dropdown-${item.key}-custom-save`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Use custom ${item.label}`}
-                  style={state => [
-                    styles.saveButton,
-                    (state.pressed || savingKeySet.has(item.key)) &&
-                      styles.saveButtonPressed,
-                    (item.disabled || !customValue.trim()) &&
-                      styles.saveButtonDisabled,
-                  ]}
-                  disabled={
-                    savingKeySet.has(item.key) ||
-                    item.disabled ||
-                    !customValue.trim()
-                  }
-                  onPress={() => actions.saveText(item.key)}
-                >
-                  <Text
-                    style={[
-                      styles.saveButtonText,
-                      (item.disabled || !customValue.trim()) &&
-                        styles.saveButtonTextDisabled,
-                    ]}
-                  >
-                    Use value
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
+            )}
           </View>
         );
       },
@@ -694,9 +686,9 @@ function SessionSettingsWindowInner(): React.JSX.Element {
 
   const error = !supported
     ? 'This backend does not support session settings.'
-    : (settingsState?.error ?? null);
+    : settingsState?.error ?? null;
   const statusText = error || settingsState?.statusMessage;
-  const statusTone = error ? 'error' : (settingsState?.statusTone ?? 'idle');
+  const statusTone = error ? 'error' : settingsState?.statusTone ?? 'idle';
   const showSpinner = !error && statusTone === 'busy';
   const hasLoaded = settingsState?.lastLoadedAt != null;
 
@@ -735,8 +727,8 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               statusTone === 'error'
                 ? styles.statusTextError
                 : statusTone === 'success'
-                  ? styles.statusTextSuccess
-                  : null,
+                ? styles.statusTextSuccess
+                : null,
             ]}
             numberOfLines={1}
           >

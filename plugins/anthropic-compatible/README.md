@@ -9,14 +9,15 @@ The package currently provides:
 - API-key configuration;
 - model discovery;
 - discovered-model dropdowns, manual model IDs, and compact composer model
-  selection through the standard configuration UI contract;
+  selection through one searchable, validated configuration UI contract;
 - complete provider-native content-block history;
 - request cancellation;
 - tool schemas, calls, and results through `AnthropicToolsExtension`;
 - thinking, redacted thinking, signatures, and native-history reconstruction
   through `AnthropicReasoningExtension`;
 - official capability-driven reasoning settings and UI through
-  `AnthropicReasoningControlsExtension`;
+  `AnthropicReasoningControlsExtension`, including a model-dependent compact
+  composer effort selector;
 - raw request-body overrides through `RequestOptionsFeature`;
 - standard and beta Anthropic SDK requests with configurable beta features
   and beta headers;

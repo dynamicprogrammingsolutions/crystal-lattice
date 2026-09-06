@@ -242,6 +242,14 @@ def test_ui_uses_exact_selected_model_controls() -> None:
     assert [
         option["value"] for option in by_key["anthropic_reasoning_effort"]["options"]
     ] == ["low", "medium", "high", "max"]
+    assert by_key["anthropic_reasoning_effort"]["rich_ui"] == {
+        "kind": "dropdown",
+        "label": "Reasoning effort",
+        "show_label": False,
+        "options": by_key["anthropic_reasoning_effort"]["options"],
+        "placements": ["composer"],
+        "default_pinned": True,
+    }
     assert by_key["anthropic_reasoning_budget_tokens"]["default"] == 2048
     assert by_key["anthropic_reasoning_display"]["default"] == "summarized"
 

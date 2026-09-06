@@ -9,7 +9,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import type { AgentBackend } from "@crystal-lattice/frontend-sdk";
+import type {
+  AgentBackend,
+  ConfigCustomValue,
+  RichDropdownOption,
+} from "@crystal-lattice/frontend-sdk";
 import {
   buildConfigSchemaByKey,
   buildSessionSettingItems,
@@ -48,11 +52,10 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const [dropdownState, setDropdownState] = useState<{
     key: string;
     label: string;
-    options: { value: string; label: string }[];
+    options: RichDropdownOption[];
     selected: string;
-    allowCustomValue: boolean;
-    customValueLabel?: string;
-    customValuePlaceholder?: string;
+    placeholder?: string;
+    customValue?: ConfigCustomValue;
   } | null>(null);
 
   const controllerSessionId = visible ? sessionId : null;
@@ -65,7 +68,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const elements = settingsState?.elements ?? [];
   const schemaByKey = useMemo(
     () => buildConfigSchemaByKey(settingsState?.configSchema || []),
-    [settingsState?.configSchema],
+    [settingsState?.configSchema]
   );
   const savingKeys = settingsState?.savingKeys ?? [];
   const savingKeySet = useMemo(() => new Set(savingKeys), [savingKeys]);
@@ -199,7 +202,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     return null;
   }
 
-  const normalizeOptions = (raw: any): { value: string; label: string }[] => {
+  const normalizeOptions = (raw: any): RichDropdownOption[] => {
     if (!Array.isArray(raw)) return [];
     return raw
       .map((opt) => {
@@ -210,11 +213,16 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
           const value =
             typeof opt.value === "string" ? opt.value : String(opt.value ?? "");
           const label = typeof opt.label === "string" ? opt.label : value;
-          return { value, label };
+          return {
+            value,
+            label,
+            ...(typeof opt.icon === "string" ? { icon: opt.icon } : {}),
+            ...(typeof opt.tone === "string" ? { tone: opt.tone } : {}),
+          };
         }
         return null;
       })
-      .filter((v) => v !== null) as { value: string; label: string }[];
+      .filter((v) => v !== null) as RichDropdownOption[];
   };
 
   const renderTextLike = (ctx: SessionSettingRenderCtx) => {
@@ -222,7 +230,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     const key = item.key;
     const hasPending = Object.prototype.hasOwnProperty.call(
       pendingTextByKey,
-      key,
+      key
     );
     const pending = hasPending ? pendingTextByKey[key] : undefined;
 
@@ -432,6 +440,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
           </View>
           <View style={styles.controlSwitchColumn}>
             <Switch
+              testID={`session-setting-checkbox-${item.key}`}
               value={boolValue}
               disabled={item.disabled}
               onValueChange={(next) =>
@@ -454,7 +463,12 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     select: (ctx: SessionSettingRenderCtx) => {
       const { item } = ctx;
       const options = normalizeOptions((item.element as any).options);
-      if (!options.length) {
+      const customValue =
+        (item.element as any).custom_value &&
+        typeof (item.element as any).custom_value === "object"
+          ? ((item.element as any).custom_value as ConfigCustomValue)
+          : undefined;
+      if (!options.length && customValue?.enabled !== true) {
         return null;
       }
 
@@ -536,8 +550,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
                         item.disabled
                           ? styles.chipTextDisabled
                           : isSelected
-                            ? styles.chipTextSelected
-                            : styles.chipText
+                          ? styles.chipTextSelected
+                          : styles.chipText
                       }
                     >
                       {opt.label}
@@ -553,7 +567,12 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     dropdown: (ctx: SessionSettingRenderCtx) => {
       const { item } = ctx;
       const options = normalizeOptions((item.element as any).options);
-      if (!options.length) {
+      const customValue =
+        (item.element as any).custom_value &&
+        typeof (item.element as any).custom_value === "object"
+          ? ((item.element as any).custom_value as ConfigCustomValue)
+          : undefined;
+      if (!options.length && customValue?.enabled !== true) {
         return null;
       }
       const selected =
@@ -627,17 +646,11 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
                   label: item.label,
                   options,
                   selected,
-                  allowCustomValue:
-                    (item.element as any).allow_custom_value === true,
-                  customValueLabel:
-                    typeof (item.element as any).custom_value_label === "string"
-                      ? (item.element as any).custom_value_label
+                  placeholder:
+                    typeof (item.element as any).placeholder === "string"
+                      ? (item.element as any).placeholder
                       : undefined,
-                  customValuePlaceholder:
-                    typeof (item.element as any).custom_value_placeholder ===
-                    "string"
-                      ? (item.element as any).custom_value_placeholder
-                      : undefined,
+                  customValue,
                 });
               }}
             >
@@ -659,9 +672,9 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
 
   const error = !backend
     ? "No active connection"
-    : (settingsState?.error ?? null);
+    : settingsState?.error ?? null;
   const statusText = error || settingsState?.statusMessage;
-  const statusTone = error ? "error" : (settingsState?.statusTone ?? "idle");
+  const statusTone = error ? "error" : settingsState?.statusTone ?? "idle";
   const showSpinner = !error && statusTone === "busy";
   const hasLoaded = settingsState?.lastLoadedAt != null;
 
@@ -682,9 +695,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
           visible={!!dropdownState}
           options={dropdownState?.options ?? []}
           selectedValue={dropdownState?.selected ?? ""}
-          allowCustomValue={dropdownState?.allowCustomValue ?? false}
-          customValueLabel={dropdownState?.customValueLabel}
-          customValuePlaceholder={dropdownState?.customValuePlaceholder}
+          placeholder={dropdownState?.placeholder}
+          customValue={dropdownState?.customValue}
           useModal={false}
           onSelect={(value) => {
             if (dropdownState) {

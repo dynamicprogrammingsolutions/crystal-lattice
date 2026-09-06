@@ -70,7 +70,11 @@ describe("Anthropic rich model UI through the public backend", () => {
         "tmp",
         "anthropic-rich-ui-plugin-cache",
       ),
-      plugins: ["anthropic_plugins.provider.AnthropicProvider"],
+      plugins: [
+        "anthropic_plugins.provider.AnthropicProvider",
+        `path:${path.join(repoRoot, "plugins", "session-status-app")}`,
+        `path:${path.join(repoRoot, "plugins", "dummy-rich-config-ui")}`,
+      ],
       providers: {
         anthropic_test: {
           provider: "anthropic",
@@ -84,6 +88,7 @@ describe("Anthropic rich model UI through the public backend", () => {
       agents: {
         default: {
           provider: "anthropic_test",
+          enabled_plugins: ["dummy_rich_config_ui"],
         },
       },
     };
@@ -99,6 +104,8 @@ describe("Anthropic rich model UI through the public backend", () => {
             path.join(repoRoot, "core", "python"),
             path.join(repoRoot, "application", "python"),
             path.join(repoRoot, "plugins", "anthropic-compatible", "src"),
+            path.join(repoRoot, "plugins", "session-status-app", "src"),
+            path.join(repoRoot, "plugins", "dummy-rich-config-ui", "src"),
           ].join(path.delimiter),
         },
       });
@@ -129,7 +136,9 @@ describe("Anthropic rich model UI through the public backend", () => {
       ui_type: "config",
       type: "dropdown",
       key: "model",
-      allow_custom_value: true,
+      custom_value: {
+        enabled: true,
+      },
       options: [
         { value: "claude-a", label: "Claude A" },
         { value: "claude-b", label: "Claude B" },
@@ -139,7 +148,47 @@ describe("Anthropic rich model UI through the public backend", () => {
         label: "Model",
         placements: ["composer"],
         default_pinned: true,
-        allow_custom_value: true,
+        show_label: false,
+        custom_value: {
+          enabled: true,
+        },
+      },
+    });
+    const appearance = controller
+      .getSnapshot()
+      .elements.find((element) => element.key === "dummy_rich_ui_appearance");
+    expect(appearance).toMatchObject({
+      ui_type: "config",
+      type: "select",
+      rich_ui: {
+        kind: "dropdown",
+        placements: ["composer", "session_header"],
+      },
+    });
+    expect(
+      (appearance?.options ?? []).map((option: any) => option.tone),
+    ).toEqual([
+      "primary",
+      "highlight",
+      "warning",
+      "success",
+      "danger",
+      "muted",
+    ]);
+
+    const sessionActions =
+      await backend.getSessionApplicationUiSchema(sessionId);
+    const statusAction = sessionActions.find(
+      (element) =>
+        element.ui_type === "session_action" &&
+        element.id === "set_session_status",
+    );
+    expect(statusAction).toMatchObject({
+      action_id: "set_session_status",
+      rich_ui: {
+        kind: "list",
+        placements: ["session_header"],
+        value_path: "metadata.status",
       },
     });
 
@@ -153,6 +202,16 @@ describe("Anthropic rich model UI through the public backend", () => {
       "vendor/custom-model",
     );
 
+    await controller.patchOverride("dummy_rich_ui_appearance", "warning");
+    await controller.patchOverride("dummy_rich_ui_toggle", true);
+    expect(await backend.getSessionOverrides(sessionId)).toMatchObject({
+      model: "vendor/custom-model",
+      dummy_rich_ui_appearance: "warning",
+      dummy_rich_ui_toggle: true,
+    });
+
+    await controller.deleteOverride("dummy_rich_ui_appearance");
+    await controller.deleteOverride("dummy_rich_ui_toggle");
     await controller.deleteOverride("model");
     expect(await backend.getSessionOverrides(sessionId)).toEqual({});
     expect((await backend.getSessionBaseConfig(sessionId)).model).toBe(

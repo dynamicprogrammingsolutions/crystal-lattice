@@ -5,6 +5,7 @@ import {
   type SessionListActionElement,
   type SessionListRichUi,
 } from "../sessions/sessionListContracts";
+import type { SessionListOptionTone } from "../sessions/sessionListFilters";
 
 export const CHAT_RICH_UI_PLACEMENTS = ["session_header", "composer"] as const;
 
@@ -26,7 +27,35 @@ export interface RichDropdownOption {
   value: string;
   label: string;
   icon?: string;
-  tone?: string;
+  tone?: SessionListOptionTone;
+}
+
+export interface RichToggleOption {
+  value: boolean;
+  label: string;
+  icon?: string;
+  tone?: SessionListOptionTone;
+}
+
+export interface ConfigCustomValue {
+  enabled: boolean;
+  pattern?: string;
+  option_label?: string;
+}
+
+export interface ConfigDropdownPresentation {
+  options: readonly RichDropdownOption[];
+  placeholder?: string;
+  custom_value?: ConfigCustomValue;
+}
+
+export interface ConfigDropdownSuggestion extends RichDropdownOption {
+  kind: "declared" | "custom";
+}
+
+export interface ConfigDropdownSuggestionEngine {
+  diagnostics: readonly RichUiDiagnostic[];
+  suggestions(query: string): ConfigDropdownSuggestion[];
 }
 
 export interface ConfigRichUiBase {
@@ -35,14 +64,20 @@ export interface ConfigRichUiBase {
   icon?: string;
   placements: readonly string[];
   default_pinned?: boolean;
+  show_label?: boolean;
 }
 
 export interface ConfigRichDropdownUi extends ConfigRichUiBase {
   kind: "dropdown";
   options: readonly RichDropdownOption[];
-  allow_custom_value?: boolean;
-  custom_value_label?: string;
-  custom_value_placeholder?: string;
+  placeholder?: string;
+  custom_value?: ConfigCustomValue;
+  description?: string;
+}
+
+export interface ConfigRichToggleUi extends ConfigRichUiBase {
+  kind: "toggle";
+  options: readonly RichToggleOption[];
   description?: string;
 }
 
@@ -51,7 +86,8 @@ export interface UnknownConfigRichUi {
   [key: string]: unknown;
 }
 
-export type ConfigRichUi = ConfigRichDropdownUi | UnknownConfigRichUi;
+export type ConfigRichUi =
+  ConfigRichDropdownUi | ConfigRichToggleUi | UnknownConfigRichUi;
 
 export interface ConfigRichUiElement extends UiSchemaElement {
   key: string;
@@ -71,6 +107,15 @@ export interface SessionActionRichUiElement extends ActionUiElement {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
+
+const SEMANTIC_TONES = new Set<SessionListOptionTone>([
+  "primary",
+  "highlight",
+  "warning",
+  "success",
+  "danger",
+  "muted",
+]);
 
 function normalizePlacements(
   raw: unknown,
@@ -197,13 +242,16 @@ function normalizeRichDropdownOptions(
         ],
       };
     }
-    if (option.tone !== undefined && typeof option.tone !== "string") {
+    if (
+      option.tone !== undefined &&
+      !SEMANTIC_TONES.has(option.tone as SessionListOptionTone)
+    ) {
       return {
         value: null,
         diagnostics: [
           {
             code: "invalid_config_rich_ui",
-            message: "Rich dropdown option tones must be strings.",
+            message: "Rich dropdown option tone is not supported.",
             elementKey,
           },
         ],
@@ -214,10 +262,318 @@ function normalizeRichDropdownOptions(
       value: option.value,
       label: option.label,
       ...(typeof option.icon === "string" ? { icon: option.icon } : {}),
-      ...(typeof option.tone === "string" ? { tone: option.tone } : {}),
+      ...(typeof option.tone === "string"
+        ? { tone: option.tone as SessionListOptionTone }
+        : {}),
     });
   }
   return { value: options, diagnostics: [] };
+}
+
+function normalizeRichToggleOptions(
+  raw: unknown,
+  elementKey: string,
+): RichUiNormalizationResult<readonly RichToggleOption[]> {
+  if (!Array.isArray(raw) || raw.length !== 2) {
+    return {
+      value: null,
+      diagnostics: [
+        {
+          code: "invalid_config_rich_ui",
+          message:
+            "rich_ui.toggle.options must contain exactly one false and one true option.",
+          elementKey,
+        },
+      ],
+    };
+  }
+
+  const options: RichToggleOption[] = [];
+  const values = new Set<boolean>();
+  for (const option of raw) {
+    if (
+      !isRecord(option) ||
+      typeof option.value !== "boolean" ||
+      typeof option.label !== "string" ||
+      !option.label
+    ) {
+      return {
+        value: null,
+        diagnostics: [
+          {
+            code: "invalid_config_rich_ui",
+            message:
+              "Every rich toggle option requires a boolean value and non-empty label.",
+            elementKey,
+          },
+        ],
+      };
+    }
+    if (values.has(option.value)) {
+      return {
+        value: null,
+        diagnostics: [
+          {
+            code: "invalid_config_rich_ui",
+            message:
+              "rich_ui.toggle.options must contain distinct false and true values.",
+            elementKey,
+          },
+        ],
+      };
+    }
+    if (option.icon !== undefined && typeof option.icon !== "string") {
+      return {
+        value: null,
+        diagnostics: [
+          {
+            code: "invalid_config_rich_ui",
+            message: "Rich toggle option icons must be strings.",
+            elementKey,
+          },
+        ],
+      };
+    }
+    if (
+      option.tone !== undefined &&
+      !SEMANTIC_TONES.has(option.tone as SessionListOptionTone)
+    ) {
+      return {
+        value: null,
+        diagnostics: [
+          {
+            code: "invalid_config_rich_ui",
+            message: "Rich toggle option tone is not supported.",
+            elementKey,
+          },
+        ],
+      };
+    }
+    values.add(option.value);
+    options.push({
+      value: option.value,
+      label: option.label,
+      ...(typeof option.icon === "string" ? { icon: option.icon } : {}),
+      ...(typeof option.tone === "string"
+        ? { tone: option.tone as SessionListOptionTone }
+        : {}),
+    });
+  }
+
+  if (!values.has(false) || !values.has(true)) {
+    return {
+      value: null,
+      diagnostics: [
+        {
+          code: "invalid_config_rich_ui",
+          message:
+            "rich_ui.toggle.options must contain exactly one false and one true option.",
+          elementKey,
+        },
+      ],
+    };
+  }
+  return { value: options, diagnostics: [] };
+}
+
+function normalizeCustomValue(
+  raw: unknown,
+  elementKey: string,
+  field: string,
+): RichUiNormalizationResult<ConfigCustomValue | undefined> {
+  if (raw === undefined) {
+    return { value: undefined, diagnostics: [] };
+  }
+  if (!isRecord(raw) || typeof raw.enabled !== "boolean") {
+    return {
+      value: undefined,
+      diagnostics: [
+        {
+          code: "invalid_config_rich_ui",
+          message: `${field}.enabled must be a boolean.`,
+          elementKey,
+        },
+      ],
+    };
+  }
+  if (raw.pattern !== undefined && typeof raw.pattern !== "string") {
+    return {
+      value: undefined,
+      diagnostics: [
+        {
+          code: "invalid_config_rich_ui",
+          message: `${field}.pattern must be a string.`,
+          elementKey,
+        },
+      ],
+    };
+  }
+  if (raw.option_label !== undefined && typeof raw.option_label !== "string") {
+    return {
+      value: undefined,
+      diagnostics: [
+        {
+          code: "invalid_config_rich_ui",
+          message: `${field}.option_label must be a string.`,
+          elementKey,
+        },
+      ],
+    };
+  }
+  return {
+    value: {
+      enabled: raw.enabled,
+      ...(typeof raw.pattern === "string" ? { pattern: raw.pattern } : {}),
+      ...(typeof raw.option_label === "string"
+        ? { option_label: raw.option_label }
+        : {}),
+    },
+    diagnostics: [],
+  };
+}
+
+export function normalizeConfigDropdownPresentation(
+  raw: unknown,
+): RichUiNormalizationResult<ConfigDropdownPresentation> {
+  const elementKey =
+    isRecord(raw) && typeof raw.key === "string" ? raw.key : undefined;
+  if (!isRecord(raw)) {
+    return {
+      value: null,
+      diagnostics: [
+        {
+          code: "invalid_config_dropdown",
+          message: "A config dropdown must be an object.",
+          elementKey,
+        },
+      ],
+    };
+  }
+  const options = normalizeRichDropdownOptions(
+    raw.options ?? [],
+    elementKey ?? "",
+  );
+  if (!options.value) {
+    return { value: null, diagnostics: options.diagnostics };
+  }
+  if (raw.placeholder !== undefined && typeof raw.placeholder !== "string") {
+    return {
+      value: null,
+      diagnostics: [
+        {
+          code: "invalid_config_dropdown",
+          message: "dropdown.placeholder must be a string.",
+          elementKey,
+        },
+      ],
+    };
+  }
+  const customValue = normalizeCustomValue(
+    raw.custom_value,
+    elementKey ?? "",
+    "dropdown.custom_value",
+  );
+  if (options.value.length === 0 && customValue.value?.enabled !== true) {
+    return {
+      value: null,
+      diagnostics: [
+        ...customValue.diagnostics,
+        {
+          code: "invalid_config_dropdown",
+          message:
+            "A dropdown requires declared options or custom_value.enabled.",
+          elementKey,
+        },
+      ],
+    };
+  }
+  return {
+    value: {
+      options: options.value,
+      ...(typeof raw.placeholder === "string"
+        ? { placeholder: raw.placeholder }
+        : {}),
+      ...(customValue.value ? { custom_value: customValue.value } : {}),
+    },
+    diagnostics: customValue.diagnostics,
+  };
+}
+
+export function createConfigDropdownSuggestionEngine(
+  presentation: ConfigDropdownPresentation,
+): ConfigDropdownSuggestionEngine {
+  const diagnostics: RichUiDiagnostic[] = [];
+  const customValue = presentation.custom_value;
+  let pattern: RegExp | null = null;
+  let customEnabled = customValue?.enabled === true;
+
+  if (customEnabled && customValue?.pattern) {
+    try {
+      pattern = new RegExp(`^(?:${customValue.pattern})$`);
+    } catch {
+      diagnostics.push({
+        code: "invalid_config_dropdown_custom_pattern",
+        message: "custom_value.pattern is not a valid ECMAScript regex.",
+      });
+      customEnabled = false;
+    }
+  }
+
+  if (
+    customEnabled &&
+    (!customValue?.option_label ||
+      !customValue.option_label.includes("{value}"))
+  ) {
+    diagnostics.push({
+      code: "invalid_config_dropdown_custom_label",
+      message: "custom_value.option_label must contain the {value} token.",
+    });
+    customEnabled = false;
+  }
+
+  return {
+    diagnostics,
+    suggestions(query: string): ConfigDropdownSuggestion[] {
+      const candidate = String(query ?? "").trim();
+      const normalizedQuery = candidate.toLocaleLowerCase();
+      const declared = presentation.options
+        .filter(
+          (option) =>
+            !normalizedQuery ||
+            option.label.toLocaleLowerCase().includes(normalizedQuery) ||
+            option.value.toLocaleLowerCase().includes(normalizedQuery),
+        )
+        .map((option) => ({ ...option, kind: "declared" as const }));
+      if (
+        !candidate ||
+        !customEnabled ||
+        presentation.options.some((option) => option.value === candidate) ||
+        (pattern && !pattern.test(candidate))
+      ) {
+        return declared;
+      }
+      return [
+        ...declared,
+        {
+          kind: "custom",
+          value: candidate,
+          label: customValue!.option_label!.split("{value}").join(candidate),
+        },
+      ];
+    },
+  };
+}
+
+export function resolveConfigRichToggleOption(
+  richUi: ConfigRichToggleUi,
+  value: unknown,
+): RichToggleOption {
+  const booleanValue = value === true;
+  return (
+    richUi.options.find((option) => option.value === booleanValue) ??
+    richUi.options.find((option) => option.value === false) ??
+    richUi.options[0]
+  );
 }
 
 export function normalizeConfigRichUiElement(
@@ -262,7 +618,7 @@ export function normalizeConfigRichUiElement(
     return fail("rich_ui.kind must be a non-empty string.");
   }
 
-  if (raw.rich_ui.kind !== "dropdown") {
+  if (raw.rich_ui.kind !== "dropdown" && raw.rich_ui.kind !== "toggle") {
     return {
       value: {
         ...(raw as UiSchemaElement),
@@ -275,88 +631,101 @@ export function normalizeConfigRichUiElement(
 
   const rich = raw.rich_ui;
   if (typeof rich.label !== "string" || !rich.label) {
-    return fail("rich_ui.dropdown.label must be a non-empty string.");
+    return fail("rich_ui.label must be a non-empty string.");
   }
   if (rich.icon !== undefined && typeof rich.icon !== "string") {
-    return fail("rich_ui.dropdown.icon must be a string.");
+    return fail("rich_ui.icon must be a string.");
   }
   if (
     rich.default_pinned !== undefined &&
     typeof rich.default_pinned !== "boolean"
   ) {
-    return fail("rich_ui.dropdown.default_pinned must be a boolean.");
+    return fail("rich_ui.default_pinned must be a boolean.");
   }
-  if (
-    rich.allow_custom_value !== undefined &&
-    typeof rich.allow_custom_value !== "boolean"
-  ) {
-    return fail("rich_ui.dropdown.allow_custom_value must be a boolean.");
-  }
-  if (
-    rich.custom_value_label !== undefined &&
-    typeof rich.custom_value_label !== "string"
-  ) {
-    return fail("rich_ui.dropdown.custom_value_label must be a string.");
-  }
-  if (
-    rich.custom_value_placeholder !== undefined &&
-    typeof rich.custom_value_placeholder !== "string"
-  ) {
-    return fail("rich_ui.dropdown.custom_value_placeholder must be a string.");
+  if (rich.show_label !== undefined && typeof rich.show_label !== "boolean") {
+    return fail("rich_ui.show_label must be a boolean.");
   }
   if (rich.description !== undefined && typeof rich.description !== "string") {
-    return fail("rich_ui.dropdown.description must be a string.");
+    return fail("rich_ui.description must be a string.");
   }
 
   const placements = normalizePlacements(rich.placements, raw.key);
   if (!placements.value) {
     return { value: null, diagnostics: placements.diagnostics };
   }
-  const options = normalizeRichDropdownOptions(rich.options, raw.key);
-  if (!options.value) {
-    return { value: null, diagnostics: options.diagnostics };
-  }
-
-  const allowCustom = rich.allow_custom_value === true;
-  if (allowCustom && raw.allow_custom_value !== true) {
-    return fail(
-      "A rich dropdown with allow_custom_value requires allow_custom_value on the containing config element.",
-    );
-  }
-  if (
-    allowCustom &&
-    raw.type !== "dropdown" &&
-    raw.type !== "text" &&
-    raw.type !== "string"
-  ) {
-    return fail(
-      "Custom rich dropdown values require a string-valued config element.",
-    );
-  }
-  if (options.value.length === 0 && !allowCustom) {
-    return fail("A rich dropdown requires options or allow_custom_value.");
-  }
-
-  const normalizedRich: ConfigRichDropdownUi = {
-    kind: "dropdown",
+  const common = {
     label: rich.label,
     placements: placements.value,
-    options: options.value,
     ...(typeof rich.icon === "string" ? { icon: rich.icon } : {}),
     ...(typeof rich.default_pinned === "boolean"
       ? { default_pinned: rich.default_pinned }
       : {}),
-    ...(allowCustom ? { allow_custom_value: true } : {}),
-    ...(typeof rich.custom_value_label === "string"
-      ? { custom_value_label: rich.custom_value_label }
-      : {}),
-    ...(typeof rich.custom_value_placeholder === "string"
-      ? { custom_value_placeholder: rich.custom_value_placeholder }
+    ...(typeof rich.show_label === "boolean"
+      ? { show_label: rich.show_label }
       : {}),
     ...(typeof rich.description === "string"
       ? { description: rich.description }
       : {}),
   };
+
+  let normalizedRich: ConfigRichDropdownUi | ConfigRichToggleUi;
+  let diagnostics = [...placements.diagnostics];
+  if (rich.kind === "toggle") {
+    if (raw.type !== "checkbox" && raw.type !== "boolean") {
+      return fail(
+        "A rich config toggle requires a checkbox or boolean config element.",
+      );
+    }
+    const options = normalizeRichToggleOptions(rich.options, raw.key);
+    if (!options.value) {
+      return { value: null, diagnostics: options.diagnostics };
+    }
+    normalizedRich = {
+      kind: "toggle",
+      ...common,
+      options: options.value,
+    };
+  } else {
+    const presentation = normalizeConfigDropdownPresentation({
+      key: raw.key,
+      options: rich.options,
+      placeholder: rich.placeholder,
+      custom_value: rich.custom_value,
+    });
+    if (!presentation.value) {
+      return { value: null, diagnostics: presentation.diagnostics };
+    }
+    diagnostics = [...diagnostics, ...presentation.diagnostics];
+    if (presentation.value.custom_value?.enabled === true) {
+      const outerCustom = normalizeCustomValue(
+        raw.custom_value,
+        raw.key,
+        "dropdown.custom_value",
+      );
+      diagnostics.push(...outerCustom.diagnostics);
+      if (outerCustom.value?.enabled !== true) {
+        return fail(
+          "A rich dropdown with custom_value.enabled requires custom_value.enabled on the containing config element.",
+        );
+      }
+      if (raw.type !== "dropdown") {
+        return fail(
+          "A custom-enabled rich dropdown requires a dropdown config element.",
+        );
+      }
+    }
+    normalizedRich = {
+      kind: "dropdown",
+      ...common,
+      options: presentation.value.options,
+      ...(presentation.value.placeholder
+        ? { placeholder: presentation.value.placeholder }
+        : {}),
+      ...(presentation.value.custom_value
+        ? { custom_value: presentation.value.custom_value }
+        : {}),
+    };
+  }
 
   return {
     value: {
@@ -364,7 +733,7 @@ export function normalizeConfigRichUiElement(
       key: raw.key,
       rich_ui: normalizedRich,
     },
-    diagnostics: placements.diagnostics,
+    diagnostics,
   };
 }
 

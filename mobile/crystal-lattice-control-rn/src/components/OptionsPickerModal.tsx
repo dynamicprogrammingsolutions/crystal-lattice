@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   ScrollView,
@@ -10,22 +11,28 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-} from "react-native";
+} from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
+import {
+  createConfigDropdownSuggestionEngine,
+  type ConfigCustomValue,
+  type RichDropdownOption,
+} from '@crystal-lattice/frontend-sdk';
+import { resolveSemanticToneColor } from '@crystal-lattice/frontend-rn-components';
 
-import { useTheme, type Theme } from "../theme";
+import { useTheme, type Theme } from '../theme';
 
-export type OptionItem = { value: string; label: string };
+export type OptionItem = RichDropdownOption;
 
 export interface OptionsPickerModalProps {
   visible: boolean;
-  options: OptionItem[];
+  options: readonly OptionItem[];
   onSelect: (value: string) => void;
   onRequestClose: () => void;
   useModal?: boolean;
   selectedValue?: string;
-  allowCustomValue?: boolean;
-  customValueLabel?: string;
-  customValuePlaceholder?: string;
+  placeholder?: string;
+  customValue?: ConfigCustomValue;
   showReset?: boolean;
   resetLabel?: string;
   onReset?: () => void;
@@ -40,53 +47,59 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
   onSelect,
   onRequestClose,
   useModal = true,
-  selectedValue = "",
-  allowCustomValue = false,
-  customValueLabel = "Other value…",
-  customValuePlaceholder = "Enter a value",
+  selectedValue = '',
+  placeholder = 'Search or enter a value',
+  customValue,
   showReset = false,
-  resetLabel = "Reset to configured value",
+  resetLabel = 'Reset to configured value',
   onReset,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [search, setSearch] = useState("");
-  const [customValue, setCustomValue] = useState("");
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (!visible) {
       return;
     }
     const selectedIsDeclared = options.some(
-      (option) => option.value === selectedValue,
+      (option) => option.value === selectedValue
     );
-    setCustomValue(selectedIsDeclared ? "" : selectedValue);
+    setSearch(selectedIsDeclared ? '' : selectedValue);
   }, [options, selectedValue, visible]);
 
-  const filteredOptions = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((opt) => {
-      const text = `${opt.label ?? ""} ${opt.value ?? ""}`.toLowerCase();
-      return text.includes(q);
-    });
-  }, [options, search]);
+  const suggestionEngine = useMemo(
+    () =>
+      createConfigDropdownSuggestionEngine({
+        options,
+        placeholder,
+        ...(customValue ? { custom_value: customValue } : {}),
+      }),
+    [customValue, options, placeholder]
+  );
+  const suggestions = useMemo(
+    () => suggestionEngine.suggestions(search),
+    [search, suggestionEngine]
+  );
 
   if (!visible) return null;
 
   const handleSelect = (value: string) => {
+    Keyboard.dismiss();
     onSelect(value);
-    setSearch("");
+    setSearch('');
   };
-  const handleCustomSelect = () => {
-    const nextValue = customValue.trim();
-    if (nextValue) {
-      handleSelect(nextValue);
+  const handleSubmit = () => {
+    const candidate = search.trim();
+    const exact = suggestions.find((option) => option.value === candidate);
+    if (exact) {
+      handleSelect(exact.value);
     }
   };
 
   const handleClose = () => {
-    setSearch("");
+    Keyboard.dismiss();
+    setSearch('');
     onRequestClose();
   };
 
@@ -95,66 +108,47 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
       <View style={styles.overlay}>
         <TouchableWithoutFeedback onPress={() => {}}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.content}
           >
             <TextInput
               style={styles.searchInput}
-              placeholder="Search..."
+              accessibilityLabel={placeholder}
+              testID="options-picker-input"
+              placeholder={placeholder}
               placeholderTextColor={theme.textSecondary}
               value={search}
               onChangeText={setSearch}
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={handleSubmit}
             />
-            <ScrollView style={styles.list}>
-              {filteredOptions.map((opt) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={styles.item}
-                  accessibilityRole="button"
-                  accessibilityLabel={opt.label}
-                  testID={`options-picker-option-${opt.value}`}
-                  onPress={() => handleSelect(opt.value)}
-                >
-                  <Text style={styles.itemText} numberOfLines={2}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+              {suggestions.map((opt) => {
+                const color = resolveSemanticToneColor(theme, opt.tone);
+                return (
+                  <TouchableOpacity
+                    key={`${opt.kind}:${opt.value}`}
+                    style={styles.item}
+                    accessibilityRole="button"
+                    accessibilityLabel={opt.label}
+                    testID={`options-picker-${opt.kind}-${opt.value}`}
+                    onPress={() => handleSelect(opt.value)}
+                  >
+                    {opt.icon ? (
+                      <Icon name={opt.icon} size={16} color={color} />
+                    ) : null}
+                    <Text
+                      style={[styles.itemText, { color }]}
+                      numberOfLines={2}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
-            {allowCustomValue ? (
-              <View style={styles.customSection}>
-                <Text style={styles.customLabel}>{customValueLabel}</Text>
-                <TextInput
-                  testID="options-picker-custom-input"
-                  accessibilityLabel={customValueLabel}
-                  style={styles.customInput}
-                  placeholder={customValuePlaceholder}
-                  placeholderTextColor={theme.textSecondary}
-                  value={customValue}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  onSubmitEditing={handleCustomSelect}
-                  onChangeText={setCustomValue}
-                />
-                <TouchableOpacity
-                  testID="options-picker-custom-submit"
-                  accessibilityRole="button"
-                  accessibilityLabel="Use custom value"
-                  style={[
-                    styles.button,
-                    styles.primaryButton,
-                    !customValue.trim() && styles.disabledButton,
-                  ]}
-                  disabled={!customValue.trim()}
-                  onPress={handleCustomSelect}
-                >
-                  <Text style={styles.primaryButtonText}>Use value</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
             {showReset && onReset ? (
               <TouchableOpacity
                 testID="options-picker-reset"
@@ -163,8 +157,7 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
                 style={styles.resetButton}
                 onPress={() => {
                   onReset();
-                  setSearch("");
-                  setCustomValue("");
+                  setSearch('');
                 }}
               >
                 <Text style={styles.resetButtonText}>{resetLabel}</Text>
@@ -205,13 +198,15 @@ const createStyles = (theme: Theme) =>
   StyleSheet.create({
     overlay: {
       ...StyleSheet.absoluteFillObject,
+      zIndex: 1000,
+      elevation: 24,
       backgroundColor: theme.modalBackdrop,
-      justifyContent: "center",
-      alignItems: "center",
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     content: {
-      width: "85%",
-      maxHeight: "70%",
+      width: '85%',
+      maxHeight: '70%',
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 16,
@@ -240,7 +235,7 @@ const createStyles = (theme: Theme) =>
     },
     customLabel: {
       color: theme.text,
-      fontWeight: "700",
+      fontWeight: '700',
     },
     customInput: {
       borderWidth: 1,
@@ -256,15 +251,18 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: 8,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
     },
     itemText: {
+      flex: 1,
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
-      color: theme.text,
     },
     button: {
       marginTop: 8,
-      alignSelf: "flex-end",
+      alignSelf: 'flex-end',
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 8,
@@ -281,22 +279,22 @@ const createStyles = (theme: Theme) =>
     primaryButtonText: {
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
-      fontWeight: "600",
+      fontWeight: '600',
       color: theme.textOnPrimary,
     },
     resetButton: {
-      alignSelf: "flex-start",
+      alignSelf: 'flex-start',
       paddingHorizontal: 8,
       paddingVertical: 8,
     },
     resetButtonText: {
       color: theme.danger,
-      fontWeight: "700",
+      fontWeight: '700',
     },
     buttonTextSecondary: {
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
-      fontWeight: "600",
+      fontWeight: '600',
       color: theme.text,
     },
   });

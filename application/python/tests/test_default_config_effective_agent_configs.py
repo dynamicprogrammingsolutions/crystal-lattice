@@ -165,9 +165,10 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
         if isinstance(element.get("key"), str)
     }
     model_ui = sonnet_ui_by_key["model"]
-    assert model_ui["type"] in {"dropdown", "text"}
-    assert model_ui["allow_custom_value"] is True
+    assert model_ui["type"] == "dropdown"
+    assert model_ui["custom_value"]["enabled"] is True
     assert model_ui["rich_ui"]["kind"] == "dropdown"
+    assert model_ui["rich_ui"]["show_label"] is False
     assert model_ui["rich_ui"]["label"] == "Model"
     assert model_ui["rich_ui"]["options"] == model_ui.get("options", [])
     assert model_ui["rich_ui"]["placements"] == ["composer"]
@@ -177,6 +178,14 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
         option["value"]
         for option in sonnet_ui_by_key["anthropic_reasoning_effort"]["options"]
     ] == ["low", "medium", "high", "xhigh", "max"]
+    assert sonnet_ui_by_key["anthropic_reasoning_effort"]["rich_ui"] == {
+        "kind": "dropdown",
+        "label": "Reasoning effort",
+        "show_label": False,
+        "options": sonnet_ui_by_key["anthropic_reasoning_effort"]["options"],
+        "placements": ["composer"],
+        "default_pinned": True,
+    }
 
     opus_session = session.__class__(
         session_id=session.session_id,

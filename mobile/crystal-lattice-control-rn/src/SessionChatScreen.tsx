@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -57,8 +63,10 @@ import {
   isSessionActionPlacedAt,
   normalizeSessionActionRichUiElements,
   planTranscriptRangeControlAction,
+  resolveConfigRichToggleOption,
   selectConfigRichUiControls,
   type ConfigRichDropdownUi,
+  type ConfigRichToggleUi,
   type ConfigRichUiControl,
   type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
   type SessionActionRichUiElement,
@@ -72,6 +80,7 @@ import {
   ApplicationActionDialog,
   ActionsMenuBar,
   RichConfigDropdownControl,
+  RichConfigToggleControl,
   SessionActionsBar,
   SessionListRichActionControl,
   SessionListRichActionList,
@@ -80,7 +89,10 @@ import {
   type ActionDefinition,
   type SessionActionKey,
 } from '@crystal-lattice/frontend-rn-components';
-import { useChatController, useAgentsController } from '@crystal-lattice/frontend-sdk-react';
+import {
+  useChatController,
+  useAgentsController,
+} from '@crystal-lattice/frontend-sdk-react';
 import {
   buildConfigSchemaByKey,
   buildSessionSettingItems,
@@ -102,6 +114,7 @@ import {
 import MessageBubble from './components/MessageBubble';
 import { InvertedTranscriptViewport } from './components/InvertedTranscriptViewport';
 import DebugEventsView from './components/DebugEventsView';
+import ExpandedComposerModal from './components/ExpandedComposerModal';
 import {
   describePendingRequestRecovery,
   shouldClearPendingRequestRecovery,
@@ -123,7 +136,10 @@ import type { DebugTimelineEntry } from './debugTimeline';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import { pickAssetAsDataUrl, type AssetPickSource } from './attachmentPicking';
-import { AttachmentThumbnailStrip, type AttachmentLike } from './components/AttachmentThumbnailStrip';
+import {
+  AttachmentThumbnailStrip,
+  type AttachmentLike,
+} from './components/AttachmentThumbnailStrip';
 import { ComposerAttachmentsManageModal } from './components/ComposerAttachmentsManageModal';
 import SelectablePlainText from './components/SelectablePlainText';
 import {
@@ -133,10 +149,7 @@ import {
   type AttachmentMetadataUi,
 } from './components/AttachmentMetadataModal';
 import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
-import {
-  createChatScrollAnchor,
-  type ChatScrollAnchor,
-} from './chatScroll';
+import { createChatScrollAnchor, type ChatScrollAnchor } from './chatScroll';
 import type { MessageAttachmentSnapshot } from './messageAttachments';
 import { useTheme, type Theme } from './theme';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
@@ -168,7 +181,7 @@ interface SessionChatScreenProps {
   onUpdateCache: (
     messages: IndexedMessage[],
     eventsCursorId: string | null,
-    activeRequestId: string | null,
+    activeRequestId: string | null
   ) => void;
   onUpdateSessionSummaries?: (sessions: SessionSummary[]) => void;
   onBack: () => void;
@@ -185,7 +198,7 @@ interface SessionChatScreenProps {
     entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
       detail?: string | null;
       meta?: Record<string, any> | null;
-    },
+    }
   ) => void;
 }
 
@@ -195,14 +208,16 @@ const STORAGE_KEY_MESSAGE_ACTIONS = 'clc_pinned_message_actions_by_role_v1';
 
 type PluginActionContext =
   | { kind: 'session'; sessionSummary: SessionSummary | null }
-  | { kind: 'message'; index: number; message: ApiMessage; sessionSummary: SessionSummary | null };
+  | {
+      kind: 'message';
+      index: number;
+      message: ApiMessage;
+      sessionSummary: SessionSummary | null;
+    };
 
 type AppendAsRole = 'system' | 'developer' | 'user' | 'assistant';
 
-type TranscriptRow =
-  | { kind: 'status' }
-  | { kind: 'stream' }
-  | IndexedMessage;
+type TranscriptRow = { kind: 'status' } | { kind: 'stream' } | IndexedMessage;
 
 type AttachmentDraftSide = 'above' | 'below';
 
@@ -218,13 +233,14 @@ type ComposerActionUiElementBase = UiSchemaElement & {
   attachment_action_plugin?: string;
 };
 
-type ComposerAttachmentUiElement = SharedComposerAttachmentUiElement & ComposerActionUiElementBase & {
-  ui_type: 'composer_attachment';
-  supported_file_types?: string[];
-  supports_upload?: boolean;
-  display_placement: AttachmentDraftSide;
-  metadata_ui?: AttachmentMetadataUi;
-};
+type ComposerAttachmentUiElement = SharedComposerAttachmentUiElement &
+  ComposerActionUiElementBase & {
+    ui_type: 'composer_attachment';
+    supported_file_types?: string[];
+    supports_upload?: boolean;
+    display_placement: AttachmentDraftSide;
+    metadata_ui?: AttachmentMetadataUi;
+  };
 
 type ComposerRichConfigControl = {
   control: ConfigRichUiControl;
@@ -266,7 +282,10 @@ type SessionSnapshotSummary = {
   reason: string;
 };
 
-function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
+function createDisplayEntry(
+  display: ActionDisplayPayload,
+  context: RunActionContext
+): ActionDisplayEntry {
   const key =
     typeof display.display_id === 'string' && display.display_id
       ? display.display_id
@@ -276,11 +295,13 @@ function createDisplayEntry(display: ActionDisplayPayload, context: RunActionCon
 
 function upsertInlineDisplay(
   current: ActionDisplayEntry[],
-  nextEntry: ActionDisplayEntry,
+  nextEntry: ActionDisplayEntry
 ): ActionDisplayEntry[] {
   const displayId = nextEntry.display.display_id;
   if (typeof displayId === 'string' && displayId) {
-    const existingIndex = current.findIndex((entry) => entry.display.display_id === displayId);
+    const existingIndex = current.findIndex(
+      (entry) => entry.display.display_id === displayId
+    );
     if (existingIndex >= 0) {
       const updated = current.slice();
       updated[existingIndex] = nextEntry;
@@ -307,7 +328,11 @@ type MobileTranscriptListHandle = FlatListType<any> & {
 type ChatTranscriptProps = {
   listRef: React.RefObject<MobileTranscriptListHandle | null>;
   messages: IndexedMessage[];
-  streamingRow: { content?: string | null; reasoning?: string | null; metadata?: any } | null;
+  streamingRow: {
+    content?: string | null;
+    reasoning?: string | null;
+    metadata?: any;
+  } | null;
   isActive: boolean;
   statusBarParts: string[];
   inlineActionDisplaysContent: React.ReactElement | null;
@@ -321,7 +346,11 @@ type ChatTranscriptProps = {
   onChangeEditingText: (text: string) => void;
   onSubmitEdit: (index: number, message: ApiMessage, newText: string) => void;
   onCancelEdit: () => void;
-  onMessageAction: (action: MessageActionKey, index: number, message: ApiMessage) => void;
+  onMessageAction: (
+    action: MessageActionKey,
+    index: number,
+    message: ApiMessage
+  ) => void;
   onChangePinnedForRole: (role: string, pinned: MessageActionKey[]) => void;
   getPinnedActionsForRole: (role: string) => MessageActionKey[];
   onOpenAttachment: (attachment: MessageAttachmentSnapshot) => void;
@@ -332,184 +361,194 @@ type ChatTranscriptProps = {
   onUserNavigationIntent: () => void;
 };
 
-const ChatTranscript = React.memo(({
-  listRef,
-  messages,
-  streamingRow,
-  isActive,
-  statusBarParts,
-  inlineActionDisplaysContent,
-  footerElements,
-  pluginMessageActionDefs,
-  sessionSummary,
-  pinnedMessageActionsByRole,
-  messageViewModeByIndex,
-  editingIndex,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
-  onMessageAction,
-  onChangePinnedForRole,
-  getPinnedActionsForRole,
-  onOpenAttachment,
-  rangeTopControlsContent,
-  rangeBottomControlsContent,
-  initialScrollAnchor,
-  onScrollStateChange,
-  onUserNavigationIntent,
-}: ChatTranscriptProps) => {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
-  const transcriptRows = useMemo<TranscriptRow[]>(() => {
-    const rows: TranscriptRow[] = [TRANSCRIPT_STATUS_ROW, TRANSCRIPT_STREAM_ROW];
-    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
-      rows.push(messages[idx]);
-    }
-    return rows;
-  }, [messages]);
-
-  return (
-    <InvertedTranscriptViewport
-      style={styles.transcriptFrame}
-      listStyle={styles.messagesContainer}
-      listRef={listRef}
-      data={transcriptRows}
-      testID="transcript-scroll-list"
-      initialScrollAnchor={initialScrollAnchor}
-      onScrollStateChange={onScrollStateChange}
-      onUserNavigationIntent={onUserNavigationIntent}
-      ListHeaderComponent={
-        inlineActionDisplaysContent || rangeBottomControlsContent ? (
-          <View>
-            {inlineActionDisplaysContent}
-            {rangeBottomControlsContent}
-          </View>
-        ) : null
+const ChatTranscript = React.memo(
+  ({
+    listRef,
+    messages,
+    streamingRow,
+    isActive,
+    statusBarParts,
+    inlineActionDisplaysContent,
+    footerElements,
+    pluginMessageActionDefs,
+    sessionSummary,
+    pinnedMessageActionsByRole,
+    messageViewModeByIndex,
+    editingIndex,
+    editingText,
+    onChangeEditingText,
+    onSubmitEdit,
+    onCancelEdit,
+    onMessageAction,
+    onChangePinnedForRole,
+    getPinnedActionsForRole,
+    onOpenAttachment,
+    rangeTopControlsContent,
+    rangeBottomControlsContent,
+    initialScrollAnchor,
+    onScrollStateChange,
+    onUserNavigationIntent,
+  }: ChatTranscriptProps) => {
+    const theme = useTheme();
+    const styles = useMemo(() => createStyles(theme), [theme]);
+    const transcriptRows = useMemo<TranscriptRow[]>(() => {
+      const rows: TranscriptRow[] = [
+        TRANSCRIPT_STATUS_ROW,
+        TRANSCRIPT_STREAM_ROW,
+      ];
+      for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+        rows.push(messages[idx]);
       }
-      ListFooterComponent={rangeTopControlsContent}
-      keyExtractor={(row) => {
-        if ('kind' in row) {
-          return row.kind === 'status' ? 'row-status' : 'row-stream';
+      return rows;
+    }, [messages]);
+
+    return (
+      <InvertedTranscriptViewport
+        style={styles.transcriptFrame}
+        listStyle={styles.messagesContainer}
+        listRef={listRef}
+        data={transcriptRows}
+        testID="transcript-scroll-list"
+        initialScrollAnchor={initialScrollAnchor}
+        onScrollStateChange={onScrollStateChange}
+        onUserNavigationIntent={onUserNavigationIntent}
+        ListHeaderComponent={
+          inlineActionDisplaysContent || rangeBottomControlsContent ? (
+            <View>
+              {inlineActionDisplaysContent}
+              {rangeBottomControlsContent}
+            </View>
+          ) : null
         }
-        return `msg-${row.index}`;
-      }}
-      getItemDependencies={(row) => {
-        if ('kind' in row) {
-          if (row.kind === 'status') {
-            return [statusBarParts];
+        ListFooterComponent={rangeTopControlsContent}
+        keyExtractor={(row) => {
+          if ('kind' in row) {
+            return row.kind === 'status' ? 'row-status' : 'row-stream';
           }
-          const lastMessageIndex = messages.length > 0 ? messages[messages.length - 1].index : null;
+          return `msg-${row.index}`;
+        }}
+        getItemDependencies={(row) => {
+          if ('kind' in row) {
+            if (row.kind === 'status') {
+              return [statusBarParts];
+            }
+            const lastMessageIndex =
+              messages.length > 0 ? messages[messages.length - 1].index : null;
+            return [
+              streamingRow,
+              lastMessageIndex,
+              isActive,
+              footerElements,
+              pluginMessageActionDefs,
+            ];
+          }
+
+          const role = row.message.role || 'unknown';
+          const defaultModeForRole: 'markdown' | 'raw' =
+            role === 'assistant' || role === 'user' ? 'markdown' : 'raw';
+          const renderMode =
+            messageViewModeByIndex[row.index] ?? defaultModeForRole;
+          const isEditing = editingIndex === row.index;
           return [
-            streamingRow,
-            lastMessageIndex,
             isActive,
             footerElements,
             pluginMessageActionDefs,
+            sessionSummary,
+            pinnedMessageActionsByRole[role],
+            renderMode,
+            isEditing,
+            isEditing ? editingText : null,
           ];
-        }
+        }}
+        renderItem={({ item: row }) => {
+          if ('kind' in row) {
+            if (row.kind === 'status') {
+              if (!statusBarParts || statusBarParts.length === 0) {
+                return null;
+              }
+              return (
+                <View style={styles.statusBarContainer}>
+                  <SelectablePlainText
+                    text={statusBarParts.join('   ')}
+                    style={styles.statusBarText}
+                  />
+                </View>
+              );
+            }
 
-        const role = row.message.role || 'unknown';
-        const defaultModeForRole: 'markdown' | 'raw' =
-          role === 'assistant' || role === 'user' ? 'markdown' : 'raw';
-        const renderMode = messageViewModeByIndex[row.index] ?? defaultModeForRole;
-        const isEditing = editingIndex === row.index;
-        return [
-          isActive,
-          footerElements,
-          pluginMessageActionDefs,
-          sessionSummary,
-          pinnedMessageActionsByRole[role],
-          renderMode,
-          isEditing,
-          isEditing ? editingText : null,
-        ];
-      }}
-      renderItem={({ item: row }) => {
-        if ('kind' in row) {
-          if (row.kind === 'status') {
-            if (!statusBarParts || statusBarParts.length === 0) {
+            if (
+              !streamingRow ||
+              (!streamingRow.content && !streamingRow.reasoning)
+            ) {
               return null;
             }
+            const streamingIndex =
+              messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
             return (
-              <View style={styles.statusBarContainer}>
-                <SelectablePlainText
-                  text={statusBarParts.join('   ')}
-                  style={styles.statusBarText}
-                />
-              </View>
+              <MessageBubble
+                index={streamingIndex}
+                isActive={isActive}
+                onOpenAttachment={onOpenAttachment}
+                message={{
+                  role: 'assistant',
+                  content: streamingRow.content ?? '',
+                  metadata: {
+                    ...(streamingRow.metadata || {}),
+                    reasoning: streamingRow.reasoning,
+                  },
+                }}
+                pinnedActions={[]}
+                allowedActions={[]}
+                onAction={onMessageAction}
+                onChangePinnedForRole={onChangePinnedForRole}
+                isEditing={false}
+                renderMode="markdown"
+                footerElements={footerElements}
+                pluginActionDefs={pluginMessageActionDefs}
+              />
             );
           }
 
-          if (!streamingRow || (!streamingRow.content && !streamingRow.reasoning)) {
-            return null;
-          }
-          const streamingIndex =
-            messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
+          const m = row;
+          const role = m.message.role || 'unknown';
+          const allowedActions = ALL_MESSAGE_ACTIONS.filter((def) =>
+            def.allowedRoles.includes(role)
+          ).map((def) => def.key as MessageActionKey);
+          const pinnedForRole = getPinnedActionsForRole(role);
+          const isEditing = editingIndex === m.index;
+          const defaultModeForRole: 'markdown' | 'raw' =
+            role === 'assistant' || role === 'user' ? 'markdown' : 'raw';
+          const renderMode =
+            messageViewModeByIndex[m.index] ?? defaultModeForRole;
           return (
-            <MessageBubble
-              index={streamingIndex}
-              isActive={isActive}
-              onOpenAttachment={onOpenAttachment}
-              message={{
-                role: 'assistant',
-	                content: streamingRow.content ?? '',
-                metadata: {
-                  ...(streamingRow.metadata || {}),
-                  reasoning: streamingRow.reasoning,
-                },
-              }}
-              pinnedActions={[]}
-              allowedActions={[]}
-              onAction={onMessageAction}
-              onChangePinnedForRole={onChangePinnedForRole}
-              isEditing={false}
-              renderMode="markdown"
-              footerElements={footerElements}
-              pluginActionDefs={pluginMessageActionDefs}
-            />
+            <View collapsable={false} testID={`transcript-message-${m.index}`}>
+              <MessageBubble
+                index={m.index}
+                isActive={isActive}
+                onOpenAttachment={onOpenAttachment}
+                message={m.message}
+                pinnedActions={pinnedForRole}
+                allowedActions={allowedActions}
+                onAction={onMessageAction}
+                onChangePinnedForRole={onChangePinnedForRole}
+                isEditing={isEditing}
+                editingText={isEditing ? editingText : undefined}
+                onChangeEditingText={
+                  isEditing ? onChangeEditingText : undefined
+                }
+                onSubmitEdit={onSubmitEdit}
+                onCancelEdit={onCancelEdit}
+                renderMode={renderMode}
+                footerElements={footerElements}
+                pluginActionDefs={pluginMessageActionDefs}
+              />
+            </View>
           );
-        }
-
-        const m = row;
-        const role = m.message.role || 'unknown';
-        const allowedActions = ALL_MESSAGE_ACTIONS
-          .filter((def) => def.allowedRoles.includes(role))
-          .map((def) => def.key as MessageActionKey);
-        const pinnedForRole = getPinnedActionsForRole(role);
-        const isEditing = editingIndex === m.index;
-        const defaultModeForRole: 'markdown' | 'raw' =
-          role === 'assistant' || role === 'user' ? 'markdown' : 'raw';
-        const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
-        return (
-          <View
-            collapsable={false}
-            testID={`transcript-message-${m.index}`}
-          >
-            <MessageBubble
-              index={m.index}
-              isActive={isActive}
-              onOpenAttachment={onOpenAttachment}
-              message={m.message}
-              pinnedActions={pinnedForRole}
-              allowedActions={allowedActions}
-              onAction={onMessageAction}
-              onChangePinnedForRole={onChangePinnedForRole}
-              isEditing={isEditing}
-              editingText={isEditing ? editingText : undefined}
-              onChangeEditingText={isEditing ? onChangeEditingText : undefined}
-              onSubmitEdit={onSubmitEdit}
-              onCancelEdit={onCancelEdit}
-              renderMode={renderMode}
-              footerElements={footerElements}
-              pluginActionDefs={pluginMessageActionDefs}
-            />
-          </View>
-        );
-      }}
-    />
-  );
-});
+        }}
+      />
+    );
+  }
+);
 
 type ChatComposerHandle = {
   getText: () => string;
@@ -524,12 +563,12 @@ type ChatComposerProps = {
   attachmentsBelowStrip: AttachmentLike[];
   attachmentsCount: number;
   onOpenAttachmentsManage: (side: AttachmentDraftSide) => void;
-  pinnedRichConfigControls: ComposerRichConfigControl[];
-  onOpenRichConfigControl: (control: ComposerRichConfigControl) => void;
   composerActions: ActionDefinition[];
   pinnedComposerActions: string[];
   pinnedComposerActionsForBar: string[];
-  onChangePinnedComposerActions: (pinned: string[] | ((prev: string[]) => string[])) => void;
+  onChangePinnedComposerActions: (
+    pinned: string[] | ((prev: string[]) => string[])
+  ) => void;
   onComposerAction: (key: string) => void;
   isComposerActionDisabled: (key: string, hasDraftMessage: boolean) => boolean;
   backend: AgentBackend | null;
@@ -540,52 +579,57 @@ type ChatComposerProps = {
   attachmentActionInProgress: boolean;
   isActive: boolean;
   renderPinnedComposerAction?: (params: any) => React.ReactNode | undefined;
-  onOpenAppendAs: (text: string) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string) => Promise<boolean>;
 };
 
-const ChatComposer = React.memo(React.forwardRef<ChatComposerHandle, ChatComposerProps>(
-  function ChatComposer({
-    initialComposeText,
-    onDraftTextChange,
-    onSaveComposeText,
-    attachmentsAboveStrip,
-    attachmentsBelowStrip,
-    attachmentsCount,
-    onOpenAttachmentsManage,
-    pinnedRichConfigControls,
-    onOpenRichConfigControl,
-    composerActions,
-    pinnedComposerActions,
-    pinnedComposerActionsForBar,
-    onChangePinnedComposerActions,
-    onComposerAction,
-    isComposerActionDisabled,
-    backend,
-    selectedSnapshotId,
-    sendInProgress,
-    pendingRequestRecovery,
-    activeRequestId,
-    attachmentActionInProgress,
-    isActive,
-    renderPinnedComposerAction,
-    onOpenAppendAs,
-    onSend,
-  }, ref) {
+const ChatComposer = React.memo(
+  React.forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer(
+    {
+      initialComposeText,
+      onDraftTextChange,
+      onSaveComposeText,
+      attachmentsAboveStrip,
+      attachmentsBelowStrip,
+      attachmentsCount,
+      onOpenAttachmentsManage,
+      composerActions,
+      pinnedComposerActions,
+      pinnedComposerActionsForBar,
+      onChangePinnedComposerActions,
+      onComposerAction,
+      isComposerActionDisabled,
+      backend,
+      selectedSnapshotId,
+      sendInProgress,
+      pendingRequestRecovery,
+      activeRequestId,
+      attachmentActionInProgress,
+      isActive,
+      renderPinnedComposerAction,
+      onSend,
+    },
+    ref
+  ) {
     const theme = useTheme();
     const styles = useMemo(() => createStyles(theme), [theme]);
     const [composeText, setComposeText] = useState(initialComposeText ?? '');
+    const [expanded, setExpanded] = useState(false);
     const composeTextRef = useRef(initialComposeText ?? '');
-    const hasDraftMessage = composeText.trim().length > 0 || attachmentsCount > 0;
+    const hasDraftMessage =
+      composeText.trim().length > 0 || attachmentsCount > 0;
 
-    React.useImperativeHandle(ref, () => ({
-      getText: () => composeTextRef.current,
-      clearText: () => {
-        composeTextRef.current = '';
-        setComposeText('');
-        onDraftTextChange('');
-      },
-    }), [onDraftTextChange]);
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        getText: () => composeTextRef.current,
+        clearText: () => {
+          composeTextRef.current = '';
+          setComposeText('');
+          onDraftTextChange('');
+        },
+      }),
+      [onDraftTextChange]
+    );
 
     const updateComposeText = useCallback(
       (text: string) => {
@@ -593,43 +637,42 @@ const ChatComposer = React.memo(React.forwardRef<ChatComposerHandle, ChatCompose
         setComposeText(text);
         onDraftTextChange(text);
       },
-      [onDraftTextChange],
+      [onDraftTextChange]
     );
+    const attachmentsDisabled =
+      sendInProgress ||
+      !!pendingRequestRecovery ||
+      !!activeRequestId ||
+      attachmentActionInProgress;
+    const canSend =
+      !!backend &&
+      !selectedSnapshotId &&
+      !sendInProgress &&
+      !pendingRequestRecovery &&
+      !activeRequestId &&
+      !attachmentActionInProgress &&
+      hasDraftMessage;
+    const canCancel =
+      !!backend && !selectedSnapshotId && !sendInProgress && !!activeRequestId;
 
     return (
       <View style={styles.composer}>
         <View style={styles.composerMainColumn}>
           <View style={styles.composerTopRow}>
-            <View style={styles.composerInlineSelectRow}>
-              {pinnedRichConfigControls.map((entry) => (
-                <RichConfigDropdownControl
-                  key={entry.control.element.key}
-                  control={entry.control}
-                  value={entry.effectiveValue}
-                  disabled={
-                    entry.disabled ||
-                    sendInProgress ||
-                    !!pendingRequestRecovery ||
-                    !!activeRequestId ||
-                    attachmentActionInProgress
-                  }
-                  placement="composer"
-                  renderIcon={({ name, size, color }) => (
-                    <Icon name={name} size={size} color={color} />
-                  )}
-                  testID={`composer-rich-config-${entry.control.element.key}`}
-                  onPress={() => onOpenRichConfigControl(entry)}
-                />
-              ))}
-            </View>
             <ActionsMenuBar<ActionDefinition>
               title="Composer actions"
               variant="modal"
+              pinnedRows={2}
+              secondPinnedRowPlacement="below"
               renderIcon={({ name, size, color }) => (
                 <Icon name={name} size={size} color={color} />
               )}
               renderPinIcon={({ pinned: isPinned, size, color }) => (
-                <Icon name={isPinned ? 'star' : 'star'} size={size} color={color} />
+                <Icon
+                  name={isPinned ? 'star' : 'star'}
+                  size={size}
+                  color={color}
+                />
               )}
               renderCloseIcon={({ size, color, renderIcon }) =>
                 renderIcon ? renderIcon({ name: 'x', size, color }) : null
@@ -639,7 +682,9 @@ const ChatComposer = React.memo(React.forwardRef<ChatComposerHandle, ChatCompose
               pinnedKeysForBar={pinnedComposerActionsForBar}
               onChangePinned={onChangePinnedComposerActions}
               onAction={onComposerAction}
-              isActionDisabled={(key) => isComposerActionDisabled(key, hasDraftMessage)}
+              isActionDisabled={(key) =>
+                isComposerActionDisabled(key, hasDraftMessage)
+              }
               isActive={isActive}
               renderPinnedAction={renderPinnedComposerAction}
             />
@@ -648,97 +693,106 @@ const ChatComposer = React.memo(React.forwardRef<ChatComposerHandle, ChatCompose
           <AttachmentThumbnailStrip
             attachments={attachmentsAboveStrip}
             onPressManageAll={() => onOpenAttachmentsManage('above')}
-            disabled={
-              sendInProgress ||
-              !!pendingRequestRecovery ||
-              !!activeRequestId ||
-              attachmentActionInProgress
-            }
+            disabled={attachmentsDisabled}
           />
 
-          <TextInput
-            style={styles.composerInput}
-            placeholder="Type your message..."
-            placeholderTextColor={theme.textSecondary}
-            value={composeText}
-            onChangeText={updateComposeText}
-            onBlur={() => {
-              onSaveComposeText(composeTextRef.current);
-            }}
-            multiline
-          />
-
-          {(() => {
-            const canAppend =
-              !!backend &&
-              !selectedSnapshotId &&
-              !sendInProgress &&
-              !pendingRequestRecovery &&
-              !activeRequestId &&
-              !attachmentActionInProgress &&
-              hasDraftMessage;
-            const canSend =
-              !!backend &&
-              !selectedSnapshotId &&
-              !sendInProgress &&
-              !pendingRequestRecovery &&
-              !activeRequestId &&
-              !attachmentActionInProgress &&
-              hasDraftMessage;
-
-            return (
-              <View style={styles.composerButtonsRow}>
-                <TouchableOpacity
-                  style={[styles.button, styles.secondaryButton, styles.composerButton]}
-                  onPress={() => onOpenAppendAs(composeTextRef.current)}
-                  disabled={!canAppend}
-                >
-                  <Text
-                    style={[
-                      styles.buttonTextSecondary,
-                      !canAppend && styles.buttonTextDisabled,
-                    ]}
-                  >
-                    Append
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.button, styles.primaryButton, styles.composerButton]}
-                  onPress={() => onSend(composeTextRef.current)}
-                  disabled={!canSend}
-                >
-                  {sendInProgress || activeRequestId ? (
-                    <ActivityIndicator size="small" color={theme.textOnPrimary} />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.buttonText,
-                        !canSend && styles.buttonTextDisabled,
-                      ]}
-                    >
-                      Send
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            );
-          })()}
+          <View style={styles.composerInputRow}>
+            <View style={styles.composerInputFrame}>
+              <TextInput
+                testID="message-composer-input"
+                style={styles.composerInput}
+                placeholder="Type your message..."
+                placeholderTextColor={theme.textSecondary}
+                value={composeText}
+                onChangeText={updateComposeText}
+                onBlur={() => {
+                  onSaveComposeText(composeTextRef.current);
+                }}
+                multiline
+                textAlignVertical="top"
+              />
+              <TouchableOpacity
+                testID="composer-maximize"
+                accessibilityRole="button"
+                accessibilityLabel="Maximize composer"
+                style={styles.composerMaximizeButton}
+                onPress={() => setExpanded(true)}
+              >
+                <Icon name="maximize-2" size={16} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View
+              testID="composer-side-buttons"
+              style={styles.composerSideButtons}
+            >
+              <TouchableOpacity
+                testID="composer-cancel-request"
+                accessibilityRole="button"
+                accessibilityLabel="Cancel active request"
+                style={[
+                  styles.composerSideButton,
+                  styles.secondaryButton,
+                  !canCancel && styles.composerSideButtonDisabled,
+                ]}
+                disabled={!canCancel}
+                onPress={() => onComposerAction('cancel')}
+              >
+                <Icon
+                  name="x-circle"
+                  size={18}
+                  color={canCancel ? theme.primary : theme.textMuted}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                testID="composer-send"
+                accessibilityRole="button"
+                accessibilityLabel="Send message"
+                style={[
+                  styles.composerSideButton,
+                  styles.primaryButton,
+                  !canSend && styles.composerSideButtonDisabled,
+                ]}
+                disabled={!canSend}
+                onPress={() => {
+                  void onSend(composeTextRef.current);
+                }}
+              >
+                {sendInProgress ? (
+                  <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                ) : (
+                  <Icon name="send" size={18} color={theme.textOnPrimary} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
 
           <AttachmentThumbnailStrip
             attachments={attachmentsBelowStrip}
             onPressManageAll={() => onOpenAttachmentsManage('below')}
-            disabled={
-              sendInProgress ||
-              !!pendingRequestRecovery ||
-              !!activeRequestId ||
-              attachmentActionInProgress
-            }
+            disabled={attachmentsDisabled}
           />
         </View>
+        <ExpandedComposerModal
+          visible={expanded}
+          value={composeText}
+          onChangeText={updateComposeText}
+          onCollapse={() => {
+            onSaveComposeText(composeTextRef.current);
+            setExpanded(false);
+          }}
+          onSend={() => onSend(composeTextRef.current)}
+          canSend={canSend}
+          sending={sendInProgress}
+          attachmentsAbove={attachmentsAboveStrip}
+          attachmentsBelow={attachmentsBelowStrip}
+          onOpenAttachmentsAbove={() => onOpenAttachmentsManage('above')}
+          onOpenAttachmentsBelow={() => onOpenAttachmentsManage('below')}
+          attachmentsDisabled={attachmentsDisabled}
+        />
       </View>
     );
-  },
-));
+  })
+);
 
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   backend,
@@ -773,23 +827,30 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     state: notificationDismissalCacheState,
   } = useNotificationDismissalCache();
   const retryingNotificationDismissalsRef = useRef(new Set<string>());
-  const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
-  const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
+  const actionDialogFieldRenderers =
+    useMobileApplicationActionDialogFieldRenderers();
+  const [isAppActive, setIsAppActive] = useState(
+    () => AppState.currentState === 'active'
+  );
   const [sendInProgress, setSendInProgress] = useState(false);
-  const [attachmentsAbove, setAttachmentsAbove] = useState<MultipartPartDraft[]>([]);
-  const [attachmentsBelow, setAttachmentsBelow] = useState<MultipartPartDraft[]>([]);
-  const [attachmentsManageVisible, setAttachmentsManageVisible] = useState(false);
-  const [attachmentsManageSide, setAttachmentsManageSide] = useState<AttachmentDraftSide | null>(
-    null,
-  );
-  const [attachmentMetadataVisible, setAttachmentMetadataVisible] = useState(false);
+  const [attachmentsAbove, setAttachmentsAbove] = useState<
+    MultipartPartDraft[]
+  >([]);
+  const [attachmentsBelow, setAttachmentsBelow] = useState<
+    MultipartPartDraft[]
+  >([]);
+  const [attachmentsManageVisible, setAttachmentsManageVisible] =
+    useState(false);
+  const [attachmentsManageSide, setAttachmentsManageSide] =
+    useState<AttachmentDraftSide | null>(null);
+  const [attachmentMetadataVisible, setAttachmentMetadataVisible] =
+    useState(false);
   const [attachmentMetadataTitle, setAttachmentMetadataTitle] = useState('');
-  const [attachmentMetadataUi, setAttachmentMetadataUi] = useState<AttachmentMetadataUi | null>(
-    null,
-  );
-  const [attachmentMetadataInitial, setAttachmentMetadataInitial] = useState<Record<string, any>>(
-    {},
-  );
+  const [attachmentMetadataUi, setAttachmentMetadataUi] =
+    useState<AttachmentMetadataUi | null>(null);
+  const [attachmentMetadataInitial, setAttachmentMetadataInitial] = useState<
+    Record<string, any>
+  >({});
   const [attachmentMetadataContext, setAttachmentMetadataContext] = useState<
     | {
         kind: 'new';
@@ -804,15 +865,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     | { kind: 'edit'; side: AttachmentDraftSide; draftId: string }
     | null
   >(null);
-  const [attachmentPickInProgress, setAttachmentPickInProgress] = useState(false);
-  const [attachmentPickRecoveryAvailable, setAttachmentPickRecoveryAvailable] = useState(false);
+  const [attachmentPickInProgress, setAttachmentPickInProgress] =
+    useState(false);
+  const [attachmentPickRecoveryAvailable, setAttachmentPickRecoveryAvailable] =
+    useState(false);
   const [attachmentPickStatusText, setAttachmentPickStatusText] = useState('');
   const [attachmentBackgroundOperation, setAttachmentBackgroundOperation] =
     useState<AttachmentBackgroundOperation>(null);
   const [imageAttachVisible, setImageAttachVisible] = useState(false);
-  const [imageAttachElement, setImageAttachElement] = useState<ComposerAttachmentUiElement | null>(
-    null,
-  );
+  const [imageAttachElement, setImageAttachElement] =
+    useState<ComposerAttachmentUiElement | null>(null);
   const [imageUrlText, setImageUrlText] = useState('');
   const [rangeStartText, setRangeStartText] = useState(initialRangeStartText);
   const [rangeEndText, setRangeEndText] = useState(initialRangeEndText);
@@ -821,46 +883,47 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [appendAsVisible, setAppendAsVisible] = useState(false);
   const [appendAsRole, setAppendAsRole] = useState<AppendAsRole>('user');
   const [appendAsDraftText, setAppendAsDraftText] = useState('');
-  const defaultPinnedSessionActions: SessionActionKey[] = Object.values(SESSION_ACTIONS)
+  const defaultPinnedSessionActions: SessionActionKey[] = Object.values(
+    SESSION_ACTIONS
+  )
     .filter((def) => def.defaultPinned)
     .map((def) => def.key);
 
   const scopedSessionActionsStorageKey = useMemo(
     () => `${STORAGE_KEY_SESSION_ACTIONS}:${connectionId ?? 'default'}`,
-    [connectionId],
+    [connectionId]
   );
 
   const scopedComposerActionsStorageKey = useMemo(
     () => `${STORAGE_KEY_COMPOSER_ACTIONS}:${connectionId ?? 'default'}`,
-    [connectionId],
+    [connectionId]
   );
 
   const {
     pinned: pinnedSessionActions,
     setPinned: setPinnedSessionActions,
     hasStoredPreference: hasStoredSessionActionPreference,
-  } =
-    usePersistentPinnedActions<SessionActionKey>(
-      scopedSessionActionsStorageKey,
-      defaultPinnedSessionActions,
-      { migrateFromKeys: [STORAGE_KEY_SESSION_ACTIONS] },
-    );
+  } = usePersistentPinnedActions<SessionActionKey>(
+    scopedSessionActionsStorageKey,
+    defaultPinnedSessionActions,
+    { migrateFromKeys: [STORAGE_KEY_SESSION_ACTIONS] }
+  );
 
   const {
     pinned: pinnedComposerActions,
     setPinned: setPinnedComposerActions,
     hasStoredPreference: hasStoredComposerActionPreference,
-  } =
-    usePersistentPinnedActions<string>(
-      scopedComposerActionsStorageKey,
-      ['resend', 'cancel'],
-      { migrateFromKeys: [STORAGE_KEY_COMPOSER_ACTIONS] },
-    );
-  const { controller: agentsController, state: agentsState } = useAgentsController({
-    backend,
-    cacheKey: connectionId ?? 'default',
-    enabled: !!(backend && isActive),
-  });
+  } = usePersistentPinnedActions<string>(
+    scopedComposerActionsStorageKey,
+    ['append', 'resend'],
+    { migrateFromKeys: [STORAGE_KEY_COMPOSER_ACTIONS] }
+  );
+  const { controller: agentsController, state: agentsState } =
+    useAgentsController({
+      backend,
+      cacheKey: connectionId ?? 'default',
+      enabled: !!(backend && isActive),
+    });
   const availableAgents = agentsState?.agents ?? [];
   const agentsLoading = agentsState?.loading ?? false;
   const [agentSwitchInProgress, setAgentSwitchInProgress] = useState(false);
@@ -878,19 +941,28 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
   const [pendingRequestRecovery, setPendingRequestRecovery] =
     useState<PendingRequestRecovery | null>(null);
-  const [resumeRecoveryInProgress, setResumeRecoveryInProgress] = useState(false);
+  const [resumeRecoveryInProgress, setResumeRecoveryInProgress] =
+    useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [snapshotsVisible, setSnapshotsVisible] = useState(false);
   const [snapshotsLoading, setSnapshotsLoading] = useState(false);
   const [sessionDetailsVisible, setSessionDetailsVisible] = useState(false);
-  const [snapshotItems, setSnapshotItems] = useState<SessionSnapshotSummary[]>([]);
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
-  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
-  const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
-  const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
-  const [selectedAttachment, setSelectedAttachment] = useState<MessageAttachmentSnapshot | null>(
-    null,
+  const [snapshotItems, setSnapshotItems] = useState<SessionSnapshotSummary[]>(
+    []
   );
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(
+    null
+  );
+  const [actionResultDisplay, setActionResultDisplay] =
+    useState<ActionDisplayEntry | null>(null);
+  const [inlineActionDisplays, setInlineActionDisplays] = useState<
+    ActionDisplayEntry[]
+  >([]);
+  const [activeDisplayActionId, setActiveDisplayActionId] = useState<
+    string | null
+  >(null);
+  const [selectedAttachment, setSelectedAttachment] =
+    useState<MessageAttachmentSnapshot | null>(null);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [activeRichConfigControl, setActiveRichConfigControl] =
     useState<ComposerRichConfigControl | null>(null);
@@ -898,12 +970,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     useState<SessionActionRichUiElement | null>(null);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
-  const {
-    actionsById,
-    sessionListFields,
-  } = useApplicationPlugins();
+  const { actionsById, sessionListFields } = useApplicationPlugins();
 
-	  const listRef = useRef<MobileTranscriptListHandle | null>(null);
+  const listRef = useRef<MobileTranscriptListHandle | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const onSaveComposeTextRef = useRef(onSaveComposeText);
@@ -924,7 +993,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     dirty: boolean;
   } | null>(null);
   const attachmentPickRequestIdRef = useRef(0);
-  const attachmentPickRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attachmentPickRecoveryTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const rangeNavigationOperationRef = useRef(0);
   const [pendingRangeRestore, setPendingRangeRestore] = useState<{
     operationId: number;
@@ -962,7 +1033,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }, 4000);
       return requestId;
     },
-    [clearAttachmentPickRecoveryTimer],
+    [clearAttachmentPickRecoveryTimer]
   );
 
   const finishAttachmentPick = useCallback(
@@ -975,7 +1046,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setAttachmentPickRecoveryAvailable(false);
       setAttachmentPickStatusText('');
     },
-    [clearAttachmentPickRecoveryTimer],
+    [clearAttachmentPickRecoveryTimer]
   );
 
   const resetAttachmentPickState = useCallback(
@@ -988,21 +1059,24 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       if (options?.showAlert) {
         Alert.alert(
           'Picker reset',
-          'If a system picker is still open, dismiss it before trying again.',
+          'If a system picker is still open, dismiss it before trying again.'
         );
       }
     },
-    [clearAttachmentPickRecoveryTimer],
+    [clearAttachmentPickRecoveryTimer]
   );
 
   useEffect(() => {
     onSaveComposeTextRef.current = onSaveComposeText;
   }, [onSaveComposeText]);
 
-  useEffect(() => () => {
-    attachmentPickRequestIdRef.current += 1;
-    clearAttachmentPickRecoveryTimer();
-  }, [clearAttachmentPickRecoveryTimer]);
+  useEffect(
+    () => () => {
+      attachmentPickRequestIdRef.current += 1;
+      clearAttachmentPickRecoveryTimer();
+    },
+    [clearAttachmentPickRecoveryTimer]
+  );
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -1055,7 +1129,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       title: string,
       detail?: string | null,
       meta?: Record<string, any> | null,
-      scope: DebugTimelineEntry['scope'] = 'chat',
+      scope: DebugTimelineEntry['scope'] = 'chat'
     ) => {
       onAppendDebugTimelineEntry({
         scope,
@@ -1064,7 +1138,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         meta: meta ?? null,
       });
     },
-    [onAppendDebugTimelineEntry],
+    [onAppendDebugTimelineEntry]
   );
 
   const appendEventsToDebugBuffer = useCallback((events: Event[]) => {
@@ -1072,7 +1146,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setDebugEvents((prev) => {
       const combined = [...prev, ...events];
       const max = 200;
-      return combined.length > max ? combined.slice(combined.length - max) : combined;
+      return combined.length > max
+        ? combined.slice(combined.length - max)
+        : combined;
     });
   }, []);
 
@@ -1097,9 +1173,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     eventsEnabled,
   });
 
-  const messages: IndexedMessage[] = chatState?.messages ?? cachedMessages ?? [];
+  const messages: IndexedMessage[] =
+    chatState?.messages ?? cachedMessages ?? [];
   const streamingRow = chatState?.streamingRow ?? null;
-  const activeRequestId = chatState?.activeRequestId ?? cachedActiveRequestId ?? null;
+  const activeRequestId =
+    chatState?.activeRequestId ?? cachedActiveRequestId ?? null;
   const activeError = chatState?.requestError ?? null;
   const loadingMessages = chatState?.loading ?? false;
   const sessionDirty = chatState?.dirty ?? false;
@@ -1112,7 +1190,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     ) {
       return;
     }
-    if (!messages.some((entry) => entry.index === pendingRangeRestore.messageIndex)) {
+    if (
+      !messages.some(
+        (entry) => entry.index === pendingRangeRestore.messageIndex
+      )
+    ) {
       return;
     }
     listRef.current?.scrollToMessageAnchor?.({
@@ -1154,11 +1236,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         eventsCursorId: string | null;
         activeRequestId: string | null;
         updatedAtMs: number | null;
-      },
+      }
     ) => {
       controller.hydrateFromCache(cache);
     },
-    [],
+    []
   );
 
   useHydrateControllerFromCache({
@@ -1195,7 +1277,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   useEffect(() => {
     const loadPinnedFromStorage = async () => {
       try {
-        const messageRaw = await AsyncStorage.getItem(STORAGE_KEY_MESSAGE_ACTIONS);
+        const messageRaw = await AsyncStorage.getItem(
+          STORAGE_KEY_MESSAGE_ACTIONS
+        );
         if (messageRaw) {
           try {
             const parsed = JSON.parse(messageRaw);
@@ -1203,7 +1287,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               const next: Record<string, MessageActionKey[]> = {};
               Object.entries(parsed).forEach(([role, value]) => {
                 if (Array.isArray(value)) {
-                  const filtered = (value as any[]).filter((key) => typeof key === 'string');
+                  const filtered = (value as any[]).filter(
+                    (key) => typeof key === 'string'
+                  );
                   next[role] = filtered as MessageActionKey[];
                 }
               });
@@ -1228,7 +1314,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       sessionId,
       enabled: !!(backend && isActive),
     });
-  const { state: sessionAppUiSchemaState, controller: sessionAppUiSchemaController } = useSessionApplicationUiSchemaController({
+  const {
+    state: sessionAppUiSchemaState,
+    controller: sessionAppUiSchemaController,
+  } = useSessionApplicationUiSchemaController({
     backend,
     cacheKey: connectionId ?? 'default',
     sessionId,
@@ -1242,16 +1331,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       initialSummary: sessionSummary,
       enabled: !!(backend && isActive),
     });
-  const {
-    controller: sessionSettingsController,
-    state: sessionSettingsState,
-  } = useSessionSettingsController({
-    backend,
-    cacheKey: connectionId ?? 'default',
-    sessionId,
-    enabled: !!(backend && isActive),
-  });
-  const currentSessionSummary = sessionContextState?.summary ?? sessionSummary ?? null;
+  const { controller: sessionSettingsController, state: sessionSettingsState } =
+    useSessionSettingsController({
+      backend,
+      cacheKey: connectionId ?? 'default',
+      sessionId,
+      enabled: !!(backend && isActive),
+    });
+  const currentSessionSummary =
+    sessionContextState?.summary ?? sessionSummary ?? null;
   const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
 
   const suppressedSessionNotificationRevisionKeys = useMemo(
@@ -1261,10 +1349,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           (entry) =>
             entry.connectionId === connectionId &&
             entry.scope === 'session' &&
-            entry.sessionId === sessionId,
+            entry.sessionId === sessionId
         )
         .map((entry) => `${entry.notificationId}:${String(entry.revision)}`),
-    [connectionId, notificationDismissalCacheState.entries, sessionId],
+    [connectionId, notificationDismissalCacheState.entries, sessionId]
   );
 
   const retryCachedSessionNotificationDismissal = useCallback(
@@ -1312,7 +1400,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       notificationDismissalCache,
       sessionContextController,
       sessionId,
-    ],
+    ]
   );
 
   useEffect(() => {
@@ -1332,7 +1420,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     const notifications = selectSessionNotifications(currentSessionSummary);
     const suppressed = notificationDismissalCache.reconcileSnapshot(
       scope,
-      notifications,
+      notifications
     );
     for (const notification of notifications) {
       const revision = notificationExpectedRevision(notification);
@@ -1342,7 +1430,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             ...scope,
             notificationId: notification.id,
             revision,
-          }),
+          })
         )
       ) {
         void retryCachedSessionNotificationDismissal(notification);
@@ -1378,25 +1466,30 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     () =>
       mergeSessionScopedActionElements({
         applicationActions: sessionAppUiElements.filter(
-          (el): el is ActionUiElement => (el as any).ui_type === 'session_action',
+          (el): el is ActionUiElement =>
+            (el as any).ui_type === 'session_action'
         ),
         uiSchemaElements,
         uiType: 'session_action',
-        context: currentSessionSummary ?? { session_id: sessionId, metadata: {} },
+        context: currentSessionSummary ?? {
+          session_id: sessionId,
+          metadata: {},
+        },
       }),
-    [currentSessionSummary, sessionAppUiElements, sessionId, uiSchemaElements],
+    [currentSessionSummary, sessionAppUiElements, sessionId, uiSchemaElements]
   );
 
   const visibleMessageActions = useMemo(
     () =>
       mergeSessionScopedActionElements({
         applicationActions: sessionAppUiElements.filter(
-          (el): el is ActionUiElement => (el as any).ui_type === 'message_action',
+          (el): el is ActionUiElement =>
+            (el as any).ui_type === 'message_action'
         ),
         uiSchemaElements,
         uiType: 'message_action',
       }),
-    [sessionAppUiElements, uiSchemaElements],
+    [sessionAppUiElements, uiSchemaElements]
   );
 
   // const composerAttachmentElements: ComposerAttachmentUiElement[] = useMemo(() => {
@@ -1410,14 +1503,22 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   // }, [uiSchemaElements]);
 
   /** Attachment drafts only support above/below placement. */
-  const composerAttachmentElementsAll: ComposerAttachmentUiElement[] = useMemo(() => {
-    return (uiSchemaElements || []).filter((el) => {
-      if (!el || el.ui_type !== 'composer_attachment') return false;
-      const typed = el as any;
-      if (typeof typed.attachment_type !== 'string' || !typed.attachment_type.trim()) return false;
-      return typed.display_placement === 'above' || typed.display_placement === 'below';
-    }) as ComposerAttachmentUiElement[];
-  }, [uiSchemaElements]);
+  const composerAttachmentElementsAll: ComposerAttachmentUiElement[] =
+    useMemo(() => {
+      return (uiSchemaElements || []).filter((el) => {
+        if (!el || el.ui_type !== 'composer_attachment') return false;
+        const typed = el as any;
+        if (
+          typeof typed.attachment_type !== 'string' ||
+          !typed.attachment_type.trim()
+        )
+          return false;
+        return (
+          typed.display_placement === 'above' ||
+          typed.display_placement === 'below'
+        );
+      }) as ComposerAttachmentUiElement[];
+    }, [uiSchemaElements]);
 
   const getComposerActionKey = useCallback(
     (el: ComposerAttachmentUiElement) => {
@@ -1429,7 +1530,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         ? el.key.trim()
         : `composer_attachment:${pluginName}:${el.attachment_type}:${el.display_placement}`;
     },
-    [],
+    []
   );
 
   const composerAttachmentElementByActionKey = useMemo(() => {
@@ -1442,7 +1543,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const configSchemaByKey = useMemo(
     () => buildConfigSchemaByKey(sessionSettingsState?.configSchema ?? []),
-    [sessionSettingsState?.configSchema],
+    [sessionSettingsState?.configSchema]
   );
   const sessionSettingItems = useMemo(
     () =>
@@ -1457,22 +1558,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       sessionSettingsState?.baseConfig,
       sessionSettingsState?.elements,
       sessionSettingsState?.overrides,
-    ],
+    ]
   );
   const sessionSettingItemByKey = useMemo(
     () =>
-      Object.fromEntries(
-        sessionSettingItems.map((item) => [item.key, item]),
-      ),
-    [sessionSettingItems],
+      Object.fromEntries(sessionSettingItems.map((item) => [item.key, item])),
+    [sessionSettingItems]
   );
   const composerRichConfigControls = useMemo(() => {
     const selected = selectConfigRichUiControls(
       sessionSettingsState?.elements ?? [],
-      'composer',
+      'composer'
     );
     return selected.controls
-      .filter((control) => control.richUi.kind === 'dropdown')
+      .filter(
+        (control) =>
+          control.richUi.kind === 'dropdown' || control.richUi.kind === 'toggle'
+      )
       .map((control) => {
         const item = sessionSettingItemByKey[control.element.key];
         return {
@@ -1489,31 +1591,30 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         composerRichConfigControls.map((entry) => [
           `config:${entry.control.element.key}`,
           entry,
-        ]),
+        ])
       ),
-    [composerRichConfigControls],
+    [composerRichConfigControls]
   );
 
   const normalizedSessionActions = useMemo(
     () => normalizeSessionActionRichUiElements(visibleSessionActions).elements,
-    [visibleSessionActions],
+    [visibleSessionActions]
   );
   const headerSessionActions = useMemo(
     () =>
       normalizedSessionActions.filter(
         (element) =>
-          !element.rich_ui ||
-          isSessionActionPlacedAt(element, 'session_header'),
+          !element.rich_ui || isSessionActionPlacedAt(element, 'session_header')
       ),
-    [normalizedSessionActions],
+    [normalizedSessionActions]
   );
   const composerSessionActions = useMemo(
     () =>
       normalizedSessionActions.filter(
         (element) =>
-          !!element.rich_ui && isSessionActionPlacedAt(element, 'composer'),
+          !!element.rich_ui && isSessionActionPlacedAt(element, 'composer')
       ),
-    [normalizedSessionActions],
+    [normalizedSessionActions]
   );
   const composerSessionActionByActionKey = useMemo(
     () =>
@@ -1521,59 +1622,92 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         composerSessionActions.map((element) => [
           `session_action:${element.id}`,
           element,
-        ]),
+        ])
       ),
-    [composerSessionActions],
+    [composerSessionActions]
   );
 
   const composerActions: ActionDefinition[] = useMemo(() => {
     const builtins: ActionDefinition[] = [
-      { key: 'resend', label: 'Resend', iconName: 'rotate-ccw' },
-      { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
+      {
+        key: 'append',
+        label: 'Append',
+        iconName: 'plus-circle',
+        order: 100,
+        testID: 'composer-action-append',
+      },
+      {
+        key: 'appendAs',
+        label: 'Append as…',
+        iconName: 'layers',
+        order: 110,
+        testID: 'composer-action-append-as',
+      },
+      {
+        key: 'resend',
+        label: 'Resend',
+        iconName: 'repeat',
+        order: 120,
+        testID: 'composer-action-resend',
+      },
+      {
+        key: 'cancel',
+        label: 'Cancel',
+        iconName: 'x-circle',
+        order: 130,
+        testID: 'composer-action-cancel',
+      },
     ];
 
-    const attachmentActions: ActionDefinition[] = composerAttachmentElementsAll.map(
-      (el) => {
+    const attachmentActions: ActionDefinition[] =
+      composerAttachmentElementsAll.map((el) => {
         const key = getComposerActionKey(el);
         const label =
-          (typeof (el as any).title === 'string' && String((el as any).title).trim()) ||
+          (typeof (el as any).title === 'string' &&
+            String((el as any).title).trim()) ||
           (typeof el.label === 'string' && el.label.trim()) ||
           el.attachment_type;
         const iconName =
-          typeof (el as any).icon === 'string' && String((el as any).icon).trim()
+          typeof (el as any).icon === 'string' &&
+          String((el as any).icon).trim()
             ? String((el as any).icon).trim()
             : el.attachment_type === 'image'
-              ? 'image'
-              : el.attachment_type === 'pdf'
-                ? 'file-text'
-                : el.attachment_type === 'dropdown' || el.attachment_type === 'select'
-                  ? 'sliders'
-                  : 'paperclip';
+            ? 'image'
+            : el.attachment_type === 'pdf'
+            ? 'file-text'
+            : el.attachment_type === 'dropdown' ||
+              el.attachment_type === 'select'
+            ? 'sliders'
+            : 'paperclip';
         return {
           key,
           label,
           iconName,
         } as ActionDefinition;
-      },
-    );
+      });
     const configActions: ActionDefinition[] = composerRichConfigControls.map(
       (entry) => {
-        const richUi = entry.control.richUi as ConfigRichDropdownUi;
+        const richUi = entry.control.richUi as
+          | ConfigRichDropdownUi
+          | ConfigRichToggleUi;
         return {
           key: `config:${entry.control.element.key}`,
           label: richUi.label,
           iconName: richUi.icon ?? 'sliders',
+          order:
+            typeof (entry.control.element as any).order === 'number'
+              ? (entry.control.element as any).order
+              : 10,
         };
-      },
+      }
     );
     const sessionActions: ActionDefinition[] = composerSessionActions.map(
       (element) => ({
         key: `session_action:${element.id}`,
         label: element.label,
-        iconName:
-          typeof element.icon === 'string' ? element.icon : 'zap',
+        iconName: typeof element.icon === 'string' ? element.icon : 'zap',
         order: typeof element.order === 'number' ? element.order : undefined,
-      }),
+      })
     );
 
     return [
@@ -1592,13 +1726,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const defaultPinnedComposerUiActionKeys = useMemo(
     () => [
       ...getDefaultPinnedConfigRichUiKeys(
-        composerRichConfigControls.map((entry) => entry.control),
+        composerRichConfigControls.map((entry) => entry.control)
       ).map((key) => `config:${key}`),
       ...composerSessionActions
         .filter((element) => element.rich_ui?.default_pinned === true)
         .map((element) => `session_action:${element.id}`),
     ],
-    [composerRichConfigControls, composerSessionActions],
+    [composerRichConfigControls, composerSessionActions]
   );
   useEffect(() => {
     if (
@@ -1610,7 +1744,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setPinnedComposerActions((current) => [
       ...current,
       ...defaultPinnedComposerUiActionKeys.filter(
-        (key) => !current.includes(key),
+        (key) => !current.includes(key)
       ),
     ]);
   }, [
@@ -1624,7 +1758,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       headerSessionActions
         .filter((element) => element.rich_ui?.default_pinned === true)
         .map((element) => element.id),
-    [headerSessionActions],
+    [headerSessionActions]
   );
   useEffect(() => {
     if (
@@ -1636,7 +1770,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setPinnedSessionActions((current) => [
       ...current,
       ...defaultPinnedHeaderSessionActionKeys.filter(
-        (key) => !current.includes(key),
+        (key) => !current.includes(key)
       ),
     ]);
   }, [
@@ -1645,27 +1779,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setPinnedSessionActions,
   ]);
 
-  const pinnedRichConfigControls = useMemo(
-    () =>
-      composerRichConfigControls.filter((entry) =>
-        pinnedComposerActions.includes(
-          `config:${entry.control.element.key}`,
-        ),
-      ),
-    [composerRichConfigControls, pinnedComposerActions],
+  const pinnedComposerActionsForBar = useMemo(
+    () => pinnedComposerActions.filter((key) => key !== 'cancel'),
+    [pinnedComposerActions]
   );
 
-  const pinnedComposerActionsForBar = useMemo(() => {
-    const inlineKeys = new Set(
-      composerRichConfigControls.map(
-        (entry) => `config:${entry.control.element.key}`,
-      ),
-    );
-    return pinnedComposerActions.filter((key) => !inlineKeys.has(key));
-  }, [composerRichConfigControls, pinnedComposerActions]);
-
   const handleRichConfigValue = useCallback(
-    async (key: string, value: string) => {
+    async (key: string, value: unknown) => {
       if (!sessionSettingsController) return;
       setActiveRichConfigControl(null);
       try {
@@ -1674,7 +1794,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         // Controller state captures errors.
       }
     },
-    [sessionSettingsController],
+    [sessionSettingsController]
   );
   const handleRichConfigReset = useCallback(
     async (key: string) => {
@@ -1686,25 +1806,35 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         // Controller state captures errors.
       }
     },
-    [sessionSettingsController],
+    [sessionSettingsController]
   );
 
-  const hasDraftMessage = attachmentsAbove.length > 0 || attachmentsBelow.length > 0;
+  const hasDraftMessage =
+    attachmentsAbove.length > 0 || attachmentsBelow.length > 0;
   const draftAttachments = [...attachmentsAbove, ...attachmentsBelow];
   const blockingAttachmentDraft =
-    draftAttachments.find((part) => isAttachmentDraftBlocking(part.status)) ?? null;
+    draftAttachments.find((part) => isAttachmentDraftBlocking(part.status)) ??
+    null;
   const unresolvedAttachmentDraft =
-    draftAttachments.find((part) => part.status !== 'ready' && part.status !== 'local') ?? null;
+    draftAttachments.find(
+      (part) => part.status !== 'ready' && part.status !== 'local'
+    ) ?? null;
   const attachmentActionInProgress =
     attachmentBackgroundOperation != null || blockingAttachmentDraft != null;
   const attachmentActionText =
     attachmentBackgroundOperation?.kind === 'upload'
       ? `Uploading ${attachmentBackgroundOperation.filename}...`
       : attachmentBackgroundOperation?.kind === 'delete'
-        ? `Deleting ${attachmentBackgroundOperation.filename}...`
-        : blockingAttachmentDraft
-          ? `${attachmentDraftStatusLabel(blockingAttachmentDraft.status, blockingAttachmentDraft.errorMessage)} ${blockingAttachmentDraft.content?.filename ?? blockingAttachmentDraft.title}...`
-          : '';
+      ? `Deleting ${attachmentBackgroundOperation.filename}...`
+      : blockingAttachmentDraft
+      ? `${attachmentDraftStatusLabel(
+          blockingAttachmentDraft.status,
+          blockingAttachmentDraft.errorMessage
+        )} ${
+          blockingAttachmentDraft.content?.filename ??
+          blockingAttachmentDraft.title
+        }...`
+      : '';
 
   const attachmentsAboveStrip: AttachmentLike[] = useMemo(
     () =>
@@ -1717,7 +1847,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         status: part.status,
         errorMessage: part.errorMessage,
       })),
-    [attachmentsAbove],
+    [attachmentsAbove]
   );
 
   const attachmentsBelowStrip: AttachmentLike[] = useMemo(
@@ -1731,14 +1861,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         status: part.status,
         errorMessage: part.errorMessage,
       })),
-    [attachmentsBelow],
+    [attachmentsBelow]
   );
 
   const attachmentsManageRows = useMemo(() => {
     if (!attachmentsManageVisible || !attachmentsManageSide) {
       return [];
     }
-    const list = attachmentsManageSide === 'above' ? attachmentsAbove : attachmentsBelow;
+    const list =
+      attachmentsManageSide === 'above' ? attachmentsAbove : attachmentsBelow;
     return list.map((part) => ({
       draftId: part.draftId,
       type: part.type,
@@ -1763,7 +1894,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         defaultPinned: false,
         order: typeof el.order === 'number' ? el.order : undefined,
       })),
-    [headerSessionActions],
+    [headerSessionActions]
   );
 
   const pluginMessageActionDefs = useMemo(
@@ -1775,7 +1906,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         defaultPinnedRoles: ['user', 'assistant', 'system', 'tool'],
         allowedRoles: ['user', 'assistant', 'system', 'tool'],
       })),
-    [visibleMessageActions],
+    [visibleMessageActions]
   );
 
   const syncCacheFromController = useCallback(
@@ -1785,11 +1916,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       onUpdateCache(
         snapshot.messages,
         snapshot.eventsCursorId ?? null,
-        snapshot.activeRequestId ?? null,
+        snapshot.activeRequestId ?? null
       );
       return snapshot;
     },
-    [onUpdateCache],
+    [onUpdateCache]
   );
 
   const refreshSessionUiControllers = useCallback(() => {
@@ -1839,7 +1970,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [backend, sessionId]);
 
   const loadMessages = useCallback(
-    async (options: { silent?: boolean; reason?: string; refreshUiSchema?: boolean } = {}) => {
+    async (
+      options: {
+        silent?: boolean;
+        reason?: string;
+        refreshUiSchema?: boolean;
+      } = {}
+    ) => {
       if (!chatController) {
         const message = 'No active connection';
         if (!options.silent) {
@@ -1886,7 +2023,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       refreshSessionUiControllers,
       refreshSelectedSnapshot,
       syncCacheFromController,
-    ],
+    ]
   );
 
   const reloadMessagesForRange = useCallback(
@@ -1905,7 +2042,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }) => {
       if (rangeNavigationOperationId == null) {
         cancelRangeNavigation();
-      } else if (rangeNavigationOperationRef.current !== rangeNavigationOperationId) {
+      } else if (
+        rangeNavigationOperationRef.current !== rangeNavigationOperationId
+      ) {
         return null;
       }
       setRangeStartText(startText);
@@ -1962,7 +2101,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       refreshSelectedSnapshot,
       refreshSessionUiControllers,
       syncCacheFromController,
-    ],
+    ]
   );
 
   const applyMessageLimitAndReload = useCallback(() => {
@@ -1974,29 +2113,34 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }).catch(() => {});
   }, [rangeEndText, rangeStartText, reloadMessagesForRange]);
 
-  const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
-    const nextEntry = createDisplayEntry(display, context);
-    const presentation = display.presentation ?? 'modal';
-    if (presentation === 'banner' && backend) {
-      emitDisplayPresentation(
-        backend,
-        normalizeDisplayEnvelope({
-          id: nextEntry.key,
-          source: 'action_response',
-          connectionId,
-          sessionId,
-          display,
-        }),
-      );
-      return;
-    }
-    if (presentation === 'inline') {
-      setActionResultDisplay(null);
-      setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
-      return;
-    }
-    setActionResultDisplay(nextEntry);
-  }, [backend, connectionId, sessionId]);
+  const presentActionDisplay = useCallback(
+    (display: ActionDisplayPayload, context: RunActionContext) => {
+      const nextEntry = createDisplayEntry(display, context);
+      const presentation = display.presentation ?? 'modal';
+      if (presentation === 'banner' && backend) {
+        emitDisplayPresentation(
+          backend,
+          normalizeDisplayEnvelope({
+            id: nextEntry.key,
+            source: 'action_response',
+            connectionId,
+            sessionId,
+            display,
+          })
+        );
+        return;
+      }
+      if (presentation === 'inline') {
+        setActionResultDisplay(null);
+        setInlineActionDisplays((current) =>
+          upsertInlineDisplay(current, nextEntry)
+        );
+        return;
+      }
+      setActionResultDisplay(nextEntry);
+    },
+    [backend, connectionId, sessionId]
+  );
 
   const reloadSessionSummaries = useCallback(async () => {
     if (!backend || !onUpdateSessionSummaries) {
@@ -2009,7 +2153,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const notificationUiEffectObserver = useMemo(
     () => (backend ? new NotificationUiEffectObserver(backend) : null),
-    [backend],
+    [backend]
   );
   useEffect(() => {
     if (!backend) return;
@@ -2021,12 +2165,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           await loadMessages({
             reason: 'notification_ui_effect',
             refreshUiSchema: true,
-          }),
-        ),
+          })
+        )
     );
     const unsubscribeSessionsList = subscribeSessionsListRefreshInvalidations(
       backend,
-      reloadSessionSummaries,
+      reloadSessionSummaries
     );
     return () => {
       unsubscribeSession();
@@ -2039,7 +2183,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     observeSessionNotificationUiEffects(
       notificationUiEffectObserver,
       currentSessionSummary,
-      debugEvents,
+      debugEvents
     );
   }, [currentSessionSummary, debugEvents, notificationUiEffectObserver]);
 
@@ -2087,19 +2231,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           ...context,
           connectionId: connectionId ?? undefined,
         };
-        const { ok, effects, display, errorMessage } = await runApplicationAction({
-          backend,
-          element,
-          actionsById,
-          context: actionContext,
-          effects: {
-            currentSessionId: sessionId,
-            navigateOnCreatedSession: true,
-            reloadSessionsListOnMutations: true,
-          },
-        });
+        const { ok, effects, display, errorMessage } =
+          await runApplicationAction({
+            backend,
+            element,
+            actionsById,
+            context: actionContext,
+            effects: {
+              currentSessionId: sessionId,
+              navigateOnCreatedSession: true,
+              reloadSessionsListOnMutations: true,
+            },
+          });
         if (!ok) {
-          Alert.alert('Action error', errorMessage || 'Failed to execute action');
+          Alert.alert(
+            'Action error',
+            errorMessage || 'Failed to execute action'
+          );
           return;
         }
 
@@ -2121,7 +2269,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           await sessionContextController?.refresh();
         }
         if (effects.some((effect) => effect.type === 'reloadSession')) {
-          await loadMessages({ reason: 'action_reload', refreshUiSchema: true });
+          await loadMessages({
+            reason: 'action_reload',
+            refreshUiSchema: true,
+          });
         }
         if (display) {
           presentActionDisplay(display, actionContext);
@@ -2140,20 +2291,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       reloadSessionSummaries,
       sessionContextController,
       sessionId,
-    ],
+    ]
   );
 
   const handleDisplayFollowupAction = useCallback(
     async (
       entry: ActionDisplayEntry,
       action: ActionDisplayFollowupAction,
-      formValues?: Record<string, any>,
+      formValues?: Record<string, any>
     ) => {
       if (action.kind === 'open_url') {
         try {
           await Linking.openURL(action.url);
         } catch (err: any) {
-          Alert.alert('Open link failed', err?.message || 'Unable to open the link.');
+          Alert.alert(
+            'Open link failed',
+            err?.message || 'Unable to open the link.'
+          );
         }
         return;
       }
@@ -2164,7 +2318,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       if (action.kind === 'download_attachment_asset') {
         if (!backend) {
-          Alert.alert('No connection', 'Connect to a server to download the generated file.');
+          Alert.alert(
+            'No connection',
+            'Connect to a server to download the generated file.'
+          );
           return;
         }
         try {
@@ -2172,14 +2329,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         } catch (err: any) {
           Alert.alert(
             'File action failed',
-            err?.message || 'Unable to open the generated file.',
+            err?.message || 'Unable to open the generated file.'
           );
         }
         return;
       }
       if (action.kind === 'run_action') {
-        if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
-          setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
+        if (
+          (entry.display.presentation ?? 'modal') !== 'inline' &&
+          action.preserve_display !== true
+        ) {
+          setActionResultDisplay((current) =>
+            current?.key === entry.key ? null : current
+          );
         }
         setActiveDisplayActionId(action.id);
         try {
@@ -2191,21 +2353,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               label: action.label,
               action_id: action.action_id,
               action_owner: action.action_owner,
-              fixed_params: action.fixed_params as Record<string, any> | undefined,
+              fixed_params: action.fixed_params as
+                | Record<string, any>
+                | undefined,
               param_map: action.param_map,
               form: entry.display.form,
             },
             {
               ...entry.context,
               formValues,
-            },
+            }
           );
         } finally {
           setActiveDisplayActionId(null);
         }
       }
     },
-    [backend, executePluginAction],
+    [backend, executePluginAction]
   );
 
   const recoverChatAfterResume = useCallback(
@@ -2232,10 +2396,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return snapshot;
       } catch (err: any) {
         console.log('Failed to recover chat after resume', err);
-        appendDebugNote('Resume recovery failed', err?.message || 'resume_recovery_failed', {
-          reason,
-          sessionId,
-        });
+        appendDebugNote(
+          'Resume recovery failed',
+          err?.message || 'resume_recovery_failed',
+          {
+            reason,
+            sessionId,
+          }
+        );
         return null;
       } finally {
         setResumeRecoveryInProgress(false);
@@ -2249,7 +2417,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       isActive,
       sessionId,
       syncCacheFromController,
-    ],
+    ]
   );
 
   useEffect(() => {
@@ -2271,17 +2439,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
 
     let cancelled = false;
-    void loadMessages({ reason: 'initial_open', silent: true }).then((snapshot) => {
-      if (cancelled) {
-        return;
+    void loadMessages({ reason: 'initial_open', silent: true }).then(
+      (snapshot) => {
+        if (cancelled) {
+          return;
+        }
+        initialLoadCompletedRef.current = snapshot != null;
+        if (snapshot) {
+          chatController.ensureEventStreamingStarted({
+            initialSinceId: snapshot.eventsCursorId ?? null,
+          });
+        }
       }
-      initialLoadCompletedRef.current = snapshot != null;
-      if (snapshot) {
-        chatController.ensureEventStreamingStarted({
-          initialSinceId: snapshot.eventsCursorId ?? null,
-        });
-      }
-    });
+    );
 
     return () => {
       cancelled = true;
@@ -2309,21 +2479,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       async (
         element: ActionUiElement,
         context: PluginActionContext,
-        dialogValues: Record<string, any> | undefined,
+        dialogValues: Record<string, any> | undefined
       ) => {
         const isMessage = context.kind === 'message';
         await executePluginAction(element, {
           sessionId,
           connectionId: connectionId ?? undefined,
-          sessionSummary: context.sessionSummary || currentSessionSummary || undefined,
+          sessionSummary:
+            context.sessionSummary || currentSessionSummary || undefined,
           messageContext: isMessage
-            ? { index: (context as any).index, message: (context as any).message }
+            ? {
+                index: (context as any).index,
+                message: (context as any).message,
+              }
             : undefined,
           dialogValues,
         });
       },
-      [connectionId, currentSessionSummary, executePluginAction, sessionId],
-    ),
+      [connectionId, currentSessionSummary, executePluginAction, sessionId]
+    )
   );
 
   const closeOverlays = useCallback(() => {
@@ -2384,16 +2558,21 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     onUpdateCache(
       chatState.messages,
       chatState.eventsCursorId ?? null,
-      chatState.activeRequestId ?? null,
+      chatState.activeRequestId ?? null
     );
-  }, [chatState?.messages, chatState?.activeRequestId, chatState?.dirty, onUpdateCache]);
+  }, [
+    chatState?.messages,
+    chatState?.activeRequestId,
+    chatState?.dirty,
+    onUpdateCache,
+  ]);
 
   useEffect(() => {
     const saveMessagePinned = async () => {
       try {
         await AsyncStorage.setItem(
           STORAGE_KEY_MESSAGE_ACTIONS,
-          JSON.stringify(pinnedMessageActionsByRole),
+          JSON.stringify(pinnedMessageActionsByRole)
         );
       } catch (err) {
         console.log('Failed to save pinned message actions', err);
@@ -2407,7 +2586,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       createChatScrollAnchor({
         bottomGapPx: bottomGapPxRef.current,
         pinnedToBottom: pinnedToBottomRef.current,
-      }),
+      })
     );
   }, []);
 
@@ -2428,7 +2607,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     (
       side: AttachmentDraftSide,
       draftId: string,
-      updater: (part: MultipartPartDraft) => MultipartPartDraft,
+      updater: (part: MultipartPartDraft) => MultipartPartDraft
     ) => {
       const update = (prev: MultipartPartDraft[]) =>
         prev.map((part) => (part.draftId === draftId ? updater(part) : part));
@@ -2439,7 +2618,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       setAttachmentsBelow(update);
     },
-    [],
+    []
   );
 
   const deleteStoredAttachmentAsset = useCallback(
@@ -2447,7 +2626,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       assetId: string,
       filename?: string,
       suppressAlert = false,
-      pluginId?: string | null,
+      pluginId?: string | null
     ) => {
       if (!backend) {
         return false;
@@ -2461,7 +2640,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           backend,
           sessionId,
           assetId,
-          pluginId: typeof pluginId === 'string' && pluginId.trim() ? pluginId.trim() : '',
+          pluginId:
+            typeof pluginId === 'string' && pluginId.trim()
+              ? pluginId.trim()
+              : '',
         });
       } catch (err: any) {
         if (!suppressAlert) {
@@ -2474,7 +2656,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       return true;
     },
-    [backend, sessionId],
+    [backend, sessionId]
   );
 
   const removeAttachmentFromSide = useCallback(
@@ -2488,9 +2670,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       const assetId = selectSessionAssetId(removed?.content);
       if (!assetId) {
         if (side === 'above') {
-          setAttachmentsAbove((prev) => prev.filter((p) => p.draftId !== draftId));
+          setAttachmentsAbove((prev) =>
+            prev.filter((p) => p.draftId !== draftId)
+          );
         } else {
-          setAttachmentsBelow((prev) => prev.filter((p) => p.draftId !== draftId));
+          setAttachmentsBelow((prev) =>
+            prev.filter((p) => p.draftId !== draftId)
+          );
         }
         return;
       }
@@ -2505,13 +2691,17 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         assetId,
         removed?.content?.filename,
         false,
-        removed?.pluginId,
+        removed?.pluginId
       );
       if (deleted) {
         if (side === 'above') {
-          setAttachmentsAbove((prev) => prev.filter((p) => p.draftId !== draftId));
+          setAttachmentsAbove((prev) =>
+            prev.filter((p) => p.draftId !== draftId)
+          );
         } else {
-          setAttachmentsBelow((prev) => prev.filter((p) => p.draftId !== draftId));
+          setAttachmentsBelow((prev) =>
+            prev.filter((p) => p.draftId !== draftId)
+          );
         }
         return;
       }
@@ -2521,7 +2711,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         status: previousStatus,
       }));
     },
-    [attachmentsAbove, attachmentsBelow, deleteStoredAttachmentAsset, updateAttachmentDraft],
+    [
+      attachmentsAbove,
+      attachmentsBelow,
+      deleteStoredAttachmentAsset,
+      updateAttachmentDraft,
+    ]
   );
 
   const moveAttachmentWithinSide = useCallback(
@@ -2544,66 +2739,75 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       setAttachmentsBelow(update);
     },
-    [],
+    []
   );
 
-  const addAttachmentPart = useCallback((options: {
-    element: ComposerAttachmentUiElement;
-    content: any;
-    metadata?: any;
-    previewUrl?: string | null;
-    draftId?: string;
-    status?: AttachmentDraftStatus;
-    errorMessage?: string | null;
-  }) => {
-    const pluginName =
-      typeof (options.element as any).plugin === 'string' && (options.element as any).plugin
-        ? String((options.element as any).plugin)
-        : 'unknown';
-    const attachmentKeyRaw =
-      typeof options.element.key === 'string' && options.element.key.trim()
-        ? options.element.key.trim()
-        : `composer_attachment:${pluginName}:${options.element.attachment_type}:${options.element.display_placement}`;
-    const titleRaw =
-      (typeof (options.element as any).title === 'string' && String((options.element as any).title).trim()) ||
-      (typeof options.element.label === 'string' && options.element.label.trim()) ||
-      options.element.attachment_type;
-    const iconNameRaw =
-      typeof (options.element as any).icon === 'string' && String((options.element as any).icon).trim()
-        ? String((options.element as any).icon).trim()
-        : options.element.attachment_type === 'image'
+  const addAttachmentPart = useCallback(
+    (options: {
+      element: ComposerAttachmentUiElement;
+      content: any;
+      metadata?: any;
+      previewUrl?: string | null;
+      draftId?: string;
+      status?: AttachmentDraftStatus;
+      errorMessage?: string | null;
+    }) => {
+      const pluginName =
+        typeof (options.element as any).plugin === 'string' &&
+        (options.element as any).plugin
+          ? String((options.element as any).plugin)
+          : 'unknown';
+      const attachmentKeyRaw =
+        typeof options.element.key === 'string' && options.element.key.trim()
+          ? options.element.key.trim()
+          : `composer_attachment:${pluginName}:${options.element.attachment_type}:${options.element.display_placement}`;
+      const titleRaw =
+        (typeof (options.element as any).title === 'string' &&
+          String((options.element as any).title).trim()) ||
+        (typeof options.element.label === 'string' &&
+          options.element.label.trim()) ||
+        options.element.attachment_type;
+      const iconNameRaw =
+        typeof (options.element as any).icon === 'string' &&
+        String((options.element as any).icon).trim()
+          ? String((options.element as any).icon).trim()
+          : options.element.attachment_type === 'image'
           ? 'image'
           : options.element.attachment_type === 'pdf'
-            ? 'file-text'
-            : 'paperclip';
+          ? 'file-text'
+          : 'paperclip';
 
-    const draftId =
-      options.draftId || `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    const part: MultipartPartDraft = {
-      draftId,
-      type: options.element.attachment_type,
-      content: options.content,
-      metadata: options.metadata ?? {},
-      previewUrl: options.previewUrl ?? null,
-      status: options.status ?? 'ready',
-      errorMessage: options.errorMessage ?? null,
-      attachmentKey: attachmentKeyRaw,
-      pluginId: resolveAttachmentActionPluginId(options.element),
-      title: String(titleRaw),
-      iconName: iconNameRaw,
-      metadataUi:
-        options.element.metadata_ui && typeof options.element.metadata_ui === 'object'
-          ? (options.element.metadata_ui as AttachmentMetadataUi)
-          : null,
-    };
+      const draftId =
+        options.draftId ||
+        `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const part: MultipartPartDraft = {
+        draftId,
+        type: options.element.attachment_type,
+        content: options.content,
+        metadata: options.metadata ?? {},
+        previewUrl: options.previewUrl ?? null,
+        status: options.status ?? 'ready',
+        errorMessage: options.errorMessage ?? null,
+        attachmentKey: attachmentKeyRaw,
+        pluginId: resolveAttachmentActionPluginId(options.element),
+        title: String(titleRaw),
+        iconName: iconNameRaw,
+        metadataUi:
+          options.element.metadata_ui &&
+          typeof options.element.metadata_ui === 'object'
+            ? (options.element.metadata_ui as AttachmentMetadataUi)
+            : null,
+      };
 
-    if (options.element.display_placement === 'above') {
-      setAttachmentsAbove((prev) => [...prev, part]);
+      if (options.element.display_placement === 'above') {
+        setAttachmentsAbove((prev) => [...prev, part]);
+        return draftId;
+      }
+      setAttachmentsBelow((prev) => [...prev, part]);
       return draftId;
-    }
-    setAttachmentsBelow((prev) => [...prev, part]);
-    return draftId;
-  }, []);
+    },
+    []
+  );
 
   const beginAddAttachmentPart = useCallback(
     (options: {
@@ -2616,7 +2820,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       const side =
         options.element.display_placement === 'above' ? 'above' : 'below';
       const metadataUi =
-        options.element.metadata_ui && typeof options.element.metadata_ui === 'object'
+        options.element.metadata_ui &&
+        typeof options.element.metadata_ui === 'object'
           ? (options.element.metadata_ui as AttachmentMetadataUi)
           : null;
       const defaults = buildAttachmentMetadataDefaults(metadataUi);
@@ -2634,7 +2839,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         const titleRaw =
           (typeof (options.element as any).title === 'string' &&
             String((options.element as any).title).trim()) ||
-          (typeof options.element.label === 'string' && options.element.label.trim()) ||
+          (typeof options.element.label === 'string' &&
+            options.element.label.trim()) ||
           options.element.attachment_type;
 
         setAttachmentMetadataTitle(`${String(titleRaw)} metadata`);
@@ -2674,23 +2880,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         content: options.content,
         metadata: {
           ...defaults,
-          ...(
-            actionPluginId && options.element.attachment_type === 'image'
-              ? {
-                  download_plugin_id: actionPluginId,
-                }
-              : {}
-          ),
+          ...(actionPluginId && options.element.attachment_type === 'image'
+            ? {
+                download_plugin_id: actionPluginId,
+              }
+            : {}),
         },
         previewUrl: options.previewUrl ?? null,
         status: 'ready',
       });
     },
-    [addAttachmentPart, updateAttachmentDraft],
+    [addAttachmentPart, updateAttachmentDraft]
   );
 
   const updateAttachmentMetadata = useCallback(
-    (side: AttachmentDraftSide, draftId: string, metadata: Record<string, any>) => {
+    (
+      side: AttachmentDraftSide,
+      draftId: string,
+      metadata: Record<string, any>
+    ) => {
       const update = (prev: MultipartPartDraft[]) =>
         prev.map((part) => {
           if (part.draftId !== draftId) return part;
@@ -2706,7 +2914,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       setAttachmentsBelow(update);
     },
-    [],
+    []
   );
 
   const filenameFromUrl = useCallback((url: string): string => {
@@ -2736,7 +2944,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       if (ext === 'webp') return 'image/webp';
       return 'image/*';
     },
-    [],
+    []
   );
 
   const storePickedAttachment = useCallback(
@@ -2750,7 +2958,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         throw new Error('Connect to a server before uploading attachments.');
       }
 
-      const previewUrl = options.element.attachment_type === 'image' ? options.dataUrl : null;
+      const previewUrl =
+        options.element.attachment_type === 'image' ? options.dataUrl : null;
       const pluginId = resolveAttachmentActionPluginId(options.element);
       const draftId = addAttachmentPart({
         element: options.element,
@@ -2765,7 +2974,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         previewUrl,
         status: 'uploading_to_server',
       });
-      const side = options.element.display_placement === 'above' ? 'above' : 'below';
+      const side =
+        options.element.display_placement === 'above' ? 'above' : 'below';
 
       setAttachmentBackgroundOperation({
         kind: 'upload',
@@ -2807,17 +3017,28 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setAttachmentBackgroundOperation(null);
       }
     },
-    [addAttachmentPart, backend, beginAddAttachmentPart, sessionId, updateAttachmentDraft],
+    [
+      addAttachmentPart,
+      backend,
+      beginAddAttachmentPart,
+      sessionId,
+      updateAttachmentDraft,
+    ]
   );
 
   const handlePickAttachment = useCallback(
     async (element: ComposerAttachmentUiElement) => {
       if (attachmentPickInProgress) return;
       if (element.attachment_type === 'image') {
-        const supportsUpload = Boolean((element as any).supports_upload ?? true);
+        const supportsUpload = Boolean(
+          (element as any).supports_upload ?? true
+        );
         const supportsUrl = Boolean((element as any).supports_url ?? true);
         if (!supportsUpload && !supportsUrl) {
-          Alert.alert('Attachment unavailable', 'This provider does not allow image attachments.');
+          Alert.alert(
+            'Attachment unavailable',
+            'This provider does not allow image attachments.'
+          );
           return;
         }
         setImageAttachElement(element);
@@ -2827,7 +3048,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
 
       const requestId = beginAttachmentPick(
-        element.attachment_type === 'pdf' ? 'Opening PDF picker...' : 'Opening file picker...',
+        element.attachment_type === 'pdf'
+          ? 'Opening PDF picker...'
+          : 'Opening file picker...'
       );
       try {
         const picked = await pickAssetAsDataUrl({
@@ -2861,7 +3084,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         finishAttachmentPick(requestId);
       }
     },
-    [attachmentPickInProgress, beginAttachmentPick, finishAttachmentPick, storePickedAttachment],
+    [
+      attachmentPickInProgress,
+      beginAttachmentPick,
+      finishAttachmentPick,
+      storePickedAttachment,
+    ]
   );
 
   const pickImageForElement = useCallback(
@@ -2877,14 +3105,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         source === 'camera'
           ? 'Opening camera...'
           : source === 'files'
-            ? 'Opening file picker...'
-            : 'Opening photo library...',
+          ? 'Opening file picker...'
+          : 'Opening photo library...'
       );
       try {
         const picked = await pickAssetAsDataUrl({
           attachmentType: 'image',
           source,
-          supportedFileTypes: Array.isArray(imageAttachElement.supported_file_types)
+          supportedFileTypes: Array.isArray(
+            imageAttachElement.supported_file_types
+          )
             ? imageAttachElement.supported_file_types
             : [],
         });
@@ -2919,7 +3149,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       finishAttachmentPick,
       imageAttachElement,
       storePickedAttachment,
-    ],
+    ]
   );
 
   const addImageUrlForElement = useCallback(() => {
@@ -2934,7 +3164,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (!looksLikeImageUrl) {
       Alert.alert(
         'Invalid URL',
-        'Provide an http(s) image URL or a data:image/... URL.',
+        'Provide an http(s) image URL or a data:image/... URL.'
       );
       return;
     }
@@ -2981,7 +3211,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const handleAppend = async (draftText: string) => {
     if (selectedSnapshotId) {
-      Alert.alert('Read-only snapshot', 'Return to the live session before appending messages.');
+      Alert.alert(
+        'Read-only snapshot',
+        'Return to the live session before appending messages.'
+      );
       return;
     }
     const text = draftText.trim();
@@ -2990,17 +3223,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         type,
         content,
         metadata: metadata ?? {},
-      }),
+      })
     );
     if (!text && multipartContent.length === 0) {
       return;
     }
     if (unresolvedAttachmentDraft) {
-      Alert.alert('Attachment not ready', 'Resolve attachment upload issues before appending.');
+      Alert.alert(
+        'Attachment not ready',
+        'Resolve attachment upload issues before appending.'
+      );
       return;
     }
     if (attachmentActionInProgress) {
-      Alert.alert('Attachment in progress', 'Wait for attachment uploads to finish before appending.');
+      Alert.alert(
+        'Attachment in progress',
+        'Wait for attachment uploads to finish before appending.'
+      );
       return;
     }
     if (!chatController) {
@@ -3024,37 +3263,44 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
-  const openAppendAsModal = useCallback((draftText: string) => {
-    const text = draftText.trim();
-    if (!text && attachmentsAbove.length === 0 && attachmentsBelow.length === 0) {
-      return;
-    }
-    if (!chatController) {
-      Alert.alert('No connection', 'Connect to a server to append messages.');
-      return;
-    }
-    if (
-      sendInProgress ||
-      activeRequestId ||
-      pendingRequestRecovery ||
-      attachmentActionInProgress ||
-      unresolvedAttachmentDraft
-    ) {
-      return;
-    }
+  const openAppendAsModal = useCallback(
+    (draftText: string) => {
+      const text = draftText.trim();
+      if (
+        !text &&
+        attachmentsAbove.length === 0 &&
+        attachmentsBelow.length === 0
+      ) {
+        return;
+      }
+      if (!chatController) {
+        Alert.alert('No connection', 'Connect to a server to append messages.');
+        return;
+      }
+      if (
+        sendInProgress ||
+        activeRequestId ||
+        pendingRequestRecovery ||
+        attachmentActionInProgress ||
+        unresolvedAttachmentDraft
+      ) {
+        return;
+      }
 
-    setAppendAsRole('user');
-    setAppendAsDraftText(draftText);
-    setAppendAsVisible(true);
-  }, [
-    activeRequestId,
-    attachmentActionInProgress,
-    attachmentsAbove.length,
-    attachmentsBelow.length,
-    chatController,
-    sendInProgress,
-    unresolvedAttachmentDraft,
-  ]);
+      setAppendAsRole('user');
+      setAppendAsDraftText(draftText);
+      setAppendAsVisible(true);
+    },
+    [
+      activeRequestId,
+      attachmentActionInProgress,
+      attachmentsAbove.length,
+      attachmentsBelow.length,
+      chatController,
+      sendInProgress,
+      unresolvedAttachmentDraft,
+    ]
+  );
 
   const handleAppendAs = useCallback(async () => {
     const text = appendAsDraftText.trim();
@@ -3063,17 +3309,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         type,
         content,
         metadata: metadata ?? {},
-      }),
+      })
     );
     if (!text && multipartContent.length === 0) {
       return;
     }
     if (unresolvedAttachmentDraft) {
-      Alert.alert('Attachment not ready', 'Resolve attachment upload issues before appending.');
+      Alert.alert(
+        'Attachment not ready',
+        'Resolve attachment upload issues before appending.'
+      );
       return;
     }
     if (attachmentActionInProgress) {
-      Alert.alert('Attachment in progress', 'Wait for attachment uploads to finish before appending.');
+      Alert.alert(
+        'Attachment in progress',
+        'Wait for attachment uploads to finish before appending.'
+      );
       return;
     }
     if (!chatController) {
@@ -3121,10 +3373,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     unresolvedAttachmentDraft,
   ]);
 
-  const handleSend = async (draftText: string) => {
+  const handleSend = async (draftText: string): Promise<boolean> => {
     if (selectedSnapshotId) {
-      Alert.alert('Read-only snapshot', 'Return to the live session before sending messages.');
-      return;
+      Alert.alert(
+        'Read-only snapshot',
+        'Return to the live session before sending messages.'
+      );
+      return false;
     }
     const text = draftText.trim();
     const multipartContent = [...attachmentsAbove, ...attachmentsBelow].map(
@@ -3132,38 +3387,47 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         type,
         content,
         metadata: metadata ?? {},
-      }),
+      })
     );
     if (!text && multipartContent.length === 0) {
-      return;
+      return false;
     }
     if (unresolvedAttachmentDraft) {
-      Alert.alert('Attachment not ready', 'Resolve attachment upload issues before sending.');
-      return;
+      Alert.alert(
+        'Attachment not ready',
+        'Resolve attachment upload issues before sending.'
+      );
+      return false;
     }
     if (attachmentActionInProgress) {
-      Alert.alert('Attachment in progress', 'Wait for attachment uploads to finish before sending.');
-      return;
+      Alert.alert(
+        'Attachment in progress',
+        'Wait for attachment uploads to finish before sending.'
+      );
+      return false;
     }
     if (sendInProgress) {
-      return;
+      return false;
     }
     if (activeRequestId) {
-      Alert.alert('Request in progress', 'Wait for the active request to finish before sending.');
-      return;
+      Alert.alert(
+        'Request in progress',
+        'Wait for the active request to finish before sending.'
+      );
+      return false;
     }
     if (pendingRequestRecovery) {
       Alert.alert(
         'Send status unclear',
-        'Check status or retry the previous send before sending a new message.',
+        'Check status or retry the previous send before sending a new message.'
       );
-      return;
+      return false;
     }
     setSendInProgress(true);
     if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to send messages.');
       setSendInProgress(false);
-      return;
+      return false;
     }
     const idempotencyKey = generateIdempotencyKey();
     try {
@@ -3185,6 +3449,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       appendDebugNote('Send acknowledged', text || 'multipart_message', {
         idempotencyKey,
       });
+      return true;
     } catch (err: any) {
       console.log('Failed to send request', err);
       const message = err?.message || 'Failed to send request';
@@ -3204,6 +3469,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         multipartCount: multipartContent.length,
       });
       Alert.alert('Error', message);
+      return false;
     } finally {
       setSendInProgress(false);
     }
@@ -3213,7 +3479,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (pendingRequestRecovery) {
       Alert.alert(
         'Send status unclear',
-        'Check status or retry the previous send before starting another resend.',
+        'Check status or retry the previous send before starting another resend.'
       );
       return;
     }
@@ -3286,7 +3552,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       describePendingRequestRecovery(pendingRequestRecovery),
       {
         idempotencyKey: pendingRequestRecovery.idempotencyKey,
-      },
+      }
     );
     const snapshot = await recoverChatAfterResume('pending_status_check');
     if (snapshot?.activeRequestId) {
@@ -3298,7 +3564,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       pendingRequestRecovery.errorMessage,
       {
         idempotencyKey: pendingRequestRecovery.idempotencyKey,
-      },
+      }
     );
   };
 
@@ -3313,7 +3579,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       describePendingRequestRecovery(pendingRequestRecovery),
       {
         idempotencyKey: pendingRequestRecovery.idempotencyKey,
-      },
+      }
     );
 
     try {
@@ -3336,7 +3602,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         describePendingRequestRecovery(pendingRequestRecovery),
         {
           idempotencyKey: pendingRequestRecovery.idempotencyKey,
-        },
+        }
       );
     } catch (err: any) {
       const message = err?.message || 'Retry failed';
@@ -3357,6 +3623,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const handleComposerAction = useCallback(
     (key: string) => {
+      if (key === 'append') {
+        handleAppend(composeTextRef.current).catch(() => {});
+        return;
+      }
+      if (key === 'appendAs') {
+        openAppendAsModal(composeTextRef.current);
+        return;
+      }
       if (key === 'resend') {
         handleResend().catch(() => {});
         return;
@@ -3368,7 +3642,18 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
       const richConfig = composerRichConfigControlByActionKey[key];
       if (richConfig) {
-        setActiveRichConfigControl(richConfig);
+        if (richConfig.control.richUi.kind === 'toggle') {
+          const option = resolveConfigRichToggleOption(
+            richConfig.control.richUi as ConfigRichToggleUi,
+            richConfig.effectiveValue
+          );
+          void handleRichConfigValue(
+            richConfig.control.element.key,
+            !option.value
+          );
+        } else {
+          setActiveRichConfigControl(richConfig);
+        }
         return;
       }
 
@@ -3404,13 +3689,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       connectionId,
       currentSessionSummary,
       executePluginAction,
+      handleAppend,
       handleCancel,
+      handleRichConfigValue,
       handlePickAttachment,
       handleResend,
+      openAppendAsModal,
       openPluginDialogForElement,
       refreshSessionContextInBackground,
       sessionId,
-    ],
+    ]
   );
 
   const isComposerActionDisabled = useCallback(
@@ -3429,6 +3717,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       if (key === 'cancel') {
         return sendInProgress || !activeRequestId;
+      }
+      if (key === 'append' || key === 'appendAs') {
+        return (
+          sendInProgress ||
+          !!activeRequestId ||
+          !!pendingRequestRecovery ||
+          attachmentActionInProgress ||
+          !composerHasDraftMessage
+        );
       }
 
       if (
@@ -3458,35 +3755,35 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       hasDraftMessage,
       pendingRequestRecovery,
       sendInProgress,
-    ],
+    ]
   );
   const handleSwitchAgent = async (agentId: string) => {
-	    if (!backend) {
-	      Alert.alert('No connection', 'Connect to a server to switch agent.');
-	      return;
-	    }
-	    try {
-		      setAgentSwitchInProgress(true);
-	      await backend.switchSessionAgent(sessionId, agentId);
-	      setSessionAgentId(agentId && agentId.trim() ? agentId.trim() : null);
-	      setAgentModalVisible(false);
-	    } catch (err: any) {
-	      console.log('Failed to switch agent', err);
-	      const message = err?.message || 'Failed to switch agent';
-	      Alert.alert('Error', message);
-	    } finally {
-		      setAgentSwitchInProgress(false);
-	    }
-	  };
+    if (!backend) {
+      Alert.alert('No connection', 'Connect to a server to switch agent.');
+      return;
+    }
+    try {
+      setAgentSwitchInProgress(true);
+      await backend.switchSessionAgent(sessionId, agentId);
+      setSessionAgentId(agentId && agentId.trim() ? agentId.trim() : null);
+      setAgentModalVisible(false);
+    } catch (err: any) {
+      console.log('Failed to switch agent', err);
+      const message = err?.message || 'Failed to switch agent';
+      Alert.alert('Error', message);
+    } finally {
+      setAgentSwitchInProgress(false);
+    }
+  };
 
-	  const togglePinnedSessionAction = (action: SessionActionKey) => {
-	    setPinnedSessionActions((prev) => {
-	      if (prev.includes(action)) {
-	        return prev.filter((a) => a !== action);
-	      }
-	      return [...prev, action];
-	    });
-	  };
+  const togglePinnedSessionAction = (action: SessionActionKey) => {
+    setPinnedSessionActions((prev) => {
+      if (prev.includes(action)) {
+        return prev.filter((a) => a !== action);
+      }
+      return [...prev, action];
+    });
+  };
 
   const handleCreateSnapshot = useCallback(async () => {
     if (!backend) {
@@ -3502,24 +3799,36 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   }, [backend, loadSnapshots, sessionId]);
 
-  const handleSelectSnapshot = useCallback(async (snapshotId: string) => {
-    if (!backend) {
-      Alert.alert('No connection', 'Connect to a server to select snapshots.');
-      return;
-    }
-    try {
-      await backend.selectSessionSnapshot(sessionId, snapshotId);
-      await refreshSelectedSnapshot();
-      await loadMessages({ reason: 'snapshot_select', refreshUiSchema: true });
-    } catch (err: any) {
-      console.log('Failed to select snapshot', err);
-      Alert.alert('Error', err?.message || 'Failed to select snapshot');
-    }
-  }, [backend, loadMessages, refreshSelectedSnapshot, sessionId]);
+  const handleSelectSnapshot = useCallback(
+    async (snapshotId: string) => {
+      if (!backend) {
+        Alert.alert(
+          'No connection',
+          'Connect to a server to select snapshots.'
+        );
+        return;
+      }
+      try {
+        await backend.selectSessionSnapshot(sessionId, snapshotId);
+        await refreshSelectedSnapshot();
+        await loadMessages({
+          reason: 'snapshot_select',
+          refreshUiSchema: true,
+        });
+      } catch (err: any) {
+        console.log('Failed to select snapshot', err);
+        Alert.alert('Error', err?.message || 'Failed to select snapshot');
+      }
+    },
+    [backend, loadMessages, refreshSelectedSnapshot, sessionId]
+  );
 
   const handleClearSelectedSnapshot = useCallback(async () => {
     if (!backend) {
-      Alert.alert('No connection', 'Connect to a server to return to the live session.');
+      Alert.alert(
+        'No connection',
+        'Connect to a server to return to the live session.'
+      );
       return;
     }
     try {
@@ -3528,42 +3837,66 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       await loadMessages({ reason: 'snapshot_clear', refreshUiSchema: true });
     } catch (err: any) {
       console.log('Failed to clear snapshot', err);
-      Alert.alert('Error', err?.message || 'Failed to return to the live session');
+      Alert.alert(
+        'Error',
+        err?.message || 'Failed to return to the live session'
+      );
     }
   }, [backend, loadMessages, refreshSelectedSnapshot, sessionId]);
 
-  const handleRestoreSnapshot = useCallback(async (snapshotId: string) => {
-    if (!backend) {
-      Alert.alert('No connection', 'Connect to a server to restore snapshots.');
-      return;
-    }
-    try {
-      await backend.restoreSessionSnapshot(sessionId, snapshotId);
-      await refreshSelectedSnapshot();
-      await loadMessages({ reason: 'snapshot_restore', refreshUiSchema: true });
-      await loadSnapshots();
-    } catch (err: any) {
-      console.log('Failed to restore snapshot', err);
-      Alert.alert('Error', err?.message || 'Failed to restore snapshot');
-    }
-  }, [backend, loadMessages, loadSnapshots, refreshSelectedSnapshot, sessionId]);
-
-  const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {
-    if (!backend) {
-      Alert.alert('No connection', 'Connect to a server to delete snapshots.');
-      return;
-    }
-    try {
-      await backend.deleteSessionSnapshot(sessionId, snapshotId);
-      if (selectedSnapshotId === snapshotId) {
-        await refreshSelectedSnapshot();
+  const handleRestoreSnapshot = useCallback(
+    async (snapshotId: string) => {
+      if (!backend) {
+        Alert.alert(
+          'No connection',
+          'Connect to a server to restore snapshots.'
+        );
+        return;
       }
-      await loadSnapshots();
-    } catch (err: any) {
-      console.log('Failed to delete snapshot', err);
-      Alert.alert('Error', err?.message || 'Failed to delete snapshot');
-    }
-  }, [backend, loadSnapshots, refreshSelectedSnapshot, selectedSnapshotId, sessionId]);
+      try {
+        await backend.restoreSessionSnapshot(sessionId, snapshotId);
+        await refreshSelectedSnapshot();
+        await loadMessages({
+          reason: 'snapshot_restore',
+          refreshUiSchema: true,
+        });
+        await loadSnapshots();
+      } catch (err: any) {
+        console.log('Failed to restore snapshot', err);
+        Alert.alert('Error', err?.message || 'Failed to restore snapshot');
+      }
+    },
+    [backend, loadMessages, loadSnapshots, refreshSelectedSnapshot, sessionId]
+  );
+
+  const handleDeleteSnapshot = useCallback(
+    async (snapshotId: string) => {
+      if (!backend) {
+        Alert.alert(
+          'No connection',
+          'Connect to a server to delete snapshots.'
+        );
+        return;
+      }
+      try {
+        await backend.deleteSessionSnapshot(sessionId, snapshotId);
+        if (selectedSnapshotId === snapshotId) {
+          await refreshSelectedSnapshot();
+        }
+        await loadSnapshots();
+      } catch (err: any) {
+        console.log('Failed to delete snapshot', err);
+        Alert.alert('Error', err?.message || 'Failed to delete snapshot');
+      }
+    },
+    [
+      backend,
+      loadSnapshots,
+      refreshSelectedSnapshot,
+      selectedSnapshotId,
+      sessionId,
+    ]
+  );
 
   const handleSessionAction = async (action: SessionActionKey) => {
     if (action === 'reload') {
@@ -3583,9 +3916,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       if (availableAgents.length === 0 || sessionAgentId === null) {
         try {
-		        await agentsController?.ensureLoaded();
-	        const current = await backend.getSessionAgent(sessionId);
-	          setSessionAgentId(current && current.trim() ? current.trim() : null);
+          await agentsController?.ensureLoaded();
+          const current = await backend.getSessionAgent(sessionId);
+          setSessionAgentId(current && current.trim() ? current.trim() : null);
         } catch (err: any) {
           console.log('Failed to load agents', err);
           const message = err?.message || 'Failed to load agents';
@@ -3634,7 +3967,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const executeRichSessionAction = useCallback(
     (
       element: SessionActionRichUiElement,
-      dialogValues?: Record<string, string | boolean>,
+      dialogValues?: Record<string, string | boolean>
     ) => {
       return executePluginAction(element, {
         sessionId,
@@ -3643,18 +3976,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         dialogValues,
       });
     },
-    [
-      connectionId,
-      currentSessionSummary,
-      executePluginAction,
-      sessionId,
-    ],
+    [connectionId, currentSessionSummary, executePluginAction, sessionId]
   );
 
   const renderPinnedHeaderSessionAction = useCallback(
     (params: any) => {
       const element = headerSessionActions.find(
-        (candidate) => candidate.id === params.action.key,
+        (candidate) => candidate.id === params.action.key
       );
       if (!element?.rich_ui) {
         return undefined;
@@ -3690,13 +4018,55 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       executeRichSessionAction,
       headerSessionActions,
       sessionId,
-    ],
+    ]
   );
 
   const renderPinnedComposerSessionAction = useCallback(
     (params: any) => {
-      const element =
-        composerSessionActionByActionKey[params.action.key];
+      const configEntry =
+        composerRichConfigControlByActionKey[params.action.key];
+      if (configEntry?.control.richUi.kind === 'dropdown') {
+        return (
+          <RichConfigDropdownControl
+            control={configEntry.control}
+            value={configEntry.effectiveValue}
+            disabled={params.disabled}
+            placement="composer"
+            maxValueCharacters={16}
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+            testID={`composer-rich-config-${configEntry.control.element.key}`}
+            onPress={() => setActiveRichConfigControl(configEntry)}
+          />
+        );
+      }
+      if (configEntry?.control.richUi.kind === 'toggle') {
+        const option = resolveConfigRichToggleOption(
+          configEntry.control.richUi as ConfigRichToggleUi,
+          configEntry.effectiveValue
+        );
+        return (
+          <RichConfigToggleControl
+            control={configEntry.control}
+            value={configEntry.effectiveValue}
+            disabled={params.disabled}
+            placement="composer"
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+            testID={`composer-rich-config-${configEntry.control.element.key}`}
+            onPress={() => {
+              void handleRichConfigValue(
+                configEntry.control.element.key,
+                !option.value
+              );
+            }}
+          />
+        );
+      }
+
+      const element = composerSessionActionByActionKey[params.action.key];
       if (!element?.rich_ui) {
         return undefined;
       }
@@ -3727,17 +4097,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       );
     },
     [
+      composerRichConfigControlByActionKey,
       composerSessionActionByActionKey,
       currentSessionSummary,
       executeRichSessionAction,
+      handleRichConfigValue,
       sessionId,
-    ],
+    ]
   );
 
   const getPinnedActionsForRole = (role: string): MessageActionKey[] => {
-    const allowedKeys = ALL_MESSAGE_ACTIONS
-      .filter((def) => def.allowedRoles.includes(role))
-      .map((def) => def.key as MessageActionKey);
+    const allowedKeys = ALL_MESSAGE_ACTIONS.filter((def) =>
+      def.allowedRoles.includes(role)
+    ).map((def) => def.key as MessageActionKey);
 
     const existing = pinnedMessageActionsByRole[role];
     if (Array.isArray(existing)) {
@@ -3747,14 +4119,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
     const defaults: MessageActionKey[] = [];
     ALL_MESSAGE_ACTIONS.forEach((def) => {
-      if (def.defaultPinnedRoles.includes(role) && def.allowedRoles.includes(role)) {
+      if (
+        def.defaultPinnedRoles.includes(role) &&
+        def.allowedRoles.includes(role)
+      ) {
         defaults.push(def.key as MessageActionKey);
       }
     });
     return defaults;
   };
 
-  const handleChangePinnedForRole = (role: string, pinned: MessageActionKey[]) => {
+  const handleChangePinnedForRole = (
+    role: string,
+    pinned: MessageActionKey[]
+  ) => {
     setPinnedMessageActionsByRole((prev) => ({ ...prev, [role]: pinned }));
   };
 
@@ -3772,7 +4150,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleSubmitEditMessage = async (
     index: number,
     _message: ApiMessage,
-    newText: string,
+    newText: string
   ) => {
     const trimmed = newText.trim();
     if (!trimmed) {
@@ -3802,7 +4180,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleMessageAction = async (
     action: MessageActionKey,
     index: number,
-    message: ApiMessage,
+    message: ApiMessage
   ) => {
     if (action === 'modify') {
       handleStartEditMessage(index, message);
@@ -3816,7 +4194,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       setMessageViewModeByIndex((prev) => {
         const current = prev[index] ?? 'markdown';
-        const next: 'markdown' | 'raw' = current === 'markdown' ? 'raw' : 'markdown';
+        const next: 'markdown' | 'raw' =
+          current === 'markdown' ? 'raw' : 'markdown';
         return { ...prev, [index]: next };
       });
       return;
@@ -3843,53 +4222,55 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
+  const sessionListFieldGroups = useMemo(
+    () => groupSessionListFields(sessionListFields || []),
+    [sessionListFields]
+  );
 
-	  const sessionListFieldGroups = useMemo(
-	    () => groupSessionListFields(sessionListFields || []),
-	    [sessionListFields],
-	  );
+  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
 
-	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
+  const sessionHeaderPresentation = useMemo(() => {
+    if (!currentSessionSummary) {
+      return { title: sessionLabel, subtitle: '' };
+    }
+    return deriveSessionListPresentationFromGroups(
+      currentSessionSummary,
+      sessionListFieldGroups
+    );
+  }, [currentSessionSummary, sessionListFieldGroups, sessionLabel]);
 
-	  const sessionHeaderPresentation = useMemo(() => {
-	    if (!currentSessionSummary) {
-	      return { title: sessionLabel, subtitle: '' };
-	    }
-	    return deriveSessionListPresentationFromGroups(currentSessionSummary, sessionListFieldGroups);
-	  }, [currentSessionSummary, sessionListFieldGroups, sessionLabel]);
+  const footerElements = useMemo(
+    () => filterFooterElements(uiSchemaElements),
+    [uiSchemaElements]
+  );
 
-	  const footerElements = useMemo(
-	    () => filterFooterElements(uiSchemaElements),
-	    [uiSchemaElements],
-	  );
+  const statusBarElements = useMemo(
+    () => filterStatusBarElements(uiSchemaElements),
+    [uiSchemaElements]
+  );
 
-	  const statusBarElements = useMemo(
-	    () => filterStatusBarElements(uiSchemaElements),
-	    [uiSchemaElements],
-	  );
+  const lastAssistantMessage = useMemo(
+    () => selectLastAssistantMessage({ messages, streamingRow }),
+    [messages, streamingRow]
+  );
 
-	  const lastAssistantMessage = useMemo(
-	    () => selectLastAssistantMessage({ messages, streamingRow }),
-	    [messages, streamingRow],
-	  );
-
-	  const statusBarParts = useMemo(
-	    () =>
-	      deriveChatStatusBarParts({
-	        sessionId,
-	        sessionAgentId,
-	        availableAgents,
-	        lastAssistantMessage,
-	        statusBarElements,
-	      }),
-	    [
-	      sessionId,
-	      sessionAgentId,
-	      availableAgents,
-	      lastAssistantMessage,
-	      statusBarElements,
-	    ],
-	  );
+  const statusBarParts = useMemo(
+    () =>
+      deriveChatStatusBarParts({
+        sessionId,
+        sessionAgentId,
+        availableAgents,
+        lastAssistantMessage,
+        statusBarElements,
+      }),
+    [
+      sessionId,
+      sessionAgentId,
+      availableAgents,
+      lastAssistantMessage,
+      statusBarElements,
+    ]
+  );
 
   const dismissPersistentSessionNotification = useCallback(
     async (notification: SessionNotification) => {
@@ -3930,7 +4311,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           'Dismiss failed',
           error instanceof Error
             ? error.message || 'Notification dismissal failed.'
-            : 'Notification dismissal failed.',
+            : 'Notification dismissal failed.'
         );
         throw error;
       }
@@ -3941,7 +4322,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       notificationDismissalCache,
       sessionContextController,
       sessionId,
-    ],
+    ]
   );
 
   const inlineActionDisplaysContent = useMemo(() => {
@@ -3971,7 +4352,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 updatedAt: notification.updated_at,
                 notificationRevision:
                   notification.revision ?? notification.updated_at,
-              }),
+              })
             );
           }}
           onModal={(notification) => {
@@ -3989,7 +4370,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 updatedAt: notification.updated_at,
                 notificationRevision:
                   notification.revision ?? notification.updated_at,
-              }),
+              })
             );
           }}
           onDismissNotification={dismissPersistentSessionNotification}
@@ -4000,7 +4381,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 sessionId,
                 sessionSummary: currentSessionSummary ?? undefined,
               }),
-              action,
+              action
             )
           }
           renderInline={({ notification, onDismiss, onFollowupAction }) => (
@@ -4019,7 +4400,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             display={entry.display}
             activeActionId={activeDisplayActionId}
             onDismiss={() =>
-              setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+              setInlineActionDisplays((current) =>
+                current.filter((item) => item.key !== entry.key)
+              )
             }
             onFollowupAction={(action, formValues) =>
               handleDisplayFollowupAction(entry, action, formValues)
@@ -4051,7 +4434,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       bottomGapPxRef.current = state.bottomGapPx;
       pinnedToBottomRef.current = state.pinnedToBottom;
     },
-    [],
+    []
   );
 
   const firstLoadedMessageIndex =
@@ -4075,7 +4458,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       messages.length,
       rangeEndText,
       rangeStartText,
-    ],
+    ]
   );
   const handleTranscriptRangeAction = useCallback(
     async (action: TranscriptRangeControlAction) => {
@@ -4092,7 +4475,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           pageSize: MOBILE_TRANSCRIPT_RANGE_PAGE_SIZE,
           maxRangeSize: MOBILE_TRANSCRIPT_RANGE_MAX_SIZE,
         },
-        action,
+        action
       );
       if (!plan) {
         return;
@@ -4111,7 +4494,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       const previousState = chatController?.getSnapshot() ?? null;
       const previousMessages = previousState?.messages ?? messages;
       const messageByIndex = new Map(
-        previousMessages.map((entry) => [entry.index, entry.message] as const),
+        previousMessages.map((entry) => [entry.index, entry.message] as const)
       );
       const measuredAnchors =
         (await listRef.current?.getVisibleMessageAnchors?.()) ?? [];
@@ -4133,7 +4516,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         })
         .filter(
           (candidate): candidate is TranscriptViewportAnchorCandidate =>
-            candidate != null,
+            candidate != null
         );
       const completed = await reloadMessagesForRange({
         ...plan,
@@ -4193,7 +4576,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       rangeEndText,
       rangeStartText,
       reloadMessagesForRange,
-    ],
+    ]
   );
   const rangeTopControlsContent =
     transcriptRangeControlPresentation.topButtons.length > 0 ? (
@@ -4218,184 +4601,200 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       />
     ) : null;
 
-    const openAttachmentMetadataForEdit = useCallback(
-      (side: AttachmentDraftSide, draftId: string) => {
-        const list = side === 'above' ? attachmentsAbove : attachmentsBelow;
-        const part = list.find((p) => p.draftId === draftId);
-        if (!part) {
-          return;
-        }
+  const openAttachmentMetadataForEdit = useCallback(
+    (side: AttachmentDraftSide, draftId: string) => {
+      const list = side === 'above' ? attachmentsAbove : attachmentsBelow;
+      const part = list.find((p) => p.draftId === draftId);
+      if (!part) {
+        return;
+      }
 
-        setAttachmentsManageVisible(false);
-        setAttachmentMetadataTitle(`${part.title} metadata`);
-        setAttachmentMetadataUi(part.metadataUi);
-        setAttachmentMetadataInitial({
-          ...buildAttachmentMetadataDefaults(part.metadataUi),
-          ...(part.metadata ?? {}),
-        });
-        setAttachmentMetadataContext({ kind: 'edit', side, draftId });
-        setAttachmentMetadataVisible(true);
-      },
-      [attachmentsAbove, attachmentsBelow],
-    );
+      setAttachmentsManageVisible(false);
+      setAttachmentMetadataTitle(`${part.title} metadata`);
+      setAttachmentMetadataUi(part.metadataUi);
+      setAttachmentMetadataInitial({
+        ...buildAttachmentMetadataDefaults(part.metadataUi),
+        ...(part.metadata ?? {}),
+      });
+      setAttachmentMetadataContext({ kind: 'edit', side, draftId });
+      setAttachmentMetadataVisible(true);
+    },
+    [attachmentsAbove, attachmentsBelow]
+  );
 
-    const handleAttachmentMetadataCancel = useCallback(() => {
+  const handleAttachmentMetadataCancel = useCallback(() => {
+    const ctx = attachmentMetadataContext;
+    setAttachmentMetadataVisible(false);
+    setAttachmentMetadataContext(null);
+    if (ctx?.kind === 'new' && ctx.pendingAssetId) {
+      if (ctx.draftId) {
+        updateAttachmentDraft(ctx.side, ctx.draftId, (part) => ({
+          ...part,
+          status: 'deleting',
+          errorMessage: null,
+        }));
+      }
+      deleteStoredAttachmentAsset(
+        ctx.pendingAssetId,
+        ctx.content?.filename,
+        false,
+        ctx.pluginId
+      )
+        .then((deleted) => {
+          if (deleted && ctx.draftId) {
+            if (ctx.side === 'above') {
+              setAttachmentsAbove((prev) =>
+                prev.filter((part) => part.draftId !== ctx.draftId)
+              );
+            } else {
+              setAttachmentsBelow((prev) =>
+                prev.filter((part) => part.draftId !== ctx.draftId)
+              );
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [
+    attachmentMetadataContext,
+    deleteStoredAttachmentAsset,
+    updateAttachmentDraft,
+  ]);
+
+  const handleAttachmentMetadataSave = useCallback(
+    (metadata: Record<string, any>) => {
       const ctx = attachmentMetadataContext;
-      setAttachmentMetadataVisible(false);
-      setAttachmentMetadataContext(null);
-      if (ctx?.kind === 'new' && ctx.pendingAssetId) {
+      if (!ctx) {
+        setAttachmentMetadataVisible(false);
+        return;
+      }
+
+      if (ctx.kind === 'new') {
         if (ctx.draftId) {
           updateAttachmentDraft(ctx.side, ctx.draftId, (part) => ({
             ...part,
-            status: 'deleting',
+            content: ctx.content,
+            metadata,
+            previewUrl: ctx.previewUrl ?? null,
+            status: 'ready',
             errorMessage: null,
           }));
+        } else {
+          addAttachmentPart({
+            element: ctx.element,
+            content: ctx.content,
+            metadata,
+            previewUrl: ctx.previewUrl ?? null,
+            status: 'ready',
+          });
         }
-        deleteStoredAttachmentAsset(
-          ctx.pendingAssetId,
-          ctx.content?.filename,
-          false,
-          ctx.pluginId,
-        )
-          .then((deleted) => {
-            if (deleted && ctx.draftId) {
-              if (ctx.side === 'above') {
-                setAttachmentsAbove((prev) => prev.filter((part) => part.draftId !== ctx.draftId));
-              } else {
-                setAttachmentsBelow((prev) => prev.filter((part) => part.draftId !== ctx.draftId));
-              }
-            }
-          })
-          .catch(() => {});
+      } else if (ctx.kind === 'edit') {
+        updateAttachmentMetadata(ctx.side, ctx.draftId, metadata);
       }
-    }, [attachmentMetadataContext, deleteStoredAttachmentAsset, updateAttachmentDraft]);
 
-    const handleAttachmentMetadataSave = useCallback(
-      (metadata: Record<string, any>) => {
-        const ctx = attachmentMetadataContext;
-        if (!ctx) {
-          setAttachmentMetadataVisible(false);
-          return;
-        }
+      setAttachmentMetadataVisible(false);
+      setAttachmentMetadataContext(null);
+    },
+    [
+      addAttachmentPart,
+      attachmentMetadataContext,
+      updateAttachmentDraft,
+      updateAttachmentMetadata,
+    ]
+  );
 
-        if (ctx.kind === 'new') {
-          if (ctx.draftId) {
-            updateAttachmentDraft(ctx.side, ctx.draftId, (part) => ({
-              ...part,
-              content: ctx.content,
-              metadata,
-              previewUrl: ctx.previewUrl ?? null,
-              status: 'ready',
-              errorMessage: null,
-            }));
-          } else {
-            addAttachmentPart({
-              element: ctx.element,
-              content: ctx.content,
-              metadata,
-              previewUrl: ctx.previewUrl ?? null,
-              status: 'ready',
-            });
-          }
-        } else if (ctx.kind === 'edit') {
-          updateAttachmentMetadata(ctx.side, ctx.draftId, metadata);
-        }
-
-        setAttachmentMetadataVisible(false);
-        setAttachmentMetadataContext(null);
-      },
-      [addAttachmentPart, attachmentMetadataContext, updateAttachmentDraft, updateAttachmentMetadata],
-    );
-
-	  return (
-	    <KeyboardAvoidingView
-	      style={styles.keyboardAvoiding}
-	      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-	      keyboardVerticalOffset={64}
-	    >
-	      <View
-	        style={[
-	          styles.container,
-	          Platform.OS === 'android' &&
-	            androidKeyboardHeight > 0 && { paddingBottom: androidKeyboardHeight },
-	        ]}
-	      >
-	        <View style={styles.headerContainer} testID="messages-screen-header">
-	          <View style={styles.headerRow}>
-	            <View style={styles.headerNavigation}>
-	              <TouchableOpacity
-	                style={styles.headerIconButton}
-	                onPress={handleBack}
-	                accessibilityRole="button"
-	                accessibilityLabel="Back to sessions"
-	              >
-	                <Icon name="arrow-left" size={22} color={theme.primary} />
-	              </TouchableOpacity>
-	            </View>
-	            <View style={styles.titleContainer}>
-	              <Text style={styles.title} numberOfLines={1}>
-	                {sessionHeaderPresentation.title}
-	              </Text>
-	              <TouchableOpacity
-	                style={styles.titleChevronButton}
-	                onPress={() => setSessionDetailsVisible((visible) => !visible)}
-	                accessibilityRole="button"
-	                accessibilityLabel="Show session details"
-	              >
-	                <Icon
-	                  name={sessionDetailsVisible ? 'chevron-up' : 'chevron-down'}
-	                  size={20}
-	                  color={theme.primary}
-	                />
-	              </TouchableOpacity>
-	            </View>
-	            <View style={styles.headerButtons}>
-	              <SessionActionsBar
-	                renderIcon={({ name, size, color }) => (
-	                  <Icon name={name} size={size} color={color} />
-	                )}
-	                renderPinIcon={({ size, color }) => (
-	                  <Icon name="star" size={size} color={color} />
-	                )}
-	                renderCloseIcon={({ size, color, renderIcon }) =>
-	                  renderIcon ? renderIcon({ name: 'x', size, color }) : null
-	                }
-	                pinned={pinnedSessionActions}
-	                maxPinnedActionsForBar={maxHeaderPinnedActions}
-	                onChangePinned={setPinnedSessionActions}
-	                onAction={handleSessionAction}
-	                onOpenMenu={refreshSessionContextInBackground}
-	                menuButtonTestID="session-actions-menu"
-	                isActionDisabled={(action) =>
-	                  pluginActionInProgress ||
-	                  ((sendInProgress || resumeRecoveryInProgress) && action === 'reload')
-	                }
-	                extraActions={pluginSessionActionDefs}
-	                renderPinnedAction={renderPinnedHeaderSessionAction}
-	                isActive={isActive}
-	                modalContentStyle={styles.sessionActionsModalContent}
-	              />
-	            </View>
-	          </View>
-	          {sessionDetailsVisible && (
-	            <View style={styles.sessionDetailsDropdown}>
-	              <SelectablePlainText
-	                text={sessionHeaderPresentation.title}
-	                style={styles.sessionDetailsTitle}
-	              />
-	              {sessionHeaderPresentation.subtitle ? (
-	                <SelectablePlainText
-	                  text={sessionHeaderPresentation.subtitle}
-	                  style={styles.sessionDetailsSubtitle}
-	                />
-	              ) : null}
-	              <SelectablePlainText
-	                text={sessionId}
-	                style={styles.sessionDetailsId}
-	              />
-	            </View>
-	          )}
-	        </View>
+  return (
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoiding}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={64}
+    >
+      <View
+        style={[
+          styles.container,
+          Platform.OS === 'android' &&
+            androidKeyboardHeight > 0 && {
+              paddingBottom: androidKeyboardHeight,
+            },
+        ]}
+      >
+        <View style={styles.headerContainer} testID="messages-screen-header">
+          <View style={styles.headerRow}>
+            <View style={styles.headerNavigation}>
+              <TouchableOpacity
+                style={styles.headerIconButton}
+                onPress={handleBack}
+                accessibilityRole="button"
+                accessibilityLabel="Back to sessions"
+              >
+                <Icon name="arrow-left" size={22} color={theme.primary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.titleContainer}>
+              <Text style={styles.title} numberOfLines={1}>
+                {sessionHeaderPresentation.title}
+              </Text>
+              <TouchableOpacity
+                style={styles.titleChevronButton}
+                onPress={() => setSessionDetailsVisible((visible) => !visible)}
+                accessibilityRole="button"
+                accessibilityLabel="Show session details"
+              >
+                <Icon
+                  name={sessionDetailsVisible ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={theme.primary}
+                />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.headerButtons}>
+              <SessionActionsBar
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
+                renderPinIcon={({ size, color }) => (
+                  <Icon name="star" size={size} color={color} />
+                )}
+                renderCloseIcon={({ size, color, renderIcon }) =>
+                  renderIcon ? renderIcon({ name: 'x', size, color }) : null
+                }
+                pinned={pinnedSessionActions}
+                maxPinnedActionsForBar={maxHeaderPinnedActions}
+                onChangePinned={setPinnedSessionActions}
+                onAction={handleSessionAction}
+                onOpenMenu={refreshSessionContextInBackground}
+                menuButtonTestID="session-actions-menu"
+                isActionDisabled={(action) =>
+                  pluginActionInProgress ||
+                  ((sendInProgress || resumeRecoveryInProgress) &&
+                    action === 'reload')
+                }
+                extraActions={pluginSessionActionDefs}
+                renderPinnedAction={renderPinnedHeaderSessionAction}
+                isActive={isActive}
+                modalContentStyle={styles.sessionActionsModalContent}
+              />
+            </View>
+          </View>
+          {sessionDetailsVisible && (
+            <View style={styles.sessionDetailsDropdown}>
+              <SelectablePlainText
+                text={sessionHeaderPresentation.title}
+                style={styles.sessionDetailsTitle}
+              />
+              {sessionHeaderPresentation.subtitle ? (
+                <SelectablePlainText
+                  text={sessionHeaderPresentation.subtitle}
+                  style={styles.sessionDetailsSubtitle}
+                />
+              ) : null}
+              <SelectablePlainText
+                text={sessionId}
+                style={styles.sessionDetailsId}
+              />
+            </View>
+          )}
+        </View>
 
         <MobileDisplayHost
           scope="session"
@@ -4403,31 +4802,46 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           testID="messages-notification-banner-rail"
         />
 
-	      {sessionDirty && (
-	        <View style={styles.dirtyBanner}>
-	          <Text style={styles.dirtyBannerText} numberOfLines={1}>
-	            Out of sync — Reload to recover
-	          </Text>
-	          <TouchableOpacity
-	            style={[styles.button, styles.secondaryButton, styles.smallButton]}
-	            onPress={async () => {
-	              chatController?.clearRequestState();
-                      await loadMessages({ reason: 'dirty_banner_reload', refreshUiSchema: true });
-	            }}
-	            disabled={!chatController || sendInProgress || loadingMessages || resumeRecoveryInProgress}
-	          >
-	            <Text
-	              style={[
-	                styles.buttonTextSecondary,
-	                (!chatController || sendInProgress || loadingMessages || resumeRecoveryInProgress) &&
-	                  styles.buttonTextDisabled,
-	              ]}
-	            >
-	              Reload
-	            </Text>
-	          </TouchableOpacity>
-	        </View>
-	      )}
+        {sessionDirty && (
+          <View style={styles.dirtyBanner}>
+            <Text style={styles.dirtyBannerText} numberOfLines={1}>
+              Out of sync — Reload to recover
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.secondaryButton,
+                styles.smallButton,
+              ]}
+              onPress={async () => {
+                chatController?.clearRequestState();
+                await loadMessages({
+                  reason: 'dirty_banner_reload',
+                  refreshUiSchema: true,
+                });
+              }}
+              disabled={
+                !chatController ||
+                sendInProgress ||
+                loadingMessages ||
+                resumeRecoveryInProgress
+              }
+            >
+              <Text
+                style={[
+                  styles.buttonTextSecondary,
+                  (!chatController ||
+                    sendInProgress ||
+                    loadingMessages ||
+                    resumeRecoveryInProgress) &&
+                    styles.buttonTextDisabled,
+                ]}
+              >
+                Reload
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {selectedSnapshotId && (
           <View style={styles.dirtyBanner}>
@@ -4435,7 +4849,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               Viewing snapshot {selectedSnapshotId} · Read-only
             </Text>
             <TouchableOpacity
-              style={[styles.button, styles.secondaryButton, styles.smallButton]}
+              style={[
+                styles.button,
+                styles.secondaryButton,
+                styles.smallButton,
+              ]}
               onPress={handleClearSelectedSnapshot}
               disabled={!backend}
             >
@@ -4444,20 +4862,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           </View>
         )}
 
-	      {(loadingMessages || pluginActionInProgress || attachmentActionInProgress || resumeRecoveryInProgress) && (
-	        <View style={styles.loadingContainer}>
-	          <ActivityIndicator size="small" color={theme.primary} />
-	          <Text style={styles.loadingText}>
-	            {loadingMessages
-	              ? 'Loading messages...'
-	              : resumeRecoveryInProgress
-	                ? 'Revalidating chat after resume...'
-	              : pluginActionInProgress
-	                ? 'Running action...'
-	                : attachmentActionText}
-	          </Text>
-	        </View>
-	      )}
+        {(loadingMessages ||
+          pluginActionInProgress ||
+          attachmentActionInProgress ||
+          resumeRecoveryInProgress) && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={theme.primary} />
+            <Text style={styles.loadingText}>
+              {loadingMessages
+                ? 'Loading messages...'
+                : resumeRecoveryInProgress
+                ? 'Revalidating chat after resume...'
+                : pluginActionInProgress
+                ? 'Running action...'
+                : attachmentActionText}
+            </Text>
+          </View>
+        )}
 
         {attachmentPickInProgress && (
           <View style={styles.pickerRecoveryContainer}>
@@ -4470,12 +4891,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             {attachmentPickRecoveryAvailable && (
               <>
                 <Text style={styles.pickerRecoveryText}>
-                  If no system picker appeared, reset the attach controls and try again.
+                  If no system picker appeared, reset the attach controls and
+                  try again.
                 </Text>
                 <View style={styles.pickerRecoveryButtonsRow}>
                   <TouchableOpacity
-                    style={[styles.button, styles.secondaryButton, styles.pendingRecoveryButton]}
-                    onPress={() => resetAttachmentPickState({ showAlert: true })}
+                    style={[
+                      styles.button,
+                      styles.secondaryButton,
+                      styles.pendingRecoveryButton,
+                    ]}
+                    onPress={() =>
+                      resetAttachmentPickState({ showAlert: true })
+                    }
                   >
                     <Text style={styles.buttonTextSecondary}>Reset picker</Text>
                   </TouchableOpacity>
@@ -4513,367 +4941,446 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           onUserNavigationIntent={cancelRangeNavigation}
         />
 
-      {activeError && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Error</Text>
-          <Text style={styles.errorText}>{activeError.detail}</Text>
-        </View>
-      )}
-
-      {pendingRequestRecovery && (
-        <View style={styles.pendingRecoveryContainer}>
-          <Text style={styles.pendingRecoveryTitle}>Send not yet confirmed</Text>
-          <Text style={styles.pendingRecoveryText}>
-            {pendingRequestRecovery.errorMessage}
-          </Text>
-          <Text style={styles.pendingRecoveryText}>
-            Retry reuses the original idempotency key, so it will not duplicate a request that the
-            server already accepted.
-          </Text>
-          <View style={styles.pendingRecoveryButtonsRow}>
-            <TouchableOpacity
-              style={[styles.button, styles.secondaryButton, styles.pendingRecoveryButton]}
-              onPress={() => {
-                handleCheckPendingRequestStatus().catch(() => {});
-              }}
-              disabled={sendInProgress || loadingMessages || resumeRecoveryInProgress}
-            >
-              <Text style={styles.buttonTextSecondary}>Check status</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton, styles.pendingRecoveryButton]}
-              onPress={() => {
-                handleRetryPendingRequest().catch(() => {});
-              }}
-              disabled={sendInProgress || loadingMessages || resumeRecoveryInProgress}
-            >
-              <Text style={styles.buttonText}>Retry</Text>
-            </TouchableOpacity>
+        {activeError && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>Error</Text>
+            <Text style={styles.errorText}>{activeError.detail}</Text>
           </View>
-        </View>
-      )}
+        )}
 
-      <ChatComposer
-        ref={composerRef}
-        initialComposeText={initialComposeText}
-        onDraftTextChange={(text) => {
-          composeTextRef.current = text;
-        }}
-        onSaveComposeText={onSaveComposeText}
-        attachmentsAboveStrip={attachmentsAboveStrip}
-        attachmentsBelowStrip={attachmentsBelowStrip}
-        attachmentsCount={attachmentsAbove.length + attachmentsBelow.length}
-        onOpenAttachmentsManage={(side) => {
-          setAttachmentsManageSide(side);
-          setAttachmentsManageVisible(true);
-        }}
-        pinnedRichConfigControls={pinnedRichConfigControls}
-        onOpenRichConfigControl={setActiveRichConfigControl}
-        composerActions={composerActions}
-        pinnedComposerActions={pinnedComposerActions}
-        pinnedComposerActionsForBar={pinnedComposerActionsForBar}
-        onChangePinnedComposerActions={setPinnedComposerActions}
-        onComposerAction={handleComposerAction}
-        isComposerActionDisabled={isComposerActionDisabled}
-        backend={backend}
-        selectedSnapshotId={selectedSnapshotId}
-        sendInProgress={sendInProgress}
-        pendingRequestRecovery={pendingRequestRecovery}
-        activeRequestId={activeRequestId}
-        attachmentActionInProgress={attachmentActionInProgress}
-        isActive={isActive}
-        renderPinnedComposerAction={renderPinnedComposerSessionAction}
-        onOpenAppendAs={openAppendAsModal}
-        onSend={(text) => {
-          handleSend(text).catch(() => {});
-        }}
-      />
+        {pendingRequestRecovery && (
+          <View style={styles.pendingRecoveryContainer}>
+            <Text style={styles.pendingRecoveryTitle}>
+              Send not yet confirmed
+            </Text>
+            <Text style={styles.pendingRecoveryText}>
+              {pendingRequestRecovery.errorMessage}
+            </Text>
+            <Text style={styles.pendingRecoveryText}>
+              Retry reuses the original idempotency key, so it will not
+              duplicate a request that the server already accepted.
+            </Text>
+            <View style={styles.pendingRecoveryButtonsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  styles.secondaryButton,
+                  styles.pendingRecoveryButton,
+                ]}
+                onPress={() => {
+                  handleCheckPendingRequestStatus().catch(() => {});
+                }}
+                disabled={
+                  sendInProgress || loadingMessages || resumeRecoveryInProgress
+                }
+              >
+                <Text style={styles.buttonTextSecondary}>Check status</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  styles.primaryButton,
+                  styles.pendingRecoveryButton,
+                ]}
+                onPress={() => {
+                  handleRetryPendingRequest().catch(() => {});
+                }}
+                disabled={
+                  sendInProgress || loadingMessages || resumeRecoveryInProgress
+                }
+              >
+                <Text style={styles.buttonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
-      <ComposerAttachmentsManageModal
-        visible={attachmentsManageVisible}
-        title={
-          attachmentsManageSide === 'above'
-            ? 'Attachments (above)'
-            : attachmentsManageSide === 'below'
+        <ChatComposer
+          ref={composerRef}
+          initialComposeText={initialComposeText}
+          onDraftTextChange={(text) => {
+            composeTextRef.current = text;
+          }}
+          onSaveComposeText={onSaveComposeText}
+          attachmentsAboveStrip={attachmentsAboveStrip}
+          attachmentsBelowStrip={attachmentsBelowStrip}
+          attachmentsCount={attachmentsAbove.length + attachmentsBelow.length}
+          onOpenAttachmentsManage={(side) => {
+            setAttachmentsManageSide(side);
+            setAttachmentsManageVisible(true);
+          }}
+          composerActions={composerActions}
+          pinnedComposerActions={pinnedComposerActions}
+          pinnedComposerActionsForBar={pinnedComposerActionsForBar}
+          onChangePinnedComposerActions={setPinnedComposerActions}
+          onComposerAction={handleComposerAction}
+          isComposerActionDisabled={isComposerActionDisabled}
+          backend={backend}
+          selectedSnapshotId={selectedSnapshotId}
+          sendInProgress={sendInProgress}
+          pendingRequestRecovery={pendingRequestRecovery}
+          activeRequestId={activeRequestId}
+          attachmentActionInProgress={attachmentActionInProgress}
+          isActive={isActive}
+          renderPinnedComposerAction={renderPinnedComposerSessionAction}
+          onSend={handleSend}
+        />
+
+        <ComposerAttachmentsManageModal
+          visible={attachmentsManageVisible}
+          title={
+            attachmentsManageSide === 'above'
+              ? 'Attachments (above)'
+              : attachmentsManageSide === 'below'
               ? 'Attachments (below)'
               : 'Attachments'
-        }
-        attachments={attachmentsManageRows}
-        disabled={
-          sendInProgress ||
-          !!pendingRequestRecovery ||
-          !!activeRequestId ||
-          attachmentActionInProgress
-        }
-        onMove={(draftId, direction) => {
-          if (!attachmentsManageSide) return;
-          moveAttachmentWithinSide(attachmentsManageSide, draftId, direction);
-        }}
-        onEditMetadata={(draftId) => {
-          if (!attachmentsManageSide) return;
-          openAttachmentMetadataForEdit(attachmentsManageSide, draftId);
-        }}
-        onDelete={(draftId) => {
-          if (!attachmentsManageSide) return;
-          removeAttachmentFromSide(attachmentsManageSide, draftId);
-        }}
-        onRequestClose={() => {
-          setAttachmentsManageVisible(false);
-        }}
-      />
+          }
+          attachments={attachmentsManageRows}
+          disabled={
+            sendInProgress ||
+            !!pendingRequestRecovery ||
+            !!activeRequestId ||
+            attachmentActionInProgress
+          }
+          onMove={(draftId, direction) => {
+            if (!attachmentsManageSide) return;
+            moveAttachmentWithinSide(attachmentsManageSide, draftId, direction);
+          }}
+          onEditMetadata={(draftId) => {
+            if (!attachmentsManageSide) return;
+            openAttachmentMetadataForEdit(attachmentsManageSide, draftId);
+          }}
+          onDelete={(draftId) => {
+            if (!attachmentsManageSide) return;
+            removeAttachmentFromSide(attachmentsManageSide, draftId);
+          }}
+          onRequestClose={() => {
+            setAttachmentsManageVisible(false);
+          }}
+        />
 
-      <AttachmentMetadataModal
-        visible={attachmentMetadataVisible}
-        title={attachmentMetadataTitle}
-        metadataUi={attachmentMetadataUi}
-        initialMetadata={attachmentMetadataInitial}
-        onCancel={handleAttachmentMetadataCancel}
-        onSave={handleAttachmentMetadataSave}
-      />
+        <AttachmentMetadataModal
+          visible={attachmentMetadataVisible}
+          title={attachmentMetadataTitle}
+          metadataUi={attachmentMetadataUi}
+          initialMetadata={attachmentMetadataInitial}
+          onCancel={handleAttachmentMetadataCancel}
+          onSave={handleAttachmentMetadataSave}
+        />
 
-      <AttachmentViewerHost
-        backend={backend}
-        sessionId={sessionId}
-        attachment={selectedAttachment}
-        onRequestClose={() => setSelectedAttachment(null)}
-      />
+        <AttachmentViewerHost
+          backend={backend}
+          sessionId={sessionId}
+          attachment={selectedAttachment}
+          onRequestClose={() => setSelectedAttachment(null)}
+        />
 
-      {imageAttachVisible && (
-        <Modal
-          visible={imageAttachVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setImageAttachVisible(false)}
-        >
-          <TouchableWithoutFeedback onPress={() => setImageAttachVisible(false)}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback onPress={() => {}}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Add image</Text>
-                  <Text style={styles.modalSubtitle}>
-                    {Boolean((imageAttachElement as any)?.supports_upload ?? true) &&
-                    Boolean((imageAttachElement as any)?.supports_url ?? true)
-                      ? 'Choose a photo source, pick a file, or paste an image URL.'
-                      : Boolean((imageAttachElement as any)?.supports_upload ?? true)
+        {imageAttachVisible && (
+          <Modal
+            visible={imageAttachVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setImageAttachVisible(false)}
+          >
+            <TouchableWithoutFeedback
+              onPress={() => setImageAttachVisible(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback onPress={() => {}}>
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Add image</Text>
+                    <Text style={styles.modalSubtitle}>
+                      {Boolean(
+                        (imageAttachElement as any)?.supports_upload ?? true
+                      ) &&
+                      Boolean((imageAttachElement as any)?.supports_url ?? true)
+                        ? 'Choose a photo source, pick a file, or paste an image URL.'
+                        : Boolean(
+                            (imageAttachElement as any)?.supports_upload ?? true
+                          )
                         ? 'Choose a photo source or pick a file.'
                         : 'Paste an image URL.'}
-                  </Text>
+                    </Text>
 
-                  {Boolean((imageAttachElement as any)?.supports_upload ?? true) && (
-                    <View style={styles.imageSourceButtonsRow}>
-                      <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                        onPress={() => pickImageForElement('library')}
-                        disabled={
-                          sendInProgress ||
-                          !!pendingRequestRecovery ||
-                          !!activeRequestId ||
-                          attachmentPickInProgress ||
-                          attachmentActionInProgress
-                        }
-                      >
-                        <Text style={styles.buttonTextSecondary}>Photo library</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                        onPress={() => pickImageForElement('camera')}
-                        disabled={
-                          sendInProgress ||
-                          !!pendingRequestRecovery ||
-                          !!activeRequestId ||
-                          attachmentPickInProgress ||
-                          attachmentActionInProgress
-                        }
-                      >
-                        <Text style={styles.buttonTextSecondary}>Take photo</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                        onPress={() => pickImageForElement('files')}
-                        disabled={
-                          sendInProgress ||
-                          !!pendingRequestRecovery ||
-                          !!activeRequestId ||
-                          attachmentPickInProgress ||
-                          attachmentActionInProgress
-                        }
-                      >
-                        <Text style={styles.buttonTextSecondary}>Choose File</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  {Boolean((imageAttachElement as any)?.supports_url ?? true) && (
-                    <>
-                      <Text style={styles.rangeLabel}>Image URL</Text>
-                      <TextInput
-                        style={styles.modalInput}
-                        value={imageUrlText}
-                        onChangeText={setImageUrlText}
-                        placeholder="https://... or data:image/..."
-                        keyboardType="default"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                    </>
-                  )}
-
-                  <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                      onPress={() => setImageAttachVisible(false)}
-                    >
-                      <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                    </TouchableOpacity>
-                    {Boolean((imageAttachElement as any)?.supports_url ?? true) && (
-                      <TouchableOpacity
-                        style={[styles.button, styles.primaryButton, styles.modalButton]}
-                        onPress={addImageUrlForElement}
-                        disabled={!imageUrlText.trim() || attachmentActionInProgress}
-                      >
-                        <Text style={styles.buttonText}>Add URL</Text>
-                      </TouchableOpacity>
+                    {Boolean(
+                      (imageAttachElement as any)?.supports_upload ?? true
+                    ) && (
+                      <View style={styles.imageSourceButtonsRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.button,
+                            styles.secondaryButton,
+                            styles.modalButton,
+                          ]}
+                          onPress={() => pickImageForElement('library')}
+                          disabled={
+                            sendInProgress ||
+                            !!pendingRequestRecovery ||
+                            !!activeRequestId ||
+                            attachmentPickInProgress ||
+                            attachmentActionInProgress
+                          }
+                        >
+                          <Text style={styles.buttonTextSecondary}>
+                            Photo library
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.button,
+                            styles.secondaryButton,
+                            styles.modalButton,
+                          ]}
+                          onPress={() => pickImageForElement('camera')}
+                          disabled={
+                            sendInProgress ||
+                            !!pendingRequestRecovery ||
+                            !!activeRequestId ||
+                            attachmentPickInProgress ||
+                            attachmentActionInProgress
+                          }
+                        >
+                          <Text style={styles.buttonTextSecondary}>
+                            Take photo
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.button,
+                            styles.secondaryButton,
+                            styles.modalButton,
+                          ]}
+                          onPress={() => pickImageForElement('files')}
+                          disabled={
+                            sendInProgress ||
+                            !!pendingRequestRecovery ||
+                            !!activeRequestId ||
+                            attachmentPickInProgress ||
+                            attachmentActionInProgress
+                          }
+                        >
+                          <Text style={styles.buttonTextSecondary}>
+                            Choose File
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     )}
-                  </View>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      )}
 
-      {appendAsVisible && (
-        <Modal
-          visible={appendAsVisible}
-          transparent
-          animationType="fade"
-	          onRequestClose={() => {
+                    {Boolean(
+                      (imageAttachElement as any)?.supports_url ?? true
+                    ) && (
+                      <>
+                        <Text style={styles.rangeLabel}>Image URL</Text>
+                        <TextInput
+                          style={styles.modalInput}
+                          value={imageUrlText}
+                          onChangeText={setImageUrlText}
+                          placeholder="https://... or data:image/..."
+                          keyboardType="default"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                      </>
+                    )}
+
+                    <View style={styles.modalButtonsRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.button,
+                          styles.secondaryButton,
+                          styles.modalButton,
+                        ]}
+                        onPress={() => setImageAttachVisible(false)}
+                      >
+                        <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                      </TouchableOpacity>
+                      {Boolean(
+                        (imageAttachElement as any)?.supports_url ?? true
+                      ) && (
+                        <TouchableOpacity
+                          style={[
+                            styles.button,
+                            styles.primaryButton,
+                            styles.modalButton,
+                          ]}
+                          onPress={addImageUrlForElement}
+                          disabled={
+                            !imageUrlText.trim() || attachmentActionInProgress
+                          }
+                        >
+                          <Text style={styles.buttonText}>Add URL</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        )}
+
+        {appendAsVisible && (
+          <Modal
+            visible={appendAsVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => {
               setAppendAsVisible(false);
               setAppendAsDraftText('');
             }}
-        >
-	          <TouchableWithoutFeedback onPress={() => {
-              setAppendAsVisible(false);
-              setAppendAsDraftText('');
-            }}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback onPress={() => {}}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Append as</Text>
-                  <Text style={styles.modalSubtitle}>
-                    Choose a role for the appended message.
-                  </Text>
+          >
+            <TouchableWithoutFeedback
+              onPress={() => {
+                setAppendAsVisible(false);
+                setAppendAsDraftText('');
+              }}
+            >
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback onPress={() => {}}>
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Append as</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Choose a role for the appended message.
+                    </Text>
 
-                  <View style={styles.chipsRow}>
-                    {([
-                      { key: 'system', label: 'System' },
-                      { key: 'developer', label: 'Developer' },
-                      { key: 'user', label: 'User' },
-                      { key: 'assistant', label: 'Assistant' },
-                    ] as Array<{ key: AppendAsRole; label: string }>).map((opt) => {
-                      const selected = opt.key === appendAsRole;
-                      return (
-                        <TouchableOpacity
-                          key={opt.key}
-                          style={selected ? styles.chipSelected : styles.chip}
-                          onPress={() => setAppendAsRole(opt.key)}
-                        >
-                          <Text style={selected ? styles.chipTextSelected : styles.chipText}>
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
+                    <View style={styles.chipsRow}>
+                      {(
+                        [
+                          { key: 'system', label: 'System' },
+                          { key: 'developer', label: 'Developer' },
+                          { key: 'user', label: 'User' },
+                          { key: 'assistant', label: 'Assistant' },
+                        ] as Array<{ key: AppendAsRole; label: string }>
+                      ).map((opt) => {
+                        const selected = opt.key === appendAsRole;
+                        return (
+                          <TouchableOpacity
+                            key={opt.key}
+                            style={selected ? styles.chipSelected : styles.chip}
+                            onPress={() => setAppendAsRole(opt.key)}
+                          >
+                            <Text
+                              style={
+                                selected
+                                  ? styles.chipTextSelected
+                                  : styles.chipText
+                              }
+                            >
+                              {opt.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <View style={styles.modalButtonsRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.button,
+                          styles.secondaryButton,
+                          styles.modalButton,
+                        ]}
+                        onPress={() => {
+                          setAppendAsVisible(false);
+                          setAppendAsDraftText('');
+                        }}
+                      >
+                        <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.button,
+                          styles.primaryButton,
+                          styles.modalButton,
+                        ]}
+                        onPress={() => {
+                          handleAppendAs().catch(() => {});
+                        }}
+                      >
+                        {sendInProgress ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={theme.textOnPrimary}
+                          />
+                        ) : (
+                          <Text style={styles.buttonText}>Append</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        )}
 
-                  <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                      onPress={() => {
-                        setAppendAsVisible(false);
-                        setAppendAsDraftText('');
-                      }}
-                    >
-                      <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.button, styles.primaryButton, styles.modalButton]}
-                      onPress={() => {
-                        handleAppendAs().catch(() => {});
-                      }}
-                    >
-                      {sendInProgress ? (
-                        <ActivityIndicator size="small" color={theme.textOnPrimary} />
-                      ) : (
-                        <Text style={styles.buttonText}>Append</Text>
-                      )}
-                    </TouchableOpacity>
+        {messageLimitVisible && (
+          <Modal
+            visible={messageLimitVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setMessageLimitVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Message range</Text>
+                <Text style={styles.modalSubtitle}>
+                  Python-style range (start:end). Example: -50: for last 50
+                  messages.
+                </Text>
+                <View style={styles.rangeRow}>
+                  <View style={styles.rangeInputContainer}>
+                    <Text style={styles.rangeLabel}>Start</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={rangeStartText}
+                      onChangeText={setRangeStartText}
+                      placeholder="e.g. -50"
+                      keyboardType="default"
+                    />
+                  </View>
+                  <View style={styles.rangeInputContainer}>
+                    <Text style={styles.rangeLabel}>End</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={rangeEndText}
+                      onChangeText={setRangeEndText}
+                      placeholder="optional"
+                      keyboardType="default"
+                    />
                   </View>
                 </View>
-              </TouchableWithoutFeedback>
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.button,
+                      styles.secondaryButton,
+                      styles.modalButton,
+                    ]}
+                    onPress={() => setMessageLimitVisible(false)}
+                  >
+                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.button,
+                      styles.primaryButton,
+                      styles.modalButton,
+                    ]}
+                    onPress={applyMessageLimitAndReload}
+                  >
+                    <Text style={styles.buttonText}>Apply</Text>
+                  </TouchableOpacity>
+                </View>
+                {lastReloadAt && (
+                  <Text style={styles.modalHelperText}>
+                    Last reload at {lastReloadAt.toLocaleTimeString()}
+                  </Text>
+                )}
+              </View>
             </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      )}
-
-	      {messageLimitVisible && (
-	        <Modal
-	          visible={messageLimitVisible}
-	          transparent
-	          animationType="fade"
-	          onRequestClose={() => setMessageLimitVisible(false)}
-	        >
-	          <View style={styles.modalOverlay}>
-	            <View style={styles.modalContent}>
-	              <Text style={styles.modalTitle}>Message range</Text>
-	              <Text style={styles.modalSubtitle}>
-	                Python-style range (start:end). Example: -50: for last 50 messages.
-	              </Text>
-	              <View style={styles.rangeRow}>
-	                <View style={styles.rangeInputContainer}>
-	                  <Text style={styles.rangeLabel}>Start</Text>
-	                  <TextInput
-	                    style={styles.modalInput}
-	                    value={rangeStartText}
-	                    onChangeText={setRangeStartText}
-	                    placeholder="e.g. -50"
-	                    keyboardType="default"
-	                  />
-	                </View>
-	                <View style={styles.rangeInputContainer}>
-	                  <Text style={styles.rangeLabel}>End</Text>
-	                  <TextInput
-	                    style={styles.modalInput}
-	                    value={rangeEndText}
-	                    onChangeText={setRangeEndText}
-	                    placeholder="optional"
-	                    keyboardType="default"
-	                  />
-	                </View>
-	              </View>
-	              <View style={styles.modalButtonsRow}>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                  onPress={() => setMessageLimitVisible(false)}
-	                >
-	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	                </TouchableOpacity>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.primaryButton, styles.modalButton]}
-	                  onPress={applyMessageLimitAndReload}
-	                >
-	                  <Text style={styles.buttonText}>Apply</Text>
-	                </TouchableOpacity>
-	              </View>
-	              {lastReloadAt && (
-	                <Text style={styles.modalHelperText}>
-	                  Last reload at {lastReloadAt.toLocaleTimeString()}
-	                </Text>
-	              )}
-	            </View>
-	          </View>
-	        </Modal>
-	      )}
+          </Modal>
+        )}
 
         <SessionSnapshotsModal
           visible={snapshotsVisible}
@@ -4887,127 +5394,123 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           onRestoreSnapshot={handleRestoreSnapshot}
           onDeleteSnapshot={handleDeleteSnapshot}
         />
-	      <AgentSwitchModal
-	        visible={agentModalVisible}
-	        loading={agentsLoading || agentSwitchInProgress}
-	        agents={availableAgents}
-	        selectedAgentId={sessionAgentId}
-	        onRequestClose={() => setAgentModalVisible(false)}
-	        onSelectAgent={handleSwitchAgent}
-	      />
+        <AgentSwitchModal
+          visible={agentModalVisible}
+          loading={agentsLoading || agentSwitchInProgress}
+          agents={availableAgents}
+          selectedAgentId={sessionAgentId}
+          onRequestClose={() => setAgentModalVisible(false)}
+          onSelectAgent={handleSwitchAgent}
+        />
 
-	      <SessionSettingsModal
-	        backend={backend}
-	        cacheKey={connectionId ?? 'default'}
-	        sessionId={sessionId}
-	        visible={settingsVisible}
-	        onRequestClose={() => setSettingsVisible(false)}
-	      />
-	      <OptionsPickerModal
-	        visible={!!activeRichConfigControl}
-	        useModal={false}
-	        options={
-	          activeRichConfigControl?.control.richUi.kind === 'dropdown'
-	            ? (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
-	                .options.map((option) => ({
-	                  value: option.value,
-	                  label: option.label,
-	                }))
-	            : []
-	        }
-	        selectedValue={
-	          activeRichConfigControl?.effectiveValue == null
-	            ? ''
-	            : String(activeRichConfigControl.effectiveValue)
-	        }
-	        allowCustomValue={
-	          activeRichConfigControl?.control.richUi.kind === 'dropdown' &&
-	          (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
-	            .allow_custom_value === true
-	        }
-	        customValueLabel={
-	          activeRichConfigControl?.control.richUi.kind === 'dropdown'
-	            ? (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
-	                .custom_value_label
-	            : undefined
-	        }
-	        customValuePlaceholder={
-	          activeRichConfigControl?.control.richUi.kind === 'dropdown'
-	            ? (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
-	                .custom_value_placeholder
-	            : undefined
-	        }
-	        showReset={activeRichConfigControl?.hasOverride === true}
-	        resetLabel="Reset to configured model"
-	        onSelect={(value) => {
-	          if (activeRichConfigControl) {
-	            handleRichConfigValue(
-	              activeRichConfigControl.control.element.key,
-	              value,
-	            );
-	          }
-	        }}
-	        onReset={() => {
-	          if (activeRichConfigControl) {
-	            handleRichConfigReset(
-	              activeRichConfigControl.control.element.key,
-	            );
-	          }
-	        }}
-	        onRequestClose={() => setActiveRichConfigControl(null)}
-	      />
-	      {activeRichSessionAction ? (
-	        <View style={styles.modalOverlay}>
-	          <View style={styles.richSessionActionModalContent}>
-	            <SessionListRichActionList
-	              element={activeRichSessionAction as any}
-	              session={
-	                currentSessionSummary ?? {
-	                  session_id: sessionId,
-	                  modified: 0,
-	                  preview: '',
-	                  metadata: {},
-	                }
-	              }
-	              testIDPrefix={`session-rich-list-${activeRichSessionAction.id}`}
-	              onExecuteAction={(values) => {
-	                executeRichSessionAction(
-	                  activeRichSessionAction,
-	                  values,
-	                ).catch(() => {});
-	              }}
-	              onRequestClose={() => setActiveRichSessionAction(null)}
-	            />
-	          </View>
-	        </View>
-	      ) : null}
-	      <SessionPluginsModal
-	        backend={backend}
-	        sessionId={sessionId}
-	        visible={pluginsVisible}
-	        onRequestClose={() => setPluginsVisible(false)}
-	      />
-	      <ApplicationActionDialog
-	        visible={!!activePluginDialogElement}
-	        dialog={(activePluginDialogElement as any)?.dialog || null}
-	        titleFallback={activePluginDialogElement?.label}
-	        prefillContext={{
-	          session:
-	            activePluginDialogContext && 'sessionSummary' in activePluginDialogContext
-	              ? activePluginDialogContext.sessionSummary || currentSessionSummary || undefined
-	              : undefined,
-	          message:
-	            activePluginDialogContext && activePluginDialogContext.kind === 'message'
-	              ? {
-	                  index: (activePluginDialogContext as any).index,
-	                  ...(activePluginDialogContext as any).message,
-	                }
-	              : undefined,
-	        }}
-        fieldRenderers={actionDialogFieldRenderers}
-	        onSubmit={handleSubmitPluginDialog}
-	        onCancel={handleCancelPluginDialog}
-	      />
+        <SessionSettingsModal
+          backend={backend}
+          cacheKey={connectionId ?? 'default'}
+          sessionId={sessionId}
+          visible={settingsVisible}
+          onRequestClose={() => setSettingsVisible(false)}
+        />
+        <OptionsPickerModal
+          visible={!!activeRichConfigControl}
+          useModal={false}
+          options={
+            activeRichConfigControl?.control.richUi.kind === 'dropdown'
+              ? (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
+                  .options
+              : []
+          }
+          selectedValue={
+            activeRichConfigControl?.effectiveValue == null
+              ? ''
+              : String(activeRichConfigControl.effectiveValue)
+          }
+          placeholder={
+            activeRichConfigControl?.control.richUi.kind === 'dropdown'
+              ? (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
+                  .placeholder
+              : undefined
+          }
+          customValue={
+            activeRichConfigControl?.control.richUi.kind === 'dropdown'
+              ? (activeRichConfigControl.control.richUi as ConfigRichDropdownUi)
+                  .custom_value
+              : undefined
+          }
+          showReset={activeRichConfigControl?.hasOverride === true}
+          resetLabel="Reset to configured model"
+          onSelect={(value) => {
+            if (activeRichConfigControl) {
+              handleRichConfigValue(
+                activeRichConfigControl.control.element.key,
+                value
+              );
+            }
+          }}
+          onReset={() => {
+            if (activeRichConfigControl) {
+              handleRichConfigReset(
+                activeRichConfigControl.control.element.key
+              );
+            }
+          }}
+          onRequestClose={() => setActiveRichConfigControl(null)}
+        />
+        {activeRichSessionAction ? (
+          <View style={styles.modalOverlay}>
+            <View style={styles.richSessionActionModalContent}>
+              <SessionListRichActionList
+                element={activeRichSessionAction as any}
+                session={
+                  currentSessionSummary ?? {
+                    session_id: sessionId,
+                    modified: 0,
+                    preview: '',
+                    metadata: {},
+                  }
+                }
+                testIDPrefix={`session-rich-list-${activeRichSessionAction.id}`}
+                onExecuteAction={(values) => {
+                  executeRichSessionAction(
+                    activeRichSessionAction,
+                    values
+                  ).catch(() => {});
+                }}
+                onRequestClose={() => setActiveRichSessionAction(null)}
+              />
+            </View>
+          </View>
+        ) : null}
+        <SessionPluginsModal
+          backend={backend}
+          sessionId={sessionId}
+          visible={pluginsVisible}
+          onRequestClose={() => setPluginsVisible(false)}
+        />
+        <ApplicationActionDialog
+          visible={!!activePluginDialogElement}
+          dialog={(activePluginDialogElement as any)?.dialog || null}
+          titleFallback={activePluginDialogElement?.label}
+          prefillContext={{
+            session:
+              activePluginDialogContext &&
+              'sessionSummary' in activePluginDialogContext
+                ? activePluginDialogContext.sessionSummary ||
+                  currentSessionSummary ||
+                  undefined
+                : undefined,
+            message:
+              activePluginDialogContext &&
+              activePluginDialogContext.kind === 'message'
+                ? {
+                    index: (activePluginDialogContext as any).index,
+                    ...(activePluginDialogContext as any).message,
+                  }
+                : undefined,
+          }}
+          fieldRenderers={actionDialogFieldRenderers}
+          onSubmit={handleSubmitPluginDialog}
+          onCancel={handleCancelPluginDialog}
+        />
         <ActionResultModal
           visible={!!actionResultDisplay}
           display={actionResultDisplay?.display ?? null}
@@ -5015,21 +5518,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           onRequestClose={() => setActionResultDisplay(null)}
           onFollowupAction={(action, formValues) => {
             if (!actionResultDisplay) return;
-            handleDisplayFollowupAction(actionResultDisplay, action, formValues);
+            handleDisplayFollowupAction(
+              actionResultDisplay,
+              action,
+              formValues
+            );
           }}
           fieldRenderers={actionDialogFieldRenderers}
         />
-	      {debugVisible && (
-	        <View style={styles.debugOverlay}>
-	          <DebugEventsView
+        {debugVisible && (
+          <View style={styles.debugOverlay}>
+            <DebugEventsView
               events={debugEvents}
               notes={debugTimeline}
               onClose={() => setDebugVisible(false)}
             />
-	        </View>
-	      )}
-	    </View>
-	    </KeyboardAvoidingView>
+          </View>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -5055,7 +5562,7 @@ const createStyles = (theme: Theme) =>
     headerNavigation: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginTop: 5
+      marginTop: 5,
     },
     headerIconButton: {
       width: 40,
@@ -5176,26 +5683,26 @@ const createStyles = (theme: Theme) =>
     buttonTextDisabled: {
       color: theme.textSecondary,
     },
-	    dirtyBanner: {
-	      flexDirection: 'row',
-	      alignItems: 'center',
-	      marginHorizontal: 4,
-	      marginBottom: 8,
-	      paddingHorizontal: 10,
-	      paddingVertical: 8,
-	      borderRadius: 8,
-	      borderWidth: 1,
-	      borderColor: theme.primary,
-	      backgroundColor: theme.primaryMuted,
-	    },
-	    dirtyBannerText: {
-	      flex: 1,
-	      fontSize: theme.typography.fontSize.normal,
-	      lineHeight: theme.typography.lineHeight.normal,
-	      fontWeight: '600',
-	      color: theme.text,
-	      marginRight: 8,
-	    },
+    dirtyBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 4,
+      marginBottom: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      backgroundColor: theme.primaryMuted,
+    },
+    dirtyBannerText: {
+      flex: 1,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
+      fontWeight: '600',
+      color: theme.text,
+      marginRight: 8,
+    },
     loadingContainer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -5274,47 +5781,30 @@ const createStyles = (theme: Theme) =>
       borderTopColor: theme.border,
       paddingTop: 8,
     },
-    composerInlineSelectRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginRight: 8,
-    },
-    composerInlineSelectButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 3,
-      paddingHorizontal: 5,
-      backgroundColor: theme.surface,
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 5,
-      gap: 3,
-      maxWidth: '100%',
-    },
-    composerInlineSelectLabel: {
-      fontSize: theme.typography.fontSize.tiny,
-      lineHeight: theme.typography.lineHeight.tiny,
-      color: theme.textSecondary,
-    },
-    composerInlineSelectValue: {
-      fontSize: theme.typography.fontSize.tiny,
-      lineHeight: theme.typography.lineHeight.tiny,
-      color: theme.text,
-      maxWidth: 100,
-    },
     composerMainColumn: {
       minWidth: 0,
     },
     composerTopRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      alignItems: 'flex-end',
       paddingHorizontal: 10,
       marginBottom: 4,
     },
+    composerInputRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 6,
+      paddingHorizontal: 10,
+      marginBottom: 8,
+    },
+    composerInputFrame: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 94,
+      maxHeight: 120,
+      position: 'relative',
+    },
     composerInput: {
-      minHeight: 60,
+      minHeight: 94,
       maxHeight: 120,
       backgroundColor: theme.surface,
       borderWidth: 1,
@@ -5322,20 +5812,38 @@ const createStyles = (theme: Theme) =>
       borderRadius: 8,
       paddingHorizontal: 10,
       paddingVertical: 8,
+      paddingRight: 38,
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
-      marginBottom: 8,
       color: theme.text,
+      textAlignVertical: 'top',
     },
-    composerButtonsRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-    },
-    composerButton: {
-      flex: 1,
-      minWidth: 0,
+    composerMaximizeButton: {
+      position: 'absolute',
+      top: 5,
+      right: 5,
+      width: 30,
+      height: 30,
       alignItems: 'center',
-      marginHorizontal: 4,
+      justifyContent: 'center',
+      borderRadius: 7,
+      backgroundColor: theme.surfaceAlt,
+    },
+    composerSideButtons: {
+      gap: 6,
+    },
+    composerSideButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 0,
+      paddingVertical: 0,
+      marginTop: 0,
+    },
+    composerSideButtonDisabled: {
+      opacity: 0.45,
     },
     modalOverlay: {
       flex: 1,

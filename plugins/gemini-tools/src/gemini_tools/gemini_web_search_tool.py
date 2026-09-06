@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, List, Optional
 
 from agent_core.types import ToolPlugin
 from tool_compat_shared import (
@@ -228,21 +228,66 @@ class GeminiWebSearchTool(ToolPlugin):
         if not provider_options:
             return [
                 {
-                    "type": "text",
+                    "ui_type": "config",
+                    "type": "checkbox",
                     "key": "web_search_enabled",
                     "label": "Web Search (no search provider configured)",
-                    "description": (
-                        "Set GEMINI_API_KEY or TAVILY_API_KEY to enable"
-                    ),
+                    "description": ("Set GEMINI_API_KEY or TAVILY_API_KEY to enable"),
+                    "disabled": True,
+                    "rich_ui": {
+                        "kind": "toggle",
+                        "label": "Web search",
+                        "show_label": False,
+                        "icon": "globe",
+                        "placements": ["composer"],
+                        "default_pinned": True,
+                        "options": [
+                            {
+                                "value": False,
+                                "label": "Off",
+                                "icon": "globe",
+                                "tone": "primary",
+                            },
+                            {
+                                "value": True,
+                                "label": "On",
+                                "icon": "globe",
+                                "tone": "success",
+                            },
+                        ],
+                    },
                 }
             ]
 
         elements = [
             {
+                "ui_type": "config",
                 "type": "checkbox",
                 "key": "web_search_enabled",
                 "label": "Enable web search",
                 "description": "Enable the google_web_search tool",
+                "rich_ui": {
+                    "kind": "toggle",
+                    "label": "Web search",
+                    "show_label": False,
+                    "icon": "globe",
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "options": [
+                        {
+                            "value": False,
+                            "label": "Off",
+                            "icon": "globe",
+                            "tone": "primary",
+                        },
+                        {
+                            "value": True,
+                            "label": "On",
+                            "icon": "globe",
+                            "tone": "success",
+                        },
+                    ],
+                },
             },
         ]
 
@@ -398,7 +443,7 @@ class GeminiWebSearchTool(ToolPlugin):
 
         # Handle async execution in both sync and async contexts
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -424,7 +469,7 @@ class GeminiWebSearchTool(ToolPlugin):
                 return {
                     "success": True,
                     "result": (
-                        f'No search results or information found for query: '
+                        f"No search results or information found for query: "
                         f'"{query}"'
                     ),
                 }
@@ -447,16 +492,12 @@ class GeminiWebSearchTool(ToolPlugin):
         except SearchProviderError as e:
             return {
                 "success": False,
-                "error": (
-                    f'Error during web search for query "{query}": {e}'
-                ),
+                "error": (f'Error during web search for query "{query}": {e}'),
             }
         except Exception as e:
             return {
                 "success": False,
-                "error": (
-                    f'Error during web search for query "{query}": {e}'
-                ),
+                "error": (f'Error during web search for query "{query}": {e}'),
             }
 
     async def _execute_shared_provider(
@@ -477,7 +518,7 @@ class GeminiWebSearchTool(ToolPlugin):
                 return {
                     "success": True,
                     "result": (
-                        f'No search results or information found for query: '
+                        f"No search results or information found for query: "
                         f'"{query}"'
                     ),
                 }
@@ -497,16 +538,12 @@ class GeminiWebSearchTool(ToolPlugin):
         except SearchProviderError as e:
             return {
                 "success": False,
-                "error": (
-                    f'Error during web search for query "{query}": {e}'
-                ),
+                "error": (f'Error during web search for query "{query}": {e}'),
             }
         except Exception as e:
             return {
                 "success": False,
-                "error": (
-                    f'Error during web search for query "{query}": {e}'
-                ),
+                "error": (f'Error during web search for query "{query}": {e}'),
             }
 
     def _format_shared_results(self, results: List[SearchResult]) -> str:
@@ -533,9 +570,7 @@ class GeminiWebSearchTool(ToolPlugin):
 
         return f"{content}\n\nSources:\n" + "\n".join(sources)
 
-    def format_tool_result(
-        self, result: Dict[str, Any], state: Dict[str, Any]
-    ) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         """Format the tool result for LLM consumption."""
         if result.get("success"):
             return result.get("result", "")

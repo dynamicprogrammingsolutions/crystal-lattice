@@ -1262,19 +1262,26 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
             {"label": "GPT-5 Mini", "value": "gpt-5-mini"},
             {"label": "gpt-4.1-mini", "value": "gpt-4.1-mini"},
         ],
-        "allow_custom_value": True,
-        "custom_value_label": "Other model…",
-        "custom_value_placeholder": "Enter a model ID",
+        "placeholder": "Search models or enter a model ID",
+        "custom_value": {
+            "enabled": True,
+            "pattern": r"^[^\s]+$",
+            "option_label": "Use '{value}' as a custom model ID",
+        },
         "rich_ui": {
             "kind": "dropdown",
             "label": "Model",
+            "show_label": False,
             "options": [
                 {"label": "GPT-5 Mini", "value": "gpt-5-mini"},
                 {"label": "gpt-4.1-mini", "value": "gpt-4.1-mini"},
             ],
-            "allow_custom_value": True,
-            "custom_value_label": "Other model…",
-            "custom_value_placeholder": "Enter a model ID",
+            "placeholder": "Search models or enter a model ID",
+            "custom_value": {
+                "enabled": True,
+                "pattern": r"^[^\s]+$",
+                "option_label": "Use '{value}' as a custom model ID",
+            },
             "placements": ["composer"],
             "default_pinned": True,
             "icon": "cpu",
@@ -1317,26 +1324,34 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
     }
 
 
-def test_get_ui_elements_falls_back_to_text_when_models_are_unavailable() -> None:
+def test_get_ui_elements_keeps_custom_dropdown_when_models_are_unavailable() -> None:
     provider = OpenAIResponsesProvider()
 
     elements = provider.get_ui_elements(config={}, tags=["openai_responses"], models=[])
 
     assert elements[0] == {
         "ui_type": "config",
-        "type": "text",
+        "type": "dropdown",
         "key": "model",
         "label": "OpenAI Model",
-        "allow_custom_value": True,
-        "custom_value_label": "Other model…",
-        "custom_value_placeholder": "Enter a model ID",
+        "options": [],
+        "placeholder": "Search models or enter a model ID",
+        "custom_value": {
+            "enabled": True,
+            "pattern": r"^[^\s]+$",
+            "option_label": "Use '{value}' as a custom model ID",
+        },
         "rich_ui": {
             "kind": "dropdown",
             "label": "Model",
+            "show_label": False,
             "options": [],
-            "allow_custom_value": True,
-            "custom_value_label": "Other model…",
-            "custom_value_placeholder": "Enter a model ID",
+            "placeholder": "Search models or enter a model ID",
+            "custom_value": {
+                "enabled": True,
+                "pattern": r"^[^\s]+$",
+                "option_label": "Use '{value}' as a custom model ID",
+            },
             "placements": ["composer"],
             "default_pinned": True,
             "icon": "cpu",

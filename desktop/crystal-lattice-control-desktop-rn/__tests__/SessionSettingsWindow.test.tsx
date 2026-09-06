@@ -38,6 +38,22 @@ jest.mock('../src/native/MacSelect', () => {
   };
 });
 
+jest.mock('../src/native/MacComboBox', () => {
+  const React = require('react');
+  const { TextInput } = require('react-native');
+  return {
+    MacComboBox: (props: any) => (
+      <TextInput
+        testID={props.testID}
+        accessibilityLabel={props.accessibilityLabel}
+        value={props.inputValue}
+        onChangeText={props.onInputValueChange}
+        onSubmitEditing={() => props.onSubmit?.(props.inputValue)}
+      />
+    ),
+  };
+});
+
 const mockedUseSessionSettingsController =
   useSessionSettingsController as jest.MockedFunction<
     typeof useSessionSettingsController
@@ -64,9 +80,12 @@ beforeEach(() => {
             { value: 'claude-a', label: 'Claude A' },
             { value: 'claude-b', label: 'Claude B' },
           ],
-          allow_custom_value: true,
-          custom_value_label: 'Other model…',
-          custom_value_placeholder: 'Enter a model ID',
+          placeholder: 'Search models or enter a model ID',
+          custom_value: {
+            enabled: true,
+            pattern: '^[^\\s]+$',
+            option_label: "Use '{value}' as a custom model ID",
+          },
         },
       ],
       overrides: {},
@@ -97,29 +116,24 @@ afterEach(() => {
   clearActiveSessionSettingsWindow();
 });
 
-test('renders dropdown through MacSelect and patches a declared option', async () => {
+test('renders a custom dropdown through MacComboBox', async () => {
   render(<SessionSettingsWindow />);
 
   const dropdown = screen.getByTestId('session-setting-dropdown-model');
   expect(dropdown).toBeTruthy();
-  expect(screen.queryByDisplayValue('claude-a')).toBeNull();
-
-  fireEvent.press(dropdown);
-
-  await waitFor(() => {
-    expect(patchOverride).toHaveBeenCalledWith('model', 'claude-b');
-  });
+  expect(screen.getByDisplayValue('claude-a')).toBeTruthy();
 });
 
 test('patches an arbitrary model from the desktop dropdown editor', async () => {
   render(<SessionSettingsWindow />);
 
   fireEvent.changeText(
-    screen.getByTestId('session-setting-dropdown-model-custom-input'),
+    screen.getByTestId('session-setting-dropdown-model'),
     'vendor/custom-model',
   );
-  fireEvent.press(
-    screen.getByTestId('session-setting-dropdown-model-custom-save'),
+  fireEvent(
+    screen.getByTestId('session-setting-dropdown-model'),
+    'submitEditing',
   );
 
   await waitFor(() => {

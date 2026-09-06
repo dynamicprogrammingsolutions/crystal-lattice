@@ -48,6 +48,24 @@ The cross-package
 [bridge-connectivity frontend specification](../../../../docs/development/specifications/bridge-connectivity/frontend-behavior.md)
 owns portable mode and migration behavior.
 
+## Rich composer controls
+
+Session Chat renders model and reasoning settings as compact dropdowns and web
+search as a compact Boolean toggle. The shared pinned-action bar is explicitly
+configured for two rows with the leftover row below. Compact setting controls
+come first; Append and Resend occupy the lower right-aligned action row.
+
+The message input has a fixed side stack with request Cancel above Send. Each
+control is 44 points square; the inline input has a 94-point minimum height.
+Cancel remains visible and disabled when no request is active. Send uses the
+paper-plane `send` icon and Resend uses `repeat`.
+
+The in-frame `maximize-2` control opens a full-screen editor backed by the same
+draft, attachments, validation, persistence, and send path. `minimize-2`
+collapses without discarding edits. The large native text surface is intended
+to support iOS three-finger editing gestures; that operating-system gesture
+requires human simulator/device verification.
+
 ## Notification hosting
 
 `ConnectedRoot` owns connection-lifetime application notification state and

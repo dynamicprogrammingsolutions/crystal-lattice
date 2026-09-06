@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -7,15 +7,19 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from "react-native";
+} from 'react-native';
 
-import type {
-  ConfigRichDropdownUi,
-  ConfigRichUiControl,
-} from "@crystal-lattice/frontend-sdk";
+import {
+  createConfigDropdownSuggestionEngine,
+  resolveConfigRichToggleOption,
+  type ConfigRichDropdownUi,
+  type ConfigRichToggleUi,
+  type ConfigRichUiControl,
+} from '@crystal-lattice/frontend-sdk';
 
-import { useTheme } from "../theme";
-import type { MenuIconRenderer } from "./ActionsMenuContent";
+import { useTheme } from '../theme';
+import type { MenuIconRenderer } from './ActionsMenuContent';
+import { resolveSemanticToneColor } from './semanticTone';
 
 export interface RichConfigDropdownControlProps {
   control: ConfigRichUiControl;
@@ -26,22 +30,53 @@ export interface RichConfigDropdownControlProps {
   renderIcon?: MenuIconRenderer;
   testID?: string;
   buttonRef?: React.Ref<any>;
+  maxValueCharacters?: number;
+}
+
+export function truncatePinnedValue(
+  value: string,
+  maximum: number | undefined,
+): string {
+  const characters = Array.from(value);
+  if (
+    maximum === undefined ||
+    !Number.isFinite(maximum) ||
+    maximum <= 0 ||
+    characters.length <= maximum
+  ) {
+    return value;
+  }
+  const limit = Math.max(1, Math.floor(maximum));
+  if (limit === 1) {
+    return '…';
+  }
+  return `${characters.slice(0, limit - 1).join('')}…`;
 }
 
 export function RichConfigDropdownControl(
   props: RichConfigDropdownControlProps,
 ): React.JSX.Element | null {
   const theme = useTheme();
-  if (props.control.richUi.kind !== "dropdown") {
+  if (props.control.richUi.kind !== 'dropdown') {
     return null;
   }
   const richUi = props.control.richUi as ConfigRichDropdownUi;
   const value =
     props.value === undefined || props.value === null
-      ? ""
+      ? ''
       : String(props.value);
-  const selectedLabel =
-    richUi.options.find((option) => option.value === value)?.label ?? value;
+  const selectedOption = richUi.options.find(
+    (option) => option.value === value,
+  );
+  const selectedLabel = selectedOption?.label ?? value;
+  const compactLabel = truncatePinnedValue(
+    selectedLabel || 'Not set',
+    props.maxValueCharacters,
+  );
+  const color = props.disabled
+    ? theme.textMuted
+    : resolveSemanticToneColor(theme, selectedOption?.tone);
+  const icon = selectedOption?.icon ?? richUi.icon;
   const testID =
     props.testID ??
     `rich-config-${props.control.element.key}-${props.placement}`;
@@ -51,7 +86,7 @@ export function RichConfigDropdownControl(
       ref={props.buttonRef}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={`${richUi.label}: ${selectedLabel || "Not set"}`}
+      accessibilityLabel={`${richUi.label}: ${selectedLabel || 'Not set'}`}
       accessibilityState={{ disabled: props.disabled }}
       disabled={props.disabled}
       style={[
@@ -60,30 +95,26 @@ export function RichConfigDropdownControl(
       ]}
       onPress={props.onPress}
     >
-      {richUi.icon && props.renderIcon
+      {icon && props.renderIcon
         ? props.renderIcon({
-            name: richUi.icon,
+            name: icon,
             size: 14,
-            color: props.disabled ? theme.textMuted : theme.primary,
+            color,
           })
         : null}
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.controlLabel,
-          { color: props.disabled ? theme.textMuted : theme.textSecondary },
-        ]}
-      >
-        {richUi.label}:
-      </Text>
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.controlValue,
-          { color: props.disabled ? theme.textMuted : theme.text },
-        ]}
-      >
-        {selectedLabel || "Not set"}
+      {richUi.show_label !== false ? (
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.controlLabel,
+            { color: props.disabled ? theme.textMuted : theme.textSecondary },
+          ]}
+        >
+          {richUi.label}:
+        </Text>
+      ) : null}
+      <Text numberOfLines={1} style={[styles.controlValue, { color }]}>
+        {compactLabel}
       </Text>
       <Text
         style={[
@@ -97,12 +128,78 @@ export function RichConfigDropdownControl(
   );
 }
 
+export interface RichConfigToggleControlProps {
+  control: ConfigRichUiControl;
+  value: unknown;
+  disabled?: boolean;
+  placement: string;
+  onPress: () => void;
+  renderIcon?: MenuIconRenderer;
+  testID?: string;
+}
+
+export function RichConfigToggleControl(
+  props: RichConfigToggleControlProps,
+): React.JSX.Element | null {
+  const theme = useTheme();
+  if (props.control.richUi.kind !== 'toggle') {
+    return null;
+  }
+  const richUi = props.control.richUi as ConfigRichToggleUi;
+  const option = resolveConfigRichToggleOption(richUi, props.value);
+  const color = props.disabled
+    ? theme.textMuted
+    : resolveSemanticToneColor(
+        theme,
+        option.tone ?? (option.value ? 'success' : 'primary'),
+      );
+  const icon = option.icon ?? richUi.icon;
+  const testID =
+    props.testID ??
+    `rich-config-${props.control.element.key}-${props.placement}`;
+
+  return (
+    <TouchableOpacity
+      testID={testID}
+      accessibilityRole="switch"
+      accessibilityLabel={`${richUi.label}: ${option.label}`}
+      accessibilityState={{
+        disabled: props.disabled,
+        checked: option.value,
+      }}
+      disabled={props.disabled}
+      style={[
+        styles.control,
+        styles.toggleControl,
+        { borderColor: theme.border, backgroundColor: theme.surfaceAlt },
+      ]}
+      onPress={props.onPress}
+    >
+      {icon && props.renderIcon
+        ? props.renderIcon({ name: icon, size: 15, color })
+        : null}
+      {richUi.show_label !== false ? (
+        <>
+          <Text
+            numberOfLines={1}
+            style={[styles.controlLabel, { color: theme.textSecondary }]}
+          >
+            {richUi.label}:
+          </Text>
+          <Text numberOfLines={1} style={[styles.controlValue, { color }]}>
+            {option.label}
+          </Text>
+        </>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
 export interface RichConfigDropdownPanelProps {
   richUi: ConfigRichDropdownUi;
   selectedValue: string;
   hasOverride?: boolean;
   onSelect: (value: string) => void;
-  onCustomValue: (value: string) => void;
   onReset?: () => void;
   onRequestClose: () => void;
   renderIcon?: MenuIconRenderer;
@@ -128,10 +225,25 @@ export function RichConfigDropdownPanel(
   const selectedIsDeclared = props.richUi.options.some(
     (option) => option.value === props.selectedValue,
   );
-  const [customValue, setCustomValue] = useState(
-    selectedIsDeclared ? "" : props.selectedValue,
+  const [query, setQuery] = useState(
+    selectedIsDeclared ? '' : props.selectedValue,
   );
-  const prefix = props.testIDPrefix ?? "rich-config-dropdown";
+  const suggestionEngine = useMemo(
+    () => createConfigDropdownSuggestionEngine(props.richUi),
+    [props.richUi],
+  );
+  const suggestions = useMemo(
+    () => suggestionEngine.suggestions(query),
+    [query, suggestionEngine],
+  );
+  const prefix = props.testIDPrefix ?? 'rich-config-dropdown';
+  const submitQuery = () => {
+    const candidate = query.trim();
+    const exact = suggestions.find((option) => option.value === candidate);
+    if (exact) {
+      props.onSelect(exact.value);
+    }
+  };
 
   return (
     <View
@@ -161,15 +273,45 @@ export function RichConfigDropdownPanel(
         </Pressable>
       </View>
 
+      <View
+        style={[styles.searchSection, { borderBottomColor: colors.border }]}
+      >
+        <TextInput
+          testID={`${prefix}-input`}
+          accessibilityLabel={
+            props.richUi.placeholder ?? `Search or enter ${props.richUi.label}`
+          }
+          style={[
+            styles.searchInput,
+            {
+              borderColor: colors.border,
+              color: colors.text,
+              backgroundColor: colors.surface,
+            },
+          ]}
+          value={query}
+          placeholder={
+            props.richUi.placeholder ?? `Search or enter ${props.richUi.label}`
+          }
+          placeholderTextColor={colors.secondaryText}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="done"
+          onChangeText={setQuery}
+          onSubmitEditing={submitQuery}
+        />
+      </View>
+
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.options}>
-        {props.richUi.options.map((option) => {
+        {suggestions.map((option) => {
           const selected = option.value === props.selectedValue;
+          const color = resolveSemanticToneColor(theme, option.tone);
           return (
             <TouchableOpacity
-              key={option.value}
-              testID={`${prefix}-option-${option.value}`}
+              key={`${option.kind}:${option.value}`}
+              testID={`${prefix}-${option.kind}-${option.value}`}
               accessibilityRole="button"
-              accessibilityLabel={`${option.label}${selected ? " selected" : ""}`}
+              accessibilityLabel={`${option.label}${selected ? ' selected' : ''}`}
               accessibilityState={{ selected }}
               style={[
                 styles.option,
@@ -181,12 +323,10 @@ export function RichConfigDropdownPanel(
                 ? props.renderIcon({
                     name: option.icon,
                     size: 16,
-                    color: colors.primary,
+                    color,
                   })
                 : null}
-              <Text style={[styles.optionText, { color: colors.text }]}>
-                {option.label}
-              </Text>
+              <Text style={[styles.optionText, { color }]}>{option.label}</Text>
               {selected ? (
                 <Text style={[styles.selectedMark, { color: colors.primary }]}>
                   ✓
@@ -195,51 +335,12 @@ export function RichConfigDropdownPanel(
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
-
-      {props.richUi.allow_custom_value ? (
-        <View style={[styles.customSection, { borderTopColor: colors.border }]}>
-          <Text style={[styles.customLabel, { color: colors.text }]}>
-            {props.richUi.custom_value_label ?? "Other value…"}
+        {suggestions.length === 0 ? (
+          <Text style={[styles.emptyText, { color: colors.secondaryText }]}>
+            No matching options
           </Text>
-          <TextInput
-            testID={`${prefix}-custom-input`}
-            accessibilityLabel={
-              props.richUi.custom_value_label ?? `Custom ${props.richUi.label}`
-            }
-            style={[
-              styles.customInput,
-              {
-                borderColor: colors.border,
-                color: colors.text,
-                backgroundColor: colors.surface,
-              },
-            ]}
-            value={customValue}
-            placeholder={
-              props.richUi.custom_value_placeholder ?? "Enter a value"
-            }
-            placeholderTextColor={colors.secondaryText}
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setCustomValue}
-          />
-          <Pressable
-            testID={`${prefix}-custom-submit`}
-            accessibilityRole="button"
-            accessibilityLabel={`Use custom ${props.richUi.label}`}
-            disabled={!customValue.trim()}
-            style={[
-              styles.primaryButton,
-              { backgroundColor: colors.primary },
-              !customValue.trim() && styles.disabledButton,
-            ]}
-            onPress={() => props.onCustomValue(customValue.trim())}
-          >
-            <Text style={styles.primaryButtonText}>Use value</Text>
-          </Pressable>
-        </View>
-      ) : null}
+        ) : null}
+      </ScrollView>
 
       {props.hasOverride && props.onReset ? (
         <Pressable
@@ -266,18 +367,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
+  },
+  toggleControl: {
+    minWidth: 34,
   },
   controlLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   controlValue: {
     flexShrink: 1,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   chevron: {
     fontSize: 11,
@@ -289,9 +393,9 @@ const styles = StyleSheet.create({
   panelHeader: {
     minHeight: 48,
     paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   panelTitleColumn: {
@@ -300,70 +404,57 @@ const styles = StyleSheet.create({
   },
   panelTitle: {
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   panelDescription: {
     fontSize: 12,
   },
   closeText: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: '700',
     paddingHorizontal: 6,
   },
   options: {
     maxHeight: 280,
   },
-  option: {
-    minHeight: 44,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+  searchSection: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    padding: 12,
   },
-  optionText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  selectedMark: {
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  customSection: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    padding: 14,
-    gap: 8,
-  },
-  customLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  customInput: {
+  searchInput: {
     minHeight: 38,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 10,
   },
-  primaryButton: {
-    alignSelf: "flex-end",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  option: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  disabledButton: {
-    opacity: 0.45,
+  optionText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
   },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
+  selectedMark: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  emptyText: {
+    paddingHorizontal: 14,
+    paddingVertical: 18,
+    fontSize: 13,
   },
   resetButton: {
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   resetText: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: '700',
   },
 });

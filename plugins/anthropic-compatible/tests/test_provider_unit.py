@@ -79,14 +79,22 @@ def test_provider_config_ui_uses_renderable_control_types() -> None:
     assert elements[0]["ui_type"] == "config"
     assert elements[0]["type"] == "dropdown"
     assert elements[0]["options"] == [{"value": "claude-test", "label": "Claude Test"}]
-    assert elements[0]["allow_custom_value"] is True
+    assert elements[0]["custom_value"] == {
+        "enabled": True,
+        "pattern": r"^[^\s]+$",
+        "option_label": "Use '{value}' as a custom model ID",
+    }
     assert elements[0]["rich_ui"] == {
         "kind": "dropdown",
         "label": "Model",
+        "show_label": False,
         "options": [{"value": "claude-test", "label": "Claude Test"}],
-        "allow_custom_value": True,
-        "custom_value_label": "Other model…",
-        "custom_value_placeholder": "Enter a model ID",
+        "placeholder": "Search models or enter a model ID",
+        "custom_value": {
+            "enabled": True,
+            "pattern": r"^[^\s]+$",
+            "option_label": "Use '{value}' as a custom model ID",
+        },
         "placements": ["composer"],
         "default_pinned": True,
         "icon": "cpu",
@@ -101,12 +109,12 @@ def test_provider_model_ui_keeps_manual_entry_when_discovery_is_empty() -> None:
     )
 
     model = elements[0]
-    assert model["type"] == "text"
-    assert "options" not in model
-    assert model["allow_custom_value"] is True
+    assert model["type"] == "dropdown"
+    assert model["options"] == []
+    assert model["custom_value"]["enabled"] is True
     assert model["rich_ui"]["kind"] == "dropdown"
     assert model["rich_ui"]["options"] == []
-    assert model["rich_ui"]["allow_custom_value"] is True
+    assert model["rich_ui"]["custom_value"]["enabled"] is True
 
 
 def test_provider_converts_plain_messages_and_separates_system() -> None:

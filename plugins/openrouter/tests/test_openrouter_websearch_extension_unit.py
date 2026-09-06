@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from openrouter_plugins.openrouter_websearch_extension import OpenRouterWebSearchExtension
+from openrouter_plugins.openrouter_websearch_extension import (
+    OpenRouterWebSearchExtension,
+)
 
 
 def _make_annotation(url: str, title: str | None = None) -> Dict[str, Any]:
@@ -27,6 +29,30 @@ def test_get_tags_and_required_tags() -> None:
 
     required = ext.required_tags()
     assert "openrouter" in required
+
+
+def test_ui_exposes_rich_web_search_toggle() -> None:
+    element = OpenRouterWebSearchExtension().get_ui_elements(
+        tags=["ext:openrouter_websearch"]
+    )[0]
+
+    assert element["type"] == "checkbox"
+    assert element["rich_ui"]["kind"] == "toggle"
+    assert element["rich_ui"]["show_label"] is False
+    assert element["rich_ui"]["options"] == [
+        {
+            "value": False,
+            "label": "Off",
+            "icon": "globe",
+            "tone": "primary",
+        },
+        {
+            "value": True,
+            "label": "On",
+            "icon": "globe",
+            "tone": "success",
+        },
+    ]
 
 
 def test_init_disabled_by_default() -> None:
@@ -58,7 +84,10 @@ def test_init_can_be_enabled_explicitly() -> None:
 def test_initialize_request_injects_plugins_entry() -> None:
     ext = OpenRouterWebSearchExtension()
     config: Dict[str, Any] = {"enable_web_search": True}
-    base_state: Dict[str, Any] = {"config": config, "request": {"payload": {"model": "test"}}}
+    base_state: Dict[str, Any] = {
+        "config": config,
+        "request": {"payload": {"model": "test"}},
+    }
 
     state = ext.init(config, base_state)
     updated = ext.initialize_request([], state)
@@ -117,4 +146,3 @@ def test_process_delta_accumulates_citations() -> None:
     urls = {c["url"] for c in citations}
     assert "https://example.com/1" in urls
     assert "https://example.com/2" in urls
-

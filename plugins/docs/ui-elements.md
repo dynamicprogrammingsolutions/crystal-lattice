@@ -118,12 +118,10 @@ def get_ui_elements(self, config, tags, models):
 | `options` | array | For `select`/`dropdown`: `["value", ...]` or `[{"value": "...", "label": "..."}, ...]` |
 | `default` | any | Default value shown when no override or config value exists |
 | `required` | boolean | Whether the field is required |
-| `placeholder` | string | Placeholder text for text inputs |
+| `placeholder` | string | Placeholder text for text inputs and searchable dropdowns |
 | `config_path` | string | Dotted path to nested config value (e.g., `"provider.api_key"`) |
 | `condition` | object | Optional visibility condition (see below) |
-| `allow_custom_value` | boolean | For string dropdowns, allow a value not present in `options` |
-| `custom_value_label` | string | Optional label for the full settings custom-value editor |
-| `custom_value_placeholder` | string | Optional placeholder for the full settings custom-value editor |
+| `custom_value` | object | Optional searchable-dropdown custom entry with `enabled`, `pattern`, and `option_label` |
 | `rich_ui` | object | Optional self-contained compact presentation in chat |
 
 #### Effective value resolution
@@ -234,7 +232,7 @@ such as `label`, `options`, custom-entry text, icon, pinning, and placements
 even when the full settings element uses the same values. A compact surface
 does not implicitly inherit those fields from the containing element.
 
-The initial supported rich config kind is `dropdown`:
+The supported rich config kinds are `dropdown` and `toggle`.
 
 ```python
 model_options = [
@@ -244,20 +242,27 @@ model_options = [
 
 {
     "ui_type": "config",
-    "type": "dropdown" if model_options else "text",
+    "type": "dropdown",
     "key": "model",
     "label": "Model",
-    **({"options": model_options} if model_options else {}),
-    "allow_custom_value": True,
-    "custom_value_label": "Other model…",
-    "custom_value_placeholder": "Enter a model ID",
+    "options": model_options,
+    "placeholder": "Search models or enter a model ID",
+    "custom_value": {
+        "enabled": True,
+        "pattern": r"^[^\s]+$",
+        "option_label": "Use '{value}' as a custom model ID",
+    },
     "rich_ui": {
         "kind": "dropdown",
         "label": "Model",
+        "show_label": False,
         "options": model_options,
-        "allow_custom_value": True,
-        "custom_value_label": "Other model…",
-        "custom_value_placeholder": "Enter a model ID",
+        "placeholder": "Search models or enter a model ID",
+        "custom_value": {
+            "enabled": True,
+            "pattern": r"^[^\s]+$",
+            "option_label": "Use '{value}' as a custom model ID",
+        },
         "placements": ["composer"],
         "default_pinned": True,
         "icon": "cpu",
@@ -275,14 +280,80 @@ The rich dropdown fields are:
 | --- | --- | --- |
 | `kind` | string | Must be `dropdown` for this presentation |
 | `label` | string | Compact-surface label; required |
-| `options` | array | Self-contained string value/label options; may be empty only when custom entry is enabled |
-| `allow_custom_value` | boolean | Allows a string not present in `options`; the containing config element must also enable it |
-| `custom_value_label` | string | Optional custom-entry label |
-| `custom_value_placeholder` | string | Optional custom-entry placeholder |
+| `options` | array | Self-contained string value/label options; may be empty only when `custom_value.enabled` is true |
+| `placeholder` | string | Text for the one field used to filter options or enter a custom value |
+| `custom_value` | object | Nested custom-entry declaration; repeat it on the containing config element |
 | `description` | string | Optional compact help text |
 | `icon` | string | Optional semantic icon name |
+| `show_label` | boolean | Whether the compact control visually shows `label:`; accessibility always retains the label |
 | `placements` | array | Ordered compact locations; initially `session_header` and `composer` |
 | `default_pinned` | boolean | Initial pin preference when the connection has no stored choice |
+
+`custom_value.enabled` enables custom values. `custom_value.pattern` is an
+optional ECMAScript regular expression applied as a full-value match.
+`custom_value.option_label` contains `{value}`, for example
+`"Use '{value}' as a custom model ID"`.
+
+The dropdown uses one field for both search and custom entry. A non-empty
+query filters labels and values case-insensitively. When the trimmed query does
+not exactly equal a declared value and satisfies the custom pattern, the list
+appends a synthetic custom option after the declared matches. Invalid custom
+configuration disables only the synthetic option; declared values remain
+usable.
+
+Options may add a theme-aware semantic tone and icon:
+
+```python
+{"value": "high", "label": "High", "icon": "chevron-up", "tone": "highlight"}
+```
+
+Supported tones are `primary`, `highlight`, `warning`, `success`, `danger`,
+and `muted`. The selected option controls the compact icon and tone. Frontends
+may apply a shorter host-specific visual character limit while preserving the
+full accessibility label and stored value.
+
+For manual testing without changing a production provider, load the
+[dummy rich configuration UI plugin](../dummy-rich-config-ui/README.md) and
+enable `dummy_rich_config_ui` for an agent. The plugin exposes all semantic
+option tones, distinct icons, a rich toggle, both chat placements, and a
+disabled-state example.
+
+Boolean checkbox settings may expose a compact toggle:
+
+```python
+{
+    "type": "checkbox",
+    "key": "enable_web_search",
+    "label": "Enable web search",
+    "rich_ui": {
+        "kind": "toggle",
+        "label": "Web search",
+        "show_label": False,
+        "icon": "globe",
+        "placements": ["composer"],
+        "default_pinned": True,
+        "options": [
+            {
+                "value": False,
+                "label": "Off",
+                "icon": "globe",
+                "tone": "primary",
+            },
+            {
+                "value": True,
+                "label": "On",
+                "icon": "globe",
+                "tone": "success",
+            },
+        ],
+    },
+}
+```
+
+A rich config toggle has exactly one `false` and one `true` option. Disabled
+controls are muted; absent option tones default to primary for false and
+success for true. Selecting the compact control patches the ordinary Boolean
+session override.
 
 Rich placement is additive. The complete setting remains available in Session
 Settings. Selecting a declared or custom value patches the ordinary session
@@ -1125,20 +1196,27 @@ def get_ui_elements(
     return [
         {
             "ui_type": "config",
-            "type": "dropdown" if options else "text",
+            "type": "dropdown",
             "key": "model",
             "label": "Model",
-            **({"options": options} if options else {}),
-            "allow_custom_value": True,
-            "custom_value_label": "Other model…",
-            "custom_value_placeholder": "Enter a model ID",
+            "options": options,
+            "placeholder": "Search models or enter a model ID",
+            "custom_value": {
+                "enabled": True,
+                "pattern": r"^[^\s]+$",
+                "option_label": "Use '{value}' as a custom model ID",
+            },
             "rich_ui": {
                 "kind": "dropdown",
                 "label": "Model",
+                "show_label": False,
                 "options": options,
-                "allow_custom_value": True,
-                "custom_value_label": "Other model…",
-                "custom_value_placeholder": "Enter a model ID",
+                "placeholder": "Search models or enter a model ID",
+                "custom_value": {
+                    "enabled": True,
+                    "pattern": r"^[^\s]+$",
+                    "option_label": "Use '{value}' as a custom model ID",
+                },
                 "placements": ["composer"],
                 "default_pinned": True,
                 "icon": "cpu",

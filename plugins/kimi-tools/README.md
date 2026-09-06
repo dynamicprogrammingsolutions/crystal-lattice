@@ -4,6 +4,11 @@ Kimi CLI-compatible plugin bundle. It provides manual conversation compaction
 and file, search, web, media, and shell tools with model-facing behavior based
 on MoonshotAI's `kimi-cli`.
 
+The web-search tool exposes its ordinary `web_search_enabled` checkbox as a
+compact composer toggle. The control uses the same session override as full
+settings and remains visible but disabled when no configured search backend is
+available.
+
 ## Manual conversation compaction
 
 When enabled for an agent, `KimiCompactionFeature` exposes:

@@ -62,8 +62,8 @@ provider merges three Codex-backed sources for model discovery:
 - a checked-in Codex models snapshot
 - the latest live Codex models catalog from GitHub
 
-If discovery is unavailable, the UI falls back to manual text entry for
-`model`.
+If discovery is unavailable, the same searchable model dropdown remains
+available with an empty catalog and validated custom model IDs.
 
 ## Quickstart
 
@@ -100,8 +100,9 @@ python -m agent_terminal_app --console --config /path/to/config_openai_responses
 ```
 
 In config-aware UIs, the provider will try to populate the `model` selector
-from the appropriate live catalog. If that lookup fails, you can still type a
-model id manually.
+from the appropriate live catalog. Its one field filters discovered models and
+offers a plugin-labeled custom model option when the entered ID is valid.
+Web search also contributes a compact composer control.
 
 ## ChatGPT auth quickstart
 

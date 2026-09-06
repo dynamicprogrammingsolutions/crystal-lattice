@@ -115,24 +115,30 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                                 "value": str(mid),
                             }
                         )
-        use_dropdown = len(model_options) > 0
         return [
             {
                 "ui_type": "config",
-                "type": "dropdown" if use_dropdown else "text",
+                "type": "dropdown",
                 "key": "model",
                 "label": "OpenRouter Model",
-                **({"options": model_options} if use_dropdown else {}),
-                "allow_custom_value": True,
-                "custom_value_label": "Other model…",
-                "custom_value_placeholder": "Enter a model ID",
+                "options": model_options,
+                "placeholder": "Search models or enter a model ID",
+                "custom_value": {
+                    "enabled": True,
+                    "pattern": r"^[^\s]+$",
+                    "option_label": "Use '{value}' as a custom model ID",
+                },
                 "rich_ui": {
                     "kind": "dropdown",
                     "label": "Model",
+                    "show_label": False,
                     "options": model_options,
-                    "allow_custom_value": True,
-                    "custom_value_label": "Other model…",
-                    "custom_value_placeholder": "Enter a model ID",
+                    "placeholder": "Search models or enter a model ID",
+                    "custom_value": {
+                        "enabled": True,
+                        "pattern": r"^[^\s]+$",
+                        "option_label": "Use '{value}' as a custom model ID",
+                    },
                     "placements": ["composer"],
                     "default_pinned": True,
                     "icon": "cpu",
@@ -155,7 +161,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
     # ---------------------------------------------------------------------
 
     def _fetch_models_from_api(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip("/")
+        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip(
+            "/"
+        )
         models_url = f"{base_url}/models"
 
         try:
@@ -190,7 +198,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             return []
         return all_models
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         tags: List[str] = [
             "provider:openrouter_responses",
             "openrouter_responses",
@@ -204,7 +214,10 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     if isinstance(m, dict) and m.get("id") == selected_id:
                         supported_params = m.get("supported_parameters", [])
                         if isinstance(supported_params, list) and supported_params:
-                            if "tools" in supported_params or "tool" in supported_params:
+                            if (
+                                "tools" in supported_params
+                                or "tool" in supported_params
+                            ):
                                 tags.append("supports_tools")
                             if "reasoning" in supported_params:
                                 tags.append("supports_reasoning")
@@ -236,7 +249,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         config = state["config"]
 
-        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip("/")
+        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip(
+            "/"
+        )
         api_key = config.get("api_key")
         model = config.get("model")
         timeout = float(config.get("timeout", 60))
@@ -287,7 +302,8 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                                 context,
                             ),
                         }
-                        if isinstance(msg, dict) and msg.get("type") == "function_call_output"
+                        if isinstance(msg, dict)
+                        and msg.get("type") == "function_call_output"
                         else msg
                     )
                     for msg in native_messages
@@ -342,7 +358,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         session_id = asset_ref.get("session_id")
         asset_id = asset_ref.get("asset_id")
         if not isinstance(session_id, str) or not isinstance(asset_id, str):
-            raise ValueError("[openrouter_responses_provider] invalid session asset reference")
+            raise ValueError(
+                "[openrouter_responses_provider] invalid session asset reference"
+            )
         record = store.load(session_id, asset_id)
         if record.attachment_type != expected_attachment_type:
             raise ValueError(
@@ -395,7 +413,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             internal.pop(key, None)
         return internal
 
-    def _message_item_text_and_images(self, content: Any) -> Tuple[str, List[Dict[str, Any]]]:
+    def _message_item_text_and_images(
+        self, content: Any
+    ) -> Tuple[str, List[Dict[str, Any]]]:
         text_parts: List[str] = []
         images: List[Dict[str, Any]] = []
         if not isinstance(content, list):
@@ -414,7 +434,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 if isinstance(url, dict):
                     url = url.get("url")
                 if isinstance(url, str) and url:
-                    images.append({"type": "image", "content": {"url": url}, "metadata": {}})
+                    images.append(
+                        {"type": "image", "content": {"url": url}, "metadata": {}}
+                    )
                 continue
         return "\n".join(text_parts).strip(), images
 
@@ -506,7 +528,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             candidate_md = candidate.get("metadata") or {}
             phase_entry: JsonObject = {
                 "content": (
-                    candidate.get("content") if isinstance(candidate.get("content"), str) else ""
+                    candidate.get("content")
+                    if isinstance(candidate.get("content"), str)
+                    else ""
                 ),
                 "native_index": candidate.get("_segment_native_index"),
             }
@@ -516,7 +540,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             multipart = candidate.get("multipartContent")
             if isinstance(multipart, list) and multipart:
                 phase_entry["multipartContent"] = multipart
-            extra_md = {k: v for k, v in candidate_md.items() if k not in {"phase", "response_id"}}
+            extra_md = {
+                k: v
+                for k, v in candidate_md.items()
+                if k not in {"phase", "response_id"}
+            }
             if extra_md:
                 phase_entry["metadata"] = extra_md
             phase_messages.append(phase_entry)
@@ -622,7 +650,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                             if converted is None:
                                 continue
                             if internal_md:
-                                tool_items.append({**converted, "_metadata": internal_md})
+                                tool_items.append(
+                                    {**converted, "_metadata": internal_md}
+                                )
                             else:
                                 tool_items.append(converted)
                         native.extend(tool_items)
@@ -645,7 +675,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                             if converted is None:
                                 continue
                             if internal_md:
-                                tool_items.append({**converted, "_metadata": internal_md})
+                                tool_items.append(
+                                    {**converted, "_metadata": internal_md}
+                                )
                             else:
                                 tool_items.append(converted)
                         native.extend(tool_items)
@@ -727,7 +759,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     tool_result = {
                         "type": "provider_native_tool_result",
                         "format": "openai.responses",
-                        "output": [dict(part) for part in raw_output if isinstance(part, dict)],
+                        "output": [
+                            dict(part) for part in raw_output if isinstance(part, dict)
+                        ],
                         "text": output,
                     }
                     display = provider_native_tool_result_display(
@@ -767,7 +801,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     "role": role,
                     "content": content if isinstance(content, str) else "",
                 }
-                internal_md = self._core_metadata_from_native_internal(m.get("_metadata"))
+                internal_md = self._core_metadata_from_native_internal(
+                    m.get("_metadata")
+                )
                 core_msg["metadata"] = {**internal_md, "native_indices": [native_index]}
                 normalized.append(core_msg)
                 continue
@@ -829,7 +865,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     tool_result = {
                         "type": "provider_native_tool_result",
                         "format": "openai.responses",
-                        "output": [dict(part) for part in raw_output if isinstance(part, dict)],
+                        "output": [
+                            dict(part) for part in raw_output if isinstance(part, dict)
+                        ],
                         "text": output,
                     }
                     display = provider_native_tool_result_display(
@@ -946,7 +984,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     f"[openrouter_responses_provider] invalid item at index {idx}: missing 'type' -> {json.dumps(item, ensure_ascii=False)}"
                 )
 
-    def _core_tool_call_to_responses_item(self, tool_call: JsonObject) -> Optional[JsonObject]:
+    def _core_tool_call_to_responses_item(
+        self, tool_call: JsonObject
+    ) -> Optional[JsonObject]:
         if not isinstance(tool_call, dict):
             return None
         try:
@@ -959,7 +999,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 "type": "custom_tool_call",
                 "call_id": inspected.call_id,
                 "name": inspected.tool_name,
-                "input": (inspected.payload if isinstance(inspected.payload, str) else ""),
+                "input": (
+                    inspected.payload if isinstance(inspected.payload, str) else ""
+                ),
             }
             if inspected.payload_format:
                 item["input_format"] = inspected.payload_format
@@ -983,7 +1025,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         override = request.get("messages")
         items = override if isinstance(override, list) else native_messages
         self._validate_message_list(items)
-        items_to_send = [self._strip_internal_metadata(m) for m in items if isinstance(m, dict)]
+        items_to_send = [
+            self._strip_internal_metadata(m) for m in items if isinstance(m, dict)
+        ]
         return {**request["payload"], "input": items_to_send}
 
     def _response_internal_metadata(self, resp: JsonObject) -> Dict[str, Any]:
@@ -996,7 +1040,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             md["usage"] = usage
         return md
 
-    def _select_primary_output_item_index(self, output: List[JsonObject]) -> Optional[int]:
+    def _select_primary_output_item_index(
+        self, output: List[JsonObject]
+    ) -> Optional[int]:
         if not output:
             return None
 
@@ -1037,7 +1083,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 continue
             if isinstance(response_id, str) and response_id:
                 base_internal = item.get("_metadata")
-                base_internal_dict = base_internal if isinstance(base_internal, dict) else {}
+                base_internal_dict = (
+                    base_internal if isinstance(base_internal, dict) else {}
+                )
                 out.append(
                     {
                         **item,
@@ -1061,7 +1109,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 final.append(item)
                 continue
             base_internal = item.get("_metadata")
-            base_internal_dict = base_internal if isinstance(base_internal, dict) else {}
+            base_internal_dict = (
+                base_internal if isinstance(base_internal, dict) else {}
+            )
             final.append({**item, "_metadata": {**base_internal_dict, **md_primary}})
         return final
 
@@ -1073,7 +1123,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         request = state["request"]
         payload: Dict[str, Any] = {}
         logger = get_logger("openrouter_responses_provider")
@@ -1243,7 +1295,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         event = native_chunk if isinstance(native_chunk, dict) else {}
         etype = event.get("type") or event.get("_sse_event")
         emitted_partials: List[Dict[str, Any]] = []
@@ -1295,7 +1349,9 @@ class OpenRouterResponsesProvider(ProviderPlugin):
     # Response JSON parsing
     # ---------------------------------------------------------------------
 
-    def _extract_phase_message_items(self, output: List[JsonObject]) -> List[JsonObject]:
+    def _extract_phase_message_items(
+        self, output: List[JsonObject]
+    ) -> List[JsonObject]:
         """Extract assistant message phases as compact records.
 
         OpenRouter GPT-5.4 may emit multiple assistant message output items in

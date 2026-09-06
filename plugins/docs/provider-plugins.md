@@ -466,20 +466,27 @@ class MyOpenAICompatibleProvider(ProviderPlugin):
         return [
             {
                 "ui_type": "config",
-                "type": "dropdown" if options else "text",
+                "type": "dropdown",
                 "key": "model",
                 "label": "Model",
-                **({"options": options} if options else {}),
-                "allow_custom_value": True,
-                "custom_value_label": "Other model…",
-                "custom_value_placeholder": "Enter a model ID",
+                "options": options,
+                "placeholder": "Search models or enter a model ID",
+                "custom_value": {
+                    "enabled": True,
+                    "pattern": r"^[^\s]+$",
+                    "option_label": "Use '{value}' as a custom model ID",
+                },
                 "rich_ui": {
                     "kind": "dropdown",
                     "label": "Model",
+                    "show_label": False,
                     "options": options,
-                    "allow_custom_value": True,
-                    "custom_value_label": "Other model…",
-                    "custom_value_placeholder": "Enter a model ID",
+                    "placeholder": "Search models or enter a model ID",
+                    "custom_value": {
+                        "enabled": True,
+                        "pattern": r"^[^\s]+$",
+                        "option_label": "Use '{value}' as a custom model ID",
+                    },
                     "placements": ["composer"],
                     "default_pinned": True,
                     "icon": "cpu",
@@ -494,7 +501,8 @@ Notes:
   The core does not interpret it; only the tags matter outside the provider.
 - Prefer stable tag names like `provider:...` and `supports_...` so that extensions can depend on them.
 - Use `dropdown`, rather than `select`, for a discovered model catalog.
-  Preserve explicit model IDs with text fallback and custom string entry.
+  Keep the custom-capable dropdown when discovery is empty so explicit model
+  IDs use the same searchable field.
 - A composer model selector is the same ordinary config element with
   self-contained `rich_ui`; do not define a provider-specific UI type or a
   second mutation path.

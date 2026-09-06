@@ -157,10 +157,13 @@ export { SessionActionsBar } from './actions/SessionActionsBar';
 export type {
   RichConfigDropdownControlProps,
   RichConfigDropdownPanelProps,
+  RichConfigToggleControlProps,
 } from './actions/RichConfigDropdown';
 export {
   RichConfigDropdownControl,
   RichConfigDropdownPanel,
+  RichConfigToggleControl,
+  truncatePinnedValue,
 } from './actions/RichConfigDropdown';
 
 export type {
@@ -170,11 +173,11 @@ export type {
   SessionListRichActionListProps,
 } from './actions/SessionListActionsBar';
 export {
-  resolveSemanticToneColor,
   SessionListActionsBar,
   SessionListRichActionControl,
   SessionListRichActionList,
 } from './actions/SessionListActionsBar';
+export { resolveSemanticToneColor } from './actions/semanticTone';
 
 export { SessionPluginsList } from './SessionPluginsList';
 

@@ -139,12 +139,11 @@ available.
 A provider with a selectable string model exposes one ordinary
 `ui_type: "config"` element bound to `key: "model"`.
 
-- A non-empty authoritative catalog uses `type: "dropdown"` and string
-  value/label options.
-- Missing or failed discovery uses `type: "text"` so explicit model IDs remain
-  usable.
-- String dropdowns may set `allow_custom_value: true` so users can enter a
-  model ID outside the discovered catalog.
+- The element uses `type: "dropdown"` and string value/label options, including
+  an empty option list when discovery fails.
+- Nested `custom_value` settings keep explicit model IDs usable through the
+  same searchable field when the authoritative catalog is incomplete or
+  unavailable.
 - Provider model selection writes the ordinary session `model` override. It
   does not define a provider-specific UI type or application action.
 
@@ -159,18 +158,25 @@ The same config element may include a self-contained compact presentation:
   "options": [
     {"value": "provider/model-a", "label": "Model A"}
   ],
-  "allow_custom_value": true,
-  "custom_value_label": "Other model…",
-  "custom_value_placeholder": "Enter a model ID",
+  "placeholder": "Search models or enter a model ID",
+  "custom_value": {
+    "enabled": true,
+    "pattern": "^[^\\s]+$",
+    "option_label": "Use '{value}' as a custom model ID"
+  },
   "rich_ui": {
     "kind": "dropdown",
     "label": "Model",
+    "show_label": false,
     "options": [
       {"value": "provider/model-a", "label": "Model A"}
     ],
-    "allow_custom_value": true,
-    "custom_value_label": "Other model…",
-    "custom_value_placeholder": "Enter a model ID",
+    "placeholder": "Search models or enter a model ID",
+    "custom_value": {
+      "enabled": true,
+      "pattern": "^[^\\s]+$",
+      "option_label": "Use '{value}' as a custom model ID"
+    },
     "placements": ["composer"],
     "default_pinned": true,
     "icon": "cpu"
@@ -180,9 +186,26 @@ The same config element may include a self-contained compact presentation:
 
 The containing config element owns setting identity, effective-value
 resolution, mutation, defaults, disabled state, and reset behavior. `rich_ui`
-owns compact presentation and repeats its label, options, custom-entry text,
-icon, placement, and pinning fields. A rich renderer does not implicitly
+owns compact presentation and repeats its label, options, searchable custom
+entry, icon, placement, and pinning fields. A rich renderer does not implicitly
 inherit those presentation fields from the containing element.
+
+The one dropdown input filters declared labels/values and offers a synthetic
+custom option when the trimmed query fully matches `custom_value.pattern`.
+Option entries may carry semantic `tone` and `icon` fields. Compact controls
+may hide their visual label and apply host-specific visual truncation while
+retaining the full accessibility value.
+
+Boolean settings may use `rich_ui.kind: "toggle"` with exactly one `false` and
+one `true` option. False defaults to the primary tone, true to success, and a
+disabled control to muted. A provider or feature adopts this presentation only
+within its own approved contract; portable UI support does not imply migrating
+unrelated plugins or request-option schemas.
+
+`plugins/dummy-rich-config-ui` is the reference manual-test consumer for
+semantic option icons and tones. It is disabled by default, can be enabled for
+an ordinary agent, and exercises dropdown, toggle, placement, pinning, and
+disabled-state rendering without affecting provider requests.
 
 Initial chat placements are `session_header` and `composer`. Placement is
 additive: the complete setting remains available in Session Settings.
@@ -191,6 +214,11 @@ Unknown rich kinds remain transportable and fall back to the ordinary setting.
 Ordinary `session_action` elements may use their existing rich toggle/list
 contract at the same chat placements. The ordinary action and dialog remain
 the execution and fallback path.
+
+Composer hosts may explicitly enable a two-row pinned-action layout. The
+default remains one row. A two-row host declares whether the leftover row is
+above or below the primary row; both rows align from the right and excess
+controls remain available through the ordinary menu.
 
 ## Compatible endpoint capabilities and presets
 

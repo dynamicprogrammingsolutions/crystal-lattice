@@ -92,9 +92,32 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
             return []
         return [
             {
+                "ui_type": "config",
                 "type": "checkbox",
                 "key": "enable_web_search",
                 "label": "Enable Web Search (OpenRouter)",
+                "rich_ui": {
+                    "kind": "toggle",
+                    "label": "Web search",
+                    "show_label": False,
+                    "icon": "globe",
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "options": [
+                        {
+                            "value": False,
+                            "label": "Off",
+                            "icon": "globe",
+                            "tone": "primary",
+                        },
+                        {
+                            "value": True,
+                            "label": "On",
+                            "icon": "globe",
+                            "tone": "success",
+                        },
+                    ],
+                },
             }
         ]
 

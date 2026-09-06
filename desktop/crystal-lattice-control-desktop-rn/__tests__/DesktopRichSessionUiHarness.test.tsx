@@ -45,7 +45,7 @@ test('desktop ChatPane opens the native-popover content for rich settings and ac
   const modelControl = await screen.findByTestId('composer-rich-config-model');
   fireEvent.press(modelControl);
   fireEvent.press(
-    await screen.findByTestId('rich-config-dropdown-model-option-claude-b'),
+    await screen.findByTestId('rich-config-dropdown-model-declared-claude-b'),
   );
   await waitFor(() => {
     expect(
@@ -55,11 +55,11 @@ test('desktop ChatPane opens the native-popover content for rich settings and ac
 
   fireEvent.press(screen.getByTestId('composer-rich-config-model'));
   fireEvent.changeText(
-    await screen.findByTestId('rich-config-dropdown-model-custom-input'),
+    await screen.findByTestId('rich-config-dropdown-model-input'),
     'vendor/custom-model',
   );
   fireEvent.press(
-    screen.getByTestId('rich-config-dropdown-model-custom-submit'),
+    screen.getByTestId('rich-config-dropdown-model-custom-vendor/custom-model'),
   );
   await waitFor(() => {
     expect(

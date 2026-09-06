@@ -184,38 +184,57 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     richUi,
     hasOverride,
     onSelect,
-    onCustomValue,
     onReset,
     testIDPrefix = 'rich-config-dropdown',
   }) => {
-    const [customValue, setCustomValue] = React.useState('');
+    const [query, setQuery] = React.useState('');
+    const normalized = query.trim().toLowerCase();
+    const declared = richUi.options.filter((option) =>
+      !normalized ||
+      option.value.toLowerCase().includes(normalized) ||
+      option.label.toLowerCase().includes(normalized),
+    );
+    const exact = richUi.options.some((option) => option.value === query.trim());
+    const customEnabled = richUi.custom_value?.enabled === true;
+    const customPattern = customEnabled && richUi.custom_value.pattern
+      ? new RegExp(richUi.custom_value.pattern)
+      : null;
+    const customValid =
+      customEnabled &&
+      !!query.trim() &&
+      !exact &&
+      (!customPattern || customPattern.test(query.trim()));
     return React.createElement(
       View,
       { testID: testIDPrefix },
-      richUi.options.map((option) =>
+      React.createElement(TextInput, {
+        testID: `${testIDPrefix}-input`,
+        value: query,
+        onChangeText: setQuery,
+      }),
+      declared.map((option) =>
         React.createElement(
           Pressable,
           {
             key: option.value,
-            testID: `${testIDPrefix}-option-${option.value}`,
+            testID: `${testIDPrefix}-declared-${option.value}`,
             onPress: () => onSelect(option.value),
           },
           React.createElement(Text, null, option.label),
         ),
       ),
-      richUi.allow_custom_value
+      customValid
         ? React.createElement(
-            View,
-            null,
-            React.createElement(TextInput, {
-              testID: `${testIDPrefix}-custom-input`,
-              value: customValue,
-              onChangeText: setCustomValue,
-            }),
-            React.createElement(Pressable, {
-              testID: `${testIDPrefix}-custom-submit`,
-              onPress: () => onCustomValue(customValue),
-            }),
+            Pressable,
+            {
+              testID: `${testIDPrefix}-custom-${query.trim()}`,
+              onPress: () => onSelect(query.trim()),
+            },
+            React.createElement(
+              Text,
+              null,
+              richUi.custom_value.option_label.replace('{value}', query.trim()),
+            ),
           )
         : null,
       hasOverride
@@ -226,6 +245,23 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
         : null,
     );
   };
+
+  const RichConfigToggleControl = ({
+    control,
+    value,
+    disabled,
+    onPress,
+    testID,
+  }) =>
+    React.createElement(
+      Pressable,
+      { testID, disabled, onPress },
+      React.createElement(
+        Text,
+        null,
+        `${control.richUi.label}: ${value === true ? 'On' : 'Off'}`,
+      ),
+    );
 
   const SessionListRichActionControl = ({
     element,
@@ -426,6 +462,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
 
     RichConfigDropdownControl,
     RichConfigDropdownPanel,
+    RichConfigToggleControl,
     SessionListRichActionControl,
     SessionListRichActionList,
     ActionsMenuBar: ({

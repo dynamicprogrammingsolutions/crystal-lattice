@@ -18,7 +18,7 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     XCTAssertTrue(nativePopover.waitForExistence(timeout: 10), app.debugDescription)
     let option = element(
       nativePopover,
-      "rich-config-dropdown-model-option-claude-b"
+      "rich-config-dropdown-model-declared-claude-b"
     )
     XCTAssertTrue(option.waitForExistence(timeout: 10))
     option.click()
@@ -29,12 +29,15 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     XCTAssertTrue(nativePopover.waitForExistence(timeout: 10), app.debugDescription)
     let customInput = element(
       nativePopover,
-      "rich-config-dropdown-model-custom-input"
+      "rich-config-dropdown-model-input"
     )
     XCTAssertTrue(customInput.waitForExistence(timeout: 10), app.debugDescription)
     customInput.click()
     customInput.typeText("vendor/custom-model")
-    element(nativePopover, "rich-config-dropdown-model-custom-submit").click()
+    element(
+      nativePopover,
+      "rich-config-dropdown-model-custom-vendor/custom-model"
+    ).click()
     waitForLabel(model, "Model: vendor/custom-model", timeout: 10)
 
     model.click()
@@ -65,6 +68,76 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     XCTAssertTrue(done.waitForExistence(timeout: 10))
     done.click()
     waitForLabel(status, "Set status: Done", timeout: 10)
+  }
+
+  func testFullSessionSettingsUsesNativeComboBox() throws {
+    let app = XCUIApplication()
+    app.launchEnvironment["CLC_ENABLE_RICH_SESSION_UI_HARNESS"] = "1"
+    app.launch()
+
+    let harness = app.windows["DesktopRichSessionUiHarnessWindow"]
+    XCTAssertTrue(harness.waitForExistence(timeout: 15))
+
+    let model = element(app, "composer-rich-config-model")
+    XCTAssertTrue(model.waitForExistence(timeout: 10))
+    waitForLabel(model, "Model: Claude A")
+    let backendModel = element(app, "desktop-rich-session-ui-model-marker")
+    XCTAssertTrue(backendModel.waitForExistence(timeout: 10))
+    waitForLabel(backendModel, "Desktop rich model claude-a")
+
+    let sessionActions = element(app, "session-actions-menu")
+    XCTAssertTrue(sessionActions.waitForExistence(timeout: 10))
+    sessionActions.click()
+
+    let actionsPopover = harness.popovers.firstMatch
+    XCTAssertTrue(actionsPopover.waitForExistence(timeout: 10), app.debugDescription)
+    let settingsAction = element(actionsPopover, "actions-menu-action-settings")
+    XCTAssertTrue(settingsAction.waitForExistence(timeout: 10))
+    settingsAction.click()
+
+    let comboBox = app.comboBoxes["session-setting-dropdown-model"]
+    XCTAssertTrue(comboBox.waitForExistence(timeout: 15), app.debugDescription)
+
+    replaceComboBoxText(comboBox, with: "claude-b")
+    selectComboBoxOption(app, comboBox, label: "Claude B")
+    waitForLabel(backendModel, "Desktop rich model claude-b", timeout: 10)
+    XCTAssertTrue(
+      element(app, "session-setting-reset-model").waitForExistence(timeout: 10)
+    )
+
+    replaceComboBoxText(comboBox, with: "vendor/full-settings-model")
+    selectComboBoxOption(
+      app,
+      comboBox,
+      label: "Use 'vendor/full-settings-model' as a custom model ID"
+    )
+    waitForLabel(
+      backendModel,
+      "Desktop rich model vendor/full-settings-model",
+      timeout: 10
+    )
+
+    replaceComboBoxText(comboBox, with: "not valid")
+    comboBox.buttons.firstMatch.click()
+    let invalidOption = app.descendants(matching: .any).matching(
+      NSPredicate(
+        format: "label == %@ OR value == %@",
+        "Use 'not valid' as a custom model ID",
+        "Use 'not valid' as a custom model ID"
+      )
+    ).firstMatch
+    XCTAssertFalse(invalidOption.waitForExistence(timeout: 1))
+    comboBox.typeKey(.escape, modifierFlags: [])
+    waitForLabel(
+      backendModel,
+      "Desktop rich model vendor/full-settings-model",
+      timeout: 2
+    )
+
+    let reset = element(app, "session-setting-reset-model")
+    XCTAssertTrue(reset.waitForExistence(timeout: 10), app.debugDescription)
+    reset.click()
+    waitForLabel(backendModel, "Desktop rich model claude-a", timeout: 10)
   }
 
   override func setUpWithError() throws {
@@ -98,6 +171,31 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
     let result = XCTWaiter.wait(for: [expectation], timeout: timeout)
     XCTAssertEqual(result, .completed, file: file, line: line)
+  }
+
+  private func replaceComboBoxText(
+    _ comboBox: XCUIElement,
+    with value: String
+  ) {
+    comboBox.click()
+    comboBox.typeKey("a", modifierFlags: .command)
+    comboBox.typeKey(.delete, modifierFlags: [])
+    comboBox.typeText(value)
+  }
+
+  private func selectComboBoxOption(
+    _ app: XCUIApplication,
+    _ comboBox: XCUIElement,
+    label: String
+  ) {
+    let disclosure = comboBox.buttons.firstMatch
+    XCTAssertTrue(disclosure.exists)
+    disclosure.click()
+    let option = app.descendants(matching: .any).matching(
+      NSPredicate(format: "label == %@ OR value == %@", label, label)
+    ).firstMatch
+    XCTAssertTrue(option.waitForExistence(timeout: 10), app.debugDescription)
+    option.click()
   }
 
   private func waitForLabelContaining(

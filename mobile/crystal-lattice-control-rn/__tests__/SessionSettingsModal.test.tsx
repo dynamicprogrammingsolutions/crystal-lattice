@@ -1,12 +1,12 @@
-import React from "react";
-import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import React from 'react';
+import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
-import SessionSettingsModal from "../src/components/SessionSettingsModal";
-import { renderWithMobileProviders } from "../src/testUtils/renderWithMobileProviders";
-import { useSessionSettingsController } from "@crystal-lattice/frontend-sdk-react";
+import SessionSettingsModal from '../src/components/SessionSettingsModal';
+import { renderWithMobileProviders } from '../src/testUtils/renderWithMobileProviders';
+import { useSessionSettingsController } from '@crystal-lattice/frontend-sdk-react';
 
-jest.mock("@crystal-lattice/frontend-sdk-react", () => {
-  const actual = jest.requireActual("@crystal-lattice/frontend-sdk-react");
+jest.mock('@crystal-lattice/frontend-sdk-react', () => {
+  const actual = jest.requireActual('@crystal-lattice/frontend-sdk-react');
   return {
     __esModule: true,
     ...actual,
@@ -31,79 +31,82 @@ function renderSettingsModal() {
     state: {
       elements: [
         {
-          ui_type: "config",
-          key: "generic_mode",
-          type: "select",
-          label: "Generic mode",
-          description: "Choose the mode.",
+          ui_type: 'config',
+          key: 'generic_mode',
+          type: 'select',
+          label: 'Generic mode',
+          description: 'Choose the mode.',
           options: [
-            { value: "fast", label: "Fast" },
-            { value: "careful", label: "Careful" },
+            { value: 'fast', label: 'Fast' },
+            { value: 'careful', label: 'Careful' },
           ],
         },
         {
-          ui_type: "config",
-          key: "generic_enabled",
-          type: "checkbox",
-          label: "Generic enabled",
-          description: "Turns the generic feature on.",
+          ui_type: 'config',
+          key: 'generic_enabled',
+          type: 'checkbox',
+          label: 'Generic enabled',
+          description: 'Turns the generic feature on.',
         },
         {
-          ui_type: "config",
-          key: "generic_provider",
-          type: "dropdown",
-          label: "Generic provider",
+          ui_type: 'config',
+          key: 'generic_provider',
+          type: 'dropdown',
+          label: 'Generic provider',
           options: [
-            { value: "local", label: "Local" },
-            { value: "remote", label: "Remote" },
+            { value: 'local', label: 'Local' },
+            { value: 'remote', label: 'Remote' },
           ],
-          allow_custom_value: true,
-          custom_value_label: "Other provider…",
-          custom_value_placeholder: "Enter provider ID",
+          placeholder: 'Search providers or enter a provider ID',
+          custom_value: {
+            enabled: true,
+            pattern: '^[^\\s]+$',
+            option_label: "Use '{value}' as a custom provider ID",
+          },
         },
         {
-          ui_type: "config",
-          key: "generic_name",
-          type: "text",
-          label: "Generic name",
+          ui_type: 'config',
+          key: 'generic_name',
+          type: 'text',
+          label: 'Generic name',
         },
         {
-          ui_type: "config",
-          key: "generic_readonly",
-          type: "readonly",
-          label: "Generic readonly",
+          ui_type: 'config',
+          key: 'generic_readonly',
+          type: 'readonly',
+          label: 'Generic readonly',
         },
         {
-          ui_type: "config",
-          key: "generic_unknown",
-          type: "custom-unknown",
-          label: "Generic fallback",
+          ui_type: 'config',
+          key: 'generic_unknown',
+          type: 'custom-unknown',
+          label: 'Generic fallback',
         },
       ],
       overrides: {
-        generic_mode: "fast",
+        generic_mode: 'fast',
       },
       configSchema: [
-        { key: "generic_mode", default: "fast" },
-        { key: "generic_enabled", default: false },
-        { key: "generic_provider", default: "local" },
-        { key: "generic_name", default: "Alpha" },
-        { key: "generic_readonly", default: "Read only value" },
-        { key: "generic_unknown", default: "Fallback value" },
+        { key: 'generic_mode', default: 'fast' },
+        { key: 'generic_enabled', default: false },
+        { key: 'generic_provider', default: 'local' },
+        { key: 'generic_name', default: 'Alpha' },
+        { key: 'generic_readonly', default: 'Read only value' },
+        { key: 'generic_unknown', default: 'Fallback value' },
       ],
       baseConfig: {
         generic_enabled: false,
-        generic_provider: "local",
-        generic_name: "Alpha",
-        generic_readonly: "Read only value",
-        generic_unknown: "Fallback value",
+        generic_provider: 'local',
+        generic_name: 'Alpha',
+        generic_readonly: 'Read only value',
+        generic_unknown: 'Fallback value',
       },
       loading: false,
       refreshing: false,
       savingKeys: [],
       error: null,
       statusMessage: null,
-      statusTone: "idle",
+      statusTone: 'idle',
       lastSavedAt: null,
       lastLoadedAt: 1,
     },
@@ -111,11 +114,11 @@ function renderSettingsModal() {
 
   return renderWithMobileProviders(
     <SessionSettingsModal
-      backend={{ kind: "rest" } as any}
+      backend={{ kind: 'rest' } as any}
       sessionId="session-1"
       visible
       onRequestClose={jest.fn()}
-    />,
+    />
   );
 }
 
@@ -123,72 +126,76 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-test("session settings modal renders generic settings control types", () => {
+test('session settings modal renders generic settings control types', () => {
   renderSettingsModal();
 
-  expect(screen.getByText("Generic mode")).toBeTruthy();
-  expect(screen.getByText("Fast")).toBeTruthy();
-  expect(screen.getByText("Careful")).toBeTruthy();
-  expect(screen.getByText("Generic enabled")).toBeTruthy();
-  expect(screen.getByText("Generic provider:")).toBeTruthy();
-  expect(screen.getByText("Local")).toBeTruthy();
-  expect(screen.getByText("Generic name")).toBeTruthy();
-  expect(screen.getByDisplayValue("Alpha")).toBeTruthy();
-  expect(screen.getByText("Generic readonly")).toBeTruthy();
-  expect(screen.getByText("Read only value")).toBeTruthy();
-  expect(screen.getByText("Generic fallback")).toBeTruthy();
-  expect(screen.getByDisplayValue("Fallback value")).toBeTruthy();
+  expect(screen.getByText('Generic mode')).toBeTruthy();
+  expect(screen.getByText('Fast')).toBeTruthy();
+  expect(screen.getByText('Careful')).toBeTruthy();
+  expect(screen.getByText('Generic enabled')).toBeTruthy();
+  expect(screen.getByText('Generic provider:')).toBeTruthy();
+  expect(screen.getByText('Local')).toBeTruthy();
+  expect(screen.getByText('Generic name')).toBeTruthy();
+  expect(screen.getByDisplayValue('Alpha')).toBeTruthy();
+  expect(screen.getByText('Generic readonly')).toBeTruthy();
+  expect(screen.getByText('Read only value')).toBeTruthy();
+  expect(screen.getByText('Generic fallback')).toBeTruthy();
+  expect(screen.getByDisplayValue('Fallback value')).toBeTruthy();
 });
 
-test("session settings select chips patch generic option values", async () => {
+test('session settings select chips patch generic option values', async () => {
   renderSettingsModal();
 
-  fireEvent.press(screen.getByText("Careful"));
+  fireEvent.press(screen.getByText('Careful'));
 
   await waitFor(() => {
-    expect(patchOverride).toHaveBeenCalledWith("generic_mode", "careful");
+    expect(patchOverride).toHaveBeenCalledWith('generic_mode', 'careful');
   });
 });
 
-test("session settings text controls save generic string values", async () => {
+test('session settings text controls save generic string values', async () => {
   renderSettingsModal();
 
-  fireEvent.changeText(screen.getByDisplayValue("Alpha"), "Beta");
-  fireEvent.press(screen.getAllByText("Save")[0]);
+  fireEvent.changeText(screen.getByDisplayValue('Alpha'), 'Beta');
+  fireEvent.press(screen.getAllByText('Save')[0]);
 
   await waitFor(() => {
-    expect(patchOverride).toHaveBeenCalledWith("generic_name", "Beta");
+    expect(patchOverride).toHaveBeenCalledWith('generic_name', 'Beta');
   });
 });
 
-test("session settings dropdown opens and patches selected value", async () => {
+test('session settings dropdown opens and patches selected value', async () => {
   renderSettingsModal();
 
-  fireEvent.press(screen.getByText("Generic provider:"));
+  fireEvent.press(screen.getByText('Generic provider:'));
 
-  expect(screen.getByPlaceholderText("Search...")).toBeTruthy();
+  expect(
+    screen.getByPlaceholderText('Search providers or enter a provider ID')
+  ).toBeTruthy();
 
-  fireEvent.press(screen.getByText("Remote"));
+  fireEvent.press(screen.getByText('Remote'));
 
   await waitFor(() => {
-    expect(patchOverride).toHaveBeenCalledWith("generic_provider", "remote");
+    expect(patchOverride).toHaveBeenCalledWith('generic_provider', 'remote');
   });
 });
 
-test("session settings dropdown patches an arbitrary custom value", async () => {
+test('session settings dropdown patches an arbitrary custom value', async () => {
   renderSettingsModal();
 
-  fireEvent.press(screen.getByText("Generic provider:"));
+  fireEvent.press(screen.getByText('Generic provider:'));
   fireEvent.changeText(
-    screen.getByTestId("options-picker-custom-input"),
-    "custom/provider",
+    screen.getByTestId('options-picker-input'),
+    'custom/provider'
   );
-  fireEvent.press(screen.getByTestId("options-picker-custom-submit"));
+  fireEvent.press(
+    screen.getByText("Use 'custom/provider' as a custom provider ID")
+  );
 
   await waitFor(() => {
     expect(patchOverride).toHaveBeenCalledWith(
-      "generic_provider",
-      "custom/provider",
+      'generic_provider',
+      'custom/provider'
     );
   });
 });

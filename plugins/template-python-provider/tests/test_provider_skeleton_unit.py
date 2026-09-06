@@ -35,8 +35,9 @@ def test_model_ui_uses_the_portable_rich_dropdown() -> None:
     model = elements[0]
     assert model["type"] == "dropdown"
     assert model["options"] == [{"value": "m", "label": "Model M"}]
-    assert model["allow_custom_value"] is True
+    assert model["custom_value"]["enabled"] is True
     assert model["rich_ui"]["kind"] == "dropdown"
+    assert model["rich_ui"]["show_label"] is False
     assert model["rich_ui"]["options"] == model["options"]
     assert model["rich_ui"]["placements"] == ["composer"]
 

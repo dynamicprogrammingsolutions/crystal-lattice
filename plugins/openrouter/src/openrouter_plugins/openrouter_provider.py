@@ -258,24 +258,30 @@ class OpenRouterProvider(ProviderPlugin):
                                 "value": str(mid),
                             }
                         )
-        use_dropdown = len(model_options) > 0
         return [
             {
                 "ui_type": "config",
-                "type": "dropdown" if use_dropdown else "text",
+                "type": "dropdown",
                 "key": "model",
                 "label": "Openrouter Model",
-                **({"options": model_options} if use_dropdown else {}),
-                "allow_custom_value": True,
-                "custom_value_label": "Other model…",
-                "custom_value_placeholder": "Enter a model ID",
+                "options": model_options,
+                "placeholder": "Search models or enter a model ID",
+                "custom_value": {
+                    "enabled": True,
+                    "pattern": r"^[^\s]+$",
+                    "option_label": "Use '{value}' as a custom model ID",
+                },
                 "rich_ui": {
                     "kind": "dropdown",
                     "label": "Model",
+                    "show_label": False,
                     "options": model_options,
-                    "allow_custom_value": True,
-                    "custom_value_label": "Other model…",
-                    "custom_value_placeholder": "Enter a model ID",
+                    "placeholder": "Search models or enter a model ID",
+                    "custom_value": {
+                        "enabled": True,
+                        "pattern": r"^[^\s]+$",
+                        "option_label": "Use '{value}' as a custom model ID",
+                    },
                     "placements": ["composer"],
                     "default_pinned": True,
                     "icon": "cpu",

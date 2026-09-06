@@ -322,13 +322,27 @@ class AnthropicReasoningControlsExtension(ProviderExtensionPlugin):
             elements.append(mode_element)
 
         if effort_levels:
+            effort_options = [
+                {
+                    "value": value,
+                    "label": value,
+                }
+                for value in effort_levels
+            ]
             effort_element: dict[str, Any] = {
+                "ui_type": "config",
                 "type": "select",
                 "key": "anthropic_reasoning_effort",
                 "label": "Anthropic reasoning effort",
-                "options": [
-                    {"value": value, "label": value} for value in effort_levels
-                ],
+                "options": effort_options,
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Reasoning effort",
+                    "show_label": False,
+                    "options": effort_options,
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                },
             }
             if "anthropic_reasoning_effort" in config:
                 effort_element["default"] = config["anthropic_reasoning_effort"]

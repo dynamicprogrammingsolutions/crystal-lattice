@@ -29,9 +29,10 @@ terminal while preserving the existing OpenRouter Claude option.
 - [x] Application configuration can select model-specific Anthropic settings
   through reusable configuration variants without requiring separate direct
   Anthropic agents for Haiku and Sonnet.
-- [x] The direct Anthropic provider exposes its discovered and manually
-  entered model setting through the portable rich configuration UI contract
-  across mobile and desktop.
+- [x] The direct Anthropic provider and applicable first-party feature/tool
+  plugins expose model, reasoning-effort, and web-search settings through the
+  portable rich configuration UI contract across mobile and desktop, including
+  the corrected compact composer behavior.
 - [ ] Provider-specific follow-ups add server web tools, fast mode and service
   tiers, native compaction, image attachments, files/PDFs, token counting,
   cost estimation, portable request errors, and advanced server tools without

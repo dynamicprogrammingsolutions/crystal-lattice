@@ -69,6 +69,20 @@ def test_schema_matches_observed_fixture(tmp_path: Path) -> None:
     assert tool.get_tool_schemas(state)[0] == _fixture("success-basic")["tool_schema"]
 
 
+def test_ui_exposes_disabled_or_enabled_rich_toggle(monkeypatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    tool = ClaudeWebSearchTool()
+
+    disabled = tool.get_ui_elements({})[0]
+    enabled = tool.get_ui_elements({"gemini_api_key": "gemini-test"})[0]
+
+    assert disabled["disabled"] is True
+    assert enabled["disabled"] is False
+    assert enabled["rich_ui"]["kind"] == "toggle"
+    assert enabled["rich_ui"]["options"][1]["tone"] == "success"
+
+
 def test_anthropic_schema_converts_to_openai_chat_schema(tmp_path: Path) -> None:
     tool, state = _wrapper(
         tmp_path,
@@ -125,7 +139,9 @@ def test_formats_claude_shaped_success_result(tmp_path: Path) -> None:
             ),
         ],
     )
-    assert content.startswith('Web search results for query: "example domain"\n\nLinks: [')
+    assert content.startswith(
+        'Web search results for query: "example domain"\n\nLinks: ['
+    )
     assert '"title":"Example.com"' in content
     assert "Example domains are reserved by IANA for documentation purposes." in content
     assert (

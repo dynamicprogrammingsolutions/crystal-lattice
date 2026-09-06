@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 
 import {
@@ -30,7 +30,7 @@ test('limits compact pins while keeping the overflow menu complete', () => {
         menuButtonTestID="responsive-actions-menu"
         renderIcon={({ name }) => <Text>{name}</Text>}
       />
-    </ThemeProvider>,
+    </ThemeProvider>
   );
 
   expect(rendered.getByTestId('actions-menu-overflow-slot')).toBeTruthy();
@@ -45,10 +45,67 @@ test('limits compact pins while keeping the overflow menu complete', () => {
 
   for (const action of actions) {
     expect(
-      rendered.getByTestId(`actions-menu-action-${action.key}`),
+      rendered.getByTestId(`actions-menu-action-${action.key}`)
     ).toBeTruthy();
-    expect(
-      rendered.getByTestId(`actions-menu-pin-${action.key}`),
-    ).toBeTruthy();
+    expect(rendered.getByTestId(`actions-menu-pin-${action.key}`)).toBeTruthy();
   }
+});
+
+test('enables an explicitly positioned second pinned row', () => {
+  const rendered = render(
+    <ThemeProvider theme={lightTheme}>
+      <ActionsMenuBar
+        title="Two row actions"
+        baseActions={actions}
+        pinned={actions.map((action) => action.key)}
+        pinnedRows={2}
+        secondPinnedRowPlacement="below"
+        onChangePinned={() => {}}
+        onAction={() => {}}
+        renderIcon={({ name }) => <Text>{name}</Text>}
+      />
+    </ThemeProvider>
+  );
+
+  expect(
+    StyleSheet.flatten(
+      rendered.getByTestId('actions-menu-pinned-viewport').props.style
+    )
+  ).toMatchObject({
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    height: 82,
+    maxHeight: 82,
+  });
+  expect(
+    StyleSheet.flatten(
+      rendered.getByTestId('actions-menu-overflow-slot').props.style
+    )
+  ).toMatchObject({ alignSelf: 'flex-start' });
+
+  rendered.rerender(
+    <ThemeProvider theme={lightTheme}>
+      <ActionsMenuBar
+        title="Two row actions"
+        baseActions={actions}
+        pinned={actions.map((action) => action.key)}
+        pinnedRows={2}
+        secondPinnedRowPlacement="above"
+        onChangePinned={() => {}}
+        onAction={() => {}}
+        renderIcon={({ name }) => <Text>{name}</Text>}
+      />
+    </ThemeProvider>
+  );
+
+  expect(
+    StyleSheet.flatten(
+      rendered.getByTestId('actions-menu-pinned-viewport').props.style
+    )
+  ).toMatchObject({ flexWrap: 'wrap-reverse' });
+  expect(
+    StyleSheet.flatten(
+      rendered.getByTestId('actions-menu-overflow-slot').props.style
+    )
+  ).toMatchObject({ alignSelf: 'flex-end' });
 });

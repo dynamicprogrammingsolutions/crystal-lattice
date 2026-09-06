@@ -82,20 +82,80 @@ function createHarnessBackend(options: {
           { value: 'claude-a', label: 'Claude A' },
           { value: 'claude-b', label: 'Claude B' },
         ],
-        allow_custom_value: true,
+        placeholder: 'Search models or enter a model ID',
+        custom_value: {
+          enabled: true,
+          pattern: '^[^\\s]+$',
+          option_label: "Use '{value}' as a custom model ID",
+        },
         rich_ui: {
           kind: 'dropdown',
           label: 'Model',
+          show_label: false,
           options: [
             { value: 'claude-a', label: 'Claude A' },
             { value: 'claude-b', label: 'Claude B' },
           ],
-          allow_custom_value: true,
-          custom_value_label: 'Other model…',
-          custom_value_placeholder: 'Enter a model ID',
+          placeholder: 'Search models or enter a model ID',
+          custom_value: {
+            enabled: true,
+            pattern: '^[^\\s]+$',
+            option_label: "Use '{value}' as a custom model ID",
+          },
           placements: ['composer'],
           default_pinned: true,
           icon: 'cpu',
+        },
+      },
+      {
+        ui_type: 'config',
+        plugin: 'anthropic',
+        type: 'select',
+        key: 'reasoning_effort',
+        label: 'Reasoning effort',
+        options: [
+          { value: 'medium', label: 'Medium' },
+          { value: 'high', label: 'High' },
+        ],
+        rich_ui: {
+          kind: 'dropdown',
+          label: 'Reasoning effort',
+          show_label: false,
+          options: [
+            { value: 'medium', label: 'Medium' },
+            { value: 'high', label: 'High' },
+          ],
+          placements: ['composer'],
+          default_pinned: true,
+        },
+      },
+      {
+        ui_type: 'config',
+        plugin: 'claude_web_search_tool',
+        type: 'checkbox',
+        key: 'web_search_enabled',
+        label: 'Enable web search',
+        rich_ui: {
+          kind: 'toggle',
+          label: 'Web search',
+          show_label: false,
+          icon: 'globe',
+          placements: ['composer'],
+          default_pinned: true,
+          options: [
+            {
+              value: false,
+              label: 'Off',
+              icon: 'globe',
+              tone: 'primary',
+            },
+            {
+              value: true,
+              label: 'On',
+              icon: 'globe',
+              tone: 'success',
+            },
+          ],
         },
       },
     ],
@@ -217,8 +277,14 @@ function createHarnessBackend(options: {
     },
     getSessionConfigSchema: async () => [
       { key: 'model', type: 'string', default: 'claude-a' },
+      { key: 'reasoning_effort', type: 'string', default: 'medium' },
+      { key: 'web_search_enabled', type: 'boolean', default: false },
     ],
-    getSessionBaseConfig: async () => ({ model: 'claude-a' }),
+    getSessionBaseConfig: async () => ({
+      model: 'claude-a',
+      reasoning_effort: 'medium',
+      web_search_enabled: false,
+    }),
     listSessionSnapshots: async () => [],
     getSelectedSessionSnapshot: async () => null,
     listSessionNotifications: async () => [],
@@ -264,6 +330,12 @@ export function DesktopRichSessionUiHarness(): React.JSX.Element {
             >
               {model}
             </Text>
+            <View
+              accessible
+              testID="desktop-rich-session-ui-model-marker"
+              accessibilityLabel={`Desktop rich model ${model}`}
+              style={styles.accessibilityMarker}
+            />
             <Text
               testID="desktop-rich-session-ui-last-action"
               accessibilityLabel={`Desktop rich action ${lastAction}`}
@@ -309,5 +381,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  accessibilityMarker: {
+    width: 1,
+    height: 1,
   },
 });

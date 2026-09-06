@@ -14,12 +14,98 @@
 
 @end
 
+@interface CLCMacComboBox : NSComboBox <NSComboBoxDelegate>
+
+@property(nonatomic, copy) RCTBubblingEventBlock onInputChange;
+@property(nonatomic, copy) RCTBubblingEventBlock onChange;
+@property(nonatomic, copy) RCTBubblingEventBlock onSubmitValue;
+@property(nonatomic, copy) NSArray<NSDictionary *> *options;
+@property(nonatomic, copy) NSString *inputValue;
+
+- (void)rebuildItems;
+- (void)emitSelectedValue;
+
+@end
+
 @interface CLCMacDragView : RCTView
 
 @property(nonatomic, copy) RCTDirectEventBlock onDragStart;
 @property(nonatomic, copy) RCTDirectEventBlock onDragMove;
 @property(nonatomic, copy) RCTDirectEventBlock onDragEnd;
 @property(nonatomic, copy) RCTDirectEventBlock onDragCancel;
+
+@end
+
+@implementation CLCMacComboBox
+
+- (instancetype)initWithFrame:(NSRect)frame
+{
+  if ((self = [super initWithFrame:frame])) {
+    self.delegate = self;
+    self.usesDataSource = NO;
+    self.completes = NO;
+    self.options = @[];
+    self.inputValue = @"";
+  }
+  return self;
+}
+
+- (void)rebuildItems
+{
+  NSString *current = self.stringValue ?: @"";
+  [self removeAllItems];
+  for (NSDictionary *option in self.options) {
+    if (![option isKindOfClass:[NSDictionary class]]) {
+      continue;
+    }
+    NSString *label = [RCTConvert NSString:option[@"label"]] ?: @"";
+    NSString *value = [RCTConvert NSString:option[@"value"]] ?: @"";
+    if (value.length == 0) {
+      continue;
+    }
+    [self addItemWithObjectValue:(label.length > 0 ? label : value)];
+  }
+  self.stringValue = current;
+}
+
+- (void)controlTextDidChange:(NSNotification *)notification
+{
+  if (self.onInputChange) {
+    self.onInputChange(@{ @"value" : self.stringValue ?: @"" });
+  }
+}
+
+- (void)emitSelectedValue
+{
+  NSInteger index = self.indexOfSelectedItem;
+  if (index < 0 || index >= (NSInteger)self.options.count) {
+    return;
+  }
+  NSDictionary *option = self.options[(NSUInteger)index];
+  NSString *value = [RCTConvert NSString:option[@"value"]] ?: @"";
+  if (self.onChange) {
+    self.onChange(@{ @"value" : value });
+  }
+}
+
+- (void)comboBoxSelectionDidChange:(NSNotification *)notification
+{
+  [self emitSelectedValue];
+}
+
+- (BOOL)control:(NSControl *)control
+       textView:(NSTextView *)textView
+doCommandBySelector:(SEL)commandSelector
+{
+  if (commandSelector == @selector(insertNewline:) ||
+      commandSelector == @selector(insertNewlineIgnoringFieldEditor:)) {
+    if (self.onSubmitValue) {
+      self.onSubmitValue(@{ @"value" : self.stringValue ?: @"" });
+    }
+    return YES;
+  }
+  return NO;
+}
 
 @end
 
@@ -80,6 +166,53 @@
     default:
       break;
   }
+}
+
+@end
+
+@interface MacComboBoxManager : RCTViewManager
+@end
+
+@implementation MacComboBoxManager
+
+RCT_EXPORT_MODULE(MacComboBox)
+
++ (BOOL)requiresMainQueueSetup
+{
+  return YES;
+}
+
+- (NSView *)view
+{
+  return [[CLCMacComboBox alloc] initWithFrame:NSZeroRect];
+}
+
+RCT_EXPORT_VIEW_PROPERTY(onInputChange, RCTBubblingEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onChange, RCTBubblingEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onSubmitValue, RCTBubblingEventBlock)
+
+RCT_CUSTOM_VIEW_PROPERTY(options, NSArray, CLCMacComboBox)
+{
+  view.options = json ? [RCTConvert NSArray:json] : @[];
+  [view rebuildItems];
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(inputValue, NSString, CLCMacComboBox)
+{
+  view.inputValue = json ? [RCTConvert NSString:json] : @"";
+  if (![view.stringValue isEqualToString:view.inputValue]) {
+    view.stringValue = view.inputValue;
+  }
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(placeholder, NSString, CLCMacComboBox)
+{
+  view.placeholderString = json ? [RCTConvert NSString:json] : @"";
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(enabled, BOOL, CLCMacComboBox)
+{
+  view.enabled = json ? [RCTConvert BOOL:json] : YES;
 }
 
 @end
