@@ -25,14 +25,6 @@ from agent_core import Session  # noqa: E402
 from agent_core.tool_interop import DEFAULT_TOOL_INTEROP_REGISTRY  # noqa: E402
 
 
-CONFIG_PATH = (
-    ROOT
-    / "application"
-    / "python"
-    / "agent_terminal_app"
-    / "default_config"
-    / "config.json"
-)
 EXPECTED_GPT5_APPLY_PATCH_MARKER = (
     "Use the `apply_patch` shell command to edit files "
     "(NEVER try `applypatch` or `apply-patch`, only `apply_patch`): "
@@ -150,15 +142,16 @@ def _assert_apply_patch_shell_call(final_session: Session) -> None:
 def test_default_config_gpt5_openrouter_agent_selects_gpt5_prompt_and_uses_apply_patch(
     ensure_openrouter_api_key: str,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        OPENROUTER_API_KEY=ensure_openrouter_api_key
     )
     app = AgentApplication(
-        str(CONFIG_PATH),
+        str(default_env.config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
 
     workspace = _prepare_workspace(tmp_path)
@@ -203,15 +196,16 @@ def test_default_config_gpt5_openrouter_agent_selects_gpt5_prompt_and_uses_apply
 def test_default_config_gpt5_openai_agent_selects_gpt5_prompt_and_uses_apply_patch(
     ensure_openai_api_key: str,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        OPENAI_API_KEY=ensure_openai_api_key
     )
     app = AgentApplication(
-        str(CONFIG_PATH),
+        str(default_env.config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
 
     workspace = _prepare_workspace(tmp_path)

@@ -77,6 +77,7 @@ def _iter_tool_messages(session: Session) -> Iterable[Session]:
 def test_default_config_codex_mcp_via_real_ui_flow(
     ensure_openrouter_api_key: str,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     if shutil.which("npx") is None:
         pytest.skip("npx not available; cannot launch filesystem MCP server")
@@ -87,16 +88,16 @@ def test_default_config_codex_mcp_via_real_ui_flow(
     target = workspace_dir / "note.txt"
     target.write_text("alpha from mcp\nsecond line\n", encoding="utf-8")
     shutil.rmtree(CONFIG_PATH.parent / ".plugin_cache", ignore_errors=True)
-    monkeypatch.setenv("CONFIG_DIR", str(CONFIG_PATH.parent.resolve()))
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(workspace_dir / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        cloud_runtime_build_context=workspace_dir / "cloud-runtime-context",
+        OPENROUTER_API_KEY=ensure_openrouter_api_key,
     )
-    monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
 
     app = AgentApplication(
-        str(CONFIG_PATH),
+        str(default_env.config_path),
         str(workspace_dir / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
 
     try:

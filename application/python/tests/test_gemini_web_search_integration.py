@@ -57,35 +57,32 @@ def _make_agent_app(
     openrouter_api_key: str,
     gemini_api_key: str,
     tavily_api_key: str,
+    default_config_test_env,
 ):
     """Build an AgentApplication with the default config and env keys set."""
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_api_key)
-    monkeypatch.setenv("GEMINI_API_KEY", gemini_api_key)
+    overrides = {
+        "OPENROUTER_API_KEY": openrouter_api_key,
+        "GEMINI_API_KEY": gemini_api_key,
+    }
     if tavily_api_key:
-        monkeypatch.setenv("TAVILY_API_KEY", tavily_api_key)
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+        overrides["TAVILY_API_KEY"] = tavily_api_key
+    default_env = default_config_test_env(
+        **overrides,
     )
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     agent_app = AgentApplication(
-        str(config_path), str(session_root), event_store=events
+        str(default_env.config_path),
+        str(session_root),
+        event_store=events,
+        env_overrides=default_env.env_overrides,
     )
     assert agent_app.get_config_errors() == []
-    return agent_app
+    return agent_app, default_env.config_path, session_root
 
 
 # ---------------------------------------------------------------------------
@@ -100,22 +97,19 @@ def test_web_search_ui_schema_with_gemini_key(
     monkeypatch: pytest.MonkeyPatch,
     openrouter_api_key: str,
     gemini_api_key: str,
+    default_config_test_env,
 ) -> None:
     """When GEMINI_API_KEY is set, UI schema includes web_search_enabled checkbox."""
     from agent_terminal_app.terminal_app import TerminalApplication
 
-    agent_app = _make_agent_app(
-        tmp_path, monkeypatch, openrouter_api_key, gemini_api_key, ""
+    agent_app, config_path, session_root = _make_agent_app(
+        tmp_path,
+        monkeypatch,
+        openrouter_api_key,
+        gemini_api_key,
+        "",
+        default_config_test_env,
     )
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    session_root = tmp_path / "sessions"
 
     term_app = TerminalApplication(
         config_path=str(config_path),
@@ -147,6 +141,7 @@ def test_web_search_ui_schema_with_both_keys_shows_provider_select(
     openrouter_api_key: str,
     gemini_api_key: str,
     tavily_api_key: str,
+    default_config_test_env,
 ) -> None:
     """When both GEMINI_API_KEY and TAVILY_API_KEY are set, UI schema
     includes a provider selector in addition to the enable checkbox."""
@@ -155,18 +150,14 @@ def test_web_search_ui_schema_with_both_keys_shows_provider_select(
 
     from agent_terminal_app.terminal_app import TerminalApplication
 
-    agent_app = _make_agent_app(
-        tmp_path, monkeypatch, openrouter_api_key, gemini_api_key, tavily_api_key
+    agent_app, config_path, session_root = _make_agent_app(
+        tmp_path,
+        monkeypatch,
+        openrouter_api_key,
+        gemini_api_key,
+        tavily_api_key,
+        default_config_test_env,
     )
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    session_root = tmp_path / "sessions"
 
     term_app = TerminalApplication(
         config_path=str(config_path),
@@ -214,22 +205,19 @@ def test_google_web_search_in_available_tools(
     monkeypatch: pytest.MonkeyPatch,
     openrouter_api_key: str,
     gemini_api_key: str,
+    default_config_test_env,
 ) -> None:
     """google_web_search should appear in available tools when enabled."""
     from agent_terminal_app.terminal_app import TerminalApplication
 
-    agent_app = _make_agent_app(
-        tmp_path, monkeypatch, openrouter_api_key, gemini_api_key, ""
+    agent_app, config_path, session_root = _make_agent_app(
+        tmp_path,
+        monkeypatch,
+        openrouter_api_key,
+        gemini_api_key,
+        "",
+        default_config_test_env,
     )
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    session_root = tmp_path / "sessions"
 
     term_app = TerminalApplication(
         config_path=str(config_path),
@@ -263,23 +251,20 @@ def test_web_search_gemini_api_real_call(
     monkeypatch: pytest.MonkeyPatch,
     openrouter_api_key: str,
     gemini_api_key: str,
+    default_config_test_env,
 ) -> None:
     """Web search with gemini_api backend makes a real Gemini API call
     and returns grounded results with citations."""
     from agent_terminal_app.terminal_app import TerminalApplication
 
-    agent_app = _make_agent_app(
-        tmp_path, monkeypatch, openrouter_api_key, gemini_api_key, ""
+    agent_app, config_path, session_root = _make_agent_app(
+        tmp_path,
+        monkeypatch,
+        openrouter_api_key,
+        gemini_api_key,
+        "",
+        default_config_test_env,
     )
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    session_root = tmp_path / "sessions"
 
     term_app = TerminalApplication(
         config_path=str(config_path),
@@ -329,6 +314,7 @@ def test_web_search_tavily_backend_real_call(
     openrouter_api_key: str,
     gemini_api_key: str,
     tavily_api_key: str,
+    default_config_test_env,
 ) -> None:
     """Web search with tavily backend makes a real Tavily API call
     and returns results in Gemini-style format."""
@@ -337,18 +323,14 @@ def test_web_search_tavily_backend_real_call(
 
     from agent_terminal_app.terminal_app import TerminalApplication
 
-    agent_app = _make_agent_app(
-        tmp_path, monkeypatch, openrouter_api_key, gemini_api_key, tavily_api_key
+    agent_app, config_path, session_root = _make_agent_app(
+        tmp_path,
+        monkeypatch,
+        openrouter_api_key,
+        gemini_api_key,
+        tavily_api_key,
+        default_config_test_env,
     )
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    session_root = tmp_path / "sessions"
 
     term_app = TerminalApplication(
         config_path=str(config_path),

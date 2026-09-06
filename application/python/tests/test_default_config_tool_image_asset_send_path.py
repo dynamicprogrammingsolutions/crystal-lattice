@@ -42,27 +42,15 @@ PNG_BYTES = base64.b64decode(
 )
 
 
-def _set_default_config_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CONFIG_DIR", str(CONFIG_PATH.parent.resolve()))
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT",
-        str(ROOT / "build" / "test-cloud-runtime-context"),
-    )
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
-    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
-    monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
-    monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
-
-
 def test_default_config_openrouter_expands_tool_asset_refs_after_system_message_rewrite(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
-    _set_default_config_env(monkeypatch)
+    default_env = default_config_test_env(
+        cloud_runtime_build_context=ROOT / "build" / "test-cloud-runtime-context",
+        use_dummy_env=True,
+    )
     monkeypatch.chdir(tmp_path)
 
     captured_payloads: list[dict[str, Any]] = []
@@ -94,9 +82,10 @@ def test_default_config_openrouter_expands_tool_asset_refs_after_system_message_
     monkeypatch.setattr(requests.Session, "post", post)
 
     app = AgentApplication(
-        str(CONFIG_PATH),
+        str(default_env.config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
     assert app.get_config_errors() == []
 

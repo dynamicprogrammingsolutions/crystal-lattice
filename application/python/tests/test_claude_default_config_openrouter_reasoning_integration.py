@@ -59,6 +59,7 @@ def test_agent_application_default_config_claude_reads_files_and_reasons(
     ensure_openrouter_api_key: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -66,37 +67,17 @@ def test_agent_application_default_config_claude_reads_files_and_reasons(
     (workspace / "bank_b.txt").write_text("6\n8\n7\n", encoding="utf-8")
     monkeypatch.chdir(workspace)
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
-    monkeypatch.setenv("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", "test-gemini-key"))
-    monkeypatch.setenv("TAVILY_API_KEY", os.getenv("TAVILY_API_KEY", "test-tavily-key"))
-    monkeypatch.setenv("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", "test-openai-key"))
-    monkeypatch.setenv(
-        "FIREWORKS_API_KEY", os.getenv("FIREWORKS_API_KEY", "test-fireworks-key")
-    )
-    monkeypatch.setenv("ZAI_API_KEY", os.getenv("ZAI_API_KEY", "test-zai-key"))
-    monkeypatch.setenv(
-        "CLOUD_ORCHESTRATOR_URL",
-        os.getenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test"),
-    )
-    monkeypatch.setenv(
-        "CLOUD_ORCHESTRATOR_TOKEN",
-        os.getenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token"),
-    )
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        OPENROUTER_API_KEY=ensure_openrouter_api_key
     )
     session_root = tmp_path / "sessions"
     events = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    app = AgentApplication(
+        str(default_env.config_path),
+        str(session_root),
+        event_store=events,
+        env_overrides=default_env.env_overrides,
+    )
     assert app.get_config_errors() == []
 
     core, base_config, session = app.create_session("claude")

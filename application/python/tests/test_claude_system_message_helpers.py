@@ -100,6 +100,7 @@ def test_claude_environment_helper_renders_effective_working_directory(
 def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
     monkeypatch,
     tmp_path: Path,
+    default_config_test_env,
 ) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -113,33 +114,13 @@ def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
     )
 
     monkeypatch.chdir(workspace)
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
-    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
-    monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
-    monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
-    )
-    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
+    default_env = default_config_test_env(use_dummy_env=True)
 
     app = AgentApplication(
-        str(config_path),
+        str(default_env.config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
     assert app.get_config_errors() == []
 
@@ -171,6 +152,7 @@ def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
 def test_default_config_claude_agent_uses_claude_tools(
     monkeypatch,
     tmp_path: Path,
+    default_config_test_env,
 ) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -178,33 +160,13 @@ def test_default_config_claude_agent_uses_claude_tools(
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     monkeypatch.chdir(workspace)
-
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
-    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
-    monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
-    monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
-    )
+    default_env = default_config_test_env(use_dummy_env=True)
 
     app = AgentApplication(
-        str(config_path),
+        str(default_env.config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
     assert app.get_config_errors() == []
 
@@ -238,7 +200,7 @@ def test_default_config_claude_agent_uses_claude_tools(
     assert "claude_mcp_tool" in plugin_ids
     assert "shell" not in plugin_ids
 
-    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config = json.loads(default_env.config_path.read_text(encoding="utf-8"))
     claude_agent = config["agents"]["claude"]
     assert "claude_mcp_defaults" in claude_agent["mixin_refs"]
     assert claude_agent["plugins"] == ["path:${env:BUILTIN_PLUGINS}/claude-tools"]

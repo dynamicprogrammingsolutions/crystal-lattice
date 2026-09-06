@@ -115,6 +115,7 @@ def test_default_config_openrouter_image_agent_generates_asset_backed_image(
     ensure_openrouter_api_key: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -123,28 +124,16 @@ def test_default_config_openrouter_image_agent_generates_asset_backed_image(
     workspace.mkdir()
     monkeypatch.chdir(workspace)
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
-    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
-    monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
-    monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        OPENROUTER_API_KEY=ensure_openrouter_api_key
     )
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(
-        str(config_path), str(session_root), event_store=InMemoryEventStore()
+        str(default_env.config_path),
+        str(session_root),
+        event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
     assert app.get_config_errors() == []
 
@@ -194,6 +183,7 @@ def test_default_config_openrouter_image_agent_send_message_endpoint_real_api(
     ensure_openrouter_api_key: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -202,28 +192,16 @@ def test_default_config_openrouter_image_agent_send_message_endpoint_real_api(
     workspace.mkdir()
     monkeypatch.chdir(workspace)
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
-    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
-    monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
-    monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        OPENROUTER_API_KEY=ensure_openrouter_api_key
     )
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(
-        str(config_path), str(session_root), event_store=InMemoryEventStore()
+        str(default_env.config_path),
+        str(session_root),
+        event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
     assert app.get_config_errors() == []
     client = _install_test_client(app)

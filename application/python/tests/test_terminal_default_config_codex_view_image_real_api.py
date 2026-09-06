@@ -25,14 +25,6 @@ from agent_core import Session  # noqa: E402
 from agent_core.tool_interop import DEFAULT_TOOL_INTEROP_REGISTRY  # noqa: E402
 
 
-CONFIG_PATH = (
-    ROOT
-    / "application"
-    / "python"
-    / "agent_terminal_app"
-    / "default_config"
-    / "config.json"
-)
 FIXTURE_PATH = ROOT / "application/python/tests/fixtures/view_image_text.png"
 EXPECTED_TEXT = "CODEX VIEW IMAGE 7391"
 
@@ -148,18 +140,18 @@ def _run_view_image_case(
     agent_id: str,
     model: str,
     session_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
+    **env_overrides: str,
 ) -> Session:
-    monkeypatch.setenv("CONFIG_DIR", str(CONFIG_PATH.parent.resolve()))
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(session_root / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        cloud_runtime_build_context=session_root / "cloud-runtime-context",
+        **env_overrides,
     )
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
     app = AgentApplication(
-        str(CONFIG_PATH),
+        str(default_env.config_path),
         str(session_root),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
     assert app.get_config_errors() == []
 
@@ -210,14 +202,15 @@ def _run_view_image_case(
 def test_default_config_codex_openrouter_reads_text_from_image_with_view_image(
     ensure_openrouter_api_key: str,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     _run_view_image_case(
         agent_id="codex-openrouter",
         model=os.getenv("OPENROUTER_CODEX_VIEW_IMAGE_TEST_MODEL")
         or "openai/gpt-5.4-mini",
         session_root=tmp_path / "sessions-openrouter",
-        monkeypatch=monkeypatch,
+        default_config_test_env=default_config_test_env,
+        OPENROUTER_API_KEY=ensure_openrouter_api_key,
     )
 
 
@@ -227,11 +220,12 @@ def test_default_config_codex_openrouter_reads_text_from_image_with_view_image(
 def test_default_config_codex_openai_reads_text_from_image_with_view_image(
     ensure_openai_api_key: str,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     _run_view_image_case(
         agent_id="codex-openai",
         model=os.getenv("OPENAI_CODEX_VIEW_IMAGE_TEST_MODEL") or "gpt-5.4-mini",
         session_root=tmp_path / "sessions-openai",
-        monkeypatch=monkeypatch,
+        default_config_test_env=default_config_test_env,
+        OPENAI_API_KEY=ensure_openai_api_key,
     )

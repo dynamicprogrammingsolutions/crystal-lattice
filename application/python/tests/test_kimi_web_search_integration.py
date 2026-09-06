@@ -42,42 +42,27 @@ def _make_agent_app(
     monkeypatch: pytest.MonkeyPatch,
     openrouter_api_key: str,
     gemini_api_key: str,
+    default_config_test_env,
 ):
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_api_key)
-    monkeypatch.setenv("GEMINI_API_KEY", gemini_api_key)
-    monkeypatch.setenv("TAVILY_API_KEY", get_repo_env("TAVILY_API_KEY"))
-    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
-    monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
-    monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
-    )
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    monkeypatch.setenv("WORKING_DIR", str(workspace))
+    default_env = default_config_test_env(
+        OPENROUTER_API_KEY=openrouter_api_key,
+        GEMINI_API_KEY=gemini_api_key,
+        WORKING_DIR=workspace,
+    )
     session_root = tmp_path / "sessions"
     app = AgentApplication(
-        str(config_path),
+        str(default_env.config_path),
         str(session_root),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
     assert app.get_config_errors() == []
-    return app, config_path, session_root
+    return app, default_env.config_path, session_root
 
 
 @pytest.mark.integration
@@ -87,6 +72,7 @@ def test_kimi_default_config_search_web_with_gemini_override(
     monkeypatch: pytest.MonkeyPatch,
     openrouter_api_key: str,
     gemini_api_key: str,
+    default_config_test_env,
 ) -> None:
     from agent_app.config import resolve_request_config
     from agent_terminal_app.terminal_app import TerminalApplication
@@ -96,6 +82,7 @@ def test_kimi_default_config_search_web_with_gemini_override(
         monkeypatch,
         openrouter_api_key,
         gemini_api_key,
+        default_config_test_env,
     )
     term_app = TerminalApplication(
         config_path=str(config_path),

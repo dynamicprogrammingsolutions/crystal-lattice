@@ -7,7 +7,8 @@ from agent_terminal_app.__main__ import _ensure_default_config
 from agent_terminal_app.runtime_layout import load_runtime_layout
 
 
-def test_source_runtime_layout_resolves_bundle_paths() -> None:
+def test_source_runtime_layout_resolves_bundle_paths(monkeypatch) -> None:
+    monkeypatch.delenv("CRYSTAL_RUNTIME_LAYOUT", raising=False)
     layout = load_runtime_layout()
     repo_root = Path(__file__).resolve().parents[3]
 

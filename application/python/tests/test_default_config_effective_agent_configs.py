@@ -21,6 +21,7 @@ if str(CORE_PY) not in sys.path:
 def test_default_config_effective_agent_configs_stay_intact(
     tmp_path: Path,
     monkeypatch,
+    default_config_test_env,
 ) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -29,34 +30,14 @@ def test_default_config_effective_agent_configs_stay_intact(
     workspace.mkdir()
     monkeypatch.chdir(workspace)
 
-    # Default config placeholder resolution records missing env vars as
-    # config errors, so set stable dummy values for providers we inspect.
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
-    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
-    monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
-    monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
-    monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
-    )
-    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
+    default_env = default_config_test_env(use_dummy_env=True)
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(
-        str(config_path), str(session_root), event_store=InMemoryEventStore()
+        str(default_env.config_path),
+        str(session_root),
+        event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
     assert app.get_config_errors() == []
 

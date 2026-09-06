@@ -58,6 +58,7 @@ def _tool_names_from_events(events: list[dict]) -> list[str]:
 def _build_terminal_app(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ):
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -73,48 +74,22 @@ def _build_terminal_app(
     if not gemini_key:
         pytest.skip("GEMINI_API_KEY not set; skipping Claude WebSearch smoke tests")
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_key)
-    monkeypatch.setenv("GEMINI_API_KEY", gemini_key)
-    monkeypatch.setenv(
-        "TAVILY_API_KEY", get_repo_env("TAVILY_API_KEY", "test-tavily-key")
-    )
-    monkeypatch.setenv(
-        "OPENAI_API_KEY", get_repo_env("OPENAI_API_KEY", "test-openai-key")
-    )
-    monkeypatch.setenv(
-        "FIREWORKS_API_KEY", get_repo_env("FIREWORKS_API_KEY", "test-fireworks-key")
-    )
-    monkeypatch.setenv("ZAI_API_KEY", get_repo_env("ZAI_API_KEY", "test-zai-key"))
-    monkeypatch.setenv(
-        "CLOUD_ORCHESTRATOR_URL",
-        get_repo_env("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test"),
-    )
-    monkeypatch.setenv(
-        "CLOUD_ORCHESTRATOR_TOKEN",
-        get_repo_env("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token"),
-    )
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        OPENROUTER_API_KEY=openrouter_key,
+        GEMINI_API_KEY=gemini_key,
     )
     session_root = tmp_path / "sessions"
     events = InMemoryEventStore()
     agent_app = AgentApplication(
-        str(config_path), str(session_root), event_store=events
+        str(default_env.config_path),
+        str(session_root),
+        event_store=events,
+        env_overrides=default_env.env_overrides,
     )
     assert agent_app.get_config_errors() == []
 
     term_app = TerminalApplication(
-        config_path=str(config_path),
+        config_path=str(default_env.config_path),
         session_root=str(session_root),
         agent_app=agent_app,
     )
@@ -161,10 +136,13 @@ def _run_claude_smoke_case(
 def test_default_claude_smoke_write_read_edit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     workspace = _prepare_workspace(tmp_path)
     monkeypatch.chdir(workspace)
-    agent_app, term_app = _build_terminal_app(tmp_path, monkeypatch)
+    agent_app, term_app = _build_terminal_app(
+        tmp_path, monkeypatch, default_config_test_env
+    )
 
     target = workspace / "smoke-write.txt"
     prompt = (
@@ -193,10 +171,13 @@ def test_default_claude_smoke_write_read_edit(
 def test_default_claude_smoke_glob_grep(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     workspace = _prepare_workspace(tmp_path)
     monkeypatch.chdir(workspace)
-    agent_app, term_app = _build_terminal_app(tmp_path, monkeypatch)
+    agent_app, term_app = _build_terminal_app(
+        tmp_path, monkeypatch, default_config_test_env
+    )
 
     prompt = (
         "First use Glob to find the markdown files under docs. "
@@ -222,10 +203,13 @@ def test_default_claude_smoke_glob_grep(
 def test_default_claude_smoke_bash_read_taskstop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     workspace = _prepare_workspace(tmp_path)
     monkeypatch.chdir(workspace)
-    agent_app, term_app = _build_terminal_app(tmp_path, monkeypatch)
+    agent_app, term_app = _build_terminal_app(
+        tmp_path, monkeypatch, default_config_test_env
+    )
 
     prompt = (
         "Use Bash with run_in_background set to true to run this exact command: "
@@ -254,10 +238,13 @@ def test_default_claude_smoke_bash_read_taskstop(
 def test_default_claude_smoke_webfetch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     workspace = _prepare_workspace(tmp_path)
     monkeypatch.chdir(workspace)
-    agent_app, term_app = _build_terminal_app(tmp_path, monkeypatch)
+    agent_app, term_app = _build_terminal_app(
+        tmp_path, monkeypatch, default_config_test_env
+    )
 
     prompt = (
         "Use WebFetch on https://www.rfc-editor.org/rfc/rfc2606.txt and determine which RFC reserves the example domains. "
@@ -282,10 +269,13 @@ def test_default_claude_smoke_webfetch(
 def test_default_claude_smoke_websearch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     workspace = _prepare_workspace(tmp_path)
     monkeypatch.chdir(workspace)
-    agent_app, term_app = _build_terminal_app(tmp_path, monkeypatch)
+    agent_app, term_app = _build_terminal_app(
+        tmp_path, monkeypatch, default_config_test_env
+    )
 
     prompt = (
         "Use WebSearch to answer this question: which RFC reserves the example domain names? "

@@ -79,6 +79,7 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
     ensure_openrouter_api_key: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -86,29 +87,22 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
 
     workspace = _prepare_workspace(tmp_path)
     monkeypatch.chdir(workspace)
-    monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        OPENROUTER_API_KEY=ensure_openrouter_api_key
     )
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     agent_app = AgentApplication(
-        str(config_path), str(session_root), event_store=events
+        str(default_env.config_path),
+        str(session_root),
+        event_store=events,
+        env_overrides=default_env.env_overrides,
     )
     assert agent_app.get_config_errors() == []
 
     term_app = TerminalApplication(
-        config_path=str(config_path),
+        config_path=str(default_env.config_path),
         session_root=str(session_root),
         agent_app=agent_app,
     )

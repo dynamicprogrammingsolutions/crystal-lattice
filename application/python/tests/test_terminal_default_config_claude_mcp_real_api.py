@@ -26,16 +26,6 @@ from agent_core import Session  # noqa: E402
 from agent_terminal_app import server as server_mod  # noqa: E402
 
 
-CONFIG_PATH = (
-    ROOT
-    / "application"
-    / "python"
-    / "agent_terminal_app"
-    / "default_config"
-    / "config.json"
-)
-
-
 @pytest.fixture(scope="module")
 def ensure_openrouter_api_key() -> str:
     api_key = get_repo_env("OPENROUTER_API_KEY")
@@ -73,7 +63,7 @@ def _iter_tool_messages(session: Session) -> Iterable[Any]:
 @pytest.mark.openrouter
 def test_default_config_claude_mcp_via_real_ui_flow(
     ensure_openrouter_api_key: str,
-    monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ) -> None:
     if shutil.which("npx") is None:
         pytest.skip("npx not available; cannot launch filesystem MCP server")
@@ -83,37 +73,16 @@ def test_default_config_claude_mcp_via_real_ui_flow(
     workspace_dir = Path(tempfile.mkdtemp(prefix="claude-mcp-", dir=workspace_root))
     target = workspace_dir / "note.txt"
     target.write_text("alpha from claude mcp\nsecond line\n", encoding="utf-8")
-    shutil.rmtree(CONFIG_PATH.parent / ".plugin_cache", ignore_errors=True)
-    monkeypatch.setenv("CONFIG_DIR", str(CONFIG_PATH.parent.resolve()))
-    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
-    monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
-    monkeypatch.setenv(
-        "GEMINI_API_KEY", get_repo_env("GEMINI_API_KEY", "test-gemini-key")
+    default_env = default_config_test_env(
+        OPENROUTER_API_KEY=ensure_openrouter_api_key
     )
-    monkeypatch.setenv(
-        "TAVILY_API_KEY", get_repo_env("TAVILY_API_KEY", "test-tavily-key")
-    )
-    monkeypatch.setenv(
-        "OPENAI_API_KEY", get_repo_env("OPENAI_API_KEY", "test-openai-key")
-    )
-    monkeypatch.setenv(
-        "FIREWORKS_API_KEY",
-        get_repo_env("FIREWORKS_API_KEY", "test-fireworks-key"),
-    )
-    monkeypatch.setenv("ZAI_API_KEY", get_repo_env("ZAI_API_KEY", "test-zai-key"))
-    monkeypatch.setenv(
-        "CLOUD_ORCHESTRATOR_URL",
-        get_repo_env("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test"),
-    )
-    monkeypatch.setenv(
-        "CLOUD_ORCHESTRATOR_TOKEN",
-        get_repo_env("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token"),
-    )
+    shutil.rmtree(default_env.config_path.parent / ".plugin_cache", ignore_errors=True)
 
     app = AgentApplication(
-        str(CONFIG_PATH),
+        str(default_env.config_path),
         str(workspace_dir / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
 
     try:

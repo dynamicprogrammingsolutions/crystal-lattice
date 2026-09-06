@@ -33,6 +33,7 @@ from claude_tools.claude_compaction_feature import (  # noqa: E402
 def _build_default_config_app(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
 ):
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -43,48 +44,16 @@ def _build_default_config_app(
             "OPENROUTER_API_KEY not set; skipping Claude default-config compaction test"
         )
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_key)
-    monkeypatch.setenv(
-        "GEMINI_API_KEY", get_repo_env("GEMINI_API_KEY", "test-gemini-key")
-    )
-    monkeypatch.setenv(
-        "TAVILY_API_KEY", get_repo_env("TAVILY_API_KEY", "test-tavily-key")
-    )
-    monkeypatch.setenv(
-        "OPENAI_API_KEY", get_repo_env("OPENAI_API_KEY", "test-openai-key")
-    )
-    monkeypatch.setenv(
-        "FIREWORKS_API_KEY",
-        get_repo_env("FIREWORKS_API_KEY", "test-fireworks-key"),
-    )
-    monkeypatch.setenv("ZAI_API_KEY", get_repo_env("ZAI_API_KEY", "test-zai-key"))
-    monkeypatch.setenv(
-        "CLOUD_ORCHESTRATOR_URL",
-        get_repo_env("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test"),
-    )
-    monkeypatch.setenv(
-        "CLOUD_ORCHESTRATOR_TOKEN",
-        get_repo_env("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token"),
-    )
-
-    config_path = (
-        ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
-    )
-    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
-    monkeypatch.setenv(
-        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    default_env = default_config_test_env(
+        OPENROUTER_API_KEY=openrouter_key,
     )
 
     session_root = tmp_path / "sessions"
     app = AgentApplication(
-        str(config_path),
+        str(default_env.config_path),
         str(session_root),
         event_store=InMemoryEventStore(),
+        env_overrides=default_env.env_overrides,
     )
     assert app.get_config_errors() == []
     return app
@@ -112,13 +81,14 @@ def _build_default_config_app(
 def test_default_claude_agent_compaction_action_rewrites_history(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    default_config_test_env,
     inputs: Dict[str, Any],
     expected_leading_non_system: list[str],
     expected_trailing_contents: list[str],
 ) -> None:
     from agent_terminal_app import server as server_mod
 
-    app = _build_default_config_app(tmp_path, monkeypatch)
+    app = _build_default_config_app(tmp_path, monkeypatch, default_config_test_env)
     previous = getattr(server_mod, "_agent_app", None)
     if previous is not None:
         previous.close()
