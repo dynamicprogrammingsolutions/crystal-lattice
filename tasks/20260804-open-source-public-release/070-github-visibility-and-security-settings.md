@@ -280,13 +280,13 @@ environments remains required post-publication hardening in task `130`.
 - [x] Verify fork-PR and protected-workflow isolation without relocating secret
   values.
 - [x] Scan all remote-ref changes since task `060`.
-- [ ] Validate Public CI, static deployment, and live public-facing content on
+- [x] Validate Public CI, static deployment, and live public-facing content on
   the actual current `main`.
 - [ ] Change visibility to public.
 - [ ] Protect `main`.
 - [ ] Enable immediate security features.
 - [ ] Recheck deploy/release environment protection after visibility changes.
-- [ ] Set repository presentation metadata.
+- [x] Set repository presentation metadata.
 - [ ] Verify through logged-out and API checks.
 
 ### Requirement verification
@@ -385,3 +385,60 @@ suite. No source change was required for either local-environment issue.
 Execution remains before the current-`main` commit/push, hosted Public CI and
 deployment validation, final remote-ref delta check, visibility confirmation,
 and post-public settings.
+
+### September 7, 2026: current `main` pushed and privately validated
+
+Commit `6ad8970a28addb3fef184eb9fd85d05597132779` was pushed to remote
+`main`. The push advanced `main` by 25 reviewed commits and intentionally
+triggered only:
+
+- Public CI run `34141194786`: passed all four required jobs;
+- Deploy Static Sites run `34141194767`: passed the landing/docs builds,
+  protected AWS OIDC assumption, and both deployments.
+
+No TestFlight run, CLI release run, release tag, or new release was triggered.
+The deployment for `6ad8970a28addb3fef184eb9fd85d05597132779`
+finished successfully.
+
+All required live routes returned HTTP `200` after deployment:
+
+- `https://crystallattice.dev/`
+- `https://crystallattice.dev/privacy`
+- `https://crystallattice.dev/support`
+- `https://crystallattice.dev/mobile`
+- `https://docs.crystallattice.dev/`
+
+The deployed Claude Tools page states that the package is an independent,
+AI-assisted compatibility implementation based on publicly visible Claude Code
+interfaces and that its normalized fixtures are Apache-2.0 licensed. The
+superseded Anthropic-license statement is absent.
+
+The post-push publication mirror covered 34 remote branch heads, two tags, all
+12 GitHub pull-request heads, and 2,015 commits. Both history scans remained
+identical to the accepted baseline:
+
+- Gitleaks: three accepted findings, with no new finding;
+- TruffleHog: two unverified revoked historical JWT findings and zero verified
+  credentials.
+
+The two new workflow log archives contained:
+
+- zero Gitleaks findings;
+- zero TruffleHog findings;
+- no private-key, AWS access-key, or GitHub-token value shape;
+- normal GitHub masking markers only.
+
+No Actions artifact is retained and no workflow is active or queued.
+
+Repository presentation metadata now includes:
+
+- description: `A modular, provider-agnostic AI agent platform with Python,
+  terminal, web, mobile, and desktop clients.`;
+- homepage: `https://crystallattice.dev`;
+- topics: `agent-framework`, `ai-agents`, `fastapi`, `llm`, `python`, and
+  `react-native`;
+- Issues enabled and Discussions disabled.
+
+The next commit records this evidence only. After its hosted Public CI and
+final ref delta scan pass, execution stops for the owner visibility
+confirmation.
