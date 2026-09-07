@@ -94,6 +94,7 @@ class DummyRichConfigUiFeature:
                 "type": "select",
                 "key": "dummy_rich_ui_appearance",
                 "label": "Dummy rich appearance",
+                "icon": "sliders",
                 "description": (
                     "Exercises semantic option icons and tones without changing "
                     "a production provider."
@@ -107,7 +108,6 @@ class DummyRichConfigUiFeature:
                     "options": _APPEARANCE_OPTIONS,
                     "placements": ["composer", "session_header"],
                     "default_pinned": True,
-                    "icon": "sliders",
                 },
             },
             {
@@ -115,6 +115,7 @@ class DummyRichConfigUiFeature:
                 "type": "checkbox",
                 "key": "dummy_rich_ui_toggle",
                 "label": "Dummy rich toggle",
+                "icon": "toggle-left",
                 "description": "Exercises immediate rich Boolean mutation.",
                 "default": False,
                 "rich_ui": {
@@ -124,7 +125,6 @@ class DummyRichConfigUiFeature:
                     "options": _TOGGLE_OPTIONS,
                     "placements": ["composer"],
                     "default_pinned": True,
-                    "icon": "toggle-left",
                 },
             },
             {
@@ -132,6 +132,7 @@ class DummyRichConfigUiFeature:
                 "type": "checkbox",
                 "key": "dummy_rich_ui_disabled_toggle",
                 "label": "Disabled dummy rich toggle",
+                "icon": "slash",
                 "description": "Exercises disabled compact-control presentation.",
                 "default": True,
                 "disabled": True,
@@ -142,7 +143,6 @@ class DummyRichConfigUiFeature:
                     "options": _TOGGLE_OPTIONS,
                     "placements": ["session_header"],
                     "default_pinned": False,
-                    "icon": "slash",
                 },
             },
         ]

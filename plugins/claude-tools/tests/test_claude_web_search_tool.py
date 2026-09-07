@@ -79,7 +79,9 @@ def test_ui_exposes_disabled_or_enabled_rich_toggle(monkeypatch) -> None:
 
     assert disabled["disabled"] is True
     assert enabled["disabled"] is False
+    assert enabled["icon"] == "globe"
     assert enabled["rich_ui"]["kind"] == "toggle"
+    assert "icon" not in enabled["rich_ui"]
     assert enabled["rich_ui"]["options"][1]["tone"] == "success"
 
 

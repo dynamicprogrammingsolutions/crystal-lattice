@@ -19,25 +19,35 @@ Boolean `toggle`.
 `selectConfigRichUiControls()` selects normalized controls for
 `session_header` or `composer`.
 
-The containing config element supplies the setting key and ordinary
-session-settings semantics. `SessionSettingsController` remains the only
-mutation path:
+The containing config element supplies the setting key, ordinary label/icon,
+and ordinary session-settings semantics. Normal action menus and frontends
+without rich-UI support render those outer presentation fields without
+interpreting `rich_ui`. `SessionSettingsController` remains the only mutation
+path:
 
 - `patchOverride(key, value)` selects a declared/custom value or toggles a
   Boolean setting;
 - `deleteOverride(key)` resets to configured/default state;
 - ordinary type coercion still follows the containing config element.
 
-The rich dropdown repeats its own label, options, placeholder, nested
-`custom_value`, icon, placement, and pin preference. One query field filters
-declared options and produces a synthetic custom row after full regex
-validation. The normalized suggestion engine is
+The rich dropdown repeats its own compact label, options, placeholder,
+placement, and pin preference. One query field filters declared options and
+can produce a synthetic custom row. Ordinary `type: "dropdown"` config
+elements allow unrestricted custom entry when `custom_value` is absent. Rich
+dropdown metadata remains self-contained and explicitly repeats
+`custom_value` when its compact control should accept custom entry; omission
+keeps fixed-choice rich controls closed. An explicit declaration can disable
+custom entry, constrain it with a full-match regex, or customize the row
+label. The normalized suggestion engine is
 `createConfigDropdownSuggestionEngine()`.
 
 Options may declare theme-aware semantic tones and icons. The selected option
-controls compact appearance; disabled controls are muted. `show_label: false`
-removes only the visual prefix. Mobile and desktop apply different visual
-character limits while preserving the full accessibility label.
+controls compact appearance; its icon overrides the outer fallback icon only
+on compact surfaces. `show_icon: false` keeps compact controls text-only while
+retaining the outer icon for ordinary UI. Disabled controls are muted.
+`show_label: false` removes only the visual prefix. Mobile and desktop apply
+different visual character limits while preserving the full accessibility
+label.
 
 The opt-in `plugins/dummy-rich-config-ui` feature is the reference manual-test
 consumer for the complete semantic option palette. Production providers adopt
@@ -58,6 +68,13 @@ action/dialog/rich normalization and maps it back to `session_action`.
 
 The ordinary action remains authoritative. Rich toggle/list controls invoke
 the existing action runner and submit the same mapped dialog values.
+
+An active model request is status, not a global mutation lock. Hosts keep
+ordinary/rich config controls and unrelated session/application actions
+invokable and let their existing backend paths accept or reject concurrent
+work. Request-start actions such as Send and Resend remain individually
+guarded. A config override changed during streaming is available to a later
+request; it does not rewrite the request already created by the server.
 
 ## Verification
 

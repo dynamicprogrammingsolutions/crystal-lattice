@@ -47,9 +47,10 @@ Parent Task: `tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md
    the ordinary config element and the rich dropdown. Both surfaces expose an
    explicit “Other model…” text-entry path. Custom entry is supported only for
    string-valued settings.
-4. `rich_ui` is self-contained for its presentation and repeats `label`,
-   `options`, `allow_custom_value`, placeholder/help text, icon, pinning, and
-   placements as applicable.
+4. `rich_ui` is self-contained for its compact presentation and repeats
+   `label`, `options`, `allow_custom_value`, placeholder/help text, pinning,
+   and placements as applicable. The containing config element owns the
+   ordinary/fallback `label` and `icon`.
    - The outer config element remains authoritative for mutation identity and
      full settings behavior through `key`, `config_path`, `type`, schema
      defaults, and override resolution.
@@ -76,6 +77,7 @@ Parent Task: `tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md
   "type": "dropdown",
   "key": "model",
   "label": "Model",
+  "icon": "cpu",
   "options": [
     {"value": "claude-sonnet-5", "label": "Claude Sonnet 5"}
   ],
@@ -84,7 +86,6 @@ Parent Task: `tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md
     "kind": "dropdown",
     "placements": ["composer"],
     "default_pinned": true,
-    "icon": "cpu",
     "label": "Model",
     "options": [
       {"value": "claude-sonnet-5", "label": "Claude Sonnet 5"}
@@ -104,11 +105,11 @@ When model discovery returns no options, the provider emits:
   "type": "text",
   "key": "model",
   "label": "Model",
+  "icon": "cpu",
   "rich_ui": {
     "kind": "dropdown",
     "placements": ["composer"],
     "default_pinned": true,
-    "icon": "cpu",
     "label": "Model",
     "options": [],
     "allow_custom_value": true,
@@ -248,9 +249,9 @@ contract in one change because backward compatibility is not required.
 - Decision: compact config placement is additive to the full settings editor.
 - Decision: compact rich config uses presentation-specific discriminators;
   model selection uses `rich_ui.kind: "dropdown"`.
-- Decision: rich UI repeats its presentation fields and does not implicitly
-  inherit label, options, custom-entry text, icon, or appearance from the
-  ordinary config element.
+- Decision: rich UI repeats its compact label, options, custom-entry text, and
+  appearance fields. The ordinary action-menu and non-rich fallback label and
+  icon come from the containing config element.
 - Decision: the containing config element remains the binding for `key`,
   `config_path`, effective value, override mutation, schema/default source, and
   reset behavior. Those behavioral fields are not duplicated in `rich_ui`.
@@ -502,6 +503,38 @@ and theme-shadow errors recorded in the implementation notes.
 - September 6, 2026: the user completed the remaining manual test and
   confirmed the maximized mobile editor supports the intended native editing
   interaction. The follow-up requirements are complete.
+- September 6, 2026: applied post-completion visual and interaction
+  corrections without reopening requirements. Two-row action bars now retain
+  one-row height until wrapping is necessary, the desktop composer bar
+  stretches and aligns its pins to the right, and rich controls have compact
+  horizontal spacing. Ordinary action popovers project rich state as neutral
+  text and keep toggle rows one-click, while pinned controls retain rich
+  colors and icons. OpenRouter, OpenRouter Responses, and OpenAI Responses now
+  expose text-only reasoning-effort rich dropdowns whose option labels equal
+  their values. Directly pressed rich list controls pass their own native
+  event target as the desktop popover anchor, overriding any stale remembered
+  menu anchor. Verification passed with 336 frontend SDK tests, 51 shared
+  React Native component tests, 177 mobile tests plus type checking, 142
+  desktop tests, 31 OpenRouter reasoning tests, 6 OpenRouter Responses
+  reasoning tests, 86 OpenAI Responses reasoning tests, focused default-config
+  smoke tests, and Python lint checks. No Detox or XCTest was run for these
+  small corrections.
+- September 7, 2026: corrected the ordinary-versus-rich presentation
+  boundary without reopening requirements. Known rich config elements now
+  declare their fallback label and icon on the containing config element.
+  Normal action menus use only those outer fields on the left and show the
+  selected rich option as neutral state text on the right. Compact controls
+  use a selected option icon when present, otherwise the outer icon, while
+  `rich_ui.show_icon: false` preserves text-only pinned controls such as
+  reasoning effort. Action-menu title and state text shrink and ellipsize
+  adaptively so a short title leaves the remaining width to a long value,
+  while accessibility retains the complete strings. Verification passed with
+  337 frontend SDK tests, 51 shared React Native component tests, 179 mobile
+  tests plus mobile TypeScript checking, 142 desktop tests, the public
+  Anthropic-rich-UI HTTP/backend integration, and focused UI declaration tests
+  for every migrated provider/tool plugin and the provider template. The
+  desktop repository-wide TypeScript check remains blocked by unrelated
+  pre-existing URL, declaration-order, attachment typing, and theme errors.
 
 ### Follow-up completion notes
 
@@ -581,6 +614,7 @@ and rich dropdown declarations each own a self-contained presentation:
   "type": "dropdown",
   "key": "model",
   "label": "Model",
+  "icon": "cpu",
   "options": [
     {"value": "claude-sonnet-5", "label": "Claude Sonnet 5"}
   ],
@@ -604,8 +638,7 @@ and rich dropdown declarations each own a self-contained presentation:
       "option_label": "Use '{value}' as a custom model ID"
     },
     "placements": ["composer"],
-    "default_pinned": true,
-    "icon": "cpu"
+    "default_pinned": true
   }
 }
 ```
@@ -662,8 +695,9 @@ config toggles, session status, and their selection lists:
 `tone` continues to use the theme-aware semantic vocabulary `primary`,
 `highlight`, `warning`, `success`, `danger`, and `muted`; plugins do not send
 raw colors. A selected option's icon and tone take precedence over the
-rich-control fallback icon and primary tone. A disabled control always uses
-the muted/gray tone while retaining the selected option's icon. Validate rich
+containing config element's ordinary icon and the primary tone in compact
+presentation. A disabled control always uses the muted/gray tone while
+retaining the selected option's icon. Validate rich
 dropdown tones against the same vocabulary already used by session status,
 render option tone and icon in both the pinned control and picker, and add
 icons to the built-in session-status options as the cross-feature reference
@@ -683,11 +717,11 @@ Add an ordinary-config `rich_ui.kind: "toggle"` for Boolean checkbox settings:
   "type": "checkbox",
   "key": "enable_web_search",
   "label": "Enable web search",
+  "icon": "globe",
   "rich_ui": {
     "kind": "toggle",
     "label": "Web search",
     "show_label": false,
-    "icon": "globe",
     "placements": ["composer"],
     "default_pinned": true,
     "options": [
@@ -1002,3 +1036,166 @@ compatibility aliases.
   accessibility labels on all three frontend platforms.
 - Re-run full frontend SDK, React binding, shared component, mobile, desktop,
   provider, application, documentation, and formatting/type checks.
+
+## Post-completion follow-up
+
+### Request progress and concurrent chat actions
+
+Status: Approved
+
+Restore a visible full-lifecycle request indicator in the Send control and
+remove the frontend assumption that an active model request is a global chat
+action lock. Execution waits for explicit user confirmation.
+
+Mobile shows the existing Send spinner, and desktop replaces its temporary
+`…` text with an `ActivityIndicator`, while either request submission is
+pending or `activeRequestId` is present. Inline and maximized mobile composers
+use the same state. The Send control keeps stable dimensions and exposes busy
+state through accessibility. Existing session-level request indicators remain
+complementary rather than becoming the only progress indication.
+
+Replace broad disable predicates with action-specific eligibility. An active
+request continues to disable Send and Resend and enables Cancel, but does not
+by itself disable:
+
+- model, reasoning, web-search, or other ordinary/rich config settings;
+- ordinary or rich session/application actions;
+- attachment selection, drafting, metadata editing, or management;
+- Append or Append as;
+- reload or other unrelated session actions.
+
+The server remains authoritative for accepting or rejecting each concurrent
+action or setting mutation. Frontends invoke the existing backend path and
+show its normal error when the server rejects the operation. Configuration
+changes made during a running response apply to a subsequent request unless
+the server explicitly defines different behavior.
+
+The current mobile `sendInProgress` and desktop `sendInFlight` flags cover
+multiple operation types. Refine them into an operation identity or equivalent
+action-specific state so allowing unrelated work during Send does not permit a
+duplicate Append, Resend, attachment mutation, or other operation against the
+same local resource. Offline/read-only state, an element's declared disabled
+state, unresolved attachment data, and an already-running operation against
+the same local resource remain valid frontend constraints.
+
+No governing provider specification changes for this follow-up. The portable
+provider specification is limited to provider-plugin implementation and
+authoring requirements. The Sessions-actions specification governs the
+top-level Sessions surface rather than chat-composer concurrency. This
+frontend behavior therefore remains owned by this task and current-behavior
+frontend documentation.
+
+#### Implementation decisions and open questions
+
+- Decision: use the Send spinner as the primary immediate progress indicator
+  and retain existing session-level request status.
+- Decision: active request state is not a global disabled condition.
+- Decision: request start, cancel, append, attachment, config, and plugin
+  actions receive separate local eligibility checks.
+- Decision: backend rejection remains the concurrency authority.
+- Open question: none; implementation is pending user confirmation.
+
+#### Documentation
+
+- After implementation, update
+  `packages/frontend-sdk/docs/development/rich-session-ui.md` with backend
+  authority and concurrent config/action behavior.
+- Update
+  `packages/frontend-rn-components/docs/development/actions-menu-components.md`
+  with action-specific disablement and busy presentation.
+- Update mobile and desktop development guidance for their request-progress
+  and composer-operation state.
+- Do not add this platform behavior to provider authoring documentation or the
+  portable provider specification.
+
+#### Task checklist
+
+- [x] Obtain explicit approval to begin this follow-up.
+- [x] Refine mobile and desktop operation state and action-specific disable
+  predicates.
+- [x] Restore full-lifecycle Send progress on inline mobile, maximized mobile,
+  and desktop.
+- [x] Keep unrelated settings, rich controls, plugin actions, attachments,
+  Append, and reload invokable during an active request.
+- [x] Update current-behavior frontend documentation.
+- [x] Run focused and package regression tests.
+
+#### Requirement verification
+
+- Mobile and desktop tests prove request submission and `activeRequestId` both
+  keep the Send control busy until the active request clears.
+- With an active request, tests prove Send and Resend are disabled, Cancel is
+  enabled, and representative model/reasoning/web settings plus a plugin
+  action remain enabled and invoke their existing backend paths.
+- Tests prove Append and attachment drafting are not disabled merely by the
+  active request, while duplicate operations against the same local resource
+  remain blocked.
+- A backend-rejection test proves an eligible concurrent mutation reaches the
+  backend and its normal error is surfaced instead of being preemptively
+  suppressed by the frontend.
+
+#### Additional implementation verification
+
+- Verify a config change during streaming does not rewrite the already-created
+  request and is available to the next request.
+- Verify pending-send recovery does not become an accidental global UI lock.
+- Verify spinner, disabled, cancel, and accessibility states during request
+  submission, streaming, cancellation, failure, and completion.
+- Run frontend SDK/shared-component tests, full mobile and desktop component
+  suites, mobile TypeScript, and the existing public-backend rich-UI
+  integration. No Detox or XCUITest is planned unless component verification
+  exposes native-only behavior.
+
+#### Completion notes
+
+Completed September 7, 2026.
+
+Mobile and desktop now render Send as busy through both request submission and
+the complete `activeRequestId` lifetime. Mobile inline and maximized composers
+share the same spinner state; desktop uses an `ActivityIndicator` instead of
+the temporary ellipsis. Both Send controls expose accessibility busy state.
+
+Append has separate local in-flight state from request start. Active request
+state continues to gate Send/Resend and enable Cancel, but no longer disables
+rich config controls, session/application actions, attachment drafting,
+Append/Append as, or reload. Explicit plugin disabled state, offline/read-only
+state, unresolved attachment data, and duplicate operations against the same
+local resource remain enforced. Concurrent config and action mutations use
+their existing backend paths, leaving acceptance or rejection to the server.
+
+Frontend development documentation records the delivered behavior. No
+portable-provider, provider-package, provider-authoring, or Sessions-actions
+specification was changed because chat concurrency is outside those document
+scopes.
+
+Verification passed with 337 frontend SDK tests, 51 shared React Native
+component tests, 180 mobile tests plus mobile TypeScript checking, 143 desktop
+tests, and the public Anthropic-rich-UI HTTP/backend integration. The active
+request production-screen tests assert full-lifecycle Send progress and prove
+that model/web config, session action, Append, and attachment controls remain
+enabled. Existing SDK controller coverage proves rejected config mutations
+reach the backend, roll back optimistic state, and expose the backend error.
+The desktop repository-wide TypeScript command remains blocked only by the
+previously recorded URL typing, declaration-order, attachment typing, and
+theme errors; no new error category was introduced. No Detox or XCUITest was
+run because the change has no native-only interaction.
+
+September 7, 2026 correction: custom pinned controls now occupy the same
+40-point vertical action slot as simple icon actions, keeping rich toggles
+aligned with the ellipsis even when Resend wraps to another row. On mobile,
+request Cancel remains permanently above Send beside the composer and is
+removed from Composer actions. Composer actions retain Resend, Append, and
+Append as; the top Session actions now also expose Resend and request Cancel
+through the existing handlers. The focused iOS rich-session Detox scenario
+passes permanent action-placement coverage. A temporary Detox screenshot and
+frame-center check verified the Web-search toggle/ellipsis alignment and were
+removed after verification.
+
+September 7, 2026 correction: ordinary `type: "dropdown"` config elements now
+enable unrestricted custom values by default when outer `custom_value` is
+absent. An explicit outer declaration is needed only to disable custom entry,
+constrain it with a full-match pattern, or customize the synthetic-option
+label. Rich dropdown metadata remains self-contained and repeats
+`custom_value` when its compact control should also accept custom values. This
+keeps ordinary provider dropdowns custom-capable without turning fixed-choice
+rich controls such as reasoning effort into free-form fields.

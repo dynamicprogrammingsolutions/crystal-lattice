@@ -4,6 +4,7 @@ export interface UiSchemaElement {
   key?: string;
   type?: string;
   label?: string;
+  icon?: string;
   description?: string;
   options?: any;
   // Footer / status bar fields

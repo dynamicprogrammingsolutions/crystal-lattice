@@ -125,17 +125,20 @@ endpoint currently requires one.
 custom-capable `model` config dropdown and retains that dropdown with an empty
 option list when discovery fails. Nested `custom_value` settings validate
 explicit model IDs and supply the synthetic-option label. The element includes
-a self-contained `rich_ui.kind: "dropdown"` composer presentation that repeats
-its label, options, searchable custom entry, icon, placement, and default
-pinning while omitting the visual `Model:` prefix.
+a static outer `cpu` icon for ordinary/fallback UI and a self-contained
+`rich_ui.kind: "dropdown"` composer presentation that repeats its compact
+label, options, searchable custom entry, placement, and default pinning while
+omitting the visual `Model:` prefix.
 The compact control and full Session Settings editor both mutate the ordinary
 session `model` override; the provider does not define a separate model-picker
 UI type or action.
 
 `AnthropicReasoningControlsExtension` adds a self-contained composer dropdown
 to its model-dependent reasoning-effort setting. Effort options use uniform
-value/label presentation; the extension remains the owner of capability gating
-and request shaping.
+value/label presentation. Its outer `sliders` icon remains available to
+ordinary/fallback UI, while `rich_ui.show_icon: false` keeps the pinned
+reasoning control text-only. The extension remains the owner of capability
+gating and request shaping.
 
 ## Provider state
 

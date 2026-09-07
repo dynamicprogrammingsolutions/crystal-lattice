@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from "react";
 import {
   Pressable,
   ScrollView,
@@ -6,7 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
 import {
   SESSION_LIST_RICH_ACTION_KINDS,
@@ -19,17 +19,17 @@ import {
   type SessionListRichActionPlacement,
   type SessionSummary,
   type ChatRichUiPlacement,
-} from '@crystal-lattice/frontend-sdk';
+} from "@crystal-lattice/frontend-sdk";
 
-import { useTheme } from '../theme';
+import { useTheme } from "../theme";
 import {
   ALL_SESSION_ACTIONS,
   type SessionActionDefinition,
-} from '../sessionActions';
-import { ActionsMenuBar } from './ActionsMenuBar';
-import type { MenuIconRenderer } from './ActionsMenuContent';
-import { resolveSemanticToneColor } from './semanticTone';
-import type { ActionDefinition, ActionKey } from './types';
+} from "../sessionActions";
+import { ActionsMenuBar } from "./ActionsMenuBar";
+import type { MenuIconRenderer } from "./ActionsMenuContent";
+import { resolveSemanticToneColor } from "./semanticTone";
+import type { ActionDefinition, ActionKey } from "./types";
 
 const SUPPORTED_RICH_KINDS = new Set<string>(SESSION_LIST_RICH_ACTION_KINDS);
 
@@ -53,12 +53,12 @@ export interface SessionListActionsBarProps {
   onFallbackAction: (element: SessionListActionElement) => void;
   onPresentRichList: (element: SessionListActionElement) => void;
   title?: string;
-  variant?: 'modal' | 'dropdown';
+  variant?: "modal" | "dropdown";
   menuButtonTestID?: string;
   isActionDisabled?: (key: ActionKey) => boolean;
   isActive?: boolean;
   pinnedRows?: 1 | 2;
-  secondPinnedRowPlacement?: 'above' | 'below';
+  secondPinnedRowPlacement?: "above" | "below";
   renderIcon?: MenuIconRenderer;
   renderPinIcon?: (params: {
     pinned: boolean;
@@ -91,7 +91,10 @@ export interface SessionListRichActionControlProps {
     element: SessionListActionElement,
     dialogValues?: Record<string, string | boolean>,
   ) => void;
-  onPresentRichList: (element: SessionListActionElement) => void;
+  onPresentRichList: (
+    element: SessionListActionElement,
+    anchorTag?: number,
+  ) => void;
   renderIcon?: MenuIconRenderer;
   testID?: string;
 }
@@ -110,7 +113,7 @@ export function SessionListRichActionControl(
     SUPPORTED_RICH_KINDS,
   );
   const state = resolveSessionListRichActionState(props.element, props.session);
-  if (presentation.mode !== 'rich' || !state) {
+  if (presentation.mode !== "rich" || !state) {
     return null;
   }
 
@@ -119,31 +122,35 @@ export function SessionListRichActionControl(
     props.testID ??
     `session-rich-action-${props.session.session_id}-${props.element.id}-${props.placement}`;
   const isHeader =
-    props.placement === 'header_leading' ||
-    props.placement === 'header_trailing' ||
-    props.placement === 'session_header';
+    props.placement === "header_leading" ||
+    props.placement === "header_trailing" ||
+    props.placement === "session_header";
   const iconName =
-    state.kind === 'list' && state.currentOption?.icon
+    state.kind === "list" && state.currentOption?.icon
       ? state.currentOption.icon
-      : typeof props.element.icon === 'string'
+      : typeof props.element.icon === "string"
         ? props.element.icon
         : null;
   const trigger = (event?: unknown) => {
     (event as any)?.stopPropagation?.();
-    if (state.kind === 'toggle') {
+    if (state.kind === "toggle") {
       props.onExecuteAction(props.element);
       return;
     }
-    props.onPresentRichList(props.element);
+    const eventTarget = (event as any)?.nativeEvent?.target;
+    props.onPresentRichList(
+      props.element,
+      typeof eventTarget === "number" ? eventTarget : undefined,
+    );
   };
 
-  if (state.kind === 'toggle') {
+  if (state.kind === "toggle") {
     return (
       <TouchableOpacity
         style={[styles.richButton, isHeader && styles.headerRichButton]}
         testID={testID}
         accessibilityRole="button"
-        accessibilityLabel={`${props.element.label}: ${state.active ? 'On' : 'Off'}`}
+        accessibilityLabel={`${props.element.label}: ${state.active ? "On" : "Off"}`}
         accessibilityState={{
           disabled: props.disabled,
           selected: state.active,
@@ -176,7 +183,7 @@ export function SessionListRichActionControl(
       style={[styles.richListButton, isHeader && styles.headerRichListButton]}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={`${props.element.label}: ${state.currentOption?.label ?? 'Unknown'}`}
+      accessibilityLabel={`${props.element.label}: ${state.currentOption?.label ?? "Unknown"}`}
       accessibilityState={{ disabled: props.disabled }}
       disabled={props.disabled}
       onPress={trigger}
@@ -207,7 +214,7 @@ function buildPluginActionDefinitions(
   return actions.map((element) => ({
     key: element.id,
     label: element.label,
-    iconName: typeof element.icon === 'string' ? element.icon : 'zap',
+    iconName: typeof element.icon === "string" ? element.icon : "zap",
     element,
   }));
 }
@@ -234,7 +241,7 @@ export function SessionListActionsBar(
     return requested.filter((key) => {
       const element = pluginByKey[key];
       return (
-        !element || isSessionListRichActionPlacedAt(element, 'actions_bar')
+        !element || isSessionListRichActionPlacedAt(element, "actions_bar")
       );
     });
   }, [pluginByKey, props.pinned, props.pinnedKeysForBar]);
@@ -251,7 +258,7 @@ export function SessionListActionsBar(
         element,
         SUPPORTED_RICH_KINDS,
       );
-      if (presentation.mode !== 'rich') {
+      if (presentation.mode !== "rich") {
         props.onFallbackAction(element);
         return;
       }
@@ -261,7 +268,7 @@ export function SessionListActionsBar(
         props.onFallbackAction(element);
         return;
       }
-      if (state.kind === 'toggle') {
+      if (state.kind === "toggle") {
         props.onExecuteAction(element);
         return;
       }
@@ -281,14 +288,14 @@ export function SessionListActionsBar(
       if (!element) {
         return undefined;
       }
-      if (!isSessionListRichActionPlacedAt(element, 'actions_bar')) {
+      if (!isSessionListRichActionPlacedAt(element, "actions_bar")) {
         return undefined;
       }
       const presentation = resolveSessionListActionPresentation(
         element,
         SUPPORTED_RICH_KINDS,
       );
-      if (presentation.mode !== 'rich') {
+      if (presentation.mode !== "rich") {
         return undefined;
       }
       return (
@@ -309,8 +316,8 @@ export function SessionListActionsBar(
 
   return (
     <ActionsMenuBar<ActionDefinition>
-      title={props.title ?? 'Session actions'}
-      variant={props.variant ?? 'modal'}
+      title={props.title ?? "Session actions"}
+      variant={props.variant ?? "modal"}
       baseActions={props.baseActions ?? ALL_SESSION_ACTIONS}
       extraActions={pluginDefinitions}
       availableActions={props.availableActions}
@@ -338,7 +345,7 @@ export function SessionListRichActionList(
   const theme = useTheme();
   const richUi = props.element.rich_ui;
   const state = resolveSessionListRichActionState(props.element, props.session);
-  if (!richUi || richUi.kind !== 'list' || !state || state.kind !== 'list') {
+  if (!richUi || richUi.kind !== "list" || !state || state.kind !== "list") {
     return null;
   }
 
@@ -374,7 +381,7 @@ export function SessionListRichActionList(
               key={`${typeof option.value}:${String(option.value)}`}
               testID={`${prefix}-option-${String(option.value)}`}
               accessibilityRole="button"
-              accessibilityLabel={`${option.label}${selected ? ' selected' : ''}`}
+              accessibilityLabel={`${option.label}${selected ? " selected" : ""}`}
               accessibilityState={{ selected }}
               style={[
                 styles.listOption,
@@ -416,32 +423,32 @@ const styles = StyleSheet.create({
   richButton: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    marginLeft: 4,
+    marginHorizontal: 2,
   },
   headerRichButton: {
     minWidth: 32,
     minHeight: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 2,
   },
   pinnedFallback: {
-    fontWeight: '800',
+    fontWeight: "800",
   },
   richListButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     maxWidth: 118,
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    marginLeft: 4,
+    marginHorizontal: 2,
   },
   headerRichListButton: {
-    marginLeft: 0,
+    marginHorizontal: 2,
   },
   pinnedListText: {
-    fontWeight: '700',
+    fontWeight: "700",
     flexShrink: 1,
   },
   listRoot: {
@@ -451,35 +458,35 @@ const styles = StyleSheet.create({
   listHeader: {
     minHeight: 44,
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   listTitle: {
     flex: 1,
-    fontWeight: '800',
+    fontWeight: "800",
     fontSize: 15,
   },
   closeText: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     paddingHorizontal: 6,
   },
   listOption: {
     minHeight: 46,
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   listOptionText: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   selectedMark: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: "800",
   },
 });

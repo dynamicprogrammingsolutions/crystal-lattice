@@ -195,6 +195,7 @@ class ClaudeWebSearchTool(ToolPlugin):
                 "type": "checkbox",
                 "key": "web_search_enabled",
                 "label": "Enable web search",
+                "icon": "globe",
                 "description": (
                     "Enable WebSearch. Requires GEMINI_API_KEY or TAVILY_API_KEY."
                 ),
@@ -203,7 +204,6 @@ class ClaudeWebSearchTool(ToolPlugin):
                     "kind": "toggle",
                     "label": "Web search",
                     "show_label": False,
-                    "icon": "globe",
                     "placements": ["composer"],
                     "default_pinned": True,
                     "options": [

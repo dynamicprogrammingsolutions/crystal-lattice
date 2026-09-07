@@ -334,11 +334,13 @@ class AnthropicReasoningControlsExtension(ProviderExtensionPlugin):
                 "type": "select",
                 "key": "anthropic_reasoning_effort",
                 "label": "Anthropic reasoning effort",
+                "icon": "sliders",
                 "options": effort_options,
                 "rich_ui": {
                     "kind": "dropdown",
                     "label": "Reasoning effort",
                     "show_label": False,
+                    "show_icon": False,
                     "options": effort_options,
                     "placements": ["composer"],
                     "default_pinned": True,

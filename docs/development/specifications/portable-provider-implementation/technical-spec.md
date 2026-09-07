@@ -155,6 +155,7 @@ The same config element may include a self-contained compact presentation:
   "type": "dropdown",
   "key": "model",
   "label": "Model",
+  "icon": "cpu",
   "options": [
     {"value": "provider/model-a", "label": "Model A"}
   ],
@@ -178,23 +179,26 @@ The same config element may include a self-contained compact presentation:
       "option_label": "Use '{value}' as a custom model ID"
     },
     "placements": ["composer"],
-    "default_pinned": true,
-    "icon": "cpu"
+    "default_pinned": true
   }
 }
 ```
 
 The containing config element owns setting identity, effective-value
-resolution, mutation, defaults, disabled state, and reset behavior. `rich_ui`
-owns compact presentation and repeats its label, options, searchable custom
-entry, icon, placement, and pinning fields. A rich renderer does not implicitly
-inherit those presentation fields from the containing element.
+resolution, mutation, defaults, disabled state, reset behavior, and the
+ordinary/fallback label and icon. `rich_ui` owns compact presentation and
+repeats its compact label, options, searchable custom entry, placement, and
+pinning fields. Normal action menus and frontends without rich-UI support use
+the outer label and icon without interpreting `rich_ui`.
 
 The one dropdown input filters declared labels/values and offers a synthetic
 custom option when the trimmed query fully matches `custom_value.pattern`.
-Option entries may carry semantic `tone` and `icon` fields. Compact controls
-may hide their visual label and apply host-specific visual truncation while
-retaining the full accessibility value.
+Option entries may carry semantic `tone` and `icon` fields. A selected option
+icon overrides the outer icon only for compact presentation; otherwise the
+compact control uses the outer icon. `rich_ui.show_icon: false` suppresses the
+icon in compact presentation while retaining the ordinary fallback icon.
+Compact controls may hide their visual label and apply host-specific visual
+truncation while retaining the full accessibility value.
 
 Boolean settings may use `rich_ui.kind: "toggle"` with exactly one `false` and
 one `true` option. False defaults to the primary tone, true to success, and a

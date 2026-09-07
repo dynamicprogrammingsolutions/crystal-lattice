@@ -1257,7 +1257,8 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
         "ui_type": "config",
         "type": "dropdown",
         "key": "model",
-        "label": "OpenAI Model",
+        "label": "Model",
+        "icon": "cpu",
         "options": [
             {"label": "GPT-5 Mini", "value": "gpt-5-mini"},
             {"label": "gpt-4.1-mini", "value": "gpt-4.1-mini"},
@@ -1284,7 +1285,6 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
             },
             "placements": ["composer"],
             "default_pinned": True,
-            "icon": "cpu",
         },
     }
     assert elements[1] == {
@@ -1333,7 +1333,8 @@ def test_get_ui_elements_keeps_custom_dropdown_when_models_are_unavailable() -> 
         "ui_type": "config",
         "type": "dropdown",
         "key": "model",
-        "label": "OpenAI Model",
+        "label": "Model",
+        "icon": "cpu",
         "options": [],
         "placeholder": "Search models or enter a model ID",
         "custom_value": {
@@ -1354,7 +1355,6 @@ def test_get_ui_elements_keeps_custom_dropdown_when_models_are_unavailable() -> 
             },
             "placements": ["composer"],
             "default_pinned": True,
-            "icon": "cpu",
         },
     }
     assert elements[1]["ui_type"] == "config"

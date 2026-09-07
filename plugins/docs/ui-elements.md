@@ -121,7 +121,7 @@ def get_ui_elements(self, config, tags, models):
 | `placeholder` | string | Placeholder text for text inputs and searchable dropdowns |
 | `config_path` | string | Dotted path to nested config value (e.g., `"provider.api_key"`) |
 | `condition` | object | Optional visibility condition (see below) |
-| `custom_value` | object | Optional searchable-dropdown custom entry with `enabled`, `pattern`, and `option_label` |
+| `custom_value` | object | Optional searchable-dropdown override with `enabled`, `pattern`, and `option_label`; omission on an ordinary `dropdown` allows unrestricted custom values |
 | `rich_ui` | object | Optional self-contained compact presentation in chat |
 
 #### Effective value resolution
@@ -227,10 +227,12 @@ element remains the setting binding: its `key`, optional `config_path`,
 effective value, session override, schema/default source, disabled state, and
 reset behavior are authoritative.
 
-The compact presentation is self-contained. It repeats presentation fields
-such as `label`, `options`, custom-entry text, icon, pinning, and placements
-even when the full settings element uses the same values. A compact surface
-does not implicitly inherit those fields from the containing element.
+The compact presentation is self-contained for its compact label, options,
+custom-entry text, pinning, and placements. The containing config element
+still owns the ordinary/fallback `label` and `icon`. Frontends that do not
+support rich UI can therefore render the setting without interpreting
+`rich_ui`, and the ordinary action menu uses those outer fields for its left
+side.
 
 The supported rich config kinds are `dropdown` and `toggle`.
 
@@ -245,6 +247,7 @@ model_options = [
     "type": "dropdown",
     "key": "model",
     "label": "Model",
+    "icon": "cpu",
     "options": model_options,
     "placeholder": "Search models or enter a model ID",
     "custom_value": {
@@ -265,7 +268,6 @@ model_options = [
         },
         "placements": ["composer"],
         "default_pinned": True,
-        "icon": "cpu",
     },
 }
 ```
@@ -280,19 +282,25 @@ The rich dropdown fields are:
 | --- | --- | --- |
 | `kind` | string | Must be `dropdown` for this presentation |
 | `label` | string | Compact-surface label; required |
-| `options` | array | Self-contained string value/label options; may be empty only when `custom_value.enabled` is true |
+| `options` | array | Self-contained string value/label options; may be empty while custom values are enabled |
 | `placeholder` | string | Text for the one field used to filter options or enter a custom value |
-| `custom_value` | object | Nested custom-entry declaration; repeat it on the containing config element |
+| `custom_value` | object | Optional self-contained custom-entry declaration; omission keeps the rich control fixed-choice |
 | `description` | string | Optional compact help text |
-| `icon` | string | Optional semantic icon name |
 | `show_label` | boolean | Whether the compact control visually shows `label:`; accessibility always retains the label |
+| `show_icon` | boolean | Whether the compact control shows an icon; defaults to true |
 | `placements` | array | Ordered compact locations; initially `session_header` and `composer` |
 | `default_pinned` | boolean | Initial pin preference when the connection has no stored choice |
 
-`custom_value.enabled` enables custom values. `custom_value.pattern` is an
-optional ECMAScript regular expression applied as a full-value match.
-`custom_value.option_label` contains `{value}`, for example
-`"Use '{value}' as a custom model ID"`.
+Custom values are enabled by default when `custom_value` is absent from an
+ordinary config element whose type is `dropdown`. The default synthetic row
+is `"Use '{value}'"`, and no regex restricts the non-empty trimmed value. Set
+outer `custom_value.enabled` to `false` to opt out. Rich dropdown metadata is
+self-contained and must explicitly declare `custom_value` when the compact
+control should accept custom entry; omission keeps fixed-choice rich controls
+closed. When declared, `custom_value.pattern` is an optional ECMAScript
+regular expression applied as a full-value match, and
+`custom_value.option_label` overrides the row text and contains `{value}`, for
+example `"Use '{value}' as a custom model ID"`.
 
 The dropdown uses one field for both search and custom entry. A non-empty
 query filters labels and values case-insensitively. When the trimmed query does
@@ -308,9 +316,11 @@ Options may add a theme-aware semantic tone and icon:
 ```
 
 Supported tones are `primary`, `highlight`, `warning`, `success`, `danger`,
-and `muted`. The selected option controls the compact icon and tone. Frontends
-may apply a shorter host-specific visual character limit while preserving the
-full accessibility label and stored value.
+and `muted`. A selected option icon overrides the containing config element's
+ordinary icon for compact presentation. Otherwise the compact control uses
+the outer icon unless `show_icon` is false. The selected option controls the
+compact tone. Frontends may apply a shorter host-specific visual character
+limit while preserving the full accessibility label and stored value.
 
 For manual testing without changing a production provider, load the
 [dummy rich configuration UI plugin](../dummy-rich-config-ui/README.md) and
@@ -325,11 +335,11 @@ Boolean checkbox settings may expose a compact toggle:
     "type": "checkbox",
     "key": "enable_web_search",
     "label": "Enable web search",
+    "icon": "globe",
     "rich_ui": {
         "kind": "toggle",
         "label": "Web search",
         "show_label": False,
-        "icon": "globe",
         "placements": ["composer"],
         "default_pinned": True,
         "options": [
@@ -361,7 +371,8 @@ override; reset deletes that override. A custom value remains visible even
 when it is absent from a later discovery response.
 
 Unknown future rich kinds remain transportable. Frontends without a renderer
-ignore the compact presentation and retain the ordinary setting.
+ignore the compact presentation and retain the ordinary setting, including
+its outer label and icon.
 
 ### Message footers (`ui_type == "message_footer"`)
 
@@ -1199,6 +1210,7 @@ def get_ui_elements(
             "type": "dropdown",
             "key": "model",
             "label": "Model",
+            "icon": "cpu",
             "options": options,
             "placeholder": "Search models or enter a model ID",
             "custom_value": {
@@ -1219,7 +1231,6 @@ def get_ui_elements(
                 },
                 "placements": ["composer"],
                 "default_pinned": True,
-                "icon": "cpu",
             },
         }
     ]
@@ -1266,6 +1277,7 @@ interface UiSchemaElement {
   key?: string;
   type?: string;
   label?: string;
+  icon?: string;
   description?: string;
   options?: any;
   data?: string;

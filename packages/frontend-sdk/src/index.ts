@@ -423,6 +423,7 @@ export {
   normalizeConfigRichUiElement,
   normalizeSessionActionRichUiElement,
   normalizeSessionActionRichUiElements,
+  resolveConfigRichUiMenuStateLabel,
   resolveConfigRichToggleOption,
   selectConfigRichUiControls,
 } from "./uiSchema/richUi";

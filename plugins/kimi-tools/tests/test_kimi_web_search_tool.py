@@ -112,8 +112,10 @@ class TestConfigAndVisibility:
             elements = tool.get_ui_elements({})
         assert elements[0]["key"] == "web_search_enabled"
         assert elements[0]["disabled"] is True
+        assert elements[0]["icon"] == "globe"
         assert "GEMINI_API_KEY" in elements[0]["description"]
         assert elements[0]["rich_ui"]["kind"] == "toggle"
+        assert "icon" not in elements[0]["rich_ui"]
         assert elements[0]["rich_ui"]["options"][0]["tone"] == "primary"
 
     def test_ui_shows_provider_select_when_multiple_providers_configured(self) -> None:

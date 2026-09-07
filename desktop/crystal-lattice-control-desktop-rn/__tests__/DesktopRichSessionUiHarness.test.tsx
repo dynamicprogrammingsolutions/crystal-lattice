@@ -8,7 +8,11 @@ import {
 
 import { DesktopRichSessionUiHarness } from '../src/testing/DesktopRichSessionUiHarness';
 import { MessageLimitPopoverView } from '../src/windows/MessageLimitPopoverView';
-import { clearActiveDesktopPopover } from '../src/windows/desktopPopoverCoordinator';
+import {
+  clearActiveDesktopPopover,
+  getActiveDesktopPopover,
+} from '../src/windows/desktopPopoverCoordinator';
+import { setLastActionsPopoverAnchorTag } from '@crystal-lattice/frontend-rn-components';
 
 class TestErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -32,6 +36,7 @@ class TestErrorBoundary extends React.Component<
 
 afterEach(() => {
   clearActiveDesktopPopover();
+  setLastActionsPopoverAnchorTag(null);
 });
 
 test('desktop ChatPane opens the native-popover content for rich settings and actions', async () => {
@@ -80,7 +85,9 @@ test('desktop ChatPane opens the native-popover content for rich settings and ac
 
   fireEvent.press(
     await screen.findByTestId('session-rich-action-set_status-composer'),
+    { nativeEvent: { target: 321 } },
   );
+  expect(getActiveDesktopPopover()?.anchorTag).toBe(321);
   fireEvent.press(
     await screen.findByTestId('session-rich-list-set_status-option-done'),
   );
@@ -89,4 +96,61 @@ test('desktop ChatPane opens the native-popover content for rich settings and ac
       screen.getByTestId('desktop-rich-session-ui-last-action').props.children,
     ).toBe('set_status:done');
   });
+});
+
+test('a directly pressed rich action overrides a stale popover anchor', async () => {
+  setLastActionsPopoverAnchorTag(999);
+  render(
+    <TestErrorBoundary>
+      <DesktopRichSessionUiHarness />
+      <MessageLimitPopoverView />
+    </TestErrorBoundary>,
+  );
+
+  fireEvent.press(
+    await screen.findByTestId('session-rich-action-set_status-composer'),
+    { nativeEvent: { target: 654 } },
+  );
+
+  expect(getActiveDesktopPopover()?.anchorTag).toBe(654);
+});
+
+test('active requests show progress without locking unrelated composer actions', async () => {
+  render(
+    <TestErrorBoundary>
+      <DesktopRichSessionUiHarness
+        activeRequestId="request-active"
+        composeText="Append while request runs"
+      />
+      <MessageLimitPopoverView />
+    </TestErrorBoundary>,
+  );
+
+  await screen.findByTestId('composer-send-progress');
+  const send = screen.getByTestId('composer-send');
+  expect(send.props.accessibilityState).toMatchObject({
+    disabled: true,
+    busy: true,
+  });
+
+  expect(
+    screen.getByTestId('action-menu-item-config:model').props.accessibilityState
+      .disabled,
+  ).toBe(false);
+  expect(
+    screen.getByTestId('action-menu-item-config:web_search_enabled').props
+      .accessibilityState.disabled,
+  ).toBe(false);
+  expect(
+    screen.getByTestId('action-menu-item-session_action:set_status').props
+      .accessibilityState.disabled,
+  ).toBe(false);
+  expect(
+    screen.getByTestId('action-menu-pinned-append').props.accessibilityState
+      .disabled,
+  ).toBe(false);
+  expect(
+    screen.getByTestId('composer-attachment-plus').props.accessibilityState
+      .disabled,
+  ).toBe(false);
 });

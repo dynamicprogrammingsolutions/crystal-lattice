@@ -63,7 +63,9 @@ import {
   normalizeDisplayEnvelope,
   NotificationUiEffectObserver,
   observeSessionNotificationUiEffects,
+  resolveConfigRichUiMenuStateLabel,
   resolveConfigRichToggleOption,
+  resolveSessionListRichActionState,
   runApplicationAction,
   selectConfigRichUiControls,
   selectSessionAssetId,
@@ -559,6 +561,7 @@ export const ChatPane = React.memo(function ChatPane({
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
   const [messageLimitVisible, setMessageLimitVisible] = useState(false);
   const [sendInFlight, setSendInFlight] = useState(false);
+  const [appendInFlight, setAppendInFlight] = useState(false);
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
@@ -1005,14 +1008,27 @@ export const ChatPane = React.memo(function ChatPane({
     }
 
     return headerSessionActions
-      .map(el => ({
-        key: el.id,
-        label: el.label,
-        iconName: (el as any).icon || 'zap',
-        order: typeof el.order === 'number' ? el.order : undefined,
-      }))
+      .map(el => {
+        const richState = el.rich_ui
+          ? resolveSessionListRichActionState(el as any, richActionSession)
+          : null;
+        return {
+          key: el.id,
+          label: el.label,
+          iconName: (el as any).icon || 'zap',
+          menuStateLabel:
+            richState?.kind === 'toggle'
+              ? richState.active
+                ? 'On'
+                : 'Off'
+              : richState?.kind === 'list'
+              ? richState.currentOption?.label
+              : undefined,
+          order: typeof el.order === 'number' ? el.order : undefined,
+        };
+      })
       .filter(def => typeof def.key === 'string' && def.key);
-  }, [backend, headerSessionActions]);
+  }, [backend, headerSessionActions, richActionSession]);
 
   const composerPluginActionDefs: ActionDefinition[] = useMemo(
     () => [
@@ -1022,22 +1038,40 @@ export const ChatPane = React.memo(function ChatPane({
           | ConfigRichToggleUi;
         return {
           key: `config:${entry.control.element.key}`,
-          label: richUi.label,
-          iconName: richUi.icon ?? 'sliders',
+          label: entry.control.element.label || richUi.label,
+          iconName: entry.control.element.icon || 'sliders',
+          menuStateLabel: resolveConfigRichUiMenuStateLabel(
+            richUi,
+            entry.effectiveValue,
+          ),
           order:
             typeof (entry.control.element as any).order === 'number'
               ? (entry.control.element as any).order
               : 10,
         };
       }),
-      ...composerSessionActions.map(element => ({
-        key: `session_action:${element.id}`,
-        label: element.label,
-        iconName: typeof element.icon === 'string' ? element.icon : 'zap',
-        order: typeof element.order === 'number' ? element.order : undefined,
-      })),
+      ...composerSessionActions.map(element => {
+        const richState = resolveSessionListRichActionState(
+          element as any,
+          richActionSession,
+        );
+        return {
+          key: `session_action:${element.id}`,
+          label: element.label,
+          iconName: (element as any).icon || 'zap',
+          menuStateLabel:
+            richState?.kind === 'toggle'
+              ? richState.active
+                ? 'On'
+                : 'Off'
+              : richState?.kind === 'list'
+              ? richState.currentOption?.label
+              : undefined,
+          order: typeof element.order === 'number' ? element.order : undefined,
+        };
+      }),
     ],
-    [composerRichConfigControls, composerSessionActions],
+    [composerRichConfigControls, composerSessionActions, richActionSession],
   );
 
   const defaultPinnedComposerUiActionKeys = useMemo(
@@ -1556,6 +1590,7 @@ export const ChatPane = React.memo(function ChatPane({
 
   const canSendNow =
     canSend && (composeText.trim().length > 0 || hasAttachments);
+  const requestInProgress = sendInFlight || Boolean(chatState?.activeRequestId);
 
   const buildMultipartContentPayload = useCallback(() => {
     const mapDraft = (d: ComposerAttachmentDraft) => ({
@@ -2045,8 +2080,6 @@ export const ChatPane = React.memo(function ChatPane({
   const canOpenAttachmentPlus =
     canRunComposerActions &&
     composerAttachmentPlusRows.length > 0 &&
-    !sendInFlight &&
-    !chatState?.activeRequestId &&
     !attachmentActionInProgress;
 
   const appendMessageForRole = useCallback(
@@ -2068,16 +2101,12 @@ export const ChatPane = React.memo(function ChatPane({
         Alert.alert('Offline', 'Connect to a server to append messages.');
         return;
       }
-      if (
-        sendInFlight ||
-        chatState?.activeRequestId ||
-        attachmentActionInProgress
-      ) {
+      if (appendInFlight || attachmentActionInProgress) {
         return;
       }
 
       onBeforeSessionMutation?.();
-      setSendInFlight(true);
+      setAppendInFlight(true);
       try {
         await chatController.appendMessage({
           role: role as any,
@@ -2089,18 +2118,17 @@ export const ChatPane = React.memo(function ChatPane({
         const message = err?.message || 'Failed to append message.';
         Alert.alert('Failed to append', message);
       } finally {
-        setSendInFlight(false);
+        setAppendInFlight(false);
       }
     },
     [
+      appendInFlight,
       attachmentActionInProgress,
       buildMultipartContentPayload,
       canRunComposerActions,
       chatController,
-      chatState?.activeRequestId,
       composeText,
       composeTextRef,
-      sendInFlight,
       unresolvedAttachmentDraft,
       onBeforeSessionMutation,
     ],
@@ -2129,8 +2157,7 @@ export const ChatPane = React.memo(function ChatPane({
       return;
     }
     if (
-      sendInFlight ||
-      chatState?.activeRequestId ||
+      appendInFlight ||
       attachmentActionInProgress ||
       unresolvedAttachmentDraft
     ) {
@@ -2171,14 +2198,13 @@ export const ChatPane = React.memo(function ChatPane({
     });
   }, [
     appendMessageForRole,
+    appendInFlight,
     attachmentActionInProgress,
     buildMultipartContentPayload,
     canRunComposerActions,
-    chatState?.activeRequestId,
     composeText,
     composeTextRef,
     connectionId,
-    sendInFlight,
     sessionId,
     unresolvedAttachmentDraft,
   ]);
@@ -2630,7 +2656,7 @@ export const ChatPane = React.memo(function ChatPane({
         { ...display, presentation: 'inline' },
         context,
       );
-      setInlineActionDisplays((current) =>
+      setInlineActionDisplays(current =>
         upsertInlineDisplay(current, nextEntry),
       );
     },
@@ -2853,8 +2879,8 @@ export const ChatPane = React.memo(function ChatPane({
           onExecuteAction={(selected, values) => {
             executeRichSessionAction(selected as any, values).catch(() => {});
           }}
-          onPresentRichList={selected =>
-            openRichSessionActionList(selected as any)
+          onPresentRichList={(selected, anchorTag) =>
+            openRichSessionActionList(selected as any, anchorTag)
           }
           renderIcon={({ name, size, color }) => (
             <Icon name={name} size={size} color={color} />
@@ -2940,8 +2966,8 @@ export const ChatPane = React.memo(function ChatPane({
           onExecuteAction={(selected, values) => {
             executeRichSessionAction(selected as any, values).catch(() => {});
           }}
-          onPresentRichList={selected =>
-            openRichSessionActionList(selected as any)
+          onPresentRichList={(selected, anchorTag) =>
+            openRichSessionActionList(selected as any, anchorTag)
           }
           renderIcon={({ name, size, color }) => (
             <Icon name={name} size={size} color={color} />
@@ -4305,6 +4331,7 @@ export const ChatPane = React.memo(function ChatPane({
               <ActionsMenuBar<ActionDefinition>
                 title="Composer actions"
                 variant="dropdown"
+                style={styles.composerActionsBar}
                 pinnedRows={2}
                 secondPinnedRowPlacement="below"
                 isActive={isActive}
@@ -4323,11 +4350,7 @@ export const ChatPane = React.memo(function ChatPane({
                     return true;
                   }
                   if (key === 'append' || key === 'appendAs') {
-                    if (
-                      sendInFlight ||
-                      chatState?.activeRequestId ||
-                      attachmentActionInProgress
-                    ) {
+                    if (appendInFlight || attachmentActionInProgress) {
                       return true;
                     }
                     return !composeText.trim() && !hasAttachments;
@@ -4337,6 +4360,23 @@ export const ChatPane = React.memo(function ChatPane({
                   }
                   if (key === 'cancel') {
                     return cancelInFlight || !chatState?.activeRequestId;
+                  }
+                  const richConfig =
+                    composerRichConfigControlByActionKey[String(key)];
+                  if (richConfig) {
+                    return richConfig.control.element.disabled === true;
+                  }
+                  const sessionAction =
+                    composerSessionActionByActionKey[String(key)];
+                  if (sessionAction) {
+                    return sessionAction.disabled === true;
+                  }
+                  const attachment =
+                    composerAttachmentElementByActionKey[String(key)];
+                  if (attachment) {
+                    return (
+                      attachment.disabled === true || attachmentActionInProgress
+                    );
                   }
                   return false;
                 }}
@@ -4390,6 +4430,10 @@ export const ChatPane = React.memo(function ChatPane({
             {composerAttachmentPlusRows.length > 0 ? (
               <View ref={attachmentPlusButtonRef} collapsable={false}>
                 <Pressable
+                  testID="composer-attachment-plus"
+                  accessibilityRole="button"
+                  accessibilityLabel="Add attachment"
+                  accessibilityState={{ disabled: !canOpenAttachmentPlus }}
                   style={({ pressed }) => [
                     styles.attachmentPlusButton,
                     !canOpenAttachmentPlus &&
@@ -4448,6 +4492,13 @@ export const ChatPane = React.memo(function ChatPane({
               />
             </View>
             <Pressable
+              testID="composer-send"
+              accessibilityRole="button"
+              accessibilityLabel="Send message"
+              accessibilityState={{
+                disabled: !canSendNow,
+                busy: requestInProgress,
+              }}
               style={({ pressed }) => [
                 styles.sendButton,
                 !canSendNow && styles.sendButtonDisabled,
@@ -4460,9 +4511,15 @@ export const ChatPane = React.memo(function ChatPane({
                 });
               }}
             >
-              <Text style={styles.sendButtonText}>
-                {sendInFlight ? '…' : 'Send'}
-              </Text>
+              {requestInProgress ? (
+                <ActivityIndicator
+                  testID="composer-send-progress"
+                  size="small"
+                  color={theme.textOnPrimary}
+                />
+              ) : (
+                <Text style={styles.sendButtonText}>Send</Text>
+              )}
             </Pressable>
           </View>
 
@@ -4921,7 +4978,13 @@ function createStyles(
       flex: 1,
     },
     composerHeaderRight: {
+      flex: 1,
+      minWidth: 0,
+      alignItems: 'stretch',
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
+    },
+    composerActionsBar: {
+      width: '100%',
     },
     composerRow: {
       flexDirection: 'row',

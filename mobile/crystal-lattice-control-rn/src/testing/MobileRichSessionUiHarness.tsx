@@ -38,6 +38,7 @@ function actionResponse(actionId: string): ExecuteActionResponse {
 function createHarnessBackend(options: {
   onModelChange: (value: string) => void;
   onAction: (value: string) => void;
+  activeRequestId: string | null;
 }): AgentBackend {
   let overrides: Record<string, unknown> = {};
   let summary: SessionSummary = {
@@ -68,7 +69,7 @@ function createHarnessBackend(options: {
     listMessages: async () => ({
       messages: [],
       cursorEventId: '0',
-      activeRequestId: null,
+      activeRequestId: options.activeRequestId,
     }),
     getLatestEventId: async () => '0',
     listEvents: async () => ({
@@ -83,6 +84,7 @@ function createHarnessBackend(options: {
         type: 'dropdown',
         key: 'model',
         label: 'Model',
+        icon: 'cpu',
         options: [
           { value: 'claude-a', label: 'Claude A' },
           { value: 'claude-b', label: 'Claude B' },
@@ -109,7 +111,6 @@ function createHarnessBackend(options: {
           },
           placements: ['composer'],
           default_pinned: true,
-          icon: 'cpu',
         },
       },
       {
@@ -118,6 +119,7 @@ function createHarnessBackend(options: {
         type: 'select',
         key: 'reasoning_effort',
         label: 'Reasoning effort',
+        icon: 'sliders',
         options: [
           { value: 'medium', label: 'Medium' },
           { value: 'high', label: 'High' },
@@ -126,6 +128,7 @@ function createHarnessBackend(options: {
           kind: 'dropdown',
           label: 'Reasoning effort',
           show_label: false,
+          show_icon: false,
           options: [
             { value: 'medium', label: 'Medium' },
             { value: 'high', label: 'High' },
@@ -140,11 +143,11 @@ function createHarnessBackend(options: {
         type: 'checkbox',
         key: 'web_search_enabled',
         label: 'Enable web search',
+        icon: 'globe',
         rich_ui: {
           kind: 'toggle',
           label: 'Web search',
           show_label: false,
-          icon: 'globe',
           placements: ['composer'],
           default_pinned: true,
           options: [
@@ -162,6 +165,15 @@ function createHarnessBackend(options: {
             },
           ],
         },
+      },
+      {
+        ui_type: 'composer_attachment',
+        plugin: 'rich_session_ui',
+        key: 'harness-file',
+        attachment_type: 'file',
+        display_placement: 'below',
+        label: 'Attach file',
+        icon: 'paperclip',
       },
     ],
     getSessionApplicationUiSchema: async () => [
@@ -305,7 +317,10 @@ function createHarnessBackend(options: {
   } as unknown as AgentBackend;
 }
 
-export function MobileRichSessionUiHarness(): React.JSX.Element {
+export function MobileRichSessionUiHarness(props: {
+  activeRequestId?: string | null;
+}): React.JSX.Element {
+  const activeRequestId = props.activeRequestId ?? null;
   const [model, setModel] = useState('claude-a');
   const [lastAction, setLastAction] = useState('none');
   const backend = useMemo(
@@ -313,8 +328,9 @@ export function MobileRichSessionUiHarness(): React.JSX.Element {
       createHarnessBackend({
         onModelChange: setModel,
         onAction: setLastAction,
+        activeRequestId,
       }),
-    []
+    [activeRequestId]
   );
   const sessionSummary: SessionSummary = {
     session_id: SESSION_ID,
@@ -356,7 +372,7 @@ export function MobileRichSessionUiHarness(): React.JSX.Element {
                     cachedMessages={[]}
                     lastLoadedAt={1}
                     cachedEventsCursorId="0"
-                    cachedActiveRequestId={null}
+                    cachedActiveRequestId={activeRequestId}
                     onUpdateCache={() => {}}
                     onUpdateSessionSummaries={() => {}}
                     onBack={() => {}}

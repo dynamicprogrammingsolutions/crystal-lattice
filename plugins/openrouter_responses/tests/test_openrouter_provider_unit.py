@@ -107,6 +107,7 @@ def test_model_ui_uses_portable_rich_dropdown() -> None:
 
     model = elements[0]
     assert model["type"] == "dropdown"
+    assert model["icon"] == "cpu"
     assert model["custom_value"]["enabled"] is True
     assert model["rich_ui"]["kind"] == "dropdown"
     assert model["rich_ui"]["show_label"] is False
@@ -114,6 +115,7 @@ def test_model_ui_uses_portable_rich_dropdown() -> None:
         {"label": "GPT Test", "value": "openai/gpt-test"}
     ]
     assert model["rich_ui"]["placements"] == ["composer"]
+    assert "icon" not in model["rich_ui"]
     assert all(element.get("ui_type") != "model_picker" for element in elements)
 
 

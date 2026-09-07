@@ -20,7 +20,9 @@ class OpenRouterResponsesReasoningExtension(ProviderExtensionPlugin):
     version: str = "0.1.0"
     priority: int = 50  # Run before RequestOptionsFeature
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         return ["ext:openrouter_responses_reasoning"]
 
     def required_tags(self) -> List[str]:
@@ -64,17 +66,29 @@ class OpenRouterResponsesReasoningExtension(ProviderExtensionPlugin):
             {"type": "checkbox", "key": "enable_reasoning", "label": "Enable Reasoning"}
         ]
         if tags is not None and "supports_reasoning_effort" in tags:
+            options = [
+                {"value": "low", "label": "low"},
+                {"value": "medium", "label": "medium"},
+                {"value": "high", "label": "high"},
+                {"value": "xhigh", "label": "xhigh"},
+            ]
             ui.append(
                 {
+                    "ui_type": "config",
                     "type": "select",
                     "key": "reasoning_effort",
                     "label": "Reasoning Effort",
-                    "options": [
-                        {"value": "low", "label": "low"},
-                        {"value": "medium", "label": "medium"},
-                        {"value": "high", "label": "high"},
-                        {"value": "xhigh", "label": "xhigh"},
-                    ],
+                    "icon": "sliders",
+                    "options": options,
+                    "rich_ui": {
+                        "kind": "dropdown",
+                        "label": "Reasoning effort",
+                        "show_label": False,
+                        "show_icon": False,
+                        "options": options,
+                        "placements": ["composer"],
+                        "default_pinned": True,
+                    },
                 }
             )
         return ui
@@ -117,7 +131,9 @@ class OpenRouterResponsesReasoningExtension(ProviderExtensionPlugin):
     ) -> List[Dict[str, Any]]:
         return messages
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         reasoning_config = state.get("openrouter_responses_reasoning")
         if not isinstance(reasoning_config, dict):
             return state

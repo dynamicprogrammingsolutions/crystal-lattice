@@ -36,6 +36,7 @@ function createHarnessBackend(options: {
   onModelChange: (value: string) => void;
   onAction: (value: string) => void;
   onSummaryChange: (summary: SessionSummary) => void;
+  activeRequestId: string | null;
 }): AgentBackend {
   let overrides: Record<string, unknown> = {};
   let summary: SessionSummary = {
@@ -63,7 +64,7 @@ function createHarnessBackend(options: {
     listMessages: async () => ({
       messages: [],
       cursorEventId: '0',
-      activeRequestId: null,
+      activeRequestId: options.activeRequestId,
     }),
     getLatestEventId: async () => '0',
     listEvents: async () => ({
@@ -78,6 +79,7 @@ function createHarnessBackend(options: {
         type: 'dropdown',
         key: 'model',
         label: 'Model',
+        icon: 'cpu',
         options: [
           { value: 'claude-a', label: 'Claude A' },
           { value: 'claude-b', label: 'Claude B' },
@@ -104,7 +106,6 @@ function createHarnessBackend(options: {
           },
           placements: ['composer'],
           default_pinned: true,
-          icon: 'cpu',
         },
       },
       {
@@ -113,6 +114,7 @@ function createHarnessBackend(options: {
         type: 'select',
         key: 'reasoning_effort',
         label: 'Reasoning effort',
+        icon: 'sliders',
         options: [
           { value: 'medium', label: 'Medium' },
           { value: 'high', label: 'High' },
@@ -121,6 +123,7 @@ function createHarnessBackend(options: {
           kind: 'dropdown',
           label: 'Reasoning effort',
           show_label: false,
+          show_icon: false,
           options: [
             { value: 'medium', label: 'Medium' },
             { value: 'high', label: 'High' },
@@ -135,11 +138,11 @@ function createHarnessBackend(options: {
         type: 'checkbox',
         key: 'web_search_enabled',
         label: 'Enable web search',
+        icon: 'globe',
         rich_ui: {
           kind: 'toggle',
           label: 'Web search',
           show_label: false,
-          icon: 'globe',
           placements: ['composer'],
           default_pinned: true,
           options: [
@@ -157,6 +160,15 @@ function createHarnessBackend(options: {
             },
           ],
         },
+      },
+      {
+        ui_type: 'composer_attachment',
+        plugin: 'rich_session_ui',
+        key: 'harness-file',
+        attachment_type: 'file',
+        display_placement: 'below',
+        label: 'Attach file',
+        icon: 'paperclip',
       },
     ],
     getSessionApplicationUiSchema: async () => [
@@ -292,8 +304,13 @@ function createHarnessBackend(options: {
   } as unknown as AgentBackend;
 }
 
-export function DesktopRichSessionUiHarness(): React.JSX.Element {
+export function DesktopRichSessionUiHarness(props: {
+  activeRequestId?: string | null;
+  composeText?: string;
+}): React.JSX.Element {
   const theme = useDesktopTheme();
+  const activeRequestId = props.activeRequestId ?? null;
+  const composeText = props.composeText ?? '';
   const [model, setModel] = useState('claude-a');
   const [lastAction, setLastAction] = useState('none');
   const [summary, setSummary] = useState<SessionSummary>({
@@ -308,8 +325,9 @@ export function DesktopRichSessionUiHarness(): React.JSX.Element {
         onModelChange: setModel,
         onAction: setLastAction,
         onSummaryChange: setSummary,
+        activeRequestId,
       }),
-    [],
+    [activeRequestId],
   );
 
   return (
@@ -357,11 +375,11 @@ export function DesktopRichSessionUiHarness(): React.JSX.Element {
               sessionId: SESSION_ID,
               messages: [],
               cursorEventId: '0',
-              activeRequestId: null,
+              activeRequestId,
               lastLoadedAt: 1,
               rangeStartText: '-50',
               rangeEndText: '',
-              composeText: '',
+              composeText,
               scrollAnchor: null,
             }}
             onUpdateCache={() => {}}

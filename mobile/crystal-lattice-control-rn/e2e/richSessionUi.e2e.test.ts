@@ -1,5 +1,9 @@
 /// <reference types="detox" />
 
+import * as detox from 'detox';
+
+const detoxExpect = detox.expect;
+
 async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
   if (device.getPlatform() !== 'android') {
     return;
@@ -74,6 +78,16 @@ async function collapseExpandedComposer(): Promise<void> {
 }
 
 describe('portable rich session UI', () => {
+  it('places Resend and Cancel in Session actions', async () => {
+    await launchHarness();
+
+    await element(by.id('session-actions-menu')).tap();
+    await waitFor(element(by.id('actions-menu-action-resend')))
+      .toBeVisible()
+      .withTimeout(10000);
+    await detoxExpect(element(by.id('actions-menu-action-cancel'))).toExist();
+  });
+
   it('selects, enters, and resets models and executes placed session actions', async () => {
     await launchHarness();
 
@@ -175,5 +189,15 @@ describe('portable rich session UI', () => {
     await waitFor(element(by.id('rich-session-ui-last-action')))
       .toHaveText('set_status:done')
       .withTimeout(10000);
+
+    await element(by.label('Open Composer actions')).tap();
+    await waitFor(element(by.id('actions-menu-action-resend')))
+      .toBeVisible()
+      .withTimeout(10000);
+    await detoxExpect(element(by.id('actions-menu-action-append'))).toExist();
+    await detoxExpect(element(by.id('actions-menu-action-appendAs'))).toExist();
+    await detoxExpect(
+      element(by.id('actions-menu-action-cancel'))
+    ).not.toExist();
   });
 });

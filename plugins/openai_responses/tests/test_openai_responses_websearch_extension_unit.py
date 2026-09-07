@@ -31,7 +31,9 @@ def test_ui_exposes_rich_web_search_toggle() -> None:
     )[0]
 
     assert element["key"] == "enable_web_search"
+    assert element["icon"] == "globe"
     assert element["rich_ui"]["kind"] == "toggle"
+    assert "icon" not in element["rich_ui"]
     assert element["rich_ui"]["options"][0]["tone"] == "primary"
     assert element["rich_ui"]["options"][1]["tone"] == "success"
 

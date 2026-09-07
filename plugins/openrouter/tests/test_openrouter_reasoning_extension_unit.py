@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from agent_core import AgentCore, Session, Message
 from openrouter_plugins.openrouter_provider import OpenRouterProvider
-from openrouter_plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
+from openrouter_plugins.openrouter_reasoning_extension import (
+    OpenRouterReasoningExtension,
+)
 from plugins.request_options_feature import RequestOptionsFeature
-
 
 
 def test_extension_name_and_version():
@@ -36,6 +37,31 @@ def test_required_tags():
     assert "openrouter" in required
     assert "supports_reasoning" in required
     assert "feature:request_options" in required
+
+
+def test_reasoning_effort_ui_is_text_only_rich_dropdown() -> None:
+    ext = OpenRouterReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "openai/gpt-5"},
+        tags=["supports_reasoning", "supports_reasoning_effort"],
+    )
+    effort = next(item for item in elements if item.get("key") == "reasoning_effort")
+
+    assert effort["icon"] == "sliders"
+    assert effort["rich_ui"] == {
+        "kind": "dropdown",
+        "label": "Reasoning effort",
+        "show_label": False,
+        "show_icon": False,
+        "options": effort["options"],
+        "placements": ["composer"],
+        "default_pinned": True,
+    }
+    assert all(option["label"] == option["value"] for option in effort["options"])
+    assert all(
+        "icon" not in option and "tone" not in option for option in effort["options"]
+    )
 
 
 def test_init_when_disabled():
@@ -80,10 +106,7 @@ def test_initialize_request_adds_reasoning_parameters():
     """Initialize request adds reasoning parameters to request_options."""
     ext = OpenRouterReasoningExtension()
 
-    config = {
-        "enable_reasoning": True,
-        "reasoning_effort": "high"
-    }
+    config = {"enable_reasoning": True, "reasoning_effort": "high"}
     state = {"config": config}
 
     state = ext.init(config, state)
@@ -99,9 +122,7 @@ def test_initialize_request_adds_reasoning_parameters():
 def test_initialize_request_without_effort():
     """Initialize request works without reasoning_effort."""
     ext = OpenRouterReasoningExtension()
-    config = {
-        "enable_reasoning": True
-    }
+    config = {"enable_reasoning": True}
     state = {"config": config}
 
     state = ext.init(config, state)
@@ -152,11 +173,12 @@ def test_to_native_messages_is_identity():
     assert "reasoning" not in enhanced[0]
 
 
-
 def test_from_native_messages_extracts_reasoning():
     """from_native_messages extracts reasoning into metadata."""
     ext = OpenRouterReasoningExtension()
-    native_messages = [{"role": "assistant", "content": "Answer", "reasoning": "Thought process"}]
+    native_messages = [
+        {"role": "assistant", "content": "Answer", "reasoning": "Thought process"}
+    ]
     messages = [{"role": "assistant", "content": "Answer", "metadata": {}}]
 
     enhanced = ext.from_native_messages(native_messages, messages)
@@ -189,7 +211,11 @@ def test_process_delta_accumulates_reasoning():
     """Process delta accumulates reasoning fragments."""
     ext = OpenRouterReasoningExtension()
     delta = {"delta": {"reasoning": "Step 1: "}}
-    current_partial = {"role": "assistant", "content": "Answer", "reasoning": "Step 1: "}
+    current_partial = {
+        "role": "assistant",
+        "content": "Answer",
+        "reasoning": "Step 1: ",
+    }
     accumulated = {}
 
     partial, new_accumulated = ext.process_delta(
@@ -205,8 +231,20 @@ def test_process_delta_accumulates_reasoning():
 def test_process_delta_accumulates_reasoning_details():
     """Process delta accumulates reasoning fragments."""
     ext = OpenRouterReasoningExtension()
-    delta = {"delta": {"role": "assistant", "content": "Answer", "reasoning": "Step 1: ", "reasoning_details": [{ "data": "ENCRYPTED" }]}}
-    current_partial = {"role": "assistant", "content": "Answer", "reasoning": "Step 1: ", "reasoning_details": [{ "data": "ENCRYPTED" }]}
+    delta = {
+        "delta": {
+            "role": "assistant",
+            "content": "Answer",
+            "reasoning": "Step 1: ",
+            "reasoning_details": [{"data": "ENCRYPTED"}],
+        }
+    }
+    current_partial = {
+        "role": "assistant",
+        "content": "Answer",
+        "reasoning": "Step 1: ",
+        "reasoning_details": [{"data": "ENCRYPTED"}],
+    }
     accumulated = {"role": "assistant", "content": "Answer"}
 
     partial, new_accumulated = ext.process_delta(
@@ -231,18 +269,22 @@ def test_process_delta_full_message():
             "reasoning": "Complete reasoning",
         }
     }
-    partial, accumulated = ext.process_delta(
-        delta, current_partial={}, accumulated={}
-    )
+    partial, accumulated = ext.process_delta(delta, current_partial={}, accumulated={})
 
     assert accumulated["reasoning"] == "Complete reasoning"
+
 
 def test_accumulate_reasoning_details_text_multiple_chunks():
     """Accumulate text field across multiple chunks."""
     ext = OpenRouterReasoningExtension()
 
     current_details = [
-        {"type": "reasoning.text", "text": "Step 1: ", "format": "google-gemini-v1", "index": 0}
+        {
+            "type": "reasoning.text",
+            "text": "Step 1: ",
+            "format": "google-gemini-v1",
+            "index": 0,
+        }
     ]
 
     delta_details = [
@@ -323,7 +365,7 @@ def test_accumulate_reasoning_details_signature_duplicate_chunk_keeps_valid_valu
 def test_accumulate_reasoning_details_data_multiple_chunks():
     """Accumulate encrypted data across multiple chunks (OpenAI/xAI)."""
     ext = OpenRouterReasoningExtension()
- 
+
     current_details = [
         {
             "type": "reasoning.encrypted",
@@ -333,7 +375,7 @@ def test_accumulate_reasoning_details_data_multiple_chunks():
             "index": 0,
         }
     ]
- 
+
     delta_details = [
         {
             "type": "reasoning.encrypted",
@@ -343,12 +385,13 @@ def test_accumulate_reasoning_details_data_multiple_chunks():
             "index": 0,
         }
     ]
- 
+
     result = ext._accumulate_reasoning_details(current_details, delta_details)
- 
+
     assert len(result) == 1
     assert result[0]["data"] == "chunk1_chunk2_"  # Accumulated
     assert result[0]["id"] == "rs_123"  # Preserved
+
 
 def test_accumulate_reasoning_details_summary_multiple_chunks():
     """Accumulate summary field across multiple chunks (OpenAI)."""
@@ -375,7 +418,9 @@ def test_accumulate_reasoning_details_summary_multiple_chunks():
     result = ext._accumulate_reasoning_details(current_details, delta_details)
 
     assert len(result) == 1
-    assert result[0]["summary"] == "First part. Second part."  # Accumulated, not overridden!
+    assert (
+        result[0]["summary"] == "First part. Second part."
+    )  # Accumulated, not overridden!
 
 
 def test_accumulate_reasoning_details_multiple_types():
@@ -446,7 +491,9 @@ def test_accumulate_reasoning_details_match_by_id():
         {"type": "reasoning.encrypted", "data": "d2", "id": "rs_def", "index": 1},
     ]
 
-    delta_details = [{"type": "reasoning.encrypted", "data": "_more", "id": "rs_def", "index": 1}]
+    delta_details = [
+        {"type": "reasoning.encrypted", "data": "_more", "id": "rs_def", "index": 1}
+    ]
 
     result = ext._accumulate_reasoning_details(current_details, delta_details)
 
@@ -529,11 +576,12 @@ def test_accumulate_reasoning_details_content_field_multiple_chunks():
     assert result[0]["content"] == "AB"
 
 
-
 def test_retained_native_reasoning_details_preserved_in_pre_request():
     """Native reasoning_details from prior turn are preserved for next request."""
     core = AgentCore()
-    core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    core.register_provider(
+        OpenRouterProvider, extensions=[OpenRouterReasoningExtension]
+    )
     config = {
         "model": "openai/gpt-5-mini",
         "api_key": "sk-test",
@@ -552,7 +600,11 @@ def test_retained_native_reasoning_details_preserved_in_pre_request():
     ]
     native_messages = [
         {"role": "user", "content": "Hello"},
-        {"role": "assistant", "content": "World", "reasoning_details": reasoning_details},
+        {
+            "role": "assistant",
+            "content": "World",
+            "reasoning_details": reasoning_details,
+        },
     ]
 
     integrity = core._compute_native_integrity(messages)
@@ -621,9 +673,7 @@ def test_reasoning_details_round_trip_non_streaming(monkeypatch):
             }
         else:
             response_obj = {
-                "choices": [
-                    {"message": {"role": "assistant", "content": "Second"}}
-                ]
+                "choices": [{"message": {"role": "assistant", "content": "Second"}}]
             }
         return _DummyResponse(response_obj)
 
@@ -633,7 +683,9 @@ def test_reasoning_details_round_trip_non_streaming(monkeypatch):
     )
 
     core = AgentCore()
-    core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    core.register_provider(
+        OpenRouterProvider, extensions=[OpenRouterReasoningExtension]
+    )
     core.register_feature(RequestOptionsFeature)
     config = {
         "model": "openai/gpt-5-mini",
@@ -661,4 +713,3 @@ def test_reasoning_details_round_trip_non_streaming(monkeypatch):
     details = last_native.get("reasoning_details")
     assert details
     assert details[0].get("content") == "AB"
-

@@ -175,6 +175,7 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
                 "type": "dropdown",
                 "key": "model",
                 "label": "Model",
+                "icon": "cpu",
                 "options": model_options,
                 "placeholder": "Search models or enter a model ID",
                 "custom_value": {
@@ -195,7 +196,6 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
                     },
                     "placements": ["composer"],
                     "default_pinned": True,
-                    "icon": "cpu",
                 },
             },
             {"type": "text", "key": "base_url", "label": "Base URL"},

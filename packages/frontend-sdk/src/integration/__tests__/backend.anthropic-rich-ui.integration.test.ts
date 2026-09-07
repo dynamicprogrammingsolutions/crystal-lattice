@@ -136,6 +136,7 @@ describe("Anthropic rich model UI through the public backend", () => {
       ui_type: "config",
       type: "dropdown",
       key: "model",
+      icon: "cpu",
       custom_value: {
         enabled: true,
       },
@@ -160,6 +161,7 @@ describe("Anthropic rich model UI through the public backend", () => {
     expect(appearance).toMatchObject({
       ui_type: "config",
       type: "select",
+      icon: "sliders",
       rich_ui: {
         kind: "dropdown",
         placements: ["composer", "session_header"],

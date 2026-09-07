@@ -166,6 +166,7 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
     }
     model_ui = sonnet_ui_by_key["model"]
     assert model_ui["type"] == "dropdown"
+    assert model_ui["icon"] == "cpu"
     assert model_ui["custom_value"]["enabled"] is True
     assert model_ui["rich_ui"]["kind"] == "dropdown"
     assert model_ui["rich_ui"]["show_label"] is False
@@ -173,15 +174,18 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
     assert model_ui["rich_ui"]["options"] == model_ui.get("options", [])
     assert model_ui["rich_ui"]["placements"] == ["composer"]
     assert model_ui["rich_ui"]["default_pinned"] is True
+    assert "icon" not in model_ui["rich_ui"]
     assert all(element.get("ui_type") != "model_picker" for element in sonnet_ui)
     assert [
         option["value"]
         for option in sonnet_ui_by_key["anthropic_reasoning_effort"]["options"]
     ] == ["low", "medium", "high", "xhigh", "max"]
+    assert sonnet_ui_by_key["anthropic_reasoning_effort"]["icon"] == "sliders"
     assert sonnet_ui_by_key["anthropic_reasoning_effort"]["rich_ui"] == {
         "kind": "dropdown",
         "label": "Reasoning effort",
         "show_label": False,
+        "show_icon": False,
         "options": sonnet_ui_by_key["anthropic_reasoning_effort"]["options"],
         "placements": ["composer"],
         "default_pinned": True,
