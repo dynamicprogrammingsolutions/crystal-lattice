@@ -10,6 +10,10 @@ contribution patterns and GitHub security findings.
 - [ ] Static analysis and code scanning are enabled where signal justifies cost and maintenance.
 - [ ] Action dependency updates preserve immutable pinning.
 - [ ] Security automation cannot access production deployment authority from untrusted code.
+- [ ] Existing repository-level deployment, CLI publication, and iOS
+  signing/upload secrets are moved to their corresponding protected GitHub
+  environments, or an equivalent least-privilege design is reviewed and
+  documented.
 
 Parent Task: tasks/20260804-open-source-public-release/000-main.md
 Depends On: tasks/20260804-open-source-public-release/080-post-publication-validation-and-early-adopter-intake.md
@@ -24,6 +28,7 @@ Depends On: tasks/20260804-open-source-public-release/080-post-publication-valid
 - Dependency/license SBOM generation
 - Automated action-SHA update tooling
 - Scheduled security and stale-dependency jobs
+- Environment-scoped migration of the initial-release repository secrets
 
 ## Known post-publication findings
 
@@ -41,6 +46,11 @@ Depends On: tasks/20260804-open-source-public-release/080-post-publication-valid
 - The initial public CI workflow has no secrets, write token, signing material,
   OIDC, or deployment environment, limiting the consequence of untrusted PR
   code independently of this tooling finding.
+- The initial publication intentionally permits existing secret values to
+  remain repository-scoped under a trusted-write-collaborator model. This does
+  not protect against a deliberately malicious or compromised collaborator
+  with workflow write access, so environment-scoped migration remains required
+  follow-up rather than being treated as permanently resolved.
 - Follow-up should evaluate removal of obsolete `@types/react-native`
   dependencies, explicit peer/dev version constraints, safe lockfile
   overrides, and coordinated React Native/Metro updates rather than applying an
@@ -70,9 +80,14 @@ remains manageable.
 - [ ] Select the next high-value automation.
 - [ ] Add dependency update configuration.
 - [ ] Add selected scanning/matrices.
+- [ ] Move deployment, CLI publication, and iOS signing/upload secret values
+  into their protected environments and remove the repository-level copies
+  after successful workflow verification.
 - [ ] Verify secret and environment isolation.
 
 ### Requirement verification
 
 - Added automation catches or prevents a documented class of risk.
 - Pull-request volume and Actions cost remain acceptable.
+- Protected deployment and publication jobs continue to work after
+  environment-secret migration, and repository-level copies no longer exist.
