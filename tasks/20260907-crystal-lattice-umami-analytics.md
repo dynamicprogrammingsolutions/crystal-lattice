@@ -219,3 +219,20 @@ creating Umami records, configuring GitHub variables, pushing, and deployment.
   verified opt-out, re-enable, Do Not Track, blocked-tracker safety, and Astro
   client navigation. Existing non-fatal MkDocs navigation/reference warnings
   remain outside this task.
+
+- Read-only production preflight on September 7, 2026 confirmed healthy
+  `dprog-umami-umami-1` (`3.2.0`) and `dprog-umami-db-1`
+  (`postgres:15.13-alpine`) containers, current daily backups, and only the
+  existing Dynamic Programming Solutions website record.
+- The active Compose directory is
+  `/home/irelandsrv/dprog-website/ops/umami`. Its `create-website.sh` helper is
+  intentionally hardcoded to the DPS domain/name and must not be edited or used
+  for Crystal Lattice. Production creation will use one bounded loopback API
+  command that reads server-local administrator values without printing them or
+  leaving a credential/script file.
+- GitHub currently has none of the three Crystal Lattice Umami variable names at
+  repository or `production-sites` environment scope. Existing deployment
+  variables are repository variables, so the new public analytics values will
+  follow that established scope.
+- Local implementation commit: `f5c2fb14` (`Add privacy-safe Umami analytics
+  foundation`). It has not been pushed.
