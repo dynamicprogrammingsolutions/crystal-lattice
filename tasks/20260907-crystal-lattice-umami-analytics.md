@@ -17,7 +17,7 @@ arbitrary custom events.
 - [x] Umami contains separate website records for `crystallattice.dev` and
       `docs.crystallattice.dev`, with distinct public identifiers and
       replay/heatmaps disabled.
-- [ ] Every production page on each domain loads exactly one privacy-restricted
+- [x] Every production page on each domain loads exactly one privacy-restricted
       tracker for its own website record.
 - [x] Missing or invalid analytics configuration builds successfully with no
       tracker markup or collection requests.
@@ -26,17 +26,17 @@ arbitrary custom events.
       click identifiers, and referrer queries, credentials, and fragments.
 - [x] The baseline accepts only page views and Core Web Vitals and rejects
       identification, session properties, custom events, replay, and heatmaps.
-- [ ] The Privacy Policy distinguishes application data from public-site
+- [x] The Privacy Policy distinguishes application data from public-site
       analytics and discloses the controller, purposes, categories, legal
       basis, infrastructure/location, retention, browser preferences, opt-out,
       and data-subject rights.
-- [ ] Visitors can disable or re-enable analytics from the Privacy Policy with
+- [x] Visitors can disable or re-enable analytics from the Privacy Policy with
       an accessible browser-local control.
-- [ ] The documentation site exposes a discoverable link to the shared Privacy
+- [x] The documentation site exposes a discoverable link to the shared Privacy
       Policy on `crystallattice.dev`.
 - [x] Both sites remain functional when analytics is absent, blocked, slow, or
       unavailable.
-- [ ] Production uses environment configuration rather than committed UUIDs,
+- [x] Production uses environment configuration rather than committed UUIDs,
       and live verification confirms record isolation and sanitized storage.
 
 ## Unresolved requirement questions and decisions
@@ -165,8 +165,8 @@ creating Umami records, configuring GitHub variables, pushing, and deployment.
 - [x] Verify disabled and fixture-enabled builds for both sites.
 - [x] Verify sanitization, DNT, opt-out, SPA behavior, and failure safety.
 - [x] Obtain confirmation and create both production Umami records.
-- [ ] Configure production GitHub variables and deploy through GitHub Actions.
-- [ ] Verify live isolation, sanitized storage, health, and rollback readiness.
+- [x] Configure production GitHub variables and deploy through GitHub Actions.
+- [x] Verify live isolation, sanitized storage, health, and rollback readiness.
 
 ### Requirement verification
 
@@ -249,3 +249,80 @@ creating Umami records, configuring GitHub variables, pushing, and deployment.
   variables before push: the fixed self-hosted script URL and the two distinct
   public website UUIDs. No secret was added, and the existing
   `production-sites` deployment boundary remains unchanged.
+
+## Completion Notes
+
+Completed September 7, 2026.
+
+### Outcome
+
+- Deployed privacy-minimized self-hosted Umami analytics to
+  `crystallattice.dev` and `docs.crystallattice.dev` with distinct website
+  records and exact-domain restrictions.
+- Published the approved Privacy Policy, browser opt-out, Do Not Track support,
+  Core Web Vitals boundary, and documentation-site legal links.
+- Kept advertising, remarketing, identification, custom events, session
+  properties, replay, and heatmaps disabled.
+
+### Production records and configuration
+
+- Landing record: `64721559-9dd8-4dc4-a560-f9e23c4b45de` for
+  `crystallattice.dev`.
+- Documentation record: `e6d90e2a-4da6-42f1-8166-9a3584268678` for
+  `docs.crystallattice.dev`.
+- GitHub repository variables contain the approved tracker URL and distinct
+  website UUIDs. Production UUIDs remain outside source code.
+- Deployed source revision: `7bd714c959c237a64522ca9d24db8d813cd7b79f`.
+
+### Requirement evidence
+
+- GitHub Actions run `34164226125` built and deployed both static sites
+  successfully. Public CI run `34164226121` completed all repository, website,
+  Python, and frontend jobs successfully.
+- Live HTML exposes the landing UUID only on `crystallattice.dev` and the docs
+  UUID only on `docs.crystallattice.dev`. The live Privacy Policy shows the
+  September 7, 2026 effective date, and the docs footer exposes one Privacy
+  Policy link.
+- Synthetic production visits submitted forbidden query, click-ID, token,
+  fragment, and referrer-query values. Stored rows contain only `/mobile` and
+  `/packages/`, the correct hostnames, zero prohibited fields, and zero custom
+  event-data rows.
+- Live Do Not Track and browser opt-out checks emitted zero collector requests.
+  The tracker and collector returned expected HTTP statuses, and blocking the
+  tracker did not impair navigation.
+- Umami and PostgreSQL remain healthy with zero restarts. Backup, retention,
+  and monitor timers are active. All four existing DPS public domains and the
+  shared tracker endpoint return HTTP 200; an invalid collector payload returns
+  HTTP 400.
+
+### Verification performed
+
+- 4 focused Node sanitizer tests passed.
+- 17 focused MkDocs tests passed.
+- Analytics-disabled, invalid-configuration, and fixture-enabled builds passed.
+- Fixture builds rendered exactly one tracker on all 5 landing HTML pages and
+  all 261 documentation HTML pages.
+- The landing-to-docs smoke flow passed.
+- Playwright verified opt-out, re-enable, Do Not Track, blocked-tracker safety,
+  and Astro client navigation.
+- Both production workflows and all live boundary checks passed.
+
+### Deviations and findings
+
+- The existing server `create-website.sh` is intentionally hardcoded to the DPS
+  website, so the approved rollout used a bounded loopback API command instead
+  of modifying that helper. No credential or command file was retained.
+- Initial headless Playwright visits returned collector HTTP 200 but were not
+  stored because Umami filtered the automated browser as a bot. Repeating the
+  same sanitized checks with an ordinary Chrome user agent produced one
+  isolated stored event per website, confirming both bot exclusion and normal
+  ingestion.
+- Existing non-fatal MkDocs navigation/reference warnings and GitHub Actions
+  Node runtime deprecation annotations are unrelated follow-up concerns.
+
+### Unresolved or deferred scope
+
+- None for the approved basic analytics rollout.
+- Replay, heatmaps, remarketing, advertising pixels, identification, and
+  selective consent remain separate future work requiring a new privacy and
+  consent assessment.
