@@ -116,9 +116,15 @@ If the endpoint has an authoritative catalog:
 
 Provider UI represents a discovered model catalog as one ordinary
 `ui_type: "config"` element with `type: "dropdown"`. The dropdown remains
-usable when discovery is unavailable by declaring nested `custom_value`
-settings and may make the same setting available around the composer through
-self-contained `rich_ui.kind: "dropdown"` metadata. The containing element
+usable when discovery is unavailable. The shared dropdown contract enables
+unrestricted custom values when `custom_value` is absent from an ordinary
+`type: "dropdown"` config element. Provider
+implementations declare `custom_value` only to disable custom entry, constrain
+it with a known model-ID pattern, or customize its synthetic-option label. The
+provider may make the same setting available around the composer through
+self-contained `rich_ui.kind: "dropdown"` metadata. A rich dropdown explicitly
+repeats `custom_value` when that compact presentation should accept custom
+values. The containing element
 declares the ordinary/fallback label and icon so non-rich frontends and normal
 action menus do not depend on rich presentation fields. Model selection always
 writes the ordinary `model` session override; it does not use a

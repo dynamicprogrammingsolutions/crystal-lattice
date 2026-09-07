@@ -58,6 +58,11 @@ export interface ConfigDropdownSuggestionEngine {
   suggestions(query: string): ConfigDropdownSuggestion[];
 }
 
+const DEFAULT_DROPDOWN_CUSTOM_VALUE: ConfigCustomValue = {
+  enabled: true,
+  option_label: "Use '{value}'",
+};
+
 export interface ConfigRichUiBase {
   kind: string;
   label: string;
@@ -473,7 +478,15 @@ export function normalizeConfigDropdownPresentation(
     elementKey ?? "",
     "dropdown.custom_value",
   );
-  if (options.value.length === 0 && customValue.value?.enabled !== true) {
+  const customValueDefault =
+    raw.custom_value === undefined && raw.type === "dropdown"
+      ? DEFAULT_DROPDOWN_CUSTOM_VALUE
+      : undefined;
+  const normalizedCustomValue =
+    customValue.value ??
+    customValueDefault ??
+    (raw.custom_value === undefined ? undefined : { enabled: false });
+  if (options.value.length === 0 && normalizedCustomValue?.enabled !== true) {
     return {
       value: null,
       diagnostics: [
@@ -493,7 +506,9 @@ export function normalizeConfigDropdownPresentation(
       ...(typeof raw.placeholder === "string"
         ? { placeholder: raw.placeholder }
         : {}),
-      ...(customValue.value ? { custom_value: customValue.value } : {}),
+      ...(normalizedCustomValue
+        ? { custom_value: normalizedCustomValue }
+        : {}),
     },
     diagnostics: customValue.diagnostics,
   };

@@ -1190,3 +1190,12 @@ through the existing handlers. The focused iOS rich-session Detox scenario
 passes permanent action-placement coverage. A temporary Detox screenshot and
 frame-center check verified the Web-search toggle/ellipsis alignment and were
 removed after verification.
+
+September 7, 2026 correction: ordinary `type: "dropdown"` config elements now
+enable unrestricted custom values by default when outer `custom_value` is
+absent. An explicit outer declaration is needed only to disable custom entry,
+constrain it with a full-match pattern, or customize the synthetic-option
+label. Rich dropdown metadata remains self-contained and repeats
+`custom_value` when its compact control should also accept custom values. This
+keeps ordinary provider dropdowns custom-capable without turning fixed-choice
+rich controls such as reasoning effort into free-form fields.

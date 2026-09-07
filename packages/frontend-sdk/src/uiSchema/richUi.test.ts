@@ -262,6 +262,72 @@ describe("config rich UI", () => {
 });
 
 describe("config dropdown suggestions", () => {
+  it("allows unrestricted custom values by default", () => {
+    const normalized = normalizeConfigDropdownPresentation({
+      ui_type: "config",
+      type: "dropdown",
+      key: "model",
+      label: "Model",
+      options: [{ value: "declared-model", label: "Declared model" }],
+    });
+    const engine = createConfigDropdownSuggestionEngine(normalized.value!);
+
+    expect(normalized.diagnostics).toEqual([]);
+    expect(normalized.value?.custom_value).toEqual({
+      enabled: true,
+      option_label: "Use '{value}'",
+    });
+    expect(engine.suggestions("vendor/custom model")).toEqual([
+      {
+        kind: "custom",
+        value: "vendor/custom model",
+        label: "Use 'vendor/custom model'",
+      },
+    ]);
+  });
+
+  it("allows dropdown authors to disable custom values explicitly", () => {
+    const normalized = normalizeConfigDropdownPresentation({
+      ui_type: "config",
+      type: "dropdown",
+      key: "model",
+      label: "Model",
+      options: [{ value: "declared-model", label: "Declared model" }],
+      custom_value: { enabled: false },
+    });
+    const engine = createConfigDropdownSuggestionEngine(normalized.value!);
+
+    expect(engine.suggestions("vendor/custom-model")).toEqual([]);
+  });
+
+  it("keeps fixed-choice rich dropdowns closed to custom values", () => {
+    const normalized = normalizeConfigRichUiElement({
+      ui_type: "config",
+      type: "select",
+      key: "reasoning_effort",
+      label: "Reasoning effort",
+      icon: "activity",
+      options: [{ value: "high", label: "High" }],
+      rich_ui: {
+        kind: "dropdown",
+        label: "Reasoning effort",
+        options: [{ value: "high", label: "High" }],
+        placements: ["composer"],
+      },
+    });
+    const richUi = normalized.value?.rich_ui;
+
+    expect(normalized.diagnostics).toEqual([]);
+    expect(richUi?.kind).toBe("dropdown");
+    if (richUi?.kind !== "dropdown") {
+      throw new Error("Expected a rich dropdown");
+    }
+    expect(richUi.custom_value).toBeUndefined();
+    expect(createConfigDropdownSuggestionEngine(richUi).suggestions("max")).toEqual(
+      [],
+    );
+  });
+
   it("filters declared options and appends a valid custom option", () => {
     const normalized = normalizeConfigDropdownPresentation(modelElement());
     const engine = createConfigDropdownSuggestionEngine(normalized.value!);

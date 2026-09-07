@@ -472,11 +472,6 @@ class MyOpenAICompatibleProvider(ProviderPlugin):
                 "icon": "cpu",
                 "options": options,
                 "placeholder": "Search models or enter a model ID",
-                "custom_value": {
-                    "enabled": True,
-                    "pattern": r"^[^\s]+$",
-                    "option_label": "Use '{value}' as a custom model ID",
-                },
                 "rich_ui": {
                     "kind": "dropdown",
                     "label": "Model",
@@ -485,7 +480,6 @@ class MyOpenAICompatibleProvider(ProviderPlugin):
                     "placeholder": "Search models or enter a model ID",
                     "custom_value": {
                         "enabled": True,
-                        "pattern": r"^[^\s]+$",
                         "option_label": "Use '{value}' as a custom model ID",
                     },
                     "placements": ["composer"],
@@ -503,6 +497,12 @@ Notes:
 - Use `dropdown`, rather than `select`, for a discovered model catalog.
   Keep the custom-capable dropdown when discovery is empty so explicit model
   IDs use the same searchable field.
+- Ordinary `type: "dropdown"` config elements accept any non-empty custom
+  value by default. Declare
+  `custom_value` only to disable custom entry, add a known model-ID restriction,
+  or customize the synthetic-option label.
+- Rich dropdown metadata is self-contained, so repeat `custom_value` inside
+  `rich_ui` when the compact control should also accept custom values.
 - A composer model selector is the same ordinary config element with
   self-contained `rich_ui`; do not define a provider-specific UI type or a
   second mutation path.

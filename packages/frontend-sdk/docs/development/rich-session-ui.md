@@ -30,10 +30,15 @@ path:
 - `deleteOverride(key)` resets to configured/default state;
 - ordinary type coercion still follows the containing config element.
 
-The rich dropdown repeats its own compact label, options, placeholder, nested
-`custom_value`, placement, and pin preference. One query field filters
-declared options and produces a synthetic custom row after full regex
-validation. The normalized suggestion engine is
+The rich dropdown repeats its own compact label, options, placeholder,
+placement, and pin preference. One query field filters declared options and
+can produce a synthetic custom row. Ordinary `type: "dropdown"` config
+elements allow unrestricted custom entry when `custom_value` is absent. Rich
+dropdown metadata remains self-contained and explicitly repeats
+`custom_value` when its compact control should accept custom entry; omission
+keeps fixed-choice rich controls closed. An explicit declaration can disable
+custom entry, constrain it with a full-match regex, or customize the row
+label. The normalized suggestion engine is
 `createConfigDropdownSuggestionEngine()`.
 
 Options may declare theme-aware semantic tones and icons. The selected option
