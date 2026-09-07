@@ -244,3 +244,8 @@ creating Umami records, configuring GitHub variables, pushing, and deployment.
   `Crystal Lattice Docs` (`e6d90e2a-4da6-42f1-8166-9a3584268678`,
   `docs.crystallattice.dev`). API inspection found no enabled recorder, replay,
   or heatmap state; a database check confirmed both active records.
+
+- Configured and directly verified the three approved GitHub repository
+  variables before push: the fixed self-hosted script URL and the two distinct
+  public website UUIDs. No secret was added, and the existing
+  `production-sites` deployment boundary remains unchanged.
