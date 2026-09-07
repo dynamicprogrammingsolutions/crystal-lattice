@@ -61,10 +61,10 @@ export interface ConfigDropdownSuggestionEngine {
 export interface ConfigRichUiBase {
   kind: string;
   label: string;
-  icon?: string;
   placements: readonly string[];
   default_pinned?: boolean;
   show_label?: boolean;
+  show_icon?: boolean;
 }
 
 export interface ConfigRichDropdownUi extends ConfigRichUiBase {
@@ -631,6 +631,16 @@ export function normalizeConfigRichUiElement(
   if (typeof raw.key !== "string" || !raw.key) {
     return fail("A rich config element requires a non-empty key.");
   }
+  if (typeof raw.label !== "string" || !raw.label.trim()) {
+    return fail(
+      "A rich config element requires a non-empty outer label for ordinary UI.",
+    );
+  }
+  if (typeof raw.icon !== "string" || !raw.icon.trim()) {
+    return fail(
+      "A rich config element requires a non-empty outer icon for ordinary UI.",
+    );
+  }
   if (
     !isRecord(raw.rich_ui) ||
     typeof raw.rich_ui.kind !== "string" ||
@@ -654,8 +664,10 @@ export function normalizeConfigRichUiElement(
   if (typeof rich.label !== "string" || !rich.label) {
     return fail("rich_ui.label must be a non-empty string.");
   }
-  if (rich.icon !== undefined && typeof rich.icon !== "string") {
-    return fail("rich_ui.icon must be a string.");
+  if (rich.icon !== undefined) {
+    return fail(
+      "rich_ui.icon is not supported; define the ordinary fallback icon on the containing config element.",
+    );
   }
   if (
     rich.default_pinned !== undefined &&
@@ -665,6 +677,9 @@ export function normalizeConfigRichUiElement(
   }
   if (rich.show_label !== undefined && typeof rich.show_label !== "boolean") {
     return fail("rich_ui.show_label must be a boolean.");
+  }
+  if (rich.show_icon !== undefined && typeof rich.show_icon !== "boolean") {
+    return fail("rich_ui.show_icon must be a boolean.");
   }
   if (rich.description !== undefined && typeof rich.description !== "string") {
     return fail("rich_ui.description must be a string.");
@@ -677,12 +692,14 @@ export function normalizeConfigRichUiElement(
   const common = {
     label: rich.label,
     placements: placements.value,
-    ...(typeof rich.icon === "string" ? { icon: rich.icon } : {}),
     ...(typeof rich.default_pinned === "boolean"
       ? { default_pinned: rich.default_pinned }
       : {}),
     ...(typeof rich.show_label === "boolean"
       ? { show_label: rich.show_label }
+      : {}),
+    ...(typeof rich.show_icon === "boolean"
+      ? { show_icon: rich.show_icon }
       : {}),
     ...(typeof rich.description === "string"
       ? { description: rich.description }

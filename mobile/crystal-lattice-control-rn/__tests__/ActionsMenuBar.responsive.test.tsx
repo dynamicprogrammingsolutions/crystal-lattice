@@ -118,6 +118,13 @@ test("enables an explicitly positioned second pinned row", () => {
 
 test("renders neutral menu state text and invokes a toggle in one click", () => {
   const onAction = jest.fn();
+  const renderIcon = jest.fn(
+    ({ name, color }: { name: string; color: string }) => (
+      <Text testID="ordinary-action-icon">
+        {name}:{color}
+      </Text>
+    )
+  );
   const rendered = render(
     <ThemeProvider theme={lightTheme}>
       <ActionsMenuBar
@@ -125,7 +132,8 @@ test("renders neutral menu state text and invokes a toggle in one click", () => 
         baseActions={[
           {
             key: "config:web_search_enabled",
-            label: "Web search",
+            label: "Enable web search",
+            iconName: "globe",
             menuStateLabel: "On",
           },
         ]}
@@ -133,6 +141,7 @@ test("renders neutral menu state text and invokes a toggle in one click", () => 
         onChangePinned={() => {}}
         onAction={onAction}
         menuButtonTestID="composer-actions-menu"
+        renderIcon={renderIcon}
       />
     </ThemeProvider>
   );
@@ -146,11 +155,74 @@ test("renders neutral menu state text and invokes a toggle in one click", () => 
   const action = rendered.getByTestId(
     "actions-menu-action-config:web_search_enabled"
   );
-  expect(action.props.accessibilityLabel).toBe("Web search: On");
+  expect(action.props.accessibilityLabel).toBe("Enable web search: On");
+  expect(renderIcon).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: "globe",
+      color: lightTheme.primary,
+    })
+  );
   fireEvent.press(action);
 
   expect(onAction).toHaveBeenCalledWith("config:web_search_enabled");
   expect(
     rendered.queryByTestId("actions-menu-state-config:web_search_enabled")
   ).toBeNull();
+});
+
+test("lets a long state use the width left by a short title and truncates adaptively", () => {
+  const longValue =
+    "anthropic/claude-sonnet-a-very-long-custom-model-identifier";
+  const rendered = render(
+    <ThemeProvider theme={lightTheme}>
+      <ActionsMenuBar
+        title="Composer actions"
+        baseActions={[
+          {
+            key: "config:model",
+            label: "Model",
+            iconName: "cpu",
+            menuStateLabel: longValue,
+          },
+          {
+            key: "config:long",
+            label: "A deliberately long ordinary configuration title",
+            iconName: "sliders",
+            menuStateLabel: "A deliberately long selected value",
+          },
+        ]}
+        pinned={[]}
+        onChangePinned={() => {}}
+        onAction={() => {}}
+        menuButtonTestID="long-actions-menu"
+        renderIcon={({ name }) => <Text>{name}</Text>}
+      />
+    </ThemeProvider>
+  );
+
+  fireEvent.press(rendered.getByTestId("long-actions-menu"));
+
+  const modelTitle = rendered.getByText("Model");
+  const modelState = rendered.getByTestId("actions-menu-state-config:model");
+  expect(modelTitle.props.numberOfLines).toBe(1);
+  expect(modelTitle.props.ellipsizeMode).toBe("tail");
+  expect(modelState.props.numberOfLines).toBe(1);
+  expect(modelState.props.ellipsizeMode).toBe("tail");
+  expect(StyleSheet.flatten(modelState.props.style)).toMatchObject({
+    flexShrink: 1,
+    minWidth: 0,
+    textAlign: "right",
+  });
+  expect(
+    rendered.getByTestId("actions-menu-action-config:model").props
+      .accessibilityLabel
+  ).toBe(`Model: ${longValue}`);
+
+  const longTitle = rendered.getByText(
+    "A deliberately long ordinary configuration title"
+  );
+  expect(StyleSheet.flatten(longTitle.props.style)).toMatchObject({
+    flexShrink: 1,
+    minWidth: 0,
+  });
 });

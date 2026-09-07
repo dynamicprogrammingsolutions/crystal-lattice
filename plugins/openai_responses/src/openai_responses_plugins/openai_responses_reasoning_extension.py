@@ -203,11 +203,13 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                 "type": "select",
                 "key": "reasoning_effort",
                 "label": "Reasoning Effort",
+                "icon": "sliders",
                 "options": effort_options,
                 "rich_ui": {
                     "kind": "dropdown",
                     "label": "Reasoning effort",
                     "show_label": False,
+                    "show_icon": False,
                     "options": effort_options,
                     "placements": ["composer"],
                     "default_pinned": True,

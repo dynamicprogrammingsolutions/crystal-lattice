@@ -18,6 +18,7 @@ function modelElement(overrides: Record<string, unknown> = {}) {
     type: "dropdown",
     key: "model",
     label: "Full model label",
+    icon: "cpu",
     options: [{ value: "claude-a", label: "Claude A" }],
     placeholder: "Search models or enter a model ID",
     custom_value: {
@@ -38,7 +39,6 @@ function modelElement(overrides: Record<string, unknown> = {}) {
       },
       placements: ["composer"],
       default_pinned: true,
-      icon: "cpu",
     },
     ...overrides,
   };
@@ -62,8 +62,21 @@ describe("config rich UI", () => {
       },
       placements: ["composer"],
       default_pinned: true,
-      icon: "cpu",
     });
+  });
+
+  it("requires ordinary fallback presentation outside rich UI", () => {
+    const missingOuterIcon = normalizeConfigRichUiElement(
+      modelElement({ icon: undefined }),
+    );
+    const nestedIcon = modelElement();
+    (nestedIcon.rich_ui as Record<string, unknown>).icon = "cpu";
+
+    expect(missingOuterIcon.value).toBeNull();
+    expect(missingOuterIcon.diagnostics[0].message).toContain("outer icon");
+    expect(
+      normalizeConfigRichUiElement(nestedIcon).diagnostics[0].message,
+    ).toContain("containing config element");
   });
 
   it("allows an empty custom-enabled dropdown without a text fallback", () => {
@@ -117,10 +130,12 @@ describe("config rich UI", () => {
       type: "checkbox",
       key: "enable_web_search",
       label: "Enable web search",
+      icon: "globe",
       rich_ui: {
         kind: "toggle",
         label: "Web search",
         show_label: false,
+        show_icon: false,
         placements: ["composer"],
         options: [
           {
@@ -143,6 +158,7 @@ describe("config rich UI", () => {
     expect(result.value?.rich_ui).toMatchObject({
       kind: "toggle",
       show_label: false,
+      show_icon: false,
     });
     expect(
       resolveConfigRichToggleOption(result.value!.rich_ui as any, true),
@@ -233,6 +249,8 @@ describe("config rich UI", () => {
       ui_type: "config",
       type: "text",
       key: "future",
+      label: "Future setting",
+      icon: "sliders",
       rich_ui: { kind: "future_control", label: "Future" },
     });
 

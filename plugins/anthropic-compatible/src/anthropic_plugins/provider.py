@@ -191,6 +191,7 @@ class AnthropicProvider(ProviderPlugin):
             "type": "dropdown",
             "key": "model",
             "label": "Model",
+            "icon": "cpu",
             "options": options,
             "placeholder": "Search models or enter a model ID",
             "custom_value": {
@@ -211,7 +212,6 @@ class AnthropicProvider(ProviderPlugin):
                 },
                 "placements": ["composer"],
                 "default_pinned": True,
-                "icon": "cpu",
             },
         }
         return [

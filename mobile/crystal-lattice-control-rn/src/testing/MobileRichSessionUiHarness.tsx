@@ -83,6 +83,7 @@ function createHarnessBackend(options: {
         type: 'dropdown',
         key: 'model',
         label: 'Model',
+        icon: 'cpu',
         options: [
           { value: 'claude-a', label: 'Claude A' },
           { value: 'claude-b', label: 'Claude B' },
@@ -109,7 +110,6 @@ function createHarnessBackend(options: {
           },
           placements: ['composer'],
           default_pinned: true,
-          icon: 'cpu',
         },
       },
       {
@@ -118,6 +118,7 @@ function createHarnessBackend(options: {
         type: 'select',
         key: 'reasoning_effort',
         label: 'Reasoning effort',
+        icon: 'sliders',
         options: [
           { value: 'medium', label: 'Medium' },
           { value: 'high', label: 'High' },
@@ -126,6 +127,7 @@ function createHarnessBackend(options: {
           kind: 'dropdown',
           label: 'Reasoning effort',
           show_label: false,
+          show_icon: false,
           options: [
             { value: 'medium', label: 'Medium' },
             { value: 'high', label: 'High' },
@@ -140,11 +142,11 @@ function createHarnessBackend(options: {
         type: 'checkbox',
         key: 'web_search_enabled',
         label: 'Enable web search',
+        icon: 'globe',
         rich_ui: {
           kind: 'toggle',
           label: 'Web search',
           show_label: false,
-          icon: 'globe',
           placements: ['composer'],
           default_pinned: true,
           options: [

@@ -78,11 +78,13 @@ class OpenRouterResponsesReasoningExtension(ProviderExtensionPlugin):
                     "type": "select",
                     "key": "reasoning_effort",
                     "label": "Reasoning Effort",
+                    "icon": "sliders",
                     "options": options,
                     "rich_ui": {
                         "kind": "dropdown",
                         "label": "Reasoning effort",
                         "show_label": False,
+                        "show_icon": False,
                         "options": options,
                         "placements": ["composer"],
                         "default_pinned": True,

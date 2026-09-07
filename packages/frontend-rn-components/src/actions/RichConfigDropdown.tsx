@@ -76,7 +76,10 @@ export function RichConfigDropdownControl(
   const color = props.disabled
     ? theme.textMuted
     : resolveSemanticToneColor(theme, selectedOption?.tone);
-  const icon = selectedOption?.icon ?? richUi.icon;
+  const icon =
+    richUi.show_icon === false
+      ? undefined
+      : (selectedOption?.icon ?? props.control.element.icon);
   const testID =
     props.testID ??
     `rich-config-${props.control.element.key}-${props.placement}`;
@@ -153,7 +156,10 @@ export function RichConfigToggleControl(
         theme,
         option.tone ?? (option.value ? "success" : "primary"),
       );
-  const icon = option.icon ?? richUi.icon;
+  const icon =
+    richUi.show_icon === false
+      ? undefined
+      : (option.icon ?? props.control.element.icon);
   const testID =
     props.testID ??
     `rich-config-${props.control.element.key}-${props.placement}`;

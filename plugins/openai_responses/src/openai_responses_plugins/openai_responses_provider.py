@@ -285,7 +285,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "ui_type": "config",
                 "type": "dropdown",
                 "key": "model",
-                "label": "OpenAI Model",
+                "label": "Model",
+                "icon": "cpu",
                 "options": model_options,
                 "placeholder": "Search models or enter a model ID",
                 "custom_value": {
@@ -306,7 +307,6 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     },
                     "placements": ["composer"],
                     "default_pinned": True,
-                    "icon": "cpu",
                 },
             },
             {

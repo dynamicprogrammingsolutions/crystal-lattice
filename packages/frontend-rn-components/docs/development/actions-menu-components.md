@@ -20,6 +20,12 @@ rows in the complete menu.
 Long titles wrap to at most two lines and truncate at the tail, while the close
 control remains inside the panel.
 
+Complete action-menu rows keep their icon and pin controls at fixed widths.
+The ordinary title and neutral state value share the remaining width and
+truncate independently at the tail. Sizing is adaptive rather than a fixed
+percentage: a short title leaves the remaining width to a long value. The
+action accessibility label retains both complete strings.
+
 Maintainer entry point:
 
 - `src/actions/ActionsMenuBar.tsx`
@@ -32,12 +38,14 @@ connection-scoped pin state.
 ## Rich configuration and session actions
 
 `RichConfigDropdownControl` renders the compact current-value trigger shared
-by mobile and desktop. It supports visual label suppression, host-provided
-character truncation, and selected-option icon/tone. `RichConfigDropdownPanel`
-uses one field for filtering and validated custom entry. `RichConfigToggleControl`
-renders Boolean settings with false/true option appearance. Hosts choose the
-surrounding modal or native popover and use the normal session-settings
-controller for mutations.
+by mobile and desktop. It supports visual label/icon suppression,
+host-provided character truncation, and selected-option icon/tone. The outer
+config element supplies the ordinary action-menu icon and the compact fallback
+icon. A selected option icon overrides it only for compact presentation.
+`RichConfigDropdownPanel` uses one field for filtering and validated custom
+entry. `RichConfigToggleControl` renders Boolean settings with false/true
+option appearance. Hosts choose the surrounding modal or native popover and
+use the normal session-settings controller for mutations.
 
 Use the opt-in `plugins/dummy-rich-config-ui` feature to inspect every
 supported semantic option tone and icon on simulators or physical devices

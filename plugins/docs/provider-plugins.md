@@ -469,6 +469,7 @@ class MyOpenAICompatibleProvider(ProviderPlugin):
                 "type": "dropdown",
                 "key": "model",
                 "label": "Model",
+                "icon": "cpu",
                 "options": options,
                 "placeholder": "Search models or enter a model ID",
                 "custom_value": {
@@ -489,7 +490,6 @@ class MyOpenAICompatibleProvider(ProviderPlugin):
                     },
                     "placements": ["composer"],
                     "default_pinned": True,
-                    "icon": "cpu",
                 },
             }
         ]
@@ -506,6 +506,10 @@ Notes:
 - A composer model selector is the same ordinary config element with
   self-contained `rich_ui`; do not define a provider-specific UI type or a
   second mutation path.
+- Put the ordinary/fallback label and icon on the containing config element.
+  The normal action menu and frontends without rich-UI support must not need
+  `rich_ui` to render the setting. Per-option rich icons may override that
+  icon only in compact presentation.
 
 ### 2) Implement `init` and `initialize_request`
 

@@ -264,6 +264,7 @@ class OpenRouterProvider(ProviderPlugin):
                 "type": "dropdown",
                 "key": "model",
                 "label": "Openrouter Model",
+                "icon": "cpu",
                 "options": model_options,
                 "placeholder": "Search models or enter a model ID",
                 "custom_value": {
@@ -284,7 +285,6 @@ class OpenRouterProvider(ProviderPlugin):
                     },
                     "placements": ["composer"],
                     "default_pinned": True,
-                    "icon": "cpu",
                 },
             },
         ]

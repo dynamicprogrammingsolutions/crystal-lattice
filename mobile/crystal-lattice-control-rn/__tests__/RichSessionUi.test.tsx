@@ -73,6 +73,10 @@ test("production chat renders and mutates portable rich config and session actio
   expect(
     await screen.findByTestId("actions-menu-state-config:web_search_enabled")
   ).toHaveTextContent("On");
+  expect(
+    screen.getByTestId("actions-menu-action-config:web_search_enabled").props
+      .accessibilityLabel
+  ).toBe("Enable web search: On");
   fireEvent.press(
     screen.getByTestId("actions-menu-action-config:web_search_enabled")
   );

@@ -79,6 +79,7 @@ def test_provider_config_ui_uses_renderable_control_types() -> None:
     assert elements[0]["ui_type"] == "config"
     assert elements[0]["type"] == "dropdown"
     assert elements[0]["options"] == [{"value": "claude-test", "label": "Claude Test"}]
+    assert elements[0]["icon"] == "cpu"
     assert elements[0]["custom_value"] == {
         "enabled": True,
         "pattern": r"^[^\s]+$",
@@ -97,7 +98,6 @@ def test_provider_config_ui_uses_renderable_control_types() -> None:
         },
         "placements": ["composer"],
         "default_pinned": True,
-        "icon": "cpu",
     }
     assert elements[1]["type"] == "text"
 
@@ -110,6 +110,7 @@ def test_provider_model_ui_keeps_manual_entry_when_discovery_is_empty() -> None:
 
     model = elements[0]
     assert model["type"] == "dropdown"
+    assert model["icon"] == "cpu"
     assert model["options"] == []
     assert model["custom_value"]["enabled"] is True
     assert model["rich_ui"]["kind"] == "dropdown"

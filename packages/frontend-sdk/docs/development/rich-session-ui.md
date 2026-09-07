@@ -19,25 +19,30 @@ Boolean `toggle`.
 `selectConfigRichUiControls()` selects normalized controls for
 `session_header` or `composer`.
 
-The containing config element supplies the setting key and ordinary
-session-settings semantics. `SessionSettingsController` remains the only
-mutation path:
+The containing config element supplies the setting key, ordinary label/icon,
+and ordinary session-settings semantics. Normal action menus and frontends
+without rich-UI support render those outer presentation fields without
+interpreting `rich_ui`. `SessionSettingsController` remains the only mutation
+path:
 
 - `patchOverride(key, value)` selects a declared/custom value or toggles a
   Boolean setting;
 - `deleteOverride(key)` resets to configured/default state;
 - ordinary type coercion still follows the containing config element.
 
-The rich dropdown repeats its own label, options, placeholder, nested
-`custom_value`, icon, placement, and pin preference. One query field filters
+The rich dropdown repeats its own compact label, options, placeholder, nested
+`custom_value`, placement, and pin preference. One query field filters
 declared options and produces a synthetic custom row after full regex
 validation. The normalized suggestion engine is
 `createConfigDropdownSuggestionEngine()`.
 
 Options may declare theme-aware semantic tones and icons. The selected option
-controls compact appearance; disabled controls are muted. `show_label: false`
-removes only the visual prefix. Mobile and desktop apply different visual
-character limits while preserving the full accessibility label.
+controls compact appearance; its icon overrides the outer fallback icon only
+on compact surfaces. `show_icon: false` keeps compact controls text-only while
+retaining the outer icon for ordinary UI. Disabled controls are muted.
+`show_label: false` removes only the visual prefix. Mobile and desktop apply
+different visual character limits while preserving the full accessibility
+label.
 
 The opt-in `plugins/dummy-rich-config-ui` feature is the reference manual-test
 consumer for the complete semantic option palette. Production providers adopt

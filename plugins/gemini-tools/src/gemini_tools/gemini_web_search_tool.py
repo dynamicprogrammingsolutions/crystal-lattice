@@ -232,13 +232,13 @@ class GeminiWebSearchTool(ToolPlugin):
                     "type": "checkbox",
                     "key": "web_search_enabled",
                     "label": "Web Search (no search provider configured)",
+                    "icon": "globe",
                     "description": ("Set GEMINI_API_KEY or TAVILY_API_KEY to enable"),
                     "disabled": True,
                     "rich_ui": {
                         "kind": "toggle",
                         "label": "Web search",
                         "show_label": False,
-                        "icon": "globe",
                         "placements": ["composer"],
                         "default_pinned": True,
                         "options": [
@@ -265,12 +265,12 @@ class GeminiWebSearchTool(ToolPlugin):
                 "type": "checkbox",
                 "key": "web_search_enabled",
                 "label": "Enable web search",
+                "icon": "globe",
                 "description": "Enable the google_web_search tool",
                 "rich_ui": {
                     "kind": "toggle",
                     "label": "Web search",
                     "show_label": False,
-                    "icon": "globe",
                     "placements": ["composer"],
                     "default_pinned": True,
                     "options": [

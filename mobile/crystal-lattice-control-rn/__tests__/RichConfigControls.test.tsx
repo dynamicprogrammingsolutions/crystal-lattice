@@ -37,6 +37,7 @@ test("compact dropdown hides its visual label and truncates only display text", 
             ui_type: "config",
             key: "dummy_rich_ui_appearance",
             type: "dropdown",
+            icon: "sliders",
             rich_ui: {},
           } as any,
           richUi: {
@@ -99,12 +100,12 @@ test("compact dropdown uses fallback icon and muted disabled appearance", () => 
             ui_type: "config",
             key: "dummy_rich_ui_appearance",
             type: "dropdown",
+            icon: "sliders",
             rich_ui: {},
           } as any,
           richUi: {
             kind: "dropdown",
             label: "Appearance",
-            icon: "sliders",
             placements: ["composer"],
             options: [{ value: "primary", label: "Primary" }],
           },
@@ -130,6 +131,41 @@ test("compact dropdown uses fallback icon and muted disabled appearance", () => 
   ).toBe(true);
 });
 
+test("compact dropdown can suppress the outer fallback icon", () => {
+  const iconRenderer = jest.fn(() => null);
+  render(
+    <ThemeProvider theme={lightTheme}>
+      <RichConfigDropdownControl
+        control={{
+          element: {
+            ui_type: "config",
+            key: "reasoning_effort",
+            type: "dropdown",
+            icon: "sliders",
+            rich_ui: {},
+          } as any,
+          richUi: {
+            kind: "dropdown",
+            label: "Reasoning effort",
+            show_label: false,
+            show_icon: false,
+            placements: ["composer"],
+            options: [{ value: "high", label: "high" }],
+          },
+        }}
+        value="high"
+        placement="composer"
+        onPress={() => {}}
+        renderIcon={iconRenderer}
+        testID="reasoning-effort"
+      />
+    </ThemeProvider>
+  );
+
+  expect(iconRenderer).not.toHaveBeenCalled();
+  expect(screen.getByText("high")).toBeTruthy();
+});
+
 test.each([
   ["primary", "circle", lightTheme.primary],
   ["highlight", "star", lightTheme.highlight],
@@ -149,6 +185,7 @@ test.each([
               ui_type: "config",
               key: "dummy_rich_ui_appearance",
               type: "dropdown",
+              icon: "sliders",
               rich_ui: {},
             } as any,
             richUi: {
@@ -192,6 +229,7 @@ test("compact config toggle exposes its selected state and invokes mutation", ()
             ui_type: "config",
             key: "web_search_enabled",
             type: "checkbox",
+            icon: "globe",
             rich_ui: {},
           } as any,
           richUi: {

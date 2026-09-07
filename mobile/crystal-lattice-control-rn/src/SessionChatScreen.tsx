@@ -1694,7 +1694,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           | ConfigRichToggleUi;
         return {
           key: `config:${entry.control.element.key}`,
-          label: richUi.label,
+          label: entry.control.element.label || richUi.label,
+          iconName: entry.control.element.icon || "sliders",
           menuStateLabel: resolveConfigRichUiMenuStateLabel(
             richUi,
             entry.effectiveValue
@@ -1720,6 +1721,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return {
           key: `session_action:${element.id}`,
           label: element.label,
+          iconName: (element as any).icon || "zap",
           menuStateLabel:
             richState?.kind === "toggle"
               ? richState.active
@@ -1927,7 +1929,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return {
           key: el.id,
           label: el.label,
-          iconName: el.rich_ui ? "" : (el as any).icon || "zap",
+          iconName: (el as any).icon || "zap",
           menuStateLabel:
             richState?.kind === "toggle"
               ? richState.active

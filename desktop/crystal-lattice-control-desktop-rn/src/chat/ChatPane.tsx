@@ -1014,7 +1014,7 @@ export const ChatPane = React.memo(function ChatPane({
         return {
           key: el.id,
           label: el.label,
-          ...(el.rich_ui ? {} : { iconName: (el as any).icon || 'zap' }),
+          iconName: (el as any).icon || 'zap',
           menuStateLabel:
             richState?.kind === 'toggle'
               ? richState.active
@@ -1037,7 +1037,8 @@ export const ChatPane = React.memo(function ChatPane({
           | ConfigRichToggleUi;
         return {
           key: `config:${entry.control.element.key}`,
-          label: richUi.label,
+          label: entry.control.element.label || richUi.label,
+          iconName: entry.control.element.icon || 'sliders',
           menuStateLabel: resolveConfigRichUiMenuStateLabel(
             richUi,
             entry.effectiveValue,
@@ -1056,6 +1057,7 @@ export const ChatPane = React.memo(function ChatPane({
         return {
           key: `session_action:${element.id}`,
           label: element.label,
+          iconName: (element as any).icon || 'zap',
           menuStateLabel:
             richState?.kind === 'toggle'
               ? richState.active

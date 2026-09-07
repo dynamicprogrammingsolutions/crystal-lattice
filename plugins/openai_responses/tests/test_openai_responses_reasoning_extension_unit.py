@@ -112,10 +112,12 @@ def test_get_ui_elements_uses_model_specific_effort_values() -> None:
         effort = next(
             element for element in elements if element.get("key") == "reasoning_effort"
         )
+        assert effort["icon"] == "sliders"
         assert effort["rich_ui"] == {
             "kind": "dropdown",
             "label": "Reasoning effort",
             "show_label": False,
+            "show_icon": False,
             "options": effort["options"],
             "placements": ["composer"],
             "default_pinned": True,

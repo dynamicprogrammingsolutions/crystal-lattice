@@ -74,6 +74,7 @@ class KimiWebSearchTool(ToolPlugin):
                 "type": "checkbox",
                 "key": "web_search_enabled",
                 "label": "Enable web search",
+                "icon": "globe",
                 "description": (
                     "Enable SearchWeb. Requires GEMINI_API_KEY, TAVILY_API_KEY, "
                     "or services.moonshot_search."
@@ -83,7 +84,6 @@ class KimiWebSearchTool(ToolPlugin):
                     "kind": "toggle",
                     "label": "Web search",
                     "show_label": False,
-                    "icon": "globe",
                     "placements": ["composer"],
                     "default_pinned": True,
                     "options": [

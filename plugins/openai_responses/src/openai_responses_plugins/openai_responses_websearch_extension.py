@@ -90,11 +90,11 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
                 "type": "checkbox",
                 "key": "enable_web_search",
                 "label": "Enable web search",
+                "icon": "globe",
                 "rich_ui": {
                     "kind": "toggle",
                     "label": "Web search",
                     "show_label": False,
-                    "icon": "globe",
                     "placements": ["composer"],
                     "default_pinned": True,
                     "options": [

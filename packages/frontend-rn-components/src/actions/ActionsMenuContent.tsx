@@ -135,6 +135,8 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
                 </View>
               ) : null}
               <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
                 style={[
                   styles.menuItemText,
                   iconName && styles.menuItemTextWithIcon,
@@ -150,6 +152,8 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
               {menuStateLabel ? (
                 <Text
                   testID={`actions-menu-state-${String(action.key)}`}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                   style={[
                     styles.menuStateText,
                     {
@@ -211,9 +215,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    minWidth: 0,
   },
   iconButton: {
     width: 34,
+    flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 0,
@@ -221,18 +227,22 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     flexShrink: 1,
+    minWidth: 0,
   },
   menuItemTextWithIcon: {
     marginLeft: 8,
   },
   menuStateText: {
-    flexShrink: 0,
+    flexShrink: 1,
+    minWidth: 0,
     marginLeft: "auto",
     paddingLeft: 12,
+    textAlign: "right",
   },
   pinButton: {
     minWidth: 44,
     minHeight: 44,
+    flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
   },

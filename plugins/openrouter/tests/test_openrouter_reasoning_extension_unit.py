@@ -48,10 +48,12 @@ def test_reasoning_effort_ui_is_text_only_rich_dropdown() -> None:
     )
     effort = next(item for item in elements if item.get("key") == "reasoning_effort")
 
+    assert effort["icon"] == "sliders"
     assert effort["rich_ui"] == {
         "kind": "dropdown",
         "label": "Reasoning effort",
         "show_label": False,
+        "show_icon": False,
         "options": effort["options"],
         "placements": ["composer"],
         "default_pinned": True,

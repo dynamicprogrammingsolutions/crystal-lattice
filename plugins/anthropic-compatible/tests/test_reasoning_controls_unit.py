@@ -242,10 +242,12 @@ def test_ui_uses_exact_selected_model_controls() -> None:
     assert [
         option["value"] for option in by_key["anthropic_reasoning_effort"]["options"]
     ] == ["low", "medium", "high", "max"]
+    assert by_key["anthropic_reasoning_effort"]["icon"] == "sliders"
     assert by_key["anthropic_reasoning_effort"]["rich_ui"] == {
         "kind": "dropdown",
         "label": "Reasoning effort",
         "show_label": False,
+        "show_icon": False,
         "options": by_key["anthropic_reasoning_effort"]["options"],
         "placements": ["composer"],
         "default_pinned": True,

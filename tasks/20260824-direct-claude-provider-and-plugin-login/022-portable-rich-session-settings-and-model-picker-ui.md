@@ -47,9 +47,10 @@ Parent Task: `tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md
    the ordinary config element and the rich dropdown. Both surfaces expose an
    explicit “Other model…” text-entry path. Custom entry is supported only for
    string-valued settings.
-4. `rich_ui` is self-contained for its presentation and repeats `label`,
-   `options`, `allow_custom_value`, placeholder/help text, icon, pinning, and
-   placements as applicable.
+4. `rich_ui` is self-contained for its compact presentation and repeats
+   `label`, `options`, `allow_custom_value`, placeholder/help text, pinning,
+   and placements as applicable. The containing config element owns the
+   ordinary/fallback `label` and `icon`.
    - The outer config element remains authoritative for mutation identity and
      full settings behavior through `key`, `config_path`, `type`, schema
      defaults, and override resolution.
@@ -76,6 +77,7 @@ Parent Task: `tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md
   "type": "dropdown",
   "key": "model",
   "label": "Model",
+  "icon": "cpu",
   "options": [
     {"value": "claude-sonnet-5", "label": "Claude Sonnet 5"}
   ],
@@ -84,7 +86,6 @@ Parent Task: `tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md
     "kind": "dropdown",
     "placements": ["composer"],
     "default_pinned": true,
-    "icon": "cpu",
     "label": "Model",
     "options": [
       {"value": "claude-sonnet-5", "label": "Claude Sonnet 5"}
@@ -104,11 +105,11 @@ When model discovery returns no options, the provider emits:
   "type": "text",
   "key": "model",
   "label": "Model",
+  "icon": "cpu",
   "rich_ui": {
     "kind": "dropdown",
     "placements": ["composer"],
     "default_pinned": true,
-    "icon": "cpu",
     "label": "Model",
     "options": [],
     "allow_custom_value": true,
@@ -248,9 +249,9 @@ contract in one change because backward compatibility is not required.
 - Decision: compact config placement is additive to the full settings editor.
 - Decision: compact rich config uses presentation-specific discriminators;
   model selection uses `rich_ui.kind: "dropdown"`.
-- Decision: rich UI repeats its presentation fields and does not implicitly
-  inherit label, options, custom-entry text, icon, or appearance from the
-  ordinary config element.
+- Decision: rich UI repeats its compact label, options, custom-entry text, and
+  appearance fields. The ordinary action-menu and non-rich fallback label and
+  icon come from the containing config element.
 - Decision: the containing config element remains the binding for `key`,
   `config_path`, effective value, override mutation, schema/default source, and
   reset behavior. Those behavioral fields are not duplicated in `rich_ui`.
@@ -518,6 +519,22 @@ and theme-shadow errors recorded in the implementation notes.
   reasoning tests, 86 OpenAI Responses reasoning tests, focused default-config
   smoke tests, and Python lint checks. No Detox or XCTest was run for these
   small corrections.
+- September 7, 2026: corrected the ordinary-versus-rich presentation
+  boundary without reopening requirements. Known rich config elements now
+  declare their fallback label and icon on the containing config element.
+  Normal action menus use only those outer fields on the left and show the
+  selected rich option as neutral state text on the right. Compact controls
+  use a selected option icon when present, otherwise the outer icon, while
+  `rich_ui.show_icon: false` preserves text-only pinned controls such as
+  reasoning effort. Action-menu title and state text shrink and ellipsize
+  adaptively so a short title leaves the remaining width to a long value,
+  while accessibility retains the complete strings. Verification passed with
+  337 frontend SDK tests, 51 shared React Native component tests, 179 mobile
+  tests plus mobile TypeScript checking, 142 desktop tests, the public
+  Anthropic-rich-UI HTTP/backend integration, and focused UI declaration tests
+  for every migrated provider/tool plugin and the provider template. The
+  desktop repository-wide TypeScript check remains blocked by unrelated
+  pre-existing URL, declaration-order, attachment typing, and theme errors.
 
 ### Follow-up completion notes
 
@@ -597,6 +614,7 @@ and rich dropdown declarations each own a self-contained presentation:
   "type": "dropdown",
   "key": "model",
   "label": "Model",
+  "icon": "cpu",
   "options": [
     {"value": "claude-sonnet-5", "label": "Claude Sonnet 5"}
   ],
@@ -620,8 +638,7 @@ and rich dropdown declarations each own a self-contained presentation:
       "option_label": "Use '{value}' as a custom model ID"
     },
     "placements": ["composer"],
-    "default_pinned": true,
-    "icon": "cpu"
+    "default_pinned": true
   }
 }
 ```
@@ -678,8 +695,9 @@ config toggles, session status, and their selection lists:
 `tone` continues to use the theme-aware semantic vocabulary `primary`,
 `highlight`, `warning`, `success`, `danger`, and `muted`; plugins do not send
 raw colors. A selected option's icon and tone take precedence over the
-rich-control fallback icon and primary tone. A disabled control always uses
-the muted/gray tone while retaining the selected option's icon. Validate rich
+containing config element's ordinary icon and the primary tone in compact
+presentation. A disabled control always uses the muted/gray tone while
+retaining the selected option's icon. Validate rich
 dropdown tones against the same vocabulary already used by session status,
 render option tone and icon in both the pinned control and picker, and add
 icons to the built-in session-status options as the cross-feature reference
@@ -699,11 +717,11 @@ Add an ordinary-config `rich_ui.kind: "toggle"` for Boolean checkbox settings:
   "type": "checkbox",
   "key": "enable_web_search",
   "label": "Enable web search",
+  "icon": "globe",
   "rich_ui": {
     "kind": "toggle",
     "label": "Web search",
     "show_label": false,
-    "icon": "globe",
     "placements": ["composer"],
     "default_pinned": true,
     "options": [

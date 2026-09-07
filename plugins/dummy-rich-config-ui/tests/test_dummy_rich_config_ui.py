@@ -11,7 +11,9 @@ def test_dummy_rich_config_ui_exposes_manual_test_controls() -> None:
     by_key = {element["key"]: element for element in elements}
 
     appearance = by_key["dummy_rich_ui_appearance"]
+    assert appearance["icon"] == "sliders"
     assert appearance["rich_ui"]["kind"] == "dropdown"
+    assert "icon" not in appearance["rich_ui"]
     assert appearance["rich_ui"]["placements"] == ["composer", "session_header"]
     assert {option["tone"] for option in appearance["options"]} == {
         "primary",
@@ -24,6 +26,7 @@ def test_dummy_rich_config_ui_exposes_manual_test_controls() -> None:
     assert all("icon" in option for option in appearance["options"])
 
     toggle = by_key["dummy_rich_ui_toggle"]
+    assert toggle["icon"] == "toggle-left"
     assert toggle["rich_ui"]["kind"] == "toggle"
     assert [option["value"] for option in toggle["rich_ui"]["options"]] == [
         False,
@@ -31,5 +34,6 @@ def test_dummy_rich_config_ui_exposes_manual_test_controls() -> None:
     ]
 
     disabled = by_key["dummy_rich_ui_disabled_toggle"]
+    assert disabled["icon"] == "slash"
     assert disabled["disabled"] is True
     assert disabled["rich_ui"]["default_pinned"] is False
