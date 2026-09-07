@@ -1036,3 +1036,146 @@ compatibility aliases.
   accessibility labels on all three frontend platforms.
 - Re-run full frontend SDK, React binding, shared component, mobile, desktop,
   provider, application, documentation, and formatting/type checks.
+
+## Post-completion follow-up
+
+### Request progress and concurrent chat actions
+
+Status: Approved
+
+Restore a visible full-lifecycle request indicator in the Send control and
+remove the frontend assumption that an active model request is a global chat
+action lock. Execution waits for explicit user confirmation.
+
+Mobile shows the existing Send spinner, and desktop replaces its temporary
+`…` text with an `ActivityIndicator`, while either request submission is
+pending or `activeRequestId` is present. Inline and maximized mobile composers
+use the same state. The Send control keeps stable dimensions and exposes busy
+state through accessibility. Existing session-level request indicators remain
+complementary rather than becoming the only progress indication.
+
+Replace broad disable predicates with action-specific eligibility. An active
+request continues to disable Send and Resend and enables Cancel, but does not
+by itself disable:
+
+- model, reasoning, web-search, or other ordinary/rich config settings;
+- ordinary or rich session/application actions;
+- attachment selection, drafting, metadata editing, or management;
+- Append or Append as;
+- reload or other unrelated session actions.
+
+The server remains authoritative for accepting or rejecting each concurrent
+action or setting mutation. Frontends invoke the existing backend path and
+show its normal error when the server rejects the operation. Configuration
+changes made during a running response apply to a subsequent request unless
+the server explicitly defines different behavior.
+
+The current mobile `sendInProgress` and desktop `sendInFlight` flags cover
+multiple operation types. Refine them into an operation identity or equivalent
+action-specific state so allowing unrelated work during Send does not permit a
+duplicate Append, Resend, attachment mutation, or other operation against the
+same local resource. Offline/read-only state, an element's declared disabled
+state, unresolved attachment data, and an already-running operation against
+the same local resource remain valid frontend constraints.
+
+No governing provider specification changes for this follow-up. The portable
+provider specification is limited to provider-plugin implementation and
+authoring requirements. The Sessions-actions specification governs the
+top-level Sessions surface rather than chat-composer concurrency. This
+frontend behavior therefore remains owned by this task and current-behavior
+frontend documentation.
+
+#### Implementation decisions and open questions
+
+- Decision: use the Send spinner as the primary immediate progress indicator
+  and retain existing session-level request status.
+- Decision: active request state is not a global disabled condition.
+- Decision: request start, cancel, append, attachment, config, and plugin
+  actions receive separate local eligibility checks.
+- Decision: backend rejection remains the concurrency authority.
+- Open question: none; implementation is pending user confirmation.
+
+#### Documentation
+
+- After implementation, update
+  `packages/frontend-sdk/docs/development/rich-session-ui.md` with backend
+  authority and concurrent config/action behavior.
+- Update
+  `packages/frontend-rn-components/docs/development/actions-menu-components.md`
+  with action-specific disablement and busy presentation.
+- Update mobile and desktop development guidance for their request-progress
+  and composer-operation state.
+- Do not add this platform behavior to provider authoring documentation or the
+  portable provider specification.
+
+#### Task checklist
+
+- [x] Obtain explicit approval to begin this follow-up.
+- [x] Refine mobile and desktop operation state and action-specific disable
+  predicates.
+- [x] Restore full-lifecycle Send progress on inline mobile, maximized mobile,
+  and desktop.
+- [x] Keep unrelated settings, rich controls, plugin actions, attachments,
+  Append, and reload invokable during an active request.
+- [x] Update current-behavior frontend documentation.
+- [x] Run focused and package regression tests.
+
+#### Requirement verification
+
+- Mobile and desktop tests prove request submission and `activeRequestId` both
+  keep the Send control busy until the active request clears.
+- With an active request, tests prove Send and Resend are disabled, Cancel is
+  enabled, and representative model/reasoning/web settings plus a plugin
+  action remain enabled and invoke their existing backend paths.
+- Tests prove Append and attachment drafting are not disabled merely by the
+  active request, while duplicate operations against the same local resource
+  remain blocked.
+- A backend-rejection test proves an eligible concurrent mutation reaches the
+  backend and its normal error is surfaced instead of being preemptively
+  suppressed by the frontend.
+
+#### Additional implementation verification
+
+- Verify a config change during streaming does not rewrite the already-created
+  request and is available to the next request.
+- Verify pending-send recovery does not become an accidental global UI lock.
+- Verify spinner, disabled, cancel, and accessibility states during request
+  submission, streaming, cancellation, failure, and completion.
+- Run frontend SDK/shared-component tests, full mobile and desktop component
+  suites, mobile TypeScript, and the existing public-backend rich-UI
+  integration. No Detox or XCUITest is planned unless component verification
+  exposes native-only behavior.
+
+#### Completion notes
+
+Completed September 7, 2026.
+
+Mobile and desktop now render Send as busy through both request submission and
+the complete `activeRequestId` lifetime. Mobile inline and maximized composers
+share the same spinner state; desktop uses an `ActivityIndicator` instead of
+the temporary ellipsis. Both Send controls expose accessibility busy state.
+
+Append has separate local in-flight state from request start. Active request
+state continues to gate Send/Resend and enable Cancel, but no longer disables
+rich config controls, session/application actions, attachment drafting,
+Append/Append as, or reload. Explicit plugin disabled state, offline/read-only
+state, unresolved attachment data, and duplicate operations against the same
+local resource remain enforced. Concurrent config and action mutations use
+their existing backend paths, leaving acceptance or rejection to the server.
+
+Frontend development documentation records the delivered behavior. No
+portable-provider, provider-package, provider-authoring, or Sessions-actions
+specification was changed because chat concurrency is outside those document
+scopes.
+
+Verification passed with 337 frontend SDK tests, 51 shared React Native
+component tests, 180 mobile tests plus mobile TypeScript checking, 143 desktop
+tests, and the public Anthropic-rich-UI HTTP/backend integration. The active
+request production-screen tests assert full-lifecycle Send progress and prove
+that model/web config, session action, Append, and attachment controls remain
+enabled. Existing SDK controller coverage proves rejected config mutations
+reach the backend, roll back optimistic state, and expose the backend error.
+The desktop repository-wide TypeScript command remains blocked only by the
+previously recorded URL typing, declaration-order, attachment typing, and
+theme errors; no new error category was introduced. No Detox or XCUITest was
+run because the change has no native-only interaction.

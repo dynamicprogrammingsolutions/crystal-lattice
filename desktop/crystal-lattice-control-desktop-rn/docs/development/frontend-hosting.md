@@ -46,6 +46,13 @@ portable filtering, regex validation, and synthetic custom options remain in
 the frontend SDK. The composer enables the shared two-row pinned-action layout
 with its second row below.
 
+The Send button shows an activity indicator during request submission and
+while an active request remains. Active request state gates duplicate
+Send/Resend starts and enables Cancel, but does not disable rich settings,
+plugin actions, attachment drafting, or Append. Append and attachment work use
+their own local in-flight guards, while the server remains authoritative for
+accepting concurrent mutations.
+
 Maintainer entry points:
 
 - `src/chat/ChatPane.tsx`

@@ -35,6 +35,13 @@ Maintainer entry point:
 Mobile and desktop inject platform-appropriate menu surfaces and own
 connection-scoped pin state.
 
+Hosts supply action-specific disabled predicates. Request progress must not be
+projected as a blanket disabled state across the entire action menu: duplicate
+request starts, cancellation, append, attachments, config mutation, and
+plugin actions have separate eligibility. Enabled actions continue through
+their normal backend path so the server remains authoritative for concurrent
+mutation acceptance.
+
 ## Rich configuration and session actions
 
 `RichConfigDropdownControl` renders the compact current-value trigger shared

@@ -36,6 +36,7 @@ function createHarnessBackend(options: {
   onModelChange: (value: string) => void;
   onAction: (value: string) => void;
   onSummaryChange: (summary: SessionSummary) => void;
+  activeRequestId: string | null;
 }): AgentBackend {
   let overrides: Record<string, unknown> = {};
   let summary: SessionSummary = {
@@ -63,7 +64,7 @@ function createHarnessBackend(options: {
     listMessages: async () => ({
       messages: [],
       cursorEventId: '0',
-      activeRequestId: null,
+      activeRequestId: options.activeRequestId,
     }),
     getLatestEventId: async () => '0',
     listEvents: async () => ({
@@ -159,6 +160,15 @@ function createHarnessBackend(options: {
             },
           ],
         },
+      },
+      {
+        ui_type: 'composer_attachment',
+        plugin: 'rich_session_ui',
+        key: 'harness-file',
+        attachment_type: 'file',
+        display_placement: 'below',
+        label: 'Attach file',
+        icon: 'paperclip',
       },
     ],
     getSessionApplicationUiSchema: async () => [
@@ -294,8 +304,13 @@ function createHarnessBackend(options: {
   } as unknown as AgentBackend;
 }
 
-export function DesktopRichSessionUiHarness(): React.JSX.Element {
+export function DesktopRichSessionUiHarness(props: {
+  activeRequestId?: string | null;
+  composeText?: string;
+}): React.JSX.Element {
   const theme = useDesktopTheme();
+  const activeRequestId = props.activeRequestId ?? null;
+  const composeText = props.composeText ?? '';
   const [model, setModel] = useState('claude-a');
   const [lastAction, setLastAction] = useState('none');
   const [summary, setSummary] = useState<SessionSummary>({
@@ -310,8 +325,9 @@ export function DesktopRichSessionUiHarness(): React.JSX.Element {
         onModelChange: setModel,
         onAction: setLastAction,
         onSummaryChange: setSummary,
+        activeRequestId,
       }),
-    [],
+    [activeRequestId],
   );
 
   return (
@@ -359,11 +375,11 @@ export function DesktopRichSessionUiHarness(): React.JSX.Element {
               sessionId: SESSION_ID,
               messages: [],
               cursorEventId: '0',
-              activeRequestId: null,
+              activeRequestId,
               lastLoadedAt: 1,
               rangeStartText: '-50',
               rangeEndText: '',
-              composeText: '',
+              composeText,
               scrollAnchor: null,
             }}
             onUpdateCache={() => {}}

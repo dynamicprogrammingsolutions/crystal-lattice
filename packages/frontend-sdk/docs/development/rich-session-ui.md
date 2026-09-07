@@ -64,6 +64,13 @@ action/dialog/rich normalization and maps it back to `session_action`.
 The ordinary action remains authoritative. Rich toggle/list controls invoke
 the existing action runner and submit the same mapped dialog values.
 
+An active model request is status, not a global mutation lock. Hosts keep
+ordinary/rich config controls and unrelated session/application actions
+invokable and let their existing backend paths accept or reject concurrent
+work. Request-start actions such as Send and Resend remain individually
+guarded. A config override changed during streaming is available to a later
+request; it does not rewrite the request already created by the server.
+
 ## Verification
 
 Focused contract tests:

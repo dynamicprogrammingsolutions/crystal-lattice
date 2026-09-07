@@ -491,6 +491,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       pinnedKeysForBar,
       renderPinnedAction,
       onAction,
+      isActionDisabled,
     }) => {
       const actions = [...baseActions, ...extraActions];
       const barKeys = pinnedKeysForBar ?? pinned;
@@ -500,9 +501,10 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
         actions
           .filter(action => barKeys.includes(action.key))
           .map(action => {
+            const disabled = isActionDisabled?.(action.key) ?? false;
             const custom = renderPinnedAction?.({
               action,
-              disabled: false,
+              disabled,
               iconName: action.iconName ?? null,
               iconColor: '#007AFF',
               onPress: () => onAction?.(action.key),
@@ -523,12 +525,15 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
                   '-',
                 )}`,
                 onPress: () => onAction?.(action.key),
+                disabled,
+                accessibilityState: { disabled },
               },
               React.createElement(Text, null, action.label),
             );
           }),
-        actions.map(action =>
-          React.createElement(
+        actions.map(action => {
+          const disabled = isActionDisabled?.(action.key) ?? false;
+          return React.createElement(
             Pressable,
             {
               key: `menu:${action.key}`,
@@ -537,10 +542,12 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
                 '-',
               )}`,
               onPress: () => onAction?.(action.key),
+              disabled,
+              accessibilityState: { disabled },
             },
             React.createElement(Text, null, action.label),
-          ),
-        ),
+          );
+        }),
       );
     },
     NotificationBanner: ({

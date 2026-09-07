@@ -58,7 +58,16 @@ come first; Append and Resend occupy the lower right-aligned action row.
 The message input has a fixed side stack with request Cancel above Send. Each
 control is 44 points square; the inline input has a 94-point minimum height.
 Cancel remains visible and disabled when no request is active. Send uses the
-paper-plane `send` icon and Resend uses `repeat`.
+paper-plane `send` icon and Resend uses `repeat`. The Send icon becomes a
+spinner during both request submission and the full active-request lifetime;
+the maximized composer uses the same state.
+
+An active request disables duplicate Send/Resend starts and enables Cancel,
+but does not globally disable model/reasoning/web settings, plugin actions,
+attachments, Append, or reload. Append has separate local in-flight state, and
+attachment operations retain their own pick/upload guards. Eligible concurrent
+operations use the normal backend path and rely on the server to accept or
+reject them.
 
 The in-frame `maximize-2` control opens a full-screen editor backed by the same
 draft, attachments, validation, persistence, and send path. `minimize-2`

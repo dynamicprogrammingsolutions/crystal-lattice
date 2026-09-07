@@ -114,3 +114,43 @@ test('a directly pressed rich action overrides a stale popover anchor', async ()
 
   expect(getActiveDesktopPopover()?.anchorTag).toBe(654);
 });
+
+test('active requests show progress without locking unrelated composer actions', async () => {
+  render(
+    <TestErrorBoundary>
+      <DesktopRichSessionUiHarness
+        activeRequestId="request-active"
+        composeText="Append while request runs"
+      />
+      <MessageLimitPopoverView />
+    </TestErrorBoundary>,
+  );
+
+  await screen.findByTestId('composer-send-progress');
+  const send = screen.getByTestId('composer-send');
+  expect(send.props.accessibilityState).toMatchObject({
+    disabled: true,
+    busy: true,
+  });
+
+  expect(
+    screen.getByTestId('action-menu-item-config:model').props.accessibilityState
+      .disabled,
+  ).toBe(false);
+  expect(
+    screen.getByTestId('action-menu-item-config:web_search_enabled').props
+      .accessibilityState.disabled,
+  ).toBe(false);
+  expect(
+    screen.getByTestId('action-menu-item-session_action:set_status').props
+      .accessibilityState.disabled,
+  ).toBe(false);
+  expect(
+    screen.getByTestId('action-menu-pinned-append').props.accessibilityState
+      .disabled,
+  ).toBe(false);
+  expect(
+    screen.getByTestId('composer-attachment-plus').props.accessibilityState
+      .disabled,
+  ).toBe(false);
+});

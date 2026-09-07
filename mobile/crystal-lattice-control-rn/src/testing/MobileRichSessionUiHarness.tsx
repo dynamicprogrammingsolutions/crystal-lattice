@@ -38,6 +38,7 @@ function actionResponse(actionId: string): ExecuteActionResponse {
 function createHarnessBackend(options: {
   onModelChange: (value: string) => void;
   onAction: (value: string) => void;
+  activeRequestId: string | null;
 }): AgentBackend {
   let overrides: Record<string, unknown> = {};
   let summary: SessionSummary = {
@@ -68,7 +69,7 @@ function createHarnessBackend(options: {
     listMessages: async () => ({
       messages: [],
       cursorEventId: '0',
-      activeRequestId: null,
+      activeRequestId: options.activeRequestId,
     }),
     getLatestEventId: async () => '0',
     listEvents: async () => ({
@@ -164,6 +165,15 @@ function createHarnessBackend(options: {
             },
           ],
         },
+      },
+      {
+        ui_type: 'composer_attachment',
+        plugin: 'rich_session_ui',
+        key: 'harness-file',
+        attachment_type: 'file',
+        display_placement: 'below',
+        label: 'Attach file',
+        icon: 'paperclip',
       },
     ],
     getSessionApplicationUiSchema: async () => [
@@ -307,7 +317,10 @@ function createHarnessBackend(options: {
   } as unknown as AgentBackend;
 }
 
-export function MobileRichSessionUiHarness(): React.JSX.Element {
+export function MobileRichSessionUiHarness(props: {
+  activeRequestId?: string | null;
+}): React.JSX.Element {
+  const activeRequestId = props.activeRequestId ?? null;
   const [model, setModel] = useState('claude-a');
   const [lastAction, setLastAction] = useState('none');
   const backend = useMemo(
@@ -315,8 +328,9 @@ export function MobileRichSessionUiHarness(): React.JSX.Element {
       createHarnessBackend({
         onModelChange: setModel,
         onAction: setLastAction,
+        activeRequestId,
       }),
-    []
+    [activeRequestId]
   );
   const sessionSummary: SessionSummary = {
     session_id: SESSION_ID,
@@ -358,7 +372,7 @@ export function MobileRichSessionUiHarness(): React.JSX.Element {
                     cachedMessages={[]}
                     lastLoadedAt={1}
                     cachedEventsCursorId="0"
-                    cachedActiveRequestId={null}
+                    cachedActiveRequestId={activeRequestId}
                     onUpdateCache={() => {}}
                     onUpdateSessionSummaries={() => {}}
                     onBack={() => {}}

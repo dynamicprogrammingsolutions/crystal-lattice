@@ -113,3 +113,49 @@ test("mobile composer keeps one draft across inline and maximized editing", asyn
     )
   ).toEqual(["composer-cancel-request", "composer-send"]);
 });
+
+test("active requests show progress without locking unrelated composer actions", async () => {
+  render(<MobileRichSessionUiHarness activeRequestId="request-active" />);
+
+  await screen.findByTestId("composer-send-progress");
+  const send = screen.getByTestId("composer-send");
+  expect(send.props.accessibilityState).toMatchObject({
+    disabled: true,
+    busy: true,
+  });
+  expect(screen.getByTestId("composer-cancel-request").props.disabled).not.toBe(
+    true
+  );
+
+  fireEvent.changeText(
+    screen.getByTestId("message-composer-input"),
+    "Append while request runs"
+  );
+  fireEvent.press(screen.getByLabelText("Open Composer actions"));
+
+  const model = await screen.findByTestId("actions-menu-action-config:model");
+  const webSearch = screen.getByTestId(
+    "actions-menu-action-config:web_search_enabled"
+  );
+  const status = screen.getByTestId(
+    "actions-menu-action-session_action:set_status"
+  );
+  const append = screen.getByTestId("actions-menu-action-append");
+  const attachment = screen.getByTestId("actions-menu-action-harness-file");
+  expect(model.props.disabled).not.toBe(true);
+  expect(webSearch.props.disabled).not.toBe(true);
+  expect(status.props.disabled).not.toBe(true);
+  expect(append.props.disabled).not.toBe(true);
+  expect(attachment.props.disabled).not.toBe(true);
+
+  fireEvent.press(webSearch);
+  fireEvent.press(screen.getByLabelText("Open Composer actions"));
+  expect(
+    await screen.findByTestId("actions-menu-state-config:web_search_enabled")
+  ).toHaveTextContent("On");
+
+  fireEvent.press(screen.getByTestId("composer-maximize"));
+  expect(
+    await screen.findByTestId("expanded-composer-send-progress")
+  ).toBeTruthy();
+});

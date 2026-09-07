@@ -95,7 +95,11 @@ export default function ExpandedComposerModal(
               }}
             >
               {props.sending ? (
-                <ActivityIndicator size="small" color={theme.primary} />
+                <ActivityIndicator
+                  testID="expanded-composer-send-progress"
+                  size="small"
+                  color={theme.primary}
+                />
               ) : (
                 <Icon name="send" size={20} color={theme.primary} />
               )}

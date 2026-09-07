@@ -576,6 +576,7 @@ type ChatComposerProps = {
   backend: AgentBackend | null;
   selectedSnapshotId: string | null;
   sendInProgress: boolean;
+  appendInProgress: boolean;
   pendingRequestRecovery: PendingRequestRecovery | null;
   activeRequestId: string | null;
   attachmentActionInProgress: boolean;
@@ -603,6 +604,7 @@ const ChatComposer = React.memo(
       backend,
       selectedSnapshotId,
       sendInProgress,
+      appendInProgress,
       pendingRequestRecovery,
       activeRequestId,
       attachmentActionInProgress,
@@ -642,14 +644,13 @@ const ChatComposer = React.memo(
       [onDraftTextChange]
     );
     const attachmentsDisabled =
-      sendInProgress ||
-      !!pendingRequestRecovery ||
-      !!activeRequestId ||
-      attachmentActionInProgress;
+      !!selectedSnapshotId || attachmentActionInProgress;
+    const requestInProgress = sendInProgress || !!activeRequestId;
     const canSend =
       !!backend &&
       !selectedSnapshotId &&
       !sendInProgress &&
+      !appendInProgress &&
       !pendingRequestRecovery &&
       !activeRequestId &&
       !attachmentActionInProgress &&
@@ -749,6 +750,10 @@ const ChatComposer = React.memo(
                 testID="composer-send"
                 accessibilityRole="button"
                 accessibilityLabel="Send message"
+                accessibilityState={{
+                  disabled: !canSend,
+                  busy: requestInProgress,
+                }}
                 style={[
                   styles.composerSideButton,
                   styles.primaryButton,
@@ -759,8 +764,12 @@ const ChatComposer = React.memo(
                   void onSend(composeTextRef.current);
                 }}
               >
-                {sendInProgress ? (
-                  <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                {requestInProgress ? (
+                  <ActivityIndicator
+                    testID="composer-send-progress"
+                    size="small"
+                    color={theme.textOnPrimary}
+                  />
                 ) : (
                   <Icon name="send" size={18} color={theme.textOnPrimary} />
                 )}
@@ -784,7 +793,7 @@ const ChatComposer = React.memo(
           }}
           onSend={() => onSend(composeTextRef.current)}
           canSend={canSend}
-          sending={sendInProgress}
+          sending={requestInProgress}
           attachmentsAbove={attachmentsAboveStrip}
           attachmentsBelow={attachmentsBelowStrip}
           onOpenAttachmentsAbove={() => onOpenAttachmentsManage("above")}
@@ -835,6 +844,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     () => AppState.currentState === "active"
   );
   const [sendInProgress, setSendInProgress] = useState(false);
+  const [appendInProgress, setAppendInProgress] = useState(false);
   const [attachmentsAbove, setAttachmentsAbove] = useState<
     MultipartPartDraft[]
   >([]);
@@ -3294,7 +3304,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert("No connection", "Connect to a server to append messages.");
       return;
     }
-    setSendInProgress(true);
+    if (appendInProgress) {
+      return;
+    }
+    setAppendInProgress(true);
     try {
       await chatController.appendMessage({
         role: "user",
@@ -3307,7 +3320,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       const message = err?.message || "Failed to append message";
       Alert.alert("Error", message);
     } finally {
-      setSendInProgress(false);
+      setAppendInProgress(false);
     }
   };
 
@@ -3326,9 +3339,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return;
       }
       if (
-        sendInProgress ||
-        activeRequestId ||
-        pendingRequestRecovery ||
+        appendInProgress ||
         attachmentActionInProgress ||
         unresolvedAttachmentDraft
       ) {
@@ -3340,12 +3351,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setAppendAsVisible(true);
     },
     [
-      activeRequestId,
+      appendInProgress,
       attachmentActionInProgress,
       attachmentsAbove.length,
       attachmentsBelow.length,
       chatController,
-      sendInProgress,
       unresolvedAttachmentDraft,
     ]
   );
@@ -3381,16 +3391,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     if (
-      sendInProgress ||
-      activeRequestId ||
-      pendingRequestRecovery ||
+      appendInProgress ||
       attachmentActionInProgress ||
       unresolvedAttachmentDraft
     ) {
       return;
     }
 
-    setSendInProgress(true);
+    setAppendInProgress(true);
     try {
       await chatController.appendMessage({
         role: appendAsRole as any,
@@ -3405,10 +3413,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       const message = err?.message || "Failed to append message";
       Alert.alert("Error", message);
     } finally {
-      setSendInProgress(false);
+      setAppendInProgress(false);
     }
   }, [
-    activeRequestId,
+    appendInProgress,
     attachmentActionInProgress,
     appendAsRole,
     appendAsDraftText,
@@ -3416,8 +3424,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     attachmentsBelow,
     chatController,
     clearComposerDraft,
-    pendingRequestRecovery,
-    sendInProgress,
     unresolvedAttachmentDraft,
   ]);
 
@@ -3768,32 +3774,34 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       if (key === "append" || key === "appendAs") {
         return (
-          sendInProgress ||
-          !!activeRequestId ||
-          !!pendingRequestRecovery ||
+          appendInProgress ||
           attachmentActionInProgress ||
           !composerHasDraftMessage
         );
       }
 
-      if (
-        composerAttachmentElementByActionKey[key] ||
-        composerRichConfigControlByActionKey[key] ||
-        composerSessionActionByActionKey[key]
-      ) {
+      if (composerAttachmentElementByActionKey[key]) {
         return (
-          sendInProgress ||
-          !!pendingRequestRecovery ||
-          !!activeRequestId ||
+          composerAttachmentElementByActionKey[key].disabled === true ||
           attachmentPickInProgress ||
           attachmentActionInProgress
         );
       }
 
+      const richConfig = composerRichConfigControlByActionKey[key];
+      if (richConfig) {
+        return richConfig.control.element.disabled === true;
+      }
+
+      const sessionAction = composerSessionActionByActionKey[key];
+      if (sessionAction) {
+        return sessionAction.disabled === true;
+      }
+
       return false;
     },
     [
-      activeRequestId,
+      appendInProgress,
       attachmentActionInProgress,
       attachmentPickInProgress,
       backend,
@@ -3801,8 +3809,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       composerRichConfigControlByActionKey,
       composerSessionActionByActionKey,
       hasDraftMessage,
-      pendingRequestRecovery,
-      sendInProgress,
     ]
   );
   const handleSwitchAgent = async (agentId: string) => {
@@ -4814,8 +4820,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 menuButtonTestID="session-actions-menu"
                 isActionDisabled={(action) =>
                   pluginActionInProgress ||
-                  ((sendInProgress || resumeRecoveryInProgress) &&
-                    action === "reload")
+                  (resumeRecoveryInProgress && action === "reload")
                 }
                 extraActions={pluginSessionActionDefs}
                 renderPinnedAction={renderPinnedHeaderSessionAction}
@@ -4869,17 +4874,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 });
               }}
               disabled={
-                !chatController ||
-                sendInProgress ||
-                loadingMessages ||
-                resumeRecoveryInProgress
+                !chatController || loadingMessages || resumeRecoveryInProgress
               }
             >
               <Text
                 style={[
                   styles.buttonTextSecondary,
                   (!chatController ||
-                    sendInProgress ||
                     loadingMessages ||
                     resumeRecoveryInProgress) &&
                     styles.buttonTextDisabled,
@@ -5066,6 +5067,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           backend={backend}
           selectedSnapshotId={selectedSnapshotId}
           sendInProgress={sendInProgress}
+          appendInProgress={appendInProgress}
           pendingRequestRecovery={pendingRequestRecovery}
           activeRequestId={activeRequestId}
           attachmentActionInProgress={attachmentActionInProgress}
@@ -5084,12 +5086,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               : "Attachments"
           }
           attachments={attachmentsManageRows}
-          disabled={
-            sendInProgress ||
-            !!pendingRequestRecovery ||
-            !!activeRequestId ||
-            attachmentActionInProgress
-          }
+          disabled={attachmentActionInProgress}
           onMove={(draftId, direction) => {
             if (!attachmentsManageSide) return;
             moveAttachmentWithinSide(attachmentsManageSide, draftId, direction);
@@ -5162,9 +5159,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                           ]}
                           onPress={() => pickImageForElement("library")}
                           disabled={
-                            sendInProgress ||
-                            !!pendingRequestRecovery ||
-                            !!activeRequestId ||
                             attachmentPickInProgress ||
                             attachmentActionInProgress
                           }
@@ -5181,9 +5175,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                           ]}
                           onPress={() => pickImageForElement("camera")}
                           disabled={
-                            sendInProgress ||
-                            !!pendingRequestRecovery ||
-                            !!activeRequestId ||
                             attachmentPickInProgress ||
                             attachmentActionInProgress
                           }
@@ -5200,9 +5191,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                           ]}
                           onPress={() => pickImageForElement("files")}
                           disabled={
-                            sendInProgress ||
-                            !!pendingRequestRecovery ||
-                            !!activeRequestId ||
                             attachmentPickInProgress ||
                             attachmentActionInProgress
                           }
@@ -5341,11 +5329,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                           styles.primaryButton,
                           styles.modalButton,
                         ]}
+                        disabled={appendInProgress}
                         onPress={() => {
                           handleAppendAs().catch(() => {});
                         }}
                       >
-                        {sendInProgress ? (
+                        {appendInProgress ? (
                           <ActivityIndicator
                             size="small"
                             color={theme.textOnPrimary}
