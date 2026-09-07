@@ -14,7 +14,7 @@ arbitrary custom events.
 
 ## Requirements checklist
 
-- [ ] Umami contains separate website records for `crystallattice.dev` and
+- [x] Umami contains separate website records for `crystallattice.dev` and
       `docs.crystallattice.dev`, with distinct public identifiers and
       replay/heatmaps disabled.
 - [ ] Every production page on each domain loads exactly one privacy-restricted
@@ -164,7 +164,7 @@ creating Umami records, configuring GitHub variables, pushing, and deployment.
 - [x] Add build/deployment variable plumbing and operator docs.
 - [x] Verify disabled and fixture-enabled builds for both sites.
 - [x] Verify sanitization, DNT, opt-out, SPA behavior, and failure safety.
-- [ ] Obtain confirmation and create both production Umami records.
+- [x] Obtain confirmation and create both production Umami records.
 - [ ] Configure production GitHub variables and deploy through GitHub Actions.
 - [ ] Verify live isolation, sanitized storage, health, and rollback readiness.
 
@@ -236,3 +236,11 @@ creating Umami records, configuring GitHub variables, pushing, and deployment.
   follow that established scope.
 - Local implementation commit: `f5c2fb14` (`Add privacy-safe Umami analytics
   foundation`). It has not been pushed.
+
+- After explicit remote approval, created and verified two distinct Umami
+  website records through the loopback API without printing administrator
+  values or leaving a credential file: `Crystal Lattice`
+  (`64721559-9dd8-4dc4-a560-f9e23c4b45de`, `crystallattice.dev`) and
+  `Crystal Lattice Docs` (`e6d90e2a-4da6-42f1-8166-9a3584268678`,
+  `docs.crystallattice.dev`). API inspection found no enabled recorder, replay,
+  or heatmap state; a database check confirmed both active records.
