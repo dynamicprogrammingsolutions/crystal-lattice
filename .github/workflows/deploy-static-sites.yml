@@ -33,6 +33,9 @@ jobs:
     env:
       PUBLIC_CRYSTAL_LATTICE_SITE_URL: ${{ vars.PUBLIC_CRYSTAL_LATTICE_SITE_URL }}
       PUBLIC_CRYSTAL_LATTICE_DOCS_URL: ${{ vars.PUBLIC_CRYSTAL_LATTICE_DOCS_URL }}
+      PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL: ${{ vars.PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL }}
+      PUBLIC_CRYSTAL_LATTICE_UMAMI_LANDING_ID: ${{ vars.PUBLIC_CRYSTAL_LATTICE_UMAMI_LANDING_ID }}
+      PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID: ${{ vars.PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID }}
 
     steps:
       - name: Checkout
@@ -50,6 +53,7 @@ jobs:
       - name: Build Landing Site
         run: |
           yarn --cwd landing_page install --frozen-lockfile
+          yarn --cwd landing_page test:analytics
           yarn --cwd landing_page build
 
       - name: Set Up Python
@@ -79,6 +83,13 @@ jobs:
           test -n "${DOCS_BUCKET}"
           test -n "${LANDING_CLOUDFRONT_DISTRIBUTION_ID}"
           test -n "${DOCS_CLOUDFRONT_DISTRIBUTION_ID}"
+          test -n "${PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL}"
+          test -n "${PUBLIC_CRYSTAL_LATTICE_UMAMI_LANDING_ID}"
+          test -n "${PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID}"
+          test "${PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL}" = "https://stats.dynamicprogrammingsolutions.com/insight.js"
+          [[ "${PUBLIC_CRYSTAL_LATTICE_UMAMI_LANDING_ID}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]
+          [[ "${PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]
+          test "${PUBLIC_CRYSTAL_LATTICE_UMAMI_LANDING_ID}" != "${PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID}"
           test -n "${AWS_ROLE_TO_ASSUME}"
 
       - name: Configure AWS Credentials

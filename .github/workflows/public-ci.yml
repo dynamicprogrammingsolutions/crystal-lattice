@@ -171,6 +171,7 @@ jobs:
       - name: Build landing site
         run: |
           yarn --cwd landing_page install --frozen-lockfile
+          yarn --cwd landing_page test:analytics
           yarn --cwd landing_page build
 
       - name: Set up Python
@@ -182,6 +183,7 @@ jobs:
 
       - name: Build documentation site
         run: |
-          python -m pip install -r docs_site/requirements.txt
+          python -m pip install -r docs_site/requirements-dev.txt
+          python -m pytest docs_site/tests/test_analytics.py -q
           python docs_site/scripts/prepare_mkdocs_site.py
           (cd docs_site && mkdocs build)

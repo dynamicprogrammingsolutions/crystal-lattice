@@ -7,6 +7,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "test:analytics": "node --test tests/analytics.test.mjs",
     "visual-assets": "node scripts/visual-assets/cli.mjs",
     "visual-assets:list": "node scripts/visual-assets/cli.mjs list",
     "visual-assets:capture": "node scripts/visual-assets/cli.mjs capture",

@@ -11,6 +11,12 @@ extra:
   crystal_lattice:
     site_url: !ENV [PUBLIC_CRYSTAL_LATTICE_SITE_URL, "https://crystallattice.dev"]
     docs_url: !ENV [PUBLIC_CRYSTAL_LATTICE_DOCS_URL, "https://docs.crystallattice.dev"]
+    analytics:
+      script_url: !ENV [PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL, ""]
+      website_id: !ENV [PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID, ""]
+
+hooks:
+  - hooks/analytics.py
 
 theme:
   name: material

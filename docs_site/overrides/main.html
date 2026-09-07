@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block analytics %}
+  {% set analytics = config.extra.crystal_lattice.analytics %}
+  {% if analytics.enabled %}
+    <script defer src="{{ 'assets/javascripts/umami-sanitizer.js' | url }}"></script>
+    <script
+      defer
+      src="{{ analytics.script_url }}"
+      data-website-id="{{ analytics.website_id }}"
+      data-domains="{{ analytics.domain }}"
+      data-do-not-track="true"
+      data-exclude-search="true"
+      data-exclude-hash="true"
+      data-performance="true"
+      data-before-send="crystalLatticeUmamiBeforeSend"
+    ></script>
+  {% endif %}
+{% endblock %}
