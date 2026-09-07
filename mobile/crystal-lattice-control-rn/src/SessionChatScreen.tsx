@@ -89,6 +89,7 @@ import {
   SessionNotificationsHost,
   SESSION_ACTIONS,
   type ActionDefinition,
+  type SessionActionDefinition,
   type SessionActionKey,
 } from "@crystal-lattice/frontend-rn-components";
 import {
@@ -207,6 +208,23 @@ interface SessionChatScreenProps {
 const STORAGE_KEY_SESSION_ACTIONS = "clc_pinned_session_actions_v1";
 const STORAGE_KEY_COMPOSER_ACTIONS = "clc_pinned_composer_actions_v1";
 const STORAGE_KEY_MESSAGE_ACTIONS = "clc_pinned_message_actions_by_role_v1";
+
+const MOBILE_REQUEST_SESSION_ACTIONS: SessionActionDefinition[] = [
+  {
+    key: "resend",
+    label: "Resend",
+    iconName: "repeat",
+    defaultPinned: false,
+    order: 30,
+  },
+  {
+    key: "cancel",
+    label: "Cancel request",
+    iconName: "x-circle",
+    defaultPinned: false,
+    order: 31,
+  },
+];
 
 type PluginActionContext =
   | { kind: "session"; sessionSummary: SessionSummary | null }
@@ -1662,13 +1680,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         order: 120,
         testID: "composer-action-resend",
       },
-      {
-        key: "cancel",
-        label: "Cancel",
-        iconName: "x-circle",
-        order: 130,
-        testID: "composer-action-cancel",
-      },
     ];
 
     const attachmentActions: ActionDefinition[] =
@@ -1953,6 +1964,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         };
       }),
     [currentSessionSummary, headerSessionActions, sessionId]
+  );
+  const sessionActionDefs = useMemo(
+    () => [...MOBILE_REQUEST_SESSION_ACTIONS, ...pluginSessionActionDefs],
+    [pluginSessionActionDefs]
   );
 
   const pluginMessageActionDefs = useMemo(
@@ -3953,6 +3968,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   const handleSessionAction = async (action: SessionActionKey) => {
+    if (action === "resend") {
+      await handleResend();
+      return;
+    }
+    if (action === "cancel") {
+      await handleCancel();
+      return;
+    }
     if (action === "reload") {
       chatController?.clearRequestState();
       await loadMessages({ reason: "manual_reload", refreshUiSchema: true });
@@ -4820,9 +4843,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 menuButtonTestID="session-actions-menu"
                 isActionDisabled={(action) =>
                   pluginActionInProgress ||
-                  (resumeRecoveryInProgress && action === "reload")
+                  (action === "resend"
+                    ? isComposerActionDisabled("resend")
+                    : action === "cancel"
+                    ? isComposerActionDisabled("cancel")
+                    : resumeRecoveryInProgress && action === "reload")
                 }
-                extraActions={pluginSessionActionDefs}
+                extraActions={sessionActionDefs}
                 renderPinnedAction={renderPinnedHeaderSessionAction}
                 isActive={isActive}
                 modalContentStyle={styles.sessionActionsModalContent}

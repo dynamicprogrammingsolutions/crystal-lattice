@@ -153,7 +153,12 @@ test("active requests show progress without locking unrelated composer actions",
   expect(
     await screen.findByTestId("actions-menu-state-config:web_search_enabled")
   ).toHaveTextContent("On");
+  expect(screen.queryByTestId("actions-menu-action-cancel")).toBeNull();
+  expect(screen.getByTestId("actions-menu-action-resend")).toBeTruthy();
+  expect(screen.getByTestId("actions-menu-action-append")).toBeTruthy();
+  expect(screen.getByTestId("actions-menu-action-appendAs")).toBeTruthy();
 
+  fireEvent.press(screen.getByTestId("actions-menu-close"));
   fireEvent.press(screen.getByTestId("composer-maximize"));
   expect(
     await screen.findByTestId("expanded-composer-send-progress")

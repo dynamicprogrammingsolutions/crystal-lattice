@@ -54,6 +54,8 @@ Session Chat renders model and reasoning settings as compact dropdowns and web
 search as a compact Boolean toggle. The shared pinned-action bar is explicitly
 configured for two rows with the leftover row below. Compact setting controls
 come first; Append and Resend occupy the lower right-aligned action row.
+Composer actions contain Resend, Append, and Append as. Request Cancel is not
+duplicated there.
 
 The message input has a fixed side stack with request Cancel above Send. Each
 control is 44 points square; the inline input has a 94-point minimum height.
@@ -68,6 +70,10 @@ attachments, Append, or reload. Append has separate local in-flight state, and
 attachment operations retain their own pick/upload guards. Eligible concurrent
 operations use the normal backend path and rely on the server to accept or
 reject them.
+
+The top Session actions also expose Resend and request Cancel. These entries
+reuse the same handlers and request-state eligibility as the composer Resend
+and permanent Cancel controls.
 
 The in-frame `maximize-2` control opens a full-screen editor backed by the same
 draft, attachments, validation, persistence, and send path. `minimize-2`

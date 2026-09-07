@@ -16,6 +16,10 @@ Two-row bars wrap by available width, right-align both rows, retain the
 overflow trigger on the primary row, and leave controls beyond the visible two
 rows in the complete menu.
 
+Simple pinned icons and custom rich controls occupy the same 40-point outer
+action slot. Rich pills keep their intrinsic width while the shared slot
+centers them vertically, including when simple actions wrap onto another row.
+
 `ActionsMenuPanel` constrains its title to the space before the close control.
 Long titles wrap to at most two lines and truncate at the tail, while the close
 control remains inside the panel.

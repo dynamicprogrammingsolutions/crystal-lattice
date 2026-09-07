@@ -1179,3 +1179,14 @@ The desktop repository-wide TypeScript command remains blocked only by the
 previously recorded URL typing, declaration-order, attachment typing, and
 theme errors; no new error category was introduced. No Detox or XCUITest was
 run because the change has no native-only interaction.
+
+September 7, 2026 correction: custom pinned controls now occupy the same
+40-point vertical action slot as simple icon actions, keeping rich toggles
+aligned with the ellipsis even when Resend wraps to another row. On mobile,
+request Cancel remains permanently above Send beside the composer and is
+removed from Composer actions. Composer actions retain Resend, Append, and
+Append as; the top Session actions now also expose Resend and request Cancel
+through the existing handlers. The focused iOS rich-session Detox scenario
+passes permanent action-placement coverage. A temporary Detox screenshot and
+frame-center check verified the Web-search toggle/ellipsis alignment and were
+removed after verification.

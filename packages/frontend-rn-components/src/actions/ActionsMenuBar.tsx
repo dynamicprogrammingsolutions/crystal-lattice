@@ -174,7 +174,11 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
           onPress,
         });
         if (custom !== undefined) {
-          return <React.Fragment key={action.key}>{custom}</React.Fragment>;
+          return (
+            <View key={action.key} style={styles.customPinnedActionSlot}>
+              {custom}
+            </View>
+          );
         }
         return (
           <TouchableOpacity
@@ -489,6 +493,12 @@ const styles = StyleSheet.create({
   iconButton: {
     width: ACTIONS_MENU_BAR_ITEM_WIDTH,
     height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  customPinnedActionSlot: {
+    height: 40,
+    flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
   },
