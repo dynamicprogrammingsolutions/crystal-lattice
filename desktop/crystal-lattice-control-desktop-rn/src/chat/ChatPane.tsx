@@ -63,7 +63,9 @@ import {
   normalizeDisplayEnvelope,
   NotificationUiEffectObserver,
   observeSessionNotificationUiEffects,
+  resolveConfigRichUiMenuStateLabel,
   resolveConfigRichToggleOption,
+  resolveSessionListRichActionState,
   runApplicationAction,
   selectConfigRichUiControls,
   selectSessionAssetId,
@@ -1005,14 +1007,27 @@ export const ChatPane = React.memo(function ChatPane({
     }
 
     return headerSessionActions
-      .map(el => ({
-        key: el.id,
-        label: el.label,
-        iconName: (el as any).icon || 'zap',
-        order: typeof el.order === 'number' ? el.order : undefined,
-      }))
+      .map(el => {
+        const richState = el.rich_ui
+          ? resolveSessionListRichActionState(el as any, richActionSession)
+          : null;
+        return {
+          key: el.id,
+          label: el.label,
+          ...(el.rich_ui ? {} : { iconName: (el as any).icon || 'zap' }),
+          menuStateLabel:
+            richState?.kind === 'toggle'
+              ? richState.active
+                ? 'On'
+                : 'Off'
+              : richState?.kind === 'list'
+              ? richState.currentOption?.label
+              : undefined,
+          order: typeof el.order === 'number' ? el.order : undefined,
+        };
+      })
       .filter(def => typeof def.key === 'string' && def.key);
-  }, [backend, headerSessionActions]);
+  }, [backend, headerSessionActions, richActionSession]);
 
   const composerPluginActionDefs: ActionDefinition[] = useMemo(
     () => [
@@ -1023,21 +1038,37 @@ export const ChatPane = React.memo(function ChatPane({
         return {
           key: `config:${entry.control.element.key}`,
           label: richUi.label,
-          iconName: richUi.icon ?? 'sliders',
+          menuStateLabel: resolveConfigRichUiMenuStateLabel(
+            richUi,
+            entry.effectiveValue,
+          ),
           order:
             typeof (entry.control.element as any).order === 'number'
               ? (entry.control.element as any).order
               : 10,
         };
       }),
-      ...composerSessionActions.map(element => ({
-        key: `session_action:${element.id}`,
-        label: element.label,
-        iconName: typeof element.icon === 'string' ? element.icon : 'zap',
-        order: typeof element.order === 'number' ? element.order : undefined,
-      })),
+      ...composerSessionActions.map(element => {
+        const richState = resolveSessionListRichActionState(
+          element as any,
+          richActionSession,
+        );
+        return {
+          key: `session_action:${element.id}`,
+          label: element.label,
+          menuStateLabel:
+            richState?.kind === 'toggle'
+              ? richState.active
+                ? 'On'
+                : 'Off'
+              : richState?.kind === 'list'
+              ? richState.currentOption?.label
+              : undefined,
+          order: typeof element.order === 'number' ? element.order : undefined,
+        };
+      }),
     ],
-    [composerRichConfigControls, composerSessionActions],
+    [composerRichConfigControls, composerSessionActions, richActionSession],
   );
 
   const defaultPinnedComposerUiActionKeys = useMemo(
@@ -2630,7 +2661,7 @@ export const ChatPane = React.memo(function ChatPane({
         { ...display, presentation: 'inline' },
         context,
       );
-      setInlineActionDisplays((current) =>
+      setInlineActionDisplays(current =>
         upsertInlineDisplay(current, nextEntry),
       );
     },
@@ -2853,8 +2884,8 @@ export const ChatPane = React.memo(function ChatPane({
           onExecuteAction={(selected, values) => {
             executeRichSessionAction(selected as any, values).catch(() => {});
           }}
-          onPresentRichList={selected =>
-            openRichSessionActionList(selected as any)
+          onPresentRichList={(selected, anchorTag) =>
+            openRichSessionActionList(selected as any, anchorTag)
           }
           renderIcon={({ name, size, color }) => (
             <Icon name={name} size={size} color={color} />
@@ -2940,8 +2971,8 @@ export const ChatPane = React.memo(function ChatPane({
           onExecuteAction={(selected, values) => {
             executeRichSessionAction(selected as any, values).catch(() => {});
           }}
-          onPresentRichList={selected =>
-            openRichSessionActionList(selected as any)
+          onPresentRichList={(selected, anchorTag) =>
+            openRichSessionActionList(selected as any, anchorTag)
           }
           renderIcon={({ name, size, color }) => (
             <Icon name={name} size={size} color={color} />
@@ -4305,6 +4336,7 @@ export const ChatPane = React.memo(function ChatPane({
               <ActionsMenuBar<ActionDefinition>
                 title="Composer actions"
                 variant="dropdown"
+                style={styles.composerActionsBar}
                 pinnedRows={2}
                 secondPinnedRowPlacement="below"
                 isActive={isActive}
@@ -4921,7 +4953,13 @@ function createStyles(
       flex: 1,
     },
     composerHeaderRight: {
+      flex: 1,
+      minWidth: 0,
+      alignItems: 'stretch',
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
+    },
+    composerActionsBar: {
+      width: '100%',
     },
     composerRow: {
       flexDirection: 'row',

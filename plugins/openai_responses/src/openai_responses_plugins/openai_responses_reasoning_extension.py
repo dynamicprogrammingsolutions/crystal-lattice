@@ -193,15 +193,25 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
 
         model_id = self._resolve_model_id(config, models)
         supported_efforts = self._supported_reasoning_efforts_for_model(model_id)
+        effort_options = [
+            {"value": value, "label": value} for value in supported_efforts
+        ]
 
         elements: List[Dict[str, Any]] = [
             {
+                "ui_type": "config",
                 "type": "select",
                 "key": "reasoning_effort",
                 "label": "Reasoning Effort",
-                "options": [
-                    {"value": value, "label": value} for value in supported_efforts
-                ],
+                "options": effort_options,
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Reasoning effort",
+                    "show_label": False,
+                    "options": effort_options,
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                },
             },
             {
                 "type": "select",

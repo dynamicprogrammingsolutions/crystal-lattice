@@ -502,6 +502,22 @@ and theme-shadow errors recorded in the implementation notes.
 - September 6, 2026: the user completed the remaining manual test and
   confirmed the maximized mobile editor supports the intended native editing
   interaction. The follow-up requirements are complete.
+- September 6, 2026: applied post-completion visual and interaction
+  corrections without reopening requirements. Two-row action bars now retain
+  one-row height until wrapping is necessary, the desktop composer bar
+  stretches and aligns its pins to the right, and rich controls have compact
+  horizontal spacing. Ordinary action popovers project rich state as neutral
+  text and keep toggle rows one-click, while pinned controls retain rich
+  colors and icons. OpenRouter, OpenRouter Responses, and OpenAI Responses now
+  expose text-only reasoning-effort rich dropdowns whose option labels equal
+  their values. Directly pressed rich list controls pass their own native
+  event target as the desktop popover anchor, overriding any stale remembered
+  menu anchor. Verification passed with 336 frontend SDK tests, 51 shared
+  React Native component tests, 177 mobile tests plus type checking, 142
+  desktop tests, 31 OpenRouter reasoning tests, 6 OpenRouter Responses
+  reasoning tests, 86 OpenAI Responses reasoning tests, focused default-config
+  smoke tests, and Python lint checks. No Detox or XCTest was run for these
+  small corrections.
 
 ### Follow-up completion notes
 

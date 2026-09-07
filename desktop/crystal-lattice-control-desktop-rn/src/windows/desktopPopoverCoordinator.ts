@@ -8,6 +8,7 @@ export interface DesktopPopoverState {
   title?: string;
   content: ReactNode;
   onRequestClose?: () => void;
+  anchorTag?: number;
 }
 
 let active: DesktopPopoverState | null = null;
@@ -71,6 +72,7 @@ export function openDesktopPopover(params: {
     title: params.title,
     content: params.content,
     onRequestClose: params.onRequestClose,
+    anchorTag: params.anchorTag,
   });
 
   DesktopWindowManager?.openMessageLimitPopover?.({
@@ -91,7 +93,9 @@ export function closeDesktopPopover(id?: string) {
   DesktopWindowManager?.closeMessageLimitPopover?.();
 }
 
-export function subscribeToActiveDesktopPopover(listener: () => void): () => void {
+export function subscribeToActiveDesktopPopover(
+  listener: () => void,
+): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);

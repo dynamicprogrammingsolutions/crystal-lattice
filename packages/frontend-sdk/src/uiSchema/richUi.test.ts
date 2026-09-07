@@ -7,6 +7,7 @@ import {
   normalizeConfigDropdownPresentation,
   normalizeConfigRichUiElement,
   normalizeSessionActionRichUiElement,
+  resolveConfigRichUiMenuStateLabel,
   resolveConfigRichToggleOption,
   selectConfigRichUiControls,
 } from "./richUi";
@@ -146,6 +147,23 @@ describe("config rich UI", () => {
     expect(
       resolveConfigRichToggleOption(result.value!.rich_ui as any, true),
     ).toMatchObject({ value: true, tone: "success" });
+    expect(resolveConfigRichUiMenuStateLabel(result.value!.rich_ui, true)).toBe(
+      "On",
+    );
+  });
+
+  it("uses the selected dropdown label as neutral menu state text", () => {
+    const result = normalizeConfigRichUiElement(modelElement());
+
+    expect(
+      resolveConfigRichUiMenuStateLabel(result.value!.rich_ui, "claude-a"),
+    ).toBe("Claude A");
+    expect(
+      resolveConfigRichUiMenuStateLabel(
+        result.value!.rich_ui,
+        "vendor/custom-model",
+      ),
+    ).toBe("vendor/custom-model");
   });
 
   it("rejects unsupported option tones", () => {

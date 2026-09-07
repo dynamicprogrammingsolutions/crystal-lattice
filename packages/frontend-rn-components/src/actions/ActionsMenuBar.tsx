@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   Platform,
@@ -10,30 +10,30 @@ import {
   NativeModules,
   type StyleProp,
   type ViewStyle,
-} from 'react-native';
+} from "react-native";
 
-import { useTheme } from '../theme';
+import { useTheme } from "../theme";
 import {
   ActionsMenuPanel,
   type ActionsMenuPanelProps,
-} from './ActionsMenuPanel';
-import type { MenuIconRenderer } from './ActionsMenuContent';
+} from "./ActionsMenuPanel";
+import type { MenuIconRenderer } from "./ActionsMenuContent";
 import {
   DropdownMenuSurface,
   ModalMenuSurface,
   type DropdownMenuSurfaceProps,
   type MenuSurfaceBaseProps,
-} from './MenuSurfaces';
-import type { ActionDefinition, ActionKey } from './types';
-import type { ActionsMenuPinnedRenderParams } from './types';
-import { useActionsMenuModel } from './useActionsMenuModel';
+} from "./MenuSurfaces";
+import type { ActionDefinition, ActionKey } from "./types";
+import type { ActionsMenuPinnedRenderParams } from "./types";
+import { useActionsMenuModel } from "./useActionsMenuModel";
 import {
   clearActiveActionsPopoverMenu,
   setLastActionsPopoverAnchorTag,
   setActiveActionsPopoverMenu,
   updateActiveActionsPopoverMenuData,
-} from './actionsPopoverCoordinator';
-import { limitPinnedActionsForBar } from './model';
+} from "./actionsPopoverCoordinator";
+import { limitPinnedActionsForBar } from "./model";
 
 const ICON_BUTTON_HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 export const ACTIONS_MENU_BAR_ITEM_WIDTH = 44;
@@ -53,7 +53,7 @@ export interface ActionsMenuBarProps<
   /** Enables one or two compact pinned rows. The default is one. */
   pinnedRows?: 1 | 2;
   /** Places the second pinned row above or below the primary/menu row. */
-  secondPinnedRowPlacement?: 'above' | 'below';
+  secondPinnedRowPlacement?: "above" | "below";
   onChangePinned: (nextPinned: ActionKey[]) => void;
   onAction: (key: ActionKey) => void;
   onOpenMenu?: () => void;
@@ -73,27 +73,27 @@ export interface ActionsMenuBarProps<
     renderIcon?: MenuIconRenderer;
   }) => React.ReactNode;
 
-  variant?: 'modal' | 'dropdown';
-  dropdownOffset?: DropdownMenuSurfaceProps['offset'];
-  backdropStyle?: MenuSurfaceBaseProps['backdropStyle'];
-  modalContentStyle?: MenuSurfaceBaseProps['contentStyle'];
-  dropdownMenuStyle?: DropdownMenuSurfaceProps['menuStyle'];
+  variant?: "modal" | "dropdown";
+  dropdownOffset?: DropdownMenuSurfaceProps["offset"];
+  backdropStyle?: MenuSurfaceBaseProps["backdropStyle"];
+  modalContentStyle?: MenuSurfaceBaseProps["contentStyle"];
+  dropdownMenuStyle?: DropdownMenuSurfaceProps["menuStyle"];
   style?: StyleProp<ViewStyle>;
 
   getIconName?: (action: TDef) => string | null;
   renderPinnedAction?: (
     params: ActionsMenuPinnedRenderParams<TDef>,
   ) => React.ReactNode | undefined;
-  renderItem?: ActionsMenuPanelProps<TDef>['renderItem'];
+  renderItem?: ActionsMenuPanelProps<TDef>["renderItem"];
 }
 
 export function ActionsMenuBar<TDef extends ActionDefinition>(
   props: ActionsMenuBarProps<TDef>,
 ): React.JSX.Element {
   const theme = useTheme();
-  const variant = props.variant ?? 'modal';
+  const variant = props.variant ?? "modal";
   const pinnedRows = props.pinnedRows ?? 1;
-  const secondPinnedRowPlacement = props.secondPinnedRowPlacement ?? 'below';
+  const secondPinnedRowPlacement = props.secondPinnedRowPlacement ?? "below";
   const [menuVisible, setMenuVisible] = useState(false);
   const menuAnchorRef = useRef<any>(null);
   const menuIdRef = useRef<string>(
@@ -112,9 +112,9 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
     | undefined;
 
   const isMacOSPopoverMenu =
-    Platform.OS === 'macos' &&
-    variant === 'dropdown' &&
-    typeof desktopWindowManager?.toggleActionsPopover === 'function';
+    Platform.OS === "macos" &&
+    variant === "dropdown" &&
+    typeof desktopWindowManager?.toggleActionsPopover === "function";
 
   useEffect(() => {
     if (props.isActive === false) {
@@ -134,7 +134,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
   const getIconName =
     props.getIconName ??
     ((action: TDef) =>
-      typeof (action as any).iconName === 'string'
+      typeof (action as any).iconName === "string"
         ? (action as any).iconName
         : null);
 
@@ -152,13 +152,13 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
           ? props.isActionDisabled(action.key)
           : false;
         const iconColor = disabled ? theme.textMuted : theme.primary;
-        const fallbackLabel = action.label.trim().slice(0, 1) || '•';
+        const fallbackLabel = action.label.trim().slice(0, 1) || "•";
         const onPress = () => {
-          if (Platform.OS === 'macos' && menuAnchorRef.current) {
+          if (Platform.OS === "macos" && menuAnchorRef.current) {
             try {
               const anchorTag = findNodeHandle(menuAnchorRef.current) as any;
               setLastActionsPopoverAnchorTag(
-                typeof anchorTag === 'number' ? anchorTag : null,
+                typeof anchorTag === "number" ? anchorTag : null,
               );
             } catch {
               setLastActionsPopoverAnchorTag(null);
@@ -184,7 +184,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             accessibilityRole="button"
             accessibilityLabel={action.label}
             testID={
-              typeof action.testID === 'string' ? action.testID : undefined
+              typeof action.testID === "string" ? action.testID : undefined
             }
             onPress={onPress}
             disabled={disabled}
@@ -278,13 +278,13 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
 
   return (
     <>
-      <View style={[styles.actionsRow, props.style]}>
+      <View style={[styles.actionsRow, props.style]} testID="actions-menu-bar">
         <View
           style={[
             styles.pinnedActionsViewport,
             pinnedRows === 2 && styles.pinnedActionsViewportTwoRows,
             pinnedRows === 2 &&
-              (secondPinnedRowPlacement === 'above'
+              (secondPinnedRowPlacement === "above"
                 ? styles.pinnedActionsWrapAbove
                 : styles.pinnedActionsWrapBelow),
           ]}
@@ -298,7 +298,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
           style={[
             styles.menuButtonSlot,
             pinnedRows === 2 &&
-              (secondPinnedRowPlacement === 'above'
+              (secondPinnedRowPlacement === "above"
                 ? styles.menuButtonSlotBottom
                 : styles.menuButtonSlotTop),
           ]}
@@ -314,7 +314,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                 const anchorTag = menuAnchorRef.current
                   ? (findNodeHandle(menuAnchorRef.current) as any)
                   : null;
-                if (typeof anchorTag !== 'number') {
+                if (typeof anchorTag !== "number") {
                   return;
                 }
 
@@ -371,7 +371,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                   paddingHeight +
                   actions.length * rowHeight +
                   bottomBuffer;
-                const windowHeight = Dimensions.get('window').height;
+                const windowHeight = Dimensions.get("window").height;
                 const maxPopoverHeight = Math.max(
                   220,
                   Math.floor(windowHeight * 0.8),
@@ -395,7 +395,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
           >
             {props.renderIcon ? (
               props.renderIcon({
-                name: 'more-horizontal',
+                name: "more-horizontal",
                 size: 18,
                 color: theme.primary,
               })
@@ -416,7 +416,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
         </View>
       </View>
 
-      {isMacOSPopoverMenu ? null : variant === 'modal' ? (
+      {isMacOSPopoverMenu ? null : variant === "modal" ? (
         <ModalMenuSurface
           visible={menuVisible}
           onRequestClose={() => setMenuVisible(false)}
@@ -443,59 +443,60 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
 
 const styles = StyleSheet.create({
   actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    alignSelf: "stretch",
     flexShrink: 1,
     minWidth: 0,
-    maxWidth: '100%',
+    maxWidth: "100%",
     marginTop: 4,
   },
   pinnedActionsViewport: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
     flexShrink: 1,
     minWidth: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   pinnedActionsViewportTwoRows: {
-    height: 82,
+    minHeight: 40,
     maxHeight: 82,
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    alignContent: 'flex-start',
+    flexWrap: "wrap",
+    alignItems: "center",
+    alignContent: "flex-start",
     rowGap: 2,
   },
   pinnedActionsWrapAbove: {
-    flexWrap: 'wrap-reverse',
-    alignContent: 'flex-end',
+    flexWrap: "wrap-reverse",
+    alignContent: "flex-end",
   },
   pinnedActionsWrapBelow: {
-    flexWrap: 'wrap',
-    alignContent: 'flex-start',
+    flexWrap: "wrap",
+    alignContent: "flex-start",
   },
   menuButtonSlot: {
     width: ACTIONS_MENU_BAR_ITEM_WIDTH,
     flexShrink: 0,
   },
   menuButtonSlotTop: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   menuButtonSlotBottom: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   iconButton: {
     width: ACTIONS_MENU_BAR_ITEM_WIDTH,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   moreText: {
-    fontWeight: '800',
+    fontWeight: "800",
     marginTop: -3,
   },
   fallbackIcon: {
-    fontWeight: '800',
+    fontWeight: "800",
   },
 });

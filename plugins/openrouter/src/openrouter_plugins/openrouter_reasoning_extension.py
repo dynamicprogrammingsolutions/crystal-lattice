@@ -88,11 +88,20 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         if tags is not None and "supports_reasoning_effort" in tags and options:
             ui_elements.append(
                 {
+                    "ui_type": "config",
                     "type": "select",
                     "key": "reasoning_effort",
                     "label": "Reasoning Effort",
                     "options": options,
                     "default": default,
+                    "rich_ui": {
+                        "kind": "dropdown",
+                        "label": "Reasoning effort",
+                        "show_label": False,
+                        "options": options,
+                        "placements": ["composer"],
+                        "default_pinned": True,
+                    },
                 }
             )
         return ui_elements

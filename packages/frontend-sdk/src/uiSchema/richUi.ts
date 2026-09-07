@@ -576,6 +576,27 @@ export function resolveConfigRichToggleOption(
   );
 }
 
+export function resolveConfigRichUiMenuStateLabel(
+  richUi: ConfigRichDropdownUi | ConfigRichToggleUi,
+  value: unknown,
+): string | undefined {
+  if (richUi.kind === "toggle") {
+    return resolveConfigRichToggleOption(richUi, value).label;
+  }
+  if (richUi.kind === "dropdown") {
+    const normalizedValue =
+      value === undefined || value === null ? "" : String(value);
+    if (!normalizedValue) {
+      return undefined;
+    }
+    return (
+      richUi.options.find((option) => option.value === normalizedValue)
+        ?.label ?? normalizedValue
+    );
+  }
+  return undefined;
+}
+
 export function normalizeConfigRichUiElement(
   raw: unknown,
 ): RichUiNormalizationResult<ConfigRichUiElement> {

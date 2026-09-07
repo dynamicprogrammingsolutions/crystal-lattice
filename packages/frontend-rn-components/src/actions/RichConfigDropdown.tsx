@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -7,7 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
 import {
   createConfigDropdownSuggestionEngine,
@@ -15,11 +15,11 @@ import {
   type ConfigRichDropdownUi,
   type ConfigRichToggleUi,
   type ConfigRichUiControl,
-} from '@crystal-lattice/frontend-sdk';
+} from "@crystal-lattice/frontend-sdk";
 
-import { useTheme } from '../theme';
-import type { MenuIconRenderer } from './ActionsMenuContent';
-import { resolveSemanticToneColor } from './semanticTone';
+import { useTheme } from "../theme";
+import type { MenuIconRenderer } from "./ActionsMenuContent";
+import { resolveSemanticToneColor } from "./semanticTone";
 
 export interface RichConfigDropdownControlProps {
   control: ConfigRichUiControl;
@@ -48,29 +48,29 @@ export function truncatePinnedValue(
   }
   const limit = Math.max(1, Math.floor(maximum));
   if (limit === 1) {
-    return '…';
+    return "…";
   }
-  return `${characters.slice(0, limit - 1).join('')}…`;
+  return `${characters.slice(0, limit - 1).join("")}…`;
 }
 
 export function RichConfigDropdownControl(
   props: RichConfigDropdownControlProps,
 ): React.JSX.Element | null {
   const theme = useTheme();
-  if (props.control.richUi.kind !== 'dropdown') {
+  if (props.control.richUi.kind !== "dropdown") {
     return null;
   }
   const richUi = props.control.richUi as ConfigRichDropdownUi;
   const value =
     props.value === undefined || props.value === null
-      ? ''
+      ? ""
       : String(props.value);
   const selectedOption = richUi.options.find(
     (option) => option.value === value,
   );
   const selectedLabel = selectedOption?.label ?? value;
   const compactLabel = truncatePinnedValue(
-    selectedLabel || 'Not set',
+    selectedLabel || "Not set",
     props.maxValueCharacters,
   );
   const color = props.disabled
@@ -86,7 +86,7 @@ export function RichConfigDropdownControl(
       ref={props.buttonRef}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={`${richUi.label}: ${selectedLabel || 'Not set'}`}
+      accessibilityLabel={`${richUi.label}: ${selectedLabel || "Not set"}`}
       accessibilityState={{ disabled: props.disabled }}
       disabled={props.disabled}
       style={[
@@ -142,7 +142,7 @@ export function RichConfigToggleControl(
   props: RichConfigToggleControlProps,
 ): React.JSX.Element | null {
   const theme = useTheme();
-  if (props.control.richUi.kind !== 'toggle') {
+  if (props.control.richUi.kind !== "toggle") {
     return null;
   }
   const richUi = props.control.richUi as ConfigRichToggleUi;
@@ -151,7 +151,7 @@ export function RichConfigToggleControl(
     ? theme.textMuted
     : resolveSemanticToneColor(
         theme,
-        option.tone ?? (option.value ? 'success' : 'primary'),
+        option.tone ?? (option.value ? "success" : "primary"),
       );
   const icon = option.icon ?? richUi.icon;
   const testID =
@@ -226,7 +226,7 @@ export function RichConfigDropdownPanel(
     (option) => option.value === props.selectedValue,
   );
   const [query, setQuery] = useState(
-    selectedIsDeclared ? '' : props.selectedValue,
+    selectedIsDeclared ? "" : props.selectedValue,
   );
   const suggestionEngine = useMemo(
     () => createConfigDropdownSuggestionEngine(props.richUi),
@@ -236,7 +236,7 @@ export function RichConfigDropdownPanel(
     () => suggestionEngine.suggestions(query),
     [query, suggestionEngine],
   );
-  const prefix = props.testIDPrefix ?? 'rich-config-dropdown';
+  const prefix = props.testIDPrefix ?? "rich-config-dropdown";
   const submitQuery = () => {
     const candidate = query.trim();
     const exact = suggestions.find((option) => option.value === candidate);
@@ -311,7 +311,7 @@ export function RichConfigDropdownPanel(
               key={`${option.kind}:${option.value}`}
               testID={`${prefix}-${option.kind}-${option.value}`}
               accessibilityRole="button"
-              accessibilityLabel={`${option.label}${selected ? ' selected' : ''}`}
+              accessibilityLabel={`${option.label}${selected ? " selected" : ""}`}
               accessibilityState={{ selected }}
               style={[
                 styles.option,
@@ -367,21 +367,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
+    marginHorizontal: 2,
   },
   toggleControl: {
     minWidth: 34,
   },
   controlLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   controlValue: {
     flexShrink: 1,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   chevron: {
     fontSize: 11,
@@ -393,9 +394,9 @@ const styles = StyleSheet.create({
   panelHeader: {
     minHeight: 48,
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   panelTitleColumn: {
@@ -404,14 +405,14 @@ const styles = StyleSheet.create({
   },
   panelTitle: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   panelDescription: {
     fontSize: 12,
   },
   closeText: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     paddingHorizontal: 6,
   },
   options: {
@@ -430,18 +431,18 @@ const styles = StyleSheet.create({
   option: {
     minHeight: 44,
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   optionText: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   selectedMark: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   emptyText: {
     paddingHorizontal: 14,
@@ -449,12 +450,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   resetButton: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   resetText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });
