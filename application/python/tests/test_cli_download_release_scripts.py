@@ -200,6 +200,10 @@ def test_release_script_dry_run_prints_tag_and_watch_commands(tmp_path: Path) ->
     )
 
     assert result.returncode == 0, result.stderr
+    assert "[1/6] Resolving release version" in result.stdout
+    assert "version=9.8.7 tag=crystal-lattice-cli-v9.8.7" in result.stdout
+    assert "[6/6] Watching GitHub Actions release workflow" in result.stdout
+    assert "tag pushed;" not in result.stdout
     assert f"git tag crystal-lattice-cli-v9.8.7 {RELEASE_SHA}" in result.stdout
     assert "gh run watch <run-id>" in result.stdout
     assert "gh release view crystal-lattice-cli-v9.8.7" in result.stdout
@@ -358,6 +362,55 @@ def test_release_script_watches_discovered_run_and_prints_release_url(
     assert "--exit-status" in commands
     assert f"git tag crystal-lattice-cli-v9.8.7 {RELEASE_SHA}" in commands
     assert "git push origin crystal-lattice-cli-v9.8.7" in commands
+
+
+def test_release_script_prints_step_progress(tmp_path: Path) -> None:
+    env = _release_env(tmp_path)
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(RELEASE_SCRIPT),
+            "--profile",
+            "test",
+            "--version",
+            "9.8.7",
+            "--skip-tests",
+            "--push-tag",
+            "--watch",
+        ],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    stdout = result.stdout
+    assert "[1/6] Resolving release version" in stdout
+    assert "version=9.8.7 tag=crystal-lattice-cli-v9.8.7" in stdout
+    assert "[2/6] Checking git release state" in stdout
+    assert "worktree clean" in stdout
+    assert (
+        "tag crystal-lattice-cli-v9.8.7 is new (not present locally or on origin)"
+        in stdout
+    )
+    assert "[3/6] Validating release commit" in stdout
+    assert f"HEAD {RELEASE_SHA} matches origin/main" in stdout
+    assert "[4/6] Validating GitHub download configuration (profile test)" in stdout
+    assert "stack crystal-lattice-cli-downloads-test: found" in stdout
+    assert "AWS_REGION: ok" in stdout
+    assert "CLI_DOWNLOADS_BUCKET: ok" in stdout
+    assert "secret CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME: present" in stdout
+    assert "download base URL: " in stdout
+    assert "[5/6] Creating and pushing release tag" in stdout
+    assert f"$ git tag crystal-lattice-cli-v9.8.7 {RELEASE_SHA}" in stdout
+    assert "$ git push origin crystal-lattice-cli-v9.8.7" in stdout
+    assert "tag pushed; release-crystal-lattice-cli.yml workflow triggered" in stdout
+    assert "[6/6] Watching GitHub Actions release workflow" in stdout
+    assert "Next step: verify the download endpoint" in stdout
+    # Run discovery heartbeats go to stderr because stdout is captured.
+    assert "waiting for the tag-triggered run to appear (attempt 1/1)" in result.stderr
 
 
 def test_release_script_propagates_watched_run_failure(tmp_path: Path) -> None:
@@ -519,9 +572,9 @@ def test_bump_script_updates_pyproject_and_doc_references(tmp_path: Path) -> Non
     assert "crystal-lattice-python-runtime-v9.8.70-linux-amd64.tar.gz" in app_readme
     assert "v19.8.7-unrelated.tar.gz" in app_readme
 
-    deploy_readme = (
-        repo / "deploy" / "aws-cli-downloads" / "README.md"
-    ).read_text(encoding="utf-8")
+    deploy_readme = (repo / "deploy" / "aws-cli-downloads" / "README.md").read_text(
+        encoding="utf-8"
+    )
     assert "--version 9.8.8" in deploy_readme
 
 
@@ -545,9 +598,7 @@ def test_bump_script_rejects_missing_version_line(tmp_path: Path) -> None:
     repo = tmp_path / "empty-repo"
     pyproject = repo / "application" / "python" / "pyproject.toml"
     pyproject.parent.mkdir(parents=True)
-    pyproject.write_text(
-        '[project]\nname = "crystal-lattice-cli"\n', encoding="utf-8"
-    )
+    pyproject.write_text('[project]\nname = "crystal-lattice-cli"\n', encoding="utf-8")
 
     result = _run_bump_script(repo)
 

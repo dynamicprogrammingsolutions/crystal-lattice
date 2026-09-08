@@ -23,7 +23,8 @@ Orchestrate a Crystal Lattice CLI release through GitHub Actions.
 
 This script validates local release state, optionally creates/pushes the release
 tag, watches the GitHub matrix workflow, and prints or runs download smoke tests.
-It does not build the official platform artifacts locally.
+It does not build the official platform artifacts locally. Each phase is printed
+as a numbered step with indented detail lines.
 
 Usage:
   deploy/aws-cli-downloads/release.sh [common options] [options]
@@ -63,29 +64,11 @@ else
 fi
 cd "$REPO_ROOT"
 
-project_version="$(read_project_version)"
-VERSION="${VERSION:-$project_version}"
-if [ "$VERSION" != "$project_version" ]; then
-  echo "Requested version $VERSION does not match application/python/pyproject.toml version $project_version" >&2
-  exit 1
-fi
-
-tag="$(normalize_version_tag "$VERSION")"
-
-if [ "$ALLOW_DIRTY" -ne 1 ] && [ -n "$(git status --porcelain)" ]; then
-  echo "Git worktree is dirty. Commit/stash changes or pass --allow-dirty." >&2
-  exit 1
-fi
-
-if git rev-parse "$tag" >/dev/null 2>&1; then
-  echo "Tag already exists locally: $tag" >&2
-  exit 1
-fi
-
-if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
-  echo "Tag already exists on origin: $tag" >&2
-  exit 1
-fi
+step_total=4
+if [ "$SKIP_TESTS" -eq 0 ]; then step_total=$((step_total + 1)); fi
+if [ "$PUSH_TAG" -eq 1 ]; then step_total=$((step_total + 1)); fi
+if [ "$WATCH" -eq 1 ]; then step_total=$((step_total + 1)); fi
+log_set_step_total "$step_total"
 
 run_or_print() {
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -93,6 +76,9 @@ run_or_print() {
     printf ' %q' "$@"
     printf '\n'
   else
+    printf '      $'
+    printf ' %q' "$@"
+    printf '\n'
     "$@"
   fi
 }
@@ -111,6 +97,7 @@ validate_github_download_config() {
     echo "Download stack does not exist for profile $PROFILE: $STACK_NAME" >&2
     exit 1
   fi
+  log_detail "stack $STACK_NAME: found"
 
   local expected_region expected_bucket expected_prefix expected_base_url
   local expected_distribution secret_name
@@ -129,6 +116,8 @@ validate_github_download_config() {
       echo "  expected: $expected" >&2
       echo "  actual:   ${actual:-<unset>}" >&2
       mismatches=1
+    else
+      log_detail "$name: ok"
     fi
   done <<EOF
 AWS_REGION|$expected_region
@@ -154,6 +143,8 @@ EOF
     echo "GitHub secret CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME is not configured." >&2
     exit 1
   fi
+  log_detail "secret CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME: present"
+  log_detail "download base URL: $expected_base_url"
 }
 
 validate_release_commit() {
@@ -187,6 +178,9 @@ find_release_run_id() {
   local attempt run_id
   attempt=1
   while [ "$attempt" -le "$RUN_DISCOVERY_ATTEMPTS" ]; do
+    # Progress goes to stderr because the caller captures this function's stdout.
+    printf '      waiting for the tag-triggered run to appear (attempt %d/%d)\n' \
+      "$attempt" "$RUN_DISCOVERY_ATTEMPTS" >&2
     run_id="$(
       gh run list \
         --repo "$REPO" \
@@ -209,46 +203,75 @@ find_release_run_id() {
   return 1
 }
 
+log_step "Resolving release version"
+project_version="$(read_project_version)"
+VERSION="${VERSION:-$project_version}"
+if [ "$VERSION" != "$project_version" ]; then
+  echo "Requested version $VERSION does not match application/python/pyproject.toml version $project_version" >&2
+  exit 1
+fi
+tag="$(normalize_version_tag "$VERSION")"
+log_detail "version=$VERSION tag=$tag"
+
+log_step "Checking git release state"
+if [ "$ALLOW_DIRTY" -ne 1 ] && [ -n "$(git status --porcelain)" ]; then
+  echo "Git worktree is dirty. Commit/stash changes or pass --allow-dirty." >&2
+  exit 1
+fi
+if git rev-parse "$tag" >/dev/null 2>&1; then
+  echo "Tag already exists locally: $tag" >&2
+  exit 1
+fi
+if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+  echo "Tag already exists on origin: $tag" >&2
+  exit 1
+fi
+if [ "$ALLOW_DIRTY" -ne 1 ]; then
+  log_detail "worktree clean"
+fi
+log_detail "tag $tag is new (not present locally or on origin)"
+
+log_step "Validating release commit"
 release_sha="$(validate_release_commit)"
+log_detail "branch main; HEAD $release_sha matches origin/main"
+
+log_step "Validating GitHub download configuration (profile $PROFILE)"
 validate_github_download_config
 
 if [ "$SKIP_TESTS" -eq 0 ]; then
+  log_step "Running local fast tests"
   run_or_print python -m pip install -e "core/python[dev]" -e application/python -e "plugins/openai_responses[dev]"
   run_or_print pytest core/python/tests -q -m "not integration"
   run_or_print pytest application/python/tests -q -m "not integration and not docker"
 fi
 
-echo "Release tag: $tag"
-echo "Download profile: $PROFILE"
-if stack_exists; then
-  echo "Download base URL: $(downloads_base_url)"
-else
-  echo "Download stack not found locally: $STACK_NAME"
-fi
-
 if [ "$PUSH_TAG" -eq 1 ]; then
+  log_step "Creating and pushing release tag"
   run_or_print git tag "$tag" "$release_sha"
   run_or_print git push origin "$tag"
+  if [ "$DRY_RUN" -eq 0 ]; then
+    log_detail "tag pushed; $WORKFLOW_NAME workflow triggered"
+  fi
 else
   echo "Tag not pushed. Pass --push-tag to create and push $tag."
 fi
 
 if [ "$WATCH" -eq 1 ]; then
+  log_step "Watching GitHub Actions release workflow"
   if [ "$DRY_RUN" -eq 1 ]; then
     echo "DRY RUN: discover tag-triggered run for $tag at $release_sha"
     echo "DRY RUN: gh run watch <run-id> --repo $REPO --exit-status"
     echo "DRY RUN: gh release view $tag --repo $REPO --json url --jq .url"
   else
-    echo "Waiting for GitHub Actions to register the release workflow..."
     run_id="$(find_release_run_id "$release_sha")"
-    echo "Release workflow run ID: $run_id"
+    log_detail "Release workflow run ID: $run_id"
     gh run watch "$run_id" --repo "$REPO" --exit-status
     release_url="$(
       gh release view "$tag" --repo "$REPO" --json url --jq '.url'
     )"
-    echo "GitHub Release: $release_url"
+    log_detail "GitHub Release: $release_url"
   fi
 fi
 
-echo "After the workflow publishes, run:"
+echo "Next step: verify the download endpoint after the workflow publishes:"
 printf '  %q %q %q %q %q\n' "$SCRIPT_DIR/smoke.sh" --profile "$PROFILE" --version "$VERSION"
