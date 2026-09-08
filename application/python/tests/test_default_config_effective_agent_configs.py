@@ -81,6 +81,29 @@ def test_default_config_declares_provider_qualified_claude_agents() -> None:
     assert app_config["provider_env_keys"]["anthropic"] == "ANTHROPIC_API_KEY"
 
 
+def test_default_config_pins_openai_compatible_reasoning_effort() -> None:
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    expected = {
+        "type": "select",
+        "options": ["high", "max"],
+        "rich_ui": True,
+    }
+
+    for agent_id in ("glm-ollama", "deepseek-ollama", "kimi-ollama"):
+        assert (
+            config["agents"][agent_id]["request_options_ui"]["reasoning_effort"]
+            == expected
+        )
+
+
 @pytest.mark.integration
 def test_default_config_claude_anthropic_variants_follow_model_override(
     tmp_path: Path,
@@ -448,21 +471,39 @@ def test_default_config_effective_agent_configs_stay_intact(
             "base_url": "http://localhost:11434/v1",
             "model": "glm-5.2:cloud",
             "request_options": {"reasoning_effort": "max"},
-            "request_options_ui": {"reasoning_effort": ["high", "max"]},
+            "request_options_ui": {
+                "reasoning_effort": {
+                    "type": "select",
+                    "options": ["high", "max"],
+                    "rich_ui": True,
+                }
+            },
         },
         "deepseek-ollama": {
             "provider": "reference_openai_compatible",
             "base_url": "http://localhost:11434/v1",
             "model": "deepseek-v4-pro:cloud",
             "request_options": {"reasoning_effort": "max"},
-            "request_options_ui": {"reasoning_effort": ["high", "max"]},
+            "request_options_ui": {
+                "reasoning_effort": {
+                    "type": "select",
+                    "options": ["high", "max"],
+                    "rich_ui": True,
+                }
+            },
         },
         "kimi-ollama": {
             "provider": "reference_openai_compatible",
             "base_url": "http://localhost:11434/v1",
             "model": "kimi-k2.6:cloud",
             "request_options": {"reasoning_effort": "max"},
-            "request_options_ui": {"reasoning_effort": ["high", "max"]},
+            "request_options_ui": {
+                "reasoning_effort": {
+                    "type": "select",
+                    "options": ["high", "max"],
+                    "rich_ui": True,
+                }
+            },
         },
         "fireworks": {
             "provider": "reference_openai_compatible",
@@ -487,3 +528,96 @@ def test_default_config_effective_agent_configs_stay_intact(
                 key,
                 effective_config.get(key),
             )
+
+
+@pytest.mark.integration
+def test_default_config_openai_compatible_composer_schema(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.chdir(workspace)
+
+    for key in (
+        "OPENROUTER_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "TAVILY_API_KEY",
+        "OPENAI_API_KEY",
+        "FIREWORKS_API_KEY",
+        "ZAI_API_KEY",
+        "CLOUD_ORCHESTRATOR_TOKEN",
+    ):
+        monkeypatch.setenv(key, f"test-{key.lower()}")
+    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
+
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+    )
+    assert app.get_config_errors() == []
+
+    core, base_config, session = app.create_session("glm-ollama")
+    effective_config = app.resolve_effective_config(base_config, session)
+    ui_by_key = {
+        element["key"]: element
+        for element in core.get_ui_schema(config=effective_config)
+        if isinstance(element.get("key"), str)
+    }
+
+    model_ui = ui_by_key["model"]
+    assert model_ui["type"] == "dropdown"
+    assert isinstance(model_ui["options"], list)
+    assert model_ui["custom_value"] == {
+        "enabled": True,
+        "option_label": "Use '{value}' as a custom model ID",
+    }
+    assert model_ui["rich_ui"] == {
+        "kind": "dropdown",
+        "label": "Model",
+        "show_label": False,
+        "options": model_ui["options"],
+        "placeholder": "Search models or enter a model ID",
+        "custom_value": {
+            "enabled": True,
+            "option_label": "Use '{value}' as a custom model ID",
+        },
+        "placements": ["composer"],
+        "default_pinned": True,
+    }
+
+    reasoning_ui = ui_by_key["request_options__reasoning_effort"]
+    assert reasoning_ui["type"] == "select"
+    assert reasoning_ui["icon"] == "sliders"
+    assert reasoning_ui["default"] == "max"
+    assert reasoning_ui["rich_ui"] == {
+        "kind": "dropdown",
+        "label": "Reasoning Effort",
+        "show_label": False,
+        "show_icon": False,
+        "options": [
+            {"value": "high", "label": "high"},
+            {"value": "max", "label": "max"},
+        ],
+        "placements": ["composer"],
+        "default_pinned": True,
+    }

@@ -31,6 +31,78 @@ def test_request_options_ui_array_becomes_select() -> None:
     ]
 
 
+def test_request_options_ui_select_descriptor_matches_array_shorthand() -> None:
+    feature = RequestOptionsFeature()
+    descriptor = feature.get_ui_elements(
+        config={
+            "request_options": {"reasoning_effort": "max"},
+            "request_options_ui": {
+                "reasoning_effort": {
+                    "type": "select",
+                    "options": ["high", "max"],
+                }
+            },
+        },
+        tags=[],
+        models=[],
+    )
+    shorthand = feature.get_ui_elements(
+        config={
+            "request_options": {"reasoning_effort": "max"},
+            "request_options_ui": {"reasoning_effort": ["high", "max"]},
+        },
+        tags=[],
+        models=[],
+    )
+
+    assert descriptor == shorthand
+
+
+def test_request_options_ui_select_descriptor_generates_rich_composer_ui() -> None:
+    feature = RequestOptionsFeature()
+    elements = feature.get_ui_elements(
+        config={
+            "request_options": {"reasoning_effort": "max"},
+            "request_options_ui": {
+                "reasoning_effort": {
+                    "type": "select",
+                    "options": ["high", "max"],
+                    "rich_ui": True,
+                }
+            },
+        },
+        tags=[],
+        models=[],
+    )
+
+    assert elements == [
+        {
+            "type": "select",
+            "key": "request_options__reasoning_effort",
+            "label": "Reasoning Effort",
+            "config_path": "request_options.reasoning_effort",
+            "icon": "sliders",
+            "options": [
+                {"value": "high", "label": "high"},
+                {"value": "max", "label": "max"},
+            ],
+            "rich_ui": {
+                "kind": "dropdown",
+                "label": "Reasoning Effort",
+                "show_label": False,
+                "show_icon": False,
+                "options": [
+                    {"value": "high", "label": "high"},
+                    {"value": "max", "label": "max"},
+                ],
+                "placements": ["composer"],
+                "default_pinned": True,
+            },
+            "default": "max",
+        }
+    ]
+
+
 def test_request_options_ui_string_becomes_text() -> None:
     """'string' value in request_options_ui becomes text input with flat key."""
     config = {
@@ -128,8 +200,14 @@ def test_request_options_ui_nested_labels_include_parent_path() -> None:
     by_key = {el["key"]: el for el in elements}
     assert by_key["request_options__thinking__type"]["label"] == "Thinking Type"
     assert by_key["request_options__thinking__type"]["default"] == "enabled"
-    assert by_key["request_options__thinking__type"]["config_path"] == "request_options.thinking.type"
-    assert by_key["request_options__thinking__clear_thinking"]["label"] == "Thinking Clear Thinking"
+    assert (
+        by_key["request_options__thinking__type"]["config_path"]
+        == "request_options.thinking.type"
+    )
+    assert (
+        by_key["request_options__thinking__clear_thinking"]["label"]
+        == "Thinking Clear Thinking"
+    )
     assert by_key["request_options__thinking__clear_thinking"]["default"] is False
 
 
@@ -170,6 +248,40 @@ def test_request_options_ui_nested_unknown_subtree_skipped_gracefully() -> None:
 
     assert len(elements) == 1
     assert elements[0]["key"] == "request_options__thinking__clear_thinking"
+
+
+def test_request_options_ui_invalid_descriptors_do_not_hide_valid_siblings() -> None:
+    config = {
+        "request_options_ui": {
+            "valid": ["high", "max"],
+            "missing_options": {"type": "select", "rich_ui": True},
+            "empty_options": {
+                "type": "select",
+                "options": [],
+                "rich_ui": True,
+            },
+            "non_string_options": {
+                "type": "select",
+                "options": ["high", 1],
+                "rich_ui": True,
+            },
+            "unsupported": {
+                "type": "toggle",
+                "options": ["off", "on"],
+                "rich_ui": True,
+            },
+            "invalid_rich_ui": {
+                "type": "select",
+                "options": ["high", "max"],
+                "rich_ui": {"placements": ["composer"]},
+            },
+        }
+    }
+
+    feature = RequestOptionsFeature()
+    elements = feature.get_ui_elements(config=config, tags=[], models=[])
+
+    assert [element["key"] for element in elements] == ["request_options__valid"]
 
 
 def test_request_options_ui_empty_list_skipped() -> None:
@@ -289,11 +401,43 @@ def test_generate_ui_elements_from_options_nested_paths_and_defaults() -> None:
     assert len(elements) == 2
     by_key = {el["key"]: el for el in elements}
     assert by_key["request_options__thinking__type"]["type"] == "select"
-    assert by_key["request_options__thinking__type"]["config_path"] == "request_options.thinking.type"
+    assert (
+        by_key["request_options__thinking__type"]["config_path"]
+        == "request_options.thinking.type"
+    )
     assert by_key["request_options__thinking__type"]["default"] == "enabled"
     assert by_key["request_options__thinking__clear_thinking"]["type"] == "checkbox"
-    assert by_key["request_options__thinking__clear_thinking"]["config_path"] == "request_options.thinking.clear_thinking"
+    assert (
+        by_key["request_options__thinking__clear_thinking"]["config_path"]
+        == "request_options.thinking.clear_thinking"
+    )
     assert by_key["request_options__thinking__clear_thinking"]["default"] is False
+
+
+def test_nested_select_descriptor_preserves_path_default_and_rich_ui() -> None:
+    elements = RequestOptionsFeature._generate_ui_elements_from_options(
+        {
+            "thinking": {
+                "effort": {
+                    "type": "select",
+                    "options": ["low", "high"],
+                    "rich_ui": True,
+                }
+            }
+        },
+        key_prefix="request_options__",
+        request_options={"thinking": {"effort": "high", "budget": 2048}},
+    )
+
+    assert len(elements) == 1
+    element = elements[0]
+    assert element["key"] == "request_options__thinking__effort"
+    assert element["config_path"] == "request_options.thinking.effort"
+    assert element["default"] == "high"
+    assert element["rich_ui"]["options"] == [
+        {"value": "low", "label": "low"},
+        {"value": "high", "label": "high"},
+    ]
 
 
 def test_request_options_ui_non_string_array_items_filtered() -> None:
@@ -576,4 +720,37 @@ def test_full_flow_nested_flat_keys_to_payload() -> None:
     assert payload["thinking"] == {
         "type": "enabled",
         "clear_thinking": False,
+    }
+
+
+def test_full_flow_nested_select_descriptor_to_payload() -> None:
+    feature = RequestOptionsFeature()
+    state = feature.init(
+        {
+            "request_options": {
+                "thinking": {"effort": "low", "budget": 2048},
+            },
+            "request_options_ui": {
+                "thinking": {
+                    "effort": {
+                        "type": "select",
+                        "options": ["low", "high"],
+                        "rich_ui": True,
+                    }
+                }
+            },
+            "request_options__thinking__effort": "high",
+        },
+        {
+            "request": {
+                "payload": {},
+            }
+        },
+    )
+
+    _messages, final_state = feature.initialize_request([], state)
+
+    assert final_state["request"]["payload"]["thinking"] == {
+        "effort": "high",
+        "budget": 2048,
     }
