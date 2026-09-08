@@ -51,7 +51,7 @@ def _load_saved_credentials() -> dict[str, object]:
 
 
 def _chatgpt_config(credentials_path: Path) -> dict[str, object]:
-    model = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5.5"
+    model = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5.6-luna"
     return {
         "model": model,
         "auth_mode": "chatgpt",
@@ -80,7 +80,7 @@ def _fast_mode_models() -> list[str]:
         models = [item.strip() for item in raw.split(",") if item.strip()]
         if models:
             return models
-    single = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5.5"
+    single = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5.6-luna"
     return [single]
 
 
