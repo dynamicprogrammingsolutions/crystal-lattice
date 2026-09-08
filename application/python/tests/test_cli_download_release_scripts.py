@@ -1,6 +1,8 @@
+import json
 import os
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -12,6 +14,8 @@ OIDC_TEMPLATE = ROOT / "deploy" / "aws-cli-downloads" / "github-oidc-role.yaml"
 CONFIGURE_GITHUB_SCRIPT = (
     ROOT / "deploy" / "aws-cli-downloads" / "configure-github-actions-vars.sh"
 )
+BUMP_SCRIPT = ROOT / "scripts" / "bump_cli_version.py"
+PACKAGE_JSON = ROOT / "package.json"
 RELEASE_SHA = "a" * 40
 
 
@@ -445,3 +449,129 @@ def test_release_oidc_configuration_restricts_environment_to_release_tags() -> N
     assert 'GITHUB_ENVIRONMENT="cli-release"' in configure_script
     assert 'GITHUB_TAG_PATTERN="crystal-lattice-cli-v*"' in configure_script
     assert '"tag|$GITHUB_TAG_PATTERN"' in configure_script
+
+
+def _write_bump_repo(tmp_path: Path, version: str = "9.8.7") -> Path:
+    repo = tmp_path / "bump-repo"
+    pyproject = repo / "application" / "python" / "pyproject.toml"
+    pyproject.parent.mkdir(parents=True)
+    pyproject.write_text(
+        f'[project]\nname = "crystal-lattice-cli"\nversion = "{version}"\n',
+        encoding="utf-8",
+    )
+    # The core status line deliberately shares the CLI version string so the
+    # agent-core line guard is exercised on every bump.
+    (repo / "README.md").write_text(
+        f"- Core package: `agent-core` {version}\n"
+        f"- Terminal CLI package: `crystal-lattice-cli` {version} "
+        "(`crystal-lattice` command)\n",
+        encoding="utf-8",
+    )
+    app_readme = repo / "application" / "python" / "README.md"
+    app_readme.write_text(
+        f"curl -fsSL https://example.invalid/install.sh | VERSION={version} bash\n"
+        f"crystal-lattice-python-runtime-v{version}-darwin-arm64.tar.gz\n"
+        f"crystal-lattice-python-runtime-v{version}0-linux-amd64.tar.gz\n"
+        f"v1{version}-unrelated.tar.gz\n",
+        encoding="utf-8",
+    )
+    deploy_readme = repo / "deploy" / "aws-cli-downloads" / "README.md"
+    deploy_readme.parent.mkdir(parents=True, exist_ok=True)
+    deploy_readme.write_text(
+        f"deploy/aws-cli-downloads/release.sh --version {version}\n",
+        encoding="utf-8",
+    )
+    return repo
+
+
+def _run_bump_script(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(BUMP_SCRIPT), "--repo-root", str(repo), *args],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def test_bump_script_updates_pyproject_and_doc_references(tmp_path: Path) -> None:
+    repo = _write_bump_repo(tmp_path)
+
+    result = _run_bump_script(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert "9.8.7 -> 9.8.8" in result.stdout
+    pyproject = (repo / "application" / "python" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    assert 'version = "9.8.8"' in pyproject
+
+    root_readme = (repo / "README.md").read_text(encoding="utf-8")
+    assert "- Terminal CLI package: `crystal-lattice-cli` 9.8.8" in root_readme
+    # The independent agent-core version line is never rewritten.
+    assert "- Core package: `agent-core` 9.8.7" in root_readme
+
+    app_readme = (repo / "application" / "python" / "README.md").read_text(
+        encoding="utf-8"
+    )
+    assert "VERSION=9.8.8 bash" in app_readme
+    assert "crystal-lattice-python-runtime-v9.8.8-darwin-arm64.tar.gz" in app_readme
+    # Digit-guarded neighbors stay untouched.
+    assert "crystal-lattice-python-runtime-v9.8.70-linux-amd64.tar.gz" in app_readme
+    assert "v19.8.7-unrelated.tar.gz" in app_readme
+
+    deploy_readme = (
+        repo / "deploy" / "aws-cli-downloads" / "README.md"
+    ).read_text(encoding="utf-8")
+    assert "--version 9.8.8" in deploy_readme
+
+
+def test_bump_script_supports_minor_and_major_segments(tmp_path: Path) -> None:
+    repo = _write_bump_repo(tmp_path)
+
+    minor = _run_bump_script(repo, "--bump", "minor")
+    assert minor.returncode == 0, minor.stderr
+    assert "9.8.7 -> 9.9.0" in minor.stdout
+
+    major = _run_bump_script(repo, "--bump", "major")
+    assert major.returncode == 0, major.stderr
+    assert "9.9.0 -> 10.0.0" in major.stdout
+    pyproject = (repo / "application" / "python" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    assert 'version = "10.0.0"' in pyproject
+
+
+def test_bump_script_rejects_missing_version_line(tmp_path: Path) -> None:
+    repo = tmp_path / "empty-repo"
+    pyproject = repo / "application" / "python" / "pyproject.toml"
+    pyproject.parent.mkdir(parents=True)
+    pyproject.write_text(
+        '[project]\nname = "crystal-lattice-cli"\n', encoding="utf-8"
+    )
+
+    result = _run_bump_script(repo)
+
+    assert result.returncode != 0
+    assert "found 0" in result.stderr
+
+
+def test_root_package_json_exposes_cli_release_scripts() -> None:
+    package = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))
+    scripts = package["scripts"]
+
+    assert (
+        scripts["release:cli"]
+        == "bash deploy/aws-cli-downloads/release.sh --profile prod --push-tag --watch"
+    )
+    assert (
+        scripts["release:cli:plan"]
+        == "bash deploy/aws-cli-downloads/release.sh --profile prod --dry-run"
+    )
+    assert (
+        scripts["release:cli:smoke"]
+        == "bash deploy/aws-cli-downloads/smoke.sh --profile prod"
+    )
+    assert (
+        scripts["release:cli:version:bump-patch"]
+        == "python scripts/bump_cli_version.py"
+    )

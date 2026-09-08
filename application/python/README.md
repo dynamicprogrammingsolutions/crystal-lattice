@@ -791,6 +791,52 @@ crystal-lattice --help
 
 ## Release And Distribution
 
+### Making A CLI Release
+
+The repository root `package.json` provides release scripts for the production
+download domain:
+
+1. Bump the CLI version:
+
+   ```bash
+   npm run release:cli:version:bump-patch
+   ```
+
+   This updates `application/python/pyproject.toml` and the documentation
+   version references. Review the diff, then commit to `main` and push. For
+   minor or major bumps, edit the version manually. The release tag must match
+   `crystal-lattice-cli-v<version>`.
+
+2. Optional preflight:
+
+   ```bash
+   npm run release:cli:plan
+   ```
+
+3. Create the release:
+
+   ```bash
+   npm run release:cli
+   ```
+
+   This validates the local release state and download configuration, runs the
+   fast test suites, pushes the release tag, and watches the GitHub Actions
+   run through the platform build matrix, GitHub Release publishing, and
+   download-domain publication.
+
+4. Verify the public download endpoint:
+
+   ```bash
+   npm run release:cli:smoke
+   ```
+
+These commands wrap `deploy/aws-cli-downloads/release.sh` and
+`deploy/aws-cli-downloads/smoke.sh` with `--profile prod`. They require a clean
+`main` worktree whose `HEAD` matches `origin/main`, an authenticated `gh`, and
+AWS credentials for read-only stack validation. For testing-domain releases,
+manual republishing, promotion, and release recovery, see
+`deploy/aws-cli-downloads/README.md`.
+
 ### Release Versioning
 
 `agent-core` and `crystal-lattice-cli` version independently. The CLI package
