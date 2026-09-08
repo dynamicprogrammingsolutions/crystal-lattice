@@ -49,6 +49,9 @@ class SessionStoreRecord:
     session_id: str
     modified: float
     revision: object
+    accessed: Optional[float] = None
+    created: Optional[float] = None
+    size: Optional[int] = None
 
 
 @dataclass(frozen=True, eq=False)
@@ -208,6 +211,9 @@ class FilesystemSessionStore(SessionStore):
             session_id=session_id,
             modified=float(stat.st_mtime),
             revision=revision,
+            accessed=float(stat.st_atime),
+            created=float(getattr(stat, "st_birthtime", stat.st_ctime)),
+            size=int(stat.st_size),
         )
 
     def list_records(self) -> List[SessionStoreRecord]:

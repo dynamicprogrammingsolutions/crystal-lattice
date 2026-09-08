@@ -16,59 +16,59 @@ Specification:
 - [x] The application-layer session-list contract is specified together with
       live implementation, verification, documentation, and evidence status
       for important existing and target behavior.
-- [ ] `SessionListService` retains its current public query, exact-summary,
+- [x] `SessionListService` retains its current public query, exact-summary,
       invalidation, diagnostics, and filter-evaluator methods and return types.
-- [ ] HTTP and terminal adapters continue to consume the same
+- [x] HTTP and terminal adapters continue to consume the same
       `AgentApplication` session-list methods without client-side changes.
-- [ ] An unfiltered, unlimited list returns one summary-shaped entry for every
+- [x] An unfiltered, unlimited list returns one summary-shaped entry for every
       session found by metadata enumeration, including sessions whose full
       files are not resolved during the foreground wait.
-- [ ] Unresolved sessions use the existing summary and presentation shape with
+- [x] Unresolved sessions use the existing summary and presentation shape with
       values derived only from opaque store records, filename identity, and
       stat metadata; creating a placeholder does not open session content.
-- [ ] The initial implementation reuses complete summaries across application
+- [x] The initial implementation reuses complete summaries across application
       runtimes and does not open unchanged session files when their stored
       revision and summary-contract fingerprint remain valid.
-- [ ] New, changed, invalidated, or uncached sessions are offered for complete
+- [x] New, changed, invalidated, or uncached sessions are offered for complete
       resolution in descending modification-time order.
-- [ ] Complete summaries available by the implementation-specific foreground
+- [x] Complete summaries available by the implementation-specific foreground
       deadline precede metadata-only placeholders; unresolved work continues
       privately and later list calls observe completed summaries.
-- [ ] Existing complete-summary behavior remains intact: private native
+- [x] Existing complete-summary behavior remains intact: private native
       metadata is excluded, the first user message supplies the preview,
       application-plugin list actions can add fields and ordering, presentation
       fields are derived consistently, malformed records are isolated, filters
       run after ordering and before limits, and exact summary lookup remains
       independent of list filters.
-- [ ] Application-owned saves and deletes invalidate or refresh internal
+- [x] Application-owned saves and deletes invalidate or refresh internal
       summary state, while external file revision changes and confirmed
       deletions are reconciled.
-- [ ] The selected service implementation receives opaque application context
+- [x] The selected service implementation receives opaque application context
       and alone interprets any implementation-specific configuration; no
       shared configuration model or public service surface exposes cache,
       timeout, worker, scan, placeholder-state, or storage-backend concepts.
 
 ### Non-functional requirements
 
-- [ ] The modification remains within the Python server/application packages
+- [x] The modification remains within the Python server/application packages
       and does not modify mobile, desktop, frontend SDK, or shared client
       packages.
-- [ ] Potentially blocking session-content reads do not run on an HTTP event
+- [x] Potentially blocking session-content reads do not run on an HTTP event
       loop or hold the session-list service lock, and the initial
       implementation returns after its private foreground budget once
       membership enumeration is complete.
-- [ ] Resolution concurrency, memory retention, retries, and persistent state
+- [x] Resolution concurrency, memory retention, retries, and persistent state
       growth are bounded and do not starve ordinary requests or tool work.
-- [ ] Concurrent list calls share in-flight work, internal state is thread-safe,
+- [x] Concurrent list calls share in-flight work, internal state is thread-safe,
       persistence is transactional, and application close/reload stops owned
       background resources.
-- [ ] Persistent summary data uses private storage appropriate to its
+- [x] Persistent summary data uses private storage appropriate to its
       implementation, recovers safely from corruption or unavailability, and
       never endangers source session files.
-- [ ] Diagnostics expose useful timing, cache, placeholder, queue, and failure
+- [x] Diagnostics expose useful timing, cache, placeholder, queue, and failure
       information without logging message content, previews, credentials, or
       complete summaries.
-- [ ] Existing public API and HTTP contract tests remain valid, and new
+- [x] Existing public API and HTTP contract tests remain valid, and new
       deterministic tests cover persistence, deadline behavior, placeholders,
       ordering, concurrency, failure isolation, and lifecycle cleanup without
       requiring iCloud.
@@ -318,13 +318,14 @@ index and keep task/progress language out of current user documentation.
 - [x] Present the completed specification and reassessed draft implementation
       plan for execution approval.
 - [x] After explicit execution approval, mark the plan `Approved`.
-- [ ] Implement the server-side session-list correction.
-- [ ] Add and run focused Core application-layer tests.
-- [ ] Add and run HTTP/server contract tests without client changes.
-- [ ] Run broader affected Core and application verification.
-- [ ] Update current implementation and user documentation as warranted by
+- [x] Implement the server-side session-list correction.
+- [x] Add and run focused Core application-layer tests.
+- [x] Add and run HTTP/server contract tests without client changes.
+- [x] Run broader affected Core and application verification.
+- [x] Update current implementation and user documentation as warranted by
       delivered behavior.
-- [ ] Update requirement evidence and append completion notes.
+- [x] Update requirement evidence.
+- [ ] Append completion notes with final delivery evidence.
 
 ### Requirement verification
 
@@ -355,3 +356,26 @@ index and keep task/progress language out of current user documentation.
 - Run relevant lint and type checks for changed Python modules.
 - Inspect the final diff to confirm no mobile, desktop, frontend SDK, or other
   client package changes.
+
+## Implementation Notes
+
+- Execution began after explicit approval on 2026-09-02. The specification and
+  approved plan baseline was committed as `180b7829`.
+- The initial persistence implementation uses a package-private SQLite helper
+  with operation-scoped connections. Its location, schema, revision token, and
+  failure behavior are not added to the public `SessionListService` surface.
+- Optional access time, creation time, and size were added to opaque
+  `SessionStoreRecord` values with defaults so existing stores and test doubles
+  remain source-compatible.
+- The cached/background resolver remains private inside `SessionListService`
+  instead of introducing a public or injected strategy. This keeps existing
+  summary/action/order helpers together and permits a future implementation to
+  replace the service internals or the whole service.
+- Full application verification revealed that deriving cache location from a
+  bundled configuration path could write generated databases into the source
+  tree. The final default is `~/.crystal/cache/session-list`; ephemeral session
+  roots under the operating-system temporary directory keep their cache beside
+  that temporary root.
+- One scheduled task per session bounds obsolete queued revisions. When stale
+  work exits, the resolver automatically schedules the latest desired revision
+  so background convergence does not require another list request.
