@@ -509,9 +509,9 @@ Prepare and build the documentation site from authored sources; do not edit
 
 ### Task checklist
 
-- [ ] Create and index the application-owned CLI distribution specification
+- [x] Create and index the application-owned CLI distribution specification
   and initial requirements state.
-- [ ] Create and index the honest current-state distribution implementation
+- [x] Create and index the honest current-state distribution implementation
   page before changing test behavior.
 - [ ] Add the shared isolated default-config boot probe and focused helper
   coverage.
@@ -597,3 +597,14 @@ fallback limit operational ambiguity.
   currently nonfatal and that the packaged CLI boots with all provider keys
   absent. The first implementation pass preserves that behavior as an explicit
   contract and removes test-only credential masking.
+- 2026-09-08: Created the application-owned `cli-distribution` specification
+  (`index.md`, `technical-spec.md`, and `requirements.md`), the current
+  distribution implementation map, and current README/configuration guidance
+  for credential-free startup and `.env` key loading. Linked the new pages
+  from the application development index before changing test behavior.
+- 2026-09-08: Initial documentation verification passed: focused `.env` and
+  config-resolution tests passed (3 tests), documentation-site preparation
+  completed, and MkDocs built successfully with only pre-existing navigation,
+  link, and generated-reference warnings. A temporary packaged CLI boot also
+  exposed all 20 default agents with provider, web-search, cloud-orchestrator,
+  and saved-ChatGPT credential variables absent.

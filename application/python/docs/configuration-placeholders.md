@@ -15,7 +15,9 @@ and variants are resolved.
 ```
 
 A missing variable is reported as `env_missing` and resolves to an empty
-string.
+string. Missing credential variables do not prevent the CLI from starting,
+although an API request still needs the real credential required by its
+provider or tool.
 
 Embedding applications can provide:
 
@@ -23,6 +25,34 @@ Embedding applications can provide:
   also installed into the runtime environment overlay;
 - `config_env`: config-resolution-only values that are available to
   placeholders but are not installed into the process environment.
+
+## `.env` files
+
+Users do not need to export provider keys in their shell for normal CLI use.
+The command collects `.env` values for config resolution in this order:
+
+1. `.env` beside the active config file.
+2. `./.crystal/.env` in the working directory.
+3. `~/.crystal/.env`.
+4. The standard `.env` discovered from the working directory or a parent.
+
+Existing process environment values take precedence. Among `.env` files, the
+first discovered value for a key wins. The loaded values are passed to config
+placeholder resolution and are not copied into `os.environ`.
+
+For `crystal-lattice --config-local`, place provider keys beside the generated
+config:
+
+```bash
+# .crystal/.env
+OPENAI_API_KEY=...
+OPENROUTER_API_KEY=...
+ANTHROPIC_API_KEY=...
+```
+
+Configuring a key enables requests that use the corresponding credentialed
+API. It is not a prerequisite for starting the CLI or using unrelated local
+functionality.
 
 ## Built-in path variables
 

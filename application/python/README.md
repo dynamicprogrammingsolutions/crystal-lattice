@@ -283,12 +283,18 @@ user-owned sessions directory from the bundled runtime layout, currently
 ### `.env` Files
 
 The app loads `.env` files related to the active config path. This is the
-recommended place for provider keys during local use:
+recommended place for provider keys during local use, so users do not need to
+export them before starting the command:
 
 ```bash
+# .crystal/.env
 OPENAI_API_KEY=...
 OPENROUTER_API_KEY=...
+ANTHROPIC_API_KEY=...
 ```
+
+For the full config, project, user, and working-directory lookup order, see
+the [placeholder guide](docs/configuration-placeholders.md#env-files).
 
 ### Runtime Layout
 
@@ -316,15 +322,20 @@ as written, including `${env:...}` or `${file:...}` text.
 
 ## Provider Credentials
 
-
-The generated default config includes several real-provider agents. Useful
-model requests require the corresponding credentials, for example:
+The generated default config starts and exposes its agents without provider
+credentials. Missing keys may be reported as configuration diagnostics, but
+they do not prevent the CLI or server from starting.
 
 ```bash
-export OPENAI_API_KEY=...
-export OPENROUTER_API_KEY=...
-export ANTHROPIC_API_KEY=...
+# .crystal/.env
+OPENAI_API_KEY=...
+OPENROUTER_API_KEY=...
+ANTHROPIC_API_KEY=...
 ```
+
+API-backed model and tool requests still require the real credentials expected
+by the selected service. Values in `.crystal/.env` are loaded automatically;
+shell exports remain supported for automation and override `.env` values.
 
 The default Claude routes are provider-qualified:
 
@@ -336,7 +347,8 @@ The default Claude routes are provider-qualified:
   defaults to Sonnet 5 and can select supported Haiku, Sonnet, Opus, Fable, and
   Mythos models from model discovery.
 
-For no-key development from a source checkout, use the echo config:
+For model-like request testing without any external API or local model, use the
+echo config:
 
 ```bash
 cd application/python
