@@ -25,9 +25,34 @@ _BENCHMARK = Path(__file__).resolve().parents[1] / "benchmark"
 if str(_BENCHMARK) not in sys.path:
     sys.path.insert(0, str(_BENCHMARK))
 
-from runtime_env_reset import (  # noqa: F401
+from runtime_env_reset import (  # noqa: E402,F401
     reset_runtime_env_overlay_between_tests,
 )
+
+# Several tests wire the feature-system-message plugin into their
+# applications and import it at module level, so it must be importable at
+# collection time. The application environment never installs plugins
+# that the default config loads dynamically, so provision it on the fly
+# (hermetically, pip install --target) when it is not already installed.
+from plugin_provision import (  # noqa: E402
+    module_importable,
+    provision_plugin,
+)
+
+if not module_importable("feature_system_message"):
+    import atexit
+    import shutil
+    import tempfile
+
+    _FEATURE_SYSTEM_MESSAGE_DIR = tempfile.mkdtemp(
+        prefix="feature_system_message_plugin_"
+    )
+    provision_plugin(
+        _ROOT / "plugins" / "feature-system-message",
+        Path(_FEATURE_SYSTEM_MESSAGE_DIR),
+    )
+    sys.path.insert(0, _FEATURE_SYSTEM_MESSAGE_DIR)
+    atexit.register(shutil.rmtree, _FEATURE_SYSTEM_MESSAGE_DIR, ignore_errors=True)
 
 
 def pytest_configure() -> None:
