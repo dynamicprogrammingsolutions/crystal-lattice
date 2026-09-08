@@ -396,7 +396,7 @@
     "claude_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
         "variables": {
           "INTRODUCTION": {
@@ -413,6 +413,10 @@
             "files": [
               "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage.md"
             ]
+          },
+          "TOOL_USAGE_PERMISSIVE_CD": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_claude_tool_usage.py",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py"
           },
           "TONE_AND_STYLE": {
             "files": [

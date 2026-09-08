@@ -42,7 +42,15 @@ Tavily credentials are configured.
 
 `Grep` currently supports default `files_with_matches`, `content`, and `count` output modes, along with the observed no-match string and missing-path error wrapper.
 
-`Bash` currently supports foreground execution, raw-success vs `Exit code N` failure formatting, the observed timeout behavior, and the Claude background-run message format.
+`Bash` currently supports foreground execution, raw-success vs `Exit code N` failure formatting, the observed timeout behavior, the Claude background-run message format, and working-directory persistence between commands: each foreground command starts in the working directory where the previous foreground command ended, with the ending directory stored in the tool-result message metadata as a path relative to the configured working directory (portable across sandbox moves).
+
+Bash working-directory configuration keys:
+
+- `bash_cwd_persistence`: keep the working directory between Bash commands (default `true`, matching Claude Code). When `false`, every command starts in the configured working directory, no ending-directory metadata is stored, and the tool description states that the working directory does not persist and advises chaining `cd dir && cmd` in a single call.
+- `bash_include_cwd_in_result`: surface the working directory in Bash tool results (default `false`). When `true`, the initial working directory appears as a `[cwd: ...]` first line, and the end working directory is noted as a last line when a command changed it and persistence is enabled.
+- `bash_permissive_cd_guidance`: use permissive `cd` guidance in the Bash tool description instead of the upstream restrictive wording (default `false`). With all options at their defaults and persistence on, the tool description matches upstream Claude Code verbatim.
+
+The default claude system message uses the permissive-cd tool-usage section via the `TOOL_USAGE_PERMISSIVE_CD` template variable in the default config; switching that variable to `{{TOOL_USAGE}}` restores the original upstream wording. The permissive section's persistence sentence follows `bash_cwd_persistence`.
 
 `TaskStop` currently supports stopping running background Bash tasks by the background ID returned from `Bash`. `Read` remains the primary Claude-shaped way to inspect Bash background output via the returned output path.
 

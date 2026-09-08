@@ -164,6 +164,11 @@ def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
     assert "# Context management" in compiled
     assert "Primary working directory:" in compiled
     assert "When a file-oriented tool requires an absolute path" in compiled
+    # The default template uses the permissive-cd tool-usage variable.
+    assert "You may use `cd` when a command must run from a specific directory" in (
+        compiled
+    )
+    assert "avoid unnecessary `cd`" not in compiled
     assert "Task files are a handoff mechanism" in compiled
     assert "# Contextual Instructions (AGENTS.md)" in compiled
     assert "Workspace agent instructions." in compiled
@@ -264,3 +269,79 @@ def test_default_config_claude_agent_uses_claude_tools(
         "claude_anthropic_model_variants"
         in config["agents"]["claude-anthropic"]["mixin_refs"]
     )
+
+
+def test_claude_tool_usage_helper_selects_persistence_variant(
+    monkeypatch,
+) -> None:
+    """The permissive-cd tool-usage helper loads the variant matching the
+    ``bash_cwd_persistence`` config value."""
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
+
+    persistent_ns = runpy.run_path(
+        str(HELPERS_ROOT / "render_claude_tool_usage.py"),
+        init_globals={"CONFIG": {}},
+    )
+    persistent_text = str(persistent_ns["SYSTEM_MESSAGE_VALUE"])
+    assert "# Using your tools" in persistent_text
+    assert "prefer absolute paths" in persistent_text
+    assert (
+        "The working directory persists between commands, so `cd` alone is "
+        "sufficient"
+    ) in persistent_text
+    assert "does not persist between commands" not in persistent_text
+
+    non_persistent_ns = runpy.run_path(
+        str(HELPERS_ROOT / "render_claude_tool_usage.py"),
+        init_globals={"CONFIG": {"bash_cwd_persistence": False}},
+    )
+    non_persistent_text = str(non_persistent_ns["SYSTEM_MESSAGE_VALUE"])
+    assert "# Using your tools" in non_persistent_text
+    assert (
+        "The working directory does not persist between commands; chain "
+        "`cd dir && cmd` in a single Bash call"
+    ) in non_persistent_text
+    assert "persists between commands, so `cd` alone" not in non_persistent_text
+
+
+def test_claude_tool_usage_helper_falls_back_to_empty_without_builtin_plugins(
+    monkeypatch,
+) -> None:
+    """If the plugin tree cannot be located, the helper resolves to an empty
+    value instead of raising."""
+    monkeypatch.delenv("BUILTIN_PLUGINS", raising=False)
+
+    namespace = runpy.run_path(
+        str(HELPERS_ROOT / "render_claude_tool_usage.py"),
+        init_globals={"CONFIG": {}},
+    )
+    assert namespace["SYSTEM_MESSAGE_VALUE"] == ""
+
+
+def test_default_config_claude_system_message_uses_permissive_tool_usage_variable() -> (
+    None
+):
+    """The default config wires the claude system message to the permissive-cd
+    tool-usage variable while keeping the original variable selectable."""
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    system_message = config["mixins"]["claude_system_message"]["system_message"]
+
+    template = system_message["template"]
+    assert "{{TOOL_USAGE_PERMISSIVE_CD}}" in template
+    assert "{{TOOL_USAGE}}" not in template
+
+    variables = system_message["variables"]
+    assert variables["TOOL_USAGE"]["files"] == [
+        "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage.md"
+    ]
+    permissive = variables["TOOL_USAGE_PERMISSIVE_CD"]
+    assert permissive["code"].endswith("render_claude_tool_usage.py")
+    assert permissive["runtime_code"].endswith("claude_runtime.py")

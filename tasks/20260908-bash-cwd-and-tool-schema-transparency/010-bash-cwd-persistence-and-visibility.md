@@ -12,13 +12,13 @@ tool-usage section by default with the upstream original still selectable.
 
 ## Requirements checklist
 
-- [ ] A `bash_cwd_persistence` agent-level config option (default `true`) controls whether the Bash tool resolves its working directory from the previous Bash result's stored `end_cwd`; when `false`, every foreground command starts in the configured working directory and no `bash.end_cwd` metadata is emitted.
-- [ ] The Bash tool description shown to the model matches `bash_cwd_persistence`: when `false` it states the working directory does not persist between commands and advises chaining `cd dir && cmd` in a single Bash call.
-- [ ] A `bash_include_cwd_in_result` agent-level config option (default `false`), when `true`, adds an initial cwd line at the beginning of Bash tool result content, and adds an end cwd line at the end only when the cwd changed during the command and cwd persistence is enabled.
-- [ ] A `bash_permissive_cd_guidance` agent-level config option (default `false`), when `true`, replaces the upstream restrictive cd guidance in the Bash tool description with permissive guidance; with all options at their defaults and persistence on, the tool description is verbatim upstream.
-- [ ] The default config's claude system message template (kept inlined in `config.json`) references the improved permissive-cd tool-usage variable; the original upstream tool-usage file remains available by switching the template variable, and both variables are defined in the default config.
-- [ ] The improved tool-usage system message content selects its persistence sentence based on `bash_cwd_persistence` (persisting → "cd alone is sufficient"; not persisting → "chain `cd dir && cmd`").
-- [ ] Tests cover: persistence on/off behavior and metadata, cwd-in-result formatting (success, failure, no-output, changed-cwd end note), tool description variants for the option combinations, system message helper variant selection, and default-config wiring (template references the improved variable; both variables defined).
+- [x] A `bash_cwd_persistence` agent-level config option (default `true`) controls whether the Bash tool resolves its working directory from the previous Bash result's stored `end_cwd`; when `false`, every foreground command starts in the configured working directory and no `bash.end_cwd` metadata is emitted.
+- [x] The Bash tool description shown to the model matches `bash_cwd_persistence`: when `false` it states the working directory does not persist between commands and advises chaining `cd dir && cmd` in a single Bash call.
+- [x] A `bash_include_cwd_in_result` agent-level config option (default `false`), when `true`, adds an initial cwd line at the beginning of Bash tool result content, and adds an end cwd line at the end only when the cwd changed during the command and cwd persistence is enabled.
+- [x] A `bash_permissive_cd_guidance` agent-level config option (default `false`), when `true`, replaces the upstream restrictive cd guidance in the Bash tool description with permissive guidance; with all options at their defaults and persistence on, the tool description is verbatim upstream.
+- [x] The default config's claude system message template (kept inlined in `config.json`) references the improved permissive-cd tool-usage variable; the original upstream tool-usage file remains available by switching the template variable, and both variables are defined in the default config.
+- [x] The improved tool-usage system message content selects its persistence sentence based on `bash_cwd_persistence` (persisting → "cd alone is sufficient"; not persisting → "chain `cd dir && cmd`").
+- [x] Tests cover: persistence on/off behavior and metadata, cwd-in-result formatting (success, failure, no-output, changed-cwd end note), tool description variants for the option combinations, system message helper variant selection, and default-config wiring (template references the improved variable; both variables defined).
 
 ## Requirement questions and decisions
 
@@ -207,17 +207,17 @@ plugin-local docs for the owning location).
 
 ### Task checklist
 
-- [ ] Create `tool-usage-permissive-cd.md` and `tool-usage-permissive-cd-no-persistence.md`
-- [ ] Create `render_claude_tool_usage.py` helper
-- [ ] Update default config: template references the improved variable; both variables defined
-- [ ] Bash tool: read the three booleans in `init`
-- [ ] Bash tool: persistence-off behavior (skip chain, no metadata)
-- [ ] Bash tool: cwd-in-result formatting
-- [ ] Bash tool: description variants in `get_tool_schemas`
-- [ ] Bash tool tests (persistence, cwd lines, description variants)
-- [ ] System message helper and default-config tests
-- [ ] Lint (ruff, black) and typecheck (pyright) on changed files
-- [ ] Docs for the new config options
+- [x] Create `tool-usage-permissive-cd.md` and `tool-usage-permissive-cd-no-persistence.md`
+- [x] Create `render_claude_tool_usage.py` helper
+- [x] Update default config: template references the improved variable; both variables defined
+- [x] Bash tool: read the three booleans in `init`
+- [x] Bash tool: persistence-off behavior (skip chain, no metadata)
+- [x] Bash tool: cwd-in-result formatting
+- [x] Bash tool: description variants in `get_tool_schemas`
+- [x] Bash tool tests (persistence, cwd lines, description variants)
+- [x] System message helper and default-config tests
+- [x] Lint (ruff, black) and typecheck (pyright) on changed files
+- [x] Docs for the new config options
 
 ### Requirement verification
 
@@ -233,3 +233,63 @@ plugin-local docs for the owning location).
 - Confirm `CONFIG` in the system message rendering context is the agent config, so the helper reads the same `bash_cwd_persistence` value the tool receives.
 - Confirm `BUILTIN_PLUGINS` is available via `os.environ` during helper execution (the config loader resolves `${env:BUILTIN_PLUGINS}` from the process environment).
 - Verify the shared `claude_system_message` mixin change renders correctly for the `claude`, `glm-ollama`, and `deepseek-ollama` agents.
+## Implementation Notes
+
+- The description variants are built by exact-string replacement of two
+  upstream segments (opening persistence claim, cd guidance sentence) in the
+  base `BASH_DESCRIPTION`; `test_upstream_description_segments_present` guards
+  the segment constants against upstream text drift.
+- Background results include only the start `[cwd: ...]` line (the background
+  command's end cwd is unknown at start time and background runs do not join
+  the cwd chain).
+- The failure-case test uses `sh -c "echo problem 1>&2; exit 7"` (subshell)
+  because a bare `exit` inside the eval-wrapped command terminates the
+  wrapping shell before the sentinel prints.
+- Environment finding (pre-existing, not caused by this task): fresh plugin
+  cache installs in a new worktree pull latest PyPI dependencies — mcp 2.2.0
+  requires `typing_extensions.sentinel`, but the ambient pyenv
+  `typing_extensions` (4.14.1) lacked it, and the plugin installer's stale
+  module eviction could not swap it because `typing_extensions`' dist-info has
+  no `top_level.txt`. Full-config application tests failed with
+  `plugin_import_error` entries until the ambient `typing_extensions` was
+  upgraded (`pip install -U typing_extensions`). The main checkout only
+  worked because its warm cache still had mcp 2.0.0. This eviction gap is a
+  candidate for a separate infrastructure fix.
+- Running `pytest plugins/claude-tools/tests/test_claude_bash_tool.py
+  application/python/tests/test_claude_system_message_helpers.py` in a single
+  invocation causes a cross-suite failure (the application test's plugin
+  installs mutate process sys.path/module state); the suites must be run
+  separately, matching the normal per-package invocations.
+
+## Completion Notes
+
+- Outcome: all requirements delivered. Three agent-level config options
+  (`bash_cwd_persistence` default `true`, `bash_include_cwd_in_result`
+  default `false`, `bash_permissive_cd_guidance` default `false`) control the
+  Bash tool's cwd chain, result cwd lines, and description cd guidance; the
+  default claude system message uses the permissive-cd tool-usage variable
+  (helper-selected persistence variant) with the original variable still
+  selectable via the inlined template.
+- Requirement evidence: 16 new tests in
+  `plugins/claude-tools/tests/test_claude_bash_tool.py` (description variants
+  incl. byte-identical upstream at defaults, persistence off/on, cwd lines
+  for success/failure/no-output/changed-cwd, init option reading,
+  `_apply_cwd_lines` unit) and 3 new tests plus extended assertions in
+  `application/python/tests/test_claude_system_message_helpers.py` (helper
+  variant selection, empty fallback without `BUILTIN_PLUGINS`, default-config
+  wiring, full-render shows the permissive line and not the original).
+- Verification performed: `pytest plugins/claude-tools/tests -q` → 139
+  passed, 9 deselected; `pytest application/python/tests/test_claude_system_message_helpers.py -q`
+  → 7 passed; `ruff check` and `black` clean on all changed files; `pyright`
+  shows only the 3 pre-existing errors (verified identical on the clean
+  state). Additional verification: `CONFIG` in the system message rendering
+  context is the request config (feature `_build_base_runtime_context`);
+  `BUILTIN_PLUGINS` is installed into `os.environ` by the runtime overlay
+  (`agent_app/config.py` `build_runtime_overlay_env`); the shared
+  `claude_system_message` mixin renders the permissive section for the
+  `claude` (via the committed full-render test), `glm-ollama`, and
+  `deepseek-ollama` agents (direct render check).
+- Plan deviations: none.
+- Unresolved/deferred: the plugin-install `typing_extensions` eviction gap
+  (dist-info without `top_level.txt` prevents swapping a stale ambient
+  module) is a pre-existing infrastructure issue worth a separate task.
