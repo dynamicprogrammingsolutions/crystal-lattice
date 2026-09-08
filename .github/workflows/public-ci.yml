@@ -110,8 +110,7 @@ jobs:
         run: |
           python -m pip install \
             -e "core/python[dev]" \
-            -e application/python \
-            openai
+            -e application/python
 
       - name: Run core unit tests
         run: pytest core/python/tests -q -m "not integration"

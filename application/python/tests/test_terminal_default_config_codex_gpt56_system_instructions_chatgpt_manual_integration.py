@@ -32,18 +32,7 @@ from agent_app.config import (  # noqa: E402
     resolve_placeholders,
 )
 from agent_core import AgentCore  # noqa: E402
-from feature_system_message.system_message_feature import (  # noqa: E402
-    SystemMessageFeature,
-)
-from openai_responses_plugins import (  # noqa: E402
-    OpenAIResponsesChatGPTAuthFeature,
-    OpenAIResponsesProvider,
-    OpenAIResponsesUsageExtension,
-)
-from openai_responses_plugins.openai_responses_reasoning_extension import (  # noqa: E402
-    OpenAIResponsesReasoningExtension,
-)
-from plugins.request_options_feature import RequestOptionsFeature  # noqa: E402
+from plugin_provision import module_importable, provision_plugin  # noqa: E402
 
 CONFIG_PATH = (
     ROOT
@@ -170,34 +159,20 @@ class _RecordedClientProxy:
         return getattr(self._target, name)
 
 
-class _RecordingChatGPTProvider(OpenAIResponsesProvider):
-    recorded_requests: list[dict[str, Any]] = []
+@pytest.fixture(scope="session")
+def openai_responses_plugin(tmp_path_factory: pytest.TempPathFactory) -> None:
+    """Provision the openai_responses plugin on the fly when it is not installed.
 
-    def _create_sdk_client_with_options(
-        self,
-        config: dict[str, Any],
-        *,
-        timeout: float,
-        max_retries: int | None,
-    ) -> Any:
-        client = super()._create_sdk_client_with_options(
-            config,
-            timeout=timeout,
-            max_retries=max_retries,
-        )
-        return _RecordedClientProxy(client, type(self).recorded_requests)
-
-
-def _build_recording_core() -> AgentCore:
-    core = AgentCore()
-    core.register_provider(
-        _RecordingChatGPTProvider,
-        extensions=[OpenAIResponsesReasoningExtension, OpenAIResponsesUsageExtension],
-    )
-    core.register_feature(OpenAIResponsesChatGPTAuthFeature)
-    core.register_feature(SystemMessageFeature)
-    core.register_feature(RequestOptionsFeature)
-    return core
+    The application default config loads this plugin dynamically, so the
+    application test environment never installs it or its ``openai`` SDK
+    dependency. This test drives the provider directly, so it installs the
+    plugin hermetically (``pip install --target``) only when needed.
+    """
+    if module_importable("openai_responses_plugins"):
+        return
+    target_dir = tmp_path_factory.mktemp("openai_responses_plugin")
+    provision_plugin(ROOT / "plugins" / "openai_responses", target_dir)
+    sys.path.insert(0, str(target_dir))
 
 
 def _send_streaming_request(
@@ -239,7 +214,51 @@ def _chatgpt_config(
 @pytest.mark.manual_integration
 @pytest.mark.integration
 @pytest.mark.openai
-def test_openai_responses_chatgpt_gpt56_system_instructions_round_trip() -> None:
+def test_openai_responses_chatgpt_gpt56_system_instructions_round_trip(
+    openai_responses_plugin: None,
+) -> None:
+    from feature_system_message.system_message_feature import SystemMessageFeature
+    from openai_responses_plugins import (
+        OpenAIResponsesChatGPTAuthFeature,
+        OpenAIResponsesProvider,
+        OpenAIResponsesUsageExtension,
+    )
+    from openai_responses_plugins.openai_responses_reasoning_extension import (
+        OpenAIResponsesReasoningExtension,
+    )
+    from plugins.request_options_feature import RequestOptionsFeature
+
+    class _RecordingChatGPTProvider(OpenAIResponsesProvider):
+        recorded_requests: list[dict[str, Any]] = []
+
+        def _create_sdk_client_with_options(
+            self,
+            config: dict[str, Any],
+            *,
+            timeout: float,
+            max_retries: int | None,
+        ) -> Any:
+            client = super()._create_sdk_client_with_options(
+                config,
+                timeout=timeout,
+                max_retries=max_retries,
+            )
+            return _RecordedClientProxy(client, type(self).recorded_requests)
+
+    def _build_recording_core() -> AgentCore:
+        core = AgentCore()
+        core.register_provider(
+            _RecordingChatGPTProvider,
+            extensions=[
+                OpenAIResponsesReasoningExtension,
+                OpenAIResponsesUsageExtension,
+            ],
+        )
+        core.register_feature(OpenAIResponsesChatGPTAuthFeature)
+        core.register_feature(SystemMessageFeature)
+        core.register_feature(RequestOptionsFeature)
+        return core
+
     load_dotenv(ROOT / ".env")
 
     credentials_path = _credentials_path()

@@ -238,6 +238,7 @@ validation—not merely applying them—also read in full:
 - Integration verification:
   - Core non-API integration: `pytest core/python/tests -m 'integration and not api and not slow_integration' -q`
   - Application non-API integration: `pytest application/python/tests -m 'integration and not api and not slow_integration and not docker' -q`
+  - OpenAI Responses non-API integration: `pytest plugins/openai_responses/tests -m 'integration and not api and not slow_integration and not manual_integration' -q`
   - Local Ollama verification: `pytest core/python/tests -m 'ollama and not api' -q`
 - Hosted API verification:
   - Examples / SDK smoke tests: `pytest core/python/examples/tests -m 'integration and api and not slow_integration' -q`

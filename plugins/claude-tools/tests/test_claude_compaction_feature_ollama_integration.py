@@ -19,6 +19,7 @@ from __future__ import annotations
 # ruff: noqa: E402
 
 import base64
+import importlib
 import json
 import os
 import sys
@@ -191,9 +192,7 @@ def test_compact_conversation_with_asset_ref_requires_context_ollama(tmp_path: P
         pytest.skip("Ollama OpenAI-compatible endpoint not reachable")
 
     try:
-        from reference_openai_compatible_provider.provider import (
-            OpenAICompatibleProvider,
-        )
+        importlib.import_module("reference_openai_compatible_provider.provider")
     except ImportError as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"Ollama compaction test dependencies not installed: {exc}")
 
