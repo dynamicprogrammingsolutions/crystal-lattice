@@ -243,6 +243,12 @@ deploy/aws-cli-downloads/release.sh \
   --watch
 ```
 
+The root `package.json` wraps these commands for the production profile:
+`npm run release:cli:version:bump-patch` (version bump plus documentation
+sync), `npm run release:cli:plan` (dry run), `npm run release:cli`
+(`--push-tag --watch`), and `npm run release:cli:smoke`. The release guide
+lives in `application/python/README.md`.
+
 The script validates the local version and tag, then lets GitHub Actions run
 the official matrix build. It does not build all release archives locally.
 

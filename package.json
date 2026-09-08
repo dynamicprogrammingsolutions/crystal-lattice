@@ -112,6 +112,11 @@
 
     "deploy:bridge": "rsync -av --exclude '_build' --exclude 'deps' bridge-elixir/ ireland-s1.dynamicprogrammingsolutions.com:~/bridge-elixir/ && ssh ireland-s1.dynamicprogrammingsolutions.com 'cd ~/bridge-elixir && docker-compose -f docker-compose.single-node-v2.yml build && docker-compose -f docker-compose.single-node-v2.yml up -d'",
     "deploy:cloud": "bash .crystal/deploy-cloud-orchestrator-ireland.sh",
-    "ssh:ireland": "ssh irelandsrv@ireland-s1.dynamicprogrammingsolutions.com"
+    "ssh:ireland": "ssh irelandsrv@ireland-s1.dynamicprogrammingsolutions.com",
+
+    "release:cli": "bash deploy/aws-cli-downloads/release.sh --profile prod --push-tag --watch",
+    "release:cli:plan": "bash deploy/aws-cli-downloads/release.sh --profile prod --dry-run",
+    "release:cli:smoke": "bash deploy/aws-cli-downloads/smoke.sh --profile prod",
+    "release:cli:version:bump-patch": "python scripts/bump_cli_version.py"
   }
 }
