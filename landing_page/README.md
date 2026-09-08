@@ -174,4 +174,5 @@ Run the focused checks with:
 
 ```bash
 yarn test:analytics
+yarn test:content
 ```

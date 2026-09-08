@@ -44,7 +44,7 @@ export type HeroSection = SectionBase<"hero"> & {
   install: {
     prompt: string;
     command: string;
-    altHtml: string;
+    altHtml?: string;
   };
 };
 

@@ -38,11 +38,8 @@ curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | 
 The installer links the command as `~/.local/bin/crystal-lattice`. If that
 directory is not on your `PATH`, add it or call the command by its full path.
 
-Users who prefer Python packaging can use:
-
-```bash
-pipx install crystal-lattice-cli
-```
+The Python packages are not currently published to PyPI. For development from
+a source checkout, use the editable-install instructions later in this README.
 
 More installation details are in [application/python/README.md](application/python/README.md).
 

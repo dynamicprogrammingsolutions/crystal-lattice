@@ -5,10 +5,10 @@ and verifies a concrete response without requiring provider credentials.
 
 ## Install
 
-With Python 3.10 or newer:
+On macOS, Linux, or Git Bash on Windows, install the bundled CLI:
 
 ```bash
-pipx install crystal-lattice-cli
+curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
 crystal-lattice --help
 ```
 

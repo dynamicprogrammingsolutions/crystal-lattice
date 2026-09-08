@@ -9,7 +9,7 @@ seo:
 sections:
   - type: hero
     id: hero
-    badge: "Plugin-driven agent platform"
+    badge: "Open Source"
     titleHtml: 'For people who outgrow<br /><span class="highlight">one-size-fits-all agents.</span>'
     subtitle: >-
       Crystal Lattice is a model-native agent platform: the harness changes
@@ -30,7 +30,6 @@ sections:
     install:
       prompt: "$"
       command: "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
-      altHtml: "or <code>pipx install crystal-lattice-cli</code>"
 
   - type: providers
     id: harness-strip

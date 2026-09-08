@@ -54,6 +54,7 @@ jobs:
         run: |
           yarn --cwd landing_page install --frozen-lockfile
           yarn --cwd landing_page test:analytics
+          yarn --cwd landing_page test:content
           yarn --cwd landing_page build
 
       - name: Set Up Python

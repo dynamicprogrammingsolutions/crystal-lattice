@@ -280,7 +280,7 @@ environments remains required post-publication hardening in task `130`.
 - [x] Verify fork-PR and protected-workflow isolation without relocating secret
   values.
 - [x] Scan all remote-ref changes since task `060`.
-- [x] Validate Public CI, static deployment, and live public-facing content on
+- [ ] Validate Public CI, static deployment, and live public-facing content on
   the actual current `main`.
 - [ ] Change visibility to public.
 - [ ] Protect `main`.
@@ -442,3 +442,55 @@ Repository presentation metadata now includes:
 The next commit records this evidence only. After its hosted Public CI and
 final ref delta scan pass, execution stops for the owner visibility
 confirmation.
+
+### September 8, 2026: website truthfulness delta prepared
+
+Before repository visibility changed, the owner requested two public-surface
+corrections. Current `main` and `origin/main` were synchronized at
+`5351da7ea6cdde808c40ea93aaae31adde4dd99f`, and the preceding analytics work
+was committed with a clean worktree.
+
+The prepared delta:
+
+- restores the homepage hero badge to `Open Source`;
+- retains the model-native/plugin-driven product description elsewhere;
+- removes the unavailable `pipx install crystal-lattice-cli` and
+  `pip install crystal-lattice-cli` claims from maintained user guidance;
+- documents the bundled download installer as the released user path and
+  editable source installs as the developer path;
+- makes the hero alternate-install field optional and omits its row when no
+  supported alternative exists;
+- adds a landing content regression test and runs it in both Public CI and
+  static-site deployment.
+
+Local verification passed:
+
+- four analytics tests;
+- two new homepage-content tests;
+- landing production build with five generated routes;
+- two documentation analytics tests;
+- documentation preparation and non-strict production build;
+- workflow YAML parsing, actionlint, Actions security validation, and
+  `git diff --check`;
+- an isolated live installer smoke test using release `0.1.4`, followed by a
+  successful `crystal-lattice --help`;
+- maintained and generated public documentation contain no unsupported
+  `pipx`/`pip` CLI installation command;
+- generated homepage HTML contains `Open Source`, the supported installer, and
+  no alternate-install row.
+
+The refreshed pre-push publication mirror covered 34 branch heads, five tags,
+all 12 GitHub pull-request heads, and 2,066 commits:
+
+- Gitleaks: the same three accepted historical findings;
+- TruffleHog: zero verified credentials, the two accepted revoked historical
+  JWT findings, and one new unverified URI match in the analytics sanitizer
+  test.
+
+The new URI match is the intentionally fake
+`name:password@example.com` referrer used to prove that analytics removes URL
+credentials and private query/fragment data. It is not an active credential
+and is retained as useful security-test coverage.
+
+Public CI run `34275747652` on concurrent `develop` work was still active, so
+the website delta was not pushed while that run was in progress.

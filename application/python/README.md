@@ -69,20 +69,11 @@ On Windows, run the shell installer from Git Bash, MSYS2, or Cygwin. Native
 PowerShell installation is not implemented yet; use the release `.zip` asset
 directly if you do not use a Bash-compatible shell.
 
-### Python Install
+### Python Package Availability
 
-For users with Python 3.10+ available:
-
-```bash
-pipx install crystal-lattice-cli
-crystal-lattice --help
-```
-
-You can also install into an active virtualenv:
-
-```bash
-pip install crystal-lattice-cli
-```
+The `crystal-lattice-cli` and `agent-core` packages are not currently
+published to PyPI. Use the bundled shell installer above for a released CLI,
+or use the source install below for development.
 
 ### Source Install
 
