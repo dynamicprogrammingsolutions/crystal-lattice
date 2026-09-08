@@ -240,7 +240,7 @@ validate_github_download_config
 
 if [ "$SKIP_TESTS" -eq 0 ]; then
   log_step "Running local fast tests"
-  run_or_print python -m pip install -e "core/python[dev]" -e application/python openai
+  run_or_print python -m pip install -e "core/python[dev]" -e application/python
   run_or_print pytest core/python/tests -q -m "not integration"
   run_or_print pytest application/python/tests -q -m "not integration and not docker"
 fi
