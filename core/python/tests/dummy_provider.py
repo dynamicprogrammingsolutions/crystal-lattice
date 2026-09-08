@@ -81,9 +81,9 @@ class DummyProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Process a streaming chunk and update state.
- 
+
         Returns ``(partial_messages, final_messages, native_messages, new_state)``.
- 
+
         For this dummy provider, per-character streaming chunks are tracked only
         in ``runtime_state['native_chunks']`` and are **not** persisted into the
         provider-native history. The retained ``native_messages`` list therefore
@@ -106,7 +106,6 @@ class DummyProvider(ProviderPlugin):
         # chat messages (user/assistant) are preserved in native history.
         full_history = list(native_messages)
         return ([partial_msg] if partial_content else []), [], full_history, new_state
-
 
     def finalize(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -261,6 +260,10 @@ _cancellable_provider_state: Dict[str, Any] = {
     "active": {},
 }
 
+# Provider instances are short-lived (one per request), so the active-request
+# registry lives in the module-global state rather than on the instance.
+_cancellable_active_lock = threading.Lock()
+
 
 @dataclass
 class CancellableBlockingProvider(ProviderPlugin):
@@ -268,10 +271,6 @@ class CancellableBlockingProvider(ProviderPlugin):
 
     name: str = "cancellable_blocking_provider"
     version: str = "1.0.0"
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._active: Dict[str, threading.Event] = {}
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {"model": {"type": "string", "required": True}}
@@ -315,7 +314,8 @@ class CancellableBlockingProvider(ProviderPlugin):
             **state,
             "runtime_state": {
                 **runtime_state,
-                "accumulated_content": runtime_state.get("accumulated_content", "") + partial_content,
+                "accumulated_content": runtime_state.get("accumulated_content", "")
+                + partial_content,
                 "native_chunks": list(runtime_state.get("native_chunks", [])) + [native_chunk],
             },
         }
@@ -334,20 +334,18 @@ class CancellableBlockingProvider(ProviderPlugin):
     def _track_request(self, request_id: str | None) -> threading.Event:
         rid = request_id or ""
         event = threading.Event()
-        with self._lock:
-            self._active[rid] = event
-            _cancellable_provider_state["active"] = dict(self._active)
+        with _cancellable_active_lock:
+            _cancellable_provider_state["active"][rid] = event
         return event
 
     def _clear_request(self, request_id: str | None) -> None:
         rid = request_id or ""
-        with self._lock:
-            self._active.pop(rid, None)
-            _cancellable_provider_state["active"] = dict(self._active)
+        with _cancellable_active_lock:
+            _cancellable_provider_state["active"].pop(rid, None)
 
     def cancel_request(self, request_id: str) -> bool:
-        with self._lock:
-            event = self._active.get(request_id)
+        with _cancellable_active_lock:
+            event = _cancellable_provider_state["active"].get(request_id)
         _cancellable_provider_state["cancel_request_ids"].append(request_id)
         if event is None:
             return False

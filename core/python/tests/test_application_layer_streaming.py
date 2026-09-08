@@ -42,9 +42,7 @@ def test_send_request_streaming_emits_events(tmp_path: Path) -> None:
     session = core.add_message(session, "user", "Hello")
     app.save_session(session)
 
-    events = list(
-        app.send_request(core, session, base_config, overrides=None, stream=True)
-    )
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
 
     assert any(ev["type"] == "partial" for ev in events)
     assert any(ev["type"] == "final" for ev in events)
@@ -65,9 +63,7 @@ def test_streaming_assistant_lifecycle_carries_reserved_message_index(
     app.save_session(session)
     expected_index = len(session.messages)
 
-    events = list(
-        app.send_request(core, session, base_config, overrides=None, stream=True)
-    )
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
 
     lifecycle = [event for event in events if event.get("type") == "assistant_message"]
     assert [event.get("phase") for event in lifecycle] == ["start", "end"]
@@ -171,9 +167,7 @@ def test_send_request_completes_when_tool_preparation_fails(tmp_path: Path) -> N
     session = core.add_message(session, "user", "Hello")
     app.save_session(session)
 
-    events = list(
-        app.send_request(core, session, base_config, overrides=None, stream=True)
-    )
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
 
     assert [event.get("type") for event in events] == [
         "request_started",
@@ -255,9 +249,7 @@ def _make_slow_config(tmp_path: Path, *, sleep_per_char: float = 0.05) -> Path:
 
 def _make_failing_config(tmp_path: Path) -> Path:
     cfg = {
-        "providers": {
-            "dummy": {"provider": "failing_dummy_provider", "model": "test-model"}
-        },
+        "providers": {"dummy": {"provider": "failing_dummy_provider", "model": "test-model"}},
         "plugins": ["tests.dummy_provider.FailingOnceDummyProvider"],
         "agents": {
             "default": {"provider": "dummy"},
@@ -345,9 +337,7 @@ def test_cancel_request_and_resume(tmp_path: Path) -> None:
     events: list[dict] = []
 
     def _consume() -> None:
-        for ev in app.send_request(
-            core, session, base_config, overrides=None, stream=True
-        ):
+        for ev in app.send_request(core, session, base_config, overrides=None, stream=True):
             events.append(ev)
 
     t = threading.Thread(target=_consume)
@@ -374,9 +364,7 @@ def test_cancel_request_and_resume(tmp_path: Path) -> None:
     assert "request_completed" in kinds
 
     # A fresh request after cancellation should still complete normally.
-    events2 = list(
-        app.send_request(core, session, base_config, overrides=None, stream=True)
-    )
+    events2 = list(app.send_request(core, session, base_config, overrides=None, stream=True))
     kinds2 = {ev.get("type") for ev in events2}
     assert "final" in kinds2
     assert "request_completed" in kinds2
@@ -453,17 +441,13 @@ def test_failure_then_resume(tmp_path: Path) -> None:
     session = core.add_message(session, "user", "Hi failing provider")
     app.save_session(session)
 
-    events1 = list(
-        app.send_request(core, session, base_config, overrides=None, stream=False)
-    )
+    events1 = list(app.send_request(core, session, base_config, overrides=None, stream=False))
     kinds1 = {ev.get("type") for ev in events1}
     assert "error" in kinds1
     assert "request_completed" in kinds1
 
     # Second request should succeed now that the provider has failed once.
-    events2 = list(
-        app.send_request(core, session, base_config, overrides=None, stream=False)
-    )
+    events2 = list(app.send_request(core, session, base_config, overrides=None, stream=False))
     kinds2 = {ev.get("type") for ev in events2}
     assert "final" in kinds2
     assert "request_completed" in kinds2
@@ -516,9 +500,7 @@ def test_cancel_request_interrupts_silent_running_tool(tmp_path: Path) -> None:
     checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
     assert checkpoints
     final_session = checkpoints[-1]["session"]
-    tool_messages = [
-        m for m in final_session.messages if getattr(m, "role", None) == "tool"
-    ]
+    tool_messages = [m for m in final_session.messages if getattr(m, "role", None) == "tool"]
     assert tool_messages
     assert "Cancelled" in str(tool_messages[-1].content)
 
@@ -814,43 +796,50 @@ def test_provider_cancellation_is_request_scoped(tmp_path: Path) -> None:
         ):
             sink.append(ev)
 
-    worker1 = threading.Thread(
-        target=_consume, args=(session1, "req_provider_one", events1)
-    )
-    worker2 = threading.Thread(
-        target=_consume, args=(session2, "req_provider_two", events2)
-    )
+    worker1 = threading.Thread(target=_consume, args=(session1, "req_provider_one", events1))
+    worker2 = threading.Thread(target=_consume, args=(session2, "req_provider_two", events2))
     worker1.start()
     worker2.start()
 
-    deadline = time.monotonic() + 5.0
-    while time.monotonic() < deadline:
-        started1 = any(ev.get("type") == "request_started" for ev in events1)
-        started2 = any(ev.get("type") == "request_started" for ev in events2)
-        if started1 and started2:
-            break
-        time.sleep(0.05)
-    else:
-        raise AssertionError("both requests did not start before cancellation")
+    try:
+        # Wait until both provider calls are in flight and their cancel events
+        # are registered; request_started alone does not guarantee the
+        # provider was reached, and cancelling before the call would abort
+        # the request without invoking the provider.
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            active_ids = set(get_cancellable_blocking_provider_state()["active"])
+            if {"req_provider_one", "req_provider_two"} <= active_ids:
+                break
+            time.sleep(0.05)
+        else:
+            raise AssertionError("both requests did not reach the provider before cancellation")
 
-    app.cancel_request("req_provider_one")
+        app.cancel_request("req_provider_one")
 
-    worker1.join(timeout=5)
-    assert not worker1.is_alive()
-    time.sleep(0.2)
-    assert worker2.is_alive()
+        worker1.join(timeout=5)
+        assert not worker1.is_alive()
+        time.sleep(0.2)
+        assert worker2.is_alive()
 
-    app.cancel_request("req_provider_two")
-    worker2.join(timeout=5)
-    assert not worker2.is_alive()
+        app.cancel_request("req_provider_two")
+        worker2.join(timeout=5)
+        assert not worker2.is_alive()
 
-    kinds1 = {ev.get("type") for ev in events1}
-    kinds2 = {ev.get("type") for ev in events2}
-    assert "request_cancelled" in kinds1
-    assert "request_cancelled" in kinds2
+        kinds1 = {ev.get("type") for ev in events1}
+        kinds2 = {ev.get("type") for ev in events2}
+        assert "request_cancelled" in kinds1
+        assert "request_cancelled" in kinds2
 
-    provider_state = get_cancellable_blocking_provider_state()
-    assert provider_state["call_request_ids"].count("req_provider_one") == 1
-    assert provider_state["call_request_ids"].count("req_provider_two") == 1
-    assert provider_state["cancel_request_ids"].count("req_provider_one") >= 1
-    assert provider_state["cancel_request_ids"].count("req_provider_two") >= 1
+        provider_state = get_cancellable_blocking_provider_state()
+        assert provider_state["call_request_ids"].count("req_provider_one") == 1
+        assert provider_state["call_request_ids"].count("req_provider_two") == 1
+        assert provider_state["cancel_request_ids"].count("req_provider_one") >= 1
+        assert provider_state["cancel_request_ids"].count("req_provider_two") >= 1
+    finally:
+        # Unblock the workers on any failure path so the process can exit.
+        if worker1.is_alive() or worker2.is_alive():
+            app.cancel_request("req_provider_one")
+            app.cancel_request("req_provider_two")
+        worker1.join(timeout=5)
+        worker2.join(timeout=5)

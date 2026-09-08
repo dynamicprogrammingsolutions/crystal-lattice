@@ -7,8 +7,9 @@ declared test dependencies, exclude live-backend tests from
 tool-compat-shared's default run, and complete the `path:` plugin loader's
 stale-module eviction.
 
-Status: A–C complete and committed (`bcab1836`, `bea899ba`); D pending
-(Q2, execution declined 2026-09-08).
+Status: A–C complete and committed (`bcab1836`, `bea899ba`); D and E
+SPLIT INTO `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`
+(2026-09-08); no remaining workstreams in this task.
 
 ## Requirements checklist
 
@@ -32,30 +33,123 @@ Status: A–C complete and committed (`bcab1836`, `bea899ba`); D pending
 - [ ] Re-activating a `path:` plugin install evicts all stale modules
   belonging to any distribution in the install dir, so reload tests pass
   even when the plugin cache resolves newer dependency versions than the
-  environment. (Inclusion pending open question Q2; execution declined
-  2026-09-08.)
+  environment. (Required by the confirmed runtime direction; SPLIT INTO
+  `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`.)
 
 ## Unresolved requirement questions and decisions
 
 - **Q1 (boundary, blocking A and the npm-script part of B): RESOLVED** —
   folded into the in-flight change; landed as commit `bcab1836` together
   with the venv wrapper work.
-- **Q2 (scope, blocking D): OPEN** — A–C are landed, so D is the only
-  remaining workstream in this task. The user declined immediate execution
-  (2026-09-08); keeping D here versus splitting it into a dedicated task
-  remains the user's call. D is self-contained: one discovery function in
-  `core/python/agent_app/plugin_sources/install.py` plus a regression test
-  in `core/python/tests/test_plugin_manager_localpath.py`.
+- **Q2 (scope, blocking D): RESOLVED (2026-09-08)** — D and E are SPLIT
+  INTO `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`, which
+  carries the execution-approval question, the full defect explanation,
+  and the test rerun matrix. D remains a required fix for the supported
+  lean-runtime path per the confirmed direction (see Q4).
 - **Q3 (design, part of B): RESOLVED** — share `.venv`. Both release gates
   pass in the populated venv with plugin extras installed (core 504
   passed; application 390 passed, 1 skipped).
-- **Q4 (policy, out of scope, recorded):** `install_deps` default for
-  repo-internal `path:` plugins (live-PyPI resolution at plugin-install time).
-  The `.venv` model makes `install_deps: false` (venv as single dependency
-  authority) more attractive, but changing it is a product decision beyond
-  this task.
+- **Q4 (policy): RESOLVED (2026-09-08, user-confirmed direction)** — keep
+  `install_deps: true`. The intended architecture is: the lean runtime
+  installs only core; every plugin (including default-config ones) loads
+  dynamically with automatic dependency installation, and a slow first
+  bootstrap is accepted; default-config plugins are deliberately NOT
+  preinstalled into the lean env because users may disable them or use a
+  different config. Hermeticity comes from the optimized bundle, where
+  plugins are preinstalled into the shipped env from a specific config and
+  no dynamic plugin loading is assumed. The earlier `install_deps: false`
+  proposal is withdrawn; it contradicts this model.
+- **Q5 (decision): OPEN** — "no dynamic plugin loading" is enforced only
+  in the PyInstaller binary (`sys.frozen` disables dynamic installs,
+  `install.py:50-58,130-135`; verified by
+  `test_binary_distribution_optional_plugin_install.py`). The
+  bundled-Python runtime archive is not frozen, so dynamic installs stay
+  enabled for anything outside the preinstalled manifest, and there is no
+  policy switch to disable dynamic installs in non-frozen runtimes.
+  Recommendation: accept as an extension feature of the bundled-Python
+  archive (users can add plugins; the shipped set is preinstalled either
+  way) and document it; add a disable flag only if a deployment needs it.
+- **Q6 (deviation, decision): OPEN** — `scripts/install_crystal_lattice_cli_dev.py:47-60`
+  preinstalls `plugins/openai_responses` (editable) into the dev venv,
+  contrary to the confirmed direction (the default config loads it via
+  `path:`). Recommendation: verify nothing in the dev-CLI flow depends on
+  it being importable without dynamic install, then remove it from the
+  installer.
+- **Q7 (gap, decision): OPEN** — the shipped CLI artifact (bundled-Python
+  runtime archive) has no installed-bundle E2E. The existing
+  `test_binary_distribution_bundle_e2e_ollama.py` boots an installed bundle
+  with the default config and asserts `/agents`, but expects the
+  PyInstaller binary layout (`crystal-lattice` at the extracted root) and
+  is env-gated; the mandatory release-workflow smoke
+  (`smoke_test_crystal_lattice_python_runtime_archive.py`) is
+  structural-only (paths + `--runtime-layout-json`, no app boot, no
+  config, no plugin loading), and the post-publish `smoke.sh` stops at
+  `--help` + layout JSON. Recommendation: extend the E2E (or add a
+  sibling) to accept the python-runtime layout (`bin/crystal-lattice`),
+  split the default-config first-boot assertions (boot + `/agents` with
+  dummy keys; no model needed, CI-cheap) from the gated Ollama tool-call
+  flow, and wire the first-boot variant into the release workflow per
+  platform.
 
 ## Supporting facts
+
+### Confirmed runtime direction (2026-09-08) — verified against the code
+
+- Lean runtime: installing only `core/python` + `application/python` is
+  sufficient. The default config
+  (`application/python/agent_terminal_app/default_config/config.json:575-603`)
+  references every plugin as `path:${env:BUILTIN_PLUGINS}/<name>`; the one
+  dotted spec (`plugins.tool_gating_feature.ToolGatingFeature`) ships inside
+  `agent-core`. No default-config plugin expects a preinstalled package.
+- Dynamic loading: the `path:` loader pip-installs each plugin plus its
+  dependencies (live PyPI) into the per-config cache
+  (`${env:CONFIG_DIR}/.plugin_cache/plugins`) on first use, cached by
+  revision fingerprint — the accepted slow first bootstrap.
+- Bundled-Python runtime package
+  (`scripts/build_crystal_lattice_python_runtime_package.py`):
+  `install_app_dependencies` installs core+app into the shipped python;
+  `install_preinstalled_default_plugins` discovers plugins across
+  top-level, provider, and agent specs
+  (`collect_unique_declared_plugin_specs`, `config.py:229-243`), resolves
+  transitive `local_workspace_dependencies`, installs them into the
+  shipped env, and writes `preinstalled-plugins.json`; `runtime_layout.json`
+  exposes it as `preinstalled_plugin_manifest`, so the loader imports those
+  plugins directly (`local_path.py:335-362`).
+- Optimized PyInstaller bundle (`scripts/build_crystal_lattice_binary.py`):
+  plugins pip-installed into the build env, descriptors staged with
+  `preinstalled: true` (`build_plugin_packaging_support.py:316-329`),
+  collected as hidden imports; `sys.frozen` disables dynamic installs.
+- Because dynamic loading with automatic dependency installation is the
+  supported lean-runtime mechanism, the eviction gap below is a defect of
+  the supported path, not an edge case (basis for Q2/Q4 reframing).
+
+### Clean-install / first-boot coverage inventory (verified 2026-09-08)
+
+- Release workflow (mandatory, per platform):
+  `scripts/smoke_test_crystal_lattice_python_runtime_archive.py` — extract,
+  required paths, launcher `--runtime-layout-json`, env-override assertions.
+  No app boot, no config resolution, no plugin loading.
+- Post-publish `deploy/aws-cli-downloads/smoke.sh`
+  (`npm run release:cli:smoke`): runs the published installer into a temp
+  root, then `--help` + `--runtime-layout-json`. No default-config boot.
+- `application/python/tests/test_binary_distribution_bundle_e2e_ollama.py`
+  (gated: `integration and ollama` marks + `RUN_CRYSTAL_BUNDLE_OLLAMA_E2E=1`
+  + `CRYSTAL_LATTICE_BUNDLE_ARCHIVE` + platform match + local Ollama):
+  extracts a built archive, boots the installed executable with
+  `--config-local` (default config), asserts `/agents` exposes `ollama` and
+  `cloud-script-author`, then runs a real Ollama/Qwen `read_file` tool-call
+  flow. This is the "install and run the default config" test, but it
+  expects the PyInstaller binary layout (`crystal-lattice` at the extracted
+  root) and does not support the bundled-Python runtime layout
+  (`bin/crystal-lattice`), which is what the CLI release ships.
+- `test_binary_distribution_optional_plugin_install.py` (gated
+  `integration`): frozen bundle rejects optional plugin install.
+- `test_binary_distribution_docker.py` (gated `integration and docker`):
+  Docker bundle smoke.
+- Deviation: `scripts/install_crystal_lattice_cli_dev.py:47-60` preinstalls
+  `plugins/openai_responses` into the dev venv (see Q6).
+
+### Prior facts
 
 - The venv wrapper change is committed as `bcab1836` on `develop`:
   `scripts/repo_run.py` runs a command with `.venv/bin` prepended to
@@ -127,7 +221,8 @@ Status: A–C complete and committed (`bcab1836`, `bea899ba`); D pending
 
 ## Execution plan
 
-Status: A–C executed and committed; D pending (Q2).
+Status: A–C executed and committed; D and E SPLIT INTO
+`tasks/20260908-plugin-eviction-and-first-boot-smoke.md`.
 
 ### Workstream A — release gate isolation (DONE, `bcab1836`)
 
@@ -175,9 +270,23 @@ deselected, only the pre-existing glob failure remains) and
 `-m integration` still collects all 12 integration tests across both
 suites.
 
-### Workstream D — loader eviction completeness (PENDING, Q2)
+### Workstream D — loader eviction completeness (SPLIT INTO
+`tasks/20260908-plugin-eviction-and-first-boot-smoke.md`)
 
-In `_top_level_modules_for_install_dir`, derive top-level names per
+Mechanism of the defect: when a `path:` plugin is (re)installed,
+`_activate_sys_path` (`install.py:178-186`) prepends the install dir to
+`sys.path` process-wide and then evicts stale modules. Eviction
+(`_evict_stale_modules`, `install.py:188-215`) only covers top-level names
+discovered by `_top_level_modules_for_install_dir` (`install.py:217-242`),
+which trusts `*.dist-info/top_level.txt` and early-returns on the first hit
+— so dependency distributions installed alongside the plugin (anyio,
+typing_extensions) are never evicted from `sys.modules`. After a
+re-activation, imports resolve the plugin cache's newer dependency code
+against `sys.modules` entries that still point at the host environment's
+older copies → mixed-version import graph (the original release blocker:
+cache anyio 4.15.1 vs host typing_extensions 4.14.1).
+
+Fix: in `_top_level_modules_for_install_dir`, derive top-level names per
 dist-info (`top_level.txt` when present, else a `RECORD`-based top-level
 module scan or dist-info-name fallback) and remove the early-return that
 skips dependency dist-infos. `_evict_stale_modules` then evicts every
@@ -188,10 +297,23 @@ longer holds the host copy. Verify `test_application_reload_owner.py`
 passes in an environment with a deliberately skewed
 typing_extensions/anyio pair.
 
+### Workstream E — first-boot smoke for the shipped archive (SPLIT INTO
+`tasks/20260908-plugin-eviction-and-first-boot-smoke.md`)
+
+Extend `test_binary_distribution_bundle_e2e_ollama.py` (or add a sibling)
+to accept the bundled-Python runtime archive layout (`bin/crystal-lattice`
+launcher inside the package dir). Split the default-config first-boot
+assertions (boot with dummy API keys + `/agents` check; no model needed)
+into a CI-cheap variant wired into the release workflow per platform;
+keep the Ollama tool-call flow env-gated as today.
+
 ### Implementation decisions and open questions
 
-See Unresolved requirement questions and decisions (Q1–Q4) above: Q1 and
-Q3 are resolved; Q2 remains open and blocks D only. Local decisions taken
+See Unresolved requirement questions and decisions (Q1–Q7) above: Q1,
+Q2, Q3, and Q4 are resolved; Q5–Q7 are decisions recorded 2026-09-08
+(Q7's implementation is SPLIT INTO
+`tasks/20260908-plugin-eviction-and-first-boot-smoke.md`). Local
+decisions taken
 during execution: extras version floors follow the existing declarations
 in sibling pyprojects; `install:plugins` installs only the four suites
 that gained npm scripts, not every plugin in `plugins/`; the
@@ -216,7 +338,10 @@ documentation changes; this is dev tooling.
 - [x] B: `install:plugins` provisioning script
 - [x] B: fresh-`.venv` verification of all four suites and both gates
 - [x] C: tool-compat-shared `addopts` + verification
-- [ ] D: eviction discovery fix + regression test (pending Q2)
+- [ ] D: eviction discovery fix + regression test (SPLIT INTO
+  `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`)
+- [ ] E: first-boot smoke for the shipped python-runtime archive
+  (SPLIT INTO `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`)
 - [x] Documentation updates
 
 ### Requirement verification
@@ -244,7 +369,8 @@ documentation changes; this is dev tooling.
 - Default run excludes live backends: tool-compat-shared's and
   claude-tools' default runs deselect their integration classes
   (`-m integration` still collects all 12 across both suites).
-- Eviction completeness: not verified — D not executed (pending Q2).
+- Eviction completeness: not verified here — D SPLIT INTO
+  `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`.
 
 ### Additional implementation verification
 
