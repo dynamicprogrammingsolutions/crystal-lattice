@@ -10,7 +10,7 @@ import json
 import pytest
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Dict
+from typing import Dict, List
 
 from agent_app.app_context import ApplicationContext
 from agent_app.application_future import AgentApplication
