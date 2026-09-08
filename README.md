@@ -338,7 +338,8 @@ npm run test:core:unit
 ```
 
 Install the plugin-suite packages into the same `.venv` when working on the
-kimi-tools, claude-tools, web-fetch-shared, or tool-compat-shared plugins:
+kimi-tools, claude-tools, web-fetch-shared, tool-compat-shared, or
+openai_responses plugins:
 
 ```bash
 npm run install:plugins

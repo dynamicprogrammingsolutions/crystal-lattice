@@ -273,6 +273,7 @@ def test_plugin_suite_scripts_run_through_repo_run():
         ' -e "plugins/kimi-tools[dev]" -e "plugins/claude-tools[dev]"'
         " && python scripts/repo_run.py python -m pip install"
         ' -e "plugins/tool-compat-shared[dev]" -e "plugins/web-fetch-shared[dev]"'
+        ' -e "plugins/openai_responses[dev]"'
     )
 
 

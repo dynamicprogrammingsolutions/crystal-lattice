@@ -98,7 +98,7 @@
     "install:all": "python scripts/repo_run.py python -m pip install -e \"core/python[dev]\" -e application/python",
     "install:core": "python scripts/repo_run.py python -m pip install -e \"core/python[dev]\"",
     "install:app": "python scripts/repo_run.py python -m pip install -e application/python",
-    "install:plugins": "python scripts/repo_run.py python -m pip install -e \"plugins/kimi-tools[dev]\" -e \"plugins/claude-tools[dev]\" && python scripts/repo_run.py python -m pip install -e \"plugins/tool-compat-shared[dev]\" -e \"plugins/web-fetch-shared[dev]\"",
+    "install:plugins": "python scripts/repo_run.py python -m pip install -e \"plugins/kimi-tools[dev]\" -e \"plugins/claude-tools[dev]\" && python scripts/repo_run.py python -m pip install -e \"plugins/tool-compat-shared[dev]\" -e \"plugins/web-fetch-shared[dev]\" -e \"plugins/openai_responses[dev]\"",
     "install:dev:local": "python scripts/repo_run.py nox -s install_dev_local",
     "install:prod:local": "python scripts/repo_run.py nox -s build_bundle && python scripts/repo_run.py nox -s install_prod_local",
     "build:bundle": "python scripts/repo_run.py nox -s build_bundle",
