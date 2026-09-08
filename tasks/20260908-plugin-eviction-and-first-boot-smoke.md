@@ -9,11 +9,11 @@ against the default config before publishing.
 
 ## Requirements checklist
 
-- [ ] Re-activating a `path:` plugin install evicts from `sys.modules`
+- [x] Re-activating a `path:` plugin install evicts from `sys.modules`
   every stale module belonging to any distribution contained in the
   install dir, so a reload cannot mix the plugin cache's dependency
   versions with the host environment's already-imported copies.
-- [ ] The reload flow passes in an environment with deliberately skewed
+- [x] The reload flow passes in an environment with deliberately skewed
   dependency versions (host copy older than what the plugin cache's
   dependencies require).
 - [ ] The shipped bundled-Python runtime archive has an automated
@@ -33,8 +33,10 @@ Split from: `tasks/20260908-isolated-env-followup-fixes.md`
 
 ## Unresolved requirement questions and decisions
 
-- **Q1 (execution approval): blocking** — this plan is Draft; no
-  execution is authorized yet.
+- **Q1 (execution approval): RESOLVED for workstream D only
+  (2026-09-08)** — the user approved execution of the eviction correction
+  in a separate worktree. Workstream E remains deferred and is not
+  authorized by this approval.
 - **Q2 (E design):** wire the first-boot variant into the release
   workflow as a mandatory per-platform step (recommended: yes — it
   needs no model, no real credentials, uses dummy API keys, and takes
@@ -76,10 +78,11 @@ Split from: `tasks/20260908-isolated-env-followup-fixes.md`
   `sys.path` process-wide and calls `_evict_stale_modules`.
 - `_evict_stale_modules` (188-215) evicts only modules whose top-level
   names are discovered by `_top_level_modules_for_install_dir`
-  (217-242), which trusts `*.dist-info/top_level.txt` and early-returns
-  on the first hit (228-229) — dependency distributions (anyio,
-  typing_extensions) are never discovered, so their host-imported copies
-  stay in `sys.modules`.
+  (217-242), which scans the available `*.dist-info/top_level.txt` files
+  and returns as soon as their combined result is nonempty. That skips
+  fallback discovery for dependency distributions without
+  `top_level.txt` (such as typing_extensions), so their host-imported
+  copies stay in `sys.modules`.
 - After a re-activation, imports resolve the cache's newer dependency
   code against stale `sys.modules` parents → mixed-version import graph.
   Concrete failure: plugin-cache anyio 4.15.1 (needs
@@ -116,7 +119,11 @@ Split from: `tasks/20260908-isolated-env-followup-fixes.md`
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
+
+Approval scope: workstream D only. Workstream E remains deferred; its
+requirements, questions, plan, and checklist items are retained for later
+work but are not part of this execution.
 
 ### Workstream D — loader eviction completeness
 
@@ -223,10 +230,10 @@ versus sibling test module).
 
 ### Task checklist
 
-- [ ] D: per-dist-info top-level discovery; remove the early-return
-- [ ] D: eviction covers all discovered distributions
-- [ ] D: regression test (two-version dependency across re-activation)
-- [ ] D: skewed-env reload verification
+- [x] D: per-dist-info top-level discovery; remove the early-return
+- [x] D: eviction covers all discovered distributions
+- [x] D: regression test (two-version dependency across re-activation)
+- [x] D: skewed-env reload verification
 - [ ] E: layout-aware executable resolution in the bundle E2E
 - [ ] E: standalone first-boot test (boot + `/agents`, dummy keys)
 - [ ] E: wire the first-boot variant into the release workflow
@@ -234,24 +241,74 @@ versus sibling test module).
 - [ ] E: workflow guard test
 - [ ] Test rerun matrix executed and green
 - [ ] Documentation updates
-- [ ] Lint (black + ruff) on modified files
+- [x] Lint (black + ruff) on modified files
 
 ### Requirement verification
 
-- Eviction completeness: the regression test passes, and
-  `test_application_reload_owner.py` passes in the deliberately skewed
-  environment.
-- First-boot smoke for the shipped archive: the first-boot test passes
-  against a locally built python-runtime archive, and the release
-  workflow runs it per platform (pending Q2).
-- Both layouts in the deep E2E: the gated Ollama E2E passes with a
-  PyInstaller archive, and the first-boot/tool-call flow works with a
-  python-runtime archive.
-- Guards: the 18 release-script guard tests pass plus the new
-  workflow-step guard; the gate install lines remain
-  `-e "core/python[dev]" -e application/python openai`.
+- Eviction completeness: the deterministic regression loads an older host
+  dependency, activates a target containing the newer dependency, and
+  passes after stale package and submodule eviction. The application-owner
+  regression performs the same skew during a real replacement reload and
+  imports an API available only in the newer target dependency.
+- First-boot smoke for the shipped archive: deferred with workstream E;
+  no acceptance evidence recorded yet.
+- Both layouts in the deep E2E: deferred with workstream E; no acceptance
+  evidence recorded yet.
+- Guards: deferred with workstream E; the existing release guards were not
+  changed by workstream D.
 
 ### Additional implementation verification
 
-- The full test rerun matrix above executed and green, including both
-  standard gates under their default filters.
+- The complete workstream D matrix passed, including both standard gates
+  under their default filters. Workstream E's gated bundle and release
+  checks were not run because that workstream remains deferred.
+
+## Implementation Notes
+
+- Execution started in the separate worktree
+  `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/20260908-plugin-eviction`
+  on branch `task/20260908-plugin-eviction`, based on commit `13ff8e18`.
+- Only workstream D is being executed. Workstream E remains deferred.
+- Distribution discovery now evaluates each `*.dist-info` independently:
+  valid `top_level.txt` names are preferred, `RECORD` supplies package and
+  module names when needed, and the existing install-root scan remains the
+  fallback for targets with absent or unusable metadata.
+- The deterministic skew regression imports an old host dependency package
+  and submodule, activates a target containing a new dependency discovered
+  only through `RECORD`, verifies a plugin can import the new-only API, and
+  confirms a second activation preserves modules already loaded from the
+  target.
+- Focused plugin-manager verification passed (29 passed, 1 integration test
+  deselected by the default filter). The original reload-owner and action
+  endpoint surfaces passed (19 passed).
+- Full default-filter gates passed after the completed regression set:
+  core 506 passed, 26 deselected, 1 expected failure; application 392
+  passed, 1 skipped, 92 deselected. Black and Ruff passed for all three
+  modified Python files.
+
+## Completion Notes
+
+- Workstream D is complete. Every distribution in a plugin target is now
+  evaluated independently, so one distribution's `top_level.txt` no longer
+  suppresses discovery of dependencies represented only by `RECORD`.
+- `RECORD` discovery covers top-level Python modules, packages, namespace
+  package contents, and compiled extension modules. Invalid paths,
+  metadata directories, data directories, and non-importable files are
+  ignored. Targets with missing or unusable distribution metadata retain
+  the prior install-root fallback.
+- Eviction still removes only matching modules loaded from outside the
+  activated target. A second activation preserves modules already loaded
+  from that target.
+- Verification evidence:
+  - Plugin-manager family: 29 passed, 1 integration test deselected.
+  - Reload-owner and action endpoint surfaces before the combined
+    regression: 19 passed.
+  - Completed reload-owner regression file: 5 passed.
+  - Full core gate: 506 passed, 26 deselected, 1 expected failure.
+  - Full application gate: 392 passed, 1 skipped, 92 deselected.
+  - Black, Ruff, and `git diff --check`: passed.
+- No user-facing documentation changed because this correction restores
+  internal loader consistency without changing the public plugin contract.
+- Workstream E and its three requirements remain incomplete and deferred.
+  No archive smoke, bundle E2E, release workflow, workflow guard, or
+  release documentation files were changed.

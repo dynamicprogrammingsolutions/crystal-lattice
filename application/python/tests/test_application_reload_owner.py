@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
+import sys
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -11,6 +13,7 @@ from agent_app.application_future import AgentApplication
 from agent_app.application_notifications import InMemoryApplicationNotificationStore
 from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
 from agent_app.events import InMemoryEventStore
+from agent_app.plugin_sources.install import PipTargetInstallStrategy
 from agent_terminal_app import server as server_mod
 
 
@@ -200,3 +203,95 @@ def test_provider_key_action_rolls_back_dotenv_when_candidate_fails(
         result = response.json()["result"]
         assert owner.wait_for_reload(result["reload_id"], timeout=20)
         assert dotenv_values(env_path)["TEST_PROVIDER_KEY"] == "old"
+
+
+def test_reload_evicts_older_host_dependency_before_candidate_import(
+    tmp_path: Path,
+) -> None:
+    host = tmp_path / "host"
+    install_dir = tmp_path / "plugin-install"
+    host_dependency = host / "reload_skew_dependency"
+    installed_dependency = install_dir / "reload_skew_dependency"
+    installed_plugin = install_dir / "reload_skew_plugin"
+    plugin_dist = install_dir / "reload_skew_plugin-1.0.dist-info"
+    dependency_dist = install_dir / "reload_skew_dependency-2.0.dist-info"
+    for directory in (
+        host_dependency,
+        installed_dependency,
+        installed_plugin,
+        plugin_dist,
+        dependency_dist,
+    ):
+        directory.mkdir(parents=True)
+
+    (host_dependency / "__init__.py").write_text(
+        "VERSION = 'host-old'\n", encoding="utf-8"
+    )
+    (installed_dependency / "__init__.py").write_text(
+        "VERSION = 'cache-new'\nNEW_API = object()\n", encoding="utf-8"
+    )
+    (installed_plugin / "__init__.py").write_text(
+        "from reload_skew_dependency import NEW_API, VERSION\n",
+        encoding="utf-8",
+    )
+    (plugin_dist / "top_level.txt").write_text("reload_skew_plugin\n", encoding="utf-8")
+    (dependency_dist / "RECORD").write_text(
+        "reload_skew_dependency/__init__.py,,\n"
+        "reload_skew_dependency-2.0.dist-info/RECORD,,\n",
+        encoding="utf-8",
+    )
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({"providers": {}, "agents": {}, "plugins": []}),
+        encoding="utf-8",
+    )
+    event_store = InMemoryEventStore()
+    notification_store = InMemoryApplicationNotificationStore()
+    installer = PipTargetInstallStrategy()
+    build_versions: list[str] = []
+    original_sys_path = list(sys.path)
+    module_names = ("reload_skew_dependency", "reload_skew_plugin")
+    original_modules = {name: sys.modules.pop(name, None) for name in module_names}
+
+    def factory(control: ApplicationControl) -> AgentApplication:
+        installer._activate_sys_path(install_dir)
+        plugin = importlib.import_module("reload_skew_plugin")
+        build_versions.append(plugin.VERSION)
+        return AgentApplication(
+            config_path,
+            tmp_path / "sessions",
+            event_store=event_store,
+            application_notification_store=notification_store,
+            application_control=control,
+        )
+
+    owner: AgentApplicationOwner | None = None
+    try:
+        owner = AgentApplicationOwner(factory, event_store=event_store)
+        old_application = owner.current
+        assert build_versions == ["cache-new"]
+
+        for name in module_names:
+            sys.modules.pop(name, None)
+        sys.path.insert(0, str(host))
+        host_module = importlib.import_module("reload_skew_dependency")
+        assert host_module.VERSION == "host-old"
+
+        result = owner.request_reload(reason="dependency_skew_regression")
+
+        assert owner.wait_for_reload(result["reload_id"], timeout=20)
+        assert owner.current is not old_application
+        assert build_versions == ["cache-new", "cache-new"]
+        reloaded_dependency = sys.modules["reload_skew_dependency"]
+        assert reloaded_dependency.VERSION == "cache-new"
+        assert Path(reloaded_dependency.__file__).is_relative_to(install_dir)
+    finally:
+        if owner is not None:
+            owner.close()
+        sys.path[:] = original_sys_path
+        for name, module in original_modules.items():
+            if module is not None:
+                sys.modules[name] = module
+            else:
+                sys.modules.pop(name, None)
