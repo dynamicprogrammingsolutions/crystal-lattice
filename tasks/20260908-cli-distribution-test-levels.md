@@ -33,13 +33,27 @@ Level model (user-confirmed):
   install/bin directories and the installed wrapper command boots with the
   default config and exposes the default-config agents, runnable locally
   via a root npm script.
+- [ ] Credential-free first start — the generated default config boots and
+  exposes its agents when no provider API keys or optional web-search keys are
+  configured. Missing credentials may be reported as nonfatal warnings or
+  configuration diagnostics, but must not prevent CLI/server startup.
+  Levels 1–3 explicitly remove all recognized credential variables and must
+  not inject dummy values merely to bypass configuration resolution.
+- [ ] Normal CLI use does not require users to export shell environment
+  variables. The CLI loads API credentials from the documented `.env`
+  locations associated with the active config, project, or user. An operation
+  that calls an API requiring credentials must require the corresponding key
+  and report its absence for that operation, without blocking startup or
+  unrelated local functionality.
 - [ ] The release-workflow smoke test boots the archive with the default
   config (in addition to the current structural checks); no other CI
   changes.
 - [ ] The two bundle strategies stay separated: levels 1–3 target the
   bundled-Python runtime archive (the shipped artifact); the PyInstaller
   optimized-bundle tier and its tests remain a separate suite — not
-  conflated, not modified, not removed.
+  conflated, not removed, and not behaviorally changed. Startup-only test
+  setup in that suite may be changed solely to remove unnecessary dummy
+  credentials required by the credential-free first-start requirement.
 - [ ] Proper specification and documentation for the distribution/test-level
   model are created (deliberately unplanned — see Execution plan).
 
@@ -54,7 +68,10 @@ Level model (user-confirmed):
   bundled-Python runtime archive is the shipped artifact with dynamic plugin
   installation allowed; the PyInstaller optimized bundle is the
   config-specific hermetic tier (frozen runtimes reject dynamic installs).
-  The level tests must reference only the python-runtime archive layout.
+  The level tests must reference only the python-runtime archive layout. The
+  credential cleanup may remove startup-only dummy values from an existing
+  PyInstaller test, but must not adapt that test into the three-level suite or
+  change its bundle behavior.
 - **Specification and documentation are deliberately unplanned**: the
   completion agent decides the specification scope, placement, audience, and
   required file set, and discovers the details during execution. It must
@@ -63,13 +80,26 @@ Level model (user-confirmed):
   describe intended targets; requirements track live implementation,
   verification, documentation, and evidence). The absence of a plan here is
   not permission to skip the requirement.
+- **Credentials are request-time capabilities, not startup prerequisites**
+  (user decision): default-config startup must not require credentials for
+  providers or optional tools that have not been invoked. Tests that make real
+  provider/tool requests keep the credentials they genuinely need; pure
+  startup probes must run without dummy credentials.
+- **No shell export is required for normal use** (user decision): users may
+  configure API keys in `.env` files discovered by the CLI. Process
+  environment values remain supported and take precedence, but setup
+  instructions and first-start behavior must not require users to export
+  variables before launching the command. APIs that require credentials still
+  require their corresponding configured keys when invoked.
 - **npm script naming** (proposal, implementation may adjust consistently):
   `test:cli:clean-env` (level 1), `test:cli:bundle` (level 2),
   `test:cli:install` (level 3).
 
 ## Supporting facts
 
-All facts below verified against the tree on 2026-09-08 (HEAD `9c502711`).
+The original inventory below was verified against the tree on 2026-09-08 at
+HEAD `9c502711`. The plan was reassessed later that day at HEAD `584f54a4`;
+current-tree corrections and additional findings appear after the inventory.
 
 ### Current coverage inventory
 
@@ -134,10 +164,12 @@ All facts below verified against the tree on 2026-09-08 (HEAD `9c502711`).
   dynamically with live PyPI at plugin-install time. This is exactly the
   error class that blocked the v0.1.2 release (plugin cache anyio 4.15.1 vs
   environment typing_extensions 4.14.1) and what level 1 must catch early.
-- Boot needs dummy API keys so provider config resolution does not fail
-  (Ollama E2E pattern): `OPENROUTER_API_KEY`, `OPENAI_API_KEY`,
-  `GEMINI_API_KEY`, `TAVILY_API_KEY`, `FIREWORKS_API_KEY`, `ZAI_API_KEY`
-  set to dummy values.
+- The existing Ollama E2E boot helper sets dummy values for
+  `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`,
+  `TAVILY_API_KEY`, `FIREWORKS_API_KEY`, and `ZAI_API_KEY`. Those values
+  mask credential-free startup and are not needed by its default-config boot
+  assertion; real model-request portions of provider tests still need their
+  actual selected-provider credentials.
 - Readiness/agent assertions: poll `GET /api/hello`; assert `GET /agents`.
 - The test itself runs under the repo venv's pytest, but the boot subprocess
   uses the fresh venv's `crystal-lattice` — the repo venv's installed plugin
@@ -189,119 +221,379 @@ All facts below verified against the tree on 2026-09-08 (HEAD `9c502711`).
 - All Python-invoking root npm scripts run through `scripts/repo_run.py`
   (commit `bcab1836`).
   `application/python/tests/test_repo_run_script.py` asserts the exact
-  wrapped set (`using_repo_run == WRAPPED_SCRIPTS`, 48 scripts after
-  `9c502711`) — every newly wrapped script must be added to that set in
-  lockstep, plus an exact-value assertion.
+  wrapped set (`using_repo_run == WRAPPED_SCRIPTS`, currently 50 scripts) —
+  every newly wrapped script must be added to that set in lockstep, plus an
+  exact-value assertion.
 - Marker conventions: `integration` for multi-layer/network tests; the
   application default run excludes `integration` and `docker`. The level
   tests are opt-in via their npm scripts.
 
+### Reassessment findings at HEAD `584f54a4`
+
+- The package that owns this behavior is `application/python`: it owns the
+  command, runtime archive builder, installer, release smoke, and current
+  distribution documentation. Root npm scripts are contributor entry points,
+  not a reason to place the specification at repository scope.
+- No application-owned specification directory or focused distribution
+  development page currently exists. Distribution, release, Nox, and
+  PyInstaller details are concentrated in the large package README.
+- The current default config declares 20 agents and includes a direct
+  Anthropic provider. A reliable probe should compare `GET /agents` with all
+  keys in the copied default config rather than checking only `ollama` and
+  `cloud-script-author`.
+- Missing `${env:...}` values currently resolve to empty strings and produce
+  `env_missing` configuration diagnostics. `AgentApplication` treats
+  plugin/mixin/merge/variant errors as startup-fatal but does not treat
+  `env_missing` as fatal.
+- The CLI currently reads `.env` values, without installing them into the
+  process environment, in this order: beside the active config, local
+  `./.crystal/.env`, user `~/.crystal/.env`, then the standard `.env` found
+  from the working directory. Already exported process values take precedence.
+- A temporary bundled-Python archive boot with `OPENROUTER_API_KEY`,
+  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `FIREWORKS_API_KEY`, `ZAI_API_KEY`,
+  `GEMINI_API_KEY`, and `TAVILY_API_KEY` explicitly absent succeeded and
+  exposed all 20 agents. Credential-free startup is therefore current behavior
+  that needs an explicit contract and regression coverage, not dummy test
+  configuration.
+- A temporary boot of the existing current-platform bundled-Python archive
+  created the local default config, exposed all 20 agents, and left the clean
+  user plugin cache empty. This confirms the intended preinstalled-plugin
+  invariant for levels 2 and 3.
+- That existing archive fails the current macOS portability smoke because it
+  was built from a pyenv/Homebrew Python with absolute library references.
+  Release CI avoids this by passing an `uv`-managed relocatable runtime to the
+  builder. Local tests should preserve the portability failure as valid
+  evidence, allow an explicit relocatable runtime, and allow reuse of an
+  already built current-platform archive.
+- Server output must go to a temporary log file rather than an unread pipe.
+  Dynamic plugin installation can emit enough output to fill a pipe and block
+  level 1 before readiness.
+- The level tests are broad, network-dependent, and potentially several
+  minutes long. They should carry both `integration` and `slow_integration`
+  and remain outside default and ordinary non-slow integration runs.
+
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-### Level 1 — clean environment + files boot test
+Implement this in three ordered passes. First establish the target
+specification and an honest current-state implementation page. Then implement
+the shared probe and all three test levels. Finally update current
+documentation and requirement evidence to describe only the behavior that was
+actually delivered.
 
-1. New test `application/python/tests/test_cli_clean_environment_boot.py`
-   (name may adjust), marked `integration`:
-   - create a fresh venv under tmp; `pip install -e core/python -e
-     application/python` (lean, no dev extras);
-   - clean files: tmp workspace cwd, fresh `HOME`, `CONFIG_DIR`,
-     `PLUGIN_CACHE_DIR`; dummy API keys per the list above;
-   - boot the fresh venv's `crystal-lattice --server --config-local --host
-     127.0.0.1 --port <free>`;
-   - poll `GET /api/hello`; assert `GET /agents` contains `ollama` and
-     `cloud-script-author` (same assertions as the Ollama E2E's
-     `_assert_default_config_starts`);
-   - assert the plugin cache dir is populated — proving the default-config
-     `path:` plugins dynamically installed rather than being skipped.
-2. Root npm script `test:cli:clean-env` via `repo_run.py`; add to
-   `WRAPPED_SCRIPTS` plus an exact-value assertion.
-3. Estimated cost ~3-6 minutes (venv + live-PyPI plugin installs + boot);
-   requires network.
+#### Pass 1 — specification and initial current-state documentation
 
-### Level 2 — minimum gap filling: boot-inclusive archive smoke
+Create an application-owned specification at
+`application/python/docs/development/specifications/cli-distribution/`.
+This is the narrowest authoritative scope because the application package owns
+the CLI command, both bundle strategies, runtime archive, installer, and
+release smoke. No existing specification covers their verification model.
 
-1. Extend `scripts/smoke_test_crystal_lattice_python_runtime_archive.py`
-   with a default-config boot step after the structural validation: run the
-   launcher `--server --config-local --host 127.0.0.1 --port <free>` in a
-   temp workspace with dummy API keys, poll `/api/hello`, assert `/agents`
-   contains the default agents, terminate. Reuse the boot-helper pattern
-   from `test_binary_distribution_bundle_e2e_ollama.py`.
-2. This automatically upgrades the release-workflow smoke (all matrix
-   targets, native runners) and the `install_prod_local` pre-install smoke —
-   no workflow edits.
-3. Root npm script `test:cli:bundle`: build the current-platform archive
-   (`nox -s build_bundle`) then run the extended smoke; add to
-   `WRAPPED_SCRIPTS`.
-4. Implementation-time verification: confirm the archive boot exercises the
-   preinstalled path (default-config plugins preinstalled at build) and
-   record whether any dynamic installs occur.
+Use a proportional three-file set:
 
-### Level 3 — minimum gap filling: installer + installed-command boot test
+- `index.md` — scope, ownership, goals/non-goals, the distinction between the
+  shipped bundled-Python archive and optimized PyInstaller output, and links;
+- `technical-spec.md` — the three ordered failure-isolation levels, clean-state
+  contract, credential-free default-config boot/readiness contract,
+  `.env` credential-loading boundary, request-time API credential requirement,
+  plugin-install expectations, archive selection/override behavior, native
+  release smoke, local command contract, and failure diagnostics;
+- `requirements.md` — stable `CLIDIST-*` requirements with separate
+  implementation, verification, documentation, and evidence state.
 
-1. New test (e.g.,
-   `application/python/tests/test_cli_install_script_boot.py`), marked
-   `integration`:
-   - obtain the current-platform python-runtime archive: prebuilt via an
-     env-var override (mirroring `CRYSTAL_LATTICE_BUNDLE_ARCHIVE`), else
-     build it;
-   - run `scripts/install_crystal_lattice_archive.py <archive>
-     --install-root <tmp> --bin-dir <tmp> --command-name <unique>` into
-     temp directories;
-   - boot the installed wrapper command with `--server --config-local` in a
-     clean workspace, poll `/api/hello`, assert `/agents` contains the
-     default agents;
-   - this covers the currently untested installer logic: staging swap,
-     wrapper creation, platform archive selection.
-2. Root npm script `test:cli:install` via `repo_run.py`; add to
-   `WRAPPED_SCRIPTS`.
-3. Secondary (not required for the minimum): extend
-   `verify_installed_command` in the installer and the post-publish
-   `deploy/aws-cli-downloads/smoke.sh` with the same boot.
+A separate product specification or decision record would add little value:
+this is a maintainer verification contract, and the user-confirmed strategy
+and CI decisions fit clearly in the index and technical specification.
 
-### Specification and documentation — deliberately unplanned
+Create
+`application/python/docs/development/cli-distribution.md` as the initial
+current implementation map and link both it and the specification from
+`application/python/docs/development/index.md`. Before behavior changes, that
+page will document only current facts: the two distribution strategies,
+shipped archive ownership, build/install/smoke entry points, user-state
+boundaries, credential-free startup, `.env` credential loading, preinstalled
+versus dynamic plugin behavior, and the then-current structural verification
+gap. It will explicitly map implementation to the specification without
+redefining the target.
 
-The specification and documentation requirement stands (see Requirements
-checklist), but this task intentionally provides no plan for it. The
-completion agent decides the specification scope, placement, audience, and
-required file set; discovers the details during execution; and follows the
-repository documentation standards, including reading the documentation and
-standards indexes before creating or moving anything. Do not treat this
-section's absence as a reason to skip the requirement.
+#### Pass 2 — shared boot contract and three test levels
+
+Add one standard-library helper under `scripts/` for all default-config boot
+probes. It will:
+
+- start an explicitly supplied command with `--server --config-local` on a
+  reserved loopback port in a fresh workspace and home;
+- remove inherited Python, Crystal runtime-layout, config, and plugin-cache
+  variables that could mask isolation defects;
+- explicitly remove all default-config provider and optional web-search
+  credential variables and inject no dummy replacements;
+- write subprocess output to a temporary log, poll `GET /api/hello`, report
+  early exit or timeout with the log tail, and always terminate/kill the
+  process;
+- parse the newly copied `.crystal/config.json` and require `GET /agents` to
+  equal its complete `agents` key set;
+- support an expected populated plugin cache for level 1 and an expected empty
+  plugin cache for levels 2 and 3.
+
+Audit existing default-config tests and startup helpers that inject dummy
+credentials only to suppress `env_missing` diagnostics or force
+`get_config_errors() == []`. Remove those unrelated values and assert the
+relevant behavior directly: startup succeeds, expected agents/config remain
+available, and any missing-credential diagnostics are nonfatal. A real
+provider/tool integration test retains its actual required credential, but
+must not supply dummy credentials for providers or tools it does not invoke.
+This audit includes the default-config startup preflight in the existing
+PyInstaller Ollama E2E without changing that test's archive layout or real
+Ollama request.
+
+Add focused coverage for the CLI's `.env` boundary: with the corresponding
+process variables absent, credentials written beside the active config must be
+available during config resolution without being exported into the shell.
+Keep actual provider-request tests responsible for proving that an API which
+requires a key rejects or skips a request when its required credential is
+absent; the distribution boot probes make no external provider requests.
+
+Use one slow integration test module in `application/python/tests` for the
+three levels and archive setup. The archive fixture will accept
+`CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` for a prebuilt current-platform
+bundled-Python archive; when absent, it will run the existing Nox
+`build_bundle` session and select the archive using the installer's
+current-platform naming logic. The distinct environment-variable name avoids
+conflating these tests with the existing
+`CRYSTAL_LATTICE_BUNDLE_ARCHIVE` PyInstaller suite.
+
+For local release-equivalent builds, let the Nox build session pass an
+optional `CRYSTAL_PYTHON_RUNTIME` directory through to the builder's existing
+`--python-runtime` option. Without it, the existing local-venv build remains
+the default and the portability smoke may correctly reject a host-bound
+runtime.
+
+Level 1 will:
+
+1. Create a fresh venv under pytest's temporary directory.
+2. Install only editable `core/python` and `application/python`, without dev
+   extras or repo-root plugin projects.
+3. Assert selected dev/plugin distributions are absent so the parent repo
+   venv cannot silently satisfy the boot.
+4. Boot the fresh venv's actual `crystal-lattice` entry point through the
+   shared probe with clean runtime files and no credentials.
+5. Require a populated plugin cache containing installation metadata, proving
+   that default-config `path:` plugins and dependencies were installed
+   dynamically.
+
+Level 2 will extend
+`scripts/smoke_test_crystal_lattice_python_runtime_archive.py` so its public
+archive-validation path performs the shared default-config boot after all
+existing structural/layout/portability checks. It will require the clean user
+plugin cache to remain empty and all credential variables to remain absent,
+proving both credential-free startup and that the default plugin closure came
+from the archive's preinstalled manifest. The release workflow already calls
+this script with each native archive, so no workflow file changes are needed.
+
+Level 3 will:
+
+1. Prepare stale target/staging sentinels under temporary install directories
+   to exercise replacement through the staging swap.
+2. Run `scripts/install_crystal_lattice_archive.py` with the selected archive,
+   temporary `--install-root`/`--bin-dir`, and a unique command name.
+   Use `--skip-smoke-test` here so level 3 isolates installer/wrapper behavior
+   instead of rerunning level 2 inside the installer.
+3. Assert the stale paths were replaced and the platform-appropriate wrapper
+   was created.
+4. Boot that installed wrapper through the shared probe without credentials
+   and require the clean user plugin cache to remain empty.
+5. Add focused unit coverage for current-platform archive selection so the
+   explicit prebuilt-archive path does not leave that installer branch
+   unverified.
+
+Add the three agreed root scripts:
+
+- `test:cli:clean-env`
+- `test:cli:bundle`
+- `test:cli:install`
+
+Each will invoke its exact slow-integration test through
+`scripts/repo_run.py`. Add all three to `WRAPPED_SCRIPTS` and add exact command
+assertions in `test_repo_run_script.py`.
+
+#### Pass 3 — current documentation and evidence
+
+After each behavior is verified, update the focused distribution development
+page with the three root commands, prerequisites, expected failure boundary,
+network/runtime costs, optional archive/runtime environment variables, release
+smoke behavior, credential-free first-start contract, request-time credential
+expectations, `.env` setup path, and the explicit PyInstaller-suite separation.
+Add a concise pointer and command summary to the package README's
+testing/distribution guidance rather than duplicating the full maintainer
+contract there. Update the configuration and placeholder guides so user-facing
+instructions do not imply that shell exports are required.
+
+Update `requirements.md` only with evidence actually obtained. New current
+claims and completed requirement states ship with their implementation.
+Prepare and build the documentation site from authored sources; do not edit
+`docs_site/prepared/` or `docs_site/dist/`.
+
+### Implementation decisions and open questions
+
+- **Decision — specification owner and size:** use the application package
+  and the three-file `cli-distribution` specification described above. It is
+  substantial enough to preserve the cross-script/native-platform contract
+  but does not need a separate product or decisions page.
+- **Decision — one boot probe:** share one standard-library implementation
+  between release smoke and integration tests. The acceptance behavior and
+  diagnostics must not drift by level.
+- **Decision — full default-agent contract:** compare `/agents` with every
+  agent declared by the freshly copied default config. Do not preserve the
+  older two-agent sentinel assertion.
+- **Decision — credential-free probes:** explicitly remove
+  `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+  `FIREWORKS_API_KEY`, `ZAI_API_KEY`, `GEMINI_API_KEY`, and
+  `TAVILY_API_KEY`, plus optional `CLOUD_ORCHESTRATOR_TOKEN` and
+  `CHATGPT_CREDENTIALS`, from every level probe. Do not add dummy values.
+  Missing credentials may remain visible as nonfatal diagnostics; tests
+  making real requests retain only the credentials required by those requests.
+- **Decision — `.env` is the normal credential setup path:** document and
+  verify config-adjacent/project/user `.env` loading without requiring shell
+  exports. Preserve explicit process-environment support and precedence for
+  automation and advanced use.
+- **Decision — API credentials remain required at use time:** this task does
+  not invent anonymous access or dummy production credentials. A provider or
+  tool that calls a credentialed API must receive its real key through `.env`,
+  the process environment, or another supported credential mechanism.
+- **Decision — existing test cleanup:** remove unrelated dummy credentials
+  from existing default-config tests encountered by the audit. Replace
+  assertions that treat expected missing-credential diagnostics as startup
+  failures with assertions on fatal errors and the behavior under test.
+- **Decision — cache evidence:** level 1 requires real plugin installation
+  metadata; levels 2 and 3 require no user plugin installation. This
+  distinguishes the dynamic source path from the preinstalled archive path.
+- **Decision — archive override naming:** reserve
+  `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` for these tests and leave the
+  existing PyInstaller `CRYSTAL_LATTICE_BUNDLE_ARCHIVE` contract untouched.
+- **Decision — local runtime override:** support `CRYSTAL_PYTHON_RUNTIME` in
+  Nox by forwarding it to the builder. A portability failure from the default
+  host Python remains a valid level-2 build/smoke failure.
+- **Decision — installer isolation:** skip its nested pre-install smoke in
+  level 3 because level 2 owns archive validation. The production installer
+  continues to run the smoke by default.
+- **Decision — CI boundary:** modify only the smoke script already invoked by
+  release CI. Do not edit workflow files or add these tests to public CI.
+- **Decision — optimized bundles:** do not modify PyInstaller build code,
+  gates, archive variables, or behavior. Its existing default-config startup
+  preflight may lose unnecessary dummy credentials as part of the explicit
+  credential cleanup; otherwise its tests remain separate.
+- **Open questions:** none blocking plan approval. If implementation exposes a
+  platform-specific launcher or process-cleanup contract that the shared probe
+  cannot satisfy without changing shipped behavior, record the finding and
+  return for approval before broadening scope.
+
+### Documentation
+
+- Specification sources:
+  `application/python/docs/development/specifications/cli-distribution/`
+  (`index.md`, `technical-spec.md`, `requirements.md`).
+- Current maintainer implementation page:
+  `application/python/docs/development/cli-distribution.md`.
+- Discoverability:
+  `application/python/docs/development/index.md`.
+- Concise current user/contributor entry-point updates:
+  `application/python/README.md`, including the credential-free startup and
+  request-time credential boundary.
+- Current configuration guidance:
+  `application/python/docs/configuration.md` and
+  `application/python/docs/configuration-placeholders.md`, including `.env`
+  discovery and the distinction between configuring a key and exporting it.
+- Validation: run documentation preparation and MkDocs build from authored
+  sources after the final current-behavior update.
 
 ### Task checklist
 
-- [ ] Level 1: clean-env boot test
-- [ ] Level 1: npm script + `WRAPPED_SCRIPTS` lockstep
-- [ ] Level 2: boot-inclusive smoke extension
-- [ ] Level 2: npm script + `WRAPPED_SCRIPTS` lockstep
-- [ ] Level 3: installer boot test
-- [ ] Level 3: npm script + `WRAPPED_SCRIPTS` lockstep
-- [ ] Specification and documentation (unplanned — completion agent decides
-  and discovers)
+- [ ] Create and index the application-owned CLI distribution specification
+  and initial requirements state.
+- [ ] Create and index the honest current-state distribution implementation
+  page before changing test behavior.
+- [ ] Add the shared isolated default-config boot probe and focused helper
+  coverage.
+- [ ] Remove unnecessary dummy credentials from the level probes and existing
+  default-config startup/config tests; retain only credentials used by a real
+  provider/tool request.
+- [ ] Cover missing credentials as nonfatal startup diagnostics without
+  weakening detection of fatal configuration errors.
+- [ ] Cover `.env` credential loading with no corresponding exported process
+  variables and retain request-time credential requirements for real APIs.
+- [ ] Level 1: add the lean fresh-venv/dynamic-plugin-install boot test.
+- [ ] Level 1: add the root npm script and `WRAPPED_SCRIPTS` assertions.
+- [ ] Level 2: extend archive smoke with preinstalled default-config boot.
+- [ ] Level 2: add archive setup/override support and the root npm script.
+- [ ] Level 3: add staging/install/wrapper/default-config boot coverage and
+  focused platform-selection coverage.
+- [ ] Level 3: add the root npm script and `WRAPPED_SCRIPTS` assertions.
+- [ ] Update current README/development documentation for delivered behavior.
+- [ ] Update `CLIDIST-*` live state and evidence.
+- [ ] Run acceptance, regression, formatting, and documentation verification.
 
 ### Requirement verification
 
-- Level 1: `npm run test:cli:clean-env` passes with only the repo venv
-  provisioned (`install:venv` → `install:all`), an empty plugin cache, and
-  no ambient plugin packages; the test's fresh venv contains only core +
-  application; the plugin cache is populated by the boot.
-- Level 2: `npm run test:cli:bundle` builds the archive and the smoke boots
-  it with the default config; `/agents` contains the default agents.
-- Level 3: `npm run test:cli:install` installs into temp dirs and the
-  installed wrapper boots with the default config; `/agents` contains the
-  default agents.
+- Level 1: `npm run test:cli:clean-env` provisions a fresh lean venv, proves
+  ambient plugin/dev packages are absent, boots from source with clean files
+  while credential variables are absent, matches the complete default agent
+  set, and leaves plugin installation metadata in the previously empty cache.
+- Level 2: `npm run test:cli:bundle` builds or accepts a current-platform
+  bundled-Python archive, passes structural/portability checks, boots its
+  launcher with clean files and no credential variables, matches the complete
+  default agent set, and leaves the user plugin cache empty.
+- Level 3: `npm run test:cli:install` builds or accepts the same archive,
+  replaces stale staging/target state in temporary directories, creates the
+  platform wrapper, boots that wrapper without credential variables, matches
+  the complete default agent set, and leaves the user plugin cache empty.
+- Credential-free startup: all three probes explicitly show the recognized
+  credential variables are absent from the child environment; startup and
+  `/agents` succeed, while any resulting missing-credential diagnostics remain
+  nonfatal.
+- Normal use without shell exports: focused CLI/config coverage starts with
+  credential variables absent from the process, loads sentinel values from an
+  active-config `.env`, and verifies config resolution receives them without
+  requiring shell setup. Current user docs identify `.env` as the normal key
+  setup path and state that credentialed API calls still require real keys.
 - CI smoke: the extended smoke script boots a built archive locally; the
-  release workflow runs it unchanged on all targets.
-- Separation: no PyInstaller-tier test is modified or conflated; the level
-  tests reference only the python-runtime archive layout.
-- Specification and documentation: verified against whatever scope the
-  completion agent establishes, committed alongside the code that makes it
-  true.
+  unchanged release workflow invokes it for all four native matrix targets.
+- Separation: diff inspection and test/archive-variable names show that no
+  PyInstaller build path was modified or used by levels 1–3; any PyInstaller
+  test edit is limited to deleting unnecessary startup-only dummy credentials.
+- Specification and documentation: the application development index reaches
+  the specification and current implementation page; requirement rows contain
+  concrete implementation/test/doc evidence; README claims match passing
+  commands; documentation preparation and build succeed.
 
 ### Additional implementation verification
 
-- `test_repo_run_script.py` passes after each `WRAPPED_SCRIPTS` addition
-  (exact-set assertion).
-- Lint (ruff + black) clean on all modified files.
+- Run the focused unit tests for archive smoke, installer archive selection,
+  boot-probe helpers, and exact root-script wiring.
+- Run affected default-config and real-provider tests to prove the credential
+  audit removed only unrelated dummy values and retained credentials required
+  for actual requests.
+- Run the application fast suite with its normal non-integration filter.
+- Run all three root npm commands explicitly; a skipped test is not a pass.
+- Run Ruff and Black check mode on modified Python files.
+- Run `python docs_site/scripts/prepare_mkdocs_site.py` and the MkDocs build.
+- Inspect the final diff to confirm no release workflow, generated docs tree,
+  or PyInstaller-tier file changed.
+
+Primary risks are live-PyPI drift and latency in level 1, archive-build latency
+in levels 2/3, host-bound local Python runtimes on macOS, loopback-port races,
+and Windows `.cmd` process cleanup. The clean environment and cache assertions
+are intentional even when they make dependency regressions visible; the
+shared probe's bounded polling, log-tail diagnostics, and terminate/kill
+fallback limit operational ambiguity.
+
+## Implementation Notes
+
+- 2026-09-08: The user approved documentation-first execution, added
+  credential-free startup and no-shell-export requirements, and directed that
+  the specification and initial current documentation be created in a separate
+  worktree before test implementation.
+- 2026-09-08: Inspection confirmed that missing credential placeholders are
+  currently nonfatal and that the packaged CLI boots with all provider keys
+  absent. The first implementation pass preserves that behavior as an explicit
+  contract and removes test-only credential masking.
