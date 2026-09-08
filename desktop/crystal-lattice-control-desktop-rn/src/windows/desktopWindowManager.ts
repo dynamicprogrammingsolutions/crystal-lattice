@@ -60,6 +60,15 @@ export interface CloseReactWindowParams {
   windowKey: string;
 }
 
+export interface SetDesktopGlobalSettingParams {
+  key:
+    | 'baseFontSize'
+    | 'headerSize'
+    | 'recentSessionsWindow'
+    | 'sessionDoubleClickAction';
+  value: string | number;
+}
+
 export interface DesktopWindowManagerModule {
   openConnectionEditor(params: OpenConnectionEditorParams): void;
   submitConnectionEditor(payload: { record: ConnectionRecord }): void;
@@ -91,9 +100,14 @@ export interface DesktopWindowManagerModule {
 
   openReactWindow(params: OpenReactWindowParams): void;
   closeReactWindow(params: CloseReactWindowParams): void;
+  getDesktopGlobalSettings?(): Promise<Record<string, unknown>>;
+  setDesktopGlobalSetting?(params: SetDesktopGlobalSettingParams): void;
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
   recordProgressiveScrollHarnessState?(state: Record<string, unknown>): void;
+  recordMarkdownGeometryHarnessState?(state: Record<string, unknown>): void;
+  recordConnectionsPanelHarnessState?(state: Record<string, unknown>): void;
+  recordDesktopWorkspaceHarnessState?(state: Record<string, unknown>): void;
   readProgressiveScrollHarnessCommand?(): Promise<Record<string, unknown> | null>;
 }
 

@@ -83,7 +83,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       color: theme.text,
     },
     subtitle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     body: {
@@ -94,11 +95,13 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: 6,
     },
     hint: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
     },
     hintSecondary: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
   });

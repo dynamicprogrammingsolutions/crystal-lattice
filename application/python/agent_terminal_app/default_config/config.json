@@ -444,6 +444,56 @@
           }
         }
       }
+    },
+    "claude_anthropic_model_variants": {
+      "$variants": [
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:haiku|sonnet|opus)-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "anthropic_reasoning_mode": "manual",
+          "anthropic_reasoning_budget_tokens": 1024
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:sonnet|opus)-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "beta_headers": ["interleaved-thinking-2025-05-14"]
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-opus-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "anthropic_reasoning_effort": "high"
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:(?:sonnet|opus)-4-6|sonnet-5|opus-4-(?:7|8)|opus-5|(?:fable|mythos)-5|mythos-preview)$"
+            }
+          },
+          "betas": ["context-management-2025-06-27"],
+          "anthropic_reasoning_mode": "adaptive",
+          "anthropic_reasoning_effort": "high",
+          "anthropic_reasoning_display": "summarized",
+          "request_options": {
+            "context_management": {
+              "edits": [
+                {
+                  "type": "clear_thinking_20251015",
+                  "keep": "all"
+                }
+              ]
+            }
+          }
+        }
+      ]
     }
   },
   "providers": {
@@ -452,6 +502,17 @@
       "provider": "openrouter",
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1"
+    },
+    "anthropic": {
+      "mixin_refs": ["provider_defaults"],
+      "provider": "anthropic",
+      "auth_mode": "api",
+      "api_key": "${env:ANTHROPIC_API_KEY}",
+      "base_url": "https://api.anthropic.com",
+      "capabilities": {
+        "anthropic_reasoning_controls": true,
+        "prompt_caching": true
+      }
     },
     "openrouter_image_generation": {
       "mixin_refs": ["provider_defaults"],
@@ -513,6 +574,7 @@
   },
   "plugins": [
     "path:${env:BUILTIN_PLUGINS}/openrouter",
+    "path:${env:BUILTIN_PLUGINS}/anthropic-compatible",
     "plugins.tool_gating_feature.ToolGatingFeature",
     "path:${env:BUILTIN_PLUGINS}/feature-request-options",
     "path:${env:BUILTIN_PLUGINS}/feature-system-message",
@@ -543,6 +605,8 @@
     "tool_output_line_limit": 20,
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
+    "tool_output_live_one_line": false,
+    "terminal_startup_help": "summary",
     "notifications": {
       "history_limit": 500,
       "store": {
@@ -554,6 +618,7 @@
       "env_file": "${env:CONFIG_DIR}/.env",
       "editable_env_keys": [
         "OPENROUTER_API_KEY",
+        "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
         "FIREWORKS_API_KEY",
         "ZAI_API_KEY"
@@ -561,6 +626,7 @@
       "provider_env_keys": {
         "openrouter": "OPENROUTER_API_KEY",
         "openrouter_image_generation": "OPENROUTER_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
         "fireworks": "FIREWORKS_API_KEY",
         "zai": "ZAI_API_KEY"
@@ -820,7 +886,7 @@
         "type": "kimi"
       }
     },
-    "claude": {
+    "claude-openrouter": {
       "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
@@ -834,6 +900,22 @@
           "allow_fallbacks": false
         }
       },
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
+    },
+    "claude-anthropic": {
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults",
+        "claude_anthropic_model_variants"
+      ],
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,

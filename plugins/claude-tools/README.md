@@ -24,6 +24,10 @@ affiliated with, sponsored by, or endorsed by Anthropic.
 - `WebSearch`: Claude Code-compatible web search tool with Anthropic-native schemas and Claude-shaped result formatting backed by Gemini or Tavily providers.
 - `ClaudeMCPTool`: Claude Code-compatible MCP tool wrapper that exposes discovered MCP server tools with Claude's `mcp__server__tool` naming and Anthropic-native result formatting.
 
+`WebSearch` contributes an ordinary session checkbox and a compact composer
+toggle. The toggle remains visible but muted/disabled when neither Gemini nor
+Tavily credentials are configured.
+
 ## Implemented Session Actions
 
 - `Compact conversation`: Claude Code-compatible compaction session action that captures the observed Claude `/compact` prompt contract, validates the Claude-style numbered summary output, and rewrites session history into the investigated compact-summary shape.

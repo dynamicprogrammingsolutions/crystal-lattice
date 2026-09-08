@@ -210,6 +210,77 @@ describe('SessionsPanel', () => {
     });
   });
 
+  it('keeps single click light, applies configured double click, and aligns the complementary button before actions', () => {
+    mockSessions = [
+      {
+        session_id: 'interaction',
+        modified: 1,
+        preview: 'Interaction',
+        presentation: {
+          title: 'Interaction session',
+          subtitle: 'Subtitle',
+          meta: null,
+        },
+      },
+    ];
+    const onOpenSessionTab = jest.fn();
+    const now = jest
+      .spyOn(Date, 'now')
+      .mockReturnValueOnce(100)
+      .mockReturnValueOnce(200);
+    const rendered = render(
+      <SessionsPanel
+        focusedConnectionId="connection-1"
+        focusedConnectionName="Local"
+        connectionId="connection-1"
+        backend={{ kind: 'test' } as any}
+        cachedSessions={mockSessions}
+        cachedLastLoadedAt={1}
+        isOnline
+        followActiveTabEnabled={false}
+        onUpdateCache={jest.fn()}
+        onOpenSessionTab={onOpenSessionTab}
+        sessionDoubleClickAction="open"
+        requestStatuses={{
+          interaction: {
+            session_id: 'interaction',
+            request_id: null,
+            state: 'succeeded',
+            basis: 'session_tail',
+            session_modified: 1,
+          },
+        }}
+        sessionNotes={{ interaction: 'Local note' }}
+        onEditSessionNote={() => {}}
+      />,
+    );
+
+    const row = rendered.getByTestId('session-row-interaction');
+    fireEvent.press(row);
+    expect(onOpenSessionTab).not.toHaveBeenCalled();
+    fireEvent.press(row);
+    expect(onOpenSessionTab).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sessionId: 'interaction', mode: 'open' }),
+    );
+
+    fireEvent.press(rendered.getByTestId('desktop-session-preview-interaction'));
+    expect(onOpenSessionTab).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sessionId: 'interaction', mode: 'preview' }),
+    );
+    expect(rendered.getByText('Completed')).toBeTruthy();
+    expect(rendered.getByText('Local note')).toBeTruthy();
+
+    const actionRow = rendered.getByTestId(
+      'desktop-session-actions-row-interaction',
+    );
+    const button = rendered.getByTestId(
+      'desktop-session-preview-interaction',
+    );
+    expect(actionRow.props.style.alignItems).toBe('center');
+    expect(actionRow.findAll((node) => node === button).length).toBe(1);
+    now.mockRestore();
+  });
+
   it('uses the first declared header action and separately renders an actions-bar placement', () => {
     mockSessions = [
       {

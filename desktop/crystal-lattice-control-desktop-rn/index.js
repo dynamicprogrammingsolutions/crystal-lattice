@@ -68,6 +68,21 @@ const {
 const {
   DesktopNotificationRailHarness,
 } = require('./src/testing/DesktopNotificationRailHarness');
+const {
+  DesktopMarkdownGeometryHarness,
+} = require('./src/testing/DesktopMarkdownGeometryHarness');
+const {
+  DesktopConnectionsPanelHarness,
+} = require('./src/testing/DesktopConnectionsPanelHarness');
+const {
+  DesktopActionDisplayHarness,
+} = require('./src/testing/DesktopActionDisplayHarness');
+const {
+  DesktopWorkspaceHarness,
+} = require('./src/testing/DesktopWorkspaceHarness');
+const {
+  DesktopRichSessionUiHarness,
+} = require('./src/testing/DesktopRichSessionUiHarness');
 const { ConnectionEditorWindow } = require('./src/windows/ConnectionEditorWindow');
 const { AgentPickerWindow } = require('./src/windows/AgentPickerWindow');
 const { ActionsPopoverView } = require('./src/windows/ActionsPopoverView');
@@ -81,6 +96,9 @@ const { SessionSnapshotsWindow } = require('./src/windows/SessionSnapshotsWindow
 const { NotificationTestingWindow } = require('./src/windows/NotificationTestingWindow');
 const { AttachmentMetadataWindow } = require('./src/windows/AttachmentMetadataWindow');
 const { ServerSettingsWindow } = require('./src/windows/ServerSettingsWindow');
+const { ActionDisplayWindow } = require('./src/windows/ActionDisplayWindow');
+const { GlobalSettingsWindow } = require('./src/windows/GlobalSettingsWindow');
+const { SessionNoteWindow } = require('./src/windows/SessionNoteWindow');
 const { name: appName } = require('./app.json');
 
 AppRegistry.registerComponent(appName, () => App);
@@ -89,6 +107,11 @@ AppRegistry.registerComponent('TranscriptScrollPersistenceHarness', () => Transc
 AppRegistry.registerComponent('DesktopTranscriptRangeNavigationHarness', () => DesktopTranscriptRangeNavigationHarness);
 AppRegistry.registerComponent('SessionFiltersPopoverHarness', () => SessionFiltersPopoverHarness);
 AppRegistry.registerComponent('DesktopNotificationRailHarness', () => DesktopNotificationRailHarness);
+AppRegistry.registerComponent('DesktopMarkdownGeometryHarness', () => DesktopMarkdownGeometryHarness);
+AppRegistry.registerComponent('DesktopConnectionsPanelHarness', () => DesktopConnectionsPanelHarness);
+AppRegistry.registerComponent('DesktopActionDisplayHarness', () => DesktopActionDisplayHarness);
+AppRegistry.registerComponent('DesktopWorkspaceHarness', () => DesktopWorkspaceHarness);
+AppRegistry.registerComponent('DesktopRichSessionUiHarness', () => DesktopRichSessionUiHarness);
 AppRegistry.registerComponent('ConnectionEditorWindow', () => ConnectionEditorWindow);
 AppRegistry.registerComponent('AgentPickerWindow', () => AgentPickerWindow);
 AppRegistry.registerComponent('ActionsPopoverView', () => ActionsPopoverView);
@@ -100,3 +123,6 @@ AppRegistry.registerComponent('SessionSnapshotsWindow', () => SessionSnapshotsWi
 AppRegistry.registerComponent('NotificationTestingWindow', () => NotificationTestingWindow);
 AppRegistry.registerComponent('AttachmentMetadataWindow', () => AttachmentMetadataWindow);
 AppRegistry.registerComponent('ServerSettingsWindow', () => ServerSettingsWindow);
+AppRegistry.registerComponent('ActionDisplayWindow', () => ActionDisplayWindow);
+AppRegistry.registerComponent('GlobalSettingsWindow', () => GlobalSettingsWindow);
+AppRegistry.registerComponent('SessionNoteWindow', () => SessionNoteWindow);

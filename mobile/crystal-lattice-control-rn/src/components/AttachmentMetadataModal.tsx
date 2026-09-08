@@ -475,7 +475,8 @@ const createStyles = (theme: Theme) =>
       textAlign: 'center',
     },
     helperText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.textSecondary,
       marginBottom: 8,
     },
@@ -513,14 +514,16 @@ const createStyles = (theme: Theme) =>
       flex: 1,
     },
     itemLabel: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '500',
       color: theme.text,
       marginBottom: 2,
       marginRight: 4,
     },
     itemDescription: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     tagConfig: {
@@ -542,11 +545,13 @@ const createStyles = (theme: Theme) =>
       borderColor: theme.border,
     },
     tagTextConfig: {
-      fontSize: 10,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
     },
     tagTextDefault: {
-      fontSize: 10,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
     },
     chipsRow: {
@@ -575,11 +580,13 @@ const createStyles = (theme: Theme) =>
       marginBottom: 4,
     },
     chipText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.text,
     },
     chipTextSelected: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textOnPrimary,
     },
     textRow: {
@@ -595,7 +602,8 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: 8,
       paddingVertical: 4,
       color: theme.text,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       marginRight: 8,
     },
     saveButton: {
@@ -606,7 +614,8 @@ const createStyles = (theme: Theme) =>
     },
     saveButtonText: {
       color: theme.textOnPrimary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     controlSwitchColumn: {
@@ -638,7 +647,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surfaceAlt,
     },
     closeButtonText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
       color: theme.text,
     },

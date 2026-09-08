@@ -73,8 +73,17 @@ def main() -> None:
             self._inner = inner
             self._save_delay_seconds = save_delay_seconds
 
-        def load(self, session_id: str):
-            return self._inner.load(session_id)  # type: ignore[attr-defined]
+        def list_records(self):
+            return self._inner.list_records()  # type: ignore[attr-defined]
+
+        def get_record(self, session_id: str):
+            return self._inner.get_record(session_id)  # type: ignore[attr-defined]
+
+        def load(self, session_id: str, *, snapshot_id: str | None = None):
+            return self._inner.load(  # type: ignore[attr-defined]
+                session_id,
+                snapshot_id=snapshot_id,
+            )
 
         def save(self, session) -> None:
             time.sleep(self._save_delay_seconds)

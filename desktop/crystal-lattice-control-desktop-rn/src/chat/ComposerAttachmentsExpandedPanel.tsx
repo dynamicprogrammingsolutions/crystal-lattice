@@ -154,7 +154,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       marginBottom: 8,
     },
     helperText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.textSecondary,
       paddingVertical: 6,
     },
@@ -196,7 +197,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.text,
     },
     subtle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       marginTop: 2,
     },

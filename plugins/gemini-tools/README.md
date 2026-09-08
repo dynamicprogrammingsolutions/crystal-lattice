@@ -447,6 +447,9 @@ Error: Failed to fetch https://example.com: HTTP 404
 ## Web Search behavior notes
 
 The Gemini-compatible web search entrypoint is `google_web_search`.
+Its ordinary `web_search_enabled` checkbox also contributes a compact composer
+toggle with theme-aware off/on appearance. When no search backend is
+configured, the same control remains visible but disabled and muted.
 
 ### Parameters
 

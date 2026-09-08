@@ -25,6 +25,19 @@ def test_init_disabled_by_default() -> None:
     assert state == {}
 
 
+def test_ui_exposes_rich_web_search_toggle() -> None:
+    element = OpenAIResponsesWebSearchExtension().get_ui_elements(
+        tags=["ext:openai_responses_websearch"]
+    )[0]
+
+    assert element["key"] == "enable_web_search"
+    assert element["icon"] == "globe"
+    assert element["rich_ui"]["kind"] == "toggle"
+    assert "icon" not in element["rich_ui"]
+    assert element["rich_ui"]["options"][0]["tone"] == "primary"
+    assert element["rich_ui"]["options"][1]["tone"] == "success"
+
+
 def test_initialize_request_injects_web_search_tool_without_clobbering_tools() -> None:
     ext = OpenAIResponsesWebSearchExtension()
     config: Dict[str, Any] = {"enable_web_search": True}
@@ -62,14 +75,22 @@ def test_initialize_request_adds_optional_fields_and_full_sources_include() -> N
     }
     base_state: Dict[str, Any] = {
         "config": config,
-        "request": {"payload": {"model": "gpt-5-mini", "include": ["reasoning.encrypted_content"]}},
+        "request": {
+            "payload": {
+                "model": "gpt-5-mini",
+                "include": ["reasoning.encrypted_content"],
+            }
+        },
     }
 
     state = ext.init(config, base_state)
     _native_messages, updated = ext.initialize_request([], state)
 
     payload = updated["request"]["payload"]
-    assert payload["include"] == ["reasoning.encrypted_content", "web_search_call.action.sources"]
+    assert payload["include"] == [
+        "reasoning.encrypted_content",
+        "web_search_call.action.sources",
+    ]
     assert payload["tools"] == [
         {
             "type": "web_search",

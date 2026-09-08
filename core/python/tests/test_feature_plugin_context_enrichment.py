@@ -119,6 +119,60 @@ class TestCoreContextEnrichment:
         assert isinstance(contexts[0]["session"], dict)
         assert contexts[0]["session"]["session_id"] == session.session_id
 
+    def test_non_mutating_session_action_returns_original_session(self) -> None:
+        core = _build_core()
+        config = _config()
+        session = core.create_session()
+
+        assert (
+            core.session_action_mutates(
+                config,
+                "context_recording",
+                "inspect_context",
+            )
+            is False
+        )
+
+        new_session, result = core.execute_session_action(
+            session,
+            config,
+            plugin_id="context_recording",
+            action_id="inspect_context",
+            params={},
+        )
+
+        assert new_session is session
+        assert result["display"]["body"] == "Context inspected"
+
+    def test_non_mutating_session_action_rejects_session_fields(self) -> None:
+        core = _build_core()
+        config = _config()
+        session = core.create_session()
+        feature = ContextRecordingFeature
+        original_execute_action = feature.execute_action
+
+        def _invalid_read_only_result(self, *args, **kwargs):
+            action_id = args[0] if args else kwargs.get("action_id")
+            if action_id == "inspect_context":
+                return {"native_messages": []}
+            return original_execute_action(self, *args, **kwargs)
+
+        feature.execute_action = _invalid_read_only_result
+        try:
+            with pytest.raises(
+                RuntimeError,
+                match="non-mutating session action cannot return session mutation fields",
+            ):
+                core.execute_session_action(
+                    session,
+                    config,
+                    plugin_id="context_recording",
+                    action_id="inspect_context",
+                    params={},
+                )
+        finally:
+            feature.execute_action = original_execute_action
+
     def test_execute_lifecycle_actions_enriches_context(self) -> None:
         """Lifecycle actions should also get enriched context."""
         core = _build_core()

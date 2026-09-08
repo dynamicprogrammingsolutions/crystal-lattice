@@ -57,6 +57,45 @@ may use broader repository context to make a decision, but does not copy task,
 phase, requirement, approval, evidence, or maintainer context into a document
 whose readers do not have that context.
 
+A human contributor can begin with a rough description and use AI-assisted
+brainstorming to research the repository, compare approaches, and shape the
+change. Every change and follow-up receives a reviewed plan before
+implementation; a small change may use a conversational plan while complex or
+multi-part work uses task-owned staged plans.
+
+The quick workflow mirrors the seven detailed steps: brainstorming, reviewing
+specifications and tasks, approving a plan, supervising implementation,
+questioning evidence, requesting independent AI review when useful, and
+planning every follow-up. A three-scenario process table shows the normal task
+and specification forms for small local changes, normal features or bug fixes,
+and high-risk or cross-package changes.
+
+The contributor workflow helps the human verify that applicable repository and
+task guidance actually reached the model, review important specification and
+task decisions, question planned and completed unit/integration/end-to-end
+evidence, identify where human judgment is still useful, and explicitly
+authorize delivery. Human review concentrates on requirements and outcomes,
+scope and placement, design and complexity, verification, and current
+documentation or remaining work. Stage-specific prompt examples appear where
+they are used and assume standing instructions are already active.
+
+The workflow calls out recurring agent mistakes such as missing or expanded
+requirements, misplaced changes, unnecessary complexity, weak verification
+boundaries, stale consumer documentation, and incomplete work presented as
+complete. Independent AI review and follow-up planning are separate numbered
+steps whose text makes clear when they apply.
+
+When subtasks are proposed, the human checks that each one delivers a usable,
+tested improvement or completes an isolated responsibility. Deliverable
+iterations use subtasks, while partial implementation and approval checkpoints
+remain stages inside one task.
+
+Specification need is considered separately from immediate change size.
+Existing specifications remain current whenever their target behavior or
+design changes, large new features require specifications, and other work may
+justify specifying an existing feature or durable contract. Current user
+documentation is updated whenever delivered behavior affects a consumer.
+
 ## Specification and current state
 
 Specifications describe intended targets and may temporarily differ from
@@ -65,7 +104,8 @@ documentation, and evidence state.
 
 Task files are the default approval and execution record. Public user
 documentation and implementation/maintainer documentation describe current
-behavior and must remain consistent with committed code.
+behavior and normally remain consistent with committed code. A user may
+explicitly request a different commit order.
 
 Simple specification changes are normally committed with their implementation
 or in the immediately preceding commit. Separate target versions are optional
@@ -92,6 +132,13 @@ for major changes when they materially improve clarity.
   boundaries when a compliant workflow is unavailable.
 - Use requirements as the live traceability record.
 - Keep the process proportional and avoid placeholder documentation.
+- Provide a human-led contributor workflow in which every change and follow-up
+  is planned before implementation.
+- Help humans verify effective instruction delivery and review AI-produced
+  specifications, task plans, automated evidence, documentation, and delivery
+  readiness through understandable decisions and focused follow-up questions.
+- Keep specification decisions independent from immediate change size and
+  require current user-documentation updates for consumer-affecting behavior.
 - Make ordinary changes understandable primarily through Git history.
 - Verify that representative agents can apply the authored instructions
   through reusable maintainer-owned behavioral evaluation while keeping model
@@ -130,7 +177,8 @@ silently weaken shared semantics.
 
 An agent updates a target specification, requirements, implementation, tests,
 and current documentation. The spec and code are committed together or in two
-adjacent commits, while requirements show the live transition.
+adjacent commits, or in another order explicitly requested by the user, while
+requirements show the live transition.
 
 ### Major multi-commit change
 
@@ -167,6 +215,21 @@ wording is evaluated only after the baseline exposes the boundary failure in at
 least one representative model run. The same seed, task prompt, fixture, and
 assertions are then reused to compare concise and, only when needed, expanded
 guidance variants.
+
+### Human-led AI-assisted change
+
+A contributor describes a desired change in ordinary freehand language and
+asks an agent to research and brainstorm it. The human reviews the proposed
+scope, specification decision, requirements, test boundaries, user
+documentation effects, and implementation plan before authorizing work.
+
+After implementation, the human asks what unit, integration, and end-to-end
+tests ran, what each one demonstrated, what user documentation changed, and
+what remains unverified. Repeatable checkpoints with machine-observable
+results become automated tests; human checkpoints focus on perception,
+exploration, product judgment, or a real environment automation does not
+faithfully represent. Findings return through planning before implementation,
+and delivery occurs only after explicit human authorization.
 
 ## Approved August 18 calibration extension
 

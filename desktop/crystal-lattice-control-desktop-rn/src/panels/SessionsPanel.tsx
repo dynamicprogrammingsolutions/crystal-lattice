@@ -20,6 +20,7 @@ import {
   ActionsMenuBar,
   ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
+  SessionRequestStatusIndicator,
   SessionListActionsBar,
   SessionListRichActionControl,
   SessionListRichActionList,
@@ -37,6 +38,7 @@ import type {
   SessionSummary,
   RunActionContext,
   SessionListActionElement,
+  SessionRequestStatus,
 } from '@crystal-lattice/frontend-sdk';
 import {
   applicationActionKey,
@@ -65,7 +67,6 @@ import {
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { desktopEventBus } from '../events/desktopEventBus';
 import { PanelHeader } from '../ui/PanelHeader';
-import { ActionResultModal } from '../ui/ActionResultModal';
 import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import {
@@ -77,11 +78,19 @@ import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationA
 import { truncateByChars } from '../utils/text';
 import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
 import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
+import {
+  complementarySessionOpenMode,
+  sessionOpenModeLabel,
+  type SessionOpenMode,
+} from '../settings/desktopGlobalSettings';
+import {
+  resolveSessionItemClick,
+  type SessionItemClickMemory,
+} from '../sessions/sessionItemInteraction';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const PINNED_SESSIONS_HEADER_ACTIONS_STORAGE_KEY_BASE =
   'clc_pinned_sessions_header_actions_v1';
-const SESSION_DOUBLE_CLICK_MS = 300;
 const SESSIONS_STALE_MS = 30_000;
 type ActionDisplayEntry = {
   key: string;
@@ -137,6 +146,14 @@ export interface SessionsPanelProps {
     sessionId: string;
     title?: string;
     subtitle?: string | null;
+    mode?: SessionOpenMode;
+  }) => void;
+  sessionDoubleClickAction?: SessionOpenMode;
+  requestStatuses?: Readonly<Record<string, SessionRequestStatus>>;
+  sessionNotes?: Readonly<Record<string, string>>;
+  onEditSessionNote?: (params: {
+    sessionId: string;
+    title: string;
   }) => void;
 
   onUpdateOpenTabsPresentation?: (params: {
@@ -168,6 +185,10 @@ function SessionsPanelInner({
   followActiveTabEnabled = true,
   onUpdateCache,
   onOpenSessionTab,
+  sessionDoubleClickAction = 'preview',
+  requestStatuses = {},
+  sessionNotes = {},
+  onEditSessionNote,
   onUpdateOpenTabsPresentation,
 }: SessionsPanelProps): React.JSX.Element {
   const theme = useTheme();
@@ -443,7 +464,6 @@ function SessionsPanelInner({
   });
 
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
-  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
   const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
   const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
 
@@ -463,7 +483,6 @@ function SessionsPanelInner({
       );
       return;
     }
-    setActionResultDisplay(null);
     setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
   }, [backend, connectionId]);
 
@@ -586,8 +605,10 @@ function SessionsPanelInner({
         return;
       }
       if (action.kind === 'run_action') {
-        if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
-          setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
+        if (action.preserve_display !== true) {
+          setInlineActionDisplays((current) =>
+            current.filter((item) => item.key !== entry.key),
+          );
         }
         setActiveDisplayActionId(action.id);
         try {
@@ -797,7 +818,7 @@ function SessionsPanelInner({
     setWindowEnd(newEnd);
   }, [windowStart, filteredSessions.length]);
 
-  const lastClickRef = useRef<{ sessionId: string; atMs: number } | null>(null);
+  const lastClickRef = useRef<SessionItemClickMemory | null>(null);
 
   useEffect(() => {
     if (!connectionId) {
@@ -831,7 +852,7 @@ function SessionsPanelInner({
   }, [connectionId, fieldGroups, onUpdateOpenTabsPresentation, sessionsState?.sessions]);
 
   const openSession = useCallback(
-    (session: SessionSummary) => {
+    (session: SessionSummary, mode: SessionOpenMode = 'open') => {
       if (!connectionId) {
         return;
       }
@@ -842,6 +863,7 @@ function SessionsPanelInner({
         sessionId: session.session_id,
         title: presentation.title?.slice(0, 64) || session.session_id,
         subtitle: presentation.subtitle,
+        mode,
       });
     },
     [connectionId, fieldGroups, onOpenSessionTab],
@@ -849,17 +871,17 @@ function SessionsPanelInner({
 
   const handleRowPress = useCallback(
     (session: SessionSummary) => {
-      const now = Date.now();
-      const prev = lastClickRef.current;
-      lastClickRef.current = { sessionId: session.session_id, atMs: now };
-
       onUserSelectSessionId(session.session_id);
-
-      if (prev && prev.sessionId === session.session_id && now - prev.atMs <= SESSION_DOUBLE_CLICK_MS) {
-        openSession(session);
-      }
+      const result = resolveSessionItemClick({
+        previous: lastClickRef.current,
+        key: session.session_id,
+        nowMs: Date.now(),
+        doubleClickAction: sessionDoubleClickAction,
+      });
+      lastClickRef.current = result.next;
+      if (result.openMode) openSession(session, result.openMode);
     },
-    [onUserSelectSessionId, openSession],
+    [onUserSelectSessionId, openSession, sessionDoubleClickAction],
   );
 
   return (
@@ -877,16 +899,6 @@ function SessionsPanelInner({
           }
         />
       ))}
-      <ActionResultModal
-        visible={!!actionResultDisplay}
-        display={actionResultDisplay?.display ?? null}
-        activeActionId={activeDisplayActionId}
-        onRequestClose={() => setActionResultDisplay(null)}
-        onFollowupAction={(action, formValues) => {
-          if (!actionResultDisplay) return;
-          handleDisplayFollowupAction(actionResultDisplay, action, formValues);
-        }}
-      />
       <PanelHeader
         title="Sessions"
         subtitle={subtitle}
@@ -1097,6 +1109,8 @@ function SessionsPanelInner({
               80,
             );
             const meta = presentation.meta;
+            const explicitOpenMode =
+              complementarySessionOpenMode(sessionDoubleClickAction);
             const headerLeadingAction = selectSessionListRichActionForPlacement(
               sessionListActions,
               'header_leading',
@@ -1178,7 +1192,11 @@ function SessionsPanelInner({
                       />
                     ) : null}
                   </View>
-                  <Text style={styles.rowId} numberOfLines={1}>
+                  <Text
+                    style={styles.rowId}
+                    numberOfLines={1}
+                    testID={`session-id-${session.session_id}`}
+                  >
                     {session.session_id}
                   </Text>
                   <Text
@@ -1195,21 +1213,65 @@ function SessionsPanelInner({
                       {meta}
                     </Text>
                   ) : null}
+                  <SessionRequestStatusIndicator
+                    status={requestStatuses[session.session_id] ?? null}
+                    variant="inline"
+                    testID={`desktop-session-request-status-${session.session_id}`}
+                  />
+                  {sessionNotes[session.session_id] ? (
+                    <Text
+                      style={styles.rowNote}
+                      numberOfLines={2}
+                      testID={`desktop-session-note-${session.session_id}`}
+                    >
+                      {sessionNotes[session.session_id]}
+                    </Text>
+                  ) : null}
                 </View>
 
-                <View style={styles.rowRight}>
+                <View
+                  style={styles.rowRight}
+                  testID={`desktop-session-actions-row-${session.session_id}`}
+                >
+                  {onEditSessionNote ? (
+                    <Pressable
+                      testID={`desktop-session-note-action-${session.session_id}`}
+                      accessibilityLabel={
+                        sessionNotes[session.session_id]
+                          ? 'Edit local note'
+                          : 'Add local note'
+                      }
+                      style={styles.localNoteButton}
+                      onPress={(event) => {
+                        (event as any)?.stopPropagation?.();
+                        onEditSessionNote({
+                          sessionId: session.session_id,
+                          title,
+                        });
+                      }}
+                    >
+                      <Icon
+                        name="edit-3"
+                        size={13}
+                        color={theme.textSecondary}
+                      />
+                    </Pressable>
+                  ) : null}
                   <Pressable
+                    testID={`desktop-session-${explicitOpenMode}-${session.session_id}`}
                     style={[
                       styles.openButton,
                       styles.openButtonVisible,
                     ]}
-                    pointerEvents={showRowControls ? 'auto' : 'none'}
+                    pointerEvents="auto"
                     onPress={(event) => {
                       (event as any)?.stopPropagation?.();
-                      openSession(session);
+                      openSession(session, explicitOpenMode);
                     }}
                   >
-                    <Text style={styles.openButtonText}>Open</Text>
+                    <Text style={styles.openButtonText}>
+                      {sessionOpenModeLabel(explicitOpenMode)}
+                    </Text>
                   </Pressable>
 
                   {sessionListActions.length > 0 ? (
@@ -1322,7 +1384,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       borderRadius: 10,
       paddingHorizontal: 10,
       paddingVertical: 7,
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.text,
       backgroundColor: theme.backgroundAlt,
     },
@@ -1348,7 +1411,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       right: 2,
       top: 0,
       color: theme.primary,
-      fontSize: 9,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       fontWeight: '900',
     },
     filterWarning: {
@@ -1357,7 +1421,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       borderBottomWidth: separatorWidth,
       borderBottomColor: theme.border,
       color: theme.danger,
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
     },
     newButton: {
       borderWidth: separatorWidth,
@@ -1377,7 +1442,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surfaceAlt,
     },
     newButtonText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '800',
       color: theme.textOnPrimary,
     },
@@ -1391,13 +1457,15 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       borderBottomColor: theme.border,
     },
     loadingText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     errorText: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.danger,
     },
     list: {
@@ -1431,29 +1499,46 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       gap: 8,
     },
     rowTitle: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '700',
       color: theme.text,
       flexGrow: 1,
       flexShrink: 1,
     },
     rowId: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     rowSubtitle: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.textSecondary,
     },
     rowMeta: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
+    },
+    rowNote: {
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
+      color: theme.textSecondary,
+      fontStyle: 'italic',
     },
     rowRight: {
       flexDirection: 'row',
-      alignItems: 'flex-end',
+      alignItems: 'center',
       justifyContent: 'flex-end',
       gap: 4,
+    },
+    localNoteButton: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
     },
     openButton: {
       borderWidth: separatorWidth,
@@ -1470,7 +1555,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       opacity: 1,
     },
     openButtonText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       fontWeight: '700',
       color: theme.primary,
     },
@@ -1489,7 +1575,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surfaceAlt,
     },
     pinButtonText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '800',
     },
     empty: {
@@ -1497,11 +1584,13 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       gap: 4,
     },
     emptyText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     emptyMeta: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
     },
     loadMoreContainer: {
@@ -1527,9 +1616,12 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surface,
     },
     loadMoreButtonText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '600',
       color: theme.textSecondary,
     },
   });
 }
+
+export { createStyles as createSessionsPanelStyles };

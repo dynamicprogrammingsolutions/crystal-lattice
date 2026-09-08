@@ -35,7 +35,7 @@ jobs:
           cache: pip
 
       - name: Install test dependencies
-        run: python -m pip install -e "core/python[dev]" -e application/python -e "plugins/openai_responses[dev]" -e plugins/tool-compat-shared -e plugins/mcp-shared -e plugins/web-fetch-shared
+        run: python -m pip install -e "core/python[dev]" -e application/python
 
       - name: Validate release tag version
         if: startsWith(github.ref, 'refs/tags/')
@@ -153,12 +153,15 @@ jobs:
       - name: Smoke-test release archive
         run: python scripts/smoke_test_crystal_lattice_python_runtime_archive.py "$CRYSTAL_RELEASE_ARCHIVE"
 
-      - name: Upload release archive artifact
+      - name: Upload release archive
+        if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: crystal-lattice-cli-${{ matrix.target }}
           path: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
           if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
 
   publish:
     name: Publish GitHub Release
@@ -171,18 +174,83 @@ jobs:
       # Required only to create or update the GitHub Release.
       contents: write
     steps:
-      - name: Download release archive artifacts
+      - name: Download release archives
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          path: release-assets
           pattern: crystal-lattice-cli-*
+          path: release-assets
           merge-multiple: true
 
-      - name: Publish release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          files: release-assets/*
-          generate_release_notes: true
+      - name: Create and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#crystal-lattice-cli-v}"
+          expected=(
+            "crystal-lattice-python-runtime-v${version}-darwin-amd64.tar.gz"
+            "crystal-lattice-python-runtime-v${version}-darwin-arm64.tar.gz"
+            "crystal-lattice-python-runtime-v${version}-linux-amd64.tar.gz"
+            "crystal-lattice-python-runtime-v${version}-windows-amd64.zip"
+          )
+
+          mapfile -t local_assets < <(
+            find release-assets -maxdepth 1 -type f -printf '%f\n' |
+              sort
+          )
+          if [ "${#local_assets[@]}" -ne "${#expected[@]}" ]; then
+            printf 'Expected %s downloaded archives, found %s:\n' \
+              "${#expected[@]}" "${#local_assets[@]}" >&2
+            printf '  %s\n' "${local_assets[@]}" >&2
+            exit 1
+          fi
+
+          release_paths=()
+          for name in "${expected[@]}"; do
+            printf '%s\n' "${local_assets[@]}" | grep -Fxq "$name" || {
+              echo "Missing downloaded release archive: $name" >&2
+              exit 1
+            }
+            release_paths+=("release-assets/$name")
+          done
+
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub Release already exists for $GITHUB_REF_NAME"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --draft \
+              --generate-notes
+          fi
+
+          gh release upload "$GITHUB_REF_NAME" \
+            "${release_paths[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
+
+          mapfile -t published_assets < <(
+            gh release view "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json assets \
+              --jq '.assets[].name' |
+              sort
+          )
+          if [ "${#published_assets[@]}" -ne "${#expected[@]}" ]; then
+            printf 'Expected %s release assets, found %s:\n' \
+              "${#expected[@]}" "${#published_assets[@]}" >&2
+            printf '  %s\n' "${published_assets[@]}" >&2
+            exit 1
+          fi
+          for name in "${expected[@]}"; do
+            printf '%s\n' "${published_assets[@]}" | grep -Fxq "$name" || {
+              echo "Missing GitHub Release asset: $name" >&2
+              exit 1
+            }
+          done
+          gh release edit "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false \
+            --latest
 
   publish-downloads:
     name: Publish Downloads
@@ -215,12 +283,15 @@ jobs:
           role-to-assume: ${{ secrets.CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Download release archive artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          path: release-assets
-          pattern: crystal-lattice-cli-*
-          merge-multiple: true
+      - name: Download GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release-assets
+          gh release download "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir release-assets \
+            --pattern "crystal-lattice-python-runtime-v${GITHUB_REF_NAME#crystal-lattice-cli-v}-*"
 
       - name: Publish downloads
         env:

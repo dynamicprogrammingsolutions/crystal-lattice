@@ -47,6 +47,22 @@ _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_turn_reasoning_tokens_cumulative",
     "usage_turn_reasoning_tokens_cumulative_formatted",
 )
+_USAGE_MESSAGE_FOOTER_FIELDS = (
+    "input",
+    "cached",
+    "cache_write",
+    "estimated_cached",
+    "completion",
+    "auth",
+    "tier",
+    "mode",
+    "cost",
+    "turn_cost",
+    "turn_reasoning",
+    "turn_input",
+    "turn_cached",
+    "turn_output",
+)
 
 
 class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
@@ -60,6 +76,30 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 "type": "string",
                 "required": False,
                 "description": "Optional path override for the checked-in OpenAI pricing snapshot.",
+            },
+            "show_usage": {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": "Show OpenAI usage message-footer and status-bar elements.",
+            },
+            "usage_message_footer_fields": {
+                "type": "array",
+                "required": False,
+                "items": {
+                    "type": "string",
+                    "enum": list(_USAGE_MESSAGE_FOOTER_FIELDS),
+                },
+                "description": (
+                    "Optional field filter for OpenAI usage message footers. "
+                    "When omitted, the existing complete footer is preserved."
+                ),
+            },
+            "show_usage_status_total": {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": "Show cumulative usage cost as Total in the chat status bar.",
             },
             "show_estimated_cached_tokens": {
                 "type": "boolean",
@@ -84,133 +124,230 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         _ = (tags, models)
         if isinstance(config, dict) and config.get("show_usage") is False:
             return []
-        return [
+
+        configured_fields = (
+            config.get("usage_message_footer_fields")
+            if isinstance(config, dict)
+            else None
+        )
+        selected_fields = (
             {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_prompt_tokens_formatted",
-                "template": "input: {{data}}",
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_cached_tokens_formatted",
-                "template": "cached: {{data}}",
-                "condition": {
-                    "not": {
-                        "path": "metadata.usage_effective_auth_mode",
-                        "eq": "chatgpt",
-                    }
-                },
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_cache_write_tokens_formatted",
-                "template": "cache write: {{data}}",
-                "condition": {
-                    "path": "metadata.usage_cache_write_tokens_formatted",
-                    "exists": True,
-                },
-            },
-            *(
+                value
+                for value in configured_fields
+                if isinstance(value, str) and value in _USAGE_MESSAGE_FOOTER_FIELDS
+            }
+            if isinstance(configured_fields, list)
+            else None
+        )
+
+        def includes(field: str) -> bool:
+            return selected_fields is None or field in selected_fields
+
+        elements: List[Dict[str, Any]] = []
+        if includes("input"):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.usage_prompt_tokens_formatted",
+                    "template": "input: {{data}}",
+                }
+            )
+        if includes("cached"):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.usage_cached_tokens_formatted",
+                    "template": "cached: {{data}}",
+                    "condition": {
+                        "not": {
+                            "path": "metadata.usage_effective_auth_mode",
+                            "eq": "chatgpt",
+                        }
+                    },
+                }
+            )
+        if includes("cache_write"):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.usage_cache_write_tokens_formatted",
+                    "template": "cache write: {{data}}",
+                    "condition": {
+                        "path": "metadata.usage_cache_write_tokens_formatted",
+                        "exists": True,
+                    },
+                }
+            )
+        if (
+            includes("estimated_cached")
+            and isinstance(config, dict)
+            and config.get("show_estimated_cached_tokens") is True
+        ):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.usage_estimated_cached_tokens_formatted",
+                    "template": "estimated cached: {{data}}",
+                    "condition": {
+                        "all": [
+                            {
+                                "path": "metadata.usage_effective_auth_mode",
+                                "eq": "chatgpt",
+                            },
+                            {
+                                "path": "metadata.usage_estimated_cached_tokens_formatted",
+                                "exists": True,
+                            },
+                        ]
+                    },
+                }
+            )
+        if includes("completion"):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.usage_completion_tokens_formatted",
+                    "template": "completion: {{data}}",
+                }
+            )
+        if (
+            includes("auth")
+            and isinstance(config, dict)
+            and config.get("show_openai_auth_mode") is True
+        ):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.usage_effective_auth_mode_label",
+                    "template": "auth: {{data}}",
+                    "condition": {
+                        "path": "metadata.usage_effective_auth_mode_label",
+                        "exists": True,
+                    },
+                }
+            )
+        if includes("tier"):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.usage_service_tier",
+                    "template": "tier: {{data}}",
+                    "condition": {
+                        "any": [
+                            {"path": "metadata.usage_service_tier", "eq": "flex"},
+                            {
+                                "path": "metadata.usage_service_tier",
+                                "eq": "priority",
+                            },
+                        ]
+                    },
+                }
+            )
+        if includes("mode"):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.usage_reasoning_mode",
+                    "template": "mode: {{data}}",
+                    "condition": {
+                        "path": "metadata.usage_reasoning_mode",
+                        "eq": "pro",
+                    },
+                }
+            )
+        if includes("cost"):
+            elements.extend(
                 [
                     {
                         "ui_type": "message_footer",
-                        "data": "metadata.usage_estimated_cached_tokens_formatted",
-                        "template": "estimated cached: {{data}}",
+                        "data": "metadata.usage_total_cost_formatted",
+                        "template": "estimated cost: {{data}}",
                         "condition": {
-                            "all": [
-                                {
-                                    "path": "metadata.usage_effective_auth_mode",
-                                    "eq": "chatgpt",
-                                },
-                                {
-                                    "path": "metadata.usage_estimated_cached_tokens_formatted",
-                                    "exists": True,
-                                },
-                            ]
+                            "path": "metadata.usage_effective_auth_mode",
+                            "eq": "chatgpt",
                         },
-                    }
+                    },
+                    {
+                        "ui_type": "message_footer",
+                        "data": "metadata.usage_total_cost_formatted",
+                        "template": "cost: {{data}}",
+                        "condition": {
+                            "not": {
+                                "path": "metadata.usage_effective_auth_mode",
+                                "eq": "chatgpt",
+                            }
+                        },
+                    },
                 ]
-                if isinstance(config, dict)
-                and config.get("show_estimated_cached_tokens") is True
-                else []
-            ),
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_completion_tokens_formatted",
-                "template": "completion: {{data}}",
-            },
-            *(
+            )
+        if includes("turn_cost"):
+            elements.extend(
                 [
                     {
                         "ui_type": "message_footer",
-                        "data": "metadata.usage_effective_auth_mode_label",
-                        "template": "auth: {{data}}",
+                        "data": "metadata.usage_turn_cost_cumulative_formatted",
+                        "template": "estimated turn: {{data}}",
                         "condition": {
-                            "path": "metadata.usage_effective_auth_mode_label",
-                            "exists": True,
+                            "path": "metadata.usage_effective_auth_mode",
+                            "eq": "chatgpt",
                         },
-                    }
+                    },
+                    {
+                        "ui_type": "message_footer",
+                        "data": "metadata.usage_turn_cost_cumulative_formatted",
+                        "template": "turn: {{data}}",
+                        "condition": {
+                            "not": {
+                                "path": "metadata.usage_effective_auth_mode",
+                                "eq": "chatgpt",
+                            }
+                        },
+                    },
                 ]
-                if isinstance(config, dict)
-                and config.get("show_openai_auth_mode") is True
-                else []
+            )
+        footer_fields = (
+            (
+                "turn_reasoning",
+                "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+                "reasoning: {{data}}",
             ),
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_service_tier",
-                "template": "tier: {{data}}",
-                "condition": {
-                    "any": [
-                        {"path": "metadata.usage_service_tier", "eq": "flex"},
-                        {"path": "metadata.usage_service_tier", "eq": "priority"},
-                    ]
-                },
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_reasoning_mode",
-                "template": "mode: {{data}}",
-                "condition": {
-                    "path": "metadata.usage_reasoning_mode",
-                    "eq": "pro",
-                },
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_total_cost_formatted",
-                "template": "cost: {{data}}",
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_turn_cost_cumulative_formatted",
-                "template": "turn: {{data}}",
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
-                "template": "reasoning: {{data}}",
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
-                "template": "turn input: {{data}}",
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_turn_cached_tokens_cumulative_formatted",
-                "template": "turn cached: {{data}}",
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
-                "template": "turn output: {{data}}",
-            },
-            {
-                "ui_type": "status_bar",
-                "data": "metadata.usage_total_cost_cumulative_formatted",
-                "template": "Total: {{data}}",
-            },
-        ]
+            (
+                "turn_input",
+                "metadata.usage_turn_input_tokens_cumulative_formatted",
+                "turn input: {{data}}",
+            ),
+            (
+                "turn_cached",
+                "metadata.usage_turn_cached_tokens_cumulative_formatted",
+                "turn cached: {{data}}",
+            ),
+            (
+                "turn_output",
+                "metadata.usage_turn_output_tokens_cumulative_formatted",
+                "turn output: {{data}}",
+            ),
+        )
+        for field, data, template in footer_fields:
+            if includes(field):
+                elements.append(
+                    {
+                        "ui_type": "message_footer",
+                        "data": data,
+                        "template": template,
+                    }
+                )
+        if (
+            not isinstance(config, dict)
+            or config.get("show_usage_status_total") is not False
+        ):
+            elements.append(
+                {
+                    "ui_type": "status_bar",
+                    "data": "metadata.usage_total_cost_cumulative_formatted",
+                    "template": "Total: {{data}}",
+                }
+            )
+        return elements
 
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]

@@ -15,6 +15,16 @@ Disposable raw output belongs under the ignored directory:
 landing_page/artifacts/
 ```
 
+Reviewed, sanitized source masters used by the executable website visual
+workflow belong under:
+
+```text
+landing_page/visual_assets/sources/
+```
+
+Those files are maintained build inputs rather than research evidence or
+publicly deployed files.
+
 ## Directory Creation
 
 Create subdirectories only when they contain substantive retained evidence.

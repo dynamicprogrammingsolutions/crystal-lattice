@@ -1,0 +1,36 @@
+# Anthropic provider requirements
+
+These requirements track the live implementation of the
+[Anthropic-compatible provider specification](index.md).
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| ANTH-001 | The package exposes provider ID `anthropic`, class `AnthropicProvider`, and the approved separate baseline extensions from `plugins/anthropic-compatible`. | Implemented | Automated | Documented | provider, tools, reasoning, reasoning controls, usage, and prompt-caching classes and descriptor entries |
+| ANTH-002 | API-key mode uses resolved `config["api_key"]` first, may use `ANTHROPIC_API_KEY` only as fallback, and never persists or exposes the credential. | Implemented | Automated | Documented | `tests/test_provider_unit.py`; package README |
+| ANTH-003 | Official `/v1/models` discovery retains model capability metadata and derives model UI and capability tags without hardcoded official model-name rules. | Implemented | Automated | Documented | official hosted capability matrix plus deterministic descriptor/UI tests; regex rules are fallback-only |
+| ANTH-004 | The provider supports ordinary and streaming Anthropic Messages requests with coherent full native history and request-ID cancellation. | Implemented | Automated | Documented | provider/stack/Ollama tests; package README |
+| ANTH-005 | Core/native conversion preserves ordered text, thinking, redacted-thinking, tool-use, and tool-result content required for multi-turn continuation. | Implemented | Automated | Documented | reducer, stack reload, and Ollama tool tests |
+| ANTH-006 | `AnthropicToolsExtension` owns tool configuration, schema injection, streamed call reconstruction, result mapping, interop declarations, and public tool metadata. | Implemented | Automated | Documented | `tests/test_extensions_unit.py`; Ollama tool round |
+| ANTH-007 | `AnthropicReasoningExtension` owns streamed reasoning, redacted thinking, public metadata, native-history reconstruction, and signature continuity; `AnthropicReasoningControlsExtension` separately owns official model controls while raw request options remain the final override. | Implemented | Automated | Documented | extension isolation, official capability/fallback/UI tests, request mapping, raw override, hosted interleaving and continuity |
+| ANTH-008 | `AnthropicUsageExtension` owns public input, output, cache-read, cache-creation, turn/session cumulative, formatted, and duration/TPS-compatible usage metadata. | Implemented | Automated | Documented | usage unit/stack tests plus application-loaded ordinary and tool-turn Duration/TPS on local Ollama |
+| ANTH-009 | `AnthropicPromptCachingExtension` ships in the baseline, supports automatic caching with a selectable supported TTL, and runs only when its required capability tag is present. | Implemented | Automated | Documented | deterministic gating/5m/1h/override tests plus hosted write/hit tests for both TTLs |
+| ANTH-010 | `AnthropicAttachmentsExtension` owns image policy/UI/actions while preserving image inputs and multimodal tool results through official and compatible profiles. | Not started | Unverified | Pending | subtask 017 |
+| ANTH-011 | Portable structured provider errors preserve stable categories, retryability, statuses, request IDs, and redacted detail through lifecycle hooks and clients without moving provider retries or auth lifecycle ownership. | Not started | Unverified | Pending | subtask 019; portable provider requirements |
+| ANTH-012 | Streaming, tools, reasoning, and usage remain baseline provider tags, while explicit boolean capabilities are reserved for non-baseline optional extension tags; compatible endpoint presets remain ordinary inspectable configuration and do not filter explicit request options. | Implemented | Automated | Documented | baseline tags plus explicit reasoning-controls/prompt-caching gates and raw request precedence tests |
+| ANTH-013 | Deterministic contract and application tests cover the provider and every baseline extension. | Implemented | Automated | Documented | package fast suite covers provider, tools, reasoning, controls, usage, caching, retry, cancellation, and stack ordering |
+| ANTH-014 | Enabled local Ollama tests prove the documented compatible-local messages, tools, thinking, usage, effort passthrough, duration/TPS, and model-discovery contracts. | Implemented | Automated | Documented | 11 local `qwen3.5:0.8b` tests and the slow Granite 4.2 3B low/high reasoning-size test pass |
+| ANTH-015 | Selective hosted Anthropic tests prove official model discovery, API-key auth, streaming, tools, thinking continuity, caching, usage, safe errors, provider-owned retry, and cancellation. | Implemented | Automated | Documented | Stage 1 hosted tests, official capability UI, both cache TTLs, sequential interleaving, preservation/clearing, invalid auth, cancellation, deterministic retry, and default-config Read smoke |
+| ANTH-016 | Anthropic cost estimation uses a maintained public model-pricing catalog, reported token classes, cache-read/cache-write rates, explicit estimation provenance, and portable cumulative metadata without the Admin Cost API. | Not started | Unverified | Pending | subtask 018 |
+| ANTH-017 | Reasoning-and-tools profiles pass the canonical bank-file continuity contract in ordinary and streaming modes, and cross-request preservation profiles satisfy the interrupted-user reasoning-size contract or record an explicit negative profile. | Implemented | Automated | Documented | direct Haiku ordinary/streaming and Sonnet keep-all pass; latest-turn-only reports server-cleared reasoning while native client history remains intact |
+| ANTH-018 | `AnthropicReasoningControlsExtension` normalizes authoritative model capabilities, applies documented regex fallbacks when descriptors are absent, accepts explicit capability-detail overrides, owns model-specific settings/UI/request mapping, and leaves raw request options authoritative. | Implemented | Automated | Documented | controls unit/stack/hosted tests and `docs/reasoning-controls.md` copyable `$variants` fallback |
+| ANTH-019 | Anthropic model discovery produces the portable searchable custom-capable `model` dropdown with nested validation, an ordinary fallback icon, and self-contained compact presentation; Anthropic reasoning effort retains an ordinary fallback icon while using a simple text-only compact composer dropdown across mobile and desktop. | Implemented | Automated | Documented | provider/reasoning unit tests, public backend integration, frontend production-screen suites, iOS/Android Detox, and macOS XCUITest |
+
+## Deferred provider features
+
+Server web tools, fast mode/service tiers, native compaction/context editing,
+Files/PDFs/document citations, token counting, and advanced server tools are
+owned by subtasks 011 through 016. Image attachments, cost estimation, and
+portable provider request errors are owned by subtasks 017 through 019. Their
+implementation must add or refine stable requirement IDs before execution.
+
+Message Batches and structured outputs are not planned by this task group.

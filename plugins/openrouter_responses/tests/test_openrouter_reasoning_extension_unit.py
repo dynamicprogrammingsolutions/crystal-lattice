@@ -24,6 +24,31 @@ def test_tags_and_required_tags() -> None:
     ]
 
 
+def test_reasoning_effort_ui_is_text_only_rich_dropdown() -> None:
+    ext = OpenRouterResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={},
+        tags=["supports_reasoning", "supports_reasoning_effort"],
+    )
+    effort = next(item for item in elements if item.get("key") == "reasoning_effort")
+
+    assert effort["icon"] == "sliders"
+    assert effort["rich_ui"] == {
+        "kind": "dropdown",
+        "label": "Reasoning effort",
+        "show_label": False,
+        "show_icon": False,
+        "options": effort["options"],
+        "placements": ["composer"],
+        "default_pinned": True,
+    }
+    assert all(option["label"] == option["value"] for option in effort["options"])
+    assert all(
+        "icon" not in option and "tone" not in option for option in effort["options"]
+    )
+
+
 def test_init_is_noop_without_reasoning_config() -> None:
     ext = OpenRouterResponsesReasoningExtension()
     state: Dict[str, Any] = {"config": {}}
@@ -59,4 +84,8 @@ def test_reasoning_summary_auto_is_injected_when_set() -> None:
     out = ext.initialize_request([], state)
     cfg = out.get("config") or {}
     request_options = cfg.get("request_options") or {}
-    assert request_options.get("reasoning") == {"enabled": True, "effort": "low", "summary": "auto"}
+    assert request_options.get("reasoning") == {
+        "enabled": True,
+        "effort": "low",
+        "summary": "auto",
+    }

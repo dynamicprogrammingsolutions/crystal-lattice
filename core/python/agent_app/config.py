@@ -1,11 +1,24 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Mapping, MutableMapping, Set, Tuple
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    MutableMapping,
+    Set,
+    Tuple,
+)
 import json
 import os
 import importlib
 import re
+
+from .config_merge import MERGE_KEY, copy_config_value, merge_config
+from .config_variants import resolve_config_variants, validate_config_variants
 
 
 JsonMapping = Mapping[str, Any]
@@ -117,7 +130,12 @@ def load_resolved_config(
         raw_config, env=resolution_env
     )
     mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
-    return mixin_resolved_config, placeholder_errors + mixin_errors, resolution_env
+    variant_errors = validate_resolved_config_variants(mixin_resolved_config)
+    return (
+        mixin_resolved_config,
+        placeholder_errors + mixin_errors + variant_errors,
+        resolution_env,
+    )
 
 
 def coerce_plugin_specs(
@@ -171,7 +189,9 @@ def collect_declared_plugin_specs(
     *,
     errors: List[Dict[str, Any]] | None = None,
 ) -> tuple[List[Any], Dict[str, List[Any]], Dict[str, List[Any]]]:
-    plugin_specs = coerce_plugin_specs(resolved_config.get("plugins"), "plugins", errors)
+    plugin_specs = coerce_plugin_specs(
+        resolved_config.get("plugins"), "plugins", errors
+    )
 
     providers_cfg = (
         resolved_config.get("providers")
@@ -357,11 +377,7 @@ def resolve_placeholders(
 
 
 def _copy_jsonish(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {key: _copy_jsonish(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_copy_jsonish(item) for item in value]
-    return value
+    return copy_config_value(value)
 
 
 def _strip_mixin_control_keys(
@@ -370,6 +386,7 @@ def _strip_mixin_control_keys(
     excluded = {_MIXIN_REFS_KEY}
     if not preserve_merge_mode:
         excluded.add(_MIXIN_MERGE_KEY)
+        excluded.add(MERGE_KEY)
     return {
         key: _copy_jsonish(value)
         for key, value in mapping.items()
@@ -377,26 +394,26 @@ def _strip_mixin_control_keys(
     }
 
 
-def _deep_merge(base: Mapping[str, Any], overlay: Mapping[str, Any]) -> Dict[str, Any]:
-    merged: Dict[str, Any] = {key: _copy_jsonish(value) for key, value in base.items()}
-    for key, value in overlay.items():
-        existing = merged.get(key)
-        if isinstance(existing, dict) and isinstance(value, dict):
-            merged[key] = _deep_merge(existing, value)
-        else:
-            merged[key] = _copy_jsonish(value)
-    return merged
-
-
 def _merge_mappings(
-    base: Mapping[str, Any], overlay: Mapping[str, Any], mode: str
+    base: Mapping[str, Any],
+    overlay: Mapping[str, Any],
+    mode: str,
+    *,
+    path: str = "",
+    errors: List[Dict[str, Any]] | None = None,
+    max_depth: int = _DEFAULT_MIXIN_DEPTH,
+    preserve_directives: bool = False,
 ) -> Dict[str, Any]:
-    if mode == "deep":
-        return _deep_merge(base, overlay)
-    merged: Dict[str, Any] = {key: _copy_jsonish(value) for key, value in base.items()}
-    for key, value in overlay.items():
-        merged[key] = _copy_jsonish(value)
-    return merged
+    normalized_mode = "deep" if mode == "deep" else "shallow"
+    return merge_config(
+        base,
+        overlay,
+        default_mode=normalized_mode,
+        path=path,
+        errors=errors,
+        max_depth=max_depth,
+        preserve_directives=preserve_directives,
+    )
 
 
 def _coerce_mixin_merge_mode(
@@ -448,6 +465,55 @@ def _coerce_mixin_refs(
             }
         )
     return refs if not invalid else refs
+
+
+def _root_merge_directive(
+    node_cfg: Mapping[str, Any],
+    *,
+    path: str,
+    errors: List[Dict[str, Any]],
+    default_mode: str,
+) -> Any:
+    legacy_raw = node_cfg.get(_MIXIN_MERGE_KEY)
+    legacy_mode: str | None = None
+    if legacy_raw is not None:
+        legacy_mode = _coerce_mixin_merge_mode(
+            legacy_raw,
+            f"{path}.{_MIXIN_MERGE_KEY}",
+            errors,
+            default_mode,
+        )
+
+    directive = node_cfg.get(MERGE_KEY)
+    if directive is None:
+        return legacy_mode
+
+    if legacy_mode is not None and directive != legacy_mode:
+        errors.append(
+            {
+                "type": "mixin_config_invalid",
+                "path": f"{path}.{MERGE_KEY}",
+                "detail": (
+                    f"{path!r} defines conflicting {_MIXIN_MERGE_KEY!r} "
+                    f"and {MERGE_KEY!r} values"
+                ),
+            }
+        )
+    return directive
+
+
+def _overlay_with_merge_directive(
+    mapping: Mapping[str, Any],
+    directive: Any,
+    *,
+    replace_existing: bool = False,
+) -> Dict[str, Any]:
+    overlay = {key: _copy_jsonish(value) for key, value in mapping.items()}
+    if replace_existing:
+        overlay.pop(MERGE_KEY, None)
+    if directive is not None:
+        overlay[MERGE_KEY] = _copy_jsonish(directive)
+    return overlay
 
 
 def resolve_config_mixins(
@@ -560,11 +626,11 @@ def resolve_config_mixins(
     def _resolve_node(
         node_cfg: Mapping[str, Any], path: str, depth: int
     ) -> Dict[str, Any]:
-        mode = _coerce_mixin_merge_mode(
-            node_cfg.get(_MIXIN_MERGE_KEY),
-            f"{path}.{_MIXIN_MERGE_KEY}",
-            errors,
-            default_merge,
+        directive = _root_merge_directive(
+            node_cfg,
+            path=path,
+            errors=errors,
+            default_mode=default_merge,
         )
         refs = _coerce_mixin_refs(
             node_cfg.get(_MIXIN_REFS_KEY), f"{path}.{_MIXIN_REFS_KEY}", errors
@@ -582,15 +648,39 @@ def resolve_config_mixins(
                 )
                 continue
             merged = _merge_mappings(
-                merged, _resolve_named_mixin(mixin_id, depth + 1), mode
+                merged,
+                _overlay_with_merge_directive(
+                    _resolve_named_mixin(mixin_id, depth + 1),
+                    directive,
+                    replace_existing=True,
+                ),
+                default_merge,
+                path=path,
+                errors=errors,
+                max_depth=max_depth,
+                preserve_directives=True,
             )
 
         preserve_mode = path.startswith("providers.") or path.startswith("agents.")
-        return _merge_mappings(
-            merged,
-            _strip_mixin_control_keys(node_cfg, preserve_merge_mode=preserve_mode),
-            mode,
+        local_overlay = _strip_mixin_control_keys(
+            node_cfg, preserve_merge_mode=preserve_mode
         )
+        local_overlay = _overlay_with_merge_directive(local_overlay, directive)
+        resolved = _merge_mappings(
+            merged,
+            local_overlay,
+            default_merge,
+            path=path,
+            errors=errors,
+            max_depth=max_depth,
+            preserve_directives=True,
+        )
+        if preserve_mode:
+            if _MIXIN_MERGE_KEY in node_cfg:
+                resolved[_MIXIN_MERGE_KEY] = _copy_jsonish(node_cfg[_MIXIN_MERGE_KEY])
+            if MERGE_KEY in node_cfg:
+                resolved[MERGE_KEY] = _copy_jsonish(node_cfg[MERGE_KEY])
+        return resolved
 
     resolved_config: Dict[str, Any] = {
         key: _copy_jsonish(value) for key, value in config.items()
@@ -629,6 +719,28 @@ def resolve_config_mixins(
     return resolved_config, errors
 
 
+def validate_resolved_config_variants(
+    resolved_config: JsonMapping,
+) -> List[Dict[str, Any]]:
+    errors: List[Dict[str, Any]] = []
+    for scope_key in (_MIXINS_KEY, "providers", "agents"):
+        scope = resolved_config.get(scope_key)
+        if not isinstance(scope, Mapping):
+            continue
+        for entry_id, entry_cfg in scope.items():
+            if not isinstance(entry_cfg, Mapping):
+                continue
+            errors.extend(
+                validate_config_variants(
+                    entry_cfg,
+                    path=f"{scope_key}.{entry_id}",
+                    root_scope=True,
+                    max_depth=_DEFAULT_MIXIN_DEPTH,
+                )
+            )
+    return errors
+
+
 def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str, Any]:
     """Build a flat configuration dict for a given agent.
 
@@ -649,29 +761,39 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
 
     providers = resolved_config.get("providers") or {}
     provider_defaults = dict(providers.get(provider_name) or {})
-    merge_mode = _coerce_mixin_merge_mode(
-        agent_cfg.get(_MIXIN_MERGE_KEY, provider_defaults.get(_MIXIN_MERGE_KEY)),
-        f"agents.{agent_id}.{_MIXIN_MERGE_KEY}",
-        [],
-        (
-            str(
-                ((resolved_config.get(_MIXIN_POLICY_KEY) or {}).get("default_merge"))
-                if isinstance(resolved_config.get(_MIXIN_POLICY_KEY), dict)
-                else "shallow"
-            )
-            if (
-                isinstance(resolved_config.get(_MIXIN_POLICY_KEY), dict)
-                and (resolved_config.get(_MIXIN_POLICY_KEY) or {}).get("default_merge")
-                in {"shallow", "deep"}
-            )
-            else "shallow"
-        ),
+    policy_default = (
+        str(((resolved_config.get(_MIXIN_POLICY_KEY) or {}).get("default_merge")))
+        if (
+            isinstance(resolved_config.get(_MIXIN_POLICY_KEY), dict)
+            and (resolved_config.get(_MIXIN_POLICY_KEY) or {}).get("default_merge")
+            in {"shallow", "deep"}
+        )
+        else "shallow"
+    )
+    agent_directive = (
+        agent_cfg.get(MERGE_KEY)
+        if MERGE_KEY in agent_cfg
+        else agent_cfg.get(_MIXIN_MERGE_KEY)
+    )
+    provider_directive = (
+        provider_defaults.get(MERGE_KEY)
+        if MERGE_KEY in provider_defaults
+        else provider_defaults.get(_MIXIN_MERGE_KEY)
+    )
+    merge_directive = (
+        agent_directive if agent_directive is not None else provider_directive
     )
 
     # Provider key used by AgentCore selector: prefer explicit, fallback to name
     provider_key = provider_defaults.get("provider") or provider_name
 
-    merged = _merge_mappings(provider_defaults, agent_cfg, merge_mode)
+    agent_overlay = _overlay_with_merge_directive(agent_cfg, merge_directive)
+    merged = _merge_mappings(
+        provider_defaults,
+        agent_overlay,
+        policy_default,
+        path=f"agents.{agent_id}",
+    )
     merged["provider"] = provider_key
     # These keys control application/plugin-package resolution and should not
     # be forwarded into the runtime provider/tool config.
@@ -679,6 +801,7 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
     merged.pop("disabled_plugins", None)
     merged.pop(_MIXIN_REFS_KEY, None)
     merged.pop(_MIXIN_MERGE_KEY, None)
+    merged.pop(MERGE_KEY, None)
     # Note: enabled_plugins and force_enabled_plugins are preserved for core-layer resolution
     # (enabled_plugins is used for default_enabled=False plugins, force_enabled_plugins bypasses tag checks)
     return merged
@@ -692,13 +815,27 @@ def resolve_request_config(
     Callers should treat the returned mapping as immutable.
     """
 
-    from typing import cast
-
-    if not overrides:
-        # base_agent_config is produced by build_agent_config and is already a dict;
-        # reuse it directly instead of making a defensive shallow copy.
-        return cast(Dict[str, Any], base_agent_config)
-    return {**base_agent_config, **dict(overrides)}
+    explicit_overrides = dict(overrides or {})
+    selector = {**base_agent_config, **explicit_overrides}
+    resolved_base, errors = resolve_config_variants(
+        base_agent_config,
+        selector=selector,
+    )
+    if errors:
+        details = "; ".join(
+            " - ".join(
+                str(value)
+                for value in (
+                    error.get("type"),
+                    error.get("path"),
+                    error.get("detail"),
+                )
+                if value
+            )
+            for error in errors
+        )
+        raise ValueError(f"Invalid configuration variants: {details}")
+    return {**resolved_base, **explicit_overrides}
 
 
 def _import_string(path: str) -> type[Any]:

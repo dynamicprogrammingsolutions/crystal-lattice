@@ -116,13 +116,26 @@ class BasePlugin(Protocol):
           Used to describe editable settings for the plugin. Typical keys are::
 
               {
-                  "type": "checkbox" | "text" | "number" | "select" | ...,
+                  "type": "checkbox" | "text" | "number" | "select" | "dropdown" | ...,
                   "key": "config_key",          # stable configuration key
                   "label": "Human label",       # short caption for UIs
                   "description": "Longer help text",  # optional
                   "options": [                    # for select-like fields
                       "value" | {"value": "v", "label": "Display"},
                   ],
+                  "placeholder": "Search or enter a value",
+                  "custom_value": {               # optional dropdown escape hatch
+                      "enabled": True,
+                      "pattern": r"^[^\\s]+$",
+                      "option_label": "Use '{value}'",
+                  },
+                  "rich_ui": {                   # optional self-contained compact UI
+                      "kind": "dropdown",
+                      "label": "Short label",
+                      "show_label": False,
+                      "options": [],
+                      "placements": ["composer"],
+                  },
                   ...  # plugin-specific extras are allowed
               }
 

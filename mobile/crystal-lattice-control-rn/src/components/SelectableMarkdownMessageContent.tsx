@@ -3,6 +3,10 @@ import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native
 import { EnrichedMarkdownText, type MarkdownStyle } from 'react-native-enriched-markdown';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
 import * as hljsStyles from 'react-syntax-highlighter/styles/hljs';
+import {
+  deriveMarkdownTypography,
+  useMarkdownDisplayPreferences,
+} from '@crystal-lattice/frontend-rn-components';
 import { useTheme } from '../theme';
 import type { MarkdownMessageVariant } from './MarkdownMessageContent';
 import SelectableCodeBlock from './SelectableCodeBlock';
@@ -86,6 +90,9 @@ const SyntaxHighlightedCodeBlock: React.FC<SyntaxHighlightedCodeBlockProps> = ({
               : (hljsStyles as any).atomOneLight) as any
           }
           highlighter="hljs"
+          fontFamily="Courier"
+          fontSize={theme.typography.fontSize.code}
+          lineHeight={theme.typography.lineHeight.code}
           customStyle={codeBlockInnerStyle}
           PreTag={View as any}
           CodeTag={Text as any}
@@ -102,7 +109,10 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
   variant,
 }) => {
   const theme = useTheme();
+  const { preferences } = useMarkdownDisplayPreferences();
   const codeBlockRenderingMode = getCodeBlockRenderingMode();
+  const displayPreferenceKey =
+    `${preferences.baseFontSize}:${preferences.headerSize}`;
   const segments = useMemo<MarkdownSegment[]>(() => {
     if (codeBlockRenderingMode !== 'enriched-markdown') {
       return splitMarkdownIntoSegments(text);
@@ -113,12 +123,12 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
 
   const markdownStyle = useMemo<MarkdownStyle>(() => {
     const baseTextColor = theme.text;
-    const messageFontSize = theme.typography.fontSize.message;
-    const lineHeightFor = (fontSize: number) => Math.round(fontSize * 1.25);
+    const typography = deriveMarkdownTypography(preferences);
+    const messageFontSize = typography.body;
 
     const baseTextBlock = {
       fontSize: messageFontSize,
-      lineHeight: lineHeightFor(messageFontSize),
+      lineHeight: typography.bodyLineHeight,
       color: baseTextColor,
     };
 
@@ -135,12 +145,12 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         marginTop: 10,
         marginBottom: 10,
       },
-      h1: { ...headingBase, fontSize: 32, lineHeight: lineHeightFor(32) },
-      h2: { ...headingBase, fontSize: 24, lineHeight: lineHeightFor(24) },
-      h3: { ...headingBase, fontSize: 18, lineHeight: lineHeightFor(18) },
-      h4: { ...headingBase, fontSize: 16, lineHeight: lineHeightFor(16) },
-      h5: { ...headingBase, fontSize: 13, lineHeight: lineHeightFor(13) },
-      h6: { ...headingBase, fontSize: 11, lineHeight: lineHeightFor(11) },
+      h1: { ...headingBase, fontSize: typography.h1, lineHeight: typography.h1LineHeight },
+      h2: { ...headingBase, fontSize: typography.h2, lineHeight: typography.h2LineHeight },
+      h3: { ...headingBase, fontSize: typography.h3, lineHeight: typography.h3LineHeight },
+      h4: { ...headingBase, fontSize: typography.h4, lineHeight: typography.h4LineHeight },
+      h5: { ...headingBase, fontSize: typography.h5, lineHeight: typography.h5LineHeight },
+      h6: { ...headingBase, fontSize: typography.h6, lineHeight: typography.h6LineHeight },
       strong: {
         fontWeight: 'bold',
       },
@@ -201,7 +211,8 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
       },
       code: {
         fontFamily: 'Courier',
-        fontSize: messageFontSize,
+        fontSize: theme.typography.fontSize.code,
+        lineHeight: theme.typography.lineHeight.code,
         color: baseTextColor,
         backgroundColor: theme.inlineCodeBg,
         borderColor: theme.border,
@@ -209,7 +220,7 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
       codeBlock: {
         fontFamily: 'Courier',
         fontSize: theme.typography.fontSize.code,
-        lineHeight: lineHeightFor(theme.typography.fontSize.code),
+        lineHeight: theme.typography.lineHeight.code,
         color: baseTextColor,
         marginTop: 4,
         marginBottom: 4,
@@ -224,7 +235,7 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         underline: true,
       },
     };
-  }, [theme]);
+  }, [preferences, theme]);
 
   const openLink = useCallback(async ({ url }: { url: string }) => {
     try {
@@ -263,7 +274,7 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
 
     return (
       <EnrichedMarkdownText
-        key={`markdown-${index}`}
+        key={`markdown-${displayPreferenceKey}-${index}`}
         markdown={segment.markdown}
         markdownStyle={markdownStyle}
         onLinkPress={openLink}

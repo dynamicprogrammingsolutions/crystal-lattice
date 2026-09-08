@@ -16,6 +16,18 @@ const TYPOGRAPHY: Theme['typography'] = {
     display: 28,
     code: 14,
   },
+  lineHeight: {
+    tiny: 15,
+    small: 17,
+    secondary: 18,
+    normal: 20,
+    message: 21,
+    large: 22,
+    title: 24,
+    screenTitle: 30,
+    display: 34,
+    code: 19,
+  },
 };
 
 const FALLBACK_LIGHT: Theme = {

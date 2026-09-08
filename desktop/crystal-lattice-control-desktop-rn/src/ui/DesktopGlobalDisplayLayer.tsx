@@ -28,7 +28,15 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 
 import type { OpenConnectionsById } from '../connections/useOpenConnections';
+import {
+  clearActiveActionDisplayWindow,
+  getActiveActionDisplayWindow,
+  setActiveActionDisplayWindow,
+} from '../windows/actionDisplayWindowCoordinator';
+import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { ActionResultInlineCard } from './ActionResultInlineCard';
+
+const ACTION_DISPLAY_WINDOW_KEY = 'actionDisplay';
 
 interface DesktopGlobalDisplayLayerProps {
   openConnectionsById: OpenConnectionsById;
@@ -260,6 +268,61 @@ export function DesktopGlobalDisplayLayer({
       }
     },
     [backendFor, dismiss],
+  );
+
+  const modalItems = items.filter(
+    (item) =>
+      item.source === 'action_response' &&
+      item.display.presentation === 'modal',
+  );
+  const activeModal = modalItems[modalItems.length - 1] ?? null;
+
+  useEffect(() => {
+    if (!activeModal) {
+      const current = getActiveActionDisplayWindow();
+      if (current) {
+        clearActiveActionDisplayWindow(current.state.id);
+        DesktopWindowManager?.closeReactWindow({
+          windowKey: ACTION_DISPLAY_WINDOW_KEY,
+        });
+      }
+      return;
+    }
+
+    setActiveActionDisplayWindow({
+      state: {
+        id: displayEnvelopeLifecycleKey(activeModal),
+        display: activeModal.display,
+        contextLabel: activeModal.connectionId
+          ? connectionNameById[activeModal.connectionId] ??
+            activeModal.connectionId
+          : undefined,
+      },
+      handlers: {
+        onDismiss: () => dismiss(activeModal),
+        onFollowupAction: (action) => followup(action, activeModal),
+      },
+    });
+    DesktopWindowManager?.openReactWindow({
+      windowKey: ACTION_DISPLAY_WINDOW_KEY,
+      moduleName: 'ActionDisplayWindow',
+      title: activeModal.display.title ?? 'Action result',
+      width: 760,
+      height: 700,
+    });
+  }, [activeModal, connectionNameById, dismiss, followup]);
+
+  useEffect(
+    () => () => {
+      const current = getActiveActionDisplayWindow();
+      if (current) {
+        clearActiveActionDisplayWindow(current.state.id);
+      }
+      DesktopWindowManager?.closeReactWindow({
+        windowKey: ACTION_DISPLAY_WINDOW_KEY,
+      });
+    },
+    [],
   );
 
   return (

@@ -88,6 +88,10 @@ def test_default_config_claude_mcp_via_real_ui_flow(
     monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
     monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
     monkeypatch.setenv(
+        "ANTHROPIC_API_KEY",
+        get_repo_env("ANTHROPIC_API_KEY", "test-anthropic-key"),
+    )
+    monkeypatch.setenv(
         "GEMINI_API_KEY", get_repo_env("GEMINI_API_KEY", "test-gemini-key")
     )
     monkeypatch.setenv(
@@ -118,7 +122,7 @@ def test_default_config_claude_mcp_via_real_ui_flow(
 
     try:
         create_resp = server_mod.create_session(
-            {"agent_id": "claude"}, app_instance=app
+            {"agent_id": "claude-openrouter"}, app_instance=app
         )
         session_id = create_resp["session"]["session_id"]
 

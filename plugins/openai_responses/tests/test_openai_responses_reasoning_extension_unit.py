@@ -74,6 +74,7 @@ def test_get_config_schema_exposes_current_reasoning_keys_only() -> None:
 
     assert "reasoning_effort" in schema
     assert "reasoning_summary" in schema
+    assert schema["show_reasoning_context_footer"]["default"] is True
     assert "enable_reasoning" not in schema
     assert "reasoning_max_tokens" not in schema
 
@@ -110,6 +111,21 @@ def test_get_ui_elements_uses_model_specific_effort_values() -> None:
     def _options(elements: list[dict[str, Any]]) -> list[str]:
         effort = next(
             element for element in elements if element.get("key") == "reasoning_effort"
+        )
+        assert effort["icon"] == "sliders"
+        assert effort["rich_ui"] == {
+            "kind": "dropdown",
+            "label": "Reasoning effort",
+            "show_label": False,
+            "show_icon": False,
+            "options": effort["options"],
+            "placements": ["composer"],
+            "default_pinned": True,
+        }
+        assert all(option["label"] == option["value"] for option in effort["options"])
+        assert all(
+            "icon" not in option and "tone" not in option
+            for option in effort["options"]
         )
         return [option["value"] for option in effort["options"]]
 
@@ -1298,6 +1314,22 @@ def test_get_ui_elements_includes_context_footer() -> None:
         "path": "metadata.openai_responses_reasoning.context",
         "exists": True,
     }
+
+
+def test_get_ui_elements_can_hide_context_footer() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={
+            "model": "gpt-5.6-luna",
+            "show_reasoning_context_footer": False,
+        },
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-luna"}],
+    )
+
+    assert _reasoning_context_elements(elements) is not None
+    assert _context_footer_element(elements) is None
 
 
 def test_get_ui_elements_context_footer_present_for_luna() -> None:

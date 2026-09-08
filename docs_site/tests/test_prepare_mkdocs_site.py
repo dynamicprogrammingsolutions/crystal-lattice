@@ -50,6 +50,14 @@ def create_repository(tmp_path: Path) -> Path:
     write(root / "plugins/docs/index.md", "# Plugin Development\n")
     write(root / "plugins/docs/AGENTS.md", "# Private agent guidance\n")
     write(
+        root / "plugins/docs/provider-standard/index.md",
+        "# Provider Standard\n",
+    )
+    write(
+        root / "plugins/docs/provider-standard/AGENTS.md",
+        "# Private nested plugin guidance\n",
+    )
+    write(
         root / "plugins/example-plugin/README.md",
         "\n".join(
             [
@@ -184,7 +192,13 @@ def test_package_assembly_and_existing_generators(tmp_path: Path) -> None:
     assert (prepared / "index.md").is_file()
     assert (prepared / "overlay.txt").read_text() == "site overlay\n"
     assert (prepared / "plugin-development/index.md").is_file()
+    assert (
+        prepared / "plugin-development/provider-standard/index.md"
+    ).is_file()
     assert not (prepared / "plugin-development/AGENTS.md").exists()
+    assert not (
+        prepared / "plugin-development/provider-standard/AGENTS.md"
+    ).exists()
     plugin_page = (
         prepared / "built-in-plugins/example-plugin/index.md"
     ).read_text(encoding="utf-8")

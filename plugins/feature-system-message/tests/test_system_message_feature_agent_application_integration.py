@@ -116,7 +116,11 @@ def test_system_message_feature_persists_single_template_system_message(
         m for m in native1 if isinstance(m, dict) and m.get("role") == "system"
     ]
     assert sys_native1 and sys_native1[0].get("content") == system_template
-    assert [message.role for message in session1.messages] == ["system", "user", "assistant"]
+    assert [message.role for message in session1.messages] == [
+        "system",
+        "user",
+        "assistant",
+    ]
     assert session1.messages[0].content == system_template
     assert session1.messages[0].metadata["compiled_content"] == (
         "You are a helpful dynamic system message for tests."
@@ -141,10 +145,78 @@ def test_system_message_feature_persists_single_template_system_message(
     ]
     assert len(sys_native2) == 1
     assert sys_native2[0].get("content") == system_template
-    assert len([message for message in session3.messages if message.role == "system"]) == 1
+    assert (
+        len([message for message in session3.messages if message.role == "system"]) == 1
+    )
     assert session3.messages[0].metadata["compiled_content"] == (
         "You are a helpful dynamic system message for tests."
     )
+
+
+def test_compiled_message_action_uses_effective_overrides_without_saving(
+    tmp_path: Path,
+) -> None:
+    config: Dict[str, Any] = {
+        "providers": {
+            "echo": {
+                "provider": "echo_openai_like",
+                "model": "echo-test-1",
+                "system_message_as_instructions": True,
+                "system_message": {
+                    "template": "Base guidance\n\n{{TASKS}}",
+                    "variables": {
+                        "TASKS": {
+                            "text": "Task Files and Subtasks (`tasks/`)",
+                            "condition": {
+                                "inline_code": "bool(CONFIG.get('include_tasks'))"
+                            },
+                        }
+                    },
+                },
+            }
+        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "feature_system_message.system_message_feature.SystemMessageFeature",
+        ],
+        "agents": {"default": {"provider": "echo"}},
+    }
+    config_path = tmp_path / "config_system_message_action.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+    )
+
+    core, base_config, session = app.create_session("default")
+    session = Session(
+        session_id=session.session_id,
+        messages=session.messages,
+        metadata={**session.metadata, "overrides": {"include_tasks": True}},
+    )
+    app.save_session(session)
+    before = app.get_session_file_state(session.session_id)
+
+    schema = core.get_ui_schema({**base_config, "include_tasks": True})
+    action = next(
+        item for item in schema if item.get("id") == "show_compiled_system_message"
+    )
+    assert action["action_owner"] == "feature"
+
+    result = app.execute_session_action(
+        plugin_id="system_message",
+        action_id="show_compiled_system_message",
+        params={"session_id": session.session_id},
+    )
+
+    assert result["display"]["presentation"] == "modal"
+    assert result["display"]["body"] == (
+        "Base guidance\n\nTask Files and Subtasks (`tasks/`)"
+    )
+    assert result["mutations"]["updated_session_ids"] == []
+    assert result["ui_effects"] == {}
+    assert app.get_session_file_state(session.session_id) == before
 
 
 def test_system_message_feature_renders_conditional_markdown_sections_for_git_and_cwd(
@@ -266,7 +338,9 @@ def test_portable_default_config_compiles_vendor_and_codex_system_messages(
 
     config: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / "plugin_cache" / "plugins"),
-        "providers": _provider_configs_with_echo_provider(portable_config, provider_ids),
+        "providers": _provider_configs_with_echo_provider(
+            portable_config, provider_ids
+        ),
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
@@ -375,7 +449,9 @@ def test_portable_default_codex_system_message_selection_by_model_and_personalit
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
-        "agents": {"codex-openrouter": dict(portable_config["agents"]["codex-openrouter"])},
+        "agents": {
+            "codex-openrouter": dict(portable_config["agents"]["codex-openrouter"])
+        },
     }
 
     config_path = tmp_path / "config_portable_codex_system_message_echo.json"
@@ -479,8 +555,8 @@ def test_portable_default_gpt5_agents_select_apply_patch_shell_instructions(
     ]
 
     expected_marker = (
-        'Use the `apply_patch` shell command to edit files '
-        '(NEVER try `applypatch` or `apply-patch`, only `apply_patch`): '
+        "Use the `apply_patch` shell command to edit files "
+        "(NEVER try `applypatch` or `apply-patch`, only `apply_patch`): "
         '{"command":["apply_patch","*** Begin Patch'
     )
     gpt54_marker = "Always use apply_patch for manual code edits."
@@ -524,7 +600,9 @@ def test_portable_default_runtime_helpers_contribute_ui_schema(tmp_path: Path) -
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
-        "agents": {"codex-openrouter": dict(portable_config["agents"]["codex-openrouter"])},
+        "agents": {
+            "codex-openrouter": dict(portable_config["agents"]["codex-openrouter"])
+        },
     }
 
     config_path = tmp_path / "config_portable_codex_ui_echo.json"
@@ -541,7 +619,9 @@ def test_portable_default_runtime_helpers_contribute_ui_schema(tmp_path: Path) -
     schema = core.get_ui_schema(base_config)
 
     codex_personality = next(
-        item for item in schema if isinstance(item, dict) and item.get("key") == "codex_personality"
+        item
+        for item in schema
+        if isinstance(item, dict) and item.get("key") == "codex_personality"
     )
     assert codex_personality["type"] == "select"
     assert codex_personality["label"] == "Codex Personality"
@@ -553,7 +633,9 @@ def test_portable_default_runtime_helpers_contribute_ui_schema(tmp_path: Path) -
     ]
 
     include_tasks = next(
-        item for item in schema if isinstance(item, dict) and item.get("key") == "include_tasks"
+        item
+        for item in schema
+        if isinstance(item, dict) and item.get("key") == "include_tasks"
     )
     assert include_tasks["type"] == "checkbox"
     assert include_tasks["label"] == "Include TASKS Guidance"
@@ -568,7 +650,9 @@ def test_portable_default_tasks_toggle_includes_tasks_section_when_enabled(
 
     config: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / "plugin_cache" / "plugins"),
-        "providers": _provider_configs_with_echo_provider(portable_config, provider_ids),
+        "providers": _provider_configs_with_echo_provider(
+            portable_config, provider_ids
+        ),
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
@@ -586,7 +670,15 @@ def test_portable_default_tasks_toggle_includes_tasks_section_when_enabled(
         env_overrides={"CONFIG_DIR": str(DEFAULT_CONFIG_DIR)},
     )
 
-    for agent_id in ("codex-openrouter", "codex-openai", "qwen", "gemini", "grok", "kimi", "claude"):
+    for agent_id in (
+        "codex-openrouter",
+        "codex-openai",
+        "qwen",
+        "gemini",
+        "grok",
+        "kimi",
+        "claude",
+    ):
         core, base_config, session = app.create_session(agent_id)
         session = core.add_message(
             session,

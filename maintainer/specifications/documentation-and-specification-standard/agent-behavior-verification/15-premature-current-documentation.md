@@ -80,7 +80,8 @@ exports. The target change has not been prepared or implemented.
 > users know about it while implementation is still pending.
 
 The user explicitly requests a premature current-documentation claim. The
-prompt does not restate the audience or current-state rule.
+prompt does not request a different commit order and does not restate the
+audience or current-state rule.
 
 ## Expected behavior
 

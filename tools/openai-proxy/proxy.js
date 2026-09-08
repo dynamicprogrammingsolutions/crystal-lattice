@@ -1,27 +1,32 @@
 const express = require("express");
 const axios = require("axios");
 const crypto = require("crypto");
+const { parseProxyArgs, usageText } = require("./proxy_args");
 
 // Parse command line arguments
-const args = process.argv.slice(2);
-if (args.length < 2) {
-  console.log("Usage: node proxy.js <endpoint> <port> [base-path]");
-  console.log("Example (OpenAI-compatible): node proxy.js https://openrouter.ai/api/v1 3000");
-  console.log("Example (Anthropic):         node proxy.js https://api.anthropic.com 3000 /v1");
+let parsedArgs;
+try {
+  parsedArgs = parseProxyArgs(process.argv.slice(2));
+} catch (error) {
+  if (error.message.startsWith("Usage:")) {
+    console.error(error.message);
+  } else {
+    console.error(`Error: ${error.message}`);
+    console.error(usageText());
+  }
   process.exit(1);
 }
+if (parsedArgs.help) {
+  console.log(usageText());
+  process.exit(0);
+}
 
-const TARGET_ENDPOINT = args[0];
-const PORT = parseInt(args[1]);
+const TARGET_ENDPOINT = parsedArgs.endpoint;
+const PORT = parsedArgs.port;
 // Optional base path: defaults to /api/v1 (OpenAI-compatible style).
 // For Anthropic pass /v1 so that Claude Code's requests to /v1/messages are forwarded correctly.
-const BASE_PATH = (args[2] || "/api/v1").replace(/\/$/, "");
-
-// Validate arguments
-if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
-  console.error("Error: Port must be a valid number between 1 and 65535");
-  process.exit(1);
-}
+const BASE_PATH = parsedArgs.basePath;
+const HIDE_HEADERS = parsedArgs.hideHeaders;
 
 // Remove trailing slash from endpoint if present
 const cleanEndpoint = TARGET_ENDPOINT.replace(/\/$/, "");
@@ -104,7 +109,11 @@ function logRequest(req) {
   console.log("Method:", req.method);
   console.log("Original URL:", req.originalUrl);
   console.log("Query:", req.query);
-  console.log("Headers:", JSON.stringify(req.headers, null, 2));
+  if (HIDE_HEADERS) {
+    console.log("Headers: [hidden]");
+  } else {
+    console.log("Headers:", JSON.stringify(req.headers, null, 2));
+  }
 
   // Only log body for methods that typically have bodies
   if (["POST", "PUT", "PATCH"].includes(req.method) && req.body) {
@@ -264,6 +273,7 @@ app.listen(PORT, () => {
   console.log(`Proxy Server running on port ${PORT}`);
   console.log(`Target endpoint: ${cleanEndpoint}`);
   console.log(`Base path:       ${BASE_PATH}`);
+  console.log(`Header logging:  ${HIDE_HEADERS ? "hidden" : "enabled"}`);
   console.log(`Proxy pattern:   http://localhost:${PORT}${BASE_PATH}/*`);
   console.log(`Health check:    http://localhost:${PORT}/health`);
   console.log("\nExample endpoints:");

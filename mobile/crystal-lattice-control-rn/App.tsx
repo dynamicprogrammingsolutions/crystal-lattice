@@ -39,9 +39,12 @@ import {
   type TransportTimeoutRule,
   type ParsedActionDeepLink,
 } from '@crystal-lattice/frontend-sdk';
+import {
+  MarkdownDisplayPreferencesProvider,
+  applyDisplayTypographyPreset,
+} from '@crystal-lattice/frontend-rn-components';
 import ConnectedRoot from './src/ConnectedRoot';
 import { useMessagesCache } from './src/cache/useMessagesCache';
-import { getConnectionAdditionalInfo } from './src/connectionInfo';
 import type { SessionSummary } from './src/api';
 import {
   appendDebugTimelineEntry,
@@ -57,6 +60,8 @@ import {
   getSavedBridgeTransportOptions,
   resolveBridgeTransportMode,
 } from './src/bridgeConnection';
+import { usePersistedMarkdownDisplayPreferences } from './src/useMarkdownDisplayPreferences';
+import { HomeWorkspaceProvider } from './src/HomeWorkspaceContext';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
@@ -205,7 +210,7 @@ function isBridgeConnectionTransport(
 
 function App(): React.JSX.Element {
   const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const baseTheme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
   const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod | null>(null);
   const [showConnectionWizard, setShowConnectionWizard] = useState(false);
@@ -236,6 +241,18 @@ function App(): React.JSX.Element {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAppLoading, setIsAppLoading] = useState(true);
+  const {
+    preferences: markdownDisplayPreferences,
+    setPreferences: setMarkdownDisplayPreferences,
+    hydrated: markdownDisplayPreferencesHydrated,
+  } = usePersistedMarkdownDisplayPreferences();
+  const theme = useMemo(
+    () => applyDisplayTypographyPreset(
+      baseTheme,
+      markdownDisplayPreferences.baseFontSize,
+    ),
+    [baseTheme, markdownDisplayPreferences.baseFontSize],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1398,7 +1415,9 @@ function App(): React.JSX.Element {
     return null;
   };
 
-  const handleSelectSavedConnection = async (record: ConnectionRecord) => {
+  const handleSelectSavedConnection = async (
+    record: ConnectionRecord,
+  ): Promise<boolean> => {
     setIsLoading(true);
     try {
       disconnectIfPossible(transport);
@@ -1423,7 +1442,7 @@ function App(): React.JSX.Element {
       } else if (record.kind === 'bridge') {
         if (!record.pairingToken) {
           await openBridgeRepairFlow(record, null);
-          return;
+          return false;
         }
 
         const bridge = createBridgeTransport({
@@ -1443,7 +1462,7 @@ function App(): React.JSX.Element {
               });
             }
             await openBridgeRepairFlow(record, reasonCode);
-            return;
+            return false;
           }
           throw error;
         }
@@ -1467,10 +1486,13 @@ function App(): React.JSX.Element {
             connectionId: record.id,
           },
         });
+        return true;
       }
+      return false;
     } catch (error: any) {
       console.log('Failed to reconnect to saved connection', error);
       Alert.alert('Connection Error', error?.message || 'Failed to reconnect');
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -1482,8 +1504,13 @@ function App(): React.JSX.Element {
     <GestureHandlerRootView style={[styles.gestureRoot, { backgroundColor: splashBg }]}>
       <SafeAreaProvider>
         <ThemeProvider theme={theme}>
+          <MarkdownDisplayPreferencesProvider
+            value={markdownDisplayPreferences}
+            onChange={setMarkdownDisplayPreferences}
+          >
           <PinnedActionsProvider>
-            {isAppLoading ? (
+          <HomeWorkspaceProvider>
+            {isAppLoading || !markdownDisplayPreferencesHydrated ? (
               <AnimatedSplashScreen />
             ) : (
               <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -1491,10 +1518,6 @@ function App(): React.JSX.Element {
                 {/** Determine active connection info for display components */}
                 {/** This is derived once here and passed down rather than recomputed in children. */}
                 {(() => {
-                  const activeConnectionAdditionalInfo =
-                    activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
-                  const activeConnectionName = activeConnection != null ? activeConnection.name : null;
-
                   return (
                     <ConnectedRoot
                       backend={backend}
@@ -1521,8 +1544,6 @@ function App(): React.JSX.Element {
                       }}
                       onDeleteConnectionRecord={handleDeleteConnection}
                       activeConnectionId={selectedConnectionId}
-                      activeConnectionName={activeConnectionName}
-                      activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
                       sessionsCache={sessionsCache}
                       onUpdateSessionsCache={updateSessionsCache}
                       messagesCache={messagesCache}
@@ -1537,7 +1558,9 @@ function App(): React.JSX.Element {
                 })()}
               </SafeAreaView>
             )}
+          </HomeWorkspaceProvider>
           </PinnedActionsProvider>
+          </MarkdownDisplayPreferencesProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

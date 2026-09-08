@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +25,12 @@ import {
   ActionsMenuBar,
   ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
+  RichConfigDropdownControl,
+  RichConfigDropdownPanel,
+  RichConfigToggleControl,
+  SessionListRichActionControl,
+  SessionListRichActionList,
+  SessionRequestStatusIndicator,
   useTheme,
   type ActionDefinition,
   type ActionKey,
@@ -32,31 +44,47 @@ import type {
   IndexedMessage,
   RunActionContext,
   SessionSummary,
+  SessionRequestStatus,
 } from '@crystal-lattice/frontend-sdk';
 import {
   attachmentDraftStatusLabel,
   resolveAttachmentActionPluginId,
   deleteSessionAttachment,
   deriveSessionListPresentationFromGroups,
+  emitDisplayPresentation,
   filterFooterElements,
+  getDefaultPinnedConfigRichUiKeys,
   groupSessionListFields,
+  isSessionActionPlacedAt,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
+  normalizeSessionActionRichUiElements,
   normalizeActionDisplayForSurface,
+  normalizeDisplayEnvelope,
   NotificationUiEffectObserver,
   observeSessionNotificationUiEffects,
+  resolveConfigRichUiMenuStateLabel,
+  resolveConfigRichToggleOption,
+  resolveSessionListRichActionState,
   runApplicationAction,
+  selectConfigRichUiControls,
   selectSessionAssetId,
   selectDisplayContent,
   selectTranscriptRangeRestoreAnchor,
   storeSessionAttachment,
   subscribeSessionRefreshInvalidations,
   type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
+  type ConfigRichDropdownUi,
+  type ConfigRichToggleUi,
+  type ConfigRichUiControl,
+  type SessionActionRichUiElement,
   type AttachmentDraftStatus,
   type TranscriptViewportAnchorCandidate,
 } from '@crystal-lattice/frontend-sdk';
 import {
   useApplicationPlugins,
+  buildConfigSchemaByKey,
+  buildSessionSettingItems,
   useChatController,
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
@@ -65,7 +93,10 @@ import {
   useSessionUiSchemaController,
   useSessionApplicationUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
-import { MacTextView, type MacTextViewHandle } from '@crystal-lattice/react-native-mac-text-view';
+import {
+  MacTextView,
+  type MacTextViewHandle,
+} from '@crystal-lattice/react-native-mac-text-view';
 
 import type { MessagesCacheEntry } from '../cache/types';
 import type { TabStripStyle } from '../tabs/tabStripStyle';
@@ -80,7 +111,10 @@ import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopConnectionDisplayRail } from '../ui/DesktopGlobalDisplayLayer';
 import { DesktopSessionNotificationRail } from '../ui/DesktopSessionNotificationRail';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
-import { closeDesktopPopover, openDesktopPopover } from '../windows/desktopPopoverCoordinator';
+import {
+  closeDesktopPopover,
+  openDesktopPopover,
+} from '../windows/desktopPopoverCoordinator';
 import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
 import { setActiveSessionPluginsWindow } from '../windows/sessionPluginsCoordinator';
@@ -89,14 +123,20 @@ import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationA
 import { pickMacAttachment } from '../native/MacAttachmentPicker';
 import { SnapshotReadonlyBanner } from './SnapshotReadonlyBanner';
 import { sendComposerMessageAtomically } from './sendComposerMessage';
-import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
+import {
+  AppendAsPopoverContent,
+  type AppendAsRole,
+} from './AppendAsPopoverContent';
 import {
   buildAttachmentMetadataDefaults,
   hasEditableAttachmentMetadataFields,
   shouldPromptForAttachmentMetadata,
   type AttachmentMetadataUi,
 } from './AttachmentMetadataPopoverContent';
-import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
+import {
+  AttachmentThumbnailStrip,
+  type AttachmentLike,
+} from './AttachmentThumbnailStrip';
 import { AttachmentUrlPopoverContent } from './AttachmentUrlPopoverContent';
 import {
   ComposerAttachmentPlusPopoverContent,
@@ -125,12 +165,19 @@ import { useProactiveChatScrollPersistence } from './useProactiveChatScrollPersi
 import { openAttachmentMetadataWindow } from '../windows/attachmentMetadataCoordinator';
 
 const DEFAULT_HISTORY_WINDOW = 50;
-const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
-const PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_composer_actions_v1';
-const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
+const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE =
+  'clc_pinned_chat_session_actions_v1';
+const PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE =
+  'clc_pinned_chat_composer_actions_v1';
+const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE =
+  'clc_pinned_message_actions_by_role_v1';
 
-const TRANSCRIPT_LIST_IMPLEMENTATION = ((globalThis as any).CLC_TRANSCRIPT_LIST_IMPLEMENTATION ??
-  'flatList') as 'scrollView' | 'flatList' | 'virtualizedScroll' | 'progressiveScroll';
+const TRANSCRIPT_LIST_IMPLEMENTATION = ((globalThis as any)
+  .CLC_TRANSCRIPT_LIST_IMPLEMENTATION ?? 'flatList') as
+  | 'scrollView'
+  | 'flatList'
+  | 'virtualizedScroll'
+  | 'progressiveScroll';
 
 type DesktopTranscriptRow =
   | { kind: 'stream' }
@@ -168,7 +215,9 @@ function readOptionalGlobalString<T extends string>(
   allowed: ReadonlyArray<T>,
 ): T | undefined {
   const value = (globalThis as any)[name];
-  return typeof value === 'string' && allowed.includes(value as T) ? (value as T) : undefined;
+  return typeof value === 'string' && allowed.includes(value as T)
+    ? (value as T)
+    : undefined;
 }
 
 const FLATLIST_DISABLE_VIRTUALIZATION = readGlobalBoolean(
@@ -187,7 +236,9 @@ const FLATLIST_MAX_TO_RENDER_PER_BATCH = readOptionalGlobalNumber(
 const FLATLIST_UPDATE_CELLS_BATCHING_PERIOD = readOptionalGlobalNumber(
   'CLC_FLATLIST_UPDATE_CELLS_BATCHING_PERIOD',
 );
-const FLATLIST_WINDOW_SIZE = readOptionalGlobalNumber('CLC_FLATLIST_WINDOW_SIZE');
+const FLATLIST_WINDOW_SIZE = readOptionalGlobalNumber(
+  'CLC_FLATLIST_WINDOW_SIZE',
+);
 const FLATLIST_REMOVE_CLIPPED_SUBVIEWS = readOptionalGlobalBoolean(
   'CLC_FLATLIST_REMOVE_CLIPPED_SUBVIEWS',
 );
@@ -224,7 +275,10 @@ const FLATLIST_ITEM_ANCHOR_TIMEOUT_MS =
   readOptionalGlobalNumber('CLC_FLATLIST_ITEM_ANCHOR_TIMEOUT_MS') ?? 3000;
 const FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS =
   readOptionalGlobalNumber('CLC_FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS') ?? 50;
-const FLATLIST_BOTTOM_LOCK = readGlobalBoolean('CLC_FLATLIST_BOTTOM_LOCK', true);
+const FLATLIST_BOTTOM_LOCK = readGlobalBoolean(
+  'CLC_FLATLIST_BOTTOM_LOCK',
+  true,
+);
 const PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE =
   readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE') ?? 50;
 const PROGRESSIVE_SCROLL_PAGE_SIZE =
@@ -265,12 +319,16 @@ const TRANSCRIPT_RANGE_CONTROLS = readGlobalBoolean(
   false,
 );
 const TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE =
-  readOptionalGlobalNumber('CLC_TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE') ?? DEFAULT_HISTORY_WINDOW;
+  readOptionalGlobalNumber('CLC_TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE') ??
+  DEFAULT_HISTORY_WINDOW;
 const TRANSCRIPT_RANGE_CONTROL_MAX_RANGE =
   readOptionalGlobalNumber('CLC_TRANSCRIPT_RANGE_CONTROL_MAX_RANGE') ??
   DEFAULT_HISTORY_WINDOW * 2;
 
-const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
+const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<
+  string,
+  MessageActionKey[]
+> = {
   user: ['modify', 'copy'],
   assistant: ['modify', 'toggleMarkdown', 'copy'],
   system: ['modify', 'copy'],
@@ -303,6 +361,13 @@ type ComposerAttachmentUiElement = SharedComposerAttachmentUiElement & {
   [k: string]: any;
 };
 
+type ComposerRichConfigControl = {
+  control: ConfigRichUiControl;
+  effectiveValue: unknown;
+  hasOverride: boolean;
+  disabled: boolean;
+};
+
 type ComposerAttachmentDraft = {
   draftId: string;
   type: string;
@@ -323,7 +388,12 @@ type AttachmentBackgroundOperation =
 
 type PluginActionContext =
   | { kind: 'session'; sessionSummary: SessionSummary | null }
-  | { kind: 'message'; index: number; message: ApiMessage; sessionSummary: SessionSummary | null };
+  | {
+      kind: 'message';
+      index: number;
+      message: ApiMessage;
+      sessionSummary: SessionSummary | null;
+    };
 
 type ActionDisplayEntry = {
   key: string;
@@ -331,7 +401,10 @@ type ActionDisplayEntry = {
   context: RunActionContext;
 };
 
-function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
+function createDisplayEntry(
+  display: ActionDisplayPayload,
+  context: RunActionContext,
+): ActionDisplayEntry {
   const key =
     typeof display.display_id === 'string' && display.display_id
       ? display.display_id
@@ -345,7 +418,9 @@ function upsertInlineDisplay(
 ): ActionDisplayEntry[] {
   const displayId = nextEntry.display.display_id;
   if (typeof displayId === 'string' && displayId) {
-    const existingIndex = current.findIndex((entry) => entry.display.display_id === displayId);
+    const existingIndex = current.findIndex(
+      entry => entry.display.display_id === displayId,
+    );
     if (existingIndex >= 0) {
       const updated = current.slice();
       updated[existingIndex] = nextEntry;
@@ -356,27 +431,60 @@ function upsertInlineDisplay(
 }
 
 const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
-  { key: 'reload', label: 'Reload', iconName: 'refresh-ccw' },
-  { key: 'agentSwitch', label: 'Switch agent', iconName: 'user' },
-  { key: 'messageLimit', label: 'Message limit', iconName: 'sliders' },
-  { key: 'settings', label: 'Settings…', iconName: 'settings' },
-  { key: 'plugins', label: 'Plugins…', iconName: 'package' },
-  { key: 'snapshots', label: 'Snapshots…', iconName: 'camera' },
+  { key: 'reload', label: 'Reload', iconName: 'refresh-ccw', order: 0 },
+  {
+    key: 'messageLimit',
+    label: 'Message limit',
+    iconName: 'sliders',
+    order: 20,
+  },
+  { key: 'agentSwitch', label: 'Switch agent', iconName: 'user', order: 25 },
+  { key: 'settings', label: 'Settings…', iconName: 'settings', order: 90 },
+  { key: 'plugins', label: 'Plugins…', iconName: 'package', order: 91 },
+  { key: 'snapshots', label: 'Snapshots…', iconName: 'camera', order: 92 },
 ];
 
 const BUILTIN_COMPOSER_ACTIONS: ActionDefinition[] = [
-  { key: 'append', label: 'Append', iconName: 'plus-circle' },
-  { key: 'appendAs', label: 'Append as…', iconName: 'layers' },
-  { key: 'resend', label: 'Resend', iconName: 'repeat' },
-  { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
+  {
+    key: 'append',
+    label: 'Append',
+    iconName: 'plus-circle',
+    order: 100,
+    testID: 'composer-action-append',
+  },
+  {
+    key: 'appendAs',
+    label: 'Append as…',
+    iconName: 'layers',
+    order: 110,
+    testID: 'composer-action-append-as',
+  },
+  {
+    key: 'resend',
+    label: 'Resend',
+    iconName: 'repeat',
+    order: 120,
+    testID: 'composer-action-resend',
+  },
+  {
+    key: 'cancel',
+    label: 'Cancel',
+    iconName: 'x-circle',
+    order: 130,
+    testID: 'composer-action-cancel',
+  },
 ];
 
 const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload'];
-const DEFAULT_PINNED_COMPOSER_ACTION_KEYS: ActionKey[] = ['append', 'resend', 'cancel'];
+const DEFAULT_PINNED_COMPOSER_ACTION_KEYS: ActionKey[] = [
+  'append',
+  'resend',
+  'cancel',
+];
 
 export interface ChatPaneProps {
   isVisible: boolean;
-	isActive: boolean;
+  isActive: boolean;
   connectionId: string;
   connectionName: string;
   sessionId: string;
@@ -403,27 +511,34 @@ export interface ChatPaneProps {
     composeText?: string;
     scrollAnchor?: unknown;
   }) => void;
+  requestStatus?: SessionRequestStatus | null;
+  onBeforeSessionMutation?: () => void;
   styleVariant?: TabStripStyle;
 }
 
 export const ChatPane = React.memo(function ChatPane({
   isVisible,
-	isActive,
-	connectionId,
-	connectionName,
-	sessionId,
-	sessionSummary,
-	title,
-	subtitle,
-	backend,
-	cachedEntry,
+  isActive,
+  connectionId,
+  connectionName,
+  sessionId,
+  sessionSummary,
+  title,
+  subtitle,
+  backend,
+  cachedEntry,
   messagesCacheHydrated = true,
-	onOpenSessionTab,
-	onUpdateCache,
-	styleVariant = 'toolbarTabs',
+  onOpenSessionTab,
+  onUpdateCache,
+  requestStatus = null,
+  onBeforeSessionMutation,
+  styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme, styleVariant), [theme, styleVariant]);
+  const styles = useMemo(
+    () => createStyles(theme, styleVariant),
+    [theme, styleVariant],
+  );
 
   const [messageViewModeByIndex, setMessageViewModeByIndex] = useState<
     Record<number, 'markdown' | 'raw'>
@@ -439,25 +554,41 @@ export const ChatPane = React.memo(function ChatPane({
   const [rangeStartText, setRangeStartText] = useState(
     cachedEntry?.rangeStartText ?? `-${DEFAULT_HISTORY_WINDOW}`,
   );
-  const [rangeEndText, setRangeEndText] = useState(cachedEntry?.rangeEndText ?? '');
-	const didHydrateRangeFromCacheRef = useRef(false);
+  const [rangeEndText, setRangeEndText] = useState(
+    cachedEntry?.rangeEndText ?? '',
+  );
+  const didHydrateRangeFromCacheRef = useRef(false);
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
   const [messageLimitVisible, setMessageLimitVisible] = useState(false);
   const [sendInFlight, setSendInFlight] = useState(false);
+  const [appendInFlight, setAppendInFlight] = useState(false);
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
-  const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
-  const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
+  const [inlineActionDisplays, setInlineActionDisplays] = useState<
+    ActionDisplayEntry[]
+  >([]);
+  const [activeDisplayActionId, setActiveDisplayActionId] = useState<
+    string | null
+  >(null);
   const [notificationEvents, setNotificationEvents] = useState<any[]>([]);
   const [attachmentBackgroundOperation, setAttachmentBackgroundOperation] =
     useState<AttachmentBackgroundOperation>(null);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(
+    null,
+  );
+  const [activeRichConfigControl, setActiveRichConfigControl] =
+    useState<ComposerRichConfigControl | null>(null);
+  const [activeRichSessionAction, setActiveRichSessionAction] =
+    useState<SessionActionRichUiElement | null>(null);
   const composerRef = useRef<MacTextViewHandle | null>(null);
   const attachmentPlusButtonRef = useRef<any>(null);
+  const richConfigControlRefs = useRef<Record<string, any>>({});
   const attemptedInitialLoadRef = useRef(false);
-  const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const lastPersistKeyRef = useRef<string | null>(null);
   const rangeNavigationOperationRef = useRef(0);
   const [pendingRangeRestore, setPendingRangeRestore] = useState<{
@@ -476,10 +607,10 @@ export const ChatPane = React.memo(function ChatPane({
   const [composerHeight, setComposerHeight] = useState(34);
   const handleComposerHeightChange = useCallback((height: number) => {
     const next = Math.round(height);
-    setComposerHeight((prev) => {
+    setComposerHeight(prev => {
       if (Math.abs(prev - next) < 1) {
         return prev;
-	}
+      }
       return next;
     });
   }, []);
@@ -487,11 +618,11 @@ export const ChatPane = React.memo(function ChatPane({
   // Debug logging removed; composer uses native MacTextView on macOS.
 
   const handleChatEvents = useCallback((events: any[]) => {
-    const relevant = events.filter((event) =>
+    const relevant = events.filter(event =>
       String(event.type).startsWith('session_notification_'),
     );
     if (relevant.length > 0) {
-      setNotificationEvents((current) => [...current, ...relevant].slice(-100));
+      setNotificationEvents(current => [...current, ...relevant].slice(-100));
     }
   }, []);
 
@@ -501,30 +632,36 @@ export const ChatPane = React.memo(function ChatPane({
     initialMessages: cachedEntry?.messages ?? [],
     initialEventsCursorId: cachedEntry?.cursorEventId ?? null,
     initialActiveRequestId: cachedEntry?.activeRequestId ?? null,
-	  eventsEnabled: isActive && backend != null,
+    eventsEnabled: isActive && backend != null,
   });
 
   const pinnedSessionActionsStorageKey = useMemo(() => {
     return `${PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE}:${connectionId}`;
   }, [connectionId]);
 
-  const { pinned: pinnedSessionActionKeys, setPinned: setPinnedSessionActionKeys } =
-    usePersistentPinnedActions<ActionKey>({
-      store: asyncStorageKeyValueStore,
-      key: pinnedSessionActionsStorageKey,
-      initialPinned: DEFAULT_PINNED_SESSION_ACTION_KEYS,
-    });
+  const {
+    pinned: pinnedSessionActionKeys,
+    setPinned: setPinnedSessionActionKeys,
+    hasStoredPreference: hasStoredSessionActionPreference,
+  } = usePersistentPinnedActions<ActionKey>({
+    store: asyncStorageKeyValueStore,
+    key: pinnedSessionActionsStorageKey,
+    initialPinned: DEFAULT_PINNED_SESSION_ACTION_KEYS,
+  });
 
   const pinnedComposerActionsStorageKey = useMemo(() => {
     return `${PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE}:${connectionId}`;
   }, [connectionId]);
 
-  const { pinned: pinnedComposerActionKeys, setPinned: setPinnedComposerActionKeys } =
-    usePersistentPinnedActions<ActionKey>({
-      store: asyncStorageKeyValueStore,
-      key: pinnedComposerActionsStorageKey,
-      initialPinned: DEFAULT_PINNED_COMPOSER_ACTION_KEYS,
-    });
+  const {
+    pinned: pinnedComposerActionKeys,
+    setPinned: setPinnedComposerActionKeys,
+    hasStoredPreference: hasStoredComposerActionPreference,
+  } = usePersistentPinnedActions<ActionKey>({
+    store: asyncStorageKeyValueStore,
+    key: pinnedComposerActionsStorageKey,
+    initialPinned: DEFAULT_PINNED_COMPOSER_ACTION_KEYS,
+  });
 
   const pinnedMessageActionsStorageKey = useMemo(
     () => `${PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE}:${connectionId}`,
@@ -533,9 +670,14 @@ export const ChatPane = React.memo(function ChatPane({
 
   useEffect(() => {
     const loadPinnedFromStorage = async () => {
-      console.log('Loading pinned message actions from storage with key', pinnedMessageActionsStorageKey);
+      console.log(
+        'Loading pinned message actions from storage with key',
+        pinnedMessageActionsStorageKey,
+      );
       try {
-        const messageRaw = await asyncStorageKeyValueStore.get(pinnedMessageActionsStorageKey);
+        const messageRaw = await asyncStorageKeyValueStore.get(
+          pinnedMessageActionsStorageKey,
+        );
         if (messageRaw) {
           try {
             const parsed = JSON.parse(messageRaw);
@@ -543,7 +685,9 @@ export const ChatPane = React.memo(function ChatPane({
               const next: Record<string, MessageActionKey[]> = {};
               Object.entries(parsed).forEach(([role, value]) => {
                 if (Array.isArray(value)) {
-                  const filtered = (value as any[]).filter((key) => typeof key === 'string');
+                  const filtered = (value as any[]).filter(
+                    key => typeof key === 'string',
+                  );
                   next[role] = filtered as MessageActionKey[];
                 }
               });
@@ -554,18 +698,21 @@ export const ChatPane = React.memo(function ChatPane({
           }
           return;
         }
-
       } catch (err) {
         console.log('Failed to load pinned message actions from storage', err);
       }
     };
 
     loadPinnedFromStorage();
-    }, [connectionId, pinnedMessageActionsStorageKey]);
+  }, [connectionId, pinnedMessageActionsStorageKey]);
 
   useEffect(() => {
     const saveMessagePinned = async () => {
-      console.log('Saving pinned message actions to storage with key', pinnedMessageActionsStorageKey, pinnedMessageActionsByRole);
+      console.log(
+        'Saving pinned message actions to storage with key',
+        pinnedMessageActionsStorageKey,
+        pinnedMessageActionsByRole,
+      );
       try {
         await asyncStorageKeyValueStore.set(
           pinnedMessageActionsStorageKey,
@@ -582,25 +729,24 @@ export const ChatPane = React.memo(function ChatPane({
     backend,
     cacheKey: connectionId,
     sessionId,
-	  enabled: !!(backend && isActive),
-  });
-  const { state: sessionAppUiSchemaState } = useSessionApplicationUiSchemaController({
-    backend,
-    cacheKey: connectionId,
-    sessionId,
     enabled: !!(backend && isActive),
   });
-  useSessionSettingsController({
-    backend,
-    cacheKey: connectionId,
-    sessionId,
-	  enabled: !!(backend && isActive),
-  });
+  const { state: sessionAppUiSchemaState } =
+    useSessionApplicationUiSchemaController({
+      backend,
+      cacheKey: connectionId,
+      sessionId,
+      enabled: !!(backend && isActive),
+    });
+  const { controller: sessionSettingsController, state: sessionSettingsState } =
+    useSessionSettingsController({
+      backend,
+      cacheKey: connectionId,
+      sessionId,
+      enabled: !!(backend && isActive),
+    });
 
-  const {
-    actionsById,
-    sessionListFields,
-  } = useApplicationPlugins();
+  const { actionsById, sessionListFields } = useApplicationPlugins();
 
   const sessionListFieldGroups = useMemo(
     () => groupSessionListFields(sessionListFields || []),
@@ -613,10 +759,14 @@ export const ChatPane = React.memo(function ChatPane({
         sessionSummary,
         sessionListFieldGroups,
       );
-      return truncateByChars(presentation.title || sessionSummary.preview || sessionId, 80);
+      return truncateByChars(
+        presentation.title || sessionSummary.preview || sessionId,
+        80,
+      );
     }
 
-    const titleSource = typeof title === 'string' && title.trim() ? title : sessionId;
+    const titleSource =
+      typeof title === 'string' && title.trim() ? title : sessionId;
     return truncateByChars(titleSource, 80);
   }, [sessionId, sessionListFieldGroups, sessionSummary, title]);
 
@@ -626,11 +776,13 @@ export const ChatPane = React.memo(function ChatPane({
         sessionSummary,
         sessionListFieldGroups,
       );
-      const subtitleSource = presentation.subtitle ?? sessionSummary.preview ?? '';
+      const subtitleSource =
+        presentation.subtitle ?? sessionSummary.preview ?? '';
       return truncateByChars(subtitleSource, 80);
     }
 
-    const subtitleSource = typeof subtitle === 'string' && subtitle.trim() ? subtitle : '';
+    const subtitleSource =
+      typeof subtitle === 'string' && subtitle.trim() ? subtitle : '';
     return truncateByChars(subtitleSource, 80);
   }, [sessionListFieldGroups, sessionSummary, subtitle]);
 
@@ -653,7 +805,8 @@ export const ChatPane = React.memo(function ChatPane({
     () =>
       mergeSessionScopedActionElements({
         applicationActions: sessionAppUiElements.filter(
-          (el): el is ActionUiElement => (el as any).ui_type === 'session_action',
+          (el): el is ActionUiElement =>
+            (el as any).ui_type === 'session_action',
         ),
         uiSchemaElements,
         uiType: 'session_action',
@@ -664,12 +817,98 @@ export const ChatPane = React.memo(function ChatPane({
     () =>
       mergeSessionScopedActionElements({
         applicationActions: sessionAppUiElements.filter(
-          (el): el is ActionUiElement => (el as any).ui_type === 'message_action',
+          (el): el is ActionUiElement =>
+            (el as any).ui_type === 'message_action',
         ),
         uiSchemaElements,
         uiType: 'message_action',
       }),
     [sessionAppUiElements, uiSchemaElements],
+  );
+  const configSchemaByKey = useMemo(
+    () => buildConfigSchemaByKey(sessionSettingsState?.configSchema ?? []),
+    [sessionSettingsState?.configSchema],
+  );
+  const sessionSettingItems = useMemo(
+    () =>
+      buildSessionSettingItems({
+        elements: sessionSettingsState?.elements ?? [],
+        overrides: sessionSettingsState?.overrides ?? {},
+        baseConfig: sessionSettingsState?.baseConfig ?? {},
+        schemaByKey: configSchemaByKey,
+      }),
+    [
+      configSchemaByKey,
+      sessionSettingsState?.baseConfig,
+      sessionSettingsState?.elements,
+      sessionSettingsState?.overrides,
+    ],
+  );
+  const sessionSettingItemByKey = useMemo(
+    () => Object.fromEntries(sessionSettingItems.map(item => [item.key, item])),
+    [sessionSettingItems],
+  );
+  const composerRichConfigControls = useMemo(() => {
+    const selected = selectConfigRichUiControls(
+      sessionSettingsState?.elements ?? [],
+      'composer',
+    );
+    return selected.controls
+      .filter(
+        control =>
+          control.richUi.kind === 'dropdown' ||
+          control.richUi.kind === 'toggle',
+      )
+      .map(control => {
+        const item = sessionSettingItemByKey[control.element.key];
+        return {
+          control,
+          effectiveValue: item?.effectiveValue,
+          hasOverride: item?.hasOverride ?? false,
+          disabled: item?.disabled ?? false,
+        } satisfies ComposerRichConfigControl;
+      });
+  }, [sessionSettingItemByKey, sessionSettingsState?.elements]);
+  const composerRichConfigControlByActionKey = useMemo(
+    () =>
+      Object.fromEntries(
+        composerRichConfigControls.map(entry => [
+          `config:${entry.control.element.key}`,
+          entry,
+        ]),
+      ),
+    [composerRichConfigControls],
+  );
+  const normalizedSessionActions = useMemo(
+    () => normalizeSessionActionRichUiElements(visibleSessionActions).elements,
+    [visibleSessionActions],
+  );
+  const headerSessionActions = useMemo(
+    () =>
+      normalizedSessionActions.filter(
+        element =>
+          !element.rich_ui ||
+          isSessionActionPlacedAt(element, 'session_header'),
+      ),
+    [normalizedSessionActions],
+  );
+  const composerSessionActions = useMemo(
+    () =>
+      normalizedSessionActions.filter(
+        element =>
+          !!element.rich_ui && isSessionActionPlacedAt(element, 'composer'),
+      ),
+    [normalizedSessionActions],
+  );
+  const composerSessionActionByActionKey = useMemo(
+    () =>
+      Object.fromEntries(
+        composerSessionActions.map(element => [
+          `session_action:${element.id}`,
+          element,
+        ]),
+      ),
+    [composerSessionActions],
   );
   const footerElements = useMemo(
     () => filterFooterElements(uiSchemaElements),
@@ -688,7 +927,7 @@ export const ChatPane = React.memo(function ChatPane({
 
   const composerAttachmentElementByActionKey = useMemo(() => {
     const map: Record<string, ComposerAttachmentUiElement> = {};
-    composerAttachmentElements.forEach((el) => {
+    composerAttachmentElements.forEach(el => {
       const attachmentType = String((el as any).attachment_type ?? '');
       if (!attachmentType) {
         return;
@@ -696,59 +935,70 @@ export const ChatPane = React.memo(function ChatPane({
       const key =
         typeof (el as any).key === 'string' && (el as any).key
           ? String((el as any).key)
-          : `${String((el as any).plugin ?? 'unknown')}:attachment:${attachmentType}`;
+          : `${String(
+              (el as any).plugin ?? 'unknown',
+            )}:attachment:${attachmentType}`;
       map[key] = el;
     });
     return map;
   }, [composerAttachmentElements]);
 
-  const composerAttachmentPlusRows = useMemo((): ComposerAttachmentPlusRow[] => {
-    const rows: ComposerAttachmentPlusRow[] = [];
-    composerAttachmentElements.forEach((el) => {
-      const attachmentType = String((el as any).attachment_type ?? '');
-      if (!attachmentType) {
-        return;
-      }
-      const label =
-        typeof (el as any).label === 'string' && (el as any).label
-          ? String((el as any).label)
-          : attachmentType;
-      const baseKey =
-        typeof (el as any).key === 'string' && (el as any).key
-          ? String((el as any).key)
-          : `${String((el as any).plugin ?? 'unknown')}:attachment:${attachmentType}`;
+  const composerAttachmentPlusRows =
+    useMemo((): ComposerAttachmentPlusRow[] => {
+      const rows: ComposerAttachmentPlusRow[] = [];
+      composerAttachmentElements.forEach(el => {
+        const attachmentType = String((el as any).attachment_type ?? '');
+        if (!attachmentType) {
+          return;
+        }
+        const label =
+          typeof (el as any).label === 'string' && (el as any).label
+            ? String((el as any).label)
+            : attachmentType;
+        const baseKey =
+          typeof (el as any).key === 'string' && (el as any).key
+            ? String((el as any).key)
+            : `${String(
+                (el as any).plugin ?? 'unknown',
+              )}:attachment:${attachmentType}`;
 
-      const iconName =
-        typeof (el as any).icon === 'string' && (el as any).icon
-          ? String((el as any).icon)
-          : 'paperclip';
+        const iconName =
+          typeof (el as any).icon === 'string' && (el as any).icon
+            ? String((el as any).icon)
+            : 'paperclip';
 
-      const supportsUpload = Boolean((el as any).supports_upload ?? true);
-      if (supportsUpload) {
-        rows.push({
-          id: `${baseKey}:file`,
-          label: `Select ${label}…`,
-          iconName,
-        });
-      }
+        const supportsUpload = Boolean((el as any).supports_upload ?? true);
+        if (supportsUpload) {
+          rows.push({
+            id: `${baseKey}:file`,
+            label: `Select ${label}…`,
+            iconName,
+          });
+        }
 
-      const supportsUrl = Boolean((el as any).supports_url ?? true);
-      if (supportsUrl) {
-        rows.push({
-          id: `${baseKey}:url`,
-          label: `${label} URL…`,
-          iconName: 'link',
-        });
-      }
-    });
+        const supportsUrl = Boolean((el as any).supports_url ?? true);
+        if (supportsUrl) {
+          rows.push({
+            id: `${baseKey}:url`,
+            label: `${label} URL…`,
+            iconName: 'link',
+          });
+        }
+      });
 
-    return rows;
-  }, [composerAttachmentElements]);
+      return rows;
+    }, [composerAttachmentElements]);
 
-  const [attachmentsAbove, setAttachmentsAbove] = useState<ComposerAttachmentDraft[]>([]);
-  const [attachmentsBelow, setAttachmentsBelow] = useState<ComposerAttachmentDraft[]>([]);
-  const [attachmentsAboveExpanded, setAttachmentsAboveExpanded] = useState(false);
-  const [attachmentsBelowExpanded, setAttachmentsBelowExpanded] = useState(false);
+  const [attachmentsAbove, setAttachmentsAbove] = useState<
+    ComposerAttachmentDraft[]
+  >([]);
+  const [attachmentsBelow, setAttachmentsBelow] = useState<
+    ComposerAttachmentDraft[]
+  >([]);
+  const [attachmentsAboveExpanded, setAttachmentsAboveExpanded] =
+    useState(false);
+  const [attachmentsBelowExpanded, setAttachmentsBelowExpanded] =
+    useState(false);
 
   const hasAttachments = attachmentsAbove.length + attachmentsBelow.length > 0;
 
@@ -757,14 +1007,130 @@ export const ChatPane = React.memo(function ChatPane({
       return [];
     }
 
-    return (visibleSessionActions || [])
-      .map((el) => ({
-        key: el.id,
-        label: el.label,
-        iconName: (el as any).icon || 'zap',
-      }))
-      .filter((def) => typeof def.key === 'string' && def.key);
-  }, [backend, visibleSessionActions]);
+    return headerSessionActions
+      .map(el => {
+        const richState = el.rich_ui
+          ? resolveSessionListRichActionState(el as any, richActionSession)
+          : null;
+        return {
+          key: el.id,
+          label: el.label,
+          iconName: (el as any).icon || 'zap',
+          menuStateLabel:
+            richState?.kind === 'toggle'
+              ? richState.active
+                ? 'On'
+                : 'Off'
+              : richState?.kind === 'list'
+              ? richState.currentOption?.label
+              : undefined,
+          order: typeof el.order === 'number' ? el.order : undefined,
+        };
+      })
+      .filter(def => typeof def.key === 'string' && def.key);
+  }, [backend, headerSessionActions, richActionSession]);
+
+  const composerPluginActionDefs: ActionDefinition[] = useMemo(
+    () => [
+      ...composerRichConfigControls.map(entry => {
+        const richUi = entry.control.richUi as
+          | ConfigRichDropdownUi
+          | ConfigRichToggleUi;
+        return {
+          key: `config:${entry.control.element.key}`,
+          label: entry.control.element.label || richUi.label,
+          iconName: entry.control.element.icon || 'sliders',
+          menuStateLabel: resolveConfigRichUiMenuStateLabel(
+            richUi,
+            entry.effectiveValue,
+          ),
+          order:
+            typeof (entry.control.element as any).order === 'number'
+              ? (entry.control.element as any).order
+              : 10,
+        };
+      }),
+      ...composerSessionActions.map(element => {
+        const richState = resolveSessionListRichActionState(
+          element as any,
+          richActionSession,
+        );
+        return {
+          key: `session_action:${element.id}`,
+          label: element.label,
+          iconName: (element as any).icon || 'zap',
+          menuStateLabel:
+            richState?.kind === 'toggle'
+              ? richState.active
+                ? 'On'
+                : 'Off'
+              : richState?.kind === 'list'
+              ? richState.currentOption?.label
+              : undefined,
+          order: typeof element.order === 'number' ? element.order : undefined,
+        };
+      }),
+    ],
+    [composerRichConfigControls, composerSessionActions, richActionSession],
+  );
+
+  const defaultPinnedComposerUiActionKeys = useMemo(
+    () => [
+      ...getDefaultPinnedConfigRichUiKeys(
+        composerRichConfigControls.map(entry => entry.control),
+      ).map(key => `config:${key}`),
+      ...composerSessionActions
+        .filter(element => element.rich_ui?.default_pinned === true)
+        .map(element => `session_action:${element.id}`),
+    ],
+    [composerRichConfigControls, composerSessionActions],
+  );
+  useEffect(() => {
+    if (
+      hasStoredComposerActionPreference ||
+      defaultPinnedComposerUiActionKeys.length === 0
+    ) {
+      return;
+    }
+    setPinnedComposerActionKeys(current => [
+      ...current,
+      ...defaultPinnedComposerUiActionKeys.filter(
+        key => !current.includes(key),
+      ),
+    ]);
+  }, [
+    defaultPinnedComposerUiActionKeys,
+    hasStoredComposerActionPreference,
+    setPinnedComposerActionKeys,
+  ]);
+
+  const defaultPinnedHeaderSessionActionKeys = useMemo(
+    () =>
+      headerSessionActions
+        .filter(element => element.rich_ui?.default_pinned === true)
+        .map(element => element.id),
+    [headerSessionActions],
+  );
+  useEffect(() => {
+    if (
+      hasStoredSessionActionPreference ||
+      defaultPinnedHeaderSessionActionKeys.length === 0
+    ) {
+      return;
+    }
+    setPinnedSessionActionKeys(current => [
+      ...current,
+      ...defaultPinnedHeaderSessionActionKeys.filter(
+        key => !current.includes(key),
+      ),
+    ]);
+  }, [
+    defaultPinnedHeaderSessionActionKeys,
+    hasStoredSessionActionPreference,
+    setPinnedSessionActionKeys,
+  ]);
+
+  const pinnedComposerActionKeysForBar = pinnedComposerActionKeys;
 
   const pluginMessageActionDefs: MessageActionDefinition[] = useMemo(() => {
     if (!backend) {
@@ -772,14 +1138,14 @@ export const ChatPane = React.memo(function ChatPane({
     }
 
     return (visibleMessageActions || [])
-      .map((el) => ({
+      .map(el => ({
         key: el.id,
         label: el.label,
         iconName: (el as any).icon || 'zap',
         defaultPinnedRoles: ['user', 'assistant', 'system', 'tool'],
         allowedRoles: ['user', 'assistant', 'system', 'tool'],
       }))
-      .filter((def) => typeof def.key === 'string' && def.key);
+      .filter(def => typeof def.key === 'string' && def.key);
   }, [backend, visibleMessageActions]);
 
   const hydrateFromCache = useCallback(
@@ -793,7 +1159,8 @@ export const ChatPane = React.memo(function ChatPane({
       },
     ) => {
       const snapshot = controller.getSnapshot();
-      const hasInitialSnapshot = snapshot.eventsCursorId != null || snapshot.messages.length > 0;
+      const hasInitialSnapshot =
+        snapshot.eventsCursorId != null || snapshot.messages.length > 0;
       if (hasInitialSnapshot) {
         return;
       }
@@ -816,37 +1183,42 @@ export const ChatPane = React.memo(function ChatPane({
     hydrate: hydrateFromCache,
   });
 
-	useEffect(() => {
-		if (didHydrateRangeFromCacheRef.current) {
-			return;
-		}
+  useEffect(() => {
+    if (didHydrateRangeFromCacheRef.current) {
+      return;
+    }
 
-		const cachedStartText = cachedEntry?.rangeStartText ?? null;
-		const cachedEndText = cachedEntry?.rangeEndText ?? null;
-		if (cachedStartText == null && cachedEndText == null) {
-			return;
-		}
+    const cachedStartText = cachedEntry?.rangeStartText ?? null;
+    const cachedEndText = cachedEntry?.rangeEndText ?? null;
+    if (cachedStartText == null && cachedEndText == null) {
+      return;
+    }
 
-		const defaultStartText = `-${DEFAULT_HISTORY_WINDOW}`;
-		const defaultEndText = '';
-		const userChangedRange =
-			rangeStartText !== defaultStartText || rangeEndText !== defaultEndText;
-		if (userChangedRange) {
-			didHydrateRangeFromCacheRef.current = true;
-			return;
-		}
+    const defaultStartText = `-${DEFAULT_HISTORY_WINDOW}`;
+    const defaultEndText = '';
+    const userChangedRange =
+      rangeStartText !== defaultStartText || rangeEndText !== defaultEndText;
+    if (userChangedRange) {
+      didHydrateRangeFromCacheRef.current = true;
+      return;
+    }
 
-		const nextStartText = cachedStartText ?? defaultStartText;
-		const nextEndText = cachedEndText ?? defaultEndText;
-		if (rangeStartText === nextStartText && rangeEndText === nextEndText) {
-			didHydrateRangeFromCacheRef.current = true;
-			return;
-		}
+    const nextStartText = cachedStartText ?? defaultStartText;
+    const nextEndText = cachedEndText ?? defaultEndText;
+    if (rangeStartText === nextStartText && rangeEndText === nextEndText) {
+      didHydrateRangeFromCacheRef.current = true;
+      return;
+    }
 
-		setRangeStartText(nextStartText);
-		setRangeEndText(nextEndText);
-		didHydrateRangeFromCacheRef.current = true;
-	}, [cachedEntry?.rangeEndText, cachedEntry?.rangeStartText, rangeEndText, rangeStartText]);
+    setRangeStartText(nextStartText);
+    setRangeEndText(nextEndText);
+    didHydrateRangeFromCacheRef.current = true;
+  }, [
+    cachedEntry?.rangeEndText,
+    cachedEntry?.rangeStartText,
+    rangeEndText,
+    rangeStartText,
+  ]);
 
   useEffect(() => {
     if (!chatController) {
@@ -928,7 +1300,7 @@ export const ChatPane = React.memo(function ChatPane({
     if (!chatController) {
       return;
     }
-    chatController.setEventsListener((events) => {
+    chatController.setEventsListener(events => {
       handleChatEvents(events);
       let needsRefresh = false;
       for (const ev of events) {
@@ -1028,7 +1400,7 @@ export const ChatPane = React.memo(function ChatPane({
   }, [persistCacheSnapshot]);
 
   useEffect(() => {
-	  if (!isActive) {
+    if (!isActive) {
       return;
     }
     if (!chatController) {
@@ -1039,7 +1411,7 @@ export const ChatPane = React.memo(function ChatPane({
     }
 
     const hasInitialSnapshot =
-      (chatState?.eventsCursorId != null) ||
+      chatState?.eventsCursorId != null ||
       (Array.isArray(chatState?.messages) && chatState.messages.length > 0);
     if (hasInitialSnapshot) {
       return;
@@ -1053,7 +1425,14 @@ export const ChatPane = React.memo(function ChatPane({
     loadInitialMessages().catch(() => {
       // errors are handled in `loadInitialMessages`
     });
-	}, [chatController, chatState?.eventsCursorId, chatState?.loading, chatState?.messages, isActive, loadInitialMessages]);
+  }, [
+    chatController,
+    chatState?.eventsCursorId,
+    chatState?.loading,
+    chatState?.messages,
+    isActive,
+    loadInitialMessages,
+  ]);
 
   const messages: IndexedMessage[] = useMemo(() => {
     return chatState?.messages ?? cachedEntry?.messages ?? [];
@@ -1090,7 +1469,8 @@ export const ChatPane = React.memo(function ChatPane({
     return {
       sequence: bottomContentRevisionRef.current,
       messageCount: messages.length,
-      lastMessageIndex: messages.length > 0 ? messages[messages.length - 1].index : null,
+      lastMessageIndex:
+        messages.length > 0 ? messages[messages.length - 1].index : null,
       streamingRequestId: streamingRow?.requestId ?? null,
       inlineDisplayCount: inlineActionDisplays.length,
     };
@@ -1112,14 +1492,17 @@ export const ChatPane = React.memo(function ChatPane({
     initialBottomConvergenceMaxMs: FLATLIST_INITIAL_BOTTOM_CONVERGENCE_MAX_MS,
     maxEdgeCorrections: FLATLIST_MAX_EDGE_CORRECTIONS,
     contentFollowEnabled:
-      TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ? false : FLATLIST_BOTTOM_LOCK,
+      TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll'
+        ? false
+        : FLATLIST_BOTTOM_LOCK,
     bottomContentRevision,
     messageAnchorBeforeCount: PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT,
     messageAnchorAfterCount: PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT,
     messageViewportAnchorsEnabled:
       TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ||
       TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList',
-    listEdgeMethodsEnabled: TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll',
+    listEdgeMethodsEnabled:
+      TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll',
     onUserNavigationIntent: cancelRangeNavigation,
   });
 
@@ -1130,7 +1513,9 @@ export const ChatPane = React.memo(function ChatPane({
     ) {
       return;
     }
-    if (!messages.some((entry) => entry.index === pendingRangeRestore.messageIndex)) {
+    if (
+      !messages.some(entry => entry.index === pendingRangeRestore.messageIndex)
+    ) {
       return;
     }
     transcriptScroll.listRef.current?.scrollToItemAnchor?.({
@@ -1148,39 +1533,52 @@ export const ChatPane = React.memo(function ChatPane({
     const prev = prevIsVisibleRef.current;
     prevIsVisibleRef.current = isVisible;
     if (prev && !isVisible) {
-      requestPersistTranscriptScroll('tabHidden', { force: true, immediate: true });
+      requestPersistTranscriptScroll('tabHidden', {
+        force: true,
+        immediate: true,
+      });
     }
   }, [isVisible, requestPersistTranscriptScroll]);
 
-  const { statusBarParts, ensureAgentsLoaded, agentsLoading } = useSessionStatusBarParts({
-    backend,
-    connectionId,
-    sessionId,
-    isActive,
-    uiSchemaElements,
-    messages,
-    streamingRow,
-    sessionSummary: sessionSummary ?? null,
-  });
+  const { statusBarParts, ensureAgentsLoaded, agentsLoading } =
+    useSessionStatusBarParts({
+      backend,
+      connectionId,
+      sessionId,
+      isActive,
+      uiSchemaElements,
+      messages,
+      streamingRow,
+      sessionSummary: sessionSummary ?? null,
+    });
 
   const messagesCount = messages.length;
   const draftAttachments = [...attachmentsAbove, ...attachmentsBelow];
   const blockingAttachmentDraft =
-    draftAttachments.find((draft) => isAttachmentDraftBlocking(draft.status)) ?? null;
+    draftAttachments.find(draft => isAttachmentDraftBlocking(draft.status)) ??
+    null;
   const unresolvedAttachmentDraft =
-    draftAttachments.find((draft) => draft.status !== 'ready' && draft.status !== 'local') ?? null;
+    draftAttachments.find(
+      draft => draft.status !== 'ready' && draft.status !== 'local',
+    ) ?? null;
   const attachmentActionInProgress =
     attachmentBackgroundOperation != null || blockingAttachmentDraft != null;
   const attachmentActionText =
     attachmentBackgroundOperation?.kind === 'upload'
       ? `Uploading ${attachmentBackgroundOperation.filename}...`
       : attachmentBackgroundOperation?.kind === 'delete'
-        ? `Deleting ${attachmentBackgroundOperation.filename}...`
-        : blockingAttachmentDraft
-          ? `${attachmentDraftStatusLabel(blockingAttachmentDraft.status, blockingAttachmentDraft.errorMessage)} ${blockingAttachmentDraft.content?.filename ?? blockingAttachmentDraft.type}...`
-          : '';
+      ? `Deleting ${attachmentBackgroundOperation.filename}...`
+      : blockingAttachmentDraft
+      ? `${attachmentDraftStatusLabel(
+          blockingAttachmentDraft.status,
+          blockingAttachmentDraft.errorMessage,
+        )} ${
+          blockingAttachmentDraft.content?.filename ??
+          blockingAttachmentDraft.type
+        }...`
+      : '';
 
-	const canSend =
+  const canSend =
     backend != null &&
     chatController != null &&
     isActive &&
@@ -1190,7 +1588,9 @@ export const ChatPane = React.memo(function ChatPane({
     !unresolvedAttachmentDraft &&
     !selectedSnapshotId;
 
-  const canSendNow = canSend && (composeText.trim().length > 0 || hasAttachments);
+  const canSendNow =
+    canSend && (composeText.trim().length > 0 || hasAttachments);
+  const requestInProgress = sendInFlight || Boolean(chatState?.activeRequestId);
 
   const buildMultipartContentPayload = useCallback(() => {
     const mapDraft = (d: ComposerAttachmentDraft) => ({
@@ -1198,7 +1598,10 @@ export const ChatPane = React.memo(function ChatPane({
       content: d.content,
       metadata: d.metadata,
     });
-    return [...attachmentsAbove.map(mapDraft), ...attachmentsBelow.map(mapDraft)];
+    return [
+      ...attachmentsAbove.map(mapDraft),
+      ...attachmentsBelow.map(mapDraft),
+    ];
   }, [attachmentsAbove, attachmentsBelow]);
 
   const clearComposerAttachments = useCallback(() => {
@@ -1227,7 +1630,10 @@ export const ChatPane = React.memo(function ChatPane({
           backend,
           sessionId,
           assetId,
-          pluginId: typeof pluginId === 'string' && pluginId.trim() ? pluginId.trim() : undefined,
+          pluginId:
+            typeof pluginId === 'string' && pluginId.trim()
+              ? pluginId.trim()
+              : undefined,
         });
       } catch (err: any) {
         if (!suppressAlert) {
@@ -1244,9 +1650,15 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   const updateDraftMetadata = useCallback(
-    (draftId: string, placement: 'above' | 'below', nextMetadata: Record<string, any>) => {
+    (
+      draftId: string,
+      placement: 'above' | 'below',
+      nextMetadata: Record<string, any>,
+    ) => {
       const updater = (prev: ComposerAttachmentDraft[]) =>
-        prev.map((d) => (d.draftId === draftId ? { ...d, metadata: nextMetadata } : d));
+        prev.map(d =>
+          d.draftId === draftId ? { ...d, metadata: nextMetadata } : d,
+        );
       if (placement === 'above') {
         setAttachmentsAbove(updater);
       } else {
@@ -1263,7 +1675,7 @@ export const ChatPane = React.memo(function ChatPane({
       updater: (draft: ComposerAttachmentDraft) => ComposerAttachmentDraft,
     ) => {
       const update = (prev: ComposerAttachmentDraft[]) =>
-        prev.map((draft) => (draft.draftId === draftId ? updater(draft) : draft));
+        prev.map(draft => (draft.draftId === draftId ? updater(draft) : draft));
       if (placement === 'above') {
         setAttachmentsAbove(update);
       } else {
@@ -1274,20 +1686,33 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   const openAttachmentMetadataEditorWindowForDraft = useCallback(
-    (params: { draft: ComposerAttachmentDraft; element: ComposerAttachmentUiElement }) => {
-      const metadataUi = ((params.element as any).metadata_ui ?? null) as AttachmentMetadataUi | null;
+    (params: {
+      draft: ComposerAttachmentDraft;
+      element: ComposerAttachmentUiElement;
+    }) => {
+      const metadataUi = ((params.element as any).metadata_ui ??
+        null) as AttachmentMetadataUi | null;
       if (!metadataUi) {
-        Alert.alert('No metadata', 'This attachment type does not define metadata fields.');
+        Alert.alert(
+          'No metadata',
+          'This attachment type does not define metadata fields.',
+        );
         return;
       }
       if (!hasEditableAttachmentMetadataFields(metadataUi)) {
-        Alert.alert('No metadata', 'No metadata fields are defined for this attachment type.');
+        Alert.alert(
+          'No metadata',
+          'No metadata fields are defined for this attachment type.',
+        );
         return;
       }
 
-      const attachmentType = String((params.element as any).attachment_type ?? params.draft.type);
+      const attachmentType = String(
+        (params.element as any).attachment_type ?? params.draft.type,
+      );
       const title =
-        typeof (params.element as any).label === 'string' && (params.element as any).label
+        typeof (params.element as any).label === 'string' &&
+        (params.element as any).label
           ? String((params.element as any).label)
           : attachmentType;
 
@@ -1299,8 +1724,12 @@ export const ChatPane = React.memo(function ChatPane({
         metadataUi,
         initialMetadata: params.draft.metadata ?? {},
         onCancel: () => {},
-        onSave: (metadata) => {
-          updateDraftMetadata(params.draft.draftId, params.draft.placement, metadata);
+        onSave: metadata => {
+          updateDraftMetadata(
+            params.draft.draftId,
+            params.draft.placement,
+            metadata,
+          );
         },
       });
     },
@@ -1309,12 +1738,15 @@ export const ChatPane = React.memo(function ChatPane({
 
   const findElementForDraft = useCallback(
     (draft: ComposerAttachmentDraft): ComposerAttachmentUiElement | null => {
-      if (draft.schemaKey && composerAttachmentElementByActionKey[draft.schemaKey]) {
+      if (
+        draft.schemaKey &&
+        composerAttachmentElementByActionKey[draft.schemaKey]
+      ) {
         return composerAttachmentElementByActionKey[draft.schemaKey];
       }
 
       const byType = composerAttachmentElements.find(
-        (el) => String((el as any).attachment_type ?? '') === draft.type,
+        el => String((el as any).attachment_type ?? '') === draft.type,
       );
       return byType ?? null;
     },
@@ -1332,18 +1764,25 @@ export const ChatPane = React.memo(function ChatPane({
       status?: AttachmentDraftStatus;
       errorMessage?: string | null;
     }) => {
-      const attachmentType = String((params.element as any).attachment_type ?? '');
+      const attachmentType = String(
+        (params.element as any).attachment_type ?? '',
+      );
       if (!attachmentType) {
         return null;
       }
 
       const actionKey =
-        typeof (params.element as any).key === 'string' && (params.element as any).key
+        typeof (params.element as any).key === 'string' &&
+        (params.element as any).key
           ? String((params.element as any).key)
-          : `${String((params.element as any).plugin ?? 'unknown')}:attachment:${attachmentType}`;
+          : `${String(
+              (params.element as any).plugin ?? 'unknown',
+            )}:attachment:${attachmentType}`;
 
       const draft: ComposerAttachmentDraft = {
-        draftId: params.draftId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        draftId:
+          params.draftId ??
+          `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         type: attachmentType,
         content: params.content,
         metadata: params.metadata,
@@ -1378,7 +1817,8 @@ export const ChatPane = React.memo(function ChatPane({
       pendingAssetId?: string | null;
       draftId?: string | null;
     }) => {
-      const metadataUi = ((params.element as any).metadata_ui ?? null) as AttachmentMetadataUi | null;
+      const metadataUi = ((params.element as any).metadata_ui ??
+        null) as AttachmentMetadataUi | null;
       const defaults = buildAttachmentMetadataDefaults(metadataUi);
 
       if (
@@ -1386,15 +1826,18 @@ export const ChatPane = React.memo(function ChatPane({
         hasEditableAttachmentMetadataFields(metadataUi)
       ) {
         if (params.draftId) {
-          updateDraftState(params.draftId, params.placement, (draft) => ({
+          updateDraftState(params.draftId, params.placement, draft => ({
             ...draft,
             status: 'stored',
             errorMessage: null,
           }));
         }
-        const attachmentType = String((params.element as any).attachment_type ?? '');
+        const attachmentType = String(
+          (params.element as any).attachment_type ?? '',
+        );
         const title =
-          typeof (params.element as any).label === 'string' && (params.element as any).label
+          typeof (params.element as any).label === 'string' &&
+          (params.element as any).label
             ? String((params.element as any).label)
             : attachmentType;
 
@@ -1408,7 +1851,7 @@ export const ChatPane = React.memo(function ChatPane({
           onCancel: () => {
             if (params.pendingAssetId) {
               if (params.draftId) {
-                updateDraftState(params.draftId, params.placement, (draft) => ({
+                updateDraftState(params.draftId, params.placement, draft => ({
                   ...draft,
                   status: 'deleting',
                   errorMessage: null,
@@ -1422,10 +1865,10 @@ export const ChatPane = React.memo(function ChatPane({
                   ? String((params.element as any).plugin)
                   : undefined,
               )
-                .then((deleted) => {
+                .then(deleted => {
                   if (deleted && params.draftId) {
                     const remove = (prev: ComposerAttachmentDraft[]) =>
-                      prev.filter((draft) => draft.draftId !== params.draftId);
+                      prev.filter(draft => draft.draftId !== params.draftId);
                     if (params.placement === 'above') {
                       setAttachmentsAbove(remove);
                     } else {
@@ -1436,9 +1879,9 @@ export const ChatPane = React.memo(function ChatPane({
                 .catch(() => {});
             }
           },
-          onSave: (metadata) => {
+          onSave: metadata => {
             if (params.draftId) {
-              updateDraftState(params.draftId, params.placement, (draft) => ({
+              updateDraftState(params.draftId, params.placement, draft => ({
                 ...draft,
                 content: params.content,
                 metadata,
@@ -1462,7 +1905,7 @@ export const ChatPane = React.memo(function ChatPane({
       }
 
       if (params.draftId) {
-        updateDraftState(params.draftId, params.placement, (draft) => ({
+        updateDraftState(params.draftId, params.placement, draft => ({
           ...draft,
           content: params.content,
           metadata: defaults,
@@ -1532,7 +1975,8 @@ export const ChatPane = React.memo(function ChatPane({
           filename: params.filename,
           mimeType: params.mimeType,
           dataBase64: params.dataBase64,
-          pluginId: resolveAttachmentActionPluginId(params.element) ?? undefined,
+          pluginId:
+            resolveAttachmentActionPluginId(params.element) ?? undefined,
         });
 
         beginAddDraftAttachment({
@@ -1548,7 +1992,7 @@ export const ChatPane = React.memo(function ChatPane({
           draftId,
         });
       } catch (err: any) {
-        updateDraftState(draftId, params.placement, (draft) => ({
+        updateDraftState(draftId, params.placement, draft => ({
           ...draft,
           status: 'failed',
           errorMessage:
@@ -1561,66 +2005,81 @@ export const ChatPane = React.memo(function ChatPane({
         setAttachmentBackgroundOperation(null);
       }
     },
-    [addDraftAttachment, backend, beginAddDraftAttachment, sessionId, updateDraftState],
+    [
+      addDraftAttachment,
+      backend,
+      beginAddDraftAttachment,
+      sessionId,
+      updateDraftState,
+    ],
   );
 
-  const handleSend = useCallback(async (overrideText?: string) => {
-    if (!canSendNow) {
-      if (unresolvedAttachmentDraft) {
-        Alert.alert('Attachment not ready', 'Resolve attachment upload issues before sending.');
+  const handleSend = useCallback(
+    async (overrideText?: string) => {
+      if (!canSendNow) {
+        if (unresolvedAttachmentDraft) {
+          Alert.alert(
+            'Attachment not ready',
+            'Resolve attachment upload issues before sending.',
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    const raw = overrideText ?? composeTextRef.current ?? composeText;
-    const trimmed = String(raw ?? '').trim();
-    const multipartContent = buildMultipartContentPayload();
+      const raw = overrideText ?? composeTextRef.current ?? composeText;
+      const trimmed = String(raw ?? '').trim();
+      const multipartContent = buildMultipartContentPayload();
 
-    if (!trimmed && multipartContent.length === 0) {
-      return;
-    }
+      if (!trimmed && multipartContent.length === 0) {
+        return;
+      }
 
-    const content = trimmed.length > 0 ? trimmed : '';
+      const content = trimmed.length > 0 ? trimmed : '';
 
-    setSendInFlight(true);
-    try {
-      await sendComposerMessageAtomically(chatController, {
-        role: 'user',
-        content,
-        multipartContent,
-      });
-      setComposeText('');
-      composerRef.current?.setText('');
-      clearComposerAttachments();
-      composerRef.current?.focus();
-    } catch (err: any) {
-      const message =
-        typeof err?.message === 'string' && err.message
-          ? err.message
-          : 'Failed to send message.';
-      Alert.alert('Failed to send', message);
-    } finally {
-      setSendInFlight(false);
-    }
-  }, [
-    buildMultipartContentPayload,
-    canSendNow,
-    chatController,
-    clearComposerAttachments,
-    composeText,
-    composeTextRef,
-    setComposeText,
-    unresolvedAttachmentDraft,
-  ]);
+      onBeforeSessionMutation?.();
+      setSendInFlight(true);
+      try {
+        await sendComposerMessageAtomically(chatController, {
+          role: 'user',
+          content,
+          multipartContent,
+        });
+        setComposeText('');
+        composerRef.current?.setText('');
+        clearComposerAttachments();
+        composerRef.current?.focus();
+      } catch (err: any) {
+        const message =
+          typeof err?.message === 'string' && err.message
+            ? err.message
+            : 'Failed to send message.';
+        Alert.alert('Failed to send', message);
+      } finally {
+        setSendInFlight(false);
+      }
+    },
+    [
+      buildMultipartContentPayload,
+      canSendNow,
+      chatController,
+      clearComposerAttachments,
+      composeText,
+      composeTextRef,
+      setComposeText,
+      unresolvedAttachmentDraft,
+      onBeforeSessionMutation,
+    ],
+  );
 
   const canRunComposerActions =
-    backend != null && chatController != null && isActive && !selectedSnapshotId;
+    backend != null &&
+    chatController != null &&
+    isActive &&
+    !selectedSnapshotId;
 
   const canOpenAttachmentPlus =
     canRunComposerActions &&
     composerAttachmentPlusRows.length > 0 &&
-    !sendInFlight &&
-    !chatState?.activeRequestId &&
     !attachmentActionInProgress;
 
   const appendMessageForRole = useCallback(
@@ -1632,38 +2091,46 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
       if (unresolvedAttachmentDraft) {
-        Alert.alert('Attachment not ready', 'Resolve attachment upload issues before appending.');
+        Alert.alert(
+          'Attachment not ready',
+          'Resolve attachment upload issues before appending.',
+        );
         return;
       }
       if (!canRunComposerActions) {
         Alert.alert('Offline', 'Connect to a server to append messages.');
         return;
       }
-      if (sendInFlight || chatState?.activeRequestId || attachmentActionInProgress) {
+      if (appendInFlight || attachmentActionInProgress) {
         return;
       }
 
-      setSendInFlight(true);
+      onBeforeSessionMutation?.();
+      setAppendInFlight(true);
       try {
-        await chatController.appendMessage({ role: role as any, content: content.length > 0 ? content : '', multipartContent });
+        await chatController.appendMessage({
+          role: role as any,
+          content: content.length > 0 ? content : '',
+          multipartContent,
+        });
         composerRef.current?.focus();
       } catch (err: any) {
         const message = err?.message || 'Failed to append message.';
         Alert.alert('Failed to append', message);
       } finally {
-        setSendInFlight(false);
+        setAppendInFlight(false);
       }
     },
     [
+      appendInFlight,
       attachmentActionInProgress,
       buildMultipartContentPayload,
       canRunComposerActions,
       chatController,
-      chatState?.activeRequestId,
       composeText,
       composeTextRef,
-      sendInFlight,
       unresolvedAttachmentDraft,
+      onBeforeSessionMutation,
     ],
   );
 
@@ -1679,14 +2146,21 @@ export const ChatPane = React.memo(function ChatPane({
       return;
     }
     if (unresolvedAttachmentDraft) {
-      Alert.alert('Attachment not ready', 'Resolve attachment upload issues before appending.');
+      Alert.alert(
+        'Attachment not ready',
+        'Resolve attachment upload issues before appending.',
+      );
       return;
     }
     if (!canRunComposerActions) {
       Alert.alert('Offline', 'Connect to a server to append messages.');
       return;
     }
-    if (sendInFlight || chatState?.activeRequestId || attachmentActionInProgress || unresolvedAttachmentDraft) {
+    if (
+      appendInFlight ||
+      attachmentActionInProgress ||
+      unresolvedAttachmentDraft
+    ) {
       return;
     }
 
@@ -1716,7 +2190,7 @@ export const ChatPane = React.memo(function ChatPane({
       content: (
         <AppendAsPopoverContent
           popoverId={id}
-          onSelectRole={(role) => {
+          onSelectRole={role => {
             appendMessageForRole(role).catch(() => {});
           }}
         />
@@ -1724,14 +2198,13 @@ export const ChatPane = React.memo(function ChatPane({
     });
   }, [
     appendMessageForRole,
+    appendInFlight,
     attachmentActionInProgress,
     buildMultipartContentPayload,
     canRunComposerActions,
-    chatState?.activeRequestId,
     composeText,
     composeTextRef,
     connectionId,
-    sendInFlight,
     sessionId,
     unresolvedAttachmentDraft,
   ]);
@@ -1745,6 +2218,7 @@ export const ChatPane = React.memo(function ChatPane({
       return;
     }
 
+    onBeforeSessionMutation?.();
     setSendInFlight(true);
     try {
       chatController.clearRequestState();
@@ -1756,7 +2230,13 @@ export const ChatPane = React.memo(function ChatPane({
     } finally {
       setSendInFlight(false);
     }
-  }, [canRunComposerActions, chatController, chatState?.activeRequestId, sendInFlight]);
+  }, [
+    canRunComposerActions,
+    chatController,
+    chatState?.activeRequestId,
+    onBeforeSessionMutation,
+    sendInFlight,
+  ]);
 
   const handleCancel = useCallback(async () => {
     if (!canRunComposerActions) {
@@ -1778,13 +2258,21 @@ export const ChatPane = React.memo(function ChatPane({
     } finally {
       setCancelInFlight(false);
     }
-  }, [canRunComposerActions, cancelInFlight, chatController, chatState?.activeRequestId]);
+  }, [
+    canRunComposerActions,
+    cancelInFlight,
+    chatController,
+    chatState?.activeRequestId,
+  ]);
 
   const openAttachmentUrlPopover = useCallback(
     (params: { element: ComposerAttachmentUiElement; anchorTag?: number }) => {
-      const attachmentType = String((params.element as any).attachment_type ?? '');
+      const attachmentType = String(
+        (params.element as any).attachment_type ?? '',
+      );
       const attachmentTitle =
-        typeof (params.element as any).label === 'string' && (params.element as any).label
+        typeof (params.element as any).label === 'string' &&
+        (params.element as any).label
           ? String((params.element as any).label)
           : attachmentType;
 
@@ -1792,18 +2280,21 @@ export const ChatPane = React.memo(function ChatPane({
       openDesktopPopover({
         id: popoverId,
         title: 'Attach URL',
-        anchorTag: params.anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
+        anchorTag:
+          params.anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
         width: 520,
         height: 200,
         content: (
           <AttachmentUrlPopoverContent
             title={attachmentTitle}
             onCancel={() => closeDesktopPopover(popoverId)}
-            onAttach={(url) => {
+            onAttach={url => {
               beginAddDraftAttachment({
                 element: params.element,
                 placement:
-                  (params.element as any).display_placement === 'above' ? 'above' : 'below',
+                  (params.element as any).display_placement === 'above'
+                    ? 'above'
+                    : 'below',
                 content: {
                   url,
                 },
@@ -1819,10 +2310,14 @@ export const ChatPane = React.memo(function ChatPane({
 
   const pickAttachmentFile = useCallback(
     async (params: { element: ComposerAttachmentUiElement }) => {
-      const supported = Array.isArray((params.element as any).supported_file_types)
-        ? ((params.element as any).supported_file_types as any[]).filter((v) => typeof v === 'string')
+      const supported = Array.isArray(
+        (params.element as any).supported_file_types,
+      )
+        ? ((params.element as any).supported_file_types as any[]).filter(
+            v => typeof v === 'string',
+          )
         : [];
-      const allowedExtensions = supported.map((v) => String(v));
+      const allowedExtensions = supported.map(v => String(v));
 
       const picked = await pickMacAttachment({
         allowedExtensions,
@@ -1835,7 +2330,10 @@ export const ChatPane = React.memo(function ChatPane({
 
       await storePickedAttachment({
         element: params.element,
-        placement: (params.element as any).display_placement === 'above' ? 'above' : 'below',
+        placement:
+          (params.element as any).display_placement === 'above'
+            ? 'above'
+            : 'below',
         filename: picked.filename,
         mimeType: picked.mime_type,
         dataBase64: picked.data_base64,
@@ -1868,10 +2366,14 @@ export const ChatPane = React.memo(function ChatPane({
       content: (
         <ComposerAttachmentPlusPopoverContent
           rows={composerAttachmentPlusRows}
-          onSelectRow={(rowId) => {
+          onSelectRow={rowId => {
             closeDesktopPopover(popoverId);
 
-            const method = rowId.endsWith(':url') ? 'url' : rowId.endsWith(':file') ? 'file' : null;
+            const method = rowId.endsWith(':url')
+              ? 'url'
+              : rowId.endsWith(':file')
+              ? 'file'
+              : null;
             if (!method) {
               return;
             }
@@ -1897,7 +2399,15 @@ export const ChatPane = React.memo(function ChatPane({
         />
       ),
     });
-  }, [composerAttachmentElementByActionKey, composerAttachmentPlusRows, connectionId, getAttachmentPlusAnchorTag, openAttachmentUrlPopover, pickAttachmentFile, sessionId]);
+  }, [
+    composerAttachmentElementByActionKey,
+    composerAttachmentPlusRows,
+    connectionId,
+    getAttachmentPlusAnchorTag,
+    openAttachmentUrlPopover,
+    pickAttachmentFile,
+    sessionId,
+  ]);
 
   const handleComposerAction = useCallback(
     (key: ActionKey) => {
@@ -1924,7 +2434,7 @@ export const ChatPane = React.memo(function ChatPane({
 
   const buildAttachmentStripRows = useCallback(
     (drafts: ComposerAttachmentDraft[]): AttachmentLike[] => {
-      return drafts.map((d) => ({
+      return drafts.map(d => ({
         id: d.draftId,
         type: d.type,
         content: d.content,
@@ -1939,11 +2449,12 @@ export const ChatPane = React.memo(function ChatPane({
 
   const buildManageRows = useCallback(
     (drafts: ComposerAttachmentDraft[]): ComposerAttachmentDraftRow[] => {
-      return drafts.map((d) => ({
+      return drafts.map(d => ({
         draftId: d.draftId,
         type: d.type,
         content: d.content,
-        title: typeof d.metadata?.title === 'string' ? d.metadata?.title : undefined,
+        title:
+          typeof d.metadata?.title === 'string' ? d.metadata?.title : undefined,
         status: d.status,
         errorMessage: d.errorMessage,
       }));
@@ -1952,9 +2463,13 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   const handleMoveDraft = useCallback(
-    (placement: 'above' | 'below', draftId: string, direction: 'up' | 'down') => {
+    (
+      placement: 'above' | 'below',
+      draftId: string,
+      direction: 'up' | 'down',
+    ) => {
       const update = (prev: ComposerAttachmentDraft[]) => {
-        const idx = prev.findIndex((d) => d.draftId === draftId);
+        const idx = prev.findIndex(d => d.draftId === draftId);
         if (idx === -1) return prev;
         const nextIdx = direction === 'up' ? idx - 1 : idx + 1;
         if (nextIdx < 0 || nextIdx >= prev.length) return prev;
@@ -1976,12 +2491,12 @@ export const ChatPane = React.memo(function ChatPane({
   const handleDeleteDraft = useCallback(
     async (placement: 'above' | 'below', draftId: string) => {
       const list = placement === 'above' ? attachmentsAbove : attachmentsBelow;
-      const draft = list.find((d) => d.draftId === draftId);
+      const draft = list.find(d => d.draftId === draftId);
       if (!draft) {
         return;
       }
       const update = (prev: ComposerAttachmentDraft[]) => {
-        const next = prev.filter((d) => d.draftId !== draftId);
+        const next = prev.filter(d => d.draftId !== draftId);
         if (next.length === 0) {
           if (placement === 'above') {
             setAttachmentsAboveExpanded(false);
@@ -2003,7 +2518,7 @@ export const ChatPane = React.memo(function ChatPane({
       }
 
       const previousStatus = draft.status;
-      updateDraftState(draftId, placement, (current) => ({
+      updateDraftState(draftId, placement, current => ({
         ...current,
         status: 'deleting',
         errorMessage: null,
@@ -2023,30 +2538,44 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
-      updateDraftState(draftId, placement, (current) => ({
+      updateDraftState(draftId, placement, current => ({
         ...current,
         status: previousStatus,
       }));
     },
-    [attachmentsAbove, attachmentsBelow, deleteStoredAttachmentAsset, updateDraftState],
+    [
+      attachmentsAbove,
+      attachmentsBelow,
+      deleteStoredAttachmentAsset,
+      updateDraftState,
+    ],
   );
 
   const handleEditDraftMetadata = useCallback(
     (placement: 'above' | 'below', draftId: string, _anchorTag?: number) => {
       const list = placement === 'above' ? attachmentsAbove : attachmentsBelow;
-      const draft = list.find((d) => d.draftId === draftId);
+      const draft = list.find(d => d.draftId === draftId);
       if (!draft) return;
       const element = findElementForDraft(draft);
       if (!element) {
-        Alert.alert('Not supported', 'Attachment metadata schema was not found.');
+        Alert.alert(
+          'Not supported',
+          'Attachment metadata schema was not found.',
+        );
         return;
       }
       openAttachmentMetadataEditorWindowForDraft({ draft, element });
     },
-    [attachmentsAbove, attachmentsBelow, findElementForDraft, openAttachmentMetadataEditorWindowForDraft],
+    [
+      attachmentsAbove,
+      attachmentsBelow,
+      findElementForDraft,
+      openAttachmentMetadataEditorWindowForDraft,
+    ],
   );
 
-	const canRunHeaderActions = backend != null && chatController != null && isActive;
+  const canRunHeaderActions =
+    backend != null && chatController != null && isActive;
 
   const handleReload = useCallback(async () => {
     if (!canRunHeaderActions) {
@@ -2078,7 +2607,13 @@ export const ChatPane = React.memo(function ChatPane({
     } finally {
       setReloadInFlight(false);
     }
-  }, [canRunHeaderActions, chatController, rangeEndText, rangeStartText, reloadInFlight]);
+  }, [
+    canRunHeaderActions,
+    chatController,
+    rangeEndText,
+    rangeStartText,
+    reloadInFlight,
+  ]);
 
   const notificationUiEffectObserver = useMemo(
     () => (backend ? new NotificationUiEffectObserver(backend) : null),
@@ -2100,19 +2635,33 @@ export const ChatPane = React.memo(function ChatPane({
       sessionSummary ?? null,
       notificationEvents,
     );
-  }, [
-    notificationEvents,
-    notificationUiEffectObserver,
-    sessionSummary,
-  ]);
+  }, [notificationEvents, notificationUiEffectObserver, sessionSummary]);
 
-  const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
-    const nextEntry = createDisplayEntry(
-      { ...display, presentation: 'inline' },
-      context,
-    );
-    setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
-  }, []);
+  const presentActionDisplay = useCallback(
+    (display: ActionDisplayPayload, context: RunActionContext) => {
+      if ((display.presentation ?? 'modal') === 'modal' && backend) {
+        emitDisplayPresentation(
+          backend,
+          normalizeDisplayEnvelope({
+            source: 'action_response',
+            ownershipScope: 'session',
+            connectionId,
+            sessionId,
+            display,
+          }),
+        );
+        return;
+      }
+      const nextEntry = createDisplayEntry(
+        { ...display, presentation: 'inline' },
+        context,
+      );
+      setInlineActionDisplays(current =>
+        upsertInlineDisplay(current, nextEntry),
+      );
+    },
+    [backend, connectionId, sessionId],
+  );
 
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
@@ -2123,35 +2672,41 @@ export const ChatPane = React.memo(function ChatPane({
 
       setPluginActionRunning(true);
       try {
-        const { ok, effects, display, errorMessage } = await runApplicationAction({
-          backend,
-          element,
-          actionsById,
-          context,
-          effects: {
-            currentSessionId: sessionId,
-            navigateOnCreatedSession: true,
-            reloadSessionsListOnMutations: true,
-          },
-        });
+        const { ok, effects, display, errorMessage } =
+          await runApplicationAction({
+            backend,
+            element,
+            actionsById,
+            context,
+            effects: {
+              currentSessionId: sessionId,
+              navigateOnCreatedSession: true,
+              reloadSessionsListOnMutations: true,
+            },
+          });
 
         if (!ok) {
-          Alert.alert('Action error', errorMessage || 'Failed to execute action');
+          Alert.alert(
+            'Action error',
+            errorMessage || 'Failed to execute action',
+          );
           return;
         }
 
-        if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+        if (effects.some(effect => effect.type === 'reloadSessionsList')) {
           desktopEventBus.publish('sessionsReloadRequested', {
             connectionId,
             reason: `action:${element.id}`,
           });
         }
 
-        if (effects.some((effect) => effect.type === 'reloadSession')) {
+        if (effects.some(effect => effect.type === 'reloadSession')) {
           await handleReload();
         }
 
-        const navigateEffect = effects.find((effect) => effect.type === 'navigateToSession');
+        const navigateEffect = effects.find(
+          effect => effect.type === 'navigateToSession',
+        );
         if (navigateEffect && onOpenSessionTab) {
           onOpenSessionTab({
             connectionId,
@@ -2182,6 +2737,256 @@ export const ChatPane = React.memo(function ChatPane({
     ],
   );
 
+  const richActionSession = useMemo<SessionSummary>(
+    () =>
+      sessionSummary ?? {
+        session_id: sessionId,
+        modified: 0,
+        preview: '',
+        metadata: {},
+      },
+    [sessionId, sessionSummary],
+  );
+
+  const executeRichSessionAction = useCallback(
+    (
+      element: SessionActionRichUiElement,
+      dialogValues?: Record<string, string | boolean>,
+    ) =>
+      executePluginAction(element, {
+        sessionId,
+        connectionId,
+        sessionSummary: richActionSession,
+        dialogValues,
+      }),
+    [connectionId, executePluginAction, richActionSession, sessionId],
+  );
+
+  const openRichConfigDropdown = useCallback(
+    (entry: ComposerRichConfigControl, anchorTag?: number) => {
+      if (
+        entry.control.richUi.kind !== 'dropdown' ||
+        !sessionSettingsController
+      ) {
+        return;
+      }
+      const richUi = entry.control.richUi as ConfigRichDropdownUi;
+      const id = `rich-config:${connectionId}:${sessionId}:${entry.control.element.key}`;
+      setActiveRichConfigControl(entry);
+      openDesktopPopover({
+        id,
+        title: richUi.label,
+        accessibilityId: `rich-config-dropdown-${entry.control.element.key}`,
+        anchorTag: anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
+        width: 420,
+        height: Math.min(
+          520,
+          168 + richUi.options.length * 44 + (entry.hasOverride ? 44 : 0),
+        ),
+        onRequestClose: () => setActiveRichConfigControl(null),
+        content: (
+          <RichConfigDropdownPanel
+            richUi={richUi}
+            selectedValue={
+              entry.effectiveValue == null ? '' : String(entry.effectiveValue)
+            }
+            hasOverride={entry.hasOverride}
+            testIDPrefix={`rich-config-dropdown-${entry.control.element.key}`}
+            onSelect={value => {
+              sessionSettingsController
+                .patchOverride(entry.control.element.key, value)
+                .finally(() => {
+                  setActiveRichConfigControl(null);
+                  closeDesktopPopover(id);
+                });
+            }}
+            onReset={() => {
+              sessionSettingsController
+                .deleteOverride(entry.control.element.key)
+                .finally(() => {
+                  setActiveRichConfigControl(null);
+                  closeDesktopPopover(id);
+                });
+            }}
+            onRequestClose={() => {
+              setActiveRichConfigControl(null);
+              closeDesktopPopover(id);
+            }}
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+          />
+        ),
+      });
+    },
+    [connectionId, sessionId, sessionSettingsController],
+  );
+
+  const openRichSessionActionList = useCallback(
+    (element: SessionActionRichUiElement, anchorTag?: number) => {
+      if (element.rich_ui?.kind !== 'list') {
+        return;
+      }
+      const id = `rich-session-action:${connectionId}:${sessionId}:${element.id}`;
+      const optionCount = Array.isArray((element.rich_ui as any).options)
+        ? (element.rich_ui as any).options.length
+        : 0;
+      setActiveRichSessionAction(element);
+      openDesktopPopover({
+        id,
+        title: element.label,
+        accessibilityId: `session-rich-list-${element.id}`,
+        anchorTag: anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
+        width: 380,
+        height: Math.min(460, 70 + optionCount * 46),
+        onRequestClose: () => setActiveRichSessionAction(null),
+        content: (
+          <SessionListRichActionList
+            element={element as any}
+            session={richActionSession}
+            testIDPrefix={`session-rich-list-${element.id}`}
+            onExecuteAction={values => {
+              executeRichSessionAction(element, values).catch(() => {});
+            }}
+            onRequestClose={() => {
+              setActiveRichSessionAction(null);
+              closeDesktopPopover(id);
+            }}
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+          />
+        ),
+      });
+    },
+    [connectionId, executeRichSessionAction, richActionSession, sessionId],
+  );
+
+  const renderPinnedHeaderSessionAction = useCallback(
+    (params: any) => {
+      const element = headerSessionActions.find(
+        candidate => candidate.id === params.action.key,
+      );
+      if (!element?.rich_ui) {
+        return undefined;
+      }
+      return (
+        <SessionListRichActionControl
+          element={element as any}
+          session={richActionSession}
+          placement="session_header"
+          disabled={params.disabled}
+          onExecuteAction={(selected, values) => {
+            executeRichSessionAction(selected as any, values).catch(() => {});
+          }}
+          onPresentRichList={(selected, anchorTag) =>
+            openRichSessionActionList(selected as any, anchorTag)
+          }
+          renderIcon={({ name, size, color }) => (
+            <Icon name={name} size={size} color={color} />
+          )}
+          testID={`session-rich-action-${element.id}-session-header`}
+        />
+      );
+    },
+    [
+      executeRichSessionAction,
+      headerSessionActions,
+      openRichSessionActionList,
+      richActionSession,
+    ],
+  );
+
+  const renderPinnedComposerSessionAction = useCallback(
+    (params: any) => {
+      const configEntry =
+        composerRichConfigControlByActionKey[params.action.key];
+      if (configEntry?.control.richUi.kind === 'dropdown') {
+        const key = configEntry.control.element.key;
+        return (
+          <RichConfigDropdownControl
+            buttonRef={ref => {
+              richConfigControlRefs.current[key] = ref;
+            }}
+            control={configEntry.control}
+            value={configEntry.effectiveValue}
+            disabled={params.disabled}
+            placement="composer"
+            maxValueCharacters={24}
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+            testID={`composer-rich-config-${key}`}
+            onPress={() => {
+              const node = richConfigControlRefs.current[key];
+              const tag = node ? (findNodeHandle(node) as any) : null;
+              openRichConfigDropdown(
+                configEntry,
+                typeof tag === 'number' ? tag : undefined,
+              );
+            }}
+          />
+        );
+      }
+      if (configEntry?.control.richUi.kind === 'toggle') {
+        const option = resolveConfigRichToggleOption(
+          configEntry.control.richUi as ConfigRichToggleUi,
+          configEntry.effectiveValue,
+        );
+        return (
+          <RichConfigToggleControl
+            control={configEntry.control}
+            value={configEntry.effectiveValue}
+            disabled={params.disabled}
+            placement="composer"
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+            testID={`composer-rich-config-${configEntry.control.element.key}`}
+            onPress={() => {
+              void sessionSettingsController?.patchOverride(
+                configEntry.control.element.key,
+                !option.value,
+              );
+            }}
+          />
+        );
+      }
+
+      const element = composerSessionActionByActionKey[params.action.key];
+      if (!element?.rich_ui) {
+        return undefined;
+      }
+      return (
+        <SessionListRichActionControl
+          element={element as any}
+          session={richActionSession}
+          placement="composer"
+          disabled={params.disabled}
+          onExecuteAction={(selected, values) => {
+            executeRichSessionAction(selected as any, values).catch(() => {});
+          }}
+          onPresentRichList={(selected, anchorTag) =>
+            openRichSessionActionList(selected as any, anchorTag)
+          }
+          renderIcon={({ name, size, color }) => (
+            <Icon name={name} size={size} color={color} />
+          )}
+          testID={`session-rich-action-${element.id}-composer`}
+        />
+      );
+    },
+    [
+      composerRichConfigControlByActionKey,
+      composerSessionActionByActionKey,
+      executeRichSessionAction,
+      openRichConfigDropdown,
+      openRichSessionActionList,
+      richActionSession,
+      sessionSettingsController,
+    ],
+  );
+
   const handleDisplayFollowupAction = useCallback(
     async (
       entry: ActionDisplayEntry,
@@ -2192,7 +2997,10 @@ export const ChatPane = React.memo(function ChatPane({
         try {
           await Linking.openURL(action.url);
         } catch (err: any) {
-          Alert.alert('Open link failed', err?.message || 'Unable to open the link.');
+          Alert.alert(
+            'Open link failed',
+            err?.message || 'Unable to open the link.',
+          );
         }
         return;
       }
@@ -2212,7 +3020,9 @@ export const ChatPane = React.memo(function ChatPane({
               label: action.label,
               action_id: action.action_id,
               action_owner: action.action_owner,
-              fixed_params: action.fixed_params as Record<string, any> | undefined,
+              fixed_params: action.fixed_params as
+                | Record<string, any>
+                | undefined,
               param_map: action.param_map,
               form: entry.display.form,
             },
@@ -2238,7 +3048,8 @@ export const ChatPane = React.memo(function ChatPane({
       if (params.rangeNavigationOperationId == null) {
         cancelRangeNavigation();
       } else if (
-        rangeNavigationOperationRef.current !== params.rangeNavigationOperationId
+        rangeNavigationOperationRef.current !==
+        params.rangeNavigationOperationId
       ) {
         return null;
       }
@@ -2257,7 +3068,8 @@ export const ChatPane = React.memo(function ChatPane({
         });
         if (
           params.rangeNavigationOperationId != null &&
-          rangeNavigationOperationRef.current !== params.rangeNavigationOperationId
+          rangeNavigationOperationRef.current !==
+            params.rangeNavigationOperationId
         ) {
           return null;
         }
@@ -2273,7 +3085,8 @@ export const ChatPane = React.memo(function ChatPane({
     [backend, cancelRangeNavigation, chatController],
   );
 
-  const firstLoadedMessageIndex = messages.length > 0 ? messages[0].index : null;
+  const firstLoadedMessageIndex =
+    messages.length > 0 ? messages[0].index : null;
   const lastLoadedMessageIndex =
     messages.length > 0 ? messages[messages.length - 1].index : null;
   const transcriptRangeControlPresentation = useMemo(
@@ -2289,7 +3102,13 @@ export const ChatPane = React.memo(function ChatPane({
             maxRangeSize: TRANSCRIPT_RANGE_CONTROL_MAX_RANGE,
           })
         : null,
-    [firstLoadedMessageIndex, lastLoadedMessageIndex, messages.length, rangeEndText, rangeStartText],
+    [
+      firstLoadedMessageIndex,
+      lastLoadedMessageIndex,
+      messages.length,
+      rangeEndText,
+      rangeStartText,
+    ],
   );
   const handleTranscriptRangeAction = useCallback(
     async (action: TranscriptRangeControlAction) => {
@@ -2325,10 +3144,11 @@ export const ChatPane = React.memo(function ChatPane({
       const previousState = chatController?.getSnapshot() ?? null;
       const previousMessages = previousState?.messages ?? messages;
       const messageByIndex = new Map(
-        previousMessages.map((entry) => [entry.index, entry.message] as const),
+        previousMessages.map(entry => [entry.index, entry.message] as const),
       );
       const measuredAnchors =
-        (await transcriptScroll.listRef.current?.getVisibleMessageAnchors?.()) ?? [];
+        (await transcriptScroll.listRef.current?.getVisibleMessageAnchors?.()) ??
+        [];
       if (rangeNavigationOperationRef.current !== operationId) {
         return;
       }
@@ -2348,13 +3168,14 @@ export const ChatPane = React.memo(function ChatPane({
         .filter(
           (
             candidate: TranscriptViewportAnchorCandidate | null,
-          ): candidate is TranscriptViewportAnchorCandidate => candidate != null,
+          ): candidate is TranscriptViewportAnchorCandidate =>
+            candidate != null,
         );
       if ((globalThis as any).CLC_DEBUG_TRANSCRIPT_RANGE_NAVIGATION === true) {
         console.log('[transcriptRangeNavigation] captured', {
           action,
           operationId,
-          candidates: candidates.map((candidate) => ({
+          candidates: candidates.map(candidate => ({
             messageIndex: candidate.messageIndex,
             offsetFromViewportTop: candidate.offsetFromViewportTop,
           })),
@@ -2461,13 +3282,20 @@ export const ChatPane = React.memo(function ChatPane({
           endText={rangeEndText}
           lastReloadAtMs={lastReloadAt?.getTime() ?? null}
           onCancel={() => {}}
-          onApply={(params) => {
+          onApply={params => {
             applyMessageLimitAndReload(params).catch(() => {});
           }}
         />
       ),
     });
-  }, [applyMessageLimitAndReload, connectionId, lastReloadAt, rangeEndText, rangeStartText, sessionId]);
+  }, [
+    applyMessageLimitAndReload,
+    connectionId,
+    lastReloadAt,
+    rangeEndText,
+    rangeStartText,
+    sessionId,
+  ]);
 
   const openAgentPickerForSwitch = useCallback(async () => {
     if (!backend) {
@@ -2479,7 +3307,7 @@ export const ChatPane = React.memo(function ChatPane({
 
     setOpeningAgentPicker(true);
     try {
-	  	const agents = await ensureAgentsLoaded();
+      const agents = await ensureAgentsLoaded();
 
       let initialAgentId: string | undefined;
       try {
@@ -2507,7 +3335,14 @@ export const ChatPane = React.memo(function ChatPane({
     } finally {
       setOpeningAgentPicker(false);
     }
-  }, [backend, connectionId, connectionName, ensureAgentsLoaded, openingAgentPicker, sessionId]);
+  }, [
+    backend,
+    connectionId,
+    connectionName,
+    ensureAgentsLoaded,
+    openingAgentPicker,
+    sessionId,
+  ]);
 
   const {
     activeElement: activePluginDialogElement,
@@ -2577,7 +3412,10 @@ export const ChatPane = React.memo(function ChatPane({
         }
         const caps = backend.getCapabilities?.();
         if (caps && (!caps.sessionUiSchema || !caps.sessionConfigOverrides)) {
-          Alert.alert('Not supported', 'This backend does not support session settings.');
+          Alert.alert(
+            'Not supported',
+            'This backend does not support session settings.',
+          );
           return;
         }
         setActiveSessionSettingsWindow({
@@ -2607,7 +3445,10 @@ export const ChatPane = React.memo(function ChatPane({
 
         const caps = backend.getCapabilities?.();
         if (caps && !caps.sessionPlugins) {
-          Alert.alert('Not supported', 'This backend does not support session plugins.');
+          Alert.alert(
+            'Not supported',
+            'This backend does not support session plugins.',
+          );
           return;
         }
 
@@ -2658,54 +3499,111 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
-      const pluginEl = visibleSessionActions.find((el) => el.id === key);
+      const pluginEl = headerSessionActions.find(el => el.id === key);
       if (pluginEl) {
-        openPluginDialogForElement(pluginEl, {
-          kind: 'session',
-          sessionSummary: sessionSummary ?? null,
-        });
+        if (pluginEl.rich_ui?.kind === 'toggle') {
+          executeRichSessionAction(pluginEl).catch(() => {});
+        } else if (pluginEl.rich_ui?.kind === 'list') {
+          openRichSessionActionList(pluginEl);
+        } else {
+          openPluginDialogForElement(pluginEl, {
+            kind: 'session',
+            sessionSummary: sessionSummary ?? null,
+          });
+        }
       }
     },
     [
       backend,
       connectionId,
       connectionName,
+      executeRichSessionAction,
       handleReload,
+      headerSessionActions,
       openPluginDialogForElement,
       openAgentPickerForSwitch,
       openMessageLimitPopover,
-      visibleSessionActions,
+      openRichSessionActionList,
       sessionId,
       sessionSummary,
     ],
   );
 
-	const getPinnedActionsForRole = useCallback(
-	  (role: string): MessageActionKey[] => {
-	    const existing = pinnedMessageActionsByRole[role];
-	    if (Array.isArray(existing)) {
-	      return existing;
-	    }
-	    return DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE[role] ?? [];
-	  },
-	  [pinnedMessageActionsByRole],
-	);
+  const handleComposerActionWithPlugins = useCallback(
+    (key: ActionKey) => {
+      const richConfig = composerRichConfigControlByActionKey[key];
+      if (richConfig) {
+        if (richConfig.control.richUi.kind === 'toggle') {
+          const option = resolveConfigRichToggleOption(
+            richConfig.control.richUi as ConfigRichToggleUi,
+            richConfig.effectiveValue,
+          );
+          void sessionSettingsController?.patchOverride(
+            richConfig.control.element.key,
+            !option.value,
+          );
+        } else {
+          openRichConfigDropdown(richConfig);
+        }
+        return;
+      }
 
-	const setPinnedActionsForRole = useCallback(
-	  (role: string, pinned: MessageActionKey[]) => {
-	    setPinnedMessageActionsByRole((prev) => ({ ...prev, [role]: pinned }));
-	  },
-	  [],
-	);
+      const richSessionAction = composerSessionActionByActionKey[key];
+      if (richSessionAction) {
+        if (richSessionAction.rich_ui?.kind === 'toggle') {
+          executeRichSessionAction(richSessionAction).catch(() => {});
+        } else if (richSessionAction.rich_ui?.kind === 'list') {
+          openRichSessionActionList(richSessionAction);
+        } else {
+          openPluginDialogForElement(richSessionAction, {
+            kind: 'session',
+            sessionSummary: sessionSummary ?? null,
+          });
+        }
+        return;
+      }
 
-	const pinnedMessageActionsContextValue = useMemo(
-	  () => ({
-		    isActive,
-	    getPinnedForRole: getPinnedActionsForRole,
-	    setPinnedForRole: setPinnedActionsForRole,
-	  }),
-		  [getPinnedActionsForRole, isActive, setPinnedActionsForRole],
-	);
+      handleComposerAction(key);
+    },
+    [
+      composerRichConfigControlByActionKey,
+      composerSessionActionByActionKey,
+      executeRichSessionAction,
+      handleComposerAction,
+      openPluginDialogForElement,
+      openRichConfigDropdown,
+      openRichSessionActionList,
+      sessionSettingsController,
+      sessionSummary,
+    ],
+  );
+
+  const getPinnedActionsForRole = useCallback(
+    (role: string): MessageActionKey[] => {
+      const existing = pinnedMessageActionsByRole[role];
+      if (Array.isArray(existing)) {
+        return existing;
+      }
+      return DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE[role] ?? [];
+    },
+    [pinnedMessageActionsByRole],
+  );
+
+  const setPinnedActionsForRole = useCallback(
+    (role: string, pinned: MessageActionKey[]) => {
+      setPinnedMessageActionsByRole(prev => ({ ...prev, [role]: pinned }));
+    },
+    [],
+  );
+
+  const pinnedMessageActionsContextValue = useMemo(
+    () => ({
+      isActive,
+      getPinnedForRole: getPinnedActionsForRole,
+      setPinnedForRole: setPinnedActionsForRole,
+    }),
+    [getPinnedActionsForRole, isActive, setPinnedActionsForRole],
+  );
 
   const handleStartEditMessage = useCallback(
     (index: number, message: { role?: string; content?: unknown }) => {
@@ -2713,7 +3611,8 @@ export const ChatPane = React.memo(function ChatPane({
       if (role === 'tool') {
         return;
       }
-      const content = typeof message.content === 'string' ? message.content : '';
+      const content =
+        typeof message.content === 'string' ? message.content : '';
       setEditingIndex(index);
       setEditingText(content);
       setEditingInitialText(content);
@@ -2735,6 +3634,7 @@ export const ChatPane = React.memo(function ChatPane({
       }
 
       try {
+        onBeforeSessionMutation?.();
         await chatController.modifyMessage(index, trimmed);
         setEditingIndex(null);
         setEditingText('');
@@ -2744,7 +3644,7 @@ export const ChatPane = React.memo(function ChatPane({
         Alert.alert('Error', message);
       }
     },
-    [backend, chatController],
+    [backend, chatController, onBeforeSessionMutation],
   );
 
   const handleCancelEditMessage = useCallback(() => {
@@ -2764,7 +3664,7 @@ export const ChatPane = React.memo(function ChatPane({
         if ((message?.role || 'unknown') !== 'assistant') {
           return;
         }
-        setMessageViewModeByIndex((prev) => {
+        setMessageViewModeByIndex(prev => {
           const current = prev[index] ?? 'markdown';
           const next = current === 'markdown' ? 'raw' : 'markdown';
           return { ...prev, [index]: next };
@@ -2788,7 +3688,7 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
-      const pluginEl = visibleMessageActions.find((el) => el.id === action);
+      const pluginEl = visibleMessageActions.find(el => el.id === action);
       if (pluginEl) {
         openPluginDialogForElement(pluginEl, {
           kind: 'message',
@@ -2798,7 +3698,12 @@ export const ChatPane = React.memo(function ChatPane({
         });
       }
     },
-    [handleStartEditMessage, openPluginDialogForElement, sessionSummary, visibleMessageActions],
+    [
+      handleStartEditMessage,
+      openPluginDialogForElement,
+      sessionSummary,
+      visibleMessageActions,
+    ],
   );
 
   const sessionDisplayRail = useMemo(() => {
@@ -2823,13 +3728,15 @@ export const ChatPane = React.memo(function ChatPane({
             )
           }
         />
-        {inlineActionDisplays.map((entry) => (
+        {inlineActionDisplays.map(entry => (
           <ActionResultInlineCard
             key={entry.key}
             display={entry.display}
             activeActionId={activeDisplayActionId}
             onDismiss={() =>
-              setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+              setInlineActionDisplays(current =>
+                current.filter(item => item.key !== entry.key),
+              )
             }
             onFollowupAction={(action, formValues) =>
               handleDisplayFollowupAction(entry, action, formValues)
@@ -2851,14 +3758,19 @@ export const ChatPane = React.memo(function ChatPane({
   ]);
 
   const streamingFooter = useMemo(() => {
-    const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
+    const hasStreaming = !!(
+      streamingRow &&
+      (streamingRow.content || streamingRow.reasoning)
+    );
     if (!hasStreaming) {
       return null;
     }
     return (
       <View>
         <DesktopMessageBubble
-          index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
+          index={
+            messages.length > 0 ? messages[messages.length - 1].index + 1 : 0
+          }
           message={{
             role: 'assistant',
             content: streamingRow?.content,
@@ -2872,36 +3784,34 @@ export const ChatPane = React.memo(function ChatPane({
         />
       </View>
     );
-  }, [
-    footerElements,
-    messages,
-    streamingRow,
-  ]);
+  }, [footerElements, messages, streamingRow]);
 
   const transcriptRows = useMemo<DesktopTranscriptRow[]>(() => {
     const rows: DesktopTranscriptRow[] = [];
     for (const message of messages) {
       rows.push({ kind: 'message', item: message });
     }
-    const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
+    const hasStreaming = !!(
+      streamingRow &&
+      (streamingRow.content || streamingRow.reasoning)
+    );
     if (hasStreaming) {
       rows.push({ kind: 'stream' });
     }
     return rows;
-  }, [
-    messages,
-    streamingRow,
-  ]);
+  }, [messages, streamingRow]);
 
   const renderMessageItem = useCallback(
     ({ item: msg }: { item: IndexedMessage; index: number }) => {
       const role = msg.message.role || 'unknown';
-      const allowedActions = ALL_MESSAGE_ACTIONS
-        .filter((def) => def.allowedRoles.includes(role))
-        .map((def) => def.key as MessageActionKey);
+      const allowedActions = ALL_MESSAGE_ACTIONS.filter(def =>
+        def.allowedRoles.includes(role),
+      ).map(def => def.key as MessageActionKey);
       const isEditing = editingIndex === msg.index;
-      const defaultModeForRole: 'markdown' | 'raw' = role === 'assistant' ? 'markdown' : 'raw';
-      const renderMode = messageViewModeByIndex[msg.index] ?? defaultModeForRole;
+      const defaultModeForRole: 'markdown' | 'raw' =
+        role === 'assistant' ? 'markdown' : 'raw';
+      const renderMode =
+        messageViewModeByIndex[msg.index] ?? defaultModeForRole;
 
       return (
         <View
@@ -2913,12 +3823,16 @@ export const ChatPane = React.memo(function ChatPane({
             index={msg.index}
             message={msg.message}
             allowedActions={allowedActions}
-            onAction={(action, index, message) => handleMessageAction(action, index, message)}
+            onAction={(action, index, message) =>
+              handleMessageAction(action, index, message)
+            }
             isEditing={isEditing}
             editingInitialText={isEditing ? editingInitialText : undefined}
             editingText={isEditing ? editingText : undefined}
             onChangeEditingText={isEditing ? setEditingText : undefined}
-            onSubmitEdit={(index, _message, nextText) => handleSubmitEditMessage(index, nextText)}
+            onSubmitEdit={(index, _message, nextText) =>
+              handleSubmitEditMessage(index, nextText)
+            }
             onCancelEdit={handleCancelEditMessage}
             renderMode={renderMode}
             footerElements={footerElements}
@@ -2963,7 +3877,8 @@ export const ChatPane = React.memo(function ChatPane({
       const role = msg.message.role || 'unknown';
       const defaultModeForRole: 'markdown' | 'raw' =
         role === 'assistant' ? 'markdown' : 'raw';
-      const renderMode = messageViewModeByIndex[msg.index] ?? defaultModeForRole;
+      const renderMode =
+        messageViewModeByIndex[msg.index] ?? defaultModeForRole;
       const isEditing = msg.index === editingIndex;
       return [
         renderMode,
@@ -3008,7 +3923,9 @@ export const ChatPane = React.memo(function ChatPane({
           styles.transcriptRangeControlButton,
           secondary && styles.transcriptRangeControlButtonSecondary,
           rangeControlsDisabled && styles.transcriptRangeControlButtonDisabled,
-          pressed && !rangeControlsDisabled && styles.transcriptRangeControlButtonPressed,
+          pressed &&
+            !rangeControlsDisabled &&
+            styles.transcriptRangeControlButtonPressed,
         ]}
         onPress={() => {
           void handleTranscriptRangeAction(button.id);
@@ -3023,7 +3940,7 @@ export const ChatPane = React.memo(function ChatPane({
     transcriptRangeControlPresentation &&
     transcriptRangeControlPresentation.topButtons.length > 0 ? (
       <View style={styles.transcriptRangeControlRow}>
-        {transcriptRangeControlPresentation.topButtons.map((button) =>
+        {transcriptRangeControlPresentation.topButtons.map(button =>
           renderTranscriptRangeButton(button, button.id === 'showAll'),
         )}
       </View>
@@ -3031,8 +3948,13 @@ export const ChatPane = React.memo(function ChatPane({
   const transcriptRangeBottomControls =
     transcriptRangeControlPresentation &&
     transcriptRangeControlPresentation.bottomButtons.length > 0 ? (
-      <View style={[styles.transcriptRangeControlRow, styles.transcriptRangeControlRowBottom]}>
-        {transcriptRangeControlPresentation.bottomButtons.map((button) =>
+      <View
+        style={[
+          styles.transcriptRangeControlRow,
+          styles.transcriptRangeControlRowBottom,
+        ]}
+      >
+        {transcriptRangeControlPresentation.bottomButtons.map(button =>
           renderTranscriptRangeButton(button, button.id === 'showLast'),
         )}
       </View>
@@ -3046,7 +3968,7 @@ export const ChatPane = React.memo(function ChatPane({
     ) : null;
 
   return (
-	  <View style={styles.root}>
+    <View style={styles.root}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title} numberOfLines={2}>
@@ -3070,6 +3992,12 @@ export const ChatPane = React.memo(function ChatPane({
             <Text style={styles.metaText} numberOfLines={1}>
               {backend ? 'Online' : 'Offline'}
             </Text>
+            {requestStatus ? <Text style={styles.metaDot}>•</Text> : null}
+            <SessionRequestStatusIndicator
+              status={requestStatus}
+              variant="inline"
+              testID={`chat-request-status-${connectionId}-${sessionId}`}
+            />
           </View>
           <Text style={styles.subtitle} numberOfLines={2}>
             {displaySubtitle}
@@ -3080,17 +4008,21 @@ export const ChatPane = React.memo(function ChatPane({
           <ActionsMenuBar<ActionDefinition>
             title="Session actions"
             variant="dropdown"
-	          isActive={isActive}
-            renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
+            menuButtonTestID="session-actions-menu"
+            isActive={isActive}
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
             baseActions={BUILTIN_SESSION_ACTIONS}
-	            extraActions={pluginSessionActionDefs}
+            extraActions={pluginSessionActionDefs}
             pinned={pinnedSessionActionKeys}
-            onChangePinned={(next) => setPinnedSessionActionKeys(next)}
+            onChangePinned={next => setPinnedSessionActionKeys(next)}
             onAction={handleSessionAction}
-            isActionDisabled={(key) => {
-	              if (pluginActionRunning) {
-	                return true;
-	              }
+            renderPinnedAction={renderPinnedHeaderSessionAction}
+            isActionDisabled={key => {
+              if (pluginActionRunning) {
+                return true;
+              }
               if (!canRunHeaderActions) {
                 return true;
               }
@@ -3098,11 +4030,14 @@ export const ChatPane = React.memo(function ChatPane({
                 return reloadInFlight || (chatState?.loading ?? false);
               }
               if (key === 'agentSwitch') {
-	              return openingAgentPicker || agentsLoading;
+                return openingAgentPicker || agentsLoading;
               }
               if (key === 'settings') {
                 const caps = backend.getCapabilities?.();
-                if (caps && (!caps.sessionUiSchema || !caps.sessionConfigOverrides)) {
+                if (
+                  caps &&
+                  (!caps.sessionUiSchema || !caps.sessionConfigOverrides)
+                ) {
                   return true;
                 }
                 return false;
@@ -3154,7 +4089,10 @@ export const ChatPane = React.memo(function ChatPane({
               {loadError}
             </Text>
             <Pressable
-              style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+              style={({ pressed }) => [
+                styles.retryButton,
+                pressed && styles.retryButtonPressed,
+              ]}
               onPress={() => {
                 attemptedInitialLoadRef.current = true;
                 loadInitialMessages().catch(() => {
@@ -3176,165 +4114,183 @@ export const ChatPane = React.memo(function ChatPane({
         ) : null}
 
         <View style={styles.transcriptFrame}>
-          <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
+          <PinnedMessageActionsProvider
+            value={pinnedMessageActionsContextValue}
+          >
             {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
               <DependencyFlatList
-	              testID="transcript-scroll-list"
-	              listRef={transcriptScroll.listRef}
-	              style={styles.transcript}
-	              contentContainerStyle={styles.transcriptContent}
-	              data={transcriptRows}
-	              inverted={FLATLIST_INVERTED}
-	              keyExtractor={getTranscriptRowKey}
-	              getItemDependencies={getTranscriptRowDependencies}
-	              scrollEventThrottle={16}
-	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
-	              eagerRenderThreshold={FLATLIST_EAGER_RENDER_THRESHOLD}
-	              eagerRenderEligibilityCount={messages.length}
-	              itemAnchorTimeoutMs={FLATLIST_ITEM_ANCHOR_TIMEOUT_MS}
-	              itemAnchorMaxAttempts={FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS}
-	              onScrollActionDiagnostic={transcriptScroll.onListScrollDiagnostic}
-	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
-	              maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
-	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
-	              windowSize={FLATLIST_WINDOW_SIZE}
-	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
-	              onLayout={transcriptScroll.onLayout}
-	              onContentSizeChange={transcriptScroll.onContentSizeChange}
-	              onScroll={transcriptScroll.onScroll}
-	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
-	              onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
-	              onScrollEndDrag={
-	                FLATLIST_FORWARD_SCROLL_END_DRAG
-	                  ? transcriptScroll.onScrollEndDrag
-	                  : undefined
-	              }
-	              onMomentumScrollEnd={
-	                FLATLIST_FORWARD_MOMENTUM_SCROLL_END
-	                  ? transcriptScroll.onMomentumScrollEnd
-	                  : undefined
-	              }
-	              renderItem={renderTranscriptRow}
-                  ListHeaderComponent={transcriptRangeTopControls}
-                  ListFooterComponent={transcriptRangeBottomControls}
-	              ListEmptyComponent={
-	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
-	              }
-	            />
+                testID="transcript-scroll-list"
+                listRef={transcriptScroll.listRef}
+                style={styles.transcript}
+                contentContainerStyle={styles.transcriptContent}
+                data={transcriptRows}
+                inverted={FLATLIST_INVERTED}
+                keyExtractor={getTranscriptRowKey}
+                getItemDependencies={getTranscriptRowDependencies}
+                scrollEventThrottle={16}
+                disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
+                eagerRenderThreshold={FLATLIST_EAGER_RENDER_THRESHOLD}
+                eagerRenderEligibilityCount={messages.length}
+                itemAnchorTimeoutMs={FLATLIST_ITEM_ANCHOR_TIMEOUT_MS}
+                itemAnchorMaxAttempts={FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS}
+                onScrollActionDiagnostic={
+                  transcriptScroll.onListScrollDiagnostic
+                }
+                initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
+                maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
+                updateCellsBatchingPeriod={
+                  FLATLIST_UPDATE_CELLS_BATCHING_PERIOD
+                }
+                windowSize={FLATLIST_WINDOW_SIZE}
+                removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
+                onLayout={transcriptScroll.onLayout}
+                onContentSizeChange={transcriptScroll.onContentSizeChange}
+                onScroll={transcriptScroll.onScroll}
+                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
+                onScrollEndDrag={
+                  FLATLIST_FORWARD_SCROLL_END_DRAG
+                    ? transcriptScroll.onScrollEndDrag
+                    : undefined
+                }
+                onMomentumScrollEnd={
+                  FLATLIST_FORWARD_MOMENTUM_SCROLL_END
+                    ? transcriptScroll.onMomentumScrollEnd
+                    : undefined
+                }
+                renderItem={renderTranscriptRow}
+                ListHeaderComponent={transcriptRangeTopControls}
+                ListFooterComponent={transcriptRangeBottomControls}
+                ListEmptyComponent={
+                  !chatState?.loading ? (
+                    <Text style={styles.hintSecondary}>No messages.</Text>
+                  ) : null
+                }
+              />
             ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
               <DependencyVirtualizedScroll
-	              listRef={transcriptScroll.listRef}
-	              style={styles.transcript}
-	              contentContainerStyle={styles.transcriptContent}
-	              data={transcriptRows}
-	              inverted={FLATLIST_INVERTED}
-	              keyExtractor={getTranscriptRowKey}
-	              getItemDependencies={getTranscriptRowDependencies}
-	              scrollEventThrottle={16}
-	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
-	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
-	              maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
-	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
-	              windowSize={FLATLIST_WINDOW_SIZE}
-	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
-	              onLayout={transcriptScroll.onLayout}
-	              onContentSizeChange={transcriptScroll.onContentSizeChange}
-	              onScroll={transcriptScroll.onScroll}
-	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
-	              onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
-	              onScrollEndDrag={
-	                FLATLIST_FORWARD_SCROLL_END_DRAG
-	                  ? transcriptScroll.onScrollEndDrag
-	                  : undefined
-	              }
-	              onMomentumScrollEnd={
-	                FLATLIST_FORWARD_MOMENTUM_SCROLL_END
-	                  ? transcriptScroll.onMomentumScrollEnd
-	                  : undefined
-	              }
-	              renderItem={renderTranscriptRow}
-                  ListHeaderComponent={transcriptRangeTopControls}
-                  ListFooterComponent={transcriptRangeBottomControls}
-	              ListEmptyComponent={
-	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
-	              }
-	            />
+                listRef={transcriptScroll.listRef}
+                style={styles.transcript}
+                contentContainerStyle={styles.transcriptContent}
+                data={transcriptRows}
+                inverted={FLATLIST_INVERTED}
+                keyExtractor={getTranscriptRowKey}
+                getItemDependencies={getTranscriptRowDependencies}
+                scrollEventThrottle={16}
+                disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
+                initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
+                maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
+                updateCellsBatchingPeriod={
+                  FLATLIST_UPDATE_CELLS_BATCHING_PERIOD
+                }
+                windowSize={FLATLIST_WINDOW_SIZE}
+                removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
+                onLayout={transcriptScroll.onLayout}
+                onContentSizeChange={transcriptScroll.onContentSizeChange}
+                onScroll={transcriptScroll.onScroll}
+                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
+                onScrollEndDrag={
+                  FLATLIST_FORWARD_SCROLL_END_DRAG
+                    ? transcriptScroll.onScrollEndDrag
+                    : undefined
+                }
+                onMomentumScrollEnd={
+                  FLATLIST_FORWARD_MOMENTUM_SCROLL_END
+                    ? transcriptScroll.onMomentumScrollEnd
+                    : undefined
+                }
+                renderItem={renderTranscriptRow}
+                ListHeaderComponent={transcriptRangeTopControls}
+                ListFooterComponent={transcriptRangeBottomControls}
+                ListEmptyComponent={
+                  !chatState?.loading ? (
+                    <Text style={styles.hintSecondary}>No messages.</Text>
+                  ) : null
+                }
+              />
             ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ? (
               <ProgressiveScrollList
                 testID="transcript-scroll-list"
-	              listRef={transcriptScroll.listRef}
-	              style={styles.transcript}
-	              contentContainerStyle={styles.transcriptContent}
-	              data={transcriptRows}
-	              keyExtractor={getTranscriptRowKey}
-	              getItemDependencies={getTranscriptRowDependencies}
-	              initialWindowSize={PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE}
-	              pageSize={PROGRESSIVE_SCROLL_PAGE_SIZE}
-	              maxWindowSize={PROGRESSIVE_SCROLL_MAX_WINDOW_SIZE}
-	              autoLoadEdges={PROGRESSIVE_SCROLL_AUTO_LOAD}
-	              edgeThresholdPx={PROGRESSIVE_SCROLL_EDGE_THRESHOLD_PX}
-	              prebuildRows={PROGRESSIVE_SCROLL_PREBUILD_ROWS}
-	              backingList={PROGRESSIVE_SCROLL_BACKING_LIST}
-	              growOnly={PROGRESSIVE_SCROLL_GROW_ONLY}
-	              defaultAnchorBeforeCount={PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT}
-	              defaultAnchorAfterCount={PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT}
-	              scrollActionTimeoutMs={PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS}
-	              edgeScrollEpsilonPx={PROGRESSIVE_SCROLL_EDGE_EPSILON_PX}
-	              edgeScrollStableMs={PROGRESSIVE_SCROLL_EDGE_STABLE_MS}
-	              scrollEventThrottle={16}
-	              onLayout={transcriptScroll.onLayout}
-	              onContentSizeChange={transcriptScroll.onContentSizeChange}
-	              onScroll={transcriptScroll.onScroll}
-	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
-	              onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
-	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
-	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
-	              renderItem={renderTranscriptRow}
-                  ListHeaderComponent={transcriptRangeTopControls}
-                  ListFooterComponent={transcriptRangeBottomControls}
-	              ListEmptyComponent={
-	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
-	              }
-	            />
+                listRef={transcriptScroll.listRef}
+                style={styles.transcript}
+                contentContainerStyle={styles.transcriptContent}
+                data={transcriptRows}
+                keyExtractor={getTranscriptRowKey}
+                getItemDependencies={getTranscriptRowDependencies}
+                initialWindowSize={PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE}
+                pageSize={PROGRESSIVE_SCROLL_PAGE_SIZE}
+                maxWindowSize={PROGRESSIVE_SCROLL_MAX_WINDOW_SIZE}
+                autoLoadEdges={PROGRESSIVE_SCROLL_AUTO_LOAD}
+                edgeThresholdPx={PROGRESSIVE_SCROLL_EDGE_THRESHOLD_PX}
+                prebuildRows={PROGRESSIVE_SCROLL_PREBUILD_ROWS}
+                backingList={PROGRESSIVE_SCROLL_BACKING_LIST}
+                growOnly={PROGRESSIVE_SCROLL_GROW_ONLY}
+                defaultAnchorBeforeCount={
+                  PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT
+                }
+                defaultAnchorAfterCount={PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT}
+                scrollActionTimeoutMs={PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS}
+                edgeScrollEpsilonPx={PROGRESSIVE_SCROLL_EDGE_EPSILON_PX}
+                edgeScrollStableMs={PROGRESSIVE_SCROLL_EDGE_STABLE_MS}
+                scrollEventThrottle={16}
+                onLayout={transcriptScroll.onLayout}
+                onContentSizeChange={transcriptScroll.onContentSizeChange}
+                onScroll={transcriptScroll.onScroll}
+                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
+                onScrollEndDrag={transcriptScroll.onScrollEndDrag}
+                onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
+                renderItem={renderTranscriptRow}
+                ListHeaderComponent={transcriptRangeTopControls}
+                ListFooterComponent={transcriptRangeBottomControls}
+                ListEmptyComponent={
+                  !chatState?.loading ? (
+                    <Text style={styles.hintSecondary}>No messages.</Text>
+                  ) : null
+                }
+              />
             ) : (
               <PlaceholderFlatList
                 testID="transcript-scroll-list"
-	              listRef={transcriptScroll.listRef}
-	              style={styles.transcript}
-	              contentContainerStyle={styles.transcriptContent}
-	              data={messages}
-	              keyExtractor={(item) => String(item.index)}
-	              showsVerticalScrollIndicator
-	              getItemDependencies={(item) => {
-	                const role = item.message.role || 'unknown';
-	                const defaultModeForRole: 'markdown' | 'raw' =
-	                  role === 'assistant' ? 'markdown' : 'raw';
-	                const renderMode =
-	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
-	                const isEditing = item.index === editingIndex;
-	                return [
-	                  renderMode,
-	                  footerElements,
-	                  isEditing,
-	                  isEditing ? editingInitialText : null,
-	                  isEditing ? editingText : null,
-	                ];
-	              }}
-	              scrollEventThrottle={16}
-	              onLayout={transcriptScroll.onLayout}
-	              onContentSizeChange={transcriptScroll.onContentSizeChange}
-	              onScroll={transcriptScroll.onScroll}
-	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
-	              onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
-	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
-	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
-	              renderItem={renderMessageItem}
-                  ListHeaderComponent={transcriptRangeTopControls}
-	              ListEmptyComponent={
-	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
-	              }
-                  ListFooterComponent={scrollViewTranscriptFooter}
-	            />
+                listRef={transcriptScroll.listRef}
+                style={styles.transcript}
+                contentContainerStyle={styles.transcriptContent}
+                data={messages}
+                keyExtractor={item => String(item.index)}
+                showsVerticalScrollIndicator
+                getItemDependencies={item => {
+                  const role = item.message.role || 'unknown';
+                  const defaultModeForRole: 'markdown' | 'raw' =
+                    role === 'assistant' ? 'markdown' : 'raw';
+                  const renderMode =
+                    messageViewModeByIndex[item.index] ?? defaultModeForRole;
+                  const isEditing = item.index === editingIndex;
+                  return [
+                    renderMode,
+                    footerElements,
+                    isEditing,
+                    isEditing ? editingInitialText : null,
+                    isEditing ? editingText : null,
+                  ];
+                }}
+                scrollEventThrottle={16}
+                onLayout={transcriptScroll.onLayout}
+                onContentSizeChange={transcriptScroll.onContentSizeChange}
+                onScroll={transcriptScroll.onScroll}
+                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
+                onScrollEndDrag={transcriptScroll.onScrollEndDrag}
+                onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
+                renderItem={renderMessageItem}
+                ListHeaderComponent={transcriptRangeTopControls}
+                ListEmptyComponent={
+                  !chatState?.loading ? (
+                    <Text style={styles.hintSecondary}>No messages.</Text>
+                  ) : null
+                }
+                ListFooterComponent={scrollViewTranscriptFooter}
+              />
             )}
           </PinnedMessageActionsProvider>
 
@@ -3371,23 +4327,30 @@ export const ChatPane = React.memo(function ChatPane({
 
         <View style={styles.composerArea}>
           <View style={styles.composerHeaderRow}>
-            <View style={styles.composerHeaderLeft} />
             <View style={styles.composerHeaderRight}>
               <ActionsMenuBar<ActionDefinition>
                 title="Composer actions"
                 variant="dropdown"
+                style={styles.composerActionsBar}
+                pinnedRows={2}
+                secondPinnedRowPlacement="below"
                 isActive={isActive}
-                renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
                 baseActions={BUILTIN_COMPOSER_ACTIONS}
+                extraActions={composerPluginActionDefs}
                 pinned={pinnedComposerActionKeys}
-                onChangePinned={(next) => setPinnedComposerActionKeys(next)}
-                onAction={handleComposerAction}
-                isActionDisabled={(key) => {
+                pinnedKeysForBar={pinnedComposerActionKeysForBar}
+                onChangePinned={next => setPinnedComposerActionKeys(next)}
+                onAction={handleComposerActionWithPlugins}
+                renderPinnedAction={renderPinnedComposerSessionAction}
+                isActionDisabled={key => {
                   if (!canRunComposerActions) {
                     return true;
                   }
                   if (key === 'append' || key === 'appendAs') {
-                    if (sendInFlight || chatState?.activeRequestId || attachmentActionInProgress) {
+                    if (appendInFlight || attachmentActionInProgress) {
                       return true;
                     }
                     return !composeText.trim() && !hasAttachments;
@@ -3397,6 +4360,23 @@ export const ChatPane = React.memo(function ChatPane({
                   }
                   if (key === 'cancel') {
                     return cancelInFlight || !chatState?.activeRequestId;
+                  }
+                  const richConfig =
+                    composerRichConfigControlByActionKey[String(key)];
+                  if (richConfig) {
+                    return richConfig.control.element.disabled === true;
+                  }
+                  const sessionAction =
+                    composerSessionActionByActionKey[String(key)];
+                  if (sessionAction) {
+                    return sessionAction.disabled === true;
+                  }
+                  const attachment =
+                    composerAttachmentElementByActionKey[String(key)];
+                  if (attachment) {
+                    return (
+                      attachment.disabled === true || attachmentActionInProgress
+                    );
                   }
                   return false;
                 }}
@@ -3415,17 +4395,25 @@ export const ChatPane = React.memo(function ChatPane({
                     ]}
                     onPress={() => setAttachmentsAboveExpanded(false)}
                   >
-                    <Icon name="chevron-up" size={16} color={theme.textSecondary} />
+                    <Icon
+                      name="chevron-up"
+                      size={16}
+                      color={theme.textSecondary}
+                    />
                   </Pressable>
                 </View>
                 <ComposerAttachmentsExpandedPanel
                   attachments={buildManageRows(attachmentsAbove)}
-                  disabled={!canRunComposerActions || attachmentActionInProgress}
-                  onMove={(draftId, direction) => handleMoveDraft('above', draftId, direction)}
+                  disabled={
+                    !canRunComposerActions || attachmentActionInProgress
+                  }
+                  onMove={(draftId, direction) =>
+                    handleMoveDraft('above', draftId, direction)
+                  }
                   onEditMetadata={(draftId, anchorTag) =>
                     handleEditDraftMetadata('above', draftId, anchorTag)
                   }
-                  onDelete={(draftId) => handleDeleteDraft('above', draftId)}
+                  onDelete={draftId => handleDeleteDraft('above', draftId)}
                 />
               </View>
             ) : (
@@ -3442,10 +4430,17 @@ export const ChatPane = React.memo(function ChatPane({
             {composerAttachmentPlusRows.length > 0 ? (
               <View ref={attachmentPlusButtonRef} collapsable={false}>
                 <Pressable
+                  testID="composer-attachment-plus"
+                  accessibilityRole="button"
+                  accessibilityLabel="Add attachment"
+                  accessibilityState={{ disabled: !canOpenAttachmentPlus }}
                   style={({ pressed }) => [
                     styles.attachmentPlusButton,
-                    !canOpenAttachmentPlus && styles.attachmentPlusButtonDisabled,
-                    pressed && canOpenAttachmentPlus && styles.attachmentPlusButtonPressed,
+                    !canOpenAttachmentPlus &&
+                      styles.attachmentPlusButtonDisabled,
+                    pressed &&
+                      canOpenAttachmentPlus &&
+                      styles.attachmentPlusButtonPressed,
                   ]}
                   disabled={!canOpenAttachmentPlus}
                   onPress={() => {
@@ -3456,7 +4451,9 @@ export const ChatPane = React.memo(function ChatPane({
                     name="plus"
                     size={16}
                     color={
-                      canOpenAttachmentPlus ? theme.textSecondary : theme.textMuted
+                      canOpenAttachmentPlus
+                        ? theme.textSecondary
+                        : theme.textMuted
                     }
                   />
                 </Pressable>
@@ -3473,7 +4470,9 @@ export const ChatPane = React.memo(function ChatPane({
                 ref={composerRef}
                 style={styles.composerInput}
                 initialText={initialComposeText}
-                placeholder={backend ? 'Type a message…' : 'Offline (read-only)'}
+                placeholder={
+                  backend ? 'Type a message…' : 'Offline (read-only)'
+                }
                 placeholderTextColor={theme.textMuted}
                 textColor={theme.text}
                 fontSize={13}
@@ -3482,10 +4481,10 @@ export const ChatPane = React.memo(function ChatPane({
                 minHeight={34}
                 maxHeight={120}
                 onHeightChange={handleComposerHeightChange}
-                onChangeText={(text) => {
+                onChangeText={text => {
                   handleComposerChangeText(text);
                 }}
-                onSubmit={(text) => {
+                onSubmit={text => {
                   handleSend(text).catch(() => {
                     // errors are handled in `handleSend`
                   });
@@ -3493,6 +4492,13 @@ export const ChatPane = React.memo(function ChatPane({
               />
             </View>
             <Pressable
+              testID="composer-send"
+              accessibilityRole="button"
+              accessibilityLabel="Send message"
+              accessibilityState={{
+                disabled: !canSendNow,
+                busy: requestInProgress,
+              }}
               style={({ pressed }) => [
                 styles.sendButton,
                 !canSendNow && styles.sendButtonDisabled,
@@ -3505,7 +4511,15 @@ export const ChatPane = React.memo(function ChatPane({
                 });
               }}
             >
-              <Text style={styles.sendButtonText}>{sendInFlight ? '…' : 'Send'}</Text>
+              {requestInProgress ? (
+                <ActivityIndicator
+                  testID="composer-send-progress"
+                  size="small"
+                  color={theme.textOnPrimary}
+                />
+              ) : (
+                <Text style={styles.sendButtonText}>Send</Text>
+              )}
             </Pressable>
           </View>
 
@@ -3520,17 +4534,25 @@ export const ChatPane = React.memo(function ChatPane({
                     ]}
                     onPress={() => setAttachmentsBelowExpanded(false)}
                   >
-                    <Icon name="chevron-up" size={16} color={theme.textSecondary} />
+                    <Icon
+                      name="chevron-up"
+                      size={16}
+                      color={theme.textSecondary}
+                    />
                   </Pressable>
                 </View>
                 <ComposerAttachmentsExpandedPanel
                   attachments={buildManageRows(attachmentsBelow)}
-                  disabled={!canRunComposerActions || attachmentActionInProgress}
-                  onMove={(draftId, direction) => handleMoveDraft('below', draftId, direction)}
+                  disabled={
+                    !canRunComposerActions || attachmentActionInProgress
+                  }
+                  onMove={(draftId, direction) =>
+                    handleMoveDraft('below', draftId, direction)
+                  }
                   onEditMetadata={(draftId, anchorTag) =>
                     handleEditDraftMetadata('below', draftId, anchorTag)
                   }
-                  onDelete={(draftId) => handleDeleteDraft('below', draftId)}
+                  onDelete={draftId => handleDeleteDraft('below', draftId)}
                 />
               </View>
             ) : (
@@ -3568,8 +4590,9 @@ export const ChatPane = React.memo(function ChatPane({
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Message range</Text>
               <Text style={styles.modalSubtitle}>
-                Python-style range (start:end). Example: -{DEFAULT_HISTORY_WINDOW}: for last{' '}
-                {DEFAULT_HISTORY_WINDOW} messages. Leave blank for all messages.
+                Python-style range (start:end). Example: -
+                {DEFAULT_HISTORY_WINDOW}: for last {DEFAULT_HISTORY_WINDOW}{' '}
+                messages. Leave blank for all messages.
               </Text>
               <View style={styles.rangeRow}>
                 <View style={styles.rangeInputContainer}>
@@ -3610,9 +4633,10 @@ export const ChatPane = React.memo(function ChatPane({
                   ]}
                   onPress={() => {
                     setMessageLimitVisible(false);
-                    applyMessageLimitAndReload({ startText: rangeStartText, endText: rangeEndText }).catch(
-                      () => {},
-                    );
+                    applyMessageLimitAndReload({
+                      startText: rangeStartText,
+                      endText: rangeEndText,
+                    }).catch(() => {});
                   }}
                 >
                   <Text style={styles.modalButtonPrimaryText}>Apply</Text>
@@ -3634,7 +4658,7 @@ export const ChatPane = React.memo(function ChatPane({
           dialog={(activePluginDialogElement as any)?.dialog}
           titleFallback={activePluginDialogElement?.label}
           prefillContext={pluginDialogPrefillContext}
-          onSubmit={(values) => handleSubmitPluginDialog(values)}
+          onSubmit={values => handleSubmitPluginDialog(values)}
           onCancel={handleCancelPluginDialog}
         />
       )}
@@ -3642,14 +4666,18 @@ export const ChatPane = React.memo(function ChatPane({
   );
 });
 
-function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStripStyle) {
-  const codeLike = styleVariant === 'codeTabs' || styleVariant === 'underlineTabs';
+function createStyles(
+  theme: ReturnType<typeof useTheme>,
+  styleVariant: TabStripStyle,
+) {
+  const codeLike =
+    styleVariant === 'codeTabs' || styleVariant === 'underlineTabs';
   const radius = styleVariant === 'roundedPills' ? 12 : 10;
   const separatorWidth = 1;
 
   return StyleSheet.create({
     root: {
-		  flex: 1,
+      flex: 1,
       borderWidth: codeLike ? 0 : separatorWidth,
       borderColor: codeLike ? 'transparent' : theme.border,
       borderRadius: codeLike ? 0 : radius,
@@ -3675,13 +4703,15 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
     },
     title: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '700',
       color: theme.text,
       flexShrink: 1,
     },
     subtitle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       flexShrink: 1,
     },
@@ -3692,12 +4722,14 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: 6,
     },
     metaText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
       fontWeight: '600',
     },
     metaDot: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
       marginTop: -1,
     },
@@ -3712,7 +4744,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       alignItems: 'center',
       justifyContent: 'center',
       padding: 20,
-      backgroundColor: 'rgba(0,0,0,0.4)',
+      backgroundColor: theme.modalBackdrop,
     },
     modalContent: {
       width: 360,
@@ -3730,7 +4762,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       color: theme.text,
     },
     modalSubtitle: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
     rangeRow: {
@@ -3742,7 +4775,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: 6,
     },
     rangeLabel: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '700',
       color: theme.textSecondary,
     },
@@ -3754,7 +4788,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingHorizontal: 10,
       paddingVertical: 8,
       color: theme.text,
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
     },
     modalButtonsRow: {
       flexDirection: 'row',
@@ -3780,17 +4815,20 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       opacity: 0.85,
     },
     modalButtonSecondaryText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '700',
       color: theme.text,
     },
     modalButtonPrimaryText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '800',
       color: theme.textOnPrimary,
     },
     modalHelperText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
     },
     body: {
@@ -3817,13 +4855,14 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingHorizontal: 10,
       paddingVertical: 8,
       borderRadius: 10,
-      backgroundColor: 'rgba(255, 0, 0, 0.08)',
+      backgroundColor: theme.dangerMuted,
       borderWidth: separatorWidth,
       borderColor: theme.border,
     },
     errorText: {
       flex: 1,
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.text,
     },
     retryButton: {
@@ -3838,7 +4877,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       opacity: 0.8,
     },
     retryButtonText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '600',
       color: theme.primary,
     },
@@ -3885,7 +4925,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       opacity: 0.45,
     },
     transcriptRangeControlText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '700',
       color: theme.primary,
     },
@@ -3923,7 +4964,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingTop: 8,
     },
     sessionStatusBarText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
     },
@@ -3936,7 +4978,13 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       flex: 1,
     },
     composerHeaderRight: {
+      flex: 1,
+      minWidth: 0,
+      alignItems: 'stretch',
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
+    },
+    composerActionsBar: {
+      width: '100%',
     },
     composerRow: {
       flexDirection: 'row',
@@ -4014,7 +5062,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       opacity: 0.85,
     },
     sendButtonText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '700',
       color: theme.primary,
     },
@@ -4027,25 +5076,30 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: 6,
     },
     messageRowAssistant: {
-      backgroundColor: 'rgba(120, 120, 120, 0.12)',
+      backgroundColor: theme.bubbleToolBg,
     },
     messageMeta: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       fontWeight: '600',
       color: theme.textSecondary,
     },
     messageText: {
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
     },
     hint: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.text,
     },
     hintSecondary: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
   });
 }
+
+export { createStyles as createChatPaneStyles };

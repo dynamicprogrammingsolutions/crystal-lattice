@@ -62,11 +62,16 @@ Requirements:
   covering every `DOCGEN-*` and `DOCREP-*` requirement while preserving static
   and human verification as distinct evidence.
 - [ ] Root `CONTRIBUTING.md` provides an easy-to-follow, risk-scaled
-  AI-assisted development workflow with a clear distinction between human
-  ownership, implementing-agent work, reviewing-agent work, and human approval.
-- [ ] The contributor workflow uses a concise six-step structure, describes
-  manual and AI work only where relevant, and includes short example prompts
-  that rely on standing developer-message guidance instead of repeating it.
+  AI-assisted development workflow centered on what humans initiate, review,
+  question, decide, verify, accept, and authorize.
+- [ ] The contributor workflow uses matching concise seven-step quick and
+  detailed structures, plans every initial change and follow-up before
+  implementation, and places short prompts at their workflow stages without
+  repeating standing agent instructions.
+- [ ] The contributor guide explains how humans verify effective instruction
+  delivery, review AI-produced specification/task decisions and
+  unit/integration/end-to-end evidence, and require current user-documentation
+  updates whenever consumers are affected.
 - [ ] Canonical and bundled `TASKS-v7` guidance is synchronized and explains
   how specifications, requirement IDs, task requirements, execution plans, and
   evidence relate without embedding the full contributor workflow.
@@ -129,7 +134,7 @@ task and the subtasks:
 | Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-018` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
-| Contributor workflow, task guidance, and maintainer-owned evaluation | `DOCFLOW-001`–`DOCFLOW-004` |
+| Contributor workflow, task guidance, and maintainer-owned evaluation | `DOCFLOW-001`–`DOCFLOW-006` |
 | Build, links, evidence, and final verification | `DOCVAL-001`–`DOCVAL-009` |
 
 ## Scope
@@ -163,6 +168,11 @@ The work includes:
     rewrite, move, or restructure documentation when needed for clear entry
     points and navigation. If that work proves substantially larger than the
     bounded migration, it is split into separately approved follow-up tasks.
+14. Two bounded side improvements supporting contributor instruction
+    inspection: a system-message feature action that presents the effective
+    compiled message through frontend dialogs, and an optional proxy flag that
+    suppresses request-header logging. These remain package-owned product
+    changes rather than documentation-standard requirements.
 
 ## Non-goals
 
@@ -183,7 +193,9 @@ The work includes:
   checklist as completed manual verification.
 - Making all pre-existing MkDocs strict-mode warnings part of this task unless
   they are caused by the migration.
-- Changing product behavior or public APIs.
+- Changing product behavior or public APIs, except for the explicitly approved
+  package-owned system-message inspection action and proxy logging flag in
+  subtask 065.
 - Reconstructing missing quickstarts for every plugin.
 - Building a declarative evaluation language, benchmark service, leaderboard,
   or framework-owned reviewer/scoring model.
@@ -503,16 +515,16 @@ without silently rewriting the task's requirements or rationale.
 | DOC-DEC-003 | Publish development documentation unless it contains security-sensitive or internal operational material. | Approved | Public development docs improve maintainability and package understanding. | A package has confidential or deployment-sensitive development information. |
 | DOC-DEC-004 | Prefer `docs/index.md` as a package's public site landing page and use `README.md` as a fallback. | Approved | Avoids two competing package landing pages while preserving incremental adoption. | Site navigation or package publishing requirements need README to remain canonical. |
 | DOC-DEC-005 | Use an explicit `docs_site/packages.toml` registry rather than blind manifest discovery. | Approved | Site identity, title, visibility, and ownership are policy decisions, not just filesystem facts. | Registry maintenance becomes materially burdensome or a reliable metadata source replaces it. |
-| DOC-DEC-006 | Require the full product/technical/requirements specification set only for substantive, durable, or cross-package changes. | Approved | Keeps the process proportional and avoids unnecessary ceremony for small changes. | Small changes repeatedly expose missing durable design context. |
+| DOC-DEC-006 | Treat specification need separately from immediate change size: update affected existing specifications, require specifications for large new features, and consider whether other work should specify an existing feature or durable contract. Keep the specification file set proportional to the target. | Approved | Small changes can expose missing durable design context, while existing targets must remain current and large features need an understandable contract. | Experience shows a simpler rule identifies specification need without losing important targets. |
 | DOC-DEC-007 | Normally attach requirement IDs to acceptance and contract tests, not every low-level test. | Approved | Preserves useful traceability without overwhelming implementation tests. | Regulatory, contractual, or safety requirements demand full traceability. |
 | DOC-DEC-008 | Record a PR or completion commit for the feature; use per-requirement commit SHAs only when they add meaningful evidence. | Approved | File and test references are usually more stable and useful than manually maintained per-requirement commit lists. | Delivery or audit workflows require exact commit-level traceability. |
 | DOC-DEC-009 | Specifications are living target-state documents. Material target or requirement changes require approval through the task workflow and remain visible in Git history. | Approved | The target should evolve with accepted design discoveries without being mistaken for evidence of current implementation. | A domain introduces separately baselined or externally approved specifications. |
 | DOC-DEC-010 | Preserve moved public documentation URLs through compatibility pages or redirects for the initial migration. | Approved | Avoids breaking existing links while package-local ownership changes. | Redirect maintenance becomes permanent debt and a versioned URL-break policy is approved. |
 | DOC-DEC-011 | Prefer generated site reference output with package-local mkdocstrings/JSDoc source directives; separately decide whether committed generated snapshots still provide value. | Approved | Separates authored inputs from generated output and reduces duplicate sources. | Offline snapshot use or release packaging requires committed generated Markdown. |
 | DOC-DEC-012 | Require a successful normal docs build and no new warnings; global MkDocs strict-mode cleanup is separate unless migration fixes make strict mode practical. | Approved | Existing strict-mode warnings should not silently expand this migration into an unrelated cleanup project. | Strict mode already passes or remaining warnings are small and directly in scope. |
-| DOC-DEC-013 | Use a concise six-step contributor workflow: shape, record/decompose, plan/approve, implement/verify, validate/review, and address findings/deliver. | Approved | A short workflow is easier to follow and can scale down for small changes. | Contributors repeatedly need a missing stage or the combined validation/review step becomes confusing. |
-| DOC-DEC-014 | Define human owner, implementing agent, and reviewing agent once; identify only the relevant owner at each workflow step. | Approved | Not every stage requires both human and AI activity, and repeated role matrices would make the guide harder to scan. | Role ambiguity appears in real use or additional organizational roles become necessary. |
-| DOC-DEC-015 | Keep example prompts short and task-specific. Standing rules belong in developer-message inputs, `AGENTS.md`, `TASKS-v7`, package docs, and specifications. | Approved | Developers should supply the current objective and new context without repeatedly copying repository rules. | A supported agent cannot reliably load the referenced standing guidance. |
+| DOC-DEC-013 | Use matching concise human-led seven-step quick and detailed contributor workflows: brainstorm/shape, review specifications/requirements/tasks, review/approve the plan, authorize/supervise implementation, question evidence/review the result, request independent AI review when useful, and plan every follow-up. Every initial change and follow-up is planned before implementation. | Approved | A stable lifecycle is easy to follow while conversational, task, and checkpoint-based plans fit different work; independent review and follow-up remain distinct. | Contributors repeatedly need a missing stage or the combined evidence/review step becomes confusing. |
+| DOC-DEC-014 | Explain human ownership, implementing-agent work, and reviewing-agent advice in the opening and relevant workflow steps without a standalone role section. | Approved | Not every stage requires both human and AI activity, and a separate role summary repeats responsibilities that are clearer in context. | Role ambiguity appears in real use or additional organizational roles become necessary. |
+| DOC-DEC-015 | Put realistic prompt examples at their workflow stages and keep later prompts short and task-specific. Humans verify that applicable developer/system, `AGENTS.md`, and `TASKS-v7` guidance actually reached the model before relying on concise prompts. | Approved | Developers should supply the current objective, new context, decisions, and authority without repeatedly copying repository rules that the model already received. | A supported agent cannot expose enough instruction context for the human to verify delivery. |
 | DOC-DEC-016 | Manual verification requires human performance or direct human confirmation; AI may prepare the checklist but cannot mark it complete. | Approved | Preserves the meaning of human acceptance evidence. | A separately approved trusted automation policy defines an equivalent non-human acceptance mechanism. |
 | DOC-DEC-017 | AI review is advisory; final acceptance and delivery authorization remain human responsibilities. | Approved | AI review can supplement but not replace accountable human review. | Repository governance explicitly delegates approval to an automated policy. |
 | DOC-DEC-018 | Keep `TASKS-v7` concise, establish a canonical authored source, and mechanically synchronize or verify the bundled developer-message copy. | Approved | The current repository and bundled copies differ, while the bundled copy is the runtime input. | Runtime loading changes to consume one canonical file directly. |
@@ -852,7 +864,8 @@ Required new or updated documentation includes:
 - [ ] 040: Migrate and lightly verify application and shared plugin documentation.
 - [ ] 050: Triage cross-package architecture, protocol, parity-plan, and generated reference documentation.
 - [ ] 060: Update navigation, compatibility paths, repository links, and build triggers.
-- [ ] 065: Create the concise AI-assisted contributor workflow and prompt examples.
+- [ ] 065: Create the human-led AI-assisted contributor workflow, integrated
+  prompt examples, and instruction-inspection guidance.
 - [ ] 068: Align specifications/tasks guidance and synchronize canonical/bundled `TASKS-v7`.
 - [ ] 069: Verify and refine task-guidance scope discipline and subtask decomposition.
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.
@@ -866,8 +879,9 @@ Required new or updated documentation includes:
 | Specification and requirement conventions | Generic standard and repository policy define target product/technical specifications, live requirements, stable IDs, evidence fields, task-owned approval, current-doc behavior, package refinements, and proportional use. |
 | Agent-evaluation framework | Deterministic package tests verify the minimal program/environment/run API, complete environment substitution, Crystal Lattice lower-layer customization, continuation, caching, workspace isolation, canonical/raw artifacts, and failure preservation without required evaluation-specific abstractions. |
 | Documentation-standard behavioral evidence | Gated pytest consumers map every `DOCGEN-*` and `DOCREP-*` requirement to a neutral-seed continuation and preserve exact artifacts for separate human review. |
-| AI-assisted contributor workflow | Root `CONTRIBUTING.md` presents the approved six-step, risk-scaled workflow; clearly separates human ownership, implementing-agent work, reviewing-agent work, manual verification, AI review, and delivery authorization; and includes concise example prompts. |
-| Prompt/developer-message boundary | Contributor and agent guidance explains what belongs in standing developer-message inputs versus task prompts; prompt examples do not repeat generic repository rules. |
+| AI-assisted contributor workflow | Root `CONTRIBUTING.md` presents matching approved human-led seven-step quick and detailed workflows; plans every initial change and follow-up; clearly separates human ownership, AI implementation/review, human verification, and delivery authorization; and places concise prompts at their workflow stages. |
+| Prompt/developer-message boundary | Contributor guidance explains how humans verify that standing project/task guidance reached the model, what belongs in those instructions versus task prompts, and how to inspect effective instructions without repeating generic repository rules. |
+| Human review of AI-produced work | Contributor guidance helps humans review specification/task decisions, unit/integration/end-to-end/manual evidence, and mandatory current user-documentation updates for consumer-affecting changes without assigning mechanical bookkeeping. |
 | Task-guidance alignment | Canonical and bundled v7 guidance match mechanically and describe specification/task relationships without duplicating the full contributor workflow. |
 | Package-local source of truth | Site preparation tests and generated tree demonstrate package-local sources are copied without editing `docs_site/prepared/`; `AGENTS.md` is excluded by default. |
 | Registered package assembly | Tests cover registry parsing, landing-page precedence/fallback, recursive docs copying, path errors, collisions, and link behavior. |

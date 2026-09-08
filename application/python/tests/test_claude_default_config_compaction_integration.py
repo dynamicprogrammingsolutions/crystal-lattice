@@ -61,6 +61,10 @@ def _build_default_config_app(
 
     monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_key)
     monkeypatch.setenv(
+        "ANTHROPIC_API_KEY",
+        get_repo_env("ANTHROPIC_API_KEY", "test-anthropic-key"),
+    )
+    monkeypatch.setenv(
         "GEMINI_API_KEY", get_repo_env("GEMINI_API_KEY", "test-gemini-key")
     )
     monkeypatch.setenv(
@@ -141,7 +145,7 @@ def test_default_claude_agent_compaction_action_rewrites_history(
         previous.close()
     server_mod._agent_app = app
 
-    core, base_config, session = app.create_session("claude")
+    core, base_config, session = app.create_session("claude-openrouter")
     assert base_config["model"] == "anthropic/claude-haiku-4.5"
 
     compaction_model = os.getenv(

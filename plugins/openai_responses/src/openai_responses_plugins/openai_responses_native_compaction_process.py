@@ -19,7 +19,6 @@ from .openai_responses_native_compaction import (
     CancellableAsyncOpenAIResponsesCompactionTransport,
 )
 
-
 PLUGIN_ID = "openai_responses_native_compaction_app"
 EXTENSION_ID = "openai_responses_native_compaction"
 SYNC_ACTION_ID = "compact_native_history_sync"
@@ -267,18 +266,41 @@ class OpenAIResponsesNativeCompactionProcess:
                             self._finish_cancelled()
                         return
                     self._commit_started = True
-                    self._app.save_session(
-                        new_session,
-                        reconcile=True,
-                        baseline_session=session,
-                        baseline_file_state=baseline_file_state,
-                        conflict_prefix=(
-                            "Concurrent session modification detected while "
-                            "committing native compaction; "
-                        ),
-                        backup_on_conflict=True,
-                        acquire_lock=False,
+                    end_index = (
+                        self._end_index
+                        if self._end_index is not None
+                        else len(session.messages)
                     )
+                    snapshot = self._app.create_session_snapshot(
+                        self.session_id,
+                        reason=f"Before compacting conversation [:{end_index}]",
+                        metadata={
+                            "origin": "automatic",
+                            "plugin": PLUGIN_ID,
+                            "action": "compact_native_history",
+                            "operation_id": self.operation_id,
+                            "range": {"start": 0, "end": end_index},
+                        },
+                    )
+                    try:
+                        self._app.save_session(
+                            new_session,
+                            reconcile=True,
+                            baseline_session=session,
+                            baseline_file_state=baseline_file_state,
+                            conflict_prefix=(
+                                "Concurrent session modification detected while "
+                                "committing native compaction; "
+                            ),
+                            backup_on_conflict=True,
+                            acquire_lock=False,
+                        )
+                    except BaseException:
+                        self._app.delete_session_snapshot(
+                            self.session_id,
+                            snapshot.snapshot_id,
+                        )
+                        raise
 
             self._safe_notification_completion(
                 title="Native compaction complete",

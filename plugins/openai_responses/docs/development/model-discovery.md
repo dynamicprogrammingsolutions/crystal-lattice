@@ -7,7 +7,8 @@ API-key and ChatGPT auth modes, and how the model picker is populated.
 
 When credentials and network access are available, API-key mode fetches the
 real OpenAI model list through the OpenAI Python SDK. If discovery is
-unavailable, the UI falls back to manual text entry for `model`.
+unavailable, the UI retains the searchable dropdown with an empty catalog and
+validated custom model IDs.
 
 ## ChatGPT auth mode
 

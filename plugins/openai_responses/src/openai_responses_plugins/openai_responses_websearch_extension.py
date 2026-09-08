@@ -22,7 +22,9 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
     version: str = "0.1.0"
     priority: int = 110
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         _ = config, models
         return ["ext:openai_responses_websearch"]
 
@@ -84,9 +86,32 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
             return []
         return [
             {
+                "ui_type": "config",
                 "type": "checkbox",
                 "key": "enable_web_search",
                 "label": "Enable web search",
+                "icon": "globe",
+                "rich_ui": {
+                    "kind": "toggle",
+                    "label": "Web search",
+                    "show_label": False,
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "options": [
+                        {
+                            "value": False,
+                            "label": "Off",
+                            "icon": "globe",
+                            "tone": "primary",
+                        },
+                        {
+                            "value": True,
+                            "label": "On",
+                            "icon": "globe",
+                            "tone": "success",
+                        },
+                    ],
+                },
             },
             {
                 "type": "checkbox",
@@ -102,7 +127,9 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
                 "type": "select",
                 "key": "web_search_search_context_size",
                 "label": "Web search context size",
-                "options": [{"value": value, "label": value} for value in _SEARCH_CONTEXT_SIZES],
+                "options": [
+                    {"value": value, "label": value} for value in _SEARCH_CONTEXT_SIZES
+                ],
             },
             {
                 "type": "text",
@@ -132,7 +159,9 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
 
         normalized: Dict[str, Any] = {"enabled": True}
 
-        allowed_domains = self._normalize_allowed_domains(config.get("web_search_allowed_domains"))
+        allowed_domains = self._normalize_allowed_domains(
+            config.get("web_search_allowed_domains")
+        )
         if allowed_domains:
             normalized["allowed_domains"] = allowed_domains
 
@@ -179,16 +208,23 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
             return list(native_messages), state
 
         payload = dict(request.get("payload") or {})
-        payload_tools = list(payload.get("tools")) if isinstance(payload.get("tools"), list) else []
+        payload_tools = (
+            list(payload.get("tools")) if isinstance(payload.get("tools"), list) else []
+        )
 
         if not any(self._is_web_search_tool_entry(entry) for entry in payload_tools):
             payload_tools.append(self._build_web_search_tool(cfg))
         payload["tools"] = payload_tools
 
         if cfg.get("include_full_sources"):
-            payload["include"] = self._merge_include_values(payload.get("include"), _FULL_SOURCES_INCLUDE_KEY)
+            payload["include"] = self._merge_include_values(
+                payload.get("include"), _FULL_SOURCES_INCLUDE_KEY
+            )
 
-        return list(native_messages), {**state, "request": {**request, "payload": payload}}
+        return list(native_messages), {
+            **state,
+            "request": {**request, "payload": payload},
+        }
 
     def _truthy(self, value: Any) -> bool:
         if isinstance(value, bool):
@@ -200,7 +236,9 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
     def _normalize_allowed_domains(self, raw: Any) -> List[str]:
         values: List[str] = []
         if isinstance(raw, (list, tuple)):
-            values = [self._normalize_domain_entry(item) for item in raw if item is not None]
+            values = [
+                self._normalize_domain_entry(item) for item in raw if item is not None
+            ]
         elif isinstance(raw, str):
             values = [self._normalize_domain_entry(part) for part in raw.split(",")]
 
@@ -225,7 +263,9 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
             return ""
         return domain.lower()
 
-    def _normalize_user_location(self, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _normalize_user_location(
+        self, config: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         user_location: Dict[str, Any] = {}
         for config_key, target_key in (
             ("web_search_user_location_country", "country"),
@@ -269,9 +309,13 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
     def _merge_include_values(self, raw_include: Any, required_value: str) -> List[str]:
         include_values: List[str] = []
         if isinstance(raw_include, list):
-            include_values = [item for item in raw_include if isinstance(item, str) and item]
+            include_values = [
+                item for item in raw_include if isinstance(item, str) and item
+            ]
         elif isinstance(raw_include, tuple):
-            include_values = [item for item in raw_include if isinstance(item, str) and item]
+            include_values = [
+                item for item in raw_include if isinstance(item, str) and item
+            ]
         elif isinstance(raw_include, str) and raw_include:
             include_values = [raw_include]
 

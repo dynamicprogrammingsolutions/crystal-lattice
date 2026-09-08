@@ -327,6 +327,33 @@ python -m pip install -e application/python
 repo checkout. It does not install repo-root plugin packages, so install
 `plugins/<plugin-name>[dev]` separately when you are changing a plugin.
 
+The root `package.json` scripts run Python tooling through
+`scripts/repo_run.py`, which resolves the repository `.venv` automatically, so
+they work without activating the virtualenv:
+
+```bash
+npm run install:venv
+npm run install:all
+npm run test:core:unit
+```
+
+Install the plugin-suite packages into the same `.venv` when working on the
+kimi-tools, claude-tools, web-fetch-shared, tool-compat-shared, or
+openai_responses plugins:
+
+```bash
+npm run install:plugins
+npm run test:plugins:kimi
+```
+
+The CLI release npm scripts run the release local gate — its pip install and
+both pytest suites — inside the same `.venv`. `release:cli:gate` runs the full
+local validation without creating or pushing the release tag.
+
+On Windows, install Python 3.10+ and make sure `python` is on `PATH`; the
+same npm scripts run from cmd.exe and PowerShell. The `deploy:*`, `ssh:*`,
+`server:cloud-test`, and `release:cli*` scripts are macOS/Linux only.
+
 Run the common fast test sets:
 
 ```bash
@@ -542,7 +569,7 @@ python scripts/generate_examples_md.py
 ## Status And Version
 
 - Core package: `agent-core` 0.3.0
-- Terminal CLI package: `crystal-lattice-cli` 0.1.0 (`crystal-lattice` command)
+- Terminal CLI package: `crystal-lattice-cli` 0.1.1 (`crystal-lattice` command)
 
 See `core/python/pyproject.toml`, `application/python/pyproject.toml`, and the
 source files for the most up-to-date behavior.

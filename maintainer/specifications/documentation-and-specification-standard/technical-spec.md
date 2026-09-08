@@ -324,6 +324,99 @@ Root `AGENTS.md` distinguishes:
 Ordinary output pages do not expose task chronology, evaluation internals, or
 links to this meta-specification.
 
+## Human-led contributor workflow
+
+Root `CONTRIBUTING.md` is written for the human directing AI-assisted
+development. A seven-step quick workflow mirrors the detailed workflow:
+brainstorming and shaping, review of specifications, requirements, and tasks,
+plan review and approval, implementation supervision, evidence and result
+review, independent AI review, and follow-up planning. Independent review and
+follow-up are numbered steps; their text makes clear that they apply when
+useful or when additional work exists.
+
+The process-selection table presents small local changes, normal features or
+bug fixes, and high-risk or cross-package changes as three recognizable
+scenarios. Separate columns summarize the normally applicable task-file and
+specification forms without making specification need or task decomposition
+automatic consequences of the process level.
+
+Every initial change and follow-up has a plan before implementation. Planning
+may remain a short conversation for a local change, use one task execution
+plan for normal work, or use explicit approval checkpoints for high-risk and
+cross-package work. Specification need remains a separate decision:
+
+- update an affected existing specification when its target behavior or design
+  changes;
+- require a specification for a large new feature;
+- for other work, consider whether a specification would clarify an existing
+  feature, durable behavior, public contract, or important design.
+
+During stage 2, the human reviews whether each proposed subtask delivers a
+usable, tested improvement or completes an isolated responsibility. A minimum
+working version and later independently valuable features may be separate
+subtasks. Partial implementation and approval checkpoints remain stages within
+one task, and implementation, tests, documentation, and evidence stay with
+their owning outcome.
+
+Current user documentation changes whenever delivered behavior affects a
+consumer.
+
+The workflow places realistic, stage-specific prompt examples where the human
+uses them. The initial brainstorming example may carry substantial new product
+or domain context. Later prompts remain short because applicable project and
+task guidance should already be supplied through the developer/system message
+or first user message.
+
+The guide tells humans how to verify that applicable `AGENTS.md` and task
+guidance reached the model by inspecting the effective compiled or outgoing
+instructions through available development surfaces. It explains where
+standing and task-specific context belongs without embedding the full
+contributor workflow in agent instructions.
+
+AI normally drafts specifications, requirements, tasks, plans, code, automated
+tests, and documentation. Five recurring concerns help humans direct review:
+requirements and outcomes, scope and placement, design and complexity,
+verification, and current documentation or remaining work. The guide uses
+these concerns only where they help a stage; it does not repeat them as a
+mandatory template. Humans may inspect the important result directly or ask
+the implementing or reviewing agent focused follow-up questions. Agents remain
+responsible for task-file structure, traceability maintenance, and other
+record-consistency work.
+
+The guide names common agent mistakes within those concerns: omitted,
+expanded, duplicated, implementation-shaped, or unverified requirements;
+changes outside the accepted scope or owning component; unnecessary
+abstractions, compatibility paths, configuration, workarounds, duplication, or
+tests; verification that does not cross the claimed production boundary; and
+completion claims that hide remaining work or stale consumer documentation.
+
+Unit, integration, end-to-end, and manual evidence are distinct. At plan
+review, the human asks which boundaries each kind of evidence will cover. At
+completion, the human checks what actually ran, what it demonstrated, what
+failed or skipped, and what remains unverified. The guide asks whether
+integration and end-to-end harnesses reached the claimed production path.
+Repeatable procedures with machine-observable outcomes belong in automated
+tests; human checkpoints are reserved for perception, exploration, product
+judgment, or a real environment that automation does not faithfully
+represent.
+
+Independent AI review remains advisory. The guide provides a short general
+review prompt, optional task-specific focus phrases, and a small number of
+focused examples rather than one exhaustive prompt. Final acceptance and
+delivery authorization remain human decisions.
+
+Repository contribution guidance is compact. Package discovery, ordinary
+commands, CI reproduction, detailed file-safety rules, and documentation
+maintenance remain in agent and package guidance. `CONTRIBUTING.md` instead
+provides a pull-request submission prompt and a short human review covering
+outcome, scope, evidence, limitations, and the requested delivery action.
+Security, support, licensing, and participation remain discoverable through
+concise policy links.
+
+The specific product features used to inspect messages are owned by their
+packages. Their implementation, tests, and package documentation are not part
+of this documentation-and-specification standard.
+
 ## Publication
 
 Package-local authored files remain sources of truth. Prepared and built site
@@ -336,7 +429,8 @@ material.
 
 Public user and implementation/maintainer documentation must match committed
 code. A working tree may stage documentation first, but it is committed with
-the implementation that makes new current-state claims true.
+the implementation that makes new current-state claims true unless the user
+explicitly asks for a different commit order.
 
 Observable examples include a concrete expected result. Before completion,
 each documented result is compared with the current implementation or a test,

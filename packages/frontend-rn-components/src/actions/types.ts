@@ -3,10 +3,14 @@ export type ActionKey = string;
 export interface ActionDefinition {
   key: ActionKey;
   label: string;
+  menuStateLabel?: string;
+  order?: number;
   [k: string]: any;
 }
 
-export interface ActionsMenuModel<TDef extends ActionDefinition = ActionDefinition> {
+export interface ActionsMenuModel<
+  TDef extends ActionDefinition = ActionDefinition,
+> {
   actionsByKey: Record<ActionKey, TDef>;
   orderedActions: TDef[];
   visiblePinned: TDef[];

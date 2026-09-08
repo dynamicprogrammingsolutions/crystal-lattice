@@ -100,4 +100,39 @@ describe('RestAgentBackend session listing', () => {
       'Server did not return a session summary',
     );
   });
+
+  it('queries request status with explicit session IDs', async () => {
+    const transport = {
+      request: vi.fn(async () => ({
+        status: 200,
+        data: {
+          version: 1,
+          authority: 'derived_transient',
+          statuses: [
+            {
+              session_id: 'one',
+              request_id: null,
+              state: 'succeeded',
+              basis: 'session_tail',
+              session_modified: 10,
+            },
+          ],
+          missing_session_ids: ['missing'],
+        },
+      })),
+    } as unknown as Transport;
+    const backend = new RestAgentBackend({ transport });
+
+    await expect(
+      backend.getSessionRequestStatuses(['one', 'missing']),
+    ).resolves.toMatchObject({
+      statuses: [{ session_id: 'one', state: 'succeeded' }],
+      missing_session_ids: ['missing'],
+    });
+    expect(transport.request).toHaveBeenCalledWith({
+      method: 'POST',
+      path: '/sessions/request-statuses',
+      body: { session_ids: ['one', 'missing'] },
+    });
+  });
 });

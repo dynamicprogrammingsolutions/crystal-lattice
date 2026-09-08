@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import {
   FetchTransport,
@@ -44,6 +44,11 @@ export interface UseOpenConnectionsResult {
 
 export function useOpenConnections(): UseOpenConnectionsResult {
   const [openConnectionsById, setOpenConnectionsById] = useState<OpenConnectionsById>({});
+  const openConnectionsRef = useRef(openConnectionsById);
+  openConnectionsRef.current = openConnectionsById;
+  const openingPromisesRef = useRef<
+    Map<string, Promise<RestAgentBackend | null>>
+  >(new Map());
 
   const openConnectionIds = useMemo(() => Object.keys(openConnectionsById), [openConnectionsById]);
 
@@ -52,55 +57,74 @@ export function useOpenConnections(): UseOpenConnectionsResult {
     [openConnectionsById],
   );
 
-  const openConnection = useCallback(async (record: ConnectionRecord): Promise<RestAgentBackend | null> => {
-    const baseUrl = getBaseUrl(record);
-    if (!baseUrl) {
-      setOpenConnectionsById((prev) => ({
-        ...prev,
-        [record.id]: {
-          status: 'error',
-          baseUrl: '',
-          errorMessage: 'Unsupported connection record',
-        },
-      }));
-      return null;
-    }
+  const openConnection = useCallback(
+    async (record: ConnectionRecord): Promise<RestAgentBackend | null> => {
+      const existing = openConnectionsRef.current[record.id];
+      if (existing?.status === 'open' && existing.backend) {
+        return existing.backend;
+      }
+      const inFlight = openingPromisesRef.current.get(record.id);
+      if (inFlight) return inFlight;
 
-    setOpenConnectionsById((prev) => ({
-      ...prev,
-      [record.id]: { status: 'connecting', baseUrl },
-    }));
+      const operation = (async () => {
+        const baseUrl = getBaseUrl(record);
+        if (!baseUrl) {
+          setOpenConnectionsById((prev) => ({
+            ...prev,
+            [record.id]: {
+              status: 'error',
+              baseUrl: '',
+              errorMessage: 'Unsupported connection record',
+            },
+          }));
+          return null;
+        }
 
-    const transport = new FetchTransport({ baseUrl });
-    const backend = new RestAgentBackend({ transport });
+        setOpenConnectionsById((prev) => ({
+          ...prev,
+          [record.id]: { status: 'connecting', baseUrl },
+        }));
 
-    try {
-      await backend.listAgents();
-      setOpenConnectionsById((prev) => ({
-        ...prev,
-        [record.id]: {
-          status: 'open',
-          baseUrl,
-          transport,
-          backend,
-          lastOpenedAt: Date.now(),
-        },
-      }));
-      return backend;
-    } catch (err: any) {
-      setOpenConnectionsById((prev) => ({
-        ...prev,
-        [record.id]: {
-          status: 'error',
-          baseUrl,
-          errorMessage: err?.message || 'Failed to open connection',
-        },
-      }));
-      return null;
-    }
-  }, []);
+        const transport = new FetchTransport({ baseUrl });
+        const backend = new RestAgentBackend({ transport });
+
+        try {
+          await backend.listAgents();
+          setOpenConnectionsById((prev) => ({
+            ...prev,
+            [record.id]: {
+              status: 'open',
+              baseUrl,
+              transport,
+              backend,
+              lastOpenedAt: Date.now(),
+            },
+          }));
+          return backend;
+        } catch (err: any) {
+          setOpenConnectionsById((prev) => ({
+            ...prev,
+            [record.id]: {
+              status: 'error',
+              baseUrl,
+              errorMessage: err?.message || 'Failed to open connection',
+            },
+          }));
+          return null;
+        }
+      })();
+      openingPromisesRef.current.set(record.id, operation);
+      try {
+        return await operation;
+      } finally {
+        openingPromisesRef.current.delete(record.id);
+      }
+    },
+    [],
+  );
 
   const closeConnection = useCallback((connectionId: string) => {
+    openingPromisesRef.current.delete(connectionId);
     setOpenConnectionsById((prev) => {
       if (!(connectionId in prev)) {
         return prev;

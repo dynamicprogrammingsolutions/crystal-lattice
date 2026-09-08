@@ -45,10 +45,12 @@ from .config import (
     resolve_config_mixins,
     resolve_placeholders,
     resolve_request_config,
+    validate_resolved_config_variants,
 )
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
 from .session_listing import SessionListFilterEvaluator, SessionListService
+from .session_request_status import SessionRequestStatusService
 from .session_filters import (
     SessionListFilterEngine,
     coerce_session_list_filter_input,
@@ -399,8 +401,11 @@ class AgentApplication:
             raw_config, env=resolution_env
         )
         mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
+        variant_errors = validate_resolved_config_variants(mixin_resolved_config)
         self._config: Dict[str, Any] = mixin_resolved_config
-        self._config_errors: List[Dict[str, Any]] = placeholder_errors + mixin_errors
+        self._config_errors: List[Dict[str, Any]] = (
+            placeholder_errors + mixin_errors + variant_errors
+        )
         self._resolved_env: Dict[str, str] = dict(resolution_env)
         self._runtime_env_overlay = RuntimeEnvOverlay(
             build_runtime_overlay_env(config_path, env_overrides=env_overrides)
@@ -617,6 +622,7 @@ class AgentApplication:
         )
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
+        self._request_cancellations_lock = threading.RLock()
         self._cancelled_requests: set[str] = set()
         self._request_cancellations: Dict[str, RequestCancellation] = {}
         self._session_request_coordinator = SessionRequestCoordinator(
@@ -625,6 +631,10 @@ class AgentApplication:
             operations=self._application_operations,
             new_request_id=self._new_request_id,
             logger=self._logger,
+        )
+        self._session_request_status_service = SessionRequestStatusService(
+            store=self._session_store,
+            get_active_request_id=self.get_active_session_request_id,
         )
 
         # Event compaction controls. These are primarily intended for
@@ -777,6 +787,8 @@ class AgentApplication:
             and (
                 str(err.get("type") or "").startswith("plugin_")
                 or str(err.get("type") or "").startswith("mixin_")
+                or str(err.get("type") or "").startswith("config_merge_")
+                or str(err.get("type") or "").startswith("config_variant_")
             )
         ]
         if not fatal_errors:
@@ -1972,11 +1984,13 @@ class AgentApplication:
     def compact_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Return a compacted view of ``events``.
 
-        This helper removes redundant ``partial`` and ``tool_partial``
-        events that precede terminal events (``final`` or
-        ``tool_results``) for the same ``session_id``/``request_id``
-        pair within a single batch. It does not modify the underlying
-        event store and preserves the order of all kept events.
+        This helper removes redundant assistant partials before ``final`` and
+        non-terminal tool start/stream partials before ``tool_results`` for
+        the same ``session_id``/``request_id`` pair within one batch.
+        ``tool_partial`` events with ``phase == "end"`` are preserved because
+        they carry the final display-aware result used by renderers. The
+        underlying event store is not modified, and kept-event order is
+        preserved.
         """
 
         if not events or not self._enable_event_compaction:
@@ -2010,7 +2024,7 @@ class AgentApplication:
                     else:
                         keep_flags[idx] = True
                 elif etype == "tool_partial":
-                    if seen_tool_results.get(key):
+                    if seen_tool_results.get(key) and ev.get("phase") != "end":
                         keep_flags[idx] = False
                     else:
                         keep_flags[idx] = True
@@ -2583,10 +2597,29 @@ class AgentApplication:
         if not isinstance(request_id, str) or not request_id:
             raise ValueError("request_id must be a non-empty string")
 
-        self._cancelled_requests.add(request_id)
-        cancellation = self._request_cancellations.get(request_id)
+        with self._request_cancellations_lock:
+            self._cancelled_requests.add(request_id)
+            cancellation = self._request_cancellations.get(request_id)
         if cancellation is not None:
             cancellation.cancel()
+
+    def _register_request_cancellation(
+        self,
+        request_id: str,
+    ) -> RequestCancellation:
+        """Atomically register live cancellation after honoring early requests."""
+
+        with self._request_cancellations_lock:
+            cancellation = RequestCancellation(
+                cancelled=request_id in self._cancelled_requests
+            )
+            self._request_cancellations[request_id] = cancellation
+            return cancellation
+
+    def _clear_request_cancellation(self, request_id: str) -> None:
+        with self._request_cancellations_lock:
+            self._cancelled_requests.discard(request_id)
+            self._request_cancellations.pop(request_id, None)
 
     def start_session_request(
         self,
@@ -2649,6 +2682,20 @@ class AgentApplication:
         """Return the active coordinated request id for one session."""
 
         return self._session_request_coordinator.get_active_request_id(session_id)
+
+    def get_session_request_statuses(
+        self,
+        session_ids: Sequence[str],
+    ) -> Dict[str, Any]:
+        """Return derived status for explicitly requested sessions."""
+
+        snapshot = self._session_request_status_service.query(session_ids)
+        return {
+            "version": 1,
+            "authority": "derived_transient",
+            "statuses": [status.to_dict() for status in snapshot.statuses],
+            "missing_session_ids": list(snapshot.missing_session_ids),
+        }
 
     def list_agents(self) -> List[str]:
         """Return the configured agent identifiers.
@@ -3308,7 +3355,6 @@ class AgentApplication:
                 session_id = context.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
-        self._require_live_session_writable(session_id)
 
         action_params = dict(params)
         action_params.pop("session_id", None)
@@ -3327,6 +3373,13 @@ class AgentApplication:
         effective_config = self.resolve_effective_config(
             base_config, session, overrides
         )
+        action_mutates_session = core.session_action_mutates(
+            effective_config,
+            plugin_id,
+            action_id,
+        )
+        if action_mutates_session:
+            self._require_live_session_writable(session_id)
 
         try:
             new_session, result = core.execute_session_action(
@@ -3347,16 +3400,6 @@ class AgentApplication:
                 getattr(exc, "details", {}) or {},
             ) from exc
 
-        self.save_session(
-            new_session,
-            reconcile=True,
-            baseline_session=session,
-            baseline_file_state=baseline_file_state,
-            conflict_prefix="Concurrent session modification detected while executing action; ",
-            backup_on_conflict=True,
-            acquire_lock=True,
-        )
-
         if not isinstance(result, dict):
             result = {}
 
@@ -3367,6 +3410,27 @@ class AgentApplication:
             result.get("ui_effects")
             if isinstance(result.get("ui_effects"), dict)
             else {}
+        )
+
+        if not action_mutates_session:
+            return {
+                **result,
+                "mutations": {
+                    "created_session_ids": [],
+                    "updated_session_ids": [],
+                    "deleted_session_ids": [],
+                },
+                "ui_effects": ui_effects,
+            }
+
+        self.save_session(
+            new_session,
+            reconcile=True,
+            baseline_session=session,
+            baseline_file_state=baseline_file_state,
+            conflict_prefix="Concurrent session modification detected while executing action; ",
+            backup_on_conflict=True,
+            acquire_lock=True,
         )
 
         reload_ids = ui_effects.get("reload_session_ids")
@@ -3652,6 +3716,19 @@ class AgentApplication:
             )
         if live.to_dict() != restored.to_dict():
             self._session_store.create_snapshot(live, reason="before restore")
+        live_metadata = live.metadata if isinstance(live.metadata, dict) else {}
+        restored_metadata = (
+            dict(restored.metadata) if isinstance(restored.metadata, dict) else {}
+        )
+        if "notifications" in live_metadata:
+            restored_metadata["notifications"] = live_metadata["notifications"]
+        else:
+            restored_metadata.pop("notifications", None)
+        restored = Session(
+            session_id=restored.session_id,
+            messages=restored.messages,
+            metadata=restored_metadata,
+        )
         self._snapshot_selection_store.clear_selected_snapshot(session_id)
         saved = self.save_session(restored, acquire_lock=False)
         return saved
@@ -3702,6 +3779,7 @@ class AgentApplication:
     def _save_session_low_level(self, session: Session) -> Session:
         self._session_store.save(session)
         self._session_list_service.invalidate(session.session_id)
+        self._session_request_status_service.invalidate(session.session_id)
         return self.load_session_record(session.session_id) or session
 
     def save_session(
@@ -3758,6 +3836,7 @@ class AgentApplication:
             )
         self._session_store.delete(session_id)
         self._session_list_service.invalidate(session_id)
+        self._session_request_status_service.invalidate(session_id)
 
     def create_session(
         self, agent_id: str
@@ -3793,9 +3872,10 @@ class AgentApplication:
         base_cfg = self._get_agent_base_config(agent_id)
         plugin_runtime = self._get_agent_plugin_runtime(agent_id)
         enabled_ids = self._agent_plugin_ids.get(agent_id)
+        effective_config = resolve_request_config(base_cfg, None)
         core = self._build_core_with_enabled_ids(
             enabled_ids,
-            selected_provider_config=base_cfg,
+            selected_provider_config=effective_config,
             plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
 
@@ -3927,9 +4007,10 @@ class AgentApplication:
         base_cfg = self._get_agent_base_config(agent_id)
         plugin_runtime = self._get_agent_plugin_runtime(agent_id)
         enabled_ids = self._enabled_plugin_ids_for_session(agent_id, switched_metadata)
+        effective_config = resolve_request_config(base_cfg, None)
         core = self._build_core_with_enabled_ids(
             enabled_ids,
-            selected_provider_config=base_cfg,
+            selected_provider_config=effective_config,
             plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
         if previous_agent_unavailable:
@@ -4144,8 +4225,7 @@ class AgentApplication:
             self.record_checkpoint(session.session_id, None)
             return
 
-        cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
-        self._request_cancellations[rid] = cancellation
+        cancellation = self._register_request_cancellation(rid)
 
         def _is_cancelled() -> bool:
             return cancellation.is_cancelled()
@@ -4372,5 +4452,4 @@ class AgentApplication:
                     )
                     continue
         finally:
-            self._cancelled_requests.discard(rid)
-            self._request_cancellations.pop(rid, None)
+            self._clear_request_cancellation(rid)

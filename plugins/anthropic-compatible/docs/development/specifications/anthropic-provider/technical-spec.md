@@ -1,0 +1,288 @@
+# Anthropic provider technical specification
+
+## Package architecture
+
+The package uses the public identity `anthropic` and the implementation module
+`anthropic_plugins`.
+
+```text
+AnthropicProvider
+  transport, auth consumption, model discovery, native conversion,
+  streaming, cancellation, raw errors
+
+AnthropicToolsExtension
+  tool schemas, tool use/results, streamed argument reconstruction
+
+AnthropicReasoningExtension
+  thinking blocks, signatures, streaming projection, native reconstruction
+
+AnthropicReasoningControlsExtension
+  official capability normalization, regex fallback, reasoning UI,
+  thinking/effort request shaping
+
+AnthropicUsageExtension
+  public usage metadata, formatting, turn/session totals, TPS inputs
+
+AnthropicPromptCachingExtension
+  automatic cache configuration, UI, request shaping, selectable TTL
+```
+
+The provider remains functional without the extensions. The 010 bundle
+registers five extensions, and tag/capability resolution decides which are
+active for a request.
+
+`AnthropicAttachmentsExtension`, portable cost estimation, and portable
+structured request errors are separate follow-ups.
+
+## Transport
+
+The provider uses the official Anthropic Python SDK with:
+
+- the selected `base_url`;
+- API-key or later OAuth credential configuration;
+- SDK Messages ordinary and streaming operations;
+- SDK model discovery where it exposes the required response;
+- SDK error types and raw response/request IDs where available;
+- explicit stream/client closure for request-ID cancellation.
+
+Provider and extension state remains plain mappings. SDK objects and event
+types are normalized at the provider boundary and are not persisted in native
+history.
+
+Compatible endpoint configurations must be tested through the same SDK
+transport. The package does not maintain a second direct-HTTP Messages
+implementation.
+
+## Configuration
+
+Provider-owned baseline keys:
+
+| Key | Purpose |
+|---|---|
+| `provider` | Provider selector; value `anthropic` |
+| `auth_mode` | Baseline value `api`; future values `oauth` and `auto` |
+| `api_key` | Resolved API key; primary credential input |
+| `base_url` | Messages API root |
+| `model` | Selected discovered or explicitly entered model ID |
+| `anthropic_version` | API version header value |
+| `timeout` | Request timeout |
+| `max_retries` | Generic pre-stream transport retry limit when supported |
+| `capabilities` | Boolean flags for non-baseline optional extensions only |
+| `headers` | Non-secret additional headers permitted by policy |
+| `betas` | SDK beta feature identifiers; selects beta Messages transport |
+| `beta_headers` | Raw beta-header identifiers for stable or compatible transport |
+
+`AnthropicReasoningExtension` contributes no config schema or UI.
+`AnthropicReasoningControlsExtension` owns normalized official thinking and
+effort settings and maps them to `thinking` and `output_config`. Raw
+`request_options` remains the final override and owns fields without a
+dedicated extension, including `context_management`. `messages`, `system`, and
+`stream` remain provider-owned and cannot be replaced by request options.
+
+SDK-supported request fields are passed normally. Unknown compatible request
+fields are merged into `extra_body`, with an explicit `extra_body` value taking
+precedence. Beta-only fields require matching configured beta identifiers.
+
+Config wins over direct environment lookup. A missing `api_key` may use
+`ANTHROPIC_API_KEY` as a fallback only for API auth.
+
+## Model discovery
+
+The Anthropic SDK derives model discovery from `base_url` and requests its
+standard `/v1/models` resource.
+
+Official model responses are normalized into model descriptors containing:
+
+- `id`;
+- display name;
+- created time when useful;
+- maximum input and output tokens;
+- raw capability data;
+- normalized capability tags.
+
+Published capabilities control UI and extension enablement. Unknown capability
+fields are preserved in the model descriptor or ignored safely. Missing
+capabilities never cause optimistic enablement.
+
+`AnthropicReasoningControlsExtension.get_models` adds
+`anthropic_reasoning_controls` with normalized thinking types, effort levels,
+interleaving metadata, and relevant context-management operations. When the
+official descriptor is absent, extension-owned Claude model regex fallbacks
+provide the known matrix. Explicit `anthropic_reasoning_capabilities` config
+overrides discovered and fallback details.
+
+Compatible OpenAI-style model responses containing `data[*].id` are accepted.
+When model capabilities are absent, no model support is invented. Baseline
+streaming, tools, reasoning, and usage tags remain provider-defined.
+Non-baseline extensions use their own explicit boolean capabilities.
+
+Model discovery failures return an empty model list and log a bounded,
+redacted warning. They do not prevent explicit model entry. A separate
+model-catalog URL is not part of the baseline because no supported compatible
+endpoint currently requires one.
+
+`AnthropicProvider.get_ui_elements` maps discovered models to one ordinary
+custom-capable `model` config dropdown and retains that dropdown with an empty
+option list when discovery fails. Nested `custom_value` settings validate
+explicit model IDs and supply the synthetic-option label. The element includes
+a static outer `cpu` icon for ordinary/fallback UI and a self-contained
+`rich_ui.kind: "dropdown"` composer presentation that repeats its compact
+label, options, searchable custom entry, placement, and default pinning while
+omitting the visual `Model:` prefix.
+The compact control and full Session Settings editor both mutate the ordinary
+session `model` override; the provider does not define a separate model-picker
+UI type or action.
+
+`AnthropicReasoningControlsExtension` adds a self-contained composer dropdown
+to its model-dependent reasoning-effort setting. Effort options use uniform
+value/label presentation. Its outer `sliders` icon remains available to
+ordinary/fallback UI, while `rich_ui.show_icon: false` keeps the pinned
+reasoning control text-only. The extension remains the owner of capability
+gating and request shaping.
+
+## Provider state
+
+Recommended request state:
+
+```python
+{
+    "config": effective_config,
+    "request": {
+        "url": ".../v1/messages",
+        "payload": {...},
+        "headers": {...},
+        "timeout": 300,
+    },
+    "accumulator": {
+        "role": "assistant",
+        "content": [],
+    },
+    "capabilities": {...},
+    "raw_usage": None,
+}
+```
+
+Provider and extensions share the state. Extensions merge their fields and
+must not replace unknown accumulator keys.
+
+## Request lifecycle
+
+1. Core resolves the provider, extensions, features, tools, models, and tags.
+2. The provider converts core history to Anthropic-native history.
+3. The provider initializes the Messages request, auth headers, compatibility
+   state, and empty accumulator.
+4. Extensions add tool schemas, official reasoning controls, usage state,
+   caching, and response interpretation state.
+5. Generic request options add or override direct provider request fields.
+6. The provider performs ordinary or streaming transport.
+7. The provider reduces native content-block events into complete native
+   assistant history.
+8. Extensions finalize tool calls, reasoning, usage, and caching metadata.
+9. The provider and extensions convert finals to core messages.
+10. Core persists the complete provider-native history.
+
+## Provider and extension boundary
+
+An extension owns:
+
+- feature configuration schema;
+- UI declarations;
+- tags and required tags;
+- capability gating;
+- normalized feature state;
+- request shaping;
+- public metadata;
+- feature-specific tests and documentation.
+
+The provider may own inseparable transport mechanics such as retrying a
+fast-mode request, parsing a provider-native event used by an extension, or
+closing the active stream. Those mechanics must consume normalized extension
+state and must not independently expose feature config or UI.
+
+Provider-specific controls may use a separate extension when authoritative
+model capabilities define exact settings and UI. The controls extension owns
+capability normalization, documented fallbacks, UI, and request shaping. A
+separate reasoning extension may remain responsible for output interpretation
+and native history so compatible endpoints can use generic reasoning without
+official controls.
+
+Raw request options remain available and execute after normalized controls.
+The provider owns stable/beta SDK selection and beta header composition.
+
+## Prompt caching
+
+Prompt caching is baseline and extension-owned.
+
+The official configuration may enable automatic caching through the
+prompt-caching capability tag. Baseline settings include:
+
+- enabled/disabled;
+- `prompt_cache_ttl` with supported values `5m` and `1h`.
+
+The extension writes request-only top-level automatic cache controls only when
+its required capability tag is present. The usage extension surfaces
+cache-read, total cache-creation, 5-minute cache-creation, and 1-hour
+cache-creation counts. Explicit raw cache options remain endpoint-validated
+and override automatic shaping. Explicit breakpoint selection and
+cache-management actions are outside 010.
+
+## Attachments
+
+Image attachments and multimodal image tool results are owned by subtask 017.
+That task adds `AnthropicAttachmentsExtension`, session asset actions, image
+source policy, and provider-native conversion. PDF, document, remote Files API,
+and citation behavior remain in subtask 014.
+
+## Cancellation
+
+Each active request is registered by `request_id`. Cancellation:
+
+- marks the runtime cancelled;
+- closes the active response/client or cancels the transport task;
+- causes the provider to raise `ProviderRequestCancelled`;
+- removes the runtime after completion;
+- never appends a partial assistant message as a completed history item.
+
+## Baseline request errors and retries
+
+010 uses the existing generic request-error event. The provider:
+
+- maps SDK failures into bounded safe messages;
+- redacts credentials and sensitive provider bodies;
+- preserves provider request IDs only where the current event/detail contract
+  can do so safely;
+- performs eligible pre-output retries inside the provider;
+- never asks frontends to implement login or refresh behavior.
+
+The portable structured provider-error contract is deferred to subtask 019.
+That task will preserve categories, retryability, statuses, and request IDs
+through lifecycle hooks and clients without moving retry or auth ownership.
+
+## Delivery stages
+
+### Stage 1
+
+API-key configuration, basic model discovery, SDK Messages ordinary/streaming
+transport, native history, cancellation, tools, raw request-option reasoning,
+beta transport configuration, reasoning continuity, and normalized formatted
+usage with turn/session totals.
+
+### Stage 2
+
+Compatible model discovery, Ollama tools/reasoning/usage/effort passthrough
+verification, and duration/TPS interoperability.
+
+### Stage 3
+
+Official capability-driven reasoning controls with documented regex fallback,
+independent interleaved and preserved thinking tests, automatic prompt caching
+with selectable TTL, reported cache usage, and selective hosted verification.
+
+## Follow-up feature boundary
+
+Server web tools, fast mode/service tiers, higher-level native
+compaction/context-editing policy,
+Files/PDFs/citations, token counting, advanced server tools, image attachments,
+cost estimation, and portable request errors extend this package through
+separate tasks. Each must update this specification or add a linked package
+refinement before implementation.

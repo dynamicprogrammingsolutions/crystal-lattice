@@ -1,0 +1,57 @@
+{
+  "plugin_cache_dir": "${env:SESSION_RUNTIME_DIR}/plugin-cache",
+  "mixins": {
+    "provider_defaults": {
+      "timeout": 300,
+      "allowed_paths": ["${env:WORKING_DIR}"],
+      "max_file_size": 5242880,
+      "max_output_chars": 10000,
+      "working_directory": "${env:WORKING_DIR}",
+      "enable_reasoning": true,
+      "reasoning_effort": "medium"
+    }
+  },
+  "providers": {
+    "openai": {
+      "mixin_refs": ["provider_defaults"],
+      "provider": "openai_responses",
+      "auth_mode": "chatgpt",
+      "chatgpt_credentials_path": "${env:CHATGPT_CREDENTIALS}",
+      "base_url": "https://api.openai.com/v1",
+      "enable_flex_processing": true,
+      "enable_fast_mode": false,
+      "reasoning_summary": "detailed",
+      "enable_prompt_cache_retention_24h": true,
+      "system_message_as_instructions": true,
+      "strip_leading_system_or_developer_message": true,
+      "show_estimated_cached_tokens": true,
+      "show_openai_auth_mode": true,
+      "plugins": [
+        "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider",
+        "openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature",
+        "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension",
+        "openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension",
+        "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension",
+        "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension",
+        "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension",
+        "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension",
+        "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension"
+      ]
+    }
+  },
+  "plugins": [
+    "feature_request_options.RequestOptionsFeature"
+  ],
+  "agents": {
+    "codex-openai": {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "plugins": [
+        "plugins.file_reader_tool.FileReaderTool"
+      ],
+      "enable_reasoning": true,
+      "reasoning_effort": "medium"
+    }
+  },
+  "application": {}
+}

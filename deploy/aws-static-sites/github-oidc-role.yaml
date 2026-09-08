@@ -12,10 +12,10 @@ Parameters:
     Type: String
     Default: crystal-lattice
     Description: GitHub repository name.
-  GitHubBranch:
+  GitHubEnvironment:
     Type: String
-    Default: main
-    Description: Branch allowed to assume this role.
+    Default: production-sites
+    Description: GitHub environment allowed to assume this role.
   RoleName:
     Type: String
     Default: CrystalLatticeStaticSitesGitHubDeployRole
@@ -76,8 +76,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-              StringLike:
-                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}"
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOwner}/${GitHubRepo}:environment:${GitHubEnvironment}"
       Policies:
         - PolicyName: CrystalLatticeStaticSitesDeploy
           PolicyDocument:
@@ -121,9 +120,9 @@ Outputs:
   GitHubRepo:
     Description: GitHub repository trusted by this role.
     Value: !Ref GitHubRepo
-  GitHubBranch:
-    Description: GitHub branch trusted by this role.
-    Value: !Ref GitHubBranch
+  GitHubEnvironment:
+    Description: GitHub environment trusted by this role.
+    Value: !Ref GitHubEnvironment
   OidcProviderArn:
     Description: GitHub OIDC provider used by this role.
     Value: !If

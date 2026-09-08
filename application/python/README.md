@@ -17,7 +17,11 @@ Documentation:
 
 - [Package documentation](docs/index.md)
 - [Quickstart](docs/quickstart.md)
+- [Terminal guide](docs/terminal.md)
 - [Application configuration](docs/configuration.md)
+- [Configuration mixins](docs/configuration-mixins.md)
+- [Configuration variants](docs/configuration-variants.md)
+- [Session snapshots](docs/session-snapshots.md)
 - [Application runtime development](docs/development/index.md)
 
 ## Installation
@@ -41,7 +45,7 @@ The default install locations are:
 Pinned install:
 
 ```bash
-curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | VERSION=0.1.0 bash
+curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | VERSION=0.1.1 bash
 ```
 
 Review-first install:
@@ -86,7 +90,7 @@ From the repository root:
 
 ```bash
 python -m pip install -e "core/python[dev]"
-python -m pip install -e application/python
+python -m pip install -e "application/python[dev]"
 ```
 
 For local source development, install `core/python` first so
@@ -319,7 +323,18 @@ model requests require the corresponding credentials, for example:
 ```bash
 export OPENAI_API_KEY=...
 export OPENROUTER_API_KEY=...
+export ANTHROPIC_API_KEY=...
 ```
+
+The default Claude routes are provider-qualified:
+
+- `claude-openrouter` uses Claude through OpenRouter.
+- `claude-anthropic` uses the direct Anthropic API and selects model-specific
+  reasoning defaults, beta, and context-management settings through
+  configuration variants. The Anthropic reasoning-controls extension derives
+  available mode and effort UI from model capabilities or known fallbacks. It
+  defaults to Sonnet 5 and can select supported Haiku, Sonnet, Opus, Fable, and
+  Mythos models from model discovery.
 
 For no-key development from a source checkout, use the echo config:
 
@@ -471,102 +486,19 @@ the bridge pairing flow.
 
 ## Terminal Usage
 
-Common slash commands:
+Run the interactive client with `crystal-lattice --console`. Important commands
+include `/help`, `/session`, `/agent`, `/send`, `/cancel`, `/list`,
+`/tool-output`, and `/exit`.
 
-- `/help` - list commands and shortcuts.
-- `/new` - start a new session.
-- `/session` - list sessions using plugin filter defaults.
-- `/session <exact-session-id>` - switch directly, even when filters hide it.
-- `/session <search text>` - search through the configured main-search filter
-  and display ordered numbered choices.
-- `/session --filter <filter-id>=<value> [search text]` - apply command-local
-  Boolean, text, or select overrides. Use `any` to deactivate Boolean/select
-  filters; multiple selects use comma-separated CSV values.
-- `/agent` - switch between configured agents.
-- `/send` - send a request with current history.
-- `/append` - add a message without sending.
-- `/delete`, `/modify`, `/list` - manage message history.
-- `/plugins` - list, enable, disable, or reset per-session plugins.
+`/tool-output one-line` keeps tool-heavy requests compact while preserving
+full results for `/list <index>`. The terminal bottom toolbar reports active
+request, LLM, and tool phases without adding animation frames to scrollback.
+User, System, Assistant, and Tool message headers are separated by an empty
+line and display their session index when the event provides one.
 
-### Full application reload
-
-The built-in `application-config-app` contributes screen-independent actions
-for requesting a full `AgentApplication` replacement and updating configured
-provider keys in a dotenv file. The CLI process, HTTP listener, bridge, and
-Bonjour integration remain alive while the owner:
-
-1. closes application-operation admission;
-2. lets admitted requests and started tools finish;
-3. constructs a candidate from the current config and freshly read dotenv;
-4. swaps the shared server/console application;
-5. closes the old runtime, including MCP servers;
-6. reopens admission.
-
-The action returns after reload is accepted. Application-global notification
-events report requested, completed, or failed state. New application requests
-receive HTTP 503 with `application_reload_pending` while the owner drains.
-
-Desktop dotenv editing is configured under `application.application_config`:
-
-```json
-{
-  "env_file": "${env:CONFIG_DIR}/.env",
-  "editable_env_keys": ["OPENROUTER_API_KEY"],
-  "provider_env_keys": {
-    "openrouter": "OPENROUTER_API_KEY"
-  }
-}
-```
-
-Only mapped keys in `editable_env_keys` can be changed. A value supplied by the
-process environment is externally managed and cannot be overwritten through
-the dotenv action. Stage 1 does not add protected secret storage or additional
-remote-transport restrictions; production credential hardening is tracked as a
-separate stage.
-- `/set` - update config overrides from plugin UI schema entries.
-- `/cancel` - cancel an active request.
-- `/exit` or `/quit` - exit the terminal.
-
-The maintained default configuration includes pin and status filters. Examples:
-
-```text
-/session --filter pinned_state=true
-/session --filter pinned_state=false
-/session --filter session_status=todo,blocked
-/session --filter pinned_state=any --filter session_status=any
-```
-
-Pin and status default to Any, so enabling their plugins does not hide
-sessions. Existing sessions without pin metadata are not pinned; sessions
-without status behave as `todo`. Mobile and desktop expose the same
-declarations through the filter control adjacent to search.
-
-Keyboard shortcuts:
-
-- `Ctrl-N` - new session.
-- `Ctrl-Q` - exit.
-- `Ctrl-X S` - send.
-- `Ctrl-X A` - append.
-- `Ctrl-X C` - cancel active request.
-
-### Plugin Controls
-
-The terminal client exposes per-session plugin control:
-
-```text
-/plugins
-/plugins on <id-or-index>
-/plugins off <id-or-index>
-/plugins reset
-```
-
-Changes are stored on the session in `session.metadata["plugins"]`, so
-subsequent requests and reloads use the updated plugin set.
-
-### Listing Messages
-
-The `/list` command shows compact message history, including role, content,
-reasoning/thinking metadata, tool calls, and tool call ids when present.
+See the [terminal guide](docs/terminal.md) for command syntax, keyboard
+shortcuts, startup help, progress behavior, tool-output configuration, session
+filters, plugin controls, and non-interactive operation.
 
 ## Logging
 
@@ -772,10 +704,16 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 
 - `POST /sessions` - create a session.
 - `GET /sessions` - list sessions.
+- `POST /sessions/request-statuses` - derive lightweight status for explicitly
+  supplied session IDs without listing all sessions.
 - `GET /sessions/{session_id}/messages` - list session messages.
 - `POST /sessions/{session_id}/messages` - append a message.
 - `POST /sessions/{session_id}/send` - run the model/tool loop.
 - `POST /sessions/{session_id}/send_message` - append and send in one call.
+- `GET` and `POST /sessions/{session_id}/snapshots` - list or create session
+  recovery points. Message deletion and successful OpenAI native compaction
+  also create automatic pre-mutation snapshots; see the
+  [session snapshot guide](docs/session-snapshots.md).
 - `GET /events` - poll request/session events.
 - `GET /application/notifications` - load the active application-notification
   snapshot; use `include_terminal=true` for terminal records.
@@ -853,6 +791,63 @@ crystal-lattice --help
 
 ## Release And Distribution
 
+### Making A CLI Release
+
+The repository root `package.json` provides release scripts for the production
+download domain:
+
+1. Bump the CLI version:
+
+   ```bash
+   npm run release:cli:version:bump-patch
+   ```
+
+   This updates `application/python/pyproject.toml` and the documentation
+   version references. Review the diff, then commit to `main` and push. For
+   minor or major bumps, edit the version manually. The release tag must match
+   `crystal-lattice-cli-v<version>`.
+
+2. Optional preflight:
+
+   ```bash
+   npm run release:cli:plan
+   npm run release:cli:gate
+   ```
+
+   `release:cli:plan` is a dry run: it prints every command without
+   executing anything. `release:cli:gate` performs the full local
+   validation for real — release state, release commit, download
+   configuration, and the local gate (pip install and both pytest
+   suites) — without creating or pushing the release tag.
+
+3. Create the release:
+
+   ```bash
+   npm run release:cli
+   ```
+
+   This validates the local release state and download configuration, runs the
+   fast test suites, pushes the release tag, and watches the GitHub Actions
+   run through the platform build matrix, GitHub Release publishing, and
+   download-domain publication. The command prints each phase as a numbered
+   step with the executed commands and validation results.
+
+4. Verify the public download endpoint:
+
+   ```bash
+   npm run release:cli:smoke
+   ```
+
+These commands wrap `deploy/aws-cli-downloads/release.sh` and
+`deploy/aws-cli-downloads/smoke.sh` with `--profile prod`, and run them through
+the repository `.venv` via `scripts/repo_run.py`, so the release local gate —
+its pip install and both pytest suites — executes in the isolated environment
+(the same applies after activating the `.venv` manually). They require a clean
+`main` worktree whose `HEAD` matches `origin/main`, an authenticated `gh`, and
+AWS credentials for read-only stack validation. For testing-domain releases,
+manual republishing, promotion, and release recovery, see
+`deploy/aws-cli-downloads/README.md`.
+
 ### Release Versioning
 
 `agent-core` and `crystal-lattice-cli` version independently. The CLI package
@@ -890,10 +885,10 @@ dist/crystal-lattice-python-runtime/
 Bundled-Python archive names look like:
 
 ```text
-crystal-lattice-python-runtime-v0.1.0-linux-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-darwin-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-darwin-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-windows-amd64.zip
+crystal-lattice-python-runtime-v0.1.1-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-windows-amd64.zip
 ```
 
 From that full package, users can create optimized config-specific PyInstaller
@@ -927,10 +922,10 @@ dist/crystal-lattice/
 Bundled-Python runtime archive names look like:
 
 ```text
-crystal-lattice-python-runtime-v0.1.0-linux-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-darwin-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-darwin-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.0-windows-amd64.zip
+crystal-lattice-python-runtime-v0.1.1-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.1-windows-amd64.zip
 ```
 
 PyInstaller does not cross-compile. Build Linux, macOS, and Windows optimized
@@ -977,11 +972,17 @@ that cache remains for non-bundled or user-provided plugins.
 ### Local Nox Scripts
 
 The repository root has package.json-like maintainer commands in `noxfile.py`.
-Install `nox` once if needed:
+`nox` is part of the `core/python[dev]` extras, so the standard development
+install provides it:
 
 ```bash
-python -m pip install nox
+python -m pip install -e "core/python[dev]"
 ```
+
+The root `package.json` wraps these sessions (`npm run build:bundle`,
+`npm run build:optimized`, `npm run install:prod:local`,
+`npm run install:dev:local`) and runs them through the repository `.venv` via
+`scripts/repo_run.py`, so no manual activation is needed.
 
 Build the current-platform bundled-Python runtime package:
 
@@ -1063,7 +1064,7 @@ Manual republish:
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
   --profile prod \
   --assets-dir dist/crystal-lattice-python-runtime \
-  --version 0.1.0
+  --version 0.1.1
 ```
 
 To change or retire the public download endpoint, use the deployment scripts in
@@ -1089,8 +1090,11 @@ Manual dry run:
 gh workflow run release-crystal-lattice-cli.yml
 ```
 
-Manual runs execute tests, build every platform archive, smoke-test the
-archives, and upload workflow artifacts. They do not publish a GitHub Release.
+Manual runs execute tests, build every platform archive, and smoke-test the
+archives. They do not store Actions artifacts or publish a GitHub Release. On a
+release tag, each read-only matrix job stores its archive as a one-day Actions
+artifact. One protected publish job downloads and verifies all four archives,
+uploads them to the GitHub Release, and makes the release public.
 
 Local workflow validation:
 
@@ -1114,15 +1118,14 @@ act workflow_dispatch \
 ```
 
 `act` can validate the Linux-shaped workflow path locally. It cannot prove the
-native macOS or Windows runners, and `actions/upload-artifact` may require
-GitHub's hosted runtime token even after the local build and smoke test pass.
+native macOS or Windows runners or the GitHub Release upload path.
 
 Official releases are created by pushing a tag that matches the CLI package
 version:
 
 ```bash
-git tag crystal-lattice-cli-v0.1.0
-git push origin crystal-lattice-cli-v0.1.0
+git tag crystal-lattice-cli-v0.1.1
+git push origin crystal-lattice-cli-v0.1.1
 ```
 
 The tag must match `application/python/pyproject.toml`'s `project.version`.

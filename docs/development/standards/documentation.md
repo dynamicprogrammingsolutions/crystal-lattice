@@ -230,8 +230,9 @@ Public user documentation and implementation/maintainer documentation describe
 current supported behavior.
 
 They may be edited before code in the working tree, but new claims must be
-committed with the code that makes them true. Target-only behavior remains in
-specifications and requirements until implementation is committed.
+committed with the code that makes them true, unless the user explicitly asks
+for a different commit order. Target-only behavior remains in specifications
+and requirements until implementation is committed.
 
 Current consumer documentation describes delivered behavior directly in
 public, self-contained vocabulary. Do not copy task/specification phase names,

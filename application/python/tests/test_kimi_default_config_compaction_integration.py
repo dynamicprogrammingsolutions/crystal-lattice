@@ -42,6 +42,10 @@ def _build_default_config_app(
 
     monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_key)
     monkeypatch.setenv(
+        "ANTHROPIC_API_KEY",
+        get_repo_env("ANTHROPIC_API_KEY", "test-anthropic-key"),
+    )
+    monkeypatch.setenv(
         "GEMINI_API_KEY", get_repo_env("GEMINI_API_KEY", "test-gemini-key")
     )
     monkeypatch.setenv(
@@ -181,8 +185,7 @@ def test_default_kimi_agent_compaction_action_rewrites_history(
     summary_index = next(
         idx
         for idx, message in enumerate(compacted.messages)
-        if isinstance(message.content, str)
-        and summary_prefix in message.content
+        if isinstance(message.content, str) and summary_prefix in message.content
     )
 
     # Verify the 1 injected message: summary (user)
@@ -239,9 +242,7 @@ def test_default_kimi_agent_has_compact_conversation_session_action(
     core, base_config, session = app.create_session("kimi")
 
     actions = core.get_session_actions(base_config)
-    kimi_actions = [
-        a for a in actions if a.get("plugin") == "kimi_compaction"
-    ]
+    kimi_actions = [a for a in actions if a.get("plugin") == "kimi_compaction"]
     assert len(kimi_actions) == 1, (
         f"Expected 1 kimi_compaction action, got {kimi_actions}. "
         f"All actions: {[a.get('plugin') for a in actions]}"
@@ -267,9 +268,7 @@ def test_default_kimi_agent_has_compaction_ui_elements(
     core, base_config, session = app.create_session("kimi")
 
     ui_elements = core.get_ui_schema(base_config)
-    kimi_elements = [
-        e for e in ui_elements if e.get("plugin") == "kimi_compaction"
-    ]
+    kimi_elements = [e for e in ui_elements if e.get("plugin") == "kimi_compaction"]
 
     # Should have at least 2 elements: session_action and message_action
     assert len(kimi_elements) >= 2, (

@@ -246,6 +246,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
       showSpinner={showSpinner}
       scroll
       scrollTestID="server-settings-scroll"
+      testID="server-settings-modal"
     >
       {state?.loading ? (
         <View style={styles.loadingRow}>
@@ -302,13 +303,15 @@ const createStyles = (theme: Theme) =>
       paddingRight: 12,
     },
     itemLabel: {
-      fontSize: 15,
+      fontSize: theme.typography.fontSize.message,
+      lineHeight: theme.typography.lineHeight.message,
       fontWeight: '600',
       color: theme.text,
     },
     description: {
       color: theme.textSecondary,
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       marginTop: 4,
     },
     iconButton: {

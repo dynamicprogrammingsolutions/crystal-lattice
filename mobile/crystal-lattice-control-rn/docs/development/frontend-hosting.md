@@ -48,6 +48,39 @@ The cross-package
 [bridge-connectivity frontend specification](../../../../docs/development/specifications/bridge-connectivity/frontend-behavior.md)
 owns portable mode and migration behavior.
 
+## Rich composer controls
+
+Session Chat renders model and reasoning settings as compact dropdowns and web
+search as a compact Boolean toggle. The shared pinned-action bar is explicitly
+configured for two rows with the leftover row below. Compact setting controls
+come first; Append and Resend occupy the lower right-aligned action row.
+Composer actions contain Resend, Append, and Append as. Request Cancel is not
+duplicated there.
+
+The message input has a fixed side stack with request Cancel above Send. Each
+control is 44 points square; the inline input has a 94-point minimum height.
+Cancel remains visible and disabled when no request is active. Send uses the
+paper-plane `send` icon and Resend uses `repeat`. The Send icon becomes a
+spinner during both request submission and the full active-request lifetime;
+the maximized composer uses the same state.
+
+An active request disables duplicate Send/Resend starts and enables Cancel,
+but does not globally disable model/reasoning/web settings, plugin actions,
+attachments, Append, or reload. Append has separate local in-flight state, and
+attachment operations retain their own pick/upload guards. Eligible concurrent
+operations use the normal backend path and rely on the server to accept or
+reject them.
+
+The top Session actions also expose Resend and request Cancel. These entries
+reuse the same handlers and request-state eligibility as the composer Resend
+and permanent Cancel controls.
+
+The in-frame `maximize-2` control opens a full-screen editor backed by the same
+draft, attachments, validation, persistence, and send path. `minimize-2`
+collapses without discarding edits. The large native text surface is intended
+to support iOS three-finger editing gestures; that operating-system gesture
+requires human simulator/device verification.
+
 ## Notification hosting
 
 `ConnectedRoot` owns connection-lifetime application notification state and
@@ -91,3 +124,24 @@ rehydration are verified through production component integration against the
 real Python HTTP backend. AsyncStorage reconstruction is covered by component
 tests and the mobile manual checkpoint; B-2 does not add a failure-injection
 Detox harness because presentation geometry is unchanged.
+
+## Rich session settings and actions
+
+`SessionChatScreen` consumes normalized rich config controls and session
+actions from the shared frontend SDK.
+
+- Config controls at `composer` use the same effective value and
+  `SessionSettingsController` mutations as the full Session Settings modal.
+- Rich dropdowns support discovered options, explicit custom string values,
+  and reset.
+- Session actions default to the header and may opt into the composer through
+  `rich_ui.placements`.
+- Rich toggle/list controls invoke the ordinary action and keep its dialog as
+  fallback.
+- Connection-scoped pin preferences preserve explicit user choices; plugin
+  `default_pinned` values apply only before a preference is stored.
+
+The deterministic production-screen harness is
+`src/testing/MobileRichSessionUiHarness.tsx`. Component coverage is in
+`__tests__/RichSessionUi.test.tsx`; simulator coverage is in
+`e2e/richSessionUi.e2e.test.ts`.

@@ -41,6 +41,7 @@ class OpenAIResponsesNativeCompactionAppPlugin:
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
                     "end_index": {"type": "integer", "required": False},
+                    "message_index": {"type": "integer", "required": False},
                 },
             },
             {
@@ -96,7 +97,29 @@ class OpenAIResponsesNativeCompactionAppPlugin:
                         }
                     ],
                 },
-            }
+            },
+            {
+                "ui_type": "message_action",
+                "id": "compact_native_history_through_message",
+                "label": "Compact native history up to here",
+                "icon": "archive",
+                "order": 25,
+                "action_id": "compact_native_history",
+                "action_owner": "application",
+                "fixed_params": {},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "message_index": "$message.index",
+                },
+                "dialog": {
+                    "kind": "confirm",
+                    "title": "Compact native history up to here",
+                    "message": (
+                        "Compact provider-native history through this message "
+                        "in the background?"
+                    ),
+                },
+            },
         ]
 
     def get_commands(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -133,6 +156,20 @@ class OpenAIResponsesNativeCompactionAppPlugin:
             raise KeyError(f"Session {session_id!r} not found")
         core, base_config, session = loaded
         end_index = params.get("end_index")
+        message_index = params.get("message_index")
+        if end_index is not None and message_index is not None:
+            raise ValueError("end_index and message_index cannot both be provided")
+        if message_index is not None:
+            if (
+                not isinstance(message_index, int)
+                or isinstance(message_index, bool)
+                or message_index < 0
+                or message_index >= len(session.messages)
+            ):
+                raise ValueError(
+                    "message_index must identify a visible session message"
+                )
+            end_index = message_index + 1
         if end_index is not None:
             if (
                 not isinstance(end_index, int)

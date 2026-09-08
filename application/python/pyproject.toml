@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crystal-lattice-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "Crystal Lattice command-line and HTTP frontend for agent-core"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,6 +27,12 @@ dependencies = [
 binary = [
     "pyinstaller>=6.0",
     "tomli>=2.0.0; python_version < '3.11'",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pexpect>=4.9; platform_system != 'Windows'",
+    "pyte>=0.8.2; platform_system != 'Windows'",
 ]
 
 [project.scripts]
@@ -61,5 +67,7 @@ markers = [
     "gemini: tests requiring Gemini credentials",
     "openai: tests requiring OpenAI credentials",
     "openrouter: OpenRouter integration tests",
+    "anthropic: tests requiring Anthropic credentials",
     "manual_integration: semiautomated tests requiring a human or saved auth state",
+    "terminal_ui: deterministic pseudo-terminal UI tests",
 ]

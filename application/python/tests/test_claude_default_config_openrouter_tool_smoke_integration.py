@@ -74,6 +74,10 @@ def _build_terminal_app(
         pytest.skip("GEMINI_API_KEY not set; skipping Claude WebSearch smoke tests")
 
     monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_key)
+    monkeypatch.setenv(
+        "ANTHROPIC_API_KEY",
+        get_repo_env("ANTHROPIC_API_KEY", "test-anthropic-key"),
+    )
     monkeypatch.setenv("GEMINI_API_KEY", gemini_key)
     monkeypatch.setenv(
         "TAVILY_API_KEY", get_repo_env("TAVILY_API_KEY", "test-tavily-key")
@@ -132,7 +136,7 @@ def _run_claude_smoke_case(
 ) -> tuple[str, list[str]]:
     last_failure: tuple[str, list[str]] | None = None
     for _attempt in range(retries):
-        session = term_app.start_new_session(agent_id="claude")
+        session = term_app.start_new_session(agent_id="claude-openrouter")
         term_app.append_user_message(prompt)
 
         final_session_dict, _messages, _request_id = term_app.send_request(stream=False)

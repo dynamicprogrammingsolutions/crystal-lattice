@@ -176,6 +176,18 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
         display: 28,
         code: 14,
       },
+      lineHeight: {
+        tiny: 15,
+        small: 17,
+        secondary: 18,
+        normal: 20,
+        message: 21,
+        large: 22,
+        title: 24,
+        screenTitle: 30,
+        display: 34,
+        code: 19,
+      },
     },
     background: '#F2F2F7',
     backgroundAlt: '#FFFFFF',
@@ -262,13 +274,15 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       error ? React.createElement(Text, null, error) : null,
     );
   });
+  const ThemeContext = React.createContext(lightTheme);
 
   return {
     __esModule: true,
     ...actual,
     SESSION_ACTIONS: {},
-    ThemeProvider: ({ children }) => React.createElement(React.Fragment, null, children),
-    useTheme: () => lightTheme,
+    ThemeProvider: ({ theme, children }) =>
+      React.createElement(ThemeContext.Provider, { value: theme }, children),
+    useTheme: () => React.useContext(ThemeContext),
     SessionActionsBar: () => React.createElement(React.Fragment, null),
     ApplicationActionDialog: () => React.createElement(React.Fragment, null),
     ApplicationActionDialogLayout: () => React.createElement(React.Fragment, null),

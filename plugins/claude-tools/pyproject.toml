@@ -53,6 +53,7 @@ include = ["claude_tools*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "-m 'not integration'"
 markers = [
   "integration: integration tests that may hit real services",
   "ollama: tests requiring Ollama",

@@ -22,9 +22,8 @@ jest.mock('@crystal-lattice/react-native-mac-text-view', () => {
   };
 });
 
-jest.mock(
-  '@react-native-async-storage/async-storage',
-  () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 
 jest.mock('@crystal-lattice/frontend-sdk', () => ({
@@ -37,26 +36,41 @@ jest.mock('@crystal-lattice/frontend-sdk', () => ({
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
   const { Pressable, Text, TextInput, View } = require('react-native');
+  let lastActionsPopoverAnchorTag = null;
   const {
     mergeSessionNotificationEvents,
     notificationExpectedRevision,
     selectSessionNotifications,
   } = jest.requireActual('@crystal-lattice/frontend-sdk');
+  const markdownDisplayPreferences = jest.requireActual(
+    '../../packages/frontend-rn-components/src/markdownDisplayPreferences',
+  );
+  const {
+    DEFAULT_MARKDOWN_DISPLAY_PREFERENCES: defaultMarkdownDisplayPreferences,
+    DISPLAY_TYPOGRAPHY_PRESETS,
+    MARKDOWN_BASE_FONT_SIZES,
+    MARKDOWN_BASE_FONT_SIZE_OPTIONS,
+    MARKDOWN_HEADER_SIZE_OPTIONS,
+    applyDisplayTypographyPreset,
+    deriveMarkdownTypography,
+    normalizeMarkdownBaseFontSize,
+    normalizeMarkdownDisplayPreferences,
+    normalizeMarkdownHeaderSize,
+  } = markdownDisplayPreferences;
+  const homeWorkspace = jest.requireActual(
+    '../../packages/frontend-rn-components/src/homeWorkspace',
+  );
+  const reorderGeometry = jest.requireActual(
+    '../../packages/frontend-rn-components/src/reorderGeometry',
+  );
+  const sessionRequestStatus = jest.requireActual(
+    '../../packages/frontend-rn-components/src/sessionRequestStatus',
+  );
   const theme = {
-    typography: {
-      fontSize: {
-        tiny: 11,
-        small: 12,
-        secondary: 13,
-        normal: 14,
-        message: 15,
-        large: 16,
-        title: 18,
-        screenTitle: 24,
-        display: 28,
-        code: 14,
-      },
-    },
+    typography:
+      DISPLAY_TYPOGRAPHY_PRESETS[
+        defaultMarkdownDisplayPreferences.baseFontSize
+      ],
     background: '#fff',
     backgroundAlt: '#fff',
     surface: '#fff',
@@ -90,14 +104,24 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     navIconActive: '#007AFF',
     navIconInactive: '#666',
   };
+  const MarkdownDisplayPreferencesContext = React.createContext({
+    preferences: defaultMarkdownDisplayPreferences,
+    setPreferences: () => {},
+  });
+  const ThemeContext = React.createContext(theme);
 
   const ApplicationActionForm = React.forwardRef(({ form }, ref) => {
-    const inputs = form && form.kind === 'form' && Array.isArray(form.inputs) ? form.inputs : [];
+    const inputs =
+      form && form.kind === 'form' && Array.isArray(form.inputs)
+        ? form.inputs
+        : [];
     const initialValues = {};
-    inputs.forEach((field) => {
+    inputs.forEach(field => {
       if (!field?.name) return;
       initialValues[field.name] =
-        field.default === undefined || field.default === null ? '' : String(field.default);
+        field.default === undefined || field.default === null
+          ? ''
+          : String(field.default);
     });
     const [values, setValues] = React.useState(initialValues);
     const [error, setError] = React.useState(null);
@@ -127,7 +151,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     return React.createElement(
       View,
       null,
-      inputs.map((field) => {
+      inputs.map(field => {
         if (!field?.name) return null;
         return React.createElement(
           View,
@@ -136,7 +160,8 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
           React.createElement(TextInput, {
             value: values[field.name] ?? '',
             placeholder: field.placeholder || '',
-            onChangeText: (next) => setValues((prev) => ({ ...prev, [field.name]: next })),
+            onChangeText: next =>
+              setValues(prev => ({ ...prev, [field.name]: next })),
           }),
         );
       }),
@@ -144,10 +169,220 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     );
   });
 
+  const RichConfigDropdownControl = ({
+    control,
+    value,
+    disabled,
+    onPress,
+    testID,
+  }) =>
+    React.createElement(
+      Pressable,
+      { testID, disabled, onPress },
+      React.createElement(
+        Text,
+        null,
+        `${control.richUi.label}: ${String(value ?? '')}`,
+      ),
+    );
+
+  const RichConfigDropdownPanel = ({
+    richUi,
+    hasOverride,
+    onSelect,
+    onReset,
+    testIDPrefix = 'rich-config-dropdown',
+  }) => {
+    const [query, setQuery] = React.useState('');
+    const normalized = query.trim().toLowerCase();
+    const declared = richUi.options.filter(
+      option =>
+        !normalized ||
+        option.value.toLowerCase().includes(normalized) ||
+        option.label.toLowerCase().includes(normalized),
+    );
+    const exact = richUi.options.some(option => option.value === query.trim());
+    const customEnabled = richUi.custom_value?.enabled === true;
+    const customPattern =
+      customEnabled && richUi.custom_value.pattern
+        ? new RegExp(richUi.custom_value.pattern)
+        : null;
+    const customValid =
+      customEnabled &&
+      !!query.trim() &&
+      !exact &&
+      (!customPattern || customPattern.test(query.trim()));
+    return React.createElement(
+      View,
+      { testID: testIDPrefix },
+      React.createElement(TextInput, {
+        testID: `${testIDPrefix}-input`,
+        value: query,
+        onChangeText: setQuery,
+      }),
+      declared.map(option =>
+        React.createElement(
+          Pressable,
+          {
+            key: option.value,
+            testID: `${testIDPrefix}-declared-${option.value}`,
+            onPress: () => onSelect(option.value),
+          },
+          React.createElement(Text, null, option.label),
+        ),
+      ),
+      customValid
+        ? React.createElement(
+            Pressable,
+            {
+              testID: `${testIDPrefix}-custom-${query.trim()}`,
+              onPress: () => onSelect(query.trim()),
+            },
+            React.createElement(
+              Text,
+              null,
+              richUi.custom_value.option_label.replace('{value}', query.trim()),
+            ),
+          )
+        : null,
+      hasOverride
+        ? React.createElement(Pressable, {
+            testID: `${testIDPrefix}-reset`,
+            onPress: onReset,
+          })
+        : null,
+    );
+  };
+
+  const RichConfigToggleControl = ({
+    control,
+    value,
+    disabled,
+    onPress,
+    testID,
+  }) =>
+    React.createElement(
+      Pressable,
+      { testID, disabled, onPress },
+      React.createElement(
+        Text,
+        null,
+        `${control.richUi.label}: ${value === true ? 'On' : 'Off'}`,
+      ),
+    );
+
+  const SessionListRichActionControl = ({
+    element,
+    onExecuteAction,
+    onPresentRichList,
+    testID,
+  }) =>
+    React.createElement(
+      Pressable,
+      {
+        testID,
+        onPress: () => {
+          if (element.rich_ui?.kind === 'toggle') {
+            onExecuteAction(element);
+          } else {
+            onPresentRichList(element);
+          }
+        },
+      },
+      React.createElement(Text, null, element.label),
+    );
+
+  const SessionListRichActionList = ({
+    element,
+    onExecuteAction,
+    onRequestClose,
+    testIDPrefix,
+  }) =>
+    React.createElement(
+      View,
+      { testID: testIDPrefix },
+      (element.rich_ui?.options || []).map(option =>
+        React.createElement(
+          Pressable,
+          {
+            key: String(option.value),
+            testID: `${testIDPrefix}-option-${String(option.value)}`,
+            onPress: () => {
+              onRequestClose();
+              onExecuteAction({
+                [element.rich_ui.input_name]: option.value,
+              });
+            },
+          },
+          React.createElement(Text, null, option.label),
+        ),
+      ),
+    );
+
   return {
-    ThemeProvider: ({ children }: { children: any }) => React.createElement(React.Fragment, null, children),
-    useTheme: () => theme,
-    DropdownMenuSurface: ({ visible, children }: { visible: boolean; children: any }) =>
+    ...homeWorkspace,
+    ...reorderGeometry,
+    ...sessionRequestStatus,
+    ThemeProvider: ({
+      theme: value,
+      children,
+    }: {
+      theme: any,
+      children: any,
+    }) => React.createElement(ThemeContext.Provider, { value }, children),
+    useTheme: () => React.useContext(ThemeContext),
+    SessionRequestStatusIndicator: ({ status, variant = 'badge', testID }) => {
+      if (!status) return null;
+      const presentation =
+        sessionRequestStatus.getSessionRequestStatusPresentation(status);
+      return React.createElement(
+        View,
+        {
+          testID,
+          accessibilityLabel: `Request status: ${presentation.label}`,
+          accessibilityValue: { text: presentation.label },
+        },
+        variant === 'dot'
+          ? null
+          : React.createElement(Text, null, presentation.label),
+      );
+    },
+    DEFAULT_MARKDOWN_DISPLAY_PREFERENCES: defaultMarkdownDisplayPreferences,
+    DISPLAY_TYPOGRAPHY_PRESETS,
+    MARKDOWN_BASE_FONT_SIZES,
+    MARKDOWN_BASE_FONT_SIZE_OPTIONS,
+    MARKDOWN_HEADER_SIZE_OPTIONS,
+    normalizeMarkdownBaseFontSize,
+    normalizeMarkdownHeaderSize,
+    normalizeMarkdownDisplayPreferences,
+    deriveMarkdownTypography,
+    applyDisplayTypographyPreset,
+    MarkdownDisplayPreferencesProvider: ({ value, onChange, children }) => {
+      const preferences = normalizeMarkdownDisplayPreferences(value);
+      return React.createElement(
+        MarkdownDisplayPreferencesContext.Provider,
+        {
+          value: {
+            preferences,
+            setPreferences: update => {
+              const next =
+                typeof update === 'function' ? update(preferences) : update;
+              onChange?.(normalizeMarkdownDisplayPreferences(next));
+            },
+          },
+        },
+        children,
+      );
+    },
+    useMarkdownDisplayPreferences: () =>
+      React.useContext(MarkdownDisplayPreferencesContext),
+    DropdownMenuSurface: ({
+      visible,
+      children,
+    }: {
+      visible: boolean,
+      children: any,
+    }) =>
       visible ? React.createElement(React.Fragment, null, children) : null,
     SessionListFiltersPanel: ({
       schema,
@@ -172,14 +407,14 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
             : null,
           React.createElement(Text, null, label),
         );
-      const renderFilter = (filter) => {
+      const renderFilter = filter => {
         const value = values[filter.id];
         const controls = [];
         if (filter.type === 'boolean') {
           controls.push(renderOption(filter, 'any', 'Any', null));
           for (const nextValue of [true, false]) {
             const option = filter.options.find(
-              (candidate) => candidate.value === nextValue,
+              candidate => candidate.value === nextValue,
             );
             controls.push(
               renderOption(
@@ -195,10 +430,9 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
           controls.push(renderOption(filter, 'any', 'Any', []));
           filter.options.forEach((option, index) => {
             const selected =
-              Array.isArray(value) &&
-              value.some((item) => item === option.value);
+              Array.isArray(value) && value.some(item => item === option.value);
             const nextValue = selected
-              ? value.filter((item) => item !== option.value)
+              ? value.filter(item => item !== option.value)
               : [...(Array.isArray(value) ? value : []), option.value];
             controls.push(
               renderOption(
@@ -225,7 +459,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
         View,
         { testID: 'session-filters-panel' },
         (schema?.filters || [])
-          .filter((filter) => filter.id !== schema?.mainSearch?.id)
+          .filter(filter => filter.id !== schema?.mainSearch?.id)
           .map(renderFilter),
         React.createElement(Pressable, {
           testID: 'session-filters-show-all',
@@ -244,25 +478,90 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       );
     },
 
-    ActionsMenuBar: ({ baseActions = [], extraActions = [], menuButtonTestID }) =>
-      React.createElement(
+    RichConfigDropdownControl,
+    RichConfigDropdownPanel,
+    RichConfigToggleControl,
+    SessionListRichActionControl,
+    SessionListRichActionList,
+    ActionsMenuBar: ({
+      baseActions = [],
+      extraActions = [],
+      menuButtonTestID,
+      pinned = [],
+      pinnedKeysForBar,
+      renderPinnedAction,
+      onAction,
+      isActionDisabled,
+    }) => {
+      const actions = [...baseActions, ...extraActions];
+      const barKeys = pinnedKeysForBar ?? pinned;
+      return React.createElement(
         View,
         { testID: menuButtonTestID },
-        [...baseActions, ...extraActions].map((action) =>
-          React.createElement(
-            Text,
-            { key: action.key, testID: `action-menu-item-${String(action.key).replace(/\u0000/g, '-')}` },
-            action.label,
-          ),
-        ),
-      ),
-    NotificationBanner: ({ display, onDismiss, onFollowupAction, disabledActionIds = [] }) =>
+        actions
+          .filter(action => barKeys.includes(action.key))
+          .map(action => {
+            const disabled = isActionDisabled?.(action.key) ?? false;
+            const custom = renderPinnedAction?.({
+              action,
+              disabled,
+              iconName: action.iconName ?? null,
+              iconColor: '#007AFF',
+              onPress: () => onAction?.(action.key),
+            });
+            if (custom !== undefined) {
+              return React.createElement(
+                React.Fragment,
+                { key: action.key },
+                custom,
+              );
+            }
+            return React.createElement(
+              Pressable,
+              {
+                key: action.key,
+                testID: `action-menu-pinned-${String(action.key).replace(
+                  /\u0000/g,
+                  '-',
+                )}`,
+                onPress: () => onAction?.(action.key),
+                disabled,
+                accessibilityState: { disabled },
+              },
+              React.createElement(Text, null, action.label),
+            );
+          }),
+        actions.map(action => {
+          const disabled = isActionDisabled?.(action.key) ?? false;
+          return React.createElement(
+            Pressable,
+            {
+              key: `menu:${action.key}`,
+              testID: `action-menu-item-${String(action.key).replace(
+                /\u0000/g,
+                '-',
+              )}`,
+              onPress: () => onAction?.(action.key),
+              disabled,
+              accessibilityState: { disabled },
+            },
+            React.createElement(Text, null, action.label),
+          );
+        }),
+      );
+    },
+    NotificationBanner: ({
+      display,
+      onDismiss,
+      onFollowupAction,
+      disabledActionIds = [],
+    }) =>
       React.createElement(
         View,
         { accessibilityRole: 'alert' },
         display?.title ? React.createElement(Text, null, display.title) : null,
         React.createElement(Text, null, display?.body || ''),
-        (display?.actions || []).map((action) =>
+        (display?.actions || []).map(action =>
           React.createElement(
             Pressable,
             {
@@ -288,7 +587,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       React.createElement(
         View,
         { testID: 'notification-banner-host' },
-        items.map((item) =>
+        items.map(item =>
           React.createElement(
             View,
             { key: item.envelope.id, accessibilityRole: 'alert' },
@@ -325,7 +624,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
         selectSessionNotifications(sessionSummary),
         events,
       ).filter(
-        (notification) =>
+        notification =>
           notification.status === 'pending' &&
           inlinePresentations.includes(
             notification.display.presentation || 'inline',
@@ -338,13 +637,14 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
         ? React.createElement(
             View,
             null,
-            notifications.map((notification) => {
+            notifications.map(notification => {
               const dismiss = async () => {
                 try {
                   await onDismissNotification?.(notification);
-                  const revision =
-                    `${notification.id}:${notificationExpectedRevision(notification)}`;
-                  setDismissedRevisions((current) =>
+                  const revision = `${
+                    notification.id
+                  }:${notificationExpectedRevision(notification)}`;
+                  setDismissedRevisions(current =>
                     current.includes(revision)
                       ? current
                       : [...current, revision],
@@ -362,7 +662,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
                     onDismiss: () => {
                       void dismiss();
                     },
-                    onFollowupAction: (action) =>
+                    onFollowupAction: action =>
                       onFollowupAction?.(action, notification),
                   }),
                 );
@@ -382,17 +682,22 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
           )
         : null;
     },
-    SessionListActionsBar: ({ session, pluginActions, pinned, onExecuteAction }) =>
+    SessionListActionsBar: ({
+      session,
+      pluginActions,
+      pinned,
+      onExecuteAction,
+    }) =>
       React.createElement(
         View,
         null,
         (pluginActions || [])
           .filter(
-            (action) =>
+            action =>
               (pinned || []).includes(action.id) &&
               action.rich_ui?.placements?.includes('actions_bar'),
           )
-          .map((action) =>
+          .map(action =>
             React.createElement(Pressable, {
               key: action.id,
               testID: `session-rich-action-${session.session_id}-${action.id}`,
@@ -405,22 +710,33 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       session,
       testID,
       onExecuteAction,
+      onPresentRichList,
     }) => {
       const richUi = element.rich_ui || {};
       const valuePath =
-        typeof richUi.value_path === 'string' ? richUi.value_path.split('.') : [];
+        typeof richUi.value_path === 'string'
+          ? richUi.value_path.split('.')
+          : [];
       const value = valuePath.reduce((current, key) => current?.[key], session);
       return React.createElement(Pressable, {
         testID,
         accessibilityState: {
           selected: value === richUi.active_value,
         },
-        onPress: () => onExecuteAction(element),
+        onPress: event =>
+          richUi.kind === 'list'
+            ? onPresentRichList(element, event?.nativeEvent?.target)
+            : onExecuteAction(element),
       });
     },
-    ApplicationActionDialog: ({ visible }: { visible: boolean }) => (visible ? React.createElement(View, null) : null),
-    ApplicationActionDialogLayout: () => React.createElement(React.Fragment, null),
+    ApplicationActionDialog: ({ visible }: { visible: boolean }) =>
+      visible ? React.createElement(View, null) : null,
+    ApplicationActionDialogLayout: () =>
+      React.createElement(React.Fragment, null),
     ApplicationActionForm,
-    getLastActionsPopoverAnchorTag: () => null,
+    getLastActionsPopoverAnchorTag: () => lastActionsPopoverAnchorTag,
+    setLastActionsPopoverAnchorTag: tag => {
+      lastActionsPopoverAnchorTag = typeof tag === 'number' ? tag : null;
+    },
   };
 });

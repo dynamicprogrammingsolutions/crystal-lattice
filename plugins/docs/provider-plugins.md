@@ -31,6 +31,7 @@ Runtime code references (source of truth):
 
 See also:
 
+- [Provider implementation standard](provider-implementation-standard/index.md)
 - [Tool interop flow](tool-interop.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Configuration schema (`get_config_schema`)](config-schema.md)
@@ -462,9 +463,30 @@ class MyOpenAICompatibleProvider(ProviderPlugin):
             for m in models
             if isinstance(m.get("id"), str) and m.get("id")
         ]
-        if options:
-            return [{"type": "select", "key": "model", "label": "Model", "options": options}]
-        return [{"type": "text", "key": "model", "label": "Model id"}]
+        return [
+            {
+                "ui_type": "config",
+                "type": "dropdown",
+                "key": "model",
+                "label": "Model",
+                "icon": "cpu",
+                "options": options,
+                "placeholder": "Search models or enter a model ID",
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Model",
+                    "show_label": False,
+                    "options": options,
+                    "placeholder": "Search models or enter a model ID",
+                    "custom_value": {
+                        "enabled": True,
+                        "option_label": "Use '{value}' as a custom model ID",
+                    },
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                },
+            }
+        ]
 ```
 
 Notes:
@@ -472,6 +494,22 @@ Notes:
 - The `"capabilities"` field above is a provider-defined convention used only by this provider.
   The core does not interpret it; only the tags matter outside the provider.
 - Prefer stable tag names like `provider:...` and `supports_...` so that extensions can depend on them.
+- Use `dropdown`, rather than `select`, for a discovered model catalog.
+  Keep the custom-capable dropdown when discovery is empty so explicit model
+  IDs use the same searchable field.
+- Ordinary `type: "dropdown"` config elements accept any non-empty custom
+  value by default. Declare
+  `custom_value` only to disable custom entry, add a known model-ID restriction,
+  or customize the synthetic-option label.
+- Rich dropdown metadata is self-contained, so repeat `custom_value` inside
+  `rich_ui` when the compact control should also accept custom values.
+- A composer model selector is the same ordinary config element with
+  self-contained `rich_ui`; do not define a provider-specific UI type or a
+  second mutation path.
+- Put the ordinary/fallback label and icon on the containing config element.
+  The normal action menu and frontends without rich-UI support must not need
+  `rich_ui` to render the setting. Per-option rich icons may override that
+  icon only in compact presentation.
 
 ### 2) Implement `init` and `initialize_request`
 

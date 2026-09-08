@@ -3204,7 +3204,12 @@ def test_cancel_request_endpoint_cancels_active_provider_request(
     """POST /requests/{request_id}/cancel interrupts an already-active request."""
 
     from agent_terminal_app import server as server_mod
+    from tests.dummy_provider import (
+        get_cancellable_blocking_provider_state,
+        reset_cancellable_blocking_provider_state,
+    )
 
+    reset_cancellable_blocking_provider_state()
     config_path = _make_blocking_provider_config(tmp_path)
     session_root = tmp_path / "sessions"
 
@@ -3228,6 +3233,7 @@ def test_cancel_request_endpoint_cancels_active_provider_request(
     deadline = time.time() + 5.0
     saw_started = False
     saw_active = False
+    saw_provider_active = False
     while time.time() < deadline:
         current_events = _store_events(
             app.get_event_store(), session_id=session_id, limit=100
@@ -3237,11 +3243,15 @@ def test_cancel_request_endpoint_cancels_active_provider_request(
             saw_started = True
         if app.get_active_session_request_id(session_id) == request_id:
             saw_active = True
-        if saw_started and saw_active:
+        provider_state = get_cancellable_blocking_provider_state()
+        if request_id in provider_state["active"]:
+            saw_provider_active = True
+        if saw_started and saw_active and saw_provider_active:
             break
         time.sleep(0.05)
     assert saw_started
     assert saw_active
+    assert saw_provider_active
 
     cancel_resp = server_mod.cancel_request(request_id, app_instance=app)
     assert cancel_resp["status"] == "cancelled"

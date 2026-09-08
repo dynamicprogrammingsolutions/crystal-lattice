@@ -357,3 +357,30 @@ def test_find_manifest_tool_checks_windows_kits(tmp_path: Path, monkeypatch) -> 
     assert runtime_builder.find_manifest_tool(
         windows_roots=[tmp_path], assume_windows=True
     ) == str(mt)
+
+
+def test_core_declares_colorama_for_windows_structlog_colors() -> None:
+    """The Windows runtime must ship colorama for structlog's ConsoleRenderer.
+
+    ``agent_core.utils.configure_logging`` renders colored output by default;
+    structlog raises ``SystemError`` on Windows when colors are enabled and
+    colorama is missing. The dependency marker keeps macOS/Linux installs
+    unchanged while covering both the release build job and the packaged
+    runtime, which install ``core/python`` with pip.
+    """
+    import tomllib
+
+    pyproject = tomllib.loads(
+        (ROOT / "core" / "python" / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    dependencies = pyproject["project"]["dependencies"]
+
+    matching = [
+        dep
+        for dep in dependencies
+        if dep.startswith("colorama") and "sys_platform == 'win32'" in dep
+    ]
+    assert matching, (
+        "core/python must declare a Windows colorama dependency "
+        f"(e.g. \"colorama>=0.4.6; sys_platform == 'win32'\"), found: {dependencies}"
+    )

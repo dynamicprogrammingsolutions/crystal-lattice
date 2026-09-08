@@ -332,6 +332,42 @@ builds this handoff context automatically.
 
 ## Action definitions
 
+### Snapshot before a destructive session mutation
+
+Application plugins receive the active `AgentApplication`, including the
+public session snapshot methods. A destructive action can create a recovery
+point after validation and immediately before saving the changed session:
+
+```python
+snapshot = app.create_session_snapshot(
+    session_id,
+    reason="Before deleting messages [12:]",
+    metadata={
+        "origin": "automatic",
+        "plugin": self.name,
+        "action": "delete_messages",
+        "range": {"start": 12, "end": len(session.messages)},
+    },
+)
+
+try:
+    saved = app.save_session(updated_session)
+except BaseException:
+    app.delete_session_snapshot(session_id, snapshot.snapshot_id)
+    raise
+```
+
+Run validation first so no-op or invalid actions do not create snapshots. Keep
+snapshot creation and persistence under the same session lock. For background
+operations, create the snapshot at the final commit boundary rather than when
+provider work starts, so cancellation and provider failure leave no recovery
+record.
+
+This is a plugin-owned policy, not automatic behavior for every application
+action. Plugins should use precise pre-state reasons and structured origin,
+plugin, action, and normalized range metadata. Snapshot storage and retention
+behavior is owned by the application.
+
 Application plugins define actions via `get_actions()`. Each action is a dictionary describing the action's interface:
 
 ```python

@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anthropic-compatible"
+version = "0.1.0"
+description = "Anthropic-compatible provider and extensions for the AI Agent Platform"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "anthropic>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "agent-core>=0.3.0",
+  "pytest>=7.0.0",
+  "pytest-timeout>=2.0.0",
+  "python-dotenv>=1.0.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["anthropic_plugins*"]
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-m 'not integration'"
+markers = [
+  "integration: integration tests that call real services",
+  "api: hosted API integration tests requiring credentials and potentially incurring cost",
+  "slow_integration: broad or multi-request integration tests run selectively",
+  "anthropic: tests requiring Anthropic credentials",
+  "ollama: tests exercising local Ollama integration",
+]

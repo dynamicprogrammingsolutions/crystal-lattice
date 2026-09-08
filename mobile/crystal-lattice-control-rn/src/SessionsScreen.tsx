@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -30,6 +31,7 @@ import {
   type ApplicationActionUiElement,
   type RunActionContext,
   type SessionListActionElement,
+  type SessionRequestStatus,
 } from '@crystal-lattice/frontend-sdk';
 import {
   ActionsMenuBar,
@@ -38,7 +40,10 @@ import {
   SessionListRichActionControl,
   SessionListRichActionList,
   SessionListFiltersPanel,
+  ACTIONS_MENU_BAR_ITEM_WIDTH,
+  ALL_SESSION_ACTIONS,
   type SessionActionKey,
+  type SessionActionDefinition,
   type ActionDefinition,
 } from '@crystal-lattice/frontend-rn-components';
 import {
@@ -66,15 +71,22 @@ import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
 import { MobileDisplayHost } from './components/GlobalDisplayLayer';
 import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
+import { getMobileHeaderMaxPinnedActions } from './responsiveHeaderActions';
+import { useHomeWorkspace } from './HomeWorkspaceContext';
+import SessionNoteModal from './components/SessionNoteModal';
+import SessionRequestStatusBadge from './components/SessionRequestStatusBadge';
 
 interface SessionsScreenProps {
   backend: AgentBackend | null;
   connectionId: string | null;
+  connectionName?: string;
   cachedSessions: SessionSummary[] | null;
   lastLoadedAt: number | null;
   isActive: boolean;
   onUpdateCache: (sessions: SessionSummary[]) => void;
   onSelectSession: (sessionId: string) => void;
+  requestStatuses?: Readonly<Record<string, SessionRequestStatus>>;
+  newSessionRequestToken?: number;
 }
 
 const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
@@ -82,7 +94,21 @@ const STORAGE_KEY_SESSIONS_HEADER_ACTIONS = 'clc_pinned_sessions_header_actions_
 
 const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
 
-const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings', 'plugins'];
+const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = [
+  'agentSwitch',
+  'settings',
+  'plugins',
+  'localNote',
+];
+const SESSION_LIST_BASE_ACTIONS: SessionActionDefinition[] = [
+  ...ALL_SESSION_ACTIONS,
+  {
+    key: 'localNote',
+    label: 'Local note',
+    iconName: 'edit-3',
+    defaultPinned: false,
+  },
+];
 
 type ActionDisplayEntry = {
   key: string;
@@ -122,15 +148,21 @@ function upsertInlineDisplay(
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   backend,
   connectionId,
+  connectionName = 'Sessions',
   cachedSessions,
   lastLoadedAt,
   isActive,
   onUpdateCache,
   onSelectSession,
+  requestStatuses = {},
+  newSessionRequestToken = 0,
 }) => {
   const theme = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const maxHeaderPinnedActions = getMobileHeaderMaxPinnedActions(windowWidth);
   const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
+  const { notes, setSessionNote, removeSessionNote } = useHomeWorkspace();
 
   const { controller: sessionsController, state: sessionsState } = useSessionsController({
     backend,
@@ -232,6 +264,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     useState<ApplicationActionUiElement | null>(null);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [pluginsSessionId, setPluginsSessionId] = useState<string | null>(null);
+  const [noteSessionId, setNoteSessionId] = useState<string | null>(null);
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [activeRichList, setActiveRichList] = useState<{
     element: SessionListActionElement;
@@ -256,6 +289,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     setPluginsVisible(false);
     setFiltersVisible(false);
     setActiveRichList(null);
+    setNoteSessionId(null);
   }, []);
 
   const sessionsHeaderActionDefinitions = useMemo<SessionsHeaderActionDefinition[]>(
@@ -590,8 +624,25 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   };
 
+  const handledNewSessionRequestToken = useRef(newSessionRequestToken);
+  useEffect(() => {
+    if (
+      !isActive ||
+      newSessionRequestToken === handledNewSessionRequestToken.current
+    ) {
+      return;
+    }
+    handledNewSessionRequestToken.current = newSessionRequestToken;
+    void handleNewSession();
+  }, [isActive, newSessionRequestToken]);
+
   const handleBuiltinSessionAction = useCallback(
     async (action: SessionActionKey, s: SessionSummary) => {
+
+      if (action === 'localNote') {
+        setNoteSessionId(s.session_id);
+        return;
+      }
 
       if (action === 'settings') {
         setSettingsSessionId(s.session_id);
@@ -752,7 +803,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             </View>
           ) : null}
         </View>
-        <Text style={styles.sessionId}>{s.session_id}</Text>
+        <Text
+          style={styles.sessionId}
+          testID={`session-id-${s.session_id}`}
+        >
+          {s.session_id}
+        </Text>
         {subtitle ? (
           <Text
             style={styles.sessionSubtitle}
@@ -761,7 +817,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             {subtitle}
           </Text>
         ) : s.preview ? (
-          <Text style={styles.sessionPreview}>{s.preview}</Text>
+          <Text
+            style={styles.sessionPreview}
+            testID={`session-preview-${s.session_id}`}
+          >
+            {s.preview}
+          </Text>
         ) : null}
         <Text
           style={styles.sessionMeta}
@@ -769,11 +830,25 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         >
           {metaText || `Updated: ${modifiedLabel}`}
         </Text>
+        <SessionRequestStatusBadge
+          status={requestStatuses[s.session_id] ?? null}
+          testID={`session-request-status-${s.session_id}`}
+        />
+        {notes[s.session_id] ? (
+          <Text
+            style={styles.localNote}
+            numberOfLines={2}
+            testID={`session-local-note-${s.session_id}`}
+          >
+            {notes[s.session_id]}
+          </Text>
+        ) : null}
         {hasAnyActions && (
           <View style={styles.sessionActionsRow}>
             <SessionListActionsBar
               session={s}
               pluginActions={actions}
+              baseActions={SESSION_LIST_BASE_ACTIONS}
               renderIcon={({ name, size, color }) => (
                 <Icon name={name} size={size} color={color} />
               )}
@@ -789,7 +864,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               isActive={isActive}
               menuButtonTestID={`session-actions-menu-${s.session_id}`}
               modalContentStyle={styles.sessionActionsModalContent}
-              isActionDisabled={() => !backend || actionLoading}
+              isActionDisabled={(key) =>
+                key !== 'localNote' && (!backend || actionLoading)
+              }
               onBaseAction={(key) =>
                 handleBuiltinSessionAction(key as SessionActionKey, s)
               }
@@ -811,12 +888,21 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
+      <View style={styles.headerRow} testID="sessions-screen-header">
+        <Text
+          style={styles.screenTitle}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          testID="sessions-screen-title"
+        >
+          {connectionName || 'Sessions'}
+        </Text>
         <View style={styles.headerButtons}>
           <ActionsMenuBar<SessionsHeaderActionDefinition>
             title="Sessions actions"
             baseActions={sessionsHeaderActionDefinitions}
             pinned={pinnedHeaderActions}
+            maxPinnedActionsForBar={maxHeaderPinnedActions}
             onChangePinned={setPinnedHeaderActions}
             isActive={isActive}
             renderIcon={({ name, size, color }) => (
@@ -1111,6 +1197,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       ))}
 
       <ActionResultModal
+        testID="session-list-action-result-modal"
         visible={!!actionResultDisplay}
         display={actionResultDisplay?.display ?? null}
         activeActionId={activeDisplayActionId}
@@ -1131,6 +1218,19 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           onRequestClose={() => setSettingsVisible(false)}
         />
       )}
+
+      <SessionNoteModal
+        visible={noteSessionId !== null}
+        sessionId={noteSessionId}
+        note={noteSessionId ? notes[noteSessionId] ?? null : null}
+        onSave={(note) => {
+          if (noteSessionId) setSessionNote(noteSessionId, note);
+        }}
+        onRemove={() => {
+          if (noteSessionId) removeSessionNote(noteSessionId);
+        }}
+        onRequestClose={() => setNoteSessionId(null)}
+      />
 
       <ServerSettingsModal
         backend={backend}
@@ -1170,12 +1270,24 @@ const createStyles = (theme: Theme) =>
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'flex-end',
+      justifyContent: 'space-between',
       marginBottom: 12,
+    },
+    screenTitle: {
+      flex: 1,
+      flexShrink: 1,
+      minWidth: 0,
+      marginLeft: 13,
+      marginRight: 8,
+      fontSize: 16,
+      fontWeight: '700',
+      color: theme.text,
     },
     headerButtons: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexShrink: 1,
+      minWidth: ACTIONS_MENU_BAR_ITEM_WIDTH,
     },
     button: {
       paddingHorizontal: 12,
@@ -1213,7 +1325,8 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.border,
       borderRadius: 8,
-      padding: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
       fontSize: 14,
       color: theme.text,
     },
@@ -1297,13 +1410,15 @@ const createStyles = (theme: Theme) =>
       marginLeft: 4,
     },
     sessionTitle: {
-      fontSize: 16,
+      fontSize: theme.typography.fontSize.large,
+      lineHeight: theme.typography.lineHeight.large,
       fontWeight: '600',
       marginBottom: 2,
       color: theme.text,
     },
     sessionSubtitle: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.textSecondary,
       marginBottom: 2,
     },
@@ -1315,18 +1430,28 @@ const createStyles = (theme: Theme) =>
       marginLeft: 4,
     },
     sessionId: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
       marginBottom: 4,
     },
     sessionPreview: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
       marginBottom: 4,
     },
     sessionMeta: {
       fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
+    },
+    localNote: {
+      marginTop: 6,
+      color: theme.text,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
+      fontStyle: 'italic',
     },
     sessionActionsRow: {
       flexDirection: 'row',
@@ -1406,4 +1531,5 @@ const createStyles = (theme: Theme) =>
     },
   });
 
+export { createStyles as createSessionsScreenStyles };
 export default SessionsScreen;

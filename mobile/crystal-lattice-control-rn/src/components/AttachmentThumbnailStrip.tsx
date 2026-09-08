@@ -198,7 +198,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.danger,
     },
     statusBadgeText: {
-      fontSize: 10,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
       fontWeight: '700',
       color: theme.surface,
     },

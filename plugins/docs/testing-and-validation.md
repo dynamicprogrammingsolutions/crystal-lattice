@@ -2,6 +2,9 @@
 
 This page is shared across plugin kinds.
 
+Provider package authors should also follow the
+[provider conformance testing standard](provider-implementation-standard/conformance-testing.md).
+
 ## Plugin repo tests (recommended primary workflow)
 
 For plugin development, prefer a tight loop:

@@ -4,13 +4,44 @@ import Markdown from 'react-native-markdown-display';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
 import { atomOneDark, atomOneLight } from 'react-syntax-highlighter/styles/hljs';
 
-import { useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  deriveMarkdownTypography,
+  useMarkdownDisplayPreferences,
+  useTheme,
+  type MarkdownDisplayPreferences,
+} from '@crystal-lattice/frontend-rn-components';
 
 export type MarkdownMessageVariant = 'assistant' | 'tool' | 'system' | 'user';
 
 export interface MarkdownMessageContentProps {
   text: string;
   variant?: MarkdownMessageVariant;
+}
+
+export function createDesktopMarkdownTypographyStyles(
+  preferences: MarkdownDisplayPreferences,
+) {
+  const typography = deriveMarkdownTypography(preferences);
+  const textStyle = {
+    fontSize: typography.body,
+    lineHeight: typography.bodyLineHeight,
+  };
+  const headingStyle = (fontSize: number, lineHeight: number) => ({
+    fontSize,
+    lineHeight,
+    fontWeight: '700' as const,
+    marginTop: 4,
+    marginBottom: 2,
+  });
+  return {
+    text: textStyle,
+    heading1: headingStyle(typography.h1, typography.h1LineHeight),
+    heading2: headingStyle(typography.h2, typography.h2LineHeight),
+    heading3: headingStyle(typography.h3, typography.h3LineHeight),
+    heading4: headingStyle(typography.h4, typography.h4LineHeight),
+    heading5: headingStyle(typography.h5, typography.h5LineHeight),
+    heading6: headingStyle(typography.h6, typography.h6LineHeight),
+  };
 }
 
 function inlineCodeText(node: any, children: any): string {
@@ -65,19 +96,25 @@ function MarkdownMessageContent({
   variant = 'assistant',
 }: MarkdownMessageContentProps): React.JSX.Element {
   const theme = useTheme();
+  const { preferences } = useMarkdownDisplayPreferences();
+  const typographyStyles = useMemo(
+    () => createDesktopMarkdownTypographyStyles(preferences),
+    [preferences],
+  );
 
   const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
 
-  const fallback = <Text style={[styles.bodyText, { color: baseTextColor }]}>{text}</Text>;
+  const fallback = (
+    <Text style={[typographyStyles.text, { color: baseTextColor }]}>{text}</Text>
+  );
 
   const markdownStyle = useMemo(() => {
     return {
       body: {
-        ...styles.bodyText,
+        ...typographyStyles.text,
         color: baseTextColor,
       },
       text: {
-        ...styles.bodyText,
         color: baseTextColor,
       },
       strong: {
@@ -93,6 +130,8 @@ function MarkdownMessageContent({
       },
       code_inline: {
         ...styles.inlineCode,
+        fontSize: theme.typography.fontSize.code,
+        lineHeight: theme.typography.lineHeight.code,
         backgroundColor: theme.inlineCodeBg,
       },
       code_block: styles.codeBlockContainer,
@@ -100,14 +139,22 @@ function MarkdownMessageContent({
       bullet_list: styles.list,
       ordered_list: styles.list,
       list_item: styles.listItem,
-      heading1: styles.heading,
-      heading2: styles.heading,
-      heading3: styles.heading,
-      heading4: styles.heading,
-      heading5: styles.heading,
-      heading6: styles.heading,
+      heading1: typographyStyles.heading1,
+      heading2: typographyStyles.heading2,
+      heading3: typographyStyles.heading3,
+      heading4: typographyStyles.heading4,
+      heading5: typographyStyles.heading5,
+      heading6: typographyStyles.heading6,
     } as const;
-  }, [baseTextColor, theme.border, theme.inlineCodeBg, theme.surfaceAlt]);
+  }, [
+    baseTextColor,
+    theme.border,
+    theme.inlineCodeBg,
+    theme.surfaceAlt,
+    theme.typography.fontSize.code,
+    theme.typography.lineHeight.code,
+    typographyStyles,
+  ]);
 
   const isDarkCodeBlock = useMemo(() => {
     // `buildDesktopTheme` currently sets `codeBlockBg` to either a dark gray or pure white.
@@ -141,6 +188,9 @@ function MarkdownMessageContent({
                 language={language}
                 style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
                 highlighter="hljs"
+                fontFamily="Menlo"
+                fontSize={theme.typography.fontSize.code}
+                lineHeight={theme.typography.lineHeight.code}
                 customStyle={styles.codeBlockInner}
                 PreTag={View as any}
                 CodeTag={Text as any}
@@ -176,6 +226,9 @@ function MarkdownMessageContent({
                 language={language}
                 style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
                 highlighter="hljs"
+                fontFamily="Menlo"
+                fontSize={theme.typography.fontSize.code}
+                lineHeight={theme.typography.lineHeight.code}
                 customStyle={styles.codeBlockInner}
                 PreTag={View as any}
                 CodeTag={Text as any}
@@ -196,6 +249,8 @@ function MarkdownMessageContent({
               {
                 backgroundColor: theme.inlineCodeBg,
                 color: baseTextColor,
+                fontSize: theme.typography.fontSize.code,
+                lineHeight: theme.typography.lineHeight.code,
               },
             ]}
             selectable
@@ -205,7 +260,15 @@ function MarkdownMessageContent({
         );
       },
     }),
-    [baseTextColor, isDarkCodeBlock, theme.codeBlockBg, theme.inlineCodeBg],
+    [
+      baseTextColor,
+      isDarkCodeBlock,
+      theme.border,
+      theme.codeBlockBg,
+      theme.inlineCodeBg,
+      theme.typography.fontSize.code,
+      theme.typography.lineHeight.code,
+    ],
   );
 
   return (
@@ -218,15 +281,6 @@ function MarkdownMessageContent({
 }
 
 const styles = StyleSheet.create({
-  bodyText: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  heading: {
-    fontWeight: '700',
-    marginTop: 4,
-    marginBottom: 2,
-  },
   list: {
     marginVertical: 2,
   },
@@ -235,7 +289,6 @@ const styles = StyleSheet.create({
   },
   inlineCode: {
     fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
-    fontSize: 13,
     borderRadius: 3,
     paddingHorizontal: 3,
     paddingVertical: 1,

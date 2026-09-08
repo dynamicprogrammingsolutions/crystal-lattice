@@ -15,7 +15,9 @@ jest.mock('@crystal-lattice/frontend-sdk-react', () => {
 });
 
 const mockedUseSessionSettingsController =
-  useSessionSettingsController as jest.MockedFunction<typeof useSessionSettingsController>;
+  useSessionSettingsController as jest.MockedFunction<
+    typeof useSessionSettingsController
+  >;
 
 const patchOverride = jest.fn<Promise<void>, [string, unknown]>(async () => {});
 const deleteOverride = jest.fn<Promise<void>, [string]>(async () => {});
@@ -55,6 +57,12 @@ function renderSettingsModal() {
             { value: 'local', label: 'Local' },
             { value: 'remote', label: 'Remote' },
           ],
+          placeholder: 'Search providers or enter a provider ID',
+          custom_value: {
+            enabled: true,
+            pattern: '^[^\\s]+$',
+            option_label: "Use '{value}' as a custom provider ID",
+          },
         },
         {
           ui_type: 'config',
@@ -110,7 +118,7 @@ function renderSettingsModal() {
       sessionId="session-1"
       visible
       onRequestClose={jest.fn()}
-    />,
+    />
   );
 }
 
@@ -161,11 +169,33 @@ test('session settings dropdown opens and patches selected value', async () => {
 
   fireEvent.press(screen.getByText('Generic provider:'));
 
-  expect(screen.getByPlaceholderText('Search...')).toBeTruthy();
+  expect(
+    screen.getByPlaceholderText('Search providers or enter a provider ID')
+  ).toBeTruthy();
 
   fireEvent.press(screen.getByText('Remote'));
 
   await waitFor(() => {
     expect(patchOverride).toHaveBeenCalledWith('generic_provider', 'remote');
+  });
+});
+
+test('session settings dropdown patches an arbitrary custom value', async () => {
+  renderSettingsModal();
+
+  fireEvent.press(screen.getByText('Generic provider:'));
+  fireEvent.changeText(
+    screen.getByTestId('options-picker-input'),
+    'custom/provider'
+  );
+  fireEvent.press(
+    screen.getByText("Use 'custom/provider' as a custom provider ID")
+  );
+
+  await waitFor(() => {
+    expect(patchOverride).toHaveBeenCalledWith(
+      'generic_provider',
+      'custom/provider'
+    );
   });
 });

@@ -14,6 +14,21 @@ static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
 
 static NSString *const kSessionsFollowActiveTabDefaultsKey =
     @"CrystalLattice.SessionsFollowActiveTabEnabled";
+static NSString *const kMarkdownBaseFontSizeDefaultsKey =
+    @"CrystalLattice.MarkdownBaseFontSize";
+static NSString *const kMarkdownHeaderSizeDefaultsKey =
+    @"CrystalLattice.MarkdownHeaderSize";
+static NSString *const kMarkdownHeaderSizeNormal = @"normal";
+static NSString *const kMarkdownHeaderSizeSmall = @"small";
+static NSString *const kRecentSessionsWindowDefaultsKey =
+    @"CrystalLattice.RecentSessionsWindow";
+static NSString *const kRecentSessionsWindow24Hours = @"24h";
+static NSString *const kRecentSessionsWindow3Days = @"3d";
+static NSString *const kRecentSessionsWindow1Week = @"1w";
+static NSString *const kSessionDoubleClickActionDefaultsKey =
+    @"CrystalLattice.SessionDoubleClickAction";
+static NSString *const kSessionDoubleClickActionPreview = @"preview";
+static NSString *const kSessionDoubleClickActionOpen = @"open";
 
 static BOOL EnvironmentFlagEnabled(NSString *name)
 {
@@ -39,7 +54,10 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 @property(nonatomic, strong) NSMenuItem *roundedPillsMenuItem;
 
 @property(nonatomic, strong) NSMenuItem *sessionsFollowActiveTabMenuItem;
+@property(nonatomic, strong) NSArray<NSMenuItem *> *markdownBaseFontSizeMenuItems;
+@property(nonatomic, strong) NSArray<NSMenuItem *> *markdownHeaderSizeMenuItems;
 @property(nonatomic, strong) NSMenuItem *clearStoredSessionCachesMenuItem;
+@property(nonatomic, strong) NSMenuItem *globalSettingsMenuItem;
 
 @property(nonatomic, strong) NSMutableArray<NSWindow *> *mainWindows;
 @property(nonatomic, assign) NSPoint mainWindowCascadePoint;
@@ -64,32 +82,76 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   BOOL enableNotificationRailHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_NOTIFICATION_RAIL_HARNESS") ||
       LaunchArgumentPresent(@"--notification-rail-harness");
+  BOOL enableMarkdownGeometryHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_MARKDOWN_GEOMETRY_HARNESS") ||
+      LaunchArgumentPresent(@"--markdown-geometry-harness");
+  BOOL enableConnectionsPanelHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_CONNECTIONS_PANEL_HARNESS") ||
+      LaunchArgumentPresent(@"--connections-panel-harness");
+  BOOL enableActionDisplayHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_ACTION_DISPLAY_HARNESS") ||
+      LaunchArgumentPresent(@"--action-display-harness");
+  BOOL enableDesktopWorkspaceHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_DESKTOP_WORKSPACE_HARNESS") ||
+      LaunchArgumentPresent(@"--desktop-workspace-harness");
+  BOOL enableRichSessionUiHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_RICH_SESSION_UI_HARNESS") ||
+      LaunchArgumentPresent(@"--rich-session-ui-harness");
   BOOL enableAnyTestHarness =
       enableScrollTestHarness ||
       enableTranscriptScrollPersistenceHarness ||
       enableTranscriptRangeNavigationHarness ||
       enableSessionFiltersPopoverHarness ||
-      enableNotificationRailHarness;
+      enableNotificationRailHarness ||
+      enableMarkdownGeometryHarness ||
+      enableConnectionsPanelHarness ||
+      enableActionDisplayHarness ||
+      enableDesktopWorkspaceHarness ||
+      enableRichSessionUiHarness;
   if (enableAnyTestHarness) {
     RCTDevLoadingViewSetEnabled(NO);
   }
-  self.moduleName = enableTranscriptRangeNavigationHarness
-      ? @"DesktopTranscriptRangeNavigationHarness"
-      : (enableNotificationRailHarness
-      ? @"DesktopNotificationRailHarness"
-      : (enableSessionFiltersPopoverHarness
-      ? @"SessionFiltersPopoverHarness"
-      : (enableTranscriptScrollPersistenceHarness
-             ? @"TranscriptScrollPersistenceHarness"
-             : (enableScrollTestHarness
-                    ? @"ProgressiveScrollHarness"
-                    : @"CrystalLatticeControlDesktopRN"))));
+  if (enableActionDisplayHarness) {
+    self.moduleName = @"DesktopActionDisplayHarness";
+  } else if (enableRichSessionUiHarness) {
+    self.moduleName = @"DesktopRichSessionUiHarness";
+  } else if (enableDesktopWorkspaceHarness) {
+    self.moduleName = @"DesktopWorkspaceHarness";
+  } else if (enableConnectionsPanelHarness) {
+    self.moduleName = @"DesktopConnectionsPanelHarness";
+  } else if (enableMarkdownGeometryHarness) {
+    self.moduleName = @"DesktopMarkdownGeometryHarness";
+  } else if (enableTranscriptRangeNavigationHarness) {
+    self.moduleName = @"DesktopTranscriptRangeNavigationHarness";
+  } else if (enableNotificationRailHarness) {
+    self.moduleName = @"DesktopNotificationRailHarness";
+  } else if (enableSessionFiltersPopoverHarness) {
+    self.moduleName = @"SessionFiltersPopoverHarness";
+  } else if (enableTranscriptScrollPersistenceHarness) {
+    self.moduleName = @"TranscriptScrollPersistenceHarness";
+  } else if (enableScrollTestHarness) {
+    self.moduleName = @"ProgressiveScrollHarness";
+  } else {
+    self.moduleName = @"CrystalLatticeControlDesktopRN";
+  }
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
+  NSInteger markdownBaseFontSize = [self loadMarkdownBaseFontSizePreference];
+  NSString *markdownHeaderSize = [self loadMarkdownHeaderSizePreference];
+  NSString *recentSessionsWindow = [self loadRecentSessionsWindowPreference];
+  NSString *sessionDoubleClickAction =
+      [self loadSessionDoubleClickActionPreference];
   self.initialProps = @{
     @"initialTabStripStyle" : tabStripStyle,
     @"initialSessionsFollowActiveTabEnabled" : @(followEnabled),
+    @"initialMarkdownBaseFontSize" : @(markdownBaseFontSize),
+    @"initialMarkdownHeaderSize" : markdownHeaderSize,
+    @"initialRecentSessionsWindow" : recentSessionsWindow,
+    @"initialSessionDoubleClickAction" : sessionDoubleClickAction,
     @"enableScrollTestHarness" : @(enableScrollTestHarness),
+    @"enableMarkdownGeometryHarness" : @(enableMarkdownGeometryHarness),
+    @"connectionsHarnessCount" : [NSProcessInfo processInfo].environment[@"CLC_CONNECTIONS_HARNESS_COUNT"] ?: @"0",
+    @"connectionsHarnessPreset" : [NSProcessInfo processInfo].environment[@"CLC_CONNECTIONS_HARNESS_PRESET"] ?: @"default",
     @"scrollHarnessRunId" : [NSProcessInfo processInfo].environment[@"CLC_SCROLL_HARNESS_RUN_ID"] ?: @"",
     @"scrollHarnessBackingList" : [NSProcessInfo processInfo].environment[@"CLC_PROGRESSIVE_SCROLL_BACKING_LIST"] ?: @"scrollView",
     @"scrollHarnessGrowOnly" : @(EnvironmentFlagEnabled(@"CLC_PROGRESSIVE_SCROLL_GROW_ONLY")),
@@ -117,7 +179,10 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   }
 
   [self installTabStripStyleMenuWithSelectedStyle:tabStripStyle];
+  [self installMarkdownDisplayMenusWithBaseFontSize:markdownBaseFontSize
+                                         headerSize:markdownHeaderSize];
   [self installSessionsFollowActiveTabMenuWithEnabled:followEnabled];
+  [self installGlobalSettingsMenu];
   [self installClearStoredSessionCachesMenu];
   [self installDevelopMenu];
   if (enableScrollTestHarness) {
@@ -126,6 +191,12 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   if (enableTranscriptScrollPersistenceHarness) {
     [self installTranscriptScrollPersistenceHarnessMenu];
   }
+
+  [[NSNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(handleDesktopGlobalSettingRequested:)
+             name:CLCDesktopGlobalSettingRequestedNotification
+           object:nil];
 }
 
 #pragma mark - Main window management (Dock reopen / New Window)
@@ -190,6 +261,12 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   // Always read the latest preference so new windows match the current setting.
   props[@"initialTabStripStyle"] = [self loadTabStripStylePreference];
   props[@"initialSessionsFollowActiveTabEnabled"] = @([self loadSessionsFollowActiveTabEnabledPreference]);
+  props[@"initialMarkdownBaseFontSize"] = @([self loadMarkdownBaseFontSizePreference]);
+  props[@"initialMarkdownHeaderSize"] = [self loadMarkdownHeaderSizePreference];
+  props[@"initialRecentSessionsWindow"] =
+      [self loadRecentSessionsWindowPreference];
+  props[@"initialSessionDoubleClickAction"] =
+      [self loadSessionDoubleClickActionPreference];
   return props;
 }
 
@@ -319,11 +396,21 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_RANGE_NAVIGATION_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_NOTIFICATION_RAIL_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_MARKDOWN_GEOMETRY_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_CONNECTIONS_PANEL_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_ACTION_DISPLAY_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_DESKTOP_WORKSPACE_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_RICH_SESSION_UI_HARNESS") ||
       LaunchArgumentPresent(@"--scroll-test-harness") ||
       LaunchArgumentPresent(@"--transcript-scroll-persistence-harness") ||
       LaunchArgumentPresent(@"--transcript-range-navigation-harness") ||
       LaunchArgumentPresent(@"--session-filters-popover-harness") ||
-      LaunchArgumentPresent(@"--notification-rail-harness")) {
+      LaunchArgumentPresent(@"--notification-rail-harness") ||
+      LaunchArgumentPresent(@"--markdown-geometry-harness") ||
+      LaunchArgumentPresent(@"--connections-panel-harness") ||
+      LaunchArgumentPresent(@"--action-display-harness") ||
+      LaunchArgumentPresent(@"--desktop-workspace-harness") ||
+      LaunchArgumentPresent(@"--rich-session-ui-harness")) {
     return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
   }
 
@@ -372,6 +459,204 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 - (void)saveSessionsFollowActiveTabEnabledPreference:(BOOL)enabled
 {
   [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kSessionsFollowActiveTabDefaultsKey];
+}
+
+- (NSInteger)loadMarkdownBaseFontSizePreference
+{
+  NSInteger value =
+      [[NSUserDefaults standardUserDefaults] integerForKey:kMarkdownBaseFontSizeDefaultsKey];
+  if (value == 13 || value == 19) {
+    NSInteger migratedValue = value == 13 ? 14 : 17;
+    [[NSUserDefaults standardUserDefaults] setInteger:migratedValue
+                                               forKey:kMarkdownBaseFontSizeDefaultsKey];
+    return migratedValue;
+  }
+  if (value == 14 || value == 15 || value == 16 || value == 17) {
+    return value;
+  }
+  return 15;
+}
+
+- (NSString *)loadMarkdownHeaderSizePreference
+{
+  NSString *value =
+      [[NSUserDefaults standardUserDefaults] stringForKey:kMarkdownHeaderSizeDefaultsKey];
+  if ([value isEqualToString:kMarkdownHeaderSizeNormal] ||
+      [value isEqualToString:kMarkdownHeaderSizeSmall]) {
+    return value;
+  }
+  return kMarkdownHeaderSizeNormal;
+}
+
+- (void)saveMarkdownBaseFontSizePreference:(NSInteger)baseFontSize
+{
+  if (baseFontSize != 14 && baseFontSize != 15 &&
+      baseFontSize != 16 && baseFontSize != 17) {
+    return;
+  }
+  [[NSUserDefaults standardUserDefaults] setInteger:baseFontSize
+                                             forKey:kMarkdownBaseFontSizeDefaultsKey];
+}
+
+- (void)saveMarkdownHeaderSizePreference:(NSString *)headerSize
+{
+  if (![headerSize isEqualToString:kMarkdownHeaderSizeNormal] &&
+      ![headerSize isEqualToString:kMarkdownHeaderSizeSmall]) {
+    return;
+  }
+  [[NSUserDefaults standardUserDefaults] setObject:headerSize
+                                            forKey:kMarkdownHeaderSizeDefaultsKey];
+}
+
+- (NSString *)loadRecentSessionsWindowPreference
+{
+  NSString *value =
+      [[NSUserDefaults standardUserDefaults] stringForKey:kRecentSessionsWindowDefaultsKey];
+  if ([value isEqualToString:kRecentSessionsWindow24Hours] ||
+      [value isEqualToString:kRecentSessionsWindow3Days] ||
+      [value isEqualToString:kRecentSessionsWindow1Week]) {
+    return value;
+  }
+  return kRecentSessionsWindow3Days;
+}
+
+- (void)saveRecentSessionsWindowPreference:(NSString *)value
+{
+  if (![value isEqualToString:kRecentSessionsWindow24Hours] &&
+      ![value isEqualToString:kRecentSessionsWindow3Days] &&
+      ![value isEqualToString:kRecentSessionsWindow1Week]) {
+    return;
+  }
+  [[NSUserDefaults standardUserDefaults] setObject:value
+                                            forKey:kRecentSessionsWindowDefaultsKey];
+}
+
+- (NSString *)loadSessionDoubleClickActionPreference
+{
+  NSString *value =
+      [[NSUserDefaults standardUserDefaults] stringForKey:kSessionDoubleClickActionDefaultsKey];
+  if ([value isEqualToString:kSessionDoubleClickActionPreview] ||
+      [value isEqualToString:kSessionDoubleClickActionOpen]) {
+    return value;
+  }
+  return kSessionDoubleClickActionPreview;
+}
+
+- (void)saveSessionDoubleClickActionPreference:(NSString *)value
+{
+  if (![value isEqualToString:kSessionDoubleClickActionPreview] &&
+      ![value isEqualToString:kSessionDoubleClickActionOpen]) {
+    return;
+  }
+  [[NSUserDefaults standardUserDefaults] setObject:value
+                                            forKey:kSessionDoubleClickActionDefaultsKey];
+}
+
+- (void)installGlobalSettingsMenu
+{
+  NSMenu *mainMenu = [NSApp mainMenu];
+  if (mainMenu == nil || mainMenu.itemArray.count == 0) {
+    return;
+  }
+  NSMenuItem *applicationMenuItem = mainMenu.itemArray.firstObject;
+  NSMenu *applicationMenu = applicationMenuItem.submenu;
+  if (applicationMenu == nil) {
+    return;
+  }
+  NSMenuItem *settingsItem = [applicationMenu itemWithTitle:@"Preferences…"];
+  if (settingsItem == nil) {
+    settingsItem = [applicationMenu itemWithTitle:@"Settings…"];
+  }
+  if (settingsItem == nil) {
+    return;
+  }
+  self.globalSettingsMenuItem = settingsItem;
+  settingsItem.title = @"Settings…";
+  settingsItem.target = self;
+  settingsItem.action = @selector(openGlobalSettings:);
+  settingsItem.enabled = YES;
+}
+
+- (void)openGlobalSettings:(__unused id)sender
+{
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:CLCOpenGlobalSettingsNotification
+                    object:nil];
+}
+
+- (void)handleDesktopGlobalSettingRequested:(NSNotification *)notification
+{
+  NSString *key =
+      notification.userInfo[CLCDesktopGlobalSettingKeyUserInfoKey];
+  id value = notification.userInfo[CLCDesktopGlobalSettingValueUserInfoKey];
+  if (![key isKindOfClass:[NSString class]]) {
+    return;
+  }
+
+  if ([key isEqualToString:@"baseFontSize"] &&
+      [value respondsToSelector:@selector(integerValue)]) {
+    NSInteger baseFontSize = [value integerValue];
+    if (baseFontSize != 14 && baseFontSize != 15 &&
+        baseFontSize != 16 && baseFontSize != 17) {
+      return;
+    }
+    [self saveMarkdownBaseFontSizePreference:baseFontSize];
+    [self updateMarkdownDisplayMenuStateWithBaseFontSize:baseFontSize
+                                              headerSize:[self loadMarkdownHeaderSizePreference]];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:CLCMarkdownBaseFontSizeDidChangeNotification
+                      object:nil
+                    userInfo:@{
+                      CLCMarkdownBaseFontSizeUserInfoKey : @(baseFontSize)
+                    }];
+    return;
+  }
+
+  if ([key isEqualToString:@"headerSize"] &&
+      [value isKindOfClass:[NSString class]]) {
+    NSString *headerSize = (NSString *)value;
+    if (![headerSize isEqualToString:kMarkdownHeaderSizeNormal] &&
+        ![headerSize isEqualToString:kMarkdownHeaderSizeSmall]) {
+      return;
+    }
+    [self saveMarkdownHeaderSizePreference:headerSize];
+    [self updateMarkdownDisplayMenuStateWithBaseFontSize:[self loadMarkdownBaseFontSizePreference]
+                                              headerSize:headerSize];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:CLCMarkdownHeaderSizeDidChangeNotification
+                      object:nil
+                    userInfo:@{
+                      CLCMarkdownHeaderSizeUserInfoKey : headerSize
+                    }];
+    return;
+  }
+
+  if ([key isEqualToString:@"recentSessionsWindow"] &&
+      [value isKindOfClass:[NSString class]]) {
+    NSString *recentSessionsWindow = (NSString *)value;
+    [self saveRecentSessionsWindowPreference:recentSessionsWindow];
+    NSString *saved = [self loadRecentSessionsWindowPreference];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:CLCRecentSessionsWindowDidChangeNotification
+                      object:nil
+                    userInfo:@{
+                      CLCRecentSessionsWindowUserInfoKey : saved
+                    }];
+    return;
+  }
+
+  if ([key isEqualToString:@"sessionDoubleClickAction"] &&
+      [value isKindOfClass:[NSString class]]) {
+    NSString *sessionDoubleClickAction = (NSString *)value;
+    [self saveSessionDoubleClickActionPreference:sessionDoubleClickAction];
+    NSString *saved = [self loadSessionDoubleClickActionPreference];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:CLCSessionDoubleClickActionDidChangeNotification
+                      object:nil
+                    userInfo:@{
+                      CLCSessionDoubleClickActionUserInfoKey : saved
+                    }];
+  }
 }
 
 - (void)installClearStoredSessionCachesMenu
@@ -657,6 +942,125 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 - (void)transcriptScrollHarnessFeedbackLoop:(__unused id)sender
 {
   [self postProgressiveScrollHarnessCommand:@"feedbackLoop"];
+}
+
+- (void)installMarkdownDisplayMenusWithBaseFontSize:(NSInteger)baseFontSize
+                                         headerSize:(NSString *)headerSize
+{
+  NSMenu *mainMenu = [NSApp mainMenu];
+  NSMenuItem *viewMenuItem = [mainMenu itemWithTitle:@"View"];
+  if (viewMenuItem == nil || viewMenuItem.submenu == nil) {
+    return;
+  }
+  NSMenu *viewMenu = viewMenuItem.submenu;
+
+  NSMenuItem *fontSizeItem =
+      [[NSMenuItem alloc] initWithTitle:@"Font Size" action:nil keyEquivalent:@""];
+  NSMenu *fontSizeMenu = [[NSMenu alloc] initWithTitle:@"Font Size"];
+  fontSizeMenu.autoenablesItems = NO;
+  NSArray<NSNumber *> *fontSizes = @[ @14, @15, @16, @17 ];
+  NSMutableArray<NSMenuItem *> *fontSizeItems = [NSMutableArray array];
+  for (NSNumber *fontSize in fontSizes) {
+    NSString *title = fontSize.integerValue == 15
+        ? @"15 (Default)"
+        : fontSize.stringValue;
+    NSMenuItem *item =
+        [[NSMenuItem alloc] initWithTitle:title
+                                   action:@selector(selectMarkdownBaseFontSize:)
+                            keyEquivalent:@""];
+    item.target = self;
+    item.enabled = YES;
+    item.representedObject = fontSize;
+    [fontSizeMenu addItem:item];
+    [fontSizeItems addObject:item];
+  }
+  self.markdownBaseFontSizeMenuItems = fontSizeItems;
+  fontSizeItem.submenu = fontSizeMenu;
+
+  NSMenuItem *headerSizeItem =
+      [[NSMenuItem alloc] initWithTitle:@"Markdown Headers" action:nil keyEquivalent:@""];
+  NSMenu *headerSizeMenu = [[NSMenu alloc] initWithTitle:@"Markdown Headers"];
+  headerSizeMenu.autoenablesItems = NO;
+  NSArray<NSArray<NSString *> *> *headerSizes = @[
+    @[ @"Normal", kMarkdownHeaderSizeNormal ],
+    @[ @"Small", kMarkdownHeaderSizeSmall ],
+  ];
+  NSMutableArray<NSMenuItem *> *headerSizeItems = [NSMutableArray array];
+  for (NSArray<NSString *> *entry in headerSizes) {
+    NSMenuItem *item =
+        [[NSMenuItem alloc] initWithTitle:entry[0]
+                                   action:@selector(selectMarkdownHeaderSize:)
+                            keyEquivalent:@""];
+    item.target = self;
+    item.enabled = YES;
+    item.representedObject = entry[1];
+    [headerSizeMenu addItem:item];
+    [headerSizeItems addObject:item];
+  }
+  self.markdownHeaderSizeMenuItems = headerSizeItems;
+  headerSizeItem.submenu = headerSizeMenu;
+
+  NSInteger insertionIndex = viewMenu.numberOfItems;
+  for (NSInteger index = 0; index < viewMenu.numberOfItems; index++) {
+    if ([[[viewMenu itemAtIndex:index] title] isEqualToString:@"Tab Strip Style"]) {
+      insertionIndex = index + 1;
+      break;
+    }
+  }
+  [viewMenu insertItem:fontSizeItem atIndex:insertionIndex];
+  [viewMenu insertItem:headerSizeItem atIndex:insertionIndex + 1];
+  [self updateMarkdownDisplayMenuStateWithBaseFontSize:baseFontSize
+                                            headerSize:headerSize];
+}
+
+- (void)updateMarkdownDisplayMenuStateWithBaseFontSize:(NSInteger)baseFontSize
+                                             headerSize:(NSString *)headerSize
+{
+  for (NSMenuItem *item in self.markdownBaseFontSizeMenuItems) {
+    NSNumber *value = item.representedObject;
+    item.state = value.integerValue == baseFontSize
+        ? NSControlStateValueOn
+        : NSControlStateValueOff;
+  }
+  for (NSMenuItem *item in self.markdownHeaderSizeMenuItems) {
+    NSString *value = item.representedObject;
+    item.state = [value isEqualToString:headerSize]
+        ? NSControlStateValueOn
+        : NSControlStateValueOff;
+  }
+}
+
+- (void)selectMarkdownBaseFontSize:(NSMenuItem *)sender
+{
+  NSNumber *value = sender.representedObject;
+  NSInteger baseFontSize = value.integerValue;
+  if (baseFontSize != 14 && baseFontSize != 15 &&
+      baseFontSize != 16 && baseFontSize != 17) {
+    return;
+  }
+  [self saveMarkdownBaseFontSizePreference:baseFontSize];
+  [self updateMarkdownDisplayMenuStateWithBaseFontSize:baseFontSize
+                                            headerSize:[self loadMarkdownHeaderSizePreference]];
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:CLCMarkdownBaseFontSizeDidChangeNotification
+                    object:nil
+                  userInfo:@{ CLCMarkdownBaseFontSizeUserInfoKey : @(baseFontSize) }];
+}
+
+- (void)selectMarkdownHeaderSize:(NSMenuItem *)sender
+{
+  NSString *headerSize = sender.representedObject;
+  if (![headerSize isEqualToString:kMarkdownHeaderSizeNormal] &&
+      ![headerSize isEqualToString:kMarkdownHeaderSizeSmall]) {
+    return;
+  }
+  [self saveMarkdownHeaderSizePreference:headerSize];
+  [self updateMarkdownDisplayMenuStateWithBaseFontSize:[self loadMarkdownBaseFontSizePreference]
+                                            headerSize:headerSize];
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:CLCMarkdownHeaderSizeDidChangeNotification
+                    object:nil
+                  userInfo:@{ CLCMarkdownHeaderSizeUserInfoKey : headerSize }];
 }
 
 - (void)installSessionsFollowActiveTabMenuWithEnabled:(BOOL)enabled

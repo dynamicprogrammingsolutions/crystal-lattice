@@ -3219,6 +3219,32 @@ class AgentCore:
         )
         return actions
 
+    def session_action_mutates(
+        self,
+        config: Dict[str, Any],
+        plugin_id: str,
+        action_id: str,
+    ) -> bool:
+        """Return whether a session action uses the mutating session path."""
+
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+        if not isinstance(plugin_id, str) or not plugin_id:
+            raise ValueError("plugin_id must be a non-empty string")
+        if not isinstance(action_id, str) or not action_id:
+            raise ValueError("action_id must be a non-empty string")
+
+        action_def = self._find_session_action_definition(
+            self.get_session_actions(config),
+            plugin_id,
+            action_id,
+        )
+        if action_def is None:
+            raise KeyError(
+                f"Unknown session action {action_id!r} for plugin {plugin_id!r}"
+            )
+        return action_def.get("mutates_session") is not False
+
     def _find_session_action_definition(
         self,
         actions: List[Dict[str, Any]],
@@ -3517,6 +3543,25 @@ class AgentCore:
             )
         if not isinstance(result, dict):
             raise RuntimeError("session action must return a dict")
+        if action_def.get("mutates_session") is False:
+            forbidden = [
+                key
+                for key in (
+                    "native_messages",
+                    "session_metadata",
+                    "rebuild_messages_from_native",
+                )
+                if key in result
+            ]
+            mutations = result.get("mutations")
+            if isinstance(mutations, dict) and any(mutations.values()):
+                forbidden.append("mutations")
+            if forbidden:
+                raise RuntimeError(
+                    "non-mutating session action cannot return session mutation "
+                    f"fields: {', '.join(forbidden)}"
+                )
+            return session, result
         return self._apply_session_action_result(
             session,
             config,

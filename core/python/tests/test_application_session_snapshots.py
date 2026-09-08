@@ -34,7 +34,9 @@ def _write_dummy_provider_config(tmp_path: Path) -> Path:
     return path
 
 
-def test_snapshot_selection_is_isolated_per_application_instance(tmp_path: Path) -> None:
+def test_snapshot_selection_is_isolated_per_application_instance(
+    tmp_path: Path,
+) -> None:
     config_path = _write_dummy_provider_config(tmp_path)
     session_root = tmp_path / "sessions"
 
@@ -42,7 +44,9 @@ def test_snapshot_selection_is_isolated_per_application_instance(tmp_path: Path)
         str(config_path),
         str(session_root),
         core_factory=AgentCore,
-        snapshot_selection_store=FilesystemSnapshotSelectionStore(session_root / ".snapshots"),
+        snapshot_selection_store=FilesystemSnapshotSelectionStore(
+            session_root / ".snapshots"
+        ),
     )
     terminal_app = AgentApplication(
         str(config_path),
@@ -67,13 +71,18 @@ def test_snapshot_selection_is_isolated_per_application_instance(tmp_path: Path)
     assert live is not None
     assert len(selected.messages) == 1
     assert len(live.messages) == 2
-    assert server_app.get_selected_session_snapshot(session.session_id) == snapshot.snapshot_id
+    assert (
+        server_app.get_selected_session_snapshot(session.session_id)
+        == snapshot.snapshot_id
+    )
 
     with pytest.raises(ReadonlySessionViewError):
         server_app.save_session(live_session)
 
 
-def test_restore_snapshot_restores_live_session_and_clears_selection(tmp_path: Path) -> None:
+def test_restore_snapshot_restores_live_session_and_clears_selection(
+    tmp_path: Path,
+) -> None:
     config_path = _write_dummy_provider_config(tmp_path)
     session_root = tmp_path / "sessions"
 
@@ -81,7 +90,9 @@ def test_restore_snapshot_restores_live_session_and_clears_selection(tmp_path: P
         str(config_path),
         str(session_root),
         core_factory=AgentCore,
-        snapshot_selection_store=FilesystemSnapshotSelectionStore(session_root / ".snapshots"),
+        snapshot_selection_store=FilesystemSnapshotSelectionStore(
+            session_root / ".snapshots"
+        ),
     )
 
     core, base_config, session = app.create_session("default")
@@ -100,3 +111,48 @@ def test_restore_snapshot_restores_live_session_and_clears_selection(tmp_path: P
     assert len(restored.messages) == 1
     assert app.get_selected_session_snapshot(session.session_id) is None
     assert "before restore" in reasons
+
+
+def test_restore_snapshot_preserves_live_session_notifications(tmp_path: Path) -> None:
+    config_path = _write_dummy_provider_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(
+        str(config_path),
+        str(session_root),
+        core_factory=AgentCore,
+        snapshot_selection_store=FilesystemSnapshotSelectionStore(
+            session_root / ".snapshots"
+        ),
+    )
+
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "before", config=base_config)
+    app.save_session(session)
+    snapshot = app.create_session_snapshot(session.session_id, reason="manual")
+
+    stored = app.create_session_notification(
+        session.session_id,
+        {
+            "key": "snapshot-restore-test",
+            "severity": "success",
+            "title": "Current notification",
+            "body": "Keep this notification after restoring conversational state.",
+            "source": {"plugin": "snapshot_test"},
+            "display": {
+                "format": "text",
+                "body": "Keep this notification after restoring conversational state.",
+                "presentation": "banner",
+                "dismissible": True,
+            },
+            "model_visibility": "hidden",
+            "retention": {"version": 1, "policy": "until_resolved"},
+        },
+    )
+
+    restored = app.restore_session_snapshot(session.session_id, snapshot.snapshot_id)
+
+    assert [message.content for message in restored.messages] == ["before"]
+    notifications = app.list_session_notifications(session.session_id)
+    assert len(notifications) == 1
+    assert notifications[0]["id"] == stored["id"]
+    assert notifications[0]["title"] == "Current notification"

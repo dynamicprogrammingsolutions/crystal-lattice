@@ -9,18 +9,20 @@ session-list footer label.
 
 Built-in statuses are:
 
-| Value | Label | Tone |
-| --- | --- | --- |
-| `todo` | To do | `muted` |
-| `in_progress` | In progress | `primary` |
-| `blocked` | Blocked | `danger` |
-| `done` | Done | `success` |
+| Value | Label | Icon | Tone |
+| --- | --- | --- | --- |
+| `todo` | To do | `circle` | `muted` |
+| `in_progress` | In progress | `clock` | `primary` |
+| `blocked` | Blocked | `alert-circle` | `danger` |
+| `done` | Done | `check-circle` | `success` |
 
 It contributes:
 
 - `set_session_status`, an application action;
 - an ordinary `session_list_action` with both a select-form fallback and a
   rich immediate-selection list;
+- an ordinary chat `session_action` with the same fallback and rich list at
+  the session-header placement;
 - `session_status`, a multi-select `session_list_filter`;
 - a session-list trigger that derives a human-readable
   `session_status_label`;
@@ -47,7 +49,7 @@ The plugin exposes a server-scoped checkbox with the same key. A persisted
 server setting overrides the application default; deleting the server setting
 returns to that configured default.
 
-The rich list reads the same configured metadata key as the form and filter.
+Both rich lists read the same configured metadata key as the form and filter.
 It treats missing metadata as `todo`, marks the current option, and submits a
 different selection immediately without OK/Cancel confirmation. Selecting the
 current option performs no mutation. The ordinary select form remains the

@@ -15,6 +15,14 @@ This app imports workspace packages via `file:` dependencies:
 
 Metro + TS are configured to handle symlinks (`desktop/crystal-lattice-control-desktop-rn/metro.config.js:1`, `desktop/crystal-lattice-control-desktop-rn/tsconfig.json:1`).
 
+## User documentation
+
+- [Home, Watchlist, History, status, and session tabs](docs/home-and-session-navigation.md)
+
+## Development documentation
+
+- [Desktop development](docs/development/index.md)
+
 # Getting Started
 
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
@@ -140,6 +148,22 @@ npm run test:macos-ui:session-filters
 
 The focused command launches a deterministic harness that renders the
 production sessions panel and shared filter controls.
+
+### Inspect agent instructions
+
+Crystal Lattice compiles project guidance into the effective
+developer/system message used by an agent session. To include task-file
+guidance:
+
+1. Open the active chat.
+2. Select **Settings**.
+3. In the **Session settings** window, enable **Include TASKS Guidance**.
+
+Open the chat's session actions and select **Show compiled system message** to
+display the effective message in a separate action-display window. Inspection
+does not send a model request, save the session, or add to the conversation.
+Lengthy prompts scroll inside the window. Check that the expected project
+instructions and, when enabled, task guidance are present.
 
 ## Step 3: Modify your app
 

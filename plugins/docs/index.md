@@ -4,17 +4,19 @@ Start here for the current shared plugin documentation set.
 
 - [Plugin system overview](overview.md)
 
-Non-production notification/display demonstration packages are available for
-examples and integration tests:
+Non-production demonstration packages are available for examples, manual
+validation, and integration tests:
 
 - `plugins/dummy-application-notification-app`
 - `plugins/dummy-session-notification-app`
 - `plugins/dummy-action-display-app`
+- [Dummy rich configuration UI](../dummy-rich-config-ui/README.md)
 
 They are deliberately absent from production default configuration.
 
 - [Notifications and action displays](notifications-and-action-displays.md)
 - [Provider plugins](provider-plugins.md)
+- [Provider implementation standard](provider-implementation-standard/index.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Feature plugins](feature-plugins.md)
 - [Application plugins](application-plugins.md)

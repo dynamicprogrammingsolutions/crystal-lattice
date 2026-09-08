@@ -318,6 +318,7 @@ Build and run on iOS:
 ```bash
 npm run detox:build:ios
 npm run detox:test:bridge-transport:ios
+npm run detox:test:connections-settings:ios
 npm run detox:test:transcript:ios
 npm run detox:test:transcript-range:ios
 ```
@@ -327,6 +328,7 @@ Build and run on Android:
 ```bash
 npm run detox:build:android
 npm run detox:test:bridge-transport:android
+npm run detox:test:connections-settings:android
 npm run detox:test:transcript:android
 npm run detox:test:transcript-range:android
 ```
@@ -338,6 +340,28 @@ presentation, server ordering, ordinary action fallback, and dialog prefill:
 npm run detox:test:session-list:ios
 npm run detox:test:session-list:android
 ```
+
+The website visual harness renders the production chat background and session
+settings modal with deterministic coding-agent configuration. The iOS capture
+command builds the app, runs the scenario, and writes reviewed-candidate inputs
+under `artifacts/website-visual/`:
+
+```bash
+npm run detox:capture:website-visual:ios
+```
+
+The scenario itself is also available on both platforms when a current build
+already exists:
+
+```bash
+npm run detox:test:website-visual:ios
+npm run detox:test:website-visual:android
+```
+
+The Connections/Settings harness renders the production Connections screen,
+global and server settings modals, action menus, and markdown renderer. It
+verifies native action applicability, modal transitions, persisted display and
+pin preferences, and representative typography/card geometry.
 
 The Android test command prepares and stops the selected AVD before Detox starts
 it in read-only mode. This acknowledges Android's one-time immersive-mode
@@ -684,6 +708,7 @@ mobile/crystal-lattice-control-rn/
 
 ## Related Documentation
 
+- [Home, Watchlist, and recent sessions](docs/home.md)
 - [Mobile frontend hosting](docs/development/frontend-hosting.md)
 - [Bridge transport guide](../../packages/frontend-sdk/docs/bridge-transports.md)
 - [React Native Documentation](https://reactnative.dev/)

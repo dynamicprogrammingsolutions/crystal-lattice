@@ -141,7 +141,8 @@ Documentation is authored next to the package or subsystem that owns it.
   labels, or internal target links. Never mention an internal phase in user
   docs, even to label delivered or unimplemented work. Rewrite delivered
   capabilities in product terms and omit phase labels entirely. Commit new
-  claims with the code that makes them true.
+  claims with the code that makes them true, unless the user explicitly asks
+  for a different commit order.
 - Preserve document, audience, and source-of-truth boundaries. Information
   available from tasks,
   specifications, requirements, commits, AGENTS files, or maintainer workflows
@@ -237,6 +238,7 @@ validation—not merely applying them—also read in full:
 - Integration verification:
   - Core non-API integration: `pytest core/python/tests -m 'integration and not api and not slow_integration' -q`
   - Application non-API integration: `pytest application/python/tests -m 'integration and not api and not slow_integration and not docker' -q`
+  - OpenAI Responses non-API integration: `pytest plugins/openai_responses/tests -m 'integration and not api and not slow_integration and not manual_integration' -q`
   - Local Ollama verification: `pytest core/python/tests -m 'ollama and not api' -q`
 - Hosted API verification:
   - Examples / SDK smoke tests: `pytest core/python/examples/tests -m 'integration and api and not slow_integration' -q`

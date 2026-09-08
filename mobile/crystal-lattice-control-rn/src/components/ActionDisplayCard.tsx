@@ -32,6 +32,8 @@ export interface ActionDisplayCardProps {
   variantLabel?: string;
   footerDismissLabel?: string | null;
   compact?: boolean;
+  bounded?: boolean;
+  bodyTestID?: string;
   fieldRenderers?: ApplicationActionDialogFieldRenderers;
 }
 
@@ -43,10 +45,15 @@ const ActionDisplayCard: React.FC<ActionDisplayCardProps> = ({
   variantLabel,
   footerDismissLabel,
   compact = false,
+  bounded = false,
+  bodyTestID,
   fieldRenderers,
 }) => {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme, compact), [theme, compact]);
+  const styles = useMemo(
+    () => createStyles(theme, compact, bounded),
+    [theme, compact, bounded],
+  );
   const formRef = useRef<ApplicationActionFormHandle | null>(null);
 
   const body = display.body ?? '';
@@ -87,7 +94,11 @@ const ActionDisplayCard: React.FC<ActionDisplayCardProps> = ({
         ) : null}
       </View>
 
-      <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.bodyContent}>
+      <ScrollView
+        testID={bodyTestID}
+        style={styles.bodyScroll}
+        contentContainerStyle={styles.bodyContent}
+      >
         {display.format === 'text' ? (
           <Text style={styles.bodyText}>{body}</Text>
         ) : (
@@ -137,7 +148,7 @@ const ActionDisplayCard: React.FC<ActionDisplayCardProps> = ({
   );
 };
 
-const createStyles = (theme: Theme, compact: boolean) =>
+const createStyles = (theme: Theme, compact: boolean, bounded: boolean) =>
   StyleSheet.create({
     card: {
       borderRadius: 16,
@@ -145,6 +156,8 @@ const createStyles = (theme: Theme, compact: boolean) =>
       borderWidth: 1,
       borderColor: theme.border,
       padding: compact ? 14 : 18,
+      flexShrink: bounded ? 1 : 0,
+      maxHeight: bounded ? '100%' : undefined,
     },
     header: {
       marginBottom: 12,
@@ -163,7 +176,8 @@ const createStyles = (theme: Theme, compact: boolean) =>
       color: theme.text,
     },
     variant: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
+      lineHeight: theme.typography.lineHeight.small,
       fontWeight: '600',
       color: theme.textSecondary,
       textTransform: 'uppercase',
@@ -179,20 +193,22 @@ const createStyles = (theme: Theme, compact: boolean) =>
       borderColor: theme.border,
     },
     headerDismissText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       fontWeight: '600',
       color: theme.textSecondary,
     },
     bodyScroll: {
       flexGrow: 0,
-      maxHeight: compact ? 220 : undefined,
+      flexShrink: bounded ? 1 : 0,
+      maxHeight: compact ? 220 : bounded ? 420 : undefined,
     },
     bodyContent: {
       paddingBottom: 8,
     },
     bodyText: {
-      fontSize: 14,
-      lineHeight: 20,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
     },
     actionsRow: {
@@ -218,7 +234,8 @@ const createStyles = (theme: Theme, compact: boolean) =>
     },
     actionButtonText: {
       color: theme.textOnPrimary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
     footer: {

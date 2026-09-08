@@ -70,14 +70,37 @@ class KimiWebSearchTool(ToolPlugin):
         provider_options = self._provider_options(config)
         elements: List[Dict[str, Any]] = [
             {
+                "ui_type": "config",
                 "type": "checkbox",
                 "key": "web_search_enabled",
                 "label": "Enable web search",
+                "icon": "globe",
                 "description": (
                     "Enable SearchWeb. Requires GEMINI_API_KEY, TAVILY_API_KEY, "
                     "or services.moonshot_search."
                 ),
                 "disabled": not bool(provider_options),
+                "rich_ui": {
+                    "kind": "toggle",
+                    "label": "Web search",
+                    "show_label": False,
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "options": [
+                        {
+                            "value": False,
+                            "label": "Off",
+                            "icon": "globe",
+                            "tone": "primary",
+                        },
+                        {
+                            "value": True,
+                            "label": "On",
+                            "icon": "globe",
+                            "tone": "success",
+                        },
+                    ],
+                },
             }
         ]
         if not provider_options:

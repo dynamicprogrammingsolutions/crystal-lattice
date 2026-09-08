@@ -121,8 +121,8 @@ Guidance:
 - `presentation` is a standard cross-platform contract:
   - `banner` uses the connection-aware top notification rail
   - `inline` uses the nearest owning Sessions or Messages region
-  - `modal` uses a mobile modal; desktop action responses use their established
-    inline fallback
+  - `modal` uses a mobile modal or desktop action-display window for direct
+    action responses; desktop notification modals retain their inline fallback
 - application, session, session-list, and message action responses honor valid
   explicit presentation subject to the host fallback above
 - notification persistence, allowed presentations, placement, lifecycle, and
@@ -287,6 +287,30 @@ The meaning of common triggers is:
   need to record or clean up related state
 
 Actions without a `trigger` are manual actions.
+
+## Non-mutating session actions
+
+Feature and provider-extension session actions use the mutating session path
+by default. An inspection or display-only action may declare:
+
+```json
+{
+  "id": "inspect_effective_state",
+  "label": "Inspect effective state",
+  "inputs": {},
+  "mutates_session": false
+}
+```
+
+A non-mutating action may return a direct `display` without returning
+`native_messages` or `session_metadata`. The application does not rebuild,
+save, touch the modification time, or report the session as updated. The
+action still receives the resolved config, session, native history, request
+context, and request runtime.
+
+Do not declare an action non-mutating if it changes native history, session
+metadata, or reports session mutations. Omission of `mutates_session` preserves
+the existing mutating behavior.
 
 ## `session_list` trigger contract
 

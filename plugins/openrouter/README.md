@@ -10,6 +10,10 @@ Plugin bundle containing:
   - web search (citations)
   - image-generation attachments (`store_attachment`, `delete_attachment`, `download_attachment`)
 
+The chat composer can expose the provider's searchable/custom model dropdown
+and web-search toggle through ordinary portable config UI elements. These
+controls mutate the same session overrides as full Session Settings.
+
 Load via module-only spec so the descriptor can register multiple classes.
 
 ## Image generation

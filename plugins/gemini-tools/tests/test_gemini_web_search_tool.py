@@ -559,6 +559,21 @@ class TestConfigSchema:
         schema = tool.get_config_schema()
         assert "tavily_api_key" in schema
 
+    def test_ui_uses_outer_fallback_icon_for_rich_toggle(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tool = GeminiWebSearchTool()
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+
+        disabled = tool.get_ui_elements({})[0]
+        enabled = tool.get_ui_elements({"gemini_api_key": "test-key"})[0]
+
+        for element in (disabled, enabled):
+            assert element["icon"] == "globe"
+            assert element["rich_ui"]["kind"] == "toggle"
+            assert "icon" not in element["rich_ui"]
+
     def test_init_state_structure(self) -> None:
         """Init returns expected state structure."""
         wrapper, state = _make_wrapper(

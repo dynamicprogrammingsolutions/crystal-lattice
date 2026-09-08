@@ -83,7 +83,7 @@ Each connection retains its own selected session or open-session collection.
 
 When cached content exists without an open runtime:
 
-- Connections, Sessions, and Messages navigation remains available;
+- Home, Connections, Sessions, and Messages navigation remains available;
 - the owning connection and cache freshness are visible;
 - cached rows and transcript content remain interactive for local operations;
 - actions requiring server authority are disabled or request reconnection;

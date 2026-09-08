@@ -126,6 +126,14 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                     "both normalize to omission (the API default applies)."
                 ),
             },
+            "show_reasoning_context_footer": {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": (
+                    "Show the effective reasoning context in assistant message footers."
+                ),
+            },
         }
 
     def _resolve_model_id(
@@ -185,15 +193,27 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
 
         model_id = self._resolve_model_id(config, models)
         supported_efforts = self._supported_reasoning_efforts_for_model(model_id)
+        effort_options = [
+            {"value": value, "label": value} for value in supported_efforts
+        ]
 
         elements: List[Dict[str, Any]] = [
             {
+                "ui_type": "config",
                 "type": "select",
                 "key": "reasoning_effort",
                 "label": "Reasoning Effort",
-                "options": [
-                    {"value": value, "label": value} for value in supported_efforts
-                ],
+                "icon": "sliders",
+                "options": effort_options,
+                "rich_ui": {
+                    "kind": "dropdown",
+                    "label": "Reasoning effort",
+                    "show_label": False,
+                    "show_icon": False,
+                    "options": effort_options,
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                },
             },
             {
                 "type": "select",
@@ -240,17 +260,21 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         # does not fabricate a value for models or responses that do not
         # report an effective context. Mirrors the usage extension's
         # ``message_footer`` pattern for ``usage_service_tier``.
-        elements.append(
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.openai_responses_reasoning.context",
-                "template": "context: {{data}}",
-                "condition": {
-                    "path": "metadata.openai_responses_reasoning.context",
-                    "exists": True,
-                },
-            }
-        )
+        if (
+            not isinstance(config, dict)
+            or config.get("show_reasoning_context_footer") is not False
+        ):
+            elements.append(
+                {
+                    "ui_type": "message_footer",
+                    "data": "metadata.openai_responses_reasoning.context",
+                    "template": "context: {{data}}",
+                    "condition": {
+                        "path": "metadata.openai_responses_reasoning.context",
+                        "exists": True,
+                    },
+                }
+            )
 
         return elements
 

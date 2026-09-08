@@ -11,6 +11,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 PUBLIC_CI = WORKFLOWS_DIR / "public-ci.yml"
+STATIC_SITE_DEPLOY = WORKFLOWS_DIR / "deploy-static-sites.yml"
+STATIC_SITE_OIDC_ROLE = (
+    REPO_ROOT / "deploy" / "aws-static-sites" / "github-oidc-role.yaml"
+)
 
 EXTERNAL_ACTION_RE = re.compile(r"^\s*uses:\s*([^#\s]+)")
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -99,7 +103,9 @@ def validate_action_pins(path: Path, lines: list[str], errors: list[str]) -> Non
         if reference.startswith("./"):
             continue
         if "@" not in reference:
-            errors.append(f"{path}:{line_number}: action reference has no ref: {reference}")
+            errors.append(
+                f"{path}:{line_number}: action reference has no ref: {reference}"
+            )
             continue
 
         _, ref = reference.rsplit("@", 1)
@@ -177,6 +183,72 @@ def validate_public_ci(errors: list[str]) -> None:
         errors.append(f"{PUBLIC_CI}: missing required job names: {', '.join(missing)}")
 
 
+def validate_static_site_deploy(errors: list[str]) -> None:
+    if not STATIC_SITE_DEPLOY.is_file():
+        errors.append(f"{STATIC_SITE_DEPLOY}: required workflow is missing")
+        return
+
+    text = STATIC_SITE_DEPLOY.read_text(encoding="utf-8")
+    for fragment in ("actions/upload-artifact@", "actions/download-artifact@"):
+        if fragment in text:
+            errors.append(
+                f"{STATIC_SITE_DEPLOY}: static-site deployment must not use "
+                f"artifact transfer: {fragment}"
+            )
+
+    if re.search(r"^    AWS_ROLE_TO_ASSUME:", text, flags=re.MULTILINE):
+        errors.append(f"{STATIC_SITE_DEPLOY}: AWS role secret must not be job-scoped")
+    if "role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}" not in text:
+        errors.append(
+            f"{STATIC_SITE_DEPLOY}: AWS role must be passed directly to the "
+            "credentials step"
+        )
+    if "environment: production-sites" not in text:
+        errors.append(
+            f"{STATIC_SITE_DEPLOY}: deployment job must use environment "
+            "'production-sites'"
+        )
+
+    required_steps = [
+        "- name: Build Landing Site",
+        "- name: Build Docs Site",
+        "- name: Configure AWS Credentials",
+        "- name: Deploy Landing Site",
+        "- name: Deploy Docs Site",
+    ]
+    positions = []
+    for step in required_steps:
+        position = text.find(step)
+        if position < 0:
+            errors.append(f"{STATIC_SITE_DEPLOY}: missing required step: {step}")
+        positions.append(position)
+    if all(position >= 0 for position in positions) and positions != sorted(positions):
+        errors.append(
+            f"{STATIC_SITE_DEPLOY}: sites must be built before AWS credentials "
+            "are configured and deployment begins"
+        )
+
+    if not STATIC_SITE_OIDC_ROLE.is_file():
+        errors.append(f"{STATIC_SITE_OIDC_ROLE}: required IAM template is missing")
+        return
+
+    oidc_text = STATIC_SITE_OIDC_ROLE.read_text(encoding="utf-8")
+    environment_subject = (
+        "token.actions.githubusercontent.com:sub: !Sub "
+        '"repo:${GitHubOwner}/${GitHubRepo}:environment:${GitHubEnvironment}"'
+    )
+    if environment_subject not in oidc_text:
+        errors.append(
+            f"{STATIC_SITE_OIDC_ROLE}: IAM trust must match the "
+            "production-sites environment subject"
+        )
+    if "ref:refs/heads/${GitHubBranch}" in oidc_text:
+        errors.append(
+            f"{STATIC_SITE_OIDC_ROLE}: branch OIDC subject is incompatible with "
+            "the environment-bound deployment job"
+        )
+
+
 def validate() -> list[str]:
     errors: list[str] = []
     workflows = active_workflows()
@@ -190,6 +262,7 @@ def validate() -> list[str]:
         validate_publication_triggers(path, lines, errors)
 
     validate_public_ci(errors)
+    validate_static_site_deploy(errors)
     return errors
 
 

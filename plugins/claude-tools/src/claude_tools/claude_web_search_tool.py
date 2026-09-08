@@ -171,6 +171,59 @@ class ClaudeWebSearchTool(ToolPlugin):
     name = "claude_web_search_tool"
     version = "0.1.0"
 
+    def get_config_schema(self) -> Dict[str, Any]:
+        return {
+            "web_search_enabled": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable the Claude-compatible WebSearch tool.",
+            }
+        }
+
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        _ = tags, models
+        gemini_key = config.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
+        tavily_key = config.get("tavily_api_key") or os.environ.get("TAVILY_API_KEY")
+        return [
+            {
+                "ui_type": "config",
+                "type": "checkbox",
+                "key": "web_search_enabled",
+                "label": "Enable web search",
+                "icon": "globe",
+                "description": (
+                    "Enable WebSearch. Requires GEMINI_API_KEY or TAVILY_API_KEY."
+                ),
+                "disabled": not bool(gemini_key or tavily_key),
+                "rich_ui": {
+                    "kind": "toggle",
+                    "label": "Web search",
+                    "show_label": False,
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                    "options": [
+                        {
+                            "value": False,
+                            "label": "Off",
+                            "icon": "globe",
+                            "tone": "primary",
+                        },
+                        {
+                            "value": True,
+                            "label": "On",
+                            "icon": "globe",
+                            "tone": "success",
+                        },
+                    ],
+                },
+            }
+        ]
+
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         gemini_key = config.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
         tavily_key = config.get("tavily_api_key") or os.environ.get("TAVILY_API_KEY")
@@ -185,7 +238,9 @@ class ClaudeWebSearchTool(ToolPlugin):
             "enabled": config.get("web_search_enabled", True),
             "providers": providers,
             "provider_name": provider_name,
-            "max_results": int(config.get("web_search_max_results", DEFAULT_MAX_RESULTS)),
+            "max_results": int(
+                config.get("web_search_max_results", DEFAULT_MAX_RESULTS)
+            ),
         }
 
     def get_tool_interop_contribution(self, state: Dict[str, Any]):
@@ -211,7 +266,10 @@ class ClaudeWebSearchTool(ToolPlugin):
         provider = providers.get(provider_name)
         if provider is not None:
             return provider
-        if provider_name != DEFAULT_PROVIDER and provider_name in {"gemini_api", "tavily"}:
+        if provider_name != DEFAULT_PROVIDER and provider_name in {
+            "gemini_api",
+            "tavily",
+        }:
             return None
         if providers.get("gemini_api") is not None:
             return providers["gemini_api"]
@@ -334,7 +392,9 @@ class ClaudeWebSearchTool(ToolPlugin):
         try:
             response = await provider.search(
                 query,
-                limit=max(1, min(20, int(state.get("max_results", DEFAULT_MAX_RESULTS)))),
+                limit=max(
+                    1, min(20, int(state.get("max_results", DEFAULT_MAX_RESULTS)))
+                ),
             )
         except SearchProviderError as exc:
             return False, f"<tool_use_error>{exc}</tool_use_error>"
@@ -383,7 +443,9 @@ class ClaudeWebSearchTool(ToolPlugin):
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
         content = result.get("anthropic_content")
-        if isinstance(content, list) and all(isinstance(item, dict) for item in content):
+        if isinstance(content, list) and all(
+            isinstance(item, dict) for item in content
+        ):
             return make_provider_native_tool_result(
                 format=FORMAT_ANTHROPIC_MESSAGES,
                 content=content,

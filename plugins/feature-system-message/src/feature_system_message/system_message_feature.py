@@ -214,9 +214,7 @@ class SystemMessageFeature(FeaturePlugin):
                                                 "text": {"type": "string"},
                                                 "code": {"type": "string"},
                                                 "inline_code": {"type": "string"},
-                                                "runtime_code": {
-                                                    "type": "string"
-                                                },
+                                                "runtime_code": {"type": "string"},
                                                 "condition": {
                                                     "type": "object",
                                                     "properties": {
@@ -243,10 +241,25 @@ class SystemMessageFeature(FeaturePlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
+        elements: List[Dict[str, Any]] = [
+            {
+                "ui_type": "session_action",
+                "id": "show_compiled_system_message",
+                "label": "Show compiled system message",
+                "description": (
+                    "Compile and display the effective developer/system message "
+                    "without sending a model request."
+                ),
+                "icon": "file-text",
+                "order": 95,
+                "action_id": "show_compiled_system_message",
+            }
+        ]
+
         plugin_cfg = self._extract_plugin_config(config or {})
         runtime_paths = self._ui_runtime_paths(plugin_cfg)
         if not runtime_paths:
-            return []
+            return elements
 
         base_context = self._build_base_runtime_context(
             config=config,
@@ -254,8 +267,7 @@ class SystemMessageFeature(FeaturePlugin):
             models=models,
         )
 
-        elements: List[Dict[str, Any]] = []
-        seen_entries: set[str] = set()
+        seen_entries: set[str] = {json.dumps(elements[0], sort_keys=True, default=str)}
         for runtime_path in runtime_paths:
             runtime_context = self._load_runtime_context(
                 runtime_path,
@@ -287,6 +299,21 @@ class SystemMessageFeature(FeaturePlugin):
                 elements.append(item)
 
         return elements
+
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        _ = state
+        return [
+            {
+                "id": "show_compiled_system_message",
+                "label": "Show compiled system message",
+                "description": (
+                    "Compile and display the effective developer/system message "
+                    "without sending a model request."
+                ),
+                "inputs": {},
+                "mutates_session": False,
+            }
+        ]
 
     # Uses adapter default get_models (no-op on models)
 
@@ -812,6 +839,64 @@ class SystemMessageFeature(FeaturePlugin):
             resolved[key] = "" if value is None else str(value)
         return resolved
 
+    @staticmethod
+    def _message_text(message: Any) -> str:
+        if not isinstance(message, dict):
+            return ""
+
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+        if not isinstance(content, list):
+            return ""
+
+        text_parts: List[str] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            part_type = part.get("type")
+            if part_type not in {"input_text", "text"}:
+                continue
+            text = part.get("text")
+            if isinstance(text, str) and text:
+                text_parts.append(text)
+        return "\n".join(text_parts)
+
+    @classmethod
+    def _last_system_or_developer_text(cls, messages: Any) -> str:
+        if not isinstance(messages, list):
+            return ""
+        for message in reversed(messages):
+            if not isinstance(message, dict):
+                continue
+            role = message.get("role")
+            if role not in {"system", "developer"}:
+                continue
+            if message.get("type") not in {None, "message"}:
+                continue
+            text = cls._message_text(message)
+            if text:
+                return text
+        return ""
+
+    @classmethod
+    def _compiled_text_from_initialized_request(
+        cls,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> str:
+        request = state.get("request") if isinstance(state, dict) else None
+        if isinstance(request, dict):
+            instructions = request.get("instructions")
+            if isinstance(instructions, str) and instructions:
+                return instructions
+
+            request_text = cls._last_system_or_developer_text(request.get("messages"))
+            if request_text:
+                return request_text
+
+        return cls._last_system_or_developer_text(native_messages)
+
     # ---- Lifecycle ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize plugin from flat config and shared state.
@@ -847,7 +932,10 @@ class SystemMessageFeature(FeaturePlugin):
         return messages
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Insert permanent template system (when missing) and render per-request.
 
@@ -905,7 +993,8 @@ class SystemMessageFeature(FeaturePlugin):
             )
         else:
             has_system = any(
-                isinstance(m, dict) and m.get("role") == "system" for m in native_messages
+                isinstance(m, dict) and m.get("role") == "system"
+                for m in native_messages
             )
         if not has_system and not cfg.get("as_instructions", False):
             template = cfg.get("template", "") or ""
@@ -919,9 +1008,6 @@ class SystemMessageFeature(FeaturePlugin):
                 else:
                     synthetic = {"role": "system", "content": template}
                 working_native = [synthetic, *native_messages]
-
-        if not working_native:
-            return working_native, state
 
         # Determine system message index first to access previous metadata
         system_index: int | None = None
@@ -974,9 +1060,9 @@ class SystemMessageFeature(FeaturePlugin):
         if request_is_list:
             for msg in request_messages:
                 if isinstance(msg, dict):
-                    override_is_responses_items = isinstance(msg.get("type"), str) and bool(
-                        msg.get("type")
-                    )
+                    override_is_responses_items = isinstance(
+                        msg.get("type"), str
+                    ) and bool(msg.get("type"))
                     break
 
         # Choose the system template to render. Prefer the *last* system
@@ -1004,7 +1090,11 @@ class SystemMessageFeature(FeaturePlugin):
 
         if template_message is not None:
             if template_is_responses_items:
-                content = template_message.get("content") if isinstance(template_message, dict) else None
+                content = (
+                    template_message.get("content")
+                    if isinstance(template_message, dict)
+                    else None
+                )
                 text_parts: List[str] = []
                 if isinstance(content, list):
                     for part in content:
@@ -1051,7 +1141,11 @@ class SystemMessageFeature(FeaturePlugin):
             new_state = {**state, "request": new_request}
             return working_native, new_state
 
-        if system_index is not None:
+        inspection_only = bool(
+            isinstance(context, dict)
+            and context.get("system_message_inspection") is True
+        )
+        if system_index is not None and not inspection_only:
             working_native = self._stamp_compiled_content_once(
                 working_native,
                 system_index,
@@ -1064,7 +1158,10 @@ class SystemMessageFeature(FeaturePlugin):
                     existing_metadata = sys_msg.get("_metadata") or {}
                     new_metadata = {**existing_metadata, **metadata_updates}
                     working_native = list(working_native)
-                    working_native[system_index] = {**sys_msg, "_metadata": new_metadata}
+                    working_native[system_index] = {
+                        **sys_msg,
+                        "_metadata": new_metadata,
+                    }
 
         # Build override messages: same as native history, but with the
         # chosen system message rendered at the selected index.
@@ -1118,6 +1215,64 @@ class SystemMessageFeature(FeaturePlugin):
         new_request = {**request, "messages": override_messages}
         new_state = {**state, "request": new_request}
         return working_native, new_state
+
+    def execute_action(
+        self,
+        action_id: str,
+        session: Any,
+        native_messages: List[Dict[str, Any]],
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        _ = session, params
+        if action_id != "show_compiled_system_message":
+            raise KeyError(action_id)
+        if not isinstance(context, dict):
+            raise RuntimeError("System-message inspection requires action context")
+
+        core = context.get("core")
+        request_runtime = context.get("request_runtime")
+        request_context = context.get("request_context")
+        if (
+            core is None
+            or not isinstance(request_runtime, dict)
+            or not isinstance(request_context, dict)
+        ):
+            raise RuntimeError(
+                "System-message inspection requires request initialization context"
+            )
+
+        initialized_native, initialized_state = core.initialize_action_request(
+            native_messages,
+            state,
+            request_runtime,
+            {
+                **request_context,
+                "system_message_inspection": True,
+            },
+        )
+        compiled = self._compiled_text_from_initialized_request(
+            initialized_native,
+            initialized_state,
+        )
+        body = (
+            compiled
+            if compiled
+            else "No effective developer/system message is configured for this session."
+        )
+        return {
+            "status": "ok",
+            "display": {
+                "display_id": "compiled-system-message",
+                "format": "text",
+                "title": "Compiled system message",
+                "body": body,
+                "variant": "info",
+                "presentation": "modal",
+                "dismissible": True,
+            },
+        }
 
     def finalize(
         self,

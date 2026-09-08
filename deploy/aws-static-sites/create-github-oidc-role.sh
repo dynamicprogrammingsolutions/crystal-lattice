@@ -12,7 +12,7 @@ ROLE_STACK_NAME=""
 ROLE_NAME=""
 GITHUB_OWNER="dynamicprogrammingsolutions"
 GITHUB_REPO="crystal-lattice"
-GITHUB_BRANCH="main"
+GITHUB_ENVIRONMENT="production-sites"
 
 usage() {
   cat <<'USAGE'
@@ -32,7 +32,7 @@ Options:
   --region REGION              AWS region. Default: us-east-1.
   --github-owner OWNER         GitHub owner/org. Default: dynamicprogrammingsolutions.
   --github-repo REPO           GitHub repo name. Default: crystal-lattice.
-  --github-branch BRANCH       Trusted branch. Default: main.
+  --github-environment NAME    Trusted environment. Default: production-sites.
   --help, -h                   Show this help.
 
 Defaults by profile:
@@ -55,7 +55,7 @@ while [ "$#" -gt 0 ]; do
     --region) REGION="$2"; shift 2 ;;
     --github-owner) GITHUB_OWNER="$2"; shift 2 ;;
     --github-repo) GITHUB_REPO="$2"; shift 2 ;;
-    --github-branch) GITHUB_BRANCH="$2"; shift 2 ;;
+    --github-environment) GITHUB_ENVIRONMENT="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -124,7 +124,7 @@ aws --region "$REGION" cloudformation deploy \
   --parameter-overrides \
     GitHubOwner="$GITHUB_OWNER" \
     GitHubRepo="$GITHUB_REPO" \
-    GitHubBranch="$GITHUB_BRANCH" \
+    GitHubEnvironment="$GITHUB_ENVIRONMENT" \
     RoleName="$ROLE_NAME" \
     CreateOidcProvider="$create_oidc_provider" \
     ExistingOidcProviderArn="$oidc_provider_arn" \
@@ -149,4 +149,4 @@ echo "ROLE_STACK_NAME=$ROLE_STACK_NAME"
 echo "ROLE_NAME=$ROLE_NAME"
 echo "OIDC_PROVIDER_ARN=$oidc_provider_arn"
 echo "GITHUB_REPOSITORY=${GITHUB_OWNER}/${GITHUB_REPO}"
-echo "GITHUB_BRANCH=$GITHUB_BRANCH"
+echo "GITHUB_ENVIRONMENT=$GITHUB_ENVIRONMENT"

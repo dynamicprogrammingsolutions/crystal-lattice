@@ -15,6 +15,10 @@ Parameters:
     Type: String
     Default: main
     Description: Branch allowed to assume this role for workflow testing.
+  GitHubEnvironment:
+    Type: String
+    Default: cli-release
+    Description: GitHub environment allowed to assume this role for release publication.
   RoleName:
     Type: String
     Default: CrystalLatticeCliDownloadsGitHubDeployRole
@@ -74,6 +78,7 @@ Resources:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               ForAnyValue:StringLike:
                 token.actions.githubusercontent.com:sub:
+                  - !Sub "repo:${GitHubOwner}/${GitHubRepo}:environment:${GitHubEnvironment}"
                   - !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/tags/crystal-lattice-cli-v*"
                   - !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}"
       Policies:
@@ -122,6 +127,9 @@ Outputs:
   GitHubBranch:
     Description: GitHub branch trusted by this role for workflow testing.
     Value: !Ref GitHubBranch
+  GitHubEnvironment:
+    Description: GitHub environment trusted by this role for release publication.
+    Value: !Ref GitHubEnvironment
   OidcProviderArn:
     Description: GitHub OIDC provider used by this role.
     Value: !If

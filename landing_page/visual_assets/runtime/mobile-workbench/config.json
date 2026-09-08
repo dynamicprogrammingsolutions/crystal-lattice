@@ -1,0 +1,130 @@
+{
+  "plugin_cache_dir": "${env:SESSION_RUNTIME_DIR}/plugin-cache",
+  "mixins": {
+    "provider_defaults": {
+      "timeout": 300,
+      "enable_reasoning": true,
+      "reasoning_effort": "medium"
+    }
+  },
+  "providers": {
+    "openai": {
+      "mixin_refs": [
+        "provider_defaults"
+      ],
+      "provider": "openai_responses",
+      "model": "gpt-5.6-luna",
+      "auth_mode": "api",
+      "api_key": "${env:OPENAI_API_KEY}",
+      "enable_flex_processing": true,
+      "enable_fast_mode": false,
+      "reasoning_summary": "detailed",
+      "verbosity": "medium",
+      "enable_prompt_cache_key": true,
+      "enable_prompt_cache_retention_24h": true,
+      "enable_web_search": false,
+      "system_message_as_instructions": true,
+      "strip_leading_system_or_developer_message": true,
+      "show_estimated_cached_tokens": true,
+      "show_openai_auth_mode": true,
+      "plugins": [
+        "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider",
+        "openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature",
+        "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension",
+        "openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension",
+        "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension",
+        "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension",
+        "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension",
+        "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension",
+        "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension",
+        "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension",
+        "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension"
+      ]
+    }
+  },
+  "plugins": [
+    "feature_request_options.RequestOptionsFeature",
+    "session_actions_app.SessionActionsAppPlugin",
+    "session_title_app.SessionTitleAppPlugin",
+    "generate_title_app.GenerateTitleAppPlugin",
+    "summarize_range_app.SummarizeRangeAppPlugin",
+    "openai_responses_plugins.openai_responses_native_compaction_app.OpenAIResponsesNativeCompactionAppPlugin"
+  ],
+  "agents": {
+    "codex-openai": {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "plugins": [
+        "plugins.file_reader_tool.FileReaderTool"
+      ],
+      "enable_reasoning": true,
+      "reasoning_effort": "medium"
+    }
+  },
+  "application": {
+    "generate_title_max_messages": 999,
+    "generate_title_settings_overrides": {
+      "model": "gpt-5.6-luna",
+      "reasoning_effort": "low"
+    },
+    "session_actions": {
+      "allow_delete": true
+    },
+    "summarize_range_prompt": "Provide a detailed but concise summary of the selected conversation. Preserve decisions, relevant files, completed work, and useful next steps.",
+    "summarize_range_settings_overrides": {
+      "reasoning_effort": "medium"
+    }
+  },
+  "visual_fixture": {
+    "model_catalog": [
+      {
+        "id": "gpt-5.6-luna",
+        "name": "GPT-5.6 Luna"
+      },
+      {
+        "id": "gpt-5.4-mini",
+        "name": "GPT-5.4 mini"
+      }
+    ],
+    "session_overrides": {
+      "reasoning_effort": "medium",
+      "verbosity": "medium"
+    },
+    "mobile_hero_overrides": {
+      "usage_message_footer_fields": [
+        "turn_input",
+        "turn_output",
+        "turn_cost"
+      ],
+      "show_usage_status_total": true,
+      "show_reasoning_context_footer": false,
+      "show_estimated_cached_tokens": false,
+      "show_openai_auth_mode": false
+    },
+    "settings_keys": [
+      "model",
+      "reasoning_effort",
+      "verbosity",
+      "enable_prompt_cache_key",
+      "enable_web_search",
+      "use_compaction_placeholder_transcript"
+    ],
+    "snapshots": [
+      {
+        "snapshot_id": "automatic-compaction",
+        "created_at": "Aug 28, 2026 · 4:20 PM",
+        "reason": "Before compacting conversation [:3]"
+      },
+      {
+        "snapshot_id": "automatic-delete",
+        "created_at": "Aug 28, 2026 · 4:16 PM",
+        "reason": "Before deleting messages [3:]"
+      },
+      {
+        "snapshot_id": "manual-review",
+        "created_at": "Aug 28, 2026 · 4:10 PM",
+        "reason": "Initial repository review"
+      }
+    ]
+  }
+}

@@ -9,13 +9,74 @@ export type { Theme } from './theme';
 export { ThemeProvider, useTheme } from './theme';
 
 export type {
+  HomeSessionCollections,
+  HomeSessionItem,
+  HomeSessionsCache,
+  HomeSessionsCacheEntry,
+  RecentSessionsWindow,
+  WatchedSessionIdentity,
+} from './homeWorkspace';
+export {
+  DEFAULT_RECENT_SESSIONS_WINDOW,
+  MAX_SESSION_NOTE_LENGTH,
+  deriveHomeSessionCollections,
+  moveWatchedSession,
+  normalizeRecentSessionsWindow,
+  normalizeSessionNotes,
+  normalizeWatchlist,
+  watchedSessionKey,
+} from './homeWorkspace';
+
+export type {
+  ReorderItemFrame,
+  ReorderPreviewSlot,
+  ReorderRenderSlot,
+} from './reorderGeometry';
+export {
+  applyReorderKeyOrder,
+  buildReorderPreview,
+  buildReorderRenderSlots,
+  moveReorderValues,
+  resolveReorderDropTarget,
+  resolveReorderDropTranslation,
+} from './reorderGeometry';
+
+export type { SessionRequestStatusIndicatorProps } from './SessionRequestStatusIndicator';
+export { SessionRequestStatusIndicator } from './SessionRequestStatusIndicator';
+export type { SessionRequestStatusTone } from './sessionRequestStatus';
+export {
+  SESSION_REQUEST_STATUS_LABELS,
+  SESSION_REQUEST_STATUS_TONES,
+  getSessionRequestStatusPresentation,
+} from './sessionRequestStatus';
+
+export type {
+  MarkdownBaseFontSize,
+  MarkdownDisplayPreferences,
+  MarkdownDisplayPreferencesProviderProps,
+  MarkdownHeaderSize,
+  MarkdownTypography,
+} from './markdownDisplayPreferences';
+export {
+  DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+  DISPLAY_TYPOGRAPHY_PRESETS,
+  MARKDOWN_BASE_FONT_SIZES,
+  MARKDOWN_BASE_FONT_SIZE_OPTIONS,
+  MARKDOWN_HEADER_SIZE_OPTIONS,
+  MarkdownDisplayPreferencesProvider,
+  applyDisplayTypographyPreset,
+  deriveMarkdownTypography,
+  normalizeMarkdownBaseFontSize,
+  normalizeMarkdownDisplayPreferences,
+  normalizeMarkdownHeaderSize,
+  useMarkdownDisplayPreferences,
+} from './markdownDisplayPreferences';
+
+export type {
   SessionActionKey,
   SessionActionDefinition,
 } from './sessionActions';
-export {
-  SESSION_ACTIONS,
-  ALL_SESSION_ACTIONS,
-} from './sessionActions';
+export { SESSION_ACTIONS, ALL_SESSION_ACTIONS } from './sessionActions';
 
 export type {
   ApplicationActionDialogFieldRenderer,
@@ -44,11 +105,15 @@ export { SessionNotificationsHost } from './notifications/SessionNotificationsHo
 
 export {
   buildActionsMenuModel,
+  limitPinnedActionsForBar,
   normalizeActionDefinitions,
   togglePinnedKey,
 } from './actions/model';
 
-export type { UseActionsMenuModelOptions, UseActionsMenuModelResult } from './actions/useActionsMenuModel';
+export type {
+  UseActionsMenuModelOptions,
+  UseActionsMenuModelResult,
+} from './actions/useActionsMenuModel';
 export { useActionsMenuModel } from './actions/useActionsMenuModel';
 
 export type {
@@ -82,10 +147,24 @@ export type { ActionsMenuPanelProps } from './actions/ActionsMenuPanel';
 export { ActionsMenuPanel } from './actions/ActionsMenuPanel';
 
 export type { ActionsMenuBarProps } from './actions/ActionsMenuBar';
-export { ActionsMenuBar } from './actions/ActionsMenuBar';
+export {
+  ACTIONS_MENU_BAR_ITEM_WIDTH,
+  ActionsMenuBar,
+} from './actions/ActionsMenuBar';
 
 export type { SessionActionsBarProps } from './actions/SessionActionsBar';
 export { SessionActionsBar } from './actions/SessionActionsBar';
+export type {
+  RichConfigDropdownControlProps,
+  RichConfigDropdownPanelProps,
+  RichConfigToggleControlProps,
+} from './actions/RichConfigDropdown';
+export {
+  RichConfigDropdownControl,
+  RichConfigDropdownPanel,
+  RichConfigToggleControl,
+  truncatePinnedValue,
+} from './actions/RichConfigDropdown';
 
 export type {
   SessionListActionsBarProps,
@@ -94,16 +173,13 @@ export type {
   SessionListRichActionListProps,
 } from './actions/SessionListActionsBar';
 export {
-  resolveSemanticToneColor,
   SessionListActionsBar,
   SessionListRichActionControl,
   SessionListRichActionList,
 } from './actions/SessionListActionsBar';
+export { resolveSemanticToneColor } from './actions/semanticTone';
 
 export { SessionPluginsList } from './SessionPluginsList';
 
-export type {
-  SessionListFiltersPanelProps,
-} from './SessionListFiltersPanel';
+export type { SessionListFiltersPanelProps } from './SessionListFiltersPanel';
 export { SessionListFiltersPanel } from './SessionListFiltersPanel';
-

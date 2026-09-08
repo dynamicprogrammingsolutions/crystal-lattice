@@ -14,7 +14,7 @@ mobile lifecycle host ---- shared lifecycle controller ---- kind adapters
         |                           v                            v
         |                    runtime snapshots          transport/backend
         v
-Connections / Sessions / Messages
+Home / Connections / Sessions / Messages
         |
         v
 session caches + complete drafts
@@ -127,6 +127,8 @@ runtime state.
 
 Screen identity and callbacks use `(connectionId, sessionId)`:
 
+- Home aggregates cached summaries across saved connections and navigates only
+  under current explicit user intent;
 - Sessions uses the focused connection;
 - Messages uses that connection's selected session;
 - switching focus restores the destination state for the new connection;

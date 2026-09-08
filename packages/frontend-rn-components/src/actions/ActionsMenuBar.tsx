@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   Platform,
@@ -10,30 +10,37 @@ import {
   NativeModules,
   type StyleProp,
   type ViewStyle,
-} from 'react-native';
+} from "react-native";
 
-import { useTheme } from '../theme';
-import { ActionsMenuPanel, type ActionsMenuPanelProps } from './ActionsMenuPanel';
-import type { MenuIconRenderer } from './ActionsMenuContent';
+import { useTheme } from "../theme";
+import {
+  ActionsMenuPanel,
+  type ActionsMenuPanelProps,
+} from "./ActionsMenuPanel";
+import type { MenuIconRenderer } from "./ActionsMenuContent";
 import {
   DropdownMenuSurface,
   ModalMenuSurface,
   type DropdownMenuSurfaceProps,
   type MenuSurfaceBaseProps,
-} from './MenuSurfaces';
-import type { ActionDefinition, ActionKey } from './types';
-import type { ActionsMenuPinnedRenderParams } from './types';
-import { useActionsMenuModel } from './useActionsMenuModel';
+} from "./MenuSurfaces";
+import type { ActionDefinition, ActionKey } from "./types";
+import type { ActionsMenuPinnedRenderParams } from "./types";
+import { useActionsMenuModel } from "./useActionsMenuModel";
 import {
   clearActiveActionsPopoverMenu,
   setLastActionsPopoverAnchorTag,
   setActiveActionsPopoverMenu,
   updateActiveActionsPopoverMenuData,
-} from './actionsPopoverCoordinator';
+} from "./actionsPopoverCoordinator";
+import { limitPinnedActionsForBar } from "./model";
 
 const ICON_BUTTON_HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
+export const ACTIONS_MENU_BAR_ITEM_WIDTH = 44;
 
-export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefinition> {
+export interface ActionsMenuBarProps<
+  TDef extends ActionDefinition = ActionDefinition,
+> {
   title: string;
   baseActions: readonly TDef[];
   extraActions?: readonly TDef[];
@@ -41,6 +48,12 @@ export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefin
   pinned: readonly ActionKey[];
   /** When set, only these pinned keys show as bar icons; modal still uses full pinned for star state. */
   pinnedKeysForBar?: readonly ActionKey[];
+  /** Limits only compact pinned buttons; all actions and pin states remain available in the menu. */
+  maxPinnedActionsForBar?: number;
+  /** Enables one or two compact pinned rows. The default is one. */
+  pinnedRows?: 1 | 2;
+  /** Places the second pinned row above or below the primary/menu row. */
+  secondPinnedRowPlacement?: "above" | "below";
   onChangePinned: (nextPinned: ActionKey[]) => void;
   onAction: (key: ActionKey) => void;
   onOpenMenu?: () => void;
@@ -49,43 +62,59 @@ export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefin
   isActive?: boolean;
 
   renderIcon?: MenuIconRenderer;
-  renderPinIcon?: (params: { pinned: boolean; size: number; color: string }) => React.ReactNode;
-  renderCloseIcon?: (params: { size: number; color: string; renderIcon?: MenuIconRenderer }) => React.ReactNode;
+  renderPinIcon?: (params: {
+    pinned: boolean;
+    size: number;
+    color: string;
+  }) => React.ReactNode;
+  renderCloseIcon?: (params: {
+    size: number;
+    color: string;
+    renderIcon?: MenuIconRenderer;
+  }) => React.ReactNode;
 
-  variant?: 'modal' | 'dropdown';
-  dropdownOffset?: DropdownMenuSurfaceProps['offset'];
-  backdropStyle?: MenuSurfaceBaseProps['backdropStyle'];
-  modalContentStyle?: MenuSurfaceBaseProps['contentStyle'];
-  dropdownMenuStyle?: DropdownMenuSurfaceProps['menuStyle'];
+  variant?: "modal" | "dropdown";
+  dropdownOffset?: DropdownMenuSurfaceProps["offset"];
+  backdropStyle?: MenuSurfaceBaseProps["backdropStyle"];
+  modalContentStyle?: MenuSurfaceBaseProps["contentStyle"];
+  dropdownMenuStyle?: DropdownMenuSurfaceProps["menuStyle"];
   style?: StyleProp<ViewStyle>;
 
   getIconName?: (action: TDef) => string | null;
   renderPinnedAction?: (
     params: ActionsMenuPinnedRenderParams<TDef>,
   ) => React.ReactNode | undefined;
-  renderItem?: ActionsMenuPanelProps<TDef>['renderItem'];
+  renderItem?: ActionsMenuPanelProps<TDef>["renderItem"];
 }
 
 export function ActionsMenuBar<TDef extends ActionDefinition>(
   props: ActionsMenuBarProps<TDef>,
 ): React.JSX.Element {
   const theme = useTheme();
-  const variant = props.variant ?? 'modal';
+  const variant = props.variant ?? "modal";
+  const pinnedRows = props.pinnedRows ?? 1;
+  const secondPinnedRowPlacement = props.secondPinnedRowPlacement ?? "below";
   const [menuVisible, setMenuVisible] = useState(false);
   const menuAnchorRef = useRef<any>(null);
-  const menuIdRef = useRef<string>(`actions-menu-${Math.random().toString(36).slice(2)}`);
+  const menuIdRef = useRef<string>(
+    `actions-menu-${Math.random().toString(36).slice(2)}`,
+  );
 
   const desktopWindowManager = (NativeModules as any)?.DesktopWindowManager as
     | {
-        toggleActionsPopover?: (params: { anchorTag: number; width?: number; height?: number }) => void;
+        toggleActionsPopover?: (params: {
+          anchorTag: number;
+          width?: number;
+          height?: number;
+        }) => void;
         closeActionsPopover?: () => void;
       }
     | undefined;
 
   const isMacOSPopoverMenu =
-    Platform.OS === 'macos' &&
-    variant === 'dropdown' &&
-    typeof desktopWindowManager?.toggleActionsPopover === 'function';
+    Platform.OS === "macos" &&
+    variant === "dropdown" &&
+    typeof desktopWindowManager?.toggleActionsPopover === "function";
 
   useEffect(() => {
     if (props.isActive === false) {
@@ -105,24 +134,32 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
   const getIconName =
     props.getIconName ??
     ((action: TDef) =>
-      typeof (action as any).iconName === 'string' ? (action as any).iconName : null);
+      typeof (action as any).iconName === "string"
+        ? (action as any).iconName
+        : null);
 
   const pinnedButtons = useMemo(() => {
     const barPinned =
       props.pinnedKeysForBar != null
-        ? model.visiblePinned.filter((action) => props.pinnedKeysForBar!.includes(action.key))
+        ? model.visiblePinned.filter((action) =>
+            props.pinnedKeysForBar!.includes(action.key),
+          )
         : model.visiblePinned;
-    return barPinned
+    return limitPinnedActionsForBar(barPinned, props.maxPinnedActionsForBar)
       .map((action) => {
         const iconName = getIconName(action);
-        const disabled = props.isActionDisabled ? props.isActionDisabled(action.key) : false;
+        const disabled = props.isActionDisabled
+          ? props.isActionDisabled(action.key)
+          : false;
         const iconColor = disabled ? theme.textMuted : theme.primary;
-        const fallbackLabel = action.label.trim().slice(0, 1) || '•';
+        const fallbackLabel = action.label.trim().slice(0, 1) || "•";
         const onPress = () => {
-          if (Platform.OS === 'macos' && menuAnchorRef.current) {
+          if (Platform.OS === "macos" && menuAnchorRef.current) {
             try {
               const anchorTag = findNodeHandle(menuAnchorRef.current) as any;
-              setLastActionsPopoverAnchorTag(typeof anchorTag === 'number' ? anchorTag : null);
+              setLastActionsPopoverAnchorTag(
+                typeof anchorTag === "number" ? anchorTag : null,
+              );
             } catch {
               setLastActionsPopoverAnchorTag(null);
             }
@@ -137,13 +174,22 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
           onPress,
         });
         if (custom !== undefined) {
-          return <React.Fragment key={action.key}>{custom}</React.Fragment>;
+          return (
+            <View key={action.key} style={styles.customPinnedActionSlot}>
+              {custom}
+            </View>
+          );
         }
         return (
           <TouchableOpacity
             key={action.key}
             style={styles.iconButton}
             hitSlop={ICON_BUTTON_HIT_SLOP}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+            testID={
+              typeof action.testID === "string" ? action.testID : undefined
+            }
             onPress={onPress}
             disabled={disabled}
           >
@@ -153,7 +199,10 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
               <Text
                 style={[
                   styles.fallbackIcon,
-                  { color: iconColor, fontSize: theme.typography.fontSize.normal },
+                  {
+                    color: iconColor,
+                    fontSize: theme.typography.fontSize.normal,
+                  },
                 ]}
               >
                 {fallbackLabel}
@@ -166,6 +215,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
   }, [
     model.visiblePinned,
     props.pinnedKeysForBar,
+    props.maxPinnedActionsForBar,
     getIconName,
     props.isActionDisabled,
     props.renderIcon,
@@ -195,7 +245,9 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       })),
       pinnedKeys: props.pinned,
       disabledKeys: model.orderedActions
-        .filter((action) => (props.isActionDisabled ? props.isActionDisabled(action.key) : false))
+        .filter((action) =>
+          props.isActionDisabled ? props.isActionDisabled(action.key) : false,
+        )
         .map((action) => action.key),
       renderItem: props.renderItem as any,
     });
@@ -230,9 +282,32 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
 
   return (
     <>
-      <View style={[styles.actionsRow, props.style]}>
-        {pinnedButtons}
-        <View ref={menuAnchorRef} collapsable={false}>
+      <View style={[styles.actionsRow, props.style]} testID="actions-menu-bar">
+        <View
+          style={[
+            styles.pinnedActionsViewport,
+            pinnedRows === 2 && styles.pinnedActionsViewportTwoRows,
+            pinnedRows === 2 &&
+              (secondPinnedRowPlacement === "above"
+                ? styles.pinnedActionsWrapAbove
+                : styles.pinnedActionsWrapBelow),
+          ]}
+          testID="actions-menu-pinned-viewport"
+        >
+          {pinnedButtons}
+        </View>
+        <View
+          ref={menuAnchorRef}
+          collapsable={false}
+          style={[
+            styles.menuButtonSlot,
+            pinnedRows === 2 &&
+              (secondPinnedRowPlacement === "above"
+                ? styles.menuButtonSlotBottom
+                : styles.menuButtonSlotTop),
+          ]}
+          testID="actions-menu-overflow-slot"
+        >
           <TouchableOpacity
             style={styles.iconButton}
             hitSlop={ICON_BUTTON_HIT_SLOP}
@@ -243,7 +318,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                 const anchorTag = menuAnchorRef.current
                   ? (findNodeHandle(menuAnchorRef.current) as any)
                   : null;
-                if (typeof anchorTag !== 'number') {
+                if (typeof anchorTag !== "number") {
                   return;
                 }
 
@@ -256,7 +331,9 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                 }));
                 const disabledKeys = model.orderedActions
                   .filter((action) =>
-                    props.isActionDisabled ? props.isActionDisabled(action.key) : false,
+                    props.isActionDisabled
+                      ? props.isActionDisabled(action.key)
+                      : false,
                   )
                   .map((action) => action.key);
 
@@ -298,8 +375,11 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                   paddingHeight +
                   actions.length * rowHeight +
                   bottomBuffer;
-                const windowHeight = Dimensions.get('window').height;
-                const maxPopoverHeight = Math.max(220, Math.floor(windowHeight * 0.8));
+                const windowHeight = Dimensions.get("window").height;
+                const maxPopoverHeight = Math.max(
+                  220,
+                  Math.floor(windowHeight * 0.8),
+                );
                 const height = Math.max(
                   140,
                   Math.min(maxPopoverHeight, estimatedContentHeight),
@@ -318,12 +398,19 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             }}
           >
             {props.renderIcon ? (
-              props.renderIcon({ name: 'more-horizontal', size: 18, color: theme.primary })
+              props.renderIcon({
+                name: "more-horizontal",
+                size: 18,
+                color: theme.primary,
+              })
             ) : (
               <Text
                 style={[
                   styles.moreText,
-                  { color: theme.primary, fontSize: theme.typography.fontSize.title },
+                  {
+                    color: theme.primary,
+                    fontSize: theme.typography.fontSize.title,
+                  },
                 ]}
               >
                 ⋯
@@ -333,7 +420,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
         </View>
       </View>
 
-      {isMacOSPopoverMenu ? null : variant === 'modal' ? (
+      {isMacOSPopoverMenu ? null : variant === "modal" ? (
         <ModalMenuSurface
           visible={menuVisible}
           onRequestClose={() => setMenuVisible(false)}
@@ -360,21 +447,66 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
 
 const styles = StyleSheet.create({
   actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    alignSelf: "stretch",
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: "100%",
     marginTop: 4,
   },
+  pinnedActionsViewport: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexShrink: 1,
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  pinnedActionsViewportTwoRows: {
+    minHeight: 40,
+    maxHeight: 82,
+    flexWrap: "wrap",
+    alignItems: "center",
+    alignContent: "flex-start",
+    rowGap: 2,
+  },
+  pinnedActionsWrapAbove: {
+    flexWrap: "wrap-reverse",
+    alignContent: "flex-end",
+  },
+  pinnedActionsWrapBelow: {
+    flexWrap: "wrap",
+    alignContent: "flex-start",
+  },
+  menuButtonSlot: {
+    width: ACTIONS_MENU_BAR_ITEM_WIDTH,
+    flexShrink: 0,
+  },
+  menuButtonSlotTop: {
+    alignSelf: "flex-start",
+  },
+  menuButtonSlotBottom: {
+    alignSelf: "flex-end",
+  },
   iconButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginLeft: 4,
+    width: ACTIONS_MENU_BAR_ITEM_WIDTH,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  customPinnedActionSlot: {
+    height: 40,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
   moreText: {
-    fontWeight: '800',
+    fontWeight: "800",
     marginTop: -3,
   },
   fallbackIcon: {
-    fontWeight: '800',
+    fontWeight: "800",
   },
 });

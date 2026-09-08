@@ -19,6 +19,10 @@ import {
   DesktopConnectionDisplayRail,
   DesktopGlobalDisplayLayer,
 } from '../src/ui/DesktopGlobalDisplayLayer';
+import {
+  clearActiveActionDisplayWindow,
+  getActiveActionDisplayWindow,
+} from '../src/windows/actionDisplayWindowCoordinator';
 
 function createBackend(): AgentBackend {
   return {
@@ -32,7 +36,7 @@ function createBackend(): AgentBackend {
   } as unknown as AgentBackend;
 }
 
-test('aggregates connection displays and excludes session displays', () => {
+test('aggregates connection displays and routes direct modals to the action window', () => {
   jest.useFakeTimers();
   const first = createBackend();
   const second = createBackend();
@@ -99,12 +103,21 @@ test('aggregates connection displays and excludes session displays', () => {
   });
 
   expect(screen.getByText('First application display')).toBeTruthy();
-  expect(screen.getByText('Second application display')).toBeTruthy();
   expect(screen.getByText('First connection')).toBeTruthy();
-  expect(screen.getByText('Second connection')).toBeTruthy();
+  expect(screen.queryByText('Second application display')).toBeNull();
   expect(screen.queryByText('Session display')).toBeNull();
+  expect(getActiveActionDisplayWindow()?.state).toEqual(
+    expect.objectContaining({
+      display: expect.objectContaining({
+        body: 'Second application display',
+        presentation: 'modal',
+      }),
+      contextLabel: 'Second connection',
+    }),
+  );
 
   rendered.unmount();
+  clearActiveActionDisplayWindow();
   jest.useRealTimers();
 });
 

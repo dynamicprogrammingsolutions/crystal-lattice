@@ -92,6 +92,10 @@ def test_default_config_codex_mcp_via_real_ui_flow(
         "CLOUD_RUNTIME_BUILD_CONTEXT", str(workspace_dir / "cloud-runtime-context")
     )
     monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
+    monkeypatch.setenv(
+        "ANTHROPIC_API_KEY",
+        get_repo_env("ANTHROPIC_API_KEY", "test-anthropic-key"),
+    )
 
     app = AgentApplication(
         str(CONFIG_PATH),
