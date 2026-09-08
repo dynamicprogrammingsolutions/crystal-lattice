@@ -345,8 +345,9 @@ npm run install:plugins
 npm run test:plugins:kimi
 ```
 
-The CLI release npm scripts (`release:cli`, `release:cli:plan`) run the release
-local gate — its pip install and both pytest suites — inside the same `.venv`.
+The CLI release npm scripts run the release local gate — its pip install and
+both pytest suites — inside the same `.venv`. `release:cli:gate` runs the full
+local validation without creating or pushing the release tag.
 
 On Windows, install Python 3.10+ and make sure `python` is on `PATH`; the
 same npm scripts run from cmd.exe and PowerShell. The `deploy:*`, `ssh:*`,

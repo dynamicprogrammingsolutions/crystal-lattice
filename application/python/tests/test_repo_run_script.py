@@ -51,6 +51,7 @@ WRAPPED_SCRIPTS = {
     "build:optimized",
     "release:cli",
     "release:cli:plan",
+    "release:cli:gate",
     "release:cli:smoke",
     "roadmap:release:status",
     "roadmap:release:push",
@@ -228,6 +229,11 @@ def test_release_scripts_run_local_gate_through_repo_run():
         scripts["release:cli:plan"]
         == "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh"
         " --profile prod --dry-run"
+    )
+    assert (
+        scripts["release:cli:gate"]
+        == "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh"
+        " --profile prod"
     )
     assert (
         scripts["release:cli:smoke"]
