@@ -167,9 +167,14 @@ esac
 def _release_env(tmp_path: Path, *, github_profile: str = "test") -> dict[str, str]:
     repo = _write_test_repo(tmp_path)
     fake_bin, command_log = _write_fake_release_commands(tmp_path)
+    # release.sh resolves ``python`` through PATH (read_project_version), so pin
+    # the test runner's real interpreter directory first. Without this, pyenv
+    # shim users fail with "pyenv: python: command not found" because the script
+    # runs from a temporary cwd outside any .python-version scope.
+    runner_bin = Path(sys.executable).parent
     return {
         **os.environ,
-        "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        "PATH": f"{runner_bin}{os.pathsep}{fake_bin}{os.pathsep}{os.environ['PATH']}",
         "REPO_ROOT": str(repo),
         "FAKE_GH_PROFILE": github_profile,
         "COMMAND_LOG": str(command_log),
@@ -655,15 +660,18 @@ def test_root_package_json_exposes_cli_release_scripts() -> None:
 
     assert (
         scripts["release:cli"]
-        == "bash deploy/aws-cli-downloads/release.sh --profile prod --push-tag --watch"
+        == "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh"
+        " --profile prod --push-tag --watch"
     )
     assert (
         scripts["release:cli:plan"]
-        == "bash deploy/aws-cli-downloads/release.sh --profile prod --dry-run"
+        == "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh"
+        " --profile prod --dry-run"
     )
     assert (
         scripts["release:cli:smoke"]
-        == "bash deploy/aws-cli-downloads/smoke.sh --profile prod"
+        == "python scripts/repo_run.py bash deploy/aws-cli-downloads/smoke.sh"
+        " --profile prod"
     )
     assert (
         scripts["release:cli:version:bump-patch"]

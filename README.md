@@ -327,6 +327,31 @@ python -m pip install -e application/python
 repo checkout. It does not install repo-root plugin packages, so install
 `plugins/<plugin-name>[dev]` separately when you are changing a plugin.
 
+The root `package.json` scripts run Python tooling through
+`scripts/repo_run.py`, which resolves the repository `.venv` automatically, so
+they work without activating the virtualenv:
+
+```bash
+npm run install:venv
+npm run install:all
+npm run test:core:unit
+```
+
+Install the plugin-suite packages into the same `.venv` when working on the
+kimi-tools, claude-tools, web-fetch-shared, or tool-compat-shared plugins:
+
+```bash
+npm run install:plugins
+npm run test:plugins:kimi
+```
+
+The CLI release npm scripts (`release:cli`, `release:cli:plan`) run the release
+local gate — its pip install and both pytest suites — inside the same `.venv`.
+
+On Windows, install Python 3.10+ and make sure `python` is on `PATH`; the
+same npm scripts run from cmd.exe and PowerShell. The `deploy:*`, `ssh:*`,
+`server:cloud-test`, and `release:cli*` scripts are macOS/Linux only.
+
 Run the common fast test sets:
 
 ```bash
