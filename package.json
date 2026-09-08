@@ -107,6 +107,7 @@
     "ssh:ireland": "ssh irelandsrv@ireland-s1.dynamicprogrammingsolutions.com",
     "release:cli": "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh --profile prod --push-tag --watch",
     "release:cli:plan": "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh --profile prod --dry-run",
+    "release:cli:gate": "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh --profile prod",
     "release:cli:smoke": "python scripts/repo_run.py bash deploy/aws-cli-downloads/smoke.sh --profile prod",
     "release:cli:version:bump-patch": "python scripts/bump_cli_version.py"
   }

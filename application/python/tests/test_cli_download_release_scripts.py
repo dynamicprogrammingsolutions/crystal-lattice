@@ -445,6 +445,49 @@ def test_release_script_propagates_watched_run_failure(tmp_path: Path) -> None:
     assert "GitHub Release:" not in result.stdout
 
 
+def test_release_script_without_push_tag_validates_and_skips_tag(
+    tmp_path: Path,
+) -> None:
+    """Gate mode: full validation without creating or pushing the tag.
+
+    This is the mode behind ``npm run release:cli:gate``. ``--skip-tests``
+    keeps the test fast; the local gate's real execution path is the same
+    ``run_or_print`` branch the push-tag tests exercise.
+    """
+    env = _release_env(tmp_path)
+    command_log = Path(env["COMMAND_LOG"])
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(RELEASE_SCRIPT),
+            "--profile",
+            "test",
+            "--version",
+            "9.8.7",
+            "--skip-tests",
+        ],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    stdout = result.stdout
+    assert "[4/4] Validating GitHub download configuration (profile test)" in stdout
+    assert "secret CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME: present" in stdout
+    assert (
+        "Tag not pushed. Pass --push-tag to create and push crystal-lattice-cli-v9.8.7."
+        in stdout
+    )
+    # Nothing was triggered, so the post-publish smoke hint must not print.
+    assert "Next step: verify the download endpoint" not in stdout
+    commands = command_log.read_text(encoding="utf-8")
+    assert "git tag crystal-lattice-cli-v9.8.7" not in commands
+    assert "git push origin crystal-lattice-cli-v9.8.7" not in commands
+
+
 def test_promote_script_dry_run_does_not_require_downloaded_assets(
     tmp_path: Path,
 ) -> None:
@@ -667,6 +710,11 @@ def test_root_package_json_exposes_cli_release_scripts() -> None:
         scripts["release:cli:plan"]
         == "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh"
         " --profile prod --dry-run"
+    )
+    assert (
+        scripts["release:cli:gate"]
+        == "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh"
+        " --profile prod"
     )
     assert (
         scripts["release:cli:smoke"]

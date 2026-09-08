@@ -273,5 +273,7 @@ if [ "$WATCH" -eq 1 ]; then
   fi
 fi
 
-echo "Next step: verify the download endpoint after the workflow publishes:"
-printf '  %q %q %q %q %q\n' "$SCRIPT_DIR/smoke.sh" --profile "$PROFILE" --version "$VERSION"
+if [ "$PUSH_TAG" -eq 1 ]; then
+  echo "Next step: verify the download endpoint after the workflow publishes:"
+  printf '  %q %q %q %q %q\n' "$SCRIPT_DIR/smoke.sh" --profile "$PROFILE" --version "$VERSION"
+fi

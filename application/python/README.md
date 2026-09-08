@@ -811,7 +811,14 @@ download domain:
 
    ```bash
    npm run release:cli:plan
+   npm run release:cli:gate
    ```
+
+   `release:cli:plan` is a dry run: it prints every command without
+   executing anything. `release:cli:gate` performs the full local
+   validation for real — release state, release commit, download
+   configuration, and the local gate (pip install and both pytest
+   suites) — without creating or pushing the release tag.
 
 3. Create the release:
 
