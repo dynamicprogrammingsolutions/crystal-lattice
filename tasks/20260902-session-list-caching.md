@@ -325,7 +325,7 @@ index and keep task/progress language out of current user documentation.
 - [x] Update current implementation and user documentation as warranted by
       delivered behavior.
 - [x] Update requirement evidence.
-- [ ] Append completion notes with final delivery evidence.
+- [x] Append completion notes with final delivery evidence.
 
 ### Requirement verification
 
@@ -379,3 +379,89 @@ index and keep task/progress language out of current user documentation.
 - One scheduled task per session bounds obsolete queued revisions. When stale
   work exits, the resolver automatically schedules the latest desired revision
   so background convergence does not require another list request.
+
+## Completion Notes
+
+### Outcome
+
+- `SessionListService` now enumerates opaque session attributes before starting
+  a configurable full-resolution budget, reuses valid complete summaries from
+  private persistent state, resolves misses newest-first, and returns every
+  discovered session through the existing summary shape.
+- Complete summaries precede metadata-only fallbacks while unresolved work
+  continues on bounded private daemon workers. Later calls observe completed
+  work without a client protocol change.
+- The existing public service and `AgentApplication` methods remain unchanged.
+  HTTP retains the `{"sessions": [...]}` envelope, and no client package was
+  modified.
+- The current implementation reads only its own
+  `application.cached_background_session_list` settings from opaque
+  application context. No shared implementation-specific configuration model
+  or public cache/scanner surface was introduced.
+- Complete derived summaries are stored in user-private SQLite databases under
+  `~/.crystal/cache/session-list` by default. Temporary session roots use
+  temporary colocated state. Revision, contract, and invalidation tokens
+  prevent stale reuse or obsolete background publication.
+
+### Requirement evidence
+
+- `SLIST-001` through `SLIST-010` retain their existing implementation and
+  automated evidence.
+- `SLIST-011` through `SLIST-020` are implemented, automated, and documented in
+  `core/python/docs/development/specifications/session-listing/requirements.md`.
+- Primary implementation: `core/python/agent_app/session_listing.py`,
+  `core/python/agent_app/_session_list_cache.py`,
+  `core/python/agent_app/sessions.py`, and
+  `core/python/agent_app/application_future.py`.
+- Primary regression coverage:
+  `core/python/tests/test_application_session_listing.py`,
+  `core/python/tests/test_session_list_cache.py`, and
+  `application/python/tests/test_session_list_http_contract.py`.
+- Implementation delivery commit: `a2fcebfa`.
+
+### Verification
+
+- `pytest core/python/tests -q`: 511 passed, 26 deselected, 1 expected failure.
+- `pytest application/python/tests -q`: 370 passed, 92 deselected.
+- Final focused Core session-list/filter/cache run: 23 passed.
+- Source-path-controlled HTTP contract run: 5 passed.
+- Focused application-plugin close/runtime-environment run: 20 passed.
+- Targeted `ruff check`: passed.
+- Targeted production-module `pyright`: 0 errors.
+- Python compilation checks: passed.
+- Documentation-site preparation: passed.
+- MkDocs build: passed with existing unrelated navigation/reference warnings.
+- `git diff --check`: passed before the implementation commit.
+
+The broader `pyright` invocation that included all of
+`application_future.py` still reports unrelated existing errors in that module.
+The new session-listing modules and modified session-store module pass targeted
+type checking, and no reported error points to the added application-context
+or shutdown wiring.
+
+### Plan deviations and findings
+
+- The service keeps the cached/background resolver private within
+  `SessionListService` instead of adding a separate injected public strategy.
+  A private persistence module isolates storage details while existing summary
+  helpers remain together.
+- The cache default was changed during verification from configuration-relative
+  storage to `~/.crystal/cache/session-list` after the full application suite
+  demonstrated that bundled configurations could otherwise create generated
+  databases in the source tree. Those generated test files were removed.
+- Queue coalescing was strengthened so at most one revision per session is
+  scheduled while stale completion automatically schedules the latest desired
+  revision.
+
+### Unresolved or deferred scope
+
+- No live iCloud timing test was run because it would hydrate the preserved
+  dataless session files. Deterministic blocked-store tests cover the same
+  server contract without changing cloud-storage state.
+- Metadata membership enumeration is intentionally outside the full-resolution
+  deadline. An implementation cannot guarantee both discovery of every current
+  filename and a hard deadline when the storage provider itself blocks
+  attribute enumeration.
+- Python cannot cancel an operating-system file read already in progress.
+  Shutdown cancels queued work and prevents a blocked daemon worker from
+  running plugin enrichment or publishing after the read returns.
