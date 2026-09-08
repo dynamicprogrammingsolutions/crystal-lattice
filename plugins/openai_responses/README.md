@@ -726,6 +726,13 @@ pytest plugins/openai_responses/tests -q
 
 This package defaults to `-m 'not integration and not manual_integration'`.
 
+Run local (non-hosted) integration tests, including the application-level
+endpoint tests that exercise this plugin through `AgentApplication`:
+
+```bash
+pytest plugins/openai_responses/tests -m 'integration and not api and not slow_integration and not manual_integration' -q
+```
+
 Run hosted API integration tests:
 
 ```bash

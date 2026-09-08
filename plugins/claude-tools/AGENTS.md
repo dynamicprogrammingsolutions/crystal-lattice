@@ -124,10 +124,8 @@ Currently implemented:
 Also included:
 
 - Claude system-message assets used by the default `claude` agent
-
-Not yet covered here:
-
-- Claude compaction support lives in separate work and should be treated as a distinct area
+- Claude conversation compaction, including application-level action and
+  session-history behavior
 
 ## Testing Pattern
 

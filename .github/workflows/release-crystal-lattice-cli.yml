@@ -35,7 +35,7 @@ jobs:
           cache: pip
 
       - name: Install test dependencies
-        run: python -m pip install -e "core/python[dev]" -e application/python openai
+        run: python -m pip install -e "core/python[dev]" -e application/python
 
       - name: Validate release tag version
         if: startsWith(github.ref, 'refs/tags/')

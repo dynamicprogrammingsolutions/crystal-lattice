@@ -568,11 +568,11 @@ def test_release_script_install_line_avoids_plugin_packages(tmp_path: Path) -> N
     ]
     assert install_lines == [
         "DRY RUN: python -m pip install -e core/python\\[dev\\] "
-        "-e application/python openai"
+        "-e application/python"
     ]
 
 
-def test_release_workflows_install_only_core_application_and_openai() -> None:
+def test_release_workflows_install_only_core_and_application() -> None:
     release_workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
     public_ci_workflow = PUBLIC_CI_WORKFLOW.read_text(encoding="utf-8")
 
@@ -582,7 +582,19 @@ def test_release_workflows_install_only_core_application_and_openai() -> None:
         assert "plugins/mcp-shared" not in workflow
         assert "plugins/web-fetch-shared" not in workflow
         assert "-e application/python" in workflow
-        assert "openai" in workflow
+
+    # The gate suites collect and pass without any plugin dependency, so
+    # the workflows must not install the openai SDK (or any plugin dep).
+    assert "openai" not in release_workflow
+    assert (
+        'python -m pip install -e "core/python[dev]" -e application/python\n'
+        in release_workflow
+    )
+    assert (
+        "python -m pip install \\\n"
+        '            -e "core/python[dev]" \\\n'
+        "            -e application/python\n" in public_ci_workflow
+    )
 
 
 def test_release_oidc_configuration_restricts_environment_to_release_tags() -> None:

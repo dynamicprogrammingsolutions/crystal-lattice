@@ -30,6 +30,7 @@ WRAPPED_SCRIPTS = {
     "test:api:zai",
     "test:plugins:openrouter",
     "test:plugins:openai-responses",
+    "test:plugins:openai-responses:integration",
     "test:plugins:reference",
     "test:plugins:kimi",
     "test:plugins:claude",
@@ -262,10 +263,17 @@ def test_plugin_suite_scripts_run_through_repo_run():
         == "python scripts/repo_run.py pytest plugins/tool-compat-shared/tests -q"
     )
     assert (
+        scripts["test:plugins:openai-responses:integration"]
+        == "python scripts/repo_run.py pytest plugins/openai_responses/tests"
+        ' -m "integration and not api and not slow_integration'
+        ' and not manual_integration" -q'
+    )
+    assert (
         scripts["install:plugins"] == "python scripts/repo_run.py python -m pip install"
         ' -e "plugins/kimi-tools[dev]" -e "plugins/claude-tools[dev]"'
         " && python scripts/repo_run.py python -m pip install"
         ' -e "plugins/tool-compat-shared[dev]" -e "plugins/web-fetch-shared[dev]"'
+        ' -e "plugins/openai_responses[dev]"'
     )
 
 
