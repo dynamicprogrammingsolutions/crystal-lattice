@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[3]
 RELEASE_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "release.sh"
 PROMOTE_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "promote-github-release.sh"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release-crystal-lattice-cli.yml"
+PUBLIC_CI_WORKFLOW = ROOT / ".github" / "workflows" / "public-ci.yml"
 OIDC_TEMPLATE = ROOT / "deploy" / "aws-cli-downloads" / "github-oidc-role.yaml"
 CONFIGURE_GITHUB_SCRIPT = (
     ROOT / "deploy" / "aws-cli-downloads" / "configure-github-actions-vars.sh"
@@ -492,6 +493,48 @@ def test_release_workflow_uses_single_writer_artifact_handoff() -> None:
     assert workflow.index("actions/download-artifact") < workflow.index(
         "gh release upload"
     )
+
+
+def test_release_script_install_line_avoids_plugin_packages(tmp_path: Path) -> None:
+    env = _release_env(tmp_path)
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(RELEASE_SCRIPT),
+            "--profile",
+            "test",
+            "--version",
+            "9.8.7",
+            "--dry-run",
+        ],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    install_lines = [
+        line for line in result.stdout.splitlines() if "pip install" in line
+    ]
+    assert install_lines == [
+        "DRY RUN: python -m pip install -e core/python\\[dev\\] "
+        "-e application/python openai"
+    ]
+
+
+def test_release_workflows_install_only_core_application_and_openai() -> None:
+    release_workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+    public_ci_workflow = PUBLIC_CI_WORKFLOW.read_text(encoding="utf-8")
+
+    for workflow in (release_workflow, public_ci_workflow):
+        assert '-e "plugins/openai_responses[dev]"' not in workflow
+        assert "plugins/tool-compat-shared" not in workflow
+        assert "plugins/mcp-shared" not in workflow
+        assert "plugins/web-fetch-shared" not in workflow
+        assert "-e application/python" in workflow
+        assert "openai" in workflow
 
 
 def test_release_oidc_configuration_restricts_environment_to_release_tags() -> None:
