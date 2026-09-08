@@ -7,9 +7,9 @@ declared test dependencies, exclude live-backend tests from
 tool-compat-shared's default run, and complete the `path:` plugin loader's
 stale-module eviction.
 
-Status: A–C complete and committed (`bcab1836`, `bea899ba`); D pending
-(execution approval pending; now required by the confirmed runtime
-direction — see Q2 and Q4). New decisions Q5–Q7 recorded 2026-09-08.
+Status: A–C complete and committed (`bcab1836`, `bea899ba`); D and E
+SPLIT INTO `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`
+(2026-09-08); no remaining workstreams in this task.
 
 ## Requirements checklist
 
@@ -33,22 +33,19 @@ direction — see Q2 and Q4). New decisions Q5–Q7 recorded 2026-09-08.
 - [ ] Re-activating a `path:` plugin install evicts all stale modules
   belonging to any distribution in the install dir, so reload tests pass
   even when the plugin cache resolves newer dependency versions than the
-  environment. (Required by the confirmed runtime direction; execution
-  approval pending — see Q2.)
+  environment. (Required by the confirmed runtime direction; SPLIT INTO
+  `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`.)
 
 ## Unresolved requirement questions and decisions
 
 - **Q1 (boundary, blocking A and the npm-script part of B): RESOLVED** —
   folded into the in-flight change; landed as commit `bcab1836` together
   with the venv wrapper work.
-- **Q2 (scope, blocking D): OPEN** — A–C are landed, so D is the only
-  remaining workstream in this task. The user declined immediate execution
-  (2026-09-08); the confirmed runtime direction (see Q4) makes D a required
-  fix for the supported lean-runtime path rather than an optional
-  hardening, so only execution approval and the keep-here-versus-split
-  decision remain. D is self-contained: one discovery function in
-  `core/python/agent_app/plugin_sources/install.py` plus a regression test
-  in `core/python/tests/test_plugin_manager_localpath.py`.
+- **Q2 (scope, blocking D): RESOLVED (2026-09-08)** — D and E are SPLIT
+  INTO `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`, which
+  carries the execution-approval question, the full defect explanation,
+  and the test rerun matrix. D remains a required fix for the supported
+  lean-runtime path per the confirmed direction (see Q4).
 - **Q3 (design, part of B): RESOLVED** — share `.venv`. Both release gates
   pass in the populated venv with plugin extras installed (core 504
   passed; application 390 passed, 1 skipped).
@@ -224,7 +221,8 @@ direction — see Q2 and Q4). New decisions Q5–Q7 recorded 2026-09-08.
 
 ## Execution plan
 
-Status: A–C executed and committed; D pending (Q2); E pending (Q7).
+Status: A–C executed and committed; D and E SPLIT INTO
+`tasks/20260908-plugin-eviction-and-first-boot-smoke.md`.
 
 ### Workstream A — release gate isolation (DONE, `bcab1836`)
 
@@ -272,8 +270,8 @@ deselected, only the pre-existing glob failure remains) and
 `-m integration` still collects all 12 integration tests across both
 suites.
 
-### Workstream D — loader eviction completeness (PENDING, Q2; required per
-the confirmed direction)
+### Workstream D — loader eviction completeness (SPLIT INTO
+`tasks/20260908-plugin-eviction-and-first-boot-smoke.md`)
 
 Mechanism of the defect: when a `path:` plugin is (re)installed,
 `_activate_sys_path` (`install.py:178-186`) prepends the install dir to
@@ -299,7 +297,8 @@ longer holds the host copy. Verify `test_application_reload_owner.py`
 passes in an environment with a deliberately skewed
 typing_extensions/anyio pair.
 
-### Workstream E — first-boot smoke for the shipped archive (PENDING, Q7)
+### Workstream E — first-boot smoke for the shipped archive (SPLIT INTO
+`tasks/20260908-plugin-eviction-and-first-boot-smoke.md`)
 
 Extend `test_binary_distribution_bundle_e2e_ollama.py` (or add a sibling)
 to accept the bundled-Python runtime archive layout (`bin/crystal-lattice`
@@ -310,9 +309,11 @@ keep the Ollama tool-call flow env-gated as today.
 
 ### Implementation decisions and open questions
 
-See Unresolved requirement questions and decisions (Q1–Q7) above: Q1, Q3,
-and Q4 are resolved; Q2 remains open and blocks D only; Q5–Q7 are new
-decisions recorded 2026-09-08. Local decisions taken
+See Unresolved requirement questions and decisions (Q1–Q7) above: Q1,
+Q2, Q3, and Q4 are resolved; Q5–Q7 are decisions recorded 2026-09-08
+(Q7's implementation is SPLIT INTO
+`tasks/20260908-plugin-eviction-and-first-boot-smoke.md`). Local
+decisions taken
 during execution: extras version floors follow the existing declarations
 in sibling pyprojects; `install:plugins` installs only the four suites
 that gained npm scripts, not every plugin in `plugins/`; the
@@ -337,9 +338,10 @@ documentation changes; this is dev tooling.
 - [x] B: `install:plugins` provisioning script
 - [x] B: fresh-`.venv` verification of all four suites and both gates
 - [x] C: tool-compat-shared `addopts` + verification
-- [ ] D: eviction discovery fix + regression test (pending Q2)
+- [ ] D: eviction discovery fix + regression test (SPLIT INTO
+  `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`)
 - [ ] E: first-boot smoke for the shipped python-runtime archive
-  (pending Q7)
+  (SPLIT INTO `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`)
 - [x] Documentation updates
 
 ### Requirement verification
@@ -367,7 +369,8 @@ documentation changes; this is dev tooling.
 - Default run excludes live backends: tool-compat-shared's and
   claude-tools' default runs deselect their integration classes
   (`-m integration` still collects all 12 across both suites).
-- Eviction completeness: not verified — D not executed (pending Q2).
+- Eviction completeness: not verified here — D SPLIT INTO
+  `tasks/20260908-plugin-eviction-and-first-boot-smoke.md`.
 
 ### Additional implementation verification
 
