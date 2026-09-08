@@ -22,6 +22,7 @@
     "test:api:zai": "python scripts/repo_run.py pytest plugins/reference-openai-compatible-provider/tests -m \"integration and api and not slow_integration and zai\" -q",
     "test:plugins:openrouter": "python scripts/repo_run.py pytest plugins/openrouter/tests -q",
     "test:plugins:openai-responses": "python scripts/repo_run.py pytest plugins/openai_responses/tests -q",
+    "test:plugins:openai-responses:integration": "python scripts/repo_run.py pytest plugins/openai_responses/tests -m \"integration and not api and not slow_integration and not manual_integration\" -q",
     "test:plugins:reference": "python scripts/repo_run.py pytest plugins/reference-openai-compatible-provider/tests -q",
     "test:plugins:kimi": "python scripts/repo_run.py pytest plugins/kimi-tools/tests -q",
     "test:plugins:claude": "python scripts/repo_run.py pytest plugins/claude-tools/tests -q",
