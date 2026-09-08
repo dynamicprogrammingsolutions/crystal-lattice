@@ -13,7 +13,6 @@ Suites consume this fixture by importing it in their ``conftest.py``:
 from __future__ import annotations
 
 import pytest
-
 from agent_app.runtime_env import RuntimeEnvOverlay
 
 

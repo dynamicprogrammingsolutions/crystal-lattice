@@ -14,7 +14,7 @@ if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
 from repo_test_env import load_repo_root_env  # noqa: E402
-from runtime_env_reset import (  # noqa: E402,F401
+from runtime_env_reset import (  # noqa: F401
     reset_runtime_env_overlay_between_tests,
 )
 

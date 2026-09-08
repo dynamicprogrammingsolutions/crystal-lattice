@@ -25,7 +25,7 @@ _BENCHMARK = Path(__file__).resolve().parents[1] / "benchmark"
 if str(_BENCHMARK) not in sys.path:
     sys.path.insert(0, str(_BENCHMARK))
 
-from runtime_env_reset import (  # noqa: E402,F401
+from runtime_env_reset import (  # noqa: F401
     reset_runtime_env_overlay_between_tests,
 )
 
