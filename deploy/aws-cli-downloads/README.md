@@ -251,6 +251,9 @@ lives in `application/python/README.md`.
 
 The script validates the local version and tag, then lets GitHub Actions run
 the official matrix build. It does not build all release archives locally.
+Each phase is printed as a numbered step (`[n/total]`) with indented detail
+lines, including the executed commands and per-variable configuration checks;
+run-discovery heartbeats go to stderr.
 
 On a release tag, each read-only matrix job uploads its smoke-tested archive as
 a one-day GitHub Actions artifact. One protected `cli-release` publish job

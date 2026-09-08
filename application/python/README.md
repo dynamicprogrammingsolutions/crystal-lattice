@@ -822,7 +822,8 @@ download domain:
    This validates the local release state and download configuration, runs the
    fast test suites, pushes the release tag, and watches the GitHub Actions
    run through the platform build matrix, GitHub Release publishing, and
-   download-domain publication.
+   download-domain publication. The command prints each phase as a numbered
+   step with the executed commands and validation results.
 
 4. Verify the public download endpoint:
 

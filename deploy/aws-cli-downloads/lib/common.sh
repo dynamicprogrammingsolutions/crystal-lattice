@@ -16,6 +16,30 @@ BUCKET_NAME_PREFIX=""
 DOWNLOAD_PREFIX="crystal-lattice-cli"
 JSON_OUTPUT=0
 
+LOG_STEP_TOTAL=0
+LOG_STEP_INDEX=0
+
+# Set the total number of steps before the first log_step call so progress
+# headers can show [n/total].
+log_set_step_total() {
+  LOG_STEP_TOTAL="$1"
+}
+
+# Print a numbered progress header for one phase of a script run.
+log_step() {
+  LOG_STEP_INDEX=$((LOG_STEP_INDEX + 1))
+  if [ "$LOG_STEP_TOTAL" -gt 0 ]; then
+    printf '[%d/%d] %s\n' "$LOG_STEP_INDEX" "$LOG_STEP_TOTAL" "$1"
+  else
+    printf '[%d] %s\n' "$LOG_STEP_INDEX" "$1"
+  fi
+}
+
+# Print an indented detail line under the most recent log_step header.
+log_detail() {
+  printf '      %s\n' "$1"
+}
+
 usage_common() {
   cat <<'USAGE'
 Common options:
