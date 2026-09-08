@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[3]
 RELEASE_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "release.sh"
 PROMOTE_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "promote-github-release.sh"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release-crystal-lattice-cli.yml"
+PUBLIC_CI_WORKFLOW = ROOT / ".github" / "workflows" / "public-ci.yml"
 OIDC_TEMPLATE = ROOT / "deploy" / "aws-cli-downloads" / "github-oidc-role.yaml"
 CONFIGURE_GITHUB_SCRIPT = (
     ROOT / "deploy" / "aws-cli-downloads" / "configure-github-actions-vars.sh"
@@ -166,9 +167,14 @@ esac
 def _release_env(tmp_path: Path, *, github_profile: str = "test") -> dict[str, str]:
     repo = _write_test_repo(tmp_path)
     fake_bin, command_log = _write_fake_release_commands(tmp_path)
+    # release.sh resolves ``python`` through PATH (read_project_version), so pin
+    # the test runner's real interpreter directory first. Without this, pyenv
+    # shim users fail with "pyenv: python: command not found" because the script
+    # runs from a temporary cwd outside any .python-version scope.
+    runner_bin = Path(sys.executable).parent
     return {
         **os.environ,
-        "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        "PATH": f"{runner_bin}{os.pathsep}{fake_bin}{os.pathsep}{os.environ['PATH']}",
         "REPO_ROOT": str(repo),
         "FAKE_GH_PROFILE": github_profile,
         "COMMAND_LOG": str(command_log),
@@ -494,6 +500,48 @@ def test_release_workflow_uses_single_writer_artifact_handoff() -> None:
     )
 
 
+def test_release_script_install_line_avoids_plugin_packages(tmp_path: Path) -> None:
+    env = _release_env(tmp_path)
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(RELEASE_SCRIPT),
+            "--profile",
+            "test",
+            "--version",
+            "9.8.7",
+            "--dry-run",
+        ],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    install_lines = [
+        line for line in result.stdout.splitlines() if "pip install" in line
+    ]
+    assert install_lines == [
+        "DRY RUN: python -m pip install -e core/python\\[dev\\] "
+        "-e application/python openai"
+    ]
+
+
+def test_release_workflows_install_only_core_application_and_openai() -> None:
+    release_workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+    public_ci_workflow = PUBLIC_CI_WORKFLOW.read_text(encoding="utf-8")
+
+    for workflow in (release_workflow, public_ci_workflow):
+        assert '-e "plugins/openai_responses[dev]"' not in workflow
+        assert "plugins/tool-compat-shared" not in workflow
+        assert "plugins/mcp-shared" not in workflow
+        assert "plugins/web-fetch-shared" not in workflow
+        assert "-e application/python" in workflow
+        assert "openai" in workflow
+
+
 def test_release_oidc_configuration_restricts_environment_to_release_tags() -> None:
     template = OIDC_TEMPLATE.read_text(encoding="utf-8")
     configure_script = CONFIGURE_GITHUB_SCRIPT.read_text(encoding="utf-8")
@@ -612,15 +660,18 @@ def test_root_package_json_exposes_cli_release_scripts() -> None:
 
     assert (
         scripts["release:cli"]
-        == "bash deploy/aws-cli-downloads/release.sh --profile prod --push-tag --watch"
+        == "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh"
+        " --profile prod --push-tag --watch"
     )
     assert (
         scripts["release:cli:plan"]
-        == "bash deploy/aws-cli-downloads/release.sh --profile prod --dry-run"
+        == "python scripts/repo_run.py bash deploy/aws-cli-downloads/release.sh"
+        " --profile prod --dry-run"
     )
     assert (
         scripts["release:cli:smoke"]
-        == "bash deploy/aws-cli-downloads/smoke.sh --profile prod"
+        == "python scripts/repo_run.py bash deploy/aws-cli-downloads/smoke.sh"
+        " --profile prod"
     )
     assert (
         scripts["release:cli:version:bump-patch"]

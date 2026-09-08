@@ -11,19 +11,6 @@ from typing import Any, Dict, List, Tuple
 import pytest
 from dotenv import load_dotenv
 
-from agent_core import AgentCore
-from feature_system_message.system_message_feature import SystemMessageFeature
-from openai_responses_plugins import (
-    OpenAIResponsesChatGPTAuthFeature,
-    OpenAIResponsesProvider,
-    OpenAIResponsesUsageExtension,
-)
-from openai_responses_plugins.openai_responses_reasoning_extension import (
-    OpenAIResponsesReasoningExtension,
-)
-from plugins.request_options_feature import RequestOptionsFeature
-
-
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -33,11 +20,30 @@ if str(APP_PY) not in sys.path:
 CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
+OPENAI_RESPONSES_SRC = ROOT / "plugins/openai_responses/src"
+if str(OPENAI_RESPONSES_SRC) not in sys.path:
+    sys.path.insert(0, str(OPENAI_RESPONSES_SRC))
+FEATURE_SYSTEM_MESSAGE_SRC = ROOT / "plugins/feature-system-message/src"
+if str(FEATURE_SYSTEM_MESSAGE_SRC) not in sys.path:
+    sys.path.insert(0, str(FEATURE_SYSTEM_MESSAGE_SRC))
 
 from agent_app.config import (  # noqa: E402
     build_config_resolution_env,
     resolve_placeholders,
 )
+from agent_core import AgentCore  # noqa: E402
+from feature_system_message.system_message_feature import (  # noqa: E402
+    SystemMessageFeature,
+)
+from openai_responses_plugins import (  # noqa: E402
+    OpenAIResponsesChatGPTAuthFeature,
+    OpenAIResponsesProvider,
+    OpenAIResponsesUsageExtension,
+)
+from openai_responses_plugins.openai_responses_reasoning_extension import (  # noqa: E402
+    OpenAIResponsesReasoningExtension,
+)
+from plugins.request_options_feature import RequestOptionsFeature  # noqa: E402
 
 CONFIG_PATH = (
     ROOT

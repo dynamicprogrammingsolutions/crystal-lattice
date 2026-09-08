@@ -129,27 +129,15 @@
       "group": "build"
     },
     {
-      "label": "Run: Dev Local",
+      "label": "Server: Dev",
       "type": "npm",
-      "script": "run:dev-local",
+      "script": "server:dev",
       "isBackground": true,
       "presentation": {
         "reveal": "always",
         "panel": "dedicated"
       },
       "group": "build"
-    },
-    {
-      "label": "Run: Dev Local",
-      "type": "npm",
-      "script": "run:dev-local",
-      "isBackground": true,
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      },
-      "group": "build",
-      "problemMatcher": []
     }
   ]
 }

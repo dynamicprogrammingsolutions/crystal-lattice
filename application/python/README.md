@@ -832,7 +832,10 @@ download domain:
    ```
 
 These commands wrap `deploy/aws-cli-downloads/release.sh` and
-`deploy/aws-cli-downloads/smoke.sh` with `--profile prod`. They require a clean
+`deploy/aws-cli-downloads/smoke.sh` with `--profile prod`, and run them through
+the repository `.venv` via `scripts/repo_run.py`, so the release local gate —
+its pip install and both pytest suites — executes in the isolated environment
+(the same applies after activating the `.venv` manually). They require a clean
 `main` worktree whose `HEAD` matches `origin/main`, an authenticated `gh`, and
 AWS credentials for read-only stack validation. For testing-domain releases,
 manual republishing, promotion, and release recovery, see
@@ -962,11 +965,17 @@ that cache remains for non-bundled or user-provided plugins.
 ### Local Nox Scripts
 
 The repository root has package.json-like maintainer commands in `noxfile.py`.
-Install `nox` once if needed:
+`nox` is part of the `core/python[dev]` extras, so the standard development
+install provides it:
 
 ```bash
-python -m pip install nox
+python -m pip install -e "core/python[dev]"
 ```
+
+The root `package.json` wraps these sessions (`npm run build:bundle`,
+`npm run build:optimized`, `npm run install:prod:local`,
+`npm run install:dev:local`) and runs them through the repository `.venv` via
+`scripts/repo_run.py`, so no manual activation is needed.
 
 Build the current-platform bundled-Python runtime package:
 

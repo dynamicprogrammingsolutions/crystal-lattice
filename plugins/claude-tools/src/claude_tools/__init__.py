@@ -14,17 +14,34 @@
 
 """Claude Code-compatible tool plugin bundle."""
 
-from .claude_bash_tool import ClaudeBashTool
+import importlib
+
 from .claude_compaction_feature import ClaudeCompactionFeature
-from .claude_edit_tool import ClaudeEditTool
-from .claude_grep_tool import ClaudeGrepTool
-from .claude_glob_tool import ClaudeGlobTool
-from .claude_mcp_tool import ClaudeMCPTool
-from .claude_read_tool import ClaudeReadTool
-from .claude_task_stop_tool import ClaudeTaskStopTool
-from .claude_web_fetch_tool import ClaudeWebFetchTool
-from .claude_web_search_tool import ClaudeWebSearchTool
-from .claude_write_tool import ClaudeWriteTool
+
+# Tool modules are exported lazily so that consumers of the light modules
+# (for example the compaction feature) do not need the tool dependency tree
+# (shared helper packages and their external dependencies).
+_LAZY_TOOL_EXPORTS = {
+    "ClaudeBashTool": "claude_bash_tool",
+    "ClaudeEditTool": "claude_edit_tool",
+    "ClaudeGlobTool": "claude_glob_tool",
+    "ClaudeGrepTool": "claude_grep_tool",
+    "ClaudeMCPTool": "claude_mcp_tool",
+    "ClaudeReadTool": "claude_read_tool",
+    "ClaudeTaskStopTool": "claude_task_stop_tool",
+    "ClaudeWebFetchTool": "claude_web_fetch_tool",
+    "ClaudeWebSearchTool": "claude_web_search_tool",
+    "ClaudeWriteTool": "claude_write_tool",
+}
+
+
+def __getattr__(name: str):
+    module_name = _LAZY_TOOL_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = importlib.import_module(f".{module_name}", __name__)
+    return getattr(module, name)
+
 
 __all__ = [
     "ClaudeBashTool",
@@ -32,8 +49,8 @@ __all__ = [
     "ClaudeReadTool",
     "ClaudeWriteTool",
     "ClaudeEditTool",
-    "ClaudeGlobTool",
     "ClaudeGrepTool",
+    "ClaudeGlobTool",
     "ClaudeMCPTool",
     "ClaudeTaskStopTool",
     "ClaudeWebFetchTool",

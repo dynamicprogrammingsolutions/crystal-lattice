@@ -111,10 +111,7 @@ jobs:
           python -m pip install \
             -e "core/python[dev]" \
             -e application/python \
-            -e "plugins/openai_responses[dev]" \
-            -e plugins/tool-compat-shared \
-            -e plugins/mcp-shared \
-            -e plugins/web-fetch-shared
+            openai
 
       - name: Run core unit tests
         run: pytest core/python/tests -q -m "not integration"
