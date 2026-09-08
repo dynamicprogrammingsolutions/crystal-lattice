@@ -280,7 +280,7 @@ environments remains required post-publication hardening in task `130`.
 - [x] Verify fork-PR and protected-workflow isolation without relocating secret
   values.
 - [x] Scan all remote-ref changes since task `060`.
-- [ ] Validate Public CI, static deployment, and live public-facing content on
+- [x] Validate Public CI, static deployment, and live public-facing content on
   the actual current `main`.
 - [ ] Change visibility to public.
 - [ ] Protect `main`.
@@ -494,3 +494,58 @@ and is retained as useful security-test coverage.
 
 Public CI run `34275747652` on concurrent `develop` work was still active, so
 the website delta was not pushed while that run was in progress.
+
+### September 8, 2026: website truthfulness delta deployed and validated
+
+Commit `249d6361edbf087554475222409f4b583a721f7e` was pushed after the
+concurrent `develop` Public CI run completed successfully.
+
+Expected hosted results:
+
+- Public CI run `34276458498`: passed all four required jobs, including the new
+  homepage-content tests;
+- Deploy Static Sites run `34276458492`: passed both builds, protected AWS
+  authentication, and landing/docs deployment;
+- no TestFlight run, CLI release run, release tag, or release was created by
+  the website push.
+
+Live verification after deployment:
+
+- the homepage returns HTTP `200`;
+- exactly one hero badge reads `Open Source`;
+- the former `Plugin-driven agent platform` badge is absent;
+- the supported bundled installer is present;
+- `pipx install crystal-lattice-cli` is absent;
+- the generated application quickstart returns HTTP `200`, contains the
+  bundled installer, and contains no unsupported PyPI CLI installation
+  command.
+
+The post-push publication mirror covered 34 branch heads, five tags, all 12
+GitHub pull-request heads, and 2,067 commits:
+
+- Gitleaks: the same three accepted historical findings;
+- TruffleHog: zero verified credentials, the two accepted revoked historical
+  JWT findings, and the accepted fake analytics-test URI.
+
+Both new workflow log archives produced zero Gitleaks and zero TruffleHog
+findings.
+
+Ten Actions artifacts are retained from the CLI `0.1.2`, `0.1.3`, and `0.1.4`
+tag workflows. They are expected one-day build-matrix handoff archives and
+expire on September 9, 2026. The first two release runs stopped after Windows
+build failures; the `0.1.4` run completed and published the current release.
+
+All retained archives were downloaded and reviewed:
+
+- 263,908 archive entries were inventoried;
+- sensitive-filename matching found only the public `certifi` CA certificate
+  bundles;
+- TruffleHog found zero verified credentials;
+- redacted Gitleaks/TruffleHog matches resolve to third-party Python
+  standard-library/package regex markers, registry/type constants, and
+  documented example URLs;
+- no application, GitHub, AWS, Apple, signing, or deployment credential was
+  found.
+
+The website correction is complete. Task `070` remains paused immediately
+before repository visibility changes and post-public security configuration.
