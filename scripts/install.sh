@@ -7,8 +7,10 @@ COMMAND_NAME="${COMMAND_NAME:-crystal-lattice}"
 DEFAULT_DOWNLOAD_BASE_URL="https://download.crystallattice.dev/crystal-lattice-cli"
 DOWNLOAD_BASE_URL="${CRYSTAL_LATTICE_DOWNLOAD_BASE_URL:-${DOWNLOAD_BASE_URL:-$DEFAULT_DOWNLOAD_BASE_URL}}"
 INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/opt/$PACKAGE_NAME}"
-BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
+BIN_DIR="${BIN_DIR:-}"
+LOCAL_ARCHIVE="${CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE:-}"
 CRYSTAL_LATTICE_TEMP_DIR=""
+INCOMPATIBLE_COMMAND_DIR=""
 
 log() {
   printf '%s\n' "$*"
@@ -79,6 +81,111 @@ windows_native_path() {
   fi
 }
 
+canonical_dir() {
+  (CDPATH= cd -- "$1" 2>/dev/null && pwd -P)
+}
+
+path_contains_dir() {
+  local requested
+  requested="$(canonical_dir "$1")" || return 1
+  local entry
+  local resolved
+  local entries=()
+  IFS=':' read -r -a entries <<< "${PATH:-}"
+  for entry in "${entries[@]}"; do
+    [ -n "$entry" ] || continue
+    resolved="$(canonical_dir "$entry")" || continue
+    [ "$resolved" = "$requested" ] && return 0
+  done
+  return 1
+}
+
+is_world_writable_dir() {
+  local permissions
+  permissions="$(LC_ALL=C ls -ld "$1" 2>/dev/null)" || return 1
+  permissions="${permissions%% *}"
+  [ "${permissions:8:1}" = "w" ]
+}
+
+is_suitable_path_dir() {
+  local directory="$1"
+  case "$directory" in
+    /*) ;;
+    *) return 1 ;;
+  esac
+  [ -d "$directory" ] || return 1
+  [ -w "$directory" ] || return 1
+
+  local resolved
+  resolved="$(canonical_dir "$directory")" || return 1
+  if [ -n "$INCOMPATIBLE_COMMAND_DIR" ] \
+    && [ "$resolved" = "$INCOMPATIBLE_COMMAND_DIR" ]; then
+    return 1
+  fi
+  local working
+  working="$(canonical_dir "$PWD")" || return 1
+  [ "$resolved" != "$working" ] || return 1
+
+  local temp_candidate
+  for temp_candidate in "${TMPDIR:-}" "${TEMP:-}" "${TMP:-}" "/tmp"; do
+    [ -n "$temp_candidate" ] || continue
+    temp_candidate="$(canonical_dir "$temp_candidate")" || continue
+    [ "$resolved" != "$temp_candidate" ] || return 1
+  done
+
+  if [ -n "${VIRTUAL_ENV:-}" ]; then
+    local virtual_env
+    if virtual_env="$(canonical_dir "$VIRTUAL_ENV")"; then
+      case "$resolved" in
+        "$virtual_env" | "$virtual_env"/*) return 1 ;;
+      esac
+    fi
+  fi
+
+  is_world_writable_dir "$resolved" && return 1
+  return 0
+}
+
+select_default_bin_dir() {
+  local existing
+  existing="$(command -v "$COMMAND_NAME" 2>/dev/null || true)"
+  case "$existing" in
+    /*)
+      local existing_dir
+      existing_dir="${existing%/*}"
+      local existing_layout
+      existing_layout="$("$existing" --runtime-layout-json 2>/dev/null || true)"
+      if printf '%s\n' "$existing_layout" \
+        | grep -q '"layout"[[:space:]]*:[[:space:]]*"python-runtime"' \
+        && path_contains_dir "$existing_dir" \
+        && is_suitable_path_dir "$existing_dir"; then
+        canonical_dir "$existing_dir"
+        return
+      fi
+      INCOMPATIBLE_COMMAND_DIR="$(canonical_dir "$existing_dir" || true)"
+      ;;
+  esac
+
+  local candidate
+  for candidate in "$HOME/.local/bin" "$HOME/bin"; do
+    if path_contains_dir "$candidate" && is_suitable_path_dir "$candidate"; then
+      canonical_dir "$candidate"
+      return
+    fi
+  done
+
+  local entries=()
+  IFS=':' read -r -a entries <<< "${PATH:-}"
+  for candidate in "${entries[@]}"; do
+    [ -n "$candidate" ] || continue
+    if is_suitable_path_dir "$candidate"; then
+      canonical_dir "$candidate"
+      return
+    fi
+  done
+  return 1
+}
+
 extract_archive() {
   local archive="$1"
   local destination="$2"
@@ -128,6 +235,10 @@ write_command_shim() {
 #!/usr/bin/env sh
 exec "$target_bundle/Scripts/crystal-lattice.cmd" "\$@"
 EOF
+      local native_launcher
+      native_launcher="$(windows_native_path "$target_bundle/Scripts/crystal-lattice.cmd")"
+      printf '@echo off\r\ncall "%s" %%*\r\n' "$native_launcher" \
+        > "$BIN_DIR/$COMMAND_NAME.cmd"
       ;;
     *)
       cat > "$BIN_DIR/$COMMAND_NAME" <<EOF
@@ -190,36 +301,73 @@ main() {
   need_command mktemp
   need_command grep
 
-  local tag
-  if [ -n "${VERSION:-}" ]; then
-    tag="$(normalize_tag "$VERSION")"
-  else
-    tag="$(fetch_latest_tag)"
+  if [ -z "$BIN_DIR" ]; then
+    BIN_DIR="$(select_default_bin_dir)" || fail \
+      "could not find an existing writable command directory on PATH; set BIN_DIR to an explicit directory"
   fi
 
   local target
   target="$(detect_target)"
 
-  local version="${tag#crystal-lattice-cli-v}"
-  local archive_stem="$ARCHIVE_PACKAGE_NAME-v$version-$target"
-  local archive_name
-  archive_name="$(archive_name_for "$archive_stem" "$target")"
-  local archive_url="$DOWNLOAD_BASE_URL/$archive_name"
   local temp_dir
   temp_dir="$(mktemp -d)"
   CRYSTAL_LATTICE_TEMP_DIR="$temp_dir"
   trap 'rm -rf "$CRYSTAL_LATTICE_TEMP_DIR"' EXIT
 
-  log "Installing $PACKAGE_NAME $tag for $target"
-  log "Downloading $archive_url"
-  curl -fL "$archive_url" -o "$temp_dir/$archive_name"
+  local tag
+  local archive_stem
+  local archive_path
+  if [ -n "$LOCAL_ARCHIVE" ]; then
+    [ -f "$LOCAL_ARCHIVE" ] || fail "local archive does not exist: $LOCAL_ARCHIVE"
+    local archive_dir
+    local archive_name
+    local archive_parent="${LOCAL_ARCHIVE%/*}"
+    [ "$archive_parent" != "$LOCAL_ARCHIVE" ] || archive_parent="."
+    archive_dir="$(canonical_dir "$archive_parent")" \
+      || fail "could not resolve local archive directory: $LOCAL_ARCHIVE"
+    archive_name="${LOCAL_ARCHIVE##*/}"
+    archive_path="$archive_dir/$archive_name"
+    case "$target:$archive_name" in
+      windows-*:"$ARCHIVE_PACKAGE_NAME"-v*-"$target".zip)
+        archive_stem="${archive_name%.zip}"
+        ;;
+      *:"$ARCHIVE_PACKAGE_NAME"-v*-"$target".tar.gz)
+        archive_stem="${archive_name%.tar.gz}"
+        ;;
+      *)
+        fail "local archive does not match current target $target: $archive_name"
+        ;;
+    esac
+    local version="${archive_stem#"$ARCHIVE_PACKAGE_NAME-v"}"
+    version="${version%-$target}"
+    tag="crystal-lattice-cli-v$version"
+    log "Installing $PACKAGE_NAME $tag for $target from $archive_path"
+  else
+    if [ -n "${VERSION:-}" ]; then
+      tag="$(normalize_tag "$VERSION")"
+    else
+      tag="$(fetch_latest_tag)"
+    fi
+    local version="${tag#crystal-lattice-cli-v}"
+    archive_stem="$ARCHIVE_PACKAGE_NAME-v$version-$target"
+    local archive_name
+    archive_name="$(archive_name_for "$archive_stem" "$target")"
+    local archive_url="$DOWNLOAD_BASE_URL/$archive_name"
+    archive_path="$temp_dir/$archive_name"
+    log "Installing $PACKAGE_NAME $tag for $target"
+    log "Downloading $archive_url"
+    curl -fL "$archive_url" -o "$archive_path"
+  fi
 
   local installed_bundle
-  installed_bundle="$(install_bundle "$temp_dir/$archive_name" "$archive_stem" "$target" "$temp_dir")"
+  installed_bundle="$(install_bundle "$archive_path" "$archive_stem" "$target" "$temp_dir")"
   verify_install "$BIN_DIR/$COMMAND_NAME"
 
   log "Installed bundle: $installed_bundle"
   log "Installed command: $BIN_DIR/$COMMAND_NAME"
+  case "$target" in
+    windows-*) log "Installed Windows command: $BIN_DIR/$COMMAND_NAME.cmd" ;;
+  esac
   case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *) log "Add this directory to PATH if needed: $BIN_DIR" ;;

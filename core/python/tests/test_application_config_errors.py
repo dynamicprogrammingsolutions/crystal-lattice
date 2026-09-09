@@ -23,11 +23,29 @@ def test_application_raises_for_plugin_errors(tmp_path: Path, monkeypatch) -> No
         AgentApplication(str(temp_cfg), str(tmp_path / "sessions"))
 
 
+def test_missing_env_warning_does_not_suppress_fatal_plugin_validation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("MISSING_PLUGIN_DIR", raising=False)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "plugins": ["path:${env:MISSING_PLUGIN_DIR}"],
+                "agents": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="plugin_"):
+        AgentApplication(str(config_path), str(tmp_path / "sessions"))
+
+
 def test_application_defaults_plugin_cache_dir_relative_to_config(tmp_path: Path) -> None:
     cfg = {
-        "providers": {
-            "dummy": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"dummy": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": ["tests.dummy_provider.DummyProvider"],
         "agents": {"default": {"provider": "dummy"}},
     }

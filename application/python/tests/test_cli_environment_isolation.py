@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from agent_app.config import load_resolved_config
 from agent_terminal_app import server as server_mod
 from agent_terminal_app.__main__ import (
     _application_action_map,
@@ -82,6 +83,41 @@ def test_collect_additional_dotenv_values_does_not_mutate_process_env(
     assert "DOTENV_EXISTING" not in values
     assert "DOTENV_ONLY" not in os.environ
     assert os.environ["DOTENV_EXISTING"] == "from-process"
+
+
+def test_config_adjacent_dotenv_resolves_without_shell_export(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    config_path = config_dir / "config.json"
+    config_path.write_text(
+        '{"providers": {"example": {"api_key": "${env:EXAMPLE_API_KEY}"}}}',
+        encoding="utf-8",
+    )
+    (config_dir / ".env").write_text(
+        "EXAMPLE_API_KEY=from-config-env\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("EXAMPLE_API_KEY", raising=False)
+
+    config_env = _collect_additional_dotenv_values(config_path)
+    resolved, errors, _resolution_env = load_resolved_config(
+        config_path,
+        env={},
+        config_env=config_env,
+    )
+
+    assert resolved["providers"]["example"]["api_key"] == "from-config-env"
+    assert not [
+        error
+        for error in errors
+        if error.get("type") == "env_missing"
+        and error.get("variable") == "EXAMPLE_API_KEY"
+    ]
+    assert "EXAMPLE_API_KEY" not in os.environ
 
 
 def test_cli_bridge_config_does_not_populate_process_env(monkeypatch) -> None:
