@@ -81,18 +81,6 @@ new commands, tests, messages, and documentation use the descriptive names.
 | Bundled-Python runtime archive | Shipped general CLI distribution | Default-config plugins are preinstalled; additional supported plugins may install dynamically | Source-installation, extracted-archive, and default-installer smokes |
 | Optimized PyInstaller bundle | Config-specific frozen runtime | Selected plugins are frozen; arbitrary dynamic installation is rejected | Existing separate optimized-bundle suite |
 
-## Active follow-up
-
-The direct archive, public installer, isolated dynamic-plugin-installation,
-PATH-discovery, shared npm/CI entry-point, terminology, and simplification
-targets are tracked by `CLIDIST-020`, `CLIDIST-030`, `CLIDIST-040`,
-`CLIDIST-050` through `CLIDIST-052`, and `CLIDIST-080` through
-`CLIDIST-091` in the
-[active task](../../../../../../tasks/20260908-cli-distribution-test-levels.md).
-Current user and implementation documentation continues to describe the
-previously delivered behavior until those requirements are implemented and
-verified.
-
 ## Specification documents
 
 - [Technical specification](technical-spec.md)

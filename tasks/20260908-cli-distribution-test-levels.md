@@ -87,7 +87,7 @@ smoke:
   extracted-archive, and default-installer acceptance implementations. Native
   release jobs invoke the archive and installer npm commands directly against
   the archive built by that job.
-- [ ] Native release CI runs both archive-based smokes on every release target.
+- [x] Native release CI runs both archive-based smokes on every release target.
   Runtime may increase; optimization is acceptable only when it preserves both
   direct workflows, separate mutable state, and failure evidence without
   disproportionate orchestration.
@@ -860,6 +860,13 @@ scope. New work and evidence are recorded below.
   Bash from Git for Windows PATH/install roots and is used by both the direct
   installer smoke and local production installation. Focused tests and the
   macOS default-installer smoke passed after the fix; native rerun pending.
+- 2026-09-09: Native rerun
+  [34372198266](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34372198266)
+  passed both separate npm smokes on Linux AMD64, macOS AMD64, macOS ARM64,
+  and Windows AMD64. Windows exercised Git Bash resolution, automatic PATH
+  command placement, both shell and `.cmd` forwarding commands, command-name
+  lookup, dynamic probe-plugin installation, server boot, process-tree cleanup,
+  and port closure. Manual-dispatch publication jobs were correctly skipped.
 
 ### Follow-up execution plan
 
@@ -1011,10 +1018,10 @@ archive-based smokes.
 - [x] Add the direct public default-installer smoke through a loopback download
   endpoint and command-name resolution.
 - [x] Consolidate or explicitly narrow the repository-only Python installer.
-- [ ] Run both root archive-based smokes independently in every native release
+- [x] Run both root archive-based smokes independently in every native release
   matrix job.
 - [x] Update current user/maintainer documentation and requirement evidence.
-- [ ] Run focused, fast-regression, local distribution, documentation, and
+- [x] Run focused, fast-regression, local distribution, documentation, and
   native matrix verification.
 
 ### Requirement verification
@@ -1060,3 +1067,33 @@ archive-based smokes.
 - Push and dispatch the native release workflow; require separate successful
   archive and default-installer npm steps on Linux AMD64, macOS AMD64, macOS
   ARM64, and Windows AMD64.
+
+### Follow-up completion notes
+
+- Delivered independent direct source-installation, extracted-archive, and
+  public default-installer smoke entry points exposed through descriptive root
+  npm commands.
+- Both archive-based smokes now independently install
+  `generic-callback-app`, which is verified absent from the preinstalled
+  manifest, into separate fresh plugin and pip caches. They share only the
+  immutable archive built by the native job.
+- The public installer now chooses an existing suitable writable PATH
+  directory, protects incompatible source/virtualenv commands, reuses a valid
+  bundled-Python command directory for upgrades, fails before installation
+  when no candidate exists, accepts a matching local archive, and creates
+  shell plus `.cmd` commands on Windows.
+- Removed Nox and the duplicate Python production installer. Direct npm/script
+  orchestration uses temporary build venvs and a managed Python runtime; local
+  production installation delegates to the same public shell installer.
+- Local acceptance passed all three npm smokes, a direct managed-runtime build,
+  the isolated optimized-build wrapper, 53 focused tests with one expected
+  Windows-only skip, 507 Core fast tests with one expected xfail, and 404
+  application fast tests with one skip. The repository environment package
+  hash was unchanged by both build paths.
+- Black, Ruff, targeted Pyright, shell syntax, workflow YAML parsing,
+  documentation preparation, and MkDocs build passed. Repository-wide Pyright
+  retains the pre-existing baseline recorded in the original completion notes.
+- Native acceptance passed both archive-based npm smokes on all four release
+  targets in GitHub Actions run `34372198266`. The first native attempt
+  correctly isolated a Windows WSL-versus-Git-Bash resolution defect, which
+  was fixed and covered before the successful rerun.
