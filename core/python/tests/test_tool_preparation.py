@@ -310,3 +310,4 @@ def test_application_send_request_prepares_tools_with_application_context(
     assert ApplicationPreparedTool.last_context["tool_runtime"] is app.get_tool_runtime()
     assert ApplicationPreparedTool.last_context["session"]["session_id"] == session.session_id
     assert isinstance(ApplicationPreparedTool.last_context["request_id"], str)
+    assert ApplicationPreparedTool.last_context["config"]["provider"] == "dummy_provider"

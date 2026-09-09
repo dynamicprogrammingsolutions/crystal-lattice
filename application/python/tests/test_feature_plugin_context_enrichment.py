@@ -381,6 +381,7 @@ class TestApplicationContextEnrichment:
         self,
         tmp_path: Path,
         clear_captured_contexts: None,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         plugin_class = _get_plugin_class()
         assert plugin_class is not None, "Could not load ContextRecordingPlugin"
@@ -403,6 +404,7 @@ class TestApplicationContextEnrichment:
         assert response_context.get("lifecycle") == "response_finalize"
         assert "session_asset_store" in response_context
         assert "runtime_state_root" in response_context
+        assert "context_reserved_key_clash_external" not in capsys.readouterr().out
 
 
 class TestContextStructure:

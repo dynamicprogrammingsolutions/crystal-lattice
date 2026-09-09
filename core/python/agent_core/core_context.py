@@ -33,9 +33,7 @@ class CoreContext:
         }
         if stream is not None:
             specific["stream"] = bool(stream)
-        specific.update(
-            self._without_keys(plugin_context, {"core", "config", "request_id"})
-        )
+        specific.update(self._without_keys(plugin_context, {"core", "config", "request_id"}))
         return merge_context_layers(
             builder="core",
             call_path="request",
@@ -53,15 +51,17 @@ class CoreContext:
     ) -> Dict[str, Any]:
         specific = {
             "config": dict(config),
-            **self._without_keys(plugin_context, {"core", "config"}),
+            **self._without_keys(plugin_context, {"core", "config", "request_id"}),
         }
-        return merge_context_layers(
+        context = merge_context_layers(
             builder="core",
             call_path="rebuild",
             generic_layer={"core": self._core},
             specific_layer=specific,
             extra=extra,
         )
+        context.setdefault("request_id", None)
+        return context
 
     def build_session_action_context(
         self,
