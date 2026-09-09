@@ -1,20 +1,22 @@
-# CLI Distribution Test Levels
+# CLI Distribution User-Workflow Verification
 
-Make all three installation/boot levels of the shipped CLI artifact testable
-locally through root npm scripts, extend the release-workflow smoke to boot
-the archive with the default config, and create proper specification and
-documentation for the model.
+Make source installation, direct archive use, and default installation of the
+shipped CLI independently testable through the same root npm commands used by
+native release CI, with realistic plugin installation and terminal command
+discovery.
 
-Level model (user-confirmed):
+The original task used levels 1–3 as ordering shorthand. The maintained names
+are source-installation smoke, extracted-archive smoke, and default-installer
+smoke:
 
-1. **Clean Python environment + files** — no bundling; provisions a fresh
+1. **Source-installation smoke** — no bundling; provisions a fresh
    environment and boots from source files. Catches plugin install errors
    and app-boot issues in a clean environment earliest (the original
    release-blocker error class).
-2. **Bundled archive** — the shipped bundled-Python runtime archive. Given
-   level 1 works, this catches issues in the bundle script.
-3. **Bundled archive + install script** — the installed command. Given
-   levels 1+2 work, this catches issues in the installation.
+2. **Extracted-archive smoke** — unpacks the shipped bundled-Python runtime
+   archive and executes its launcher directly.
+3. **Default-installer smoke** — runs the public default installer and then
+   executes `crystal-lattice` by name from a supported terminal.
 
 ## Requirements checklist
 
@@ -57,6 +59,53 @@ Level model (user-confirmed):
   credentials required by the credential-free first-start requirement.
 - [x] Proper specification and documentation for the distribution/test-level
   model are created (deliberately unplanned — see Execution plan).
+
+### Approved post-completion requirements
+
+- [ ] The extracted-archive smoke follows the direct user workflow: it
+  independently unpacks the shipped archive, executes the archive launcher
+  directly, and does not call or depend on installer scenario code.
+- [ ] The default-installer smoke follows the direct user workflow: it runs
+  the public download installer with default install root, command name, and
+  automatic command-directory selection, then resolves and executes
+  `crystal-lattice` by name rather than by a known absolute install path.
+- [ ] The extracted-archive and default-installer smokes each begin with
+  separate fresh home, workspace, config, plugin-cache, pip-cache, install,
+  and command-directory state. Sharing the immutable built archive is allowed;
+  neither smoke may reuse mutable state or installation results from the
+  other.
+- [ ] Both archive-based smokes use a config derived from the packaged default
+  to load a real packaged Python plugin that is absent from
+  `preinstalled-plugins.json`. Each smoke independently triggers installation
+  through packaged Python and asserts plugin-specific metadata in its own
+  previously empty cache.
+- [ ] Each scenario remains independently interpretable. Archive validation,
+  direct archive boot, public installation, installed-command boot, and plugin
+  installation are not collapsed in a way that permits one scenario or shared
+  mutable state to hide a defect in another.
+- [ ] Root npm commands invoke the direct source-installation,
+  extracted-archive, and default-installer acceptance implementations. Native
+  release jobs invoke the archive and installer npm commands directly against
+  the archive built by that job.
+- [ ] Native release CI runs both archive-based smokes on every release target.
+  Runtime may increase; optimization is acceptable only when it preserves both
+  direct workflows, separate mutable state, and failure evidence without
+  disproportionate orchestration.
+- [ ] Without `BIN_DIR`, the public installer selects an existing suitable
+  writable directory already on PATH and installs the default
+  `crystal-lattice` command there, making it immediately resolvable by name in
+  the supported terminal environment. An explicit `BIN_DIR` remains
+  available.
+- [ ] If no suitable PATH directory exists, the default installer fails before
+  replacing installation state with an actionable message instead of
+  completing an installation whose command is not discoverable.
+- [ ] Build, install, and smoke orchestration has one clear implementation
+  owner per behavior. Local npm and CI use the same acceptance entry points;
+  scenario code may share lower-level helpers but may not invoke another
+  scenario as a substitute.
+- [ ] Specifications, current documentation, commands, tests, and diagnostics
+  use descriptive names for scenarios and components. Historical level
+  terminology appears only where its meaning is explicitly introduced.
 
 ## Constraints and decisions
 
@@ -739,3 +788,222 @@ fallback limit operational ambiguity.
 - Cross-platform level-3 execution was not part of the approved CI scope. A
   cumulative one-boot release smoke or a Windows-only installed-wrapper check
   can be considered as post-completion follow-up.
+
+## Post-completion follow-up
+
+On September 9, 2026, the user expanded the completed distribution
+verification scope. The strengthened target requires direct and independent
+extracted-archive and public default-installer smokes, dynamic installation of
+a non-preinstalled packaged plugin in separate caches, immediate
+`crystal-lattice` command discovery through an existing PATH directory, native
+CI invocation through the same npm commands used locally, descriptive
+terminology, and simplification of duplicate orchestration.
+
+This extension supersedes two decisions from the completed plan:
+
+- Native release CI may now change to run both archive-based npm smokes on
+  every target.
+- Archive-based smokes no longer require an empty user plugin cache after
+  boot. They begin empty, install one designated non-preinstalled plugin, and
+  verify that exact installation independently.
+
+The original completion notes remain the record of the earlier delivered
+scope. New work and evidence are recorded below.
+
+### Follow-up execution plan
+
+Status: Draft
+
+Implement the follow-up in four checkpoints so direct user paths remain easy
+to inspect and native failures can be attributed without coupling the two
+archive-based smokes.
+
+#### Checkpoint 1 — names, shared low-level helpers, and direct npm entry points
+
+- Replace historical level-oriented command and test identifiers with
+  source-installation, extracted-archive, and default-installer names. Use
+  `test:cli:source-install`, `test:cli:archive`, and
+  `test:cli:default-install`.
+- Keep `scripts/run_cli_distribution_test.py` as a thin archive
+  build/selection dispatcher, but have it invoke standalone scenario entry
+  points directly instead of starting pytest.
+- Add or extract focused helpers for isolated config creation, adding the
+  designated plugin probe, inspecting the preinstalled manifest and plugin
+  metadata, readiness, and process-tree cleanup.
+- Keep pytest for unit tests, failure-path tests, script-contract tests, and
+  optional wrappers around a direct scenario; do not maintain a second
+  acceptance implementation inside pytest.
+
+#### Checkpoint 2 — independent extracted-archive smoke
+
+- Keep the existing archive smoke as the authoritative extracted-archive
+  scenario.
+- Extract the archive into a fresh directory using installer-independent code,
+  retain structural/manifest/runtime-layout and macOS portability checks, and
+  execute the archive launcher directly.
+- Copy the packaged default config into a fresh config directory and append
+  `path:${env:BUILTIN_PLUGINS}/generic-callback-app` to the global plugin list.
+  First prove that this plugin is absent from `preinstalled-plugins.json`.
+- Boot through the archive launcher with a unique home, workspace, config,
+  plugin cache, and home-level pip cache. Require all default agents,
+  candidate-specific `plugin_metadata.json`, and no redundant user-cache
+  installation for default preinstalled plugins.
+
+#### Checkpoint 3 — public default installer and immediate PATH discovery
+
+- Make `scripts/install.sh` the default-installer acceptance boundary. Serve
+  the checked-in installer, `latest.txt`, and the current native archive from
+  an isolated loopback HTTP endpoint and run the normal `curl ... | bash`
+  workflow without `VERSION`, `INSTALL_ROOT`, `BIN_DIR`, or `COMMAND_NAME`.
+- Add deterministic automatic bin-directory selection. Reuse the parent of an
+  existing `crystal-lattice` command when suitable; otherwise prefer existing
+  PATH-listed `~/.local/bin` and `~/bin`, then the first remaining safe,
+  writable, absolute PATH directory. Reject relative, current-directory,
+  system-temporary-directory, world-writable, and
+  active-virtual-environment candidates.
+- Fail before replacing installation state if no automatic candidate is
+  available. Preserve explicit `BIN_DIR` behavior for advanced/local use.
+- On Windows, write both the Git Bash forwarding script and a `.cmd` command
+  into the selected PATH directory.
+- In the smoke, construct a controlled existing PATH directory under the
+  isolated home, let the installer select it, prove command discovery by name,
+  and boot by the resolved `crystal-lattice` command. Use a separate
+  default-derived config and separate plugin/pip caches, then independently
+  verify installation of `generic-callback-app`.
+- Remove the repository-only Python archive installer if all consumers can
+  use the public installer with a documented local-archive input. If a
+  bootstrap or platform constraint requires retaining it, narrow it to the
+  explicit local/offline use case and add focused parity tests rather than
+  preserving duplicate smoke orchestration.
+
+#### Checkpoint 4 — native CI, current documentation, and evidence
+
+- Create the repository `.venv` needed by `scripts/repo_run.py` in each native
+  build job, then invoke `npm run test:cli:archive` and
+  `npm run test:cli:default-install` with the archive already built by that
+  job.
+- Keep the two npm invocations as separate workflow steps. Run the installer
+  step with an `always()` condition gated on successful archive location so it
+  still produces independent evidence after an archive-smoke failure.
+- Update current user and implementation documentation only after behavior
+  passes. Explain each named smoke, archive launcher, installed command,
+  preinstalled plugin, user plugin cache, default PATH selection, override,
+  and failure behavior where first used.
+- Run both local archive-based npm commands with separate builds and with one
+  shared prebuilt immutable archive; then run the full native matrix. Record
+  separate command/cache evidence for both scenarios.
+
+### Implementation decisions and open questions
+
+- **Recommendation — direct installer boundary:** use the public
+  `scripts/install.sh` path for default-installer acceptance. The current
+  Python installer invoked with temporary absolute paths is useful unit/local
+  coverage but is not the downloaded user's default workflow.
+- **Recommendation — designated plugin:** use `generic-callback-app`. It is a
+  packaged installable Python plugin outside the default preinstalled closure,
+  has no model/API requirement, and has no external dependency or OS side
+  effect. The smoke fails explicitly if it later becomes preinstalled.
+- **Recommendation — independent state:** sharing the native archive build is
+  safe because it is immutable input. Every mutable directory and cache is
+  created by, owned by, and deleted after one scenario invocation.
+- **Recommendation — CI independence:** retain two boots and two plugin
+  installations. The additional runtime is accepted because removing either
+  would weaken a direct workflow. The second smoke still runs after a failure
+  in the first when the archive exists.
+- **Recommendation — PATH behavior:** select an existing writable PATH
+  directory instead of modifying shell profiles. This makes the command
+  available in the current shell and avoids persistent profile edits.
+  Explicit `BIN_DIR` remains available when automatic selection cannot satisfy
+  a user's policy.
+- **Recommendation — Windows command:** create both shell and `.cmd` commands
+  and verify Git Bash plus native `cmd.exe` name resolution on the Windows
+  runner.
+- **Recommendation — simplification:** remove the Python archive installer if
+  a small, documented local-archive input lets Nox and developers use the
+  public installer. Retain it only if inspection finds a concrete bootstrap or
+  platform capability that the shell installer cannot provide without greater
+  complexity.
+- **Open question requiring approval before implementation:** approve the
+  recommended automatic PATH-directory selection and the preference to
+  consolidate installation on the public shell installer. A different policy
+  would materially change install location, upgrade behavior, supported
+  Windows terminals, and the amount of retained installer code.
+
+### Documentation
+
+- The target is updated first in
+  `application/python/docs/development/specifications/cli-distribution/`.
+- After implementation, update the application README and package
+  installation guides with current automatic PATH behavior and the explicit
+  override.
+- Update the current distribution implementation page with the three named
+  npm commands, direct scenario ownership, dynamic plugin probe, separate
+  cache contract, and native workflow invocation.
+- Update download/deployment maintainer documentation if the public installer
+  gains a local-archive input or changes the files it writes on Windows.
+- Remove the specification's temporary active-follow-up section after all
+  affected requirements are verified.
+
+### Task checklist
+
+- [ ] Rename scenario commands, tests, messages, and maintained documentation.
+- [ ] Refactor root scenario commands to invoke direct standalone acceptance
+  implementations instead of pytest orchestration.
+- [ ] Add shared config/plugin-probe/cache-evidence helpers and focused tests.
+- [ ] Strengthen the extracted-archive smoke with independent dynamic plugin
+  installation.
+- [ ] Add safe automatic PATH-directory selection and failure behavior to the
+  public installer.
+- [ ] Add the Windows shell and `.cmd` command pair.
+- [ ] Add the direct public default-installer smoke through a loopback download
+  endpoint and command-name resolution.
+- [ ] Consolidate or explicitly narrow the repository-only Python installer.
+- [ ] Run both root archive-based smokes independently in every native release
+  matrix job.
+- [ ] Update current user/maintainer documentation and requirement evidence.
+- [ ] Run focused, fast-regression, local distribution, documentation, and
+  native matrix verification.
+
+### Requirement verification
+
+- `CLIDIST-020`, `CLIDIST-052`: `npm run test:cli:archive` independently
+  extracts the archive, runs its launcher directly, starts from empty
+  plugin/pip caches, proves the candidate is not preinstalled, boots all
+  default agents, and records candidate-specific installation metadata.
+- `CLIDIST-030`, `CLIDIST-080`, `CLIDIST-081`: with an isolated home and
+  controlled existing PATH directory, `npm run test:cli:default-install`
+  downloads through the public installer with defaults, replaces stale
+  installation state, is discoverable and executable as `crystal-lattice`,
+  and fails before mutation when no suitable automatic directory exists.
+- `CLIDIST-051`: independently captured paths and cache metadata show the two
+  archive-based npm invocations share only the immutable archive.
+- `CLIDIST-040`, `CLIDIST-050`, `CLIDIST-091`: package-script contract tests
+  prove local and CI commands use the same direct entry points; every native
+  matrix target reports separate archive and default-installer results.
+- `CLIDIST-090`: specification and current documentation introduce concrete
+  component/scenario names, and searches show unexplained historical level
+  terminology has been removed from maintained commands, tests, diagnostics,
+  and touched current documentation.
+
+### Additional implementation verification
+
+- Unit-test PATH candidate ordering, unsafe/relative/unwritable rejection,
+  existing-command upgrades, explicit override behavior, and no-candidate
+  failure on POSIX and Windows path forms.
+- Unit-test shell and `.cmd` wrapper contents, argument forwarding, paths with
+  spaces, and command-name collision behavior.
+- Verify the extracted-archive smoke does not import or invoke installer
+  scenario code and the default-installer smoke does not invoke archive-smoke
+  orchestration.
+- Verify both smokes reject a pre-populated plugin cache and assert the exact
+  probe-plugin metadata rather than any cache entry.
+- Run installer unit tests, distribution helper tests, root-script contract
+  tests, and the application fast suite.
+- Run `npm run test:cli:archive` and
+  `npm run test:cli:default-install` with separate locally built archives,
+  then repeat both against one explicitly supplied prebuilt archive.
+- Run Ruff, applicable Black checks, targeted Pyright, documentation
+  preparation, and MkDocs build.
+- Push and dispatch the native release workflow; require separate successful
+  archive and default-installer npm steps on Linux AMD64, macOS AMD64, macOS
+  ARM64, and Windows AMD64.
