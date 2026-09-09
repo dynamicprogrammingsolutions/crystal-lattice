@@ -351,8 +351,14 @@ crystal-lattice --runtime-layout-json
 
 On Windows, run the shell installer from Git Bash/MSYS/Cygwin. The installer
 detects `MINGW*`, `MSYS*`, and `CYGWIN*` from `uname -s`, downloads the
-`windows-amd64` `.zip` archive, and writes a Bash shim that calls the bundled
-`Scripts/crystal-lattice.cmd` launcher.
+`windows-amd64` `.zip` archive, and writes both a Bash command and a `.cmd`
+command that call the bundled `Scripts/crystal-lattice.cmd` launcher.
+
+For a normal installation, `install.sh` selects an existing suitable writable
+directory already on PATH. It prefers an existing bundled-Python installation,
+then `~/.local/bin` and `~/bin`. The download smoke supplies `BIN_DIR`
+explicitly to keep post-publication checks isolated; direct default-selection
+coverage runs in the native release workflow.
 
 Skip installer execution and only check URLs/content:
 

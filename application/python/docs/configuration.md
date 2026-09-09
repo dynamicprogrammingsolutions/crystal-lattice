@@ -65,6 +65,28 @@ The command searches for configuration in:
 Use `--config` for an explicit file or `--config-local` to create and use
 `./.crystal/config.json`.
 
+## Credentials and startup
+
+The CLI can create and start the default config without provider API keys.
+Missing credentials do not prevent the server, terminal, local configuration,
+or agent listing from starting.
+
+Put keys for API-backed providers and tools in a `.env` file rather than
+exporting them before every launch. For a project-local config:
+
+```bash
+# .crystal/.env
+OPENAI_API_KEY=...
+OPENROUTER_API_KEY=...
+ANTHROPIC_API_KEY=...
+```
+
+The CLI reads these values for config resolution without adding them to the
+process environment. A request to a credentialed API still requires the real
+key for that provider or tool. See
+[configuration placeholders](configuration-placeholders.md#env-files) for
+the complete lookup order and precedence.
+
 ## Diagnostics
 
 Configuration errors are available programmatically:
@@ -78,7 +100,13 @@ for error in app.get_config_errors():
 ```
 
 Invalid plugin package, mixin, merge-policy, and variant configuration prevents
-application startup. Missing placeholder values are reported separately.
+application startup. An unresolved environment placeholder is reported
+separately as an `env_missing` warning, and that warning is not itself fatal.
+The empty resolved value can still cause an independent fatal validation error
+when it is used in a structural setting such as a plugin path. Optional
+credential placeholders in the generated default config do not prevent
+startup; the selected API-backed functionality still needs its configured
+credentials.
 
 ## See also
 

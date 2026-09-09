@@ -35,8 +35,11 @@ On macOS, Linux, or Git Bash on Windows, install the bundled CLI:
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
 ```
 
-The installer links the command as `~/.local/bin/crystal-lattice`. If that
-directory is not on your `PATH`, add it or call the command by its full path.
+The installer places `crystal-lattice` in an existing suitable writable
+directory already on your `PATH`, preferring an existing installation,
+`~/.local/bin`, or `~/bin`. If no suitable directory is available, it stops
+with instructions for setting `BIN_DIR` instead of installing an undiscoverable
+command.
 
 Users who prefer Python packaging can use:
 

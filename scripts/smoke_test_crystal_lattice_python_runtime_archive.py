@@ -10,6 +10,15 @@ import tarfile
 import tempfile
 import zipfile
 
+from crystal_lattice_cli_boot import (
+    assert_config_boot,
+    assert_plugin_not_preinstalled,
+    prepare_smoke_config,
+)
+
+
+DYNAMIC_PLUGIN_PROBE = "generic-callback-app"
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -19,12 +28,42 @@ def main() -> None:
     args = parser.parse_args()
 
     archive = args.archive.expanduser().resolve()
+    smoke_test_archive(archive)
+    print(f"Extracted-archive smoke test passed: {archive}")
+
+
+def smoke_test_archive(archive: Path) -> None:
+    if not archive.is_file():
+        raise RuntimeError(f"Archive does not exist: {archive}")
+
     with tempfile.TemporaryDirectory(prefix="crystal-python-runtime-smoke-") as tmp:
-        extract_dir = Path(tmp) / "extract"
+        temp_dir = Path(tmp)
+        extract_dir = temp_dir / "extract"
         extract_archive(archive, extract_dir)
         package_dir = find_package_dir(extract_dir)
         validate_package(package_dir)
-        print(f"Bundled-Python runtime smoke test passed: {package_dir}")
+        assert_plugin_not_preinstalled(
+            package_dir / "preinstalled-plugins.json",
+            DYNAMIC_PLUGIN_PROBE,
+        )
+        config_path = prepare_smoke_config(
+            package_dir
+            / "application"
+            / "python"
+            / "agent_terminal_app"
+            / "default_config",
+            destination_dir=temp_dir / "config",
+            additional_plugin_name=DYNAMIC_PLUGIN_PROBE,
+        )
+        assert_config_boot(
+            [launcher_path(package_dir)],
+            config_path=config_path,
+            workspace=temp_dir / "workspace",
+            home_dir=temp_dir / "home",
+            plugin_cache_expectation="populated",
+            expected_plugin_id=DYNAMIC_PLUGIN_PROBE,
+            timeout_seconds=300,
+        )
 
 
 def extract_archive(archive: Path, extract_dir: Path) -> None:
