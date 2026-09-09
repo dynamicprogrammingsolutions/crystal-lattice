@@ -293,3 +293,33 @@ plugin-local docs for the owning location).
 - Unresolved/deferred: the plugin-install `typing_extensions` eviction gap
   (dist-info without `top_level.txt` prevents swapping a stale ambient
   module) is a pre-existing infrastructure issue worth a separate task.
+
+## Post-completion follow-up
+
+Independent review found a merge blocker: the permissive tool-usage Markdown
+variants were referenced only through dynamically constructed filenames inside
+the `render_claude_tool_usage.py` helper, while plugin packaging discovers
+resources only from literal paths in the resolved config. Bundled binary/cloud
+layouts therefore omitted both variant files and the helper silently rendered
+an empty "Using your tools" section.
+
+Correction (user-directed): drop the helper-based selection entirely. All
+tool-usage variants are now plain `files` variables in the default config —
+`TOOL_USAGE` (upstream), `TOOL_USAGE_PERMISSIVE_CD` (default, for
+`bash_cwd_persistence: true`), and `TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE`
+(for `bash_cwd_persistence: false`) — and the user selects the variant by
+editing the inlined template variable. The README documents which variable
+matches which Bash setting. Literal config paths make the files
+packaging-discoverable, so no packaging-support changes were needed; the
+deleted helper removes the silent-empty failure mode.
+
+Verification: new bundled-layout regression test
+`test_cloud_runtime_plugin_bundle_stages_claude_tool_usage_variants` in
+`application/python/tests/test_cloud_runtime_plugin_bundle_builder.py`
+asserts all three variant files are staged into the preinstalled plugin layout
+and listed in the manifest `resource_paths`; confirmed it fails against the
+old code-variable config and passes with the files variables.
+`pytest application/python/tests/test_claude_system_message_helpers.py -q` →
+5 passed; `pytest application/python/tests/test_cloud_runtime_plugin_bundle_builder.py -q`
+→ 11 passed; `pytest plugins/claude-tools/tests -q` → 139 passed, 9
+deselected; ruff and black clean.

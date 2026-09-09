@@ -50,7 +50,11 @@ Bash working-directory configuration keys:
 - `bash_include_cwd_in_result`: surface the working directory in Bash tool results (default `false`). When `true`, the initial working directory appears as a `[cwd: ...]` first line, and the end working directory is noted as a last line when a command changed it and persistence is enabled.
 - `bash_permissive_cd_guidance`: use permissive `cd` guidance in the Bash tool description instead of the upstream restrictive wording (default `false`). With all options at their defaults and persistence on, the tool description matches upstream Claude Code verbatim.
 
-The default claude system message uses the permissive-cd tool-usage section via the `TOOL_USAGE_PERMISSIVE_CD` template variable in the default config; switching that variable to `{{TOOL_USAGE}}` restores the original upstream wording. The permissive section's persistence sentence follows `bash_cwd_persistence`.
+The claude system message's tool-usage section is selected through the `{{TOOL_USAGE...}}` template variable in the default config's `claude_system_message` mixin. All variants are available as `files` variables; pick the one matching your Bash tool settings:
+
+- `{{TOOL_USAGE_PERMISSIVE_CD}}` (default): permissive `cd` guidance for `bash_cwd_persistence: true` — the working directory persists between commands, so `cd` alone is sufficient.
+- `{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}`: permissive `cd` guidance for `bash_cwd_persistence: false` — chain `cd dir && cmd` in a single Bash call.
+- `{{TOOL_USAGE}}`: the original upstream Claude Code wording with restrictive `cd` guidance, for upstream parity with any tool setting.
 
 `TaskStop` currently supports stopping running background Bash tasks by the background ID returned from `Bash`. `Read` remains the primary Claude-shaped way to inspect Bash background output via the returned output path.
 

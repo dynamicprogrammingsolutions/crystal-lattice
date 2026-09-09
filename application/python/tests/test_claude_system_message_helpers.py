@@ -271,58 +271,12 @@ def test_default_config_claude_agent_uses_claude_tools(
     )
 
 
-def test_claude_tool_usage_helper_selects_persistence_variant(
-    monkeypatch,
-) -> None:
-    """The permissive-cd tool-usage helper loads the variant matching the
-    ``bash_cwd_persistence`` config value."""
-    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
-
-    persistent_ns = runpy.run_path(
-        str(HELPERS_ROOT / "render_claude_tool_usage.py"),
-        init_globals={"CONFIG": {}},
-    )
-    persistent_text = str(persistent_ns["SYSTEM_MESSAGE_VALUE"])
-    assert "# Using your tools" in persistent_text
-    assert "prefer absolute paths" in persistent_text
-    assert (
-        "The working directory persists between commands, so `cd` alone is "
-        "sufficient"
-    ) in persistent_text
-    assert "does not persist between commands" not in persistent_text
-
-    non_persistent_ns = runpy.run_path(
-        str(HELPERS_ROOT / "render_claude_tool_usage.py"),
-        init_globals={"CONFIG": {"bash_cwd_persistence": False}},
-    )
-    non_persistent_text = str(non_persistent_ns["SYSTEM_MESSAGE_VALUE"])
-    assert "# Using your tools" in non_persistent_text
-    assert (
-        "The working directory does not persist between commands; chain "
-        "`cd dir && cmd` in a single Bash call"
-    ) in non_persistent_text
-    assert "persists between commands, so `cd` alone" not in non_persistent_text
-
-
-def test_claude_tool_usage_helper_falls_back_to_empty_without_builtin_plugins(
-    monkeypatch,
-) -> None:
-    """If the plugin tree cannot be located, the helper resolves to an empty
-    value instead of raising."""
-    monkeypatch.delenv("BUILTIN_PLUGINS", raising=False)
-
-    namespace = runpy.run_path(
-        str(HELPERS_ROOT / "render_claude_tool_usage.py"),
-        init_globals={"CONFIG": {}},
-    )
-    assert namespace["SYSTEM_MESSAGE_VALUE"] == ""
-
-
 def test_default_config_claude_system_message_uses_permissive_tool_usage_variable() -> (
     None
 ):
     """The default config wires the claude system message to the permissive-cd
-    tool-usage variable while keeping the original variable selectable."""
+    tool-usage variable while keeping every tool-usage variant selectable as a
+    literal files-based variable."""
     config_path = (
         ROOT
         / "application"
@@ -339,9 +293,20 @@ def test_default_config_claude_system_message_uses_permissive_tool_usage_variabl
     assert "{{TOOL_USAGE}}" not in template
 
     variables = system_message["variables"]
-    assert variables["TOOL_USAGE"]["files"] == [
-        "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage.md"
-    ]
-    permissive = variables["TOOL_USAGE_PERMISSIVE_CD"]
-    assert permissive["code"].endswith("render_claude_tool_usage.py")
-    assert permissive["runtime_code"].endswith("claude_runtime.py")
+    expected_tool_usage_variables = {
+        "TOOL_USAGE": "tool-usage.md",
+        "TOOL_USAGE_PERMISSIVE_CD": "tool-usage-permissive-cd.md",
+        "TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE": (
+            "tool-usage-permissive-cd-no-persistence.md"
+        ),
+    }
+    for variable_name, filename in expected_tool_usage_variables.items():
+        spec = variables[variable_name]
+        assert spec["files"] == [
+            "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/" f"{filename}"
+        ]
+        # Literal config paths keep the files packaging-discoverable, so
+        # bundled binary/cloud layouts stage every selectable variant.
+        assert (
+            ROOT / "plugins" / "claude-tools" / "system_messages" / "claude" / filename
+        ).is_file()

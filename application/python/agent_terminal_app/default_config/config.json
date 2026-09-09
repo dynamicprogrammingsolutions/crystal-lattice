@@ -415,8 +415,14 @@
             ]
           },
           "TOOL_USAGE_PERMISSIVE_CD": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_claude_tool_usage.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py"
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd.md"
+            ]
+          },
+          "TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd-no-persistence.md"
+            ]
           },
           "TONE_AND_STYLE": {
             "files": [
