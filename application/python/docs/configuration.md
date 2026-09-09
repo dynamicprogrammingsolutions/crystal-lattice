@@ -101,11 +101,12 @@ for error in app.get_config_errors():
 
 Invalid plugin package, mixin, merge-policy, and variant configuration prevents
 application startup. An unresolved environment placeholder is reported
-separately as `env_missing`, and that diagnostic is not itself fatal. The empty
-resolved value can still cause an independent fatal validation error when it
-is used in a structural setting such as a plugin path. Optional credential
-placeholders in the generated default config do not prevent startup; the
-selected API-backed functionality still needs its configured credentials.
+separately as an `env_missing` warning, and that warning is not itself fatal.
+The empty resolved value can still cause an independent fatal validation error
+when it is used in a structural setting such as a plugin path. Optional
+credential placeholders in the generated default config do not prevent
+startup; the selected API-backed functionality still needs its configured
+credentials.
 
 ## See also
 

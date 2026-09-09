@@ -552,13 +552,13 @@ Prepare and build the documentation site from authored sources; do not edit
   page before changing test behavior.
 - [x] Resolve and approve isolated archive construction, Windows process-tree
   cleanup, and deterministic local runtime provisioning.
-- [ ] Add the shared isolated default-config boot probe and focused helper
+- [x] Add the shared isolated default-config boot probe and focused helper
   coverage.
-- [ ] Derive environment removals from default-config placeholders, isolate
+- [x] Derive environment removals from default-config placeholders, isolate
   `HOME`/`USERPROFILE` and `.env` lookup, and inject no dummy values.
-- [ ] Cover config-loader `env_missing` warnings without weakening detection of
+- [x] Cover config-loader `env_missing` warnings without weakening detection of
   independent fatal structural errors.
-- [ ] Cover `.env` credential loading with no corresponding exported process
+- [x] Cover `.env` credential loading with no corresponding exported process
   variables or process-environment mutation.
 - [ ] Level 1: add the lean fresh-venv/dynamic-plugin-install boot test.
 - [ ] Level 1: add the root npm script and `WRAPPED_SCRIPTS` assertions.
@@ -666,3 +666,11 @@ fallback limit operational ambiguity.
   automatically use an `uv`-managed Python 3.11 runtime by default, and use
   explicit POSIX/Windows process-tree cleanup with a closed-port assertion.
   The execution plan returned to Approved.
+- 2026-09-08: Implemented the config-loader warning metadata, focused
+  config-adjacent `.env` resolution coverage, and the shared isolated boot
+  helper. The helper derives environment removals from the config, isolates
+  `HOME`/`USERPROFILE`, owns POSIX/Windows process trees, captures log tails,
+  validates the complete generated agent set, checks plugin-cache state, and
+  verifies port closure. Focused verification passed: 51 tests passed and the
+  Windows-only nested `.cmd` test was skipped on macOS; Ruff and Black checks
+  passed. Native Windows cleanup remains pending release-matrix execution.

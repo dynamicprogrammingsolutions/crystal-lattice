@@ -63,9 +63,9 @@ replace that user state.
 The command can create and boot its default configuration without provider API
 keys, optional web-search keys, or cloud credentials. Missing credential
 placeholders in the generated default config resolve to empty strings and
-appear as `env_missing` configuration diagnostics. Those diagnostics are not
-themselves among the plugin, mixin, merge, or variant failures that stop
-application construction.
+appear as `env_missing` configuration warnings with the variable and config
+path. Those warnings are not themselves among the plugin, mixin, merge, or
+variant failures that stop application construction.
 
 This does not make every missing environment placeholder safe. If an empty
 resolved value makes a plugin path or another structural setting invalid, the

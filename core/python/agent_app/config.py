@@ -314,6 +314,8 @@ def _resolve_value(
                 {
                     "path": path,
                     "type": "env_missing",
+                    "severity": "warning",
+                    "variable": var_name,
                     "detail": f"Environment variable {var_name!r} is not set",
                 }
             )

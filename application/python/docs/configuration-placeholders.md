@@ -14,12 +14,13 @@ and variants are resolved.
 }
 ```
 
-A missing variable is reported as `env_missing` and resolves to an empty
-string. The `env_missing` diagnostic is not itself fatal, but the empty result
-may cause an independent validation failure when the field is structurally
-required, such as in a plugin path. Optional credential placeholders in the
-generated default config do not prevent the CLI from starting; API-backed
-functionality still needs the credentials defined by its provider or tool.
+A missing variable is reported as an `env_missing` warning with its variable
+name and config path, then resolves to an empty string. The warning is not
+itself fatal, but the empty result may cause an independent validation failure
+when the field is structurally required, such as in a plugin path. Optional
+credential placeholders in the generated default config do not prevent the
+CLI from starting; API-backed functionality still needs the credentials
+defined by its provider or tool.
 
 Embedding applications can provide:
 
