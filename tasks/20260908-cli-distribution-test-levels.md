@@ -812,7 +812,7 @@ scope. New work and evidence are recorded below.
 
 ### Follow-up execution plan
 
-Status: Draft
+Status: Approved
 
 Implement the follow-up in four checkpoints so direct user paths remain easy
 to inspect and native failures can be attributed without coupling the two
@@ -923,11 +923,13 @@ archive-based smokes.
   public installer. Retain it only if inspection finds a concrete bootstrap or
   platform capability that the shell installer cannot provide without greater
   complexity.
-- **Open question requiring approval before implementation:** approve the
-  recommended automatic PATH-directory selection and the preference to
-  consolidate installation on the public shell installer. A different policy
-  would materially change install location, upgrade behavior, supported
-  Windows terminals, and the amount of retained installer code.
+- **Decision — PATH and installer authority (user-approved):** implement the
+  recommended automatic PATH-directory selection and consolidate
+  user-facing/default installation on the public shell installer.
+- **Decision — Nox simplification (user-approved):** Nox may be removed when
+  direct npm/script orchestration preserves isolated build dependencies,
+  deterministic relocatable Python provisioning, explicit runtime/archive
+  overrides, and existing local build/install behavior.
 
 ### Documentation
 
