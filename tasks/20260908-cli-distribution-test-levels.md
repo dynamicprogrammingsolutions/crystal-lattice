@@ -18,44 +18,44 @@ Level model (user-confirmed):
 
 ## Requirements checklist
 
-- [ ] Level 1 — a test provisions a clean Python environment (fresh venv
+- [x] Level 1 — a test provisions a clean Python environment (fresh venv
   containing only the core and application packages, lean install without
   dev extras) and clean runtime files (fresh workspace, `HOME`,
   `CONFIG_DIR`, plugin cache), boots the CLI with the default config, and
   asserts the server becomes ready and exposes the default-config agents.
   The default-config `path:` plugins must install dynamically into the
   clean plugin cache during the boot.
-- [ ] Level 1 — runnable locally via a root npm script.
-- [ ] Level 2 — the shipped bundled-Python runtime archive's launcher boots
+- [x] Level 1 — runnable locally via a root npm script.
+- [x] Level 2 — the shipped bundled-Python runtime archive's launcher boots
   with the default config and exposes the default-config agents, verified
   locally via a root npm script.
-- [ ] Level 3 — the install script installs a built archive into temporary
+- [x] Level 3 — the install script installs a built archive into temporary
   install/bin directories and the installed wrapper command boots with the
   default config and exposes the default-config agents, runnable locally
   via a root npm script.
-- [ ] Credential-free first start — the generated default config boots and
+- [x] Credential-free first start — the generated default config boots and
   exposes its agents when values for its external `${env:...}` placeholders
   are absent from both the process environment and discovered `.env` files.
   The config loader reports unresolved environment placeholders as nonfatal
   `env_missing` warnings; a separately invalid resolved structure may still
   produce its own fatal validation error. Levels 1–3 must not inject dummy
   values merely to bypass configuration resolution.
-- [ ] Normal CLI use does not require users to export shell environment
+- [x] Normal CLI use does not require users to export shell environment
   variables. The CLI loads API credentials from the documented `.env`
   locations associated with the active config, project, or user. API-backed
   functionality still requires the real credentials defined by its owning
   provider or tool contract, but provider/tool authentication behavior is not
   part of the distribution test-level contract.
-- [ ] The release-workflow smoke test boots the archive with the default
+- [x] The release-workflow smoke test boots the archive with the default
   config (in addition to the current structural checks); no other CI
   changes.
-- [ ] The two bundle strategies stay separated: levels 1–3 target the
+- [x] The two bundle strategies stay separated: levels 1–3 target the
   bundled-Python runtime archive (the shipped artifact); the PyInstaller
   optimized-bundle tier and its tests remain a separate suite — not
   conflated, not removed, and not behaviorally changed. Startup-only test
   setup in that suite may be changed solely to remove unnecessary dummy
   credentials required by the credential-free first-start requirement.
-- [ ] Proper specification and documentation for the distribution/test-level
+- [x] Proper specification and documentation for the distribution/test-level
   model are created (deliberately unplanned — see Execution plan).
 
 ## Constraints and decisions
@@ -560,15 +560,15 @@ Prepare and build the documentation site from authored sources; do not edit
   independent fatal structural errors.
 - [x] Cover `.env` credential loading with no corresponding exported process
   variables or process-environment mutation.
-- [ ] Level 1: add the lean fresh-venv/dynamic-plugin-install boot test.
-- [ ] Level 1: add the root npm script and `WRAPPED_SCRIPTS` assertions.
-- [ ] Level 2: extend archive smoke with preinstalled default-config boot.
-- [ ] Level 2: add archive setup/override support and the root npm script.
-- [ ] Level 3: add staging/install/wrapper/default-config boot coverage and
+- [x] Level 1: add the lean fresh-venv/dynamic-plugin-install boot test.
+- [x] Level 1: add the root npm script and `WRAPPED_SCRIPTS` assertions.
+- [x] Level 2: extend archive smoke with preinstalled default-config boot.
+- [x] Level 2: add archive setup/override support and the root npm script.
+- [x] Level 3: add staging/install/wrapper/default-config boot coverage and
   focused platform-selection coverage.
-- [ ] Level 3: add the root npm script and `WRAPPED_SCRIPTS` assertions.
-- [ ] Update current README/development documentation for delivered behavior.
-- [ ] Update `CLIDIST-*` live state and evidence.
+- [x] Level 3: add the root npm script and `WRAPPED_SCRIPTS` assertions.
+- [x] Update current README/development documentation for delivered behavior.
+- [x] Update `CLIDIST-*` live state and evidence.
 - [ ] Run acceptance, regression, formatting, and documentation verification.
 
 ### Requirement verification
@@ -666,6 +666,34 @@ fallback limit operational ambiguity.
   automatically use an `uv`-managed Python 3.11 runtime by default, and use
   explicit POSIX/Windows process-tree cleanup with a closed-port assertion.
   The execution plan returned to Approved.
+- 2026-09-09: Level 1 passed directly in 228.50 seconds and through
+  `npm run test:cli:clean-env` in 241.50 seconds. Both runs created a fresh
+  lean venv and dynamically installed the default plugin closure without
+  provider credentials or model API calls.
+- 2026-09-09: The first isolated level-2 build stopped before archive creation
+  because `uv` creates a hidden `.temp` directory alongside its runtime. The
+  locator was corrected to select one non-hidden, non-symlink runtime
+  directory. The rerun provisioned CPython 3.11.16, built the portable archive
+  in about two minutes, and `npm run test:cli:bundle` passed; the standalone
+  release smoke also passed.
+- 2026-09-09: Level 3 passed in 24.76 seconds with the verified archive and in
+  21.72 seconds after an independent default isolated build. Stale staging and
+  target directories were replaced, the installed wrapper booted, and its
+  plugin cache stayed empty.
+- 2026-09-09: Repository-environment isolation was checked around both archive
+  builds: the SHA-256 of `pip freeze` remained
+  `6e85c3100badd634bb09a8ebbbd630bba5fa7eb789bd9f5f6dc3611ada3d5829`.
+  Focused distribution/config/script verification passed 69 tests with one
+  expected Windows-only skip. Fast regressions passed: Core 506 passed with
+  one expected xfail; application 394 passed with two skips and existing
+  deprecation warnings.
+- 2026-09-09: Final focused verification after the structural-error regression
+  passed 70 tests with one expected Windows-only skip. Ruff and Black passed
+  for all changed Python files, targeted Pyright passed with zero errors, and
+  documentation preparation/MkDocs build succeeded with existing repository
+  warnings. Repository-wide Pyright remains a pre-existing failed baseline
+  (2,288 errors across unrelated Core/plugin/generated build trees plus a
+  missing configured `examples` directory).
 - 2026-09-08: Implemented the config-loader warning metadata, focused
   config-adjacent `.env` resolution coverage, and the shared isolated boot
   helper. The helper derives environment removals from the config, isolates

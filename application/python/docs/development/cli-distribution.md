@@ -46,6 +46,12 @@ npm run install:prod:local
 ```
 
 The Nox `build_bundle` and `install_prod_local` sessions back these commands.
+`build_bundle` uses an isolated Nox environment for build dependencies and
+provisions an `uv`-managed Python 3.11 runtime by default. It does not install
+or upgrade packages in the repository environment that launched Nox.
+
+Set `CRYSTAL_PYTHON_RUNTIME` to build deliberately from another runtime
+directory.
 
 ## User-owned state
 
@@ -88,26 +94,50 @@ the selected service. The default config can start and list those agents
 before their credentials are configured. Request authentication and direct
 environment reads remain owned by the selected provider or tool.
 
-## Current verification boundaries
+## Distribution test levels
 
-The mandatory bundled-Python archive smoke currently checks:
+Run each level independently from the repository root:
 
-- required archive paths;
-- the runtime-package manifest;
-- launcher `--runtime-layout-json` behavior and resolved runtime overrides;
-- linked-library portability on macOS.
+```bash
+npm run test:cli:clean-env
+npm run test:cli:bundle
+npm run test:cli:install
+```
 
-It does not yet start the application or resolve the generated default config.
-The release workflow runs this structural smoke for Linux AMD64, macOS AMD64,
-macOS ARM64, and Windows AMD64 on native runners.
+`test:cli:clean-env` creates a fresh venv, installs only editable Core and
+application packages without development extras, and boots the source command.
+The default config's `path:` plugins install into a fresh config-owned plugin
+cache. This level requires package-index network access and normally takes
+several minutes.
 
-The local production installer runs that archive smoke before installation.
-After installation it verifies only the wrapper's layout output and help.
+`test:cli:bundle` constructs a bundled-Python archive in the isolated Nox
+environment, then starts pytest only after the build exits. The archive smoke
+checks:
 
-There is no current clean-venv source boot test, bundled-Python archive boot
-test, or installed-wrapper boot test exposed through the planned three-level
-root command model. Existing deeper bundle tests target the separate
-PyInstaller layout and remain manually gated.
+- required archive paths and manifests;
+- launcher `--runtime-layout-json` behavior and runtime overrides;
+- linked-library portability on macOS;
+- credential-free default-config boot and the complete configured agent set;
+- use of the preinstalled plugin closure without user-cache installation.
+
+`test:cli:install` independently builds the archive, replaces stale
+installation staging/target directories in temporary storage, creates the
+platform wrapper, and boots that installed command. Set
+`CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` to reuse a matching prebuilt archive
+for either archive-consuming level.
+
+All boot probes isolate the workspace, `HOME`, `USERPROFILE`, config files, and
+plugin cache. Environment names are derived from placeholders in the exact
+default config under test; the probes supply no dummy values and make no model
+or tool API request.
+
+On POSIX, cleanup owns the command's process group. On Windows, `.cmd`
+launchers run in a dedicated process group with a `CTRL_BREAK_EVENT` attempt
+and `taskkill /T /F` fallback. Every path verifies that the server port closes.
+
+The release workflow runs the same archive smoke for Linux AMD64, macOS AMD64,
+macOS ARM64, and Windows AMD64 on native runners. Existing deeper optimized
+bundle tests target the separate PyInstaller layout and remain manually gated.
 
 ## Maintainer entry points
 
@@ -115,6 +145,8 @@ PyInstaller layout and remain manually gated.
   `scripts/build_crystal_lattice_python_runtime_package.py`
 - Runtime archive smoke:
   `scripts/smoke_test_crystal_lattice_python_runtime_archive.py`
+- Distribution test runner: `scripts/run_cli_distribution_test.py`
+- Shared default-config boot probe: `scripts/crystal_lattice_cli_boot.py`
 - Local archive installer:
   `scripts/install_crystal_lattice_archive.py`
 - Build/install sessions: `noxfile.py`

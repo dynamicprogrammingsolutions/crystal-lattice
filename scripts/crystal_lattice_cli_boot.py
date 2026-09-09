@@ -120,7 +120,7 @@ def assert_default_config_boot(
         str(port),
     ]
 
-    process: subprocess.Popen[bytes] | None = None
+    process: subprocess.Popen[Any] | None = None
     failure: Exception | None = None
     cleanup_failure: Exception | None = None
     agents: tuple[str, ...] = ()
@@ -220,7 +220,7 @@ def _start_process(
     cwd: Path,
     env: dict[str, str],
     log_file: Any,
-) -> subprocess.Popen[bytes]:
+) -> subprocess.Popen[Any]:
     process_command = command
     kwargs: dict[str, Any] = {}
     if os.name == "nt":
@@ -351,7 +351,7 @@ def _stop_windows_process_tree(
 ) -> None:
     if process.poll() is None:
         try:
-            process.send_signal(signal.CTRL_BREAK_EVENT)
+            process.send_signal(getattr(signal, "CTRL_BREAK_EVENT"))
         except (OSError, ValueError):
             pass
         _wait_for_process(process, timeout_seconds=graceful_timeout_seconds)

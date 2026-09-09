@@ -19,6 +19,9 @@ WRAPPED_SCRIPTS = {
     "test:application",
     "test:application:unit",
     "test:examples",
+    "test:cli:clean-env",
+    "test:cli:bundle",
+    "test:cli:install",
     "test:core:integration",
     "test:application:integration",
     "test:ollama",
@@ -216,6 +219,23 @@ def test_server_scripts_run_installed_commands_without_repo_run():
     )
     assert scripts["server:cloud-test"] == "bash .crystal/cloud-test.sh"
     assert "run:dev-local" not in scripts
+
+
+def test_cli_distribution_scripts_use_the_isolated_runner():
+    scripts = _load_scripts()
+
+    assert (
+        scripts["test:cli:clean-env"] == "python scripts/repo_run.py python "
+        "scripts/run_cli_distribution_test.py clean-env"
+    )
+    assert (
+        scripts["test:cli:bundle"] == "python scripts/repo_run.py python "
+        "scripts/run_cli_distribution_test.py bundle"
+    )
+    assert (
+        scripts["test:cli:install"] == "python scripts/repo_run.py python "
+        "scripts/run_cli_distribution_test.py install"
+    )
 
 
 def test_release_scripts_run_local_gate_through_repo_run():

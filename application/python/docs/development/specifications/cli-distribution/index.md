@@ -65,6 +65,6 @@ maintainer entry points but do not own the behavior.
 
 The active work is tracked in
 `tasks/20260908-cli-distribution-test-levels.md`.
-The current implementation has structural archive and installed-command
-checks, but it does not yet provide all three boot levels or a
-default-configuration boot in the release archive smoke.
+All three local levels and the boot-inclusive archive smoke are implemented
+and verified on macOS ARM64. Native release-matrix verification, particularly
+Windows `.cmd` process-tree cleanup, remains pending.

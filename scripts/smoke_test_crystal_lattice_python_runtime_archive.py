@@ -10,6 +10,8 @@ import tarfile
 import tempfile
 import zipfile
 
+from crystal_lattice_cli_boot import assert_default_config_boot
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -19,12 +21,35 @@ def main() -> None:
     args = parser.parse_args()
 
     archive = args.archive.expanduser().resolve()
+    smoke_test_archive(archive)
+    print(f"Bundled-Python runtime smoke test passed: {archive}")
+
+
+def smoke_test_archive(archive: Path) -> None:
+    if not archive.is_file():
+        raise RuntimeError(f"Archive does not exist: {archive}")
+
     with tempfile.TemporaryDirectory(prefix="crystal-python-runtime-smoke-") as tmp:
-        extract_dir = Path(tmp) / "extract"
+        temp_dir = Path(tmp)
+        extract_dir = temp_dir / "extract"
         extract_archive(archive, extract_dir)
         package_dir = find_package_dir(extract_dir)
         validate_package(package_dir)
-        print(f"Bundled-Python runtime smoke test passed: {package_dir}")
+        assert_default_config_boot(
+            [launcher_path(package_dir)],
+            default_config_template=(
+                package_dir
+                / "application"
+                / "python"
+                / "agent_terminal_app"
+                / "default_config"
+                / "config.json"
+            ),
+            workspace=temp_dir / "workspace",
+            home_dir=temp_dir / "home",
+            plugin_cache_expectation="empty",
+            timeout_seconds=300,
+        )
 
 
 def extract_archive(archive: Path, extract_dir: Path) -> None:

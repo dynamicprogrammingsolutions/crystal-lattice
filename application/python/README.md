@@ -134,6 +134,23 @@ For contributors and local validation:
   pytest application/python/tests -m docker -q
   ```
 
+The shipped CLI distribution has three opt-in local levels:
+
+```bash
+npm run test:cli:clean-env
+npm run test:cli:bundle
+npm run test:cli:install
+```
+
+The first command exercises dynamic default-plugin installation in a fresh
+lean venv. The second builds and boots the bundled-Python archive. The third
+installs that archive into temporary directories and boots the installed
+wrapper. These tests require package-index network access and can take several
+minutes. See
+[CLI distribution implementation and verification](docs/development/cli-distribution.md)
+for isolation, prebuilt-archive overrides, platform behavior, and the separate
+optimized PyInstaller suite.
+
 The application test suite bootstraps the repo root `.env` for local
 real-provider tests and does not overwrite already-exported environment
 variables.
@@ -1002,6 +1019,11 @@ Build the current-platform bundled-Python runtime package:
 nox -s build_bundle
 ```
 
+`build_bundle` installs build dependencies in its own Nox environment and
+provisions an `uv`-managed Python 3.11 runtime, matching the release runtime
+family without modifying the repository venv. Set `CRYSTAL_PYTHON_RUNTIME` to
+use an explicit runtime directory instead.
+
 Build the current-platform optimized PyInstaller artifact directly:
 
 ```bash
@@ -1017,11 +1039,12 @@ nox -s install_prod_local
 `build_bundle` and `install_prod_local` intentionally follow the release
 installer shape:
 
-1. install local build dependencies
-2. run `scripts/build_crystal_lattice_python_runtime_package.py`
-3. smoke-test the generated release archive
-4. install from the archive, not from editable source
-5. link `crystal-lattice` into `~/.local/bin`
+1. install build dependencies in an isolated Nox environment
+2. provision or select the packaged Python runtime
+3. run `scripts/build_crystal_lattice_python_runtime_package.py`
+4. smoke-test the generated release archive, including default-config boot
+5. install from the archive, not from editable source
+6. link `crystal-lattice` into `~/.local/bin`
 
 Install an editable-source dev command:
 
