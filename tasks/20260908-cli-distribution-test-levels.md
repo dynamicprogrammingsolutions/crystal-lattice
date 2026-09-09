@@ -569,7 +569,7 @@ Prepare and build the documentation site from authored sources; do not edit
 - [x] Level 3: add the root npm script and `WRAPPED_SCRIPTS` assertions.
 - [x] Update current README/development documentation for delivered behavior.
 - [x] Update `CLIDIST-*` live state and evidence.
-- [ ] Run acceptance, regression, formatting, and documentation verification.
+- [x] Run acceptance, regression, formatting, and documentation verification.
 
 ### Requirement verification
 
@@ -666,6 +666,14 @@ fallback limit operational ambiguity.
   automatically use an `uv`-managed Python 3.11 runtime by default, and use
   explicit POSIX/Windows process-tree cleanup with a closed-port assertion.
   The execution plan returned to Approved.
+- 2026-09-08: Implemented the config-loader warning metadata, focused
+  config-adjacent `.env` resolution coverage, and the shared isolated boot
+  helper. The helper derives environment removals from the config, isolates
+  `HOME`/`USERPROFILE`, owns POSIX/Windows process trees, captures log tails,
+  validates the complete generated agent set, checks plugin-cache state, and
+  verifies port closure. Focused verification passed: 51 tests passed and the
+  Windows-only nested `.cmd` test was skipped on macOS; Ruff and Black checks
+  passed. Native Windows cleanup remained pending at that checkpoint.
 - 2026-09-09: Level 1 passed directly in 228.50 seconds and through
   `npm run test:cli:clean-env` in 241.50 seconds. Both runs created a fresh
   lean venv and dynamically installed the default plugin closure without
@@ -694,11 +702,40 @@ fallback limit operational ambiguity.
   warnings. Repository-wide Pyright remains a pre-existing failed baseline
   (2,288 errors across unrelated Core/plugin/generated build trees plus a
   missing configured `examples` directory).
-- 2026-09-08: Implemented the config-loader warning metadata, focused
-  config-adjacent `.env` resolution coverage, and the shared isolated boot
-  helper. The helper derives environment removals from the config, isolates
-  `HOME`/`USERPROFILE`, owns POSIX/Windows process trees, captures log tails,
-  validates the complete generated agent set, checks plugin-cache state, and
-  verifies port closure. Focused verification passed: 51 tests passed and the
-  Windows-only nested `.cmd` test was skipped on macOS; Ruff and Black checks
-  passed. Native Windows cleanup remains pending release-matrix execution.
+- 2026-09-09: Pushed commit `fedcaacb` and dispatched the existing release
+  workflow against the task branch. GitHub Actions
+  [run 34328869249](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34328869249)
+  passed the test job and boot-inclusive archive smoke on Linux AMD64, macOS
+  AMD64, macOS ARM64, and Windows AMD64. The Windows `.cmd` launcher and
+  process-tree cleanup passed natively. Release and download publication jobs
+  were correctly skipped for the manual dispatch.
+
+## Completion Notes
+
+- Delivered all three root CLI distribution test levels, a shared
+  credential-free default-config boot probe, isolated/deterministic archive
+  construction, boot-inclusive release smoke, config-loader warning metadata,
+  specification, requirements, and current user/maintainer documentation.
+- Local acceptance passed on macOS ARM64: level 1 dynamically installed the
+  default plugin closure in a fresh lean venv; level 2 built and booted the
+  bundled-Python archive; level 3 replaced stale install state and booted the
+  installed wrapper. Both archive builds left the repository Python
+  environment unchanged.
+- Native release evidence passed on Linux AMD64, macOS AMD64, macOS ARM64, and
+  Windows AMD64 in GitHub Actions run `34328869249`. The manual run did not
+  publish release or download assets.
+- Fast regression evidence passed: Core 506 passed with one expected xfail;
+  application 394 passed with two skips; focused task coverage passed 70 tests
+  with the Windows-only local helper test skipped on macOS. Ruff, applicable
+  Black checks, targeted Pyright, documentation preparation, and MkDocs build
+  passed.
+- The first isolated build exposed an `uv` runtime-directory locator issue
+  caused by its hidden `.temp` directory. Selection now requires one
+  non-hidden, non-symlink runtime directory, and both subsequent independent
+  builds passed.
+- Repository-wide Pyright remains outside this task's completion boundary: its
+  existing baseline reports 2,288 unrelated errors and scans generated plugin
+  build trees plus a missing configured `examples` directory.
+- Cross-platform level-3 execution was not part of the approved CI scope. A
+  cumulative one-boot release smoke or a Windows-only installed-wrapper check
+  can be considered as post-completion follow-up.
