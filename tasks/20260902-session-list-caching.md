@@ -465,3 +465,44 @@ or shutdown wiring.
 - Python cannot cancel an operating-system file read already in progress.
   Shutdown cancels queued work and prevents a blocked daemon worker from
   running plugin enrichment or publishing after the read returns.
+
+## Post-completion follow-up
+
+### Requirement organization and traceability
+
+- [x] Group preserved and new requirements separately.
+- [x] Divide each group into functional and non-functional requirements.
+- [x] Replace plain evidence paths with relative Markdown links whose labels
+      identify the repository path.
+- [x] Add applicable `SLIST-*` identifiers beside the assertions in primary
+      Core, cache, HTTP, and terminal/server test code.
+- [x] Assess preserved functional coverage and integration coverage of every
+      new functional requirement without changing implementation code.
+
+Assessment:
+
+- Preserved functional coverage is strong for `SLIST-001`, `SLIST-002`,
+  `SLIST-006`, `SLIST-007`, and `SLIST-010`.
+- `SLIST-003` lacks direct assertions for preview whitespace normalization,
+  first-non-empty-user selection, and the 80-character truncation boundary.
+- `SLIST-004` lacks direct assertions for non-JSON-serializable contributed
+  fields and malformed `session_list_fields` / `session_list_order` result
+  containers.
+- `SLIST-005` lacks direct assertions for missing order fallbacks,
+  non-sortable values, incompatible value categories, and conflicting
+  declarations occupying the same plugin slot.
+- None of the primary requirement-tagged tests is marked
+  `pytest.mark.integration`; marker-selected integration runs therefore do not
+  collect these session-list requirements.
+- `SLIST-014` has a substantive application integration flow through two
+  `AgentApplication` instances, filesystem sessions, and persistent derived
+  state, although the test is not marked as integration.
+- `SLIST-013` has route/service HTTP coverage, but it overrides
+  `AgentApplication` and uses only one session, so it does not prove mixed
+  complete/placeholder membership through the full production application
+  composition.
+- `SLIST-012`, `SLIST-015`, `SLIST-016`, and `SLIST-019` do not each have one
+  integration test asserting their complete main statement. Their evidence is
+  split across component tests, existing complete-list integration behavior,
+  and narrower HTTP assertions.
+- No implementation or test behavior was changed after this assessment.

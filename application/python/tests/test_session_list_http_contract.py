@@ -75,6 +75,7 @@ def _save_session(
     )
 
 
+# Requirements: SLIST-003, SLIST-004, SLIST-005, SLIST-007, SLIST-010
 def test_session_list_http_contract_serializes_shared_summaries(
     session_list_http_client: Tuple[TestClient, AgentApplication, Path],
 ) -> None:
@@ -152,6 +153,7 @@ def test_session_list_http_contract_serializes_shared_summaries(
     assert "missing" in missing.json()["detail"]
 
 
+# Requirements: SLIST-004, SLIST-005, SLIST-010
 def test_session_list_http_contract_orders_configured_pinned_metadata(
     tmp_path: Path,
 ) -> None:
@@ -240,6 +242,7 @@ def test_session_list_http_contract_orders_configured_pinned_metadata(
         application.close()
 
 
+# Requirements: SLIST-004, SLIST-005, SLIST-007, SLIST-010
 def test_session_list_http_contract_sorts_recent_archives_below_other_sessions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -361,6 +364,7 @@ def test_session_list_http_contract_sorts_recent_archives_below_other_sessions(
         application.close()
 
 
+# Requirements: SLIST-008, SLIST-010
 def test_session_list_http_contract_isolates_a_malformed_record(
     session_list_http_client: Tuple[TestClient, AgentApplication, Path],
 ) -> None:
@@ -430,6 +434,7 @@ class _BlockedHttpSessionStore:
         raise AssertionError("delete is not used by this test")
 
 
+# Requirements: SLIST-013, SLIST-015, SLIST-020
 def test_session_list_http_contract_returns_placeholder_before_slow_load() -> None:
     store = _BlockedHttpSessionStore()
     service = SessionListService(

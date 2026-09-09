@@ -92,6 +92,7 @@ def _save_session(
     )
 
 
+# Requirement: SLIST-007
 def test_python_uses_shared_filter_contract_cases() -> None:
     fixtures = json.loads(_FILTER_CASES_PATH.read_text(encoding="utf-8"))
 
@@ -138,6 +139,7 @@ def test_python_uses_shared_filter_contract_cases() -> None:
         ], case["name"]
 
 
+# Requirement: SLIST-007
 def test_filter_contract_accepts_highlight_option_tone() -> None:
     schema = normalize_session_list_filter_schema(
         [
@@ -160,6 +162,7 @@ def test_filter_contract_accepts_highlight_option_tone() -> None:
     assert schema.filters[0].options[1].tone == "highlight"
 
 
+# Requirement: SLIST-007
 def test_application_applies_defaults_search_and_limit_after_ordering(
     tmp_path: Path,
 ) -> None:
@@ -197,6 +200,7 @@ def test_application_applies_defaults_search_and_limit_after_ordering(
     assert app.get_session_summary("newer-archived")["session_id"] == ("newer-archived")
 
 
+# Requirements: SLIST-001, SLIST-007, SLIST-008
 def test_application_reports_main_search_conflict_without_losing_other_filters(
     tmp_path: Path,
 ) -> None:

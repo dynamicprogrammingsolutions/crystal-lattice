@@ -95,6 +95,7 @@ def _store_session(
     return app.save_session(session)
 
 
+# Requirements: SLIST-002, SLIST-012
 def test_filesystem_session_store_enumerates_opaque_records(tmp_path: Path) -> None:
     root = tmp_path / "sessions"
     store = FilesystemSessionStore(root, AgentCore())
@@ -123,6 +124,7 @@ def test_filesystem_session_store_enumerates_opaque_records(tmp_path: Path) -> N
     assert changed.revision != first_revision
 
 
+# Requirements: SLIST-001, SLIST-003, SLIST-004, SLIST-005, SLIST-006, SLIST-008
 def test_agent_application_builds_shared_summaries_and_plugin_order(
     tmp_path: Path,
 ) -> None:
@@ -191,6 +193,7 @@ def test_agent_application_builds_shared_summaries_and_plugin_order(
     assert "invalid_session_list_order_spec" in diagnostic_codes
 
 
+# Requirements: SLIST-004, SLIST-005
 def test_equal_priority_order_uses_plugin_configuration_order(
     tmp_path: Path,
 ) -> None:
@@ -226,6 +229,7 @@ def test_equal_priority_order_uses_plugin_configuration_order(
     ]
 
 
+# Requirement: SLIST-005
 def test_fallback_order_is_modified_descending_only(tmp_path: Path) -> None:
     config_path = _make_config(tmp_path, with_listing_plugin=False)
     root = tmp_path / "sessions"
@@ -258,6 +262,7 @@ def test_fallback_order_is_modified_descending_only(tmp_path: Path) -> None:
     assert all("pinned" not in item for item in summaries)
 
 
+# Requirements: SLIST-005, SLIST-008
 def test_invalid_plugin_order_falls_back_to_modified_descending(
     tmp_path: Path,
 ) -> None:
@@ -291,6 +296,7 @@ def test_invalid_plugin_order_falls_back_to_modified_descending(
     )
 
 
+# Requirements: SLIST-009, SLIST-014, SLIST-019
 def test_summary_cache_persists_across_applications_and_invalidates_on_save(
     tmp_path: Path,
     monkeypatch: Any,
@@ -398,6 +404,7 @@ class _DelayedSessionStore:
         raise AssertionError("delete is not used by this test")
 
 
+# Requirements: SLIST-012, SLIST-013, SLIST-015, SLIST-016
 def test_bounded_listing_returns_complete_prefix_and_placeholder_suffix() -> None:
     store = _DelayedSessionStore()
     service = SessionListService(
@@ -453,6 +460,7 @@ def test_bounded_listing_returns_complete_prefix_and_placeholder_suffix() -> Non
     ]
 
 
+# Requirements: SLIST-012, SLIST-013
 def test_metadata_placeholder_builder_does_not_load_session_content() -> None:
     record = SessionStoreRecord(
         session_id="metadata-only",
@@ -549,6 +557,7 @@ def _blocking_service(
     )
 
 
+# Requirement: SLIST-017
 def test_concurrent_lists_share_one_inflight_load() -> None:
     store = _OneBlockingSessionStore()
     service = _blocking_service(store)
@@ -579,6 +588,7 @@ def test_concurrent_lists_share_one_inflight_load() -> None:
     service._shutdown()
 
 
+# Requirement: SLIST-017
 def test_shutdown_discards_blocked_work_before_plugin_enrichment() -> None:
     store = _OneBlockingSessionStore()
     action_calls: List[str] = []
@@ -651,6 +661,7 @@ class _ImmediateSessionStore:
         raise AssertionError("delete is not used by this test")
 
 
+# Requirements: SLIST-011, SLIST-014, SLIST-018
 def test_implementation_configuration_controls_persistent_reuse(
     tmp_path: Path,
 ) -> None:
@@ -727,6 +738,7 @@ class _ChangingBlockedSessionStore(_OneBlockingSessionStore):
         )
 
 
+# Requirements: SLIST-015, SLIST-019
 def test_invalidated_blocked_result_cannot_replace_newer_revision() -> None:
     store = _ChangingBlockedSessionStore()
     service = _blocking_service(store)
@@ -757,6 +769,7 @@ def test_invalidated_blocked_result_cannot_replace_newer_revision() -> None:
     assert store.load_calls == 2
 
 
+# Requirements: SLIST-008, SLIST-009, SLIST-019
 def test_external_change_and_malformed_record_bypass_stale_summary(
     tmp_path: Path,
 ) -> None:
@@ -794,6 +807,7 @@ def test_external_change_and_malformed_record_bypass_stale_summary(
     )
 
 
+# Requirements: SLIST-001, SLIST-007, SLIST-016
 def test_filter_seam_runs_after_ordering_and_before_limit(tmp_path: Path) -> None:
     config_path = _make_config(tmp_path)
     root = tmp_path / "sessions"
@@ -850,6 +864,7 @@ def test_filter_seam_runs_after_ordering_and_before_limit(tmp_path: Path) -> Non
     assert [item["session_id"] for item in result] == ["second"]
 
 
+# Requirements: SLIST-001, SLIST-007
 def test_exact_summary_is_independent_of_filters_and_missing_id_errors(
     tmp_path: Path,
 ) -> None:
@@ -875,6 +890,7 @@ def test_exact_summary_is_independent_of_filters_and_missing_id_errors(
         raise AssertionError("missing exact summary should raise KeyError")
 
 
+# Requirement: SLIST-006
 def test_python_uses_shared_path_and_presentation_contract_cases() -> None:
     fixtures = json.loads(_CONTRACT_CASES_PATH.read_text(encoding="utf-8"))
 

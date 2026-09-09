@@ -2842,6 +2842,7 @@ def test_list_sessions_endpoint_strips_native_messages_from_metadata(
     assert "native_messages" not in meta_out
 
 
+# Requirements: SLIST-001, SLIST-010
 def test_get_session_summary_matches_list_sessions_entry(tmp_path: Path) -> None:
     """GET /sessions/{id}/summary returns the same shape as /sessions entries."""
 
@@ -2872,6 +2873,7 @@ def test_get_session_summary_matches_list_sessions_entry(tmp_path: Path) -> None
     assert summary_resp["session"] == app.get_session_summary(session_id)
 
 
+# Requirements: SLIST-001, SLIST-010
 def test_http_and_terminal_session_lists_delegate_to_shared_application_result(
     tmp_path: Path,
 ) -> None:
@@ -2904,6 +2906,7 @@ def test_http_and_terminal_session_lists_delegate_to_shared_application_result(
     assert direct[0]["presentation"]["title"] == "shared list pipeline"
 
 
+# Requirement: SLIST-010
 def test_terminal_session_list_adapter_forwards_query_without_scanning(
     tmp_path: Path,
 ) -> None:
@@ -2951,6 +2954,7 @@ def test_terminal_session_list_adapter_forwards_query_without_scanning(
     ]
 
 
+# Requirements: SLIST-009, SLIST-010, SLIST-019
 def test_get_session_summary_reflects_metadata_changes(tmp_path: Path) -> None:
     """GET /sessions/{id}/summary refreshes metadata changed in the background."""
 
