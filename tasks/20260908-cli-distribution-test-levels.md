@@ -34,17 +34,18 @@ Level model (user-confirmed):
   default config and exposes the default-config agents, runnable locally
   via a root npm script.
 - [ ] Credential-free first start — the generated default config boots and
-  exposes its agents when no provider API keys or optional web-search keys are
-  configured. Missing credentials may be reported as nonfatal warnings or
-  configuration diagnostics, but must not prevent CLI/server startup.
-  Levels 1–3 explicitly remove all recognized credential variables and must
-  not inject dummy values merely to bypass configuration resolution.
+  exposes its agents when values for its external `${env:...}` placeholders
+  are absent from both the process environment and discovered `.env` files.
+  The config loader reports unresolved environment placeholders as nonfatal
+  `env_missing` warnings; a separately invalid resolved structure may still
+  produce its own fatal validation error. Levels 1–3 must not inject dummy
+  values merely to bypass configuration resolution.
 - [ ] Normal CLI use does not require users to export shell environment
   variables. The CLI loads API credentials from the documented `.env`
-  locations associated with the active config, project, or user. An operation
-  that calls an API requiring credentials must require the corresponding key
-  and report its absence for that operation, without blocking startup or
-  unrelated local functionality.
+  locations associated with the active config, project, or user. API-backed
+  functionality still requires the real credentials defined by its owning
+  provider or tool contract, but provider/tool authentication behavior is not
+  part of the distribution test-level contract.
 - [ ] The release-workflow smoke test boots the archive with the default
   config (in addition to the current structural checks); no other CI
   changes.
@@ -82,9 +83,10 @@ Level model (user-confirmed):
   not permission to skip the requirement.
 - **Credentials are request-time capabilities, not startup prerequisites**
   (user decision): default-config startup must not require credentials for
-  providers or optional tools that have not been invoked. Tests that make real
-  provider/tool requests keep the credentials they genuinely need; pure
-  startup probes must run without dummy credentials.
+  providers or optional tools that have not been invoked. Distribution probes
+  make no provider/tool API requests and run without dummy credentials.
+  Provider-specific direct environment reads and request authentication remain
+  owned by those plugins.
 - **No shell export is required for normal use** (user decision): users may
   configure API keys in `.env` files discovered by the CLI. Process
   environment values remain supported and take precedence, but setup
@@ -274,7 +276,7 @@ current-tree corrections and additional findings appear after the inventory.
 
 ## Execution plan
 
-Status: Approved
+Status: Draft
 
 Implement this in three ordered passes. First establish the target
 specification and an honest current-state implementation page. Then implement
@@ -296,9 +298,10 @@ Use a proportional three-file set:
   shipped bundled-Python archive and optimized PyInstaller output, and links;
 - `technical-spec.md` — the three ordered failure-isolation levels, clean-state
   contract, credential-free default-config boot/readiness contract,
-  `.env` credential-loading boundary, request-time API credential requirement,
-  plugin-install expectations, archive selection/override behavior, native
-  release smoke, local command contract, and failure diagnostics;
+  config-loader warning behavior, `.env` credential-loading boundary,
+  provider/tool ownership boundary, plugin-install expectations, archive
+  selection/override behavior, native release smoke, local command contract,
+  and failure diagnostics;
 - `requirements.md` — stable `CLIDIST-*` requirements with separate
   implementation, verification, documentation, and evidence state.
 
@@ -323,11 +326,17 @@ Add one standard-library helper under `scripts/` for all default-config boot
 probes. It will:
 
 - start an explicitly supplied command with `--server --config-local` on a
-  reserved loopback port in a fresh workspace and home;
+  reserved loopback port in a fresh workspace;
+- point both `HOME` and `USERPROFILE` at one temporary user directory so
+  `Path.home()` and the CLI's user-level `.env` lookup cannot reach developer
+  state on POSIX or Windows;
 - remove inherited Python, Crystal runtime-layout, config, and plugin-cache
   variables that could mask isolation defects;
-- explicitly remove all default-config provider and optional web-search
-  credential variables and inject no dummy replacements;
+- read the exact default-config template under test, collect every
+  `${env:...}` variable name from it, remove those names from the child
+  environment, and inject no dummy replacements;
+- place a controlled empty `.env` in the temporary workspace so standard
+  parent-directory discovery cannot load a developer file;
 - write subprocess output to a temporary log, poll `GET /api/hello`, report
   early exit or timeout with the log tail, and always terminate/kill the
   process;
@@ -336,38 +345,35 @@ probes. It will:
 - support an expected populated plugin cache for level 1 and an expected empty
   plugin cache for levels 2 and 3.
 
-Audit existing default-config tests and startup helpers that inject dummy
-credentials only to suppress `env_missing` diagnostics or force
-`get_config_errors() == []`. Remove those unrelated values and assert the
-relevant behavior directly: startup succeeds, expected agents/config remain
-available, and any missing-credential diagnostics are nonfatal. A real
-provider/tool integration test retains its actual required credential, but
-must not supply dummy credentials for providers or tools it does not invoke.
-This audit includes the default-config startup preflight in the existing
-PyInstaller Ollama E2E without changing that test's archive layout or real
-Ollama request.
+Do not add generic secret-name patterns, a growing credential denylist, or
+special handling for plugins that read process environment variables directly.
+The distribution contract ends at config loading. Remove dummy values from the
+new level probes and from an existing startup-only helper only when that helper
+is directly consolidated with the shared probe. A broader test cleanup does
+not block levels 1–3.
 
-Add focused coverage for the CLI's `.env` boundary: with the corresponding
-process variables absent, credentials written beside the active config must be
-available during config resolution without being exported into the shell.
-Keep actual provider-request tests responsible for proving that an API which
-requires a key rejects or skips a request when its required credential is
-absent; the distribution boot probes make no external provider requests.
+Add focused config-loader coverage:
+
+- an unresolved `${env:NAME}` produces a nonfatal `env_missing` warning with
+  its variable and config path, while a later structural validator remains
+  free to report an independent fatal error caused by the resolved value;
+- with `NAME` absent from the process, a config-adjacent `.env` value resolves
+  the placeholder without requiring a shell export or mutating `os.environ`.
+
+Provider-request tests remain responsible for their own authentication
+contracts. The distribution boot probes make no external provider requests
+and do not inventory provider/tool credential behavior.
 
 Use one slow integration test module in `application/python/tests` for the
-three levels and archive setup. The archive fixture will accept
-`CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` for a prebuilt current-platform
-bundled-Python archive; when absent, it will run the existing Nox
-`build_bundle` session and select the archive using the installer's
-current-platform naming logic. The distinct environment-variable name avoids
-conflating these tests with the existing
-`CRYSTAL_LATTICE_BUNDLE_ARCHIVE` PyInstaller suite.
+three levels. Archive-consuming tests receive an already built
+current-platform archive and must never invoke Nox or install build
+dependencies from inside a running pytest process.
 
-For local release-equivalent builds, let the Nox build session pass an
-optional `CRYSTAL_PYTHON_RUNTIME` directory through to the builder's existing
-`--python-runtime` option. Without it, the existing local-venv build remains
-the default and the portability smoke may correctly reject a host-bound
-runtime.
+The root-level orchestration will build before starting those tests or accept
+`CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` as an already built input. Its exact
+isolated-build and default-runtime mechanics remain blocked on the decisions
+listed below. The distinct archive-variable name avoids conflating these tests
+with the existing `CRYSTAL_LATTICE_BUNDLE_ARCHIVE` PyInstaller suite.
 
 Level 1 will:
 
@@ -386,10 +392,11 @@ Level 2 will extend
 `scripts/smoke_test_crystal_lattice_python_runtime_archive.py` so its public
 archive-validation path performs the shared default-config boot after all
 existing structural/layout/portability checks. It will require the clean user
-plugin cache to remain empty and all credential variables to remain absent,
-proving both credential-free startup and that the default plugin closure came
-from the archive's preinstalled manifest. The release workflow already calls
-this script with each native archive, so no workflow file changes are needed.
+plugin cache to remain empty while values for default-config external
+placeholders are absent, proving both config-loader-safe startup and that the
+default plugin closure came from the archive's preinstalled manifest. The
+release workflow already calls this script with each native archive, so no
+workflow file changes are needed.
 
 Level 3 will:
 
@@ -422,8 +429,8 @@ assertions in `test_repo_run_script.py`.
 After each behavior is verified, update the focused distribution development
 page with the three root commands, prerequisites, expected failure boundary,
 network/runtime costs, optional archive/runtime environment variables, release
-smoke behavior, credential-free first-start contract, request-time credential
-expectations, `.env` setup path, and the explicit PyInstaller-suite separation.
+smoke behavior, credential-free first-start contract, provider/tool ownership
+boundary, `.env` setup path, and the explicit PyInstaller-suite separation.
 Add a concise pointer and command summary to the package README's
 testing/distribution guidance rather than duplicating the full maintainer
 contract there. Update the configuration and placeholder guides so user-facing
@@ -446,34 +453,36 @@ Prepare and build the documentation site from authored sources; do not edit
 - **Decision — full default-agent contract:** compare `/agents` with every
   agent declared by the freshly copied default config. Do not preserve the
   older two-agent sentinel assertion.
-- **Decision — credential-free probes:** explicitly remove
-  `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-  `FIREWORKS_API_KEY`, `ZAI_API_KEY`, `GEMINI_API_KEY`, and
-  `TAVILY_API_KEY`, plus optional `CLOUD_ORCHESTRATOR_TOKEN` and
-  `CHATGPT_CREDENTIALS`, from every level probe. Do not add dummy values.
-  Missing credentials may remain visible as nonfatal diagnostics; tests
-  making real requests retain only the credentials required by those requests.
+- **Decision — loader-derived environment isolation:** derive names to remove
+  from the exact default config's `${env:...}` placeholders. Use a fresh
+  workspace plus temporary `HOME` and `USERPROFILE`, and block parent `.env`
+  discovery with a controlled workspace file. Do not maintain a credential
+  list or inspect plugin-specific direct environment reads.
+- **Decision — loader warning boundary:** unresolved environment placeholders
+  are config-loader `env_missing` warnings, not plugin warnings. Record the
+  variable and config path and continue resolution; downstream structural
+  validation remains independently fatal when appropriate.
 - **Decision — `.env` is the normal credential setup path:** document and
   verify config-adjacent/project/user `.env` loading without requiring shell
   exports. Preserve explicit process-environment support and precedence for
   automation and advanced use.
-- **Decision — API credentials remain required at use time:** this task does
-  not invent anonymous access or dummy production credentials. A provider or
-  tool that calls a credentialed API must receive its real key through `.env`,
-  the process environment, or another supported credential mechanism.
-- **Decision — existing test cleanup:** remove unrelated dummy credentials
-  from existing default-config tests encountered by the audit. Replace
-  assertions that treat expected missing-credential diagnostics as startup
-  failures with assertions on fatal errors and the behavior under test.
+- **Decision — provider/tool ownership:** current user docs state that
+  API-backed functionality still needs credentials, but this specification
+  does not define or verify every plugin's environment reads, authentication,
+  or missing-credential request errors.
+- **Decision — narrow dummy cleanup:** the three level probes inject no dummy
+  values. Existing startup-only setup changes only when directly replaced by
+  the shared helper; repository-wide test cleanup is not a completion
+  dependency.
 - **Decision — cache evidence:** level 1 requires real plugin installation
   metadata; levels 2 and 3 require no user plugin installation. This
   distinguishes the dynamic source path from the preinstalled archive path.
 - **Decision — archive override naming:** reserve
   `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` for these tests and leave the
   existing PyInstaller `CRYSTAL_LATTICE_BUNDLE_ARCHIVE` contract untouched.
-- **Decision — local runtime override:** support `CRYSTAL_PYTHON_RUNTIME` in
-  Nox by forwarding it to the builder. A portability failure from the default
-  host Python remains a valid level-2 build/smoke failure.
+- **Decision — archive consumers do not build:** pytest receives an already
+  built archive. Nox/build dependency installation must finish in an isolated
+  environment before the archive-consuming test process starts.
 - **Decision — installer isolation:** skip its nested pre-install smoke in
   level 3 because level 2 owns archive validation. The production installer
   continues to run the smoke by default.
@@ -481,12 +490,21 @@ Prepare and build the documentation site from authored sources; do not edit
   release CI. Do not edit workflow files or add these tests to public CI.
 - **Decision — optimized bundles:** do not modify PyInstaller build code,
   gates, archive variables, or behavior. Its existing default-config startup
-  preflight may lose unnecessary dummy credentials as part of the explicit
-  credential cleanup; otherwise its tests remain separate.
-- **Open questions:** none blocking plan approval. If implementation exposes a
-  platform-specific launcher or process-cleanup contract that the shared probe
-  cannot satisfy without changing shipped behavior, record the finding and
-  return for approval before broadening scope.
+  preflight may lose dummy values only if directly consolidated with the
+  shared boot helper; otherwise its tests remain separate.
+- **Open question — isolated archive construction (blocking):** move archive
+  construction outside a running pytest process and prevent the Nox build from
+  installing into the repository environment. Recommendation: use an isolated
+  Nox build environment, then run archive-consuming tests after it exits.
+- **Open question — Windows process-tree cleanup (blocking):** define how the
+  probe terminates the descendant Python process started by `.cmd` launchers
+  and verifies that no server remains. Recommendation: a dedicated Windows
+  process group with graceful shutdown and a `taskkill /T /F` fallback.
+- **Open question — deterministic local runtime (blocking):** make the default
+  local archive path provision the same `uv`-managed Python family as release
+  CI, or make a prebuilt archive an explicit prerequisite. Recommendation:
+  automatic isolated `uv` provisioning, with archive/runtime variables as
+  optional overrides.
 
 ### Documentation
 
@@ -499,7 +517,7 @@ Prepare and build the documentation site from authored sources; do not edit
   `application/python/docs/development/index.md`.
 - Concise current user/contributor entry-point updates:
   `application/python/README.md`, including the credential-free startup and
-  request-time credential boundary.
+  provider/tool authentication ownership boundary.
 - Current configuration guidance:
   `application/python/docs/configuration.md` and
   `application/python/docs/configuration-placeholders.md`, including `.env`
@@ -513,15 +531,16 @@ Prepare and build the documentation site from authored sources; do not edit
   and initial requirements state.
 - [x] Create and index the honest current-state distribution implementation
   page before changing test behavior.
+- [ ] Resolve and approve isolated archive construction, Windows process-tree
+  cleanup, and deterministic local runtime provisioning.
 - [ ] Add the shared isolated default-config boot probe and focused helper
   coverage.
-- [ ] Remove unnecessary dummy credentials from the level probes and existing
-  default-config startup/config tests; retain only credentials used by a real
-  provider/tool request.
-- [ ] Cover missing credentials as nonfatal startup diagnostics without
-  weakening detection of fatal configuration errors.
+- [ ] Derive environment removals from default-config placeholders, isolate
+  `HOME`/`USERPROFILE` and `.env` lookup, and inject no dummy values.
+- [ ] Cover config-loader `env_missing` warnings without weakening detection of
+  independent fatal structural errors.
 - [ ] Cover `.env` credential loading with no corresponding exported process
-  variables and retain request-time credential requirements for real APIs.
+  variables or process-environment mutation.
 - [ ] Level 1: add the lean fresh-venv/dynamic-plugin-install boot test.
 - [ ] Level 1: add the root npm script and `WRAPPED_SCRIPTS` assertions.
 - [ ] Level 2: extend archive smoke with preinstalled default-config boot.
@@ -537,25 +556,28 @@ Prepare and build the documentation site from authored sources; do not edit
 
 - Level 1: `npm run test:cli:clean-env` provisions a fresh lean venv, proves
   ambient plugin/dev packages are absent, boots from source with clean files
-  while credential variables are absent, matches the complete default agent
-  set, and leaves plugin installation metadata in the previously empty cache.
+  while default-config external placeholder values are absent, matches the
+  complete default agent set, and leaves plugin installation metadata in the
+  previously empty cache.
 - Level 2: `npm run test:cli:bundle` builds or accepts a current-platform
   bundled-Python archive, passes structural/portability checks, boots its
-  launcher with clean files and no credential variables, matches the complete
-  default agent set, and leaves the user plugin cache empty.
+  launcher with clean files and no external placeholder values, matches the
+  complete default agent set, and leaves the user plugin cache empty.
 - Level 3: `npm run test:cli:install` builds or accepts the same archive,
   replaces stale staging/target state in temporary directories, creates the
-  platform wrapper, boots that wrapper without credential variables, matches
-  the complete default agent set, and leaves the user plugin cache empty.
+  platform wrapper, boots that wrapper without external placeholder values,
+  matches the complete default agent set, and leaves the user plugin cache
+  empty.
 - Credential-free startup: all three probes explicitly show the recognized
-  credential variables are absent from the child environment; startup and
-  `/agents` succeed, while any resulting missing-credential diagnostics remain
-  nonfatal.
+  default-config placeholder names were removed from the child environment,
+  isolated config/user `.env` locations contain no inherited values, startup
+  and `/agents` succeed, and loader `env_missing` warnings remain nonfatal.
 - Normal use without shell exports: focused CLI/config coverage starts with
-  credential variables absent from the process, loads sentinel values from an
-  active-config `.env`, and verifies config resolution receives them without
-  requiring shell setup. Current user docs identify `.env` as the normal key
-  setup path and state that credentialed API calls still require real keys.
+  a referenced variable absent from the process, loads a sentinel value from
+  an active-config `.env`, and verifies config resolution receives it without
+  shell setup or `os.environ` mutation. Current user docs identify `.env` as
+  the normal key setup path and state that API-backed functionality still
+  requires credentials defined by its provider or tool.
 - CI smoke: the extended smoke script boots a built archive locally; the
   unchanged release workflow invokes it for all four native matrix targets.
 - Separation: diff inspection and test/archive-variable names show that no
@@ -570,9 +592,8 @@ Prepare and build the documentation site from authored sources; do not edit
 
 - Run the focused unit tests for archive smoke, installer archive selection,
   boot-probe helpers, and exact root-script wiring.
-- Run affected default-config and real-provider tests to prove the credential
-  audit removed only unrelated dummy values and retained credentials required
-  for actual requests.
+- Run focused config-loader and CLI `.env` tests; do not make the distribution
+  suite depend on real-provider credential tests.
 - Run the application fast suite with its normal non-integration filter.
 - Run all three root npm commands explicitly; a skipped test is not a pass.
 - Run Ruff and Black check mode on modified Python files.
@@ -608,3 +629,16 @@ fallback limit operational ambiguity.
   link, and generated-reference warnings. A temporary packaged CLI boot also
   exposed all 20 default agents with provider, web-search, cloud-orchestrator,
   and saved-ChatGPT credential variables absent.
+- 2026-09-08: Independent review identified blocking gaps in build-environment
+  isolation, Windows process-tree cleanup, and deterministic local runtime
+  provisioning. The execution plan returned to Draft pending resolution.
+- 2026-09-08: The user clarified and approved the configuration boundary:
+  missing environment warnings belong to the config loader; probe cleanup is
+  derived from placeholders in the config under test; `HOME`, `USERPROFILE`,
+  and `.env` discovery are isolated; direct plugin environment reads and a
+  repository-wide dummy-credential audit are out of scope.
+- 2026-09-08: Preserved the previous specification/current-documentation
+  baseline in commit `4e631ba9`, then revised the task and specification for
+  the agreed loader-owned warning and targeted environment-isolation model.
+  Documentation preparation and MkDocs build passed after the revision with
+  only the previously observed repository warnings.

@@ -27,8 +27,9 @@ maintainer entry points but do not own the behavior.
   archive behavior is known to work.
 - Let a newly installed CLI start normally without credentials or exported
   shell variables.
-- Require real credentials only when an invoked provider or tool calls an API
-  that requires them.
+- Verify that `.env` values reach config resolution without shell exports.
+- Keep provider/tool request authentication with the package that owns that
+  API contract.
 - Run the shipped archive smoke on every native release target without adding
   another CI workflow or matrix.
 
@@ -36,6 +37,7 @@ maintainer entry points but do not own the behavior.
 
 - Exercising a real model request in the distribution boot checks.
 - Defining one provider's authentication protocol or anonymous API access.
+- Inventorying direct environment-variable reads in individual plugins.
 - Folding optimized PyInstaller bundle tests into the bundled-Python archive
   levels.
 - Adding the slow local distribution commands to ordinary pull-request CI.

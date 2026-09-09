@@ -12,16 +12,20 @@ as evidence about its own boundary.
 | 2. Bundled-Python archive | Launcher extracted from the current-platform shipped archive | Fresh workspace, home, config directory, and user plugin cache | Default plugin closure loads from the archive's preinstalled manifest; user cache remains empty | Runtime staging, bundled Python, launchers, manifests, dependencies, and portability |
 | 3. Installed command | Wrapper produced by the local archive installer | Fresh install root, bin directory, workspace, home, config directory, and user plugin cache | Same preinstalled behavior as level 2 | Archive selection, staging replacement, installation, wrapper construction, and relocation |
 
-Each level is available through one root npm command. Levels 2 and 3 may use a
-current-platform archive supplied through
-`CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE`; otherwise their test setup builds
-one. This variable is distinct from the existing
-`CRYSTAL_LATTICE_BUNDLE_ARCHIVE` input used by optimized PyInstaller tests.
+Each level is available through one root npm command. Levels 2 and 3 consume
+an already built current-platform archive. Their pytest process never invokes
+the archive build or installs build dependencies.
 
-Local archive builds may select a relocatable Python directory through
-`CRYSTAL_PYTHON_RUNTIME`. When no directory is supplied, the current local
-builder behavior remains available. Portability validation is part of level 2,
-so a host-bound Python runtime is a meaningful test failure.
+Root orchestration may accept an archive through
+`CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE`; otherwise it completes an isolated
+archive build before starting the consumer test. This variable is distinct
+from the existing `CRYSTAL_LATTICE_BUNDLE_ARCHIVE` input used by optimized
+PyInstaller tests.
+
+The deterministic default runtime and isolated build mechanism must be
+resolved in the active task before implementation. Portability validation
+remains part of level 2; an accidental dependency on the developer's active
+Python environment is not acceptable test setup.
 
 ## Common default-config boot contract
 
@@ -33,16 +37,22 @@ Every level starts an explicitly selected command with:
 
 The probe:
 
-1. Uses a fresh working directory and home.
-2. Removes inherited config, plugin-cache, Python-path, runtime-layout, and
-   credential variables that could make the command depend on developer
-   state.
-3. Waits for `GET /api/hello` to become ready.
-4. Reads the generated `.crystal/config.json`.
-5. Requires `GET /agents` to equal the complete set of agent identifiers in
+1. Uses a fresh working directory.
+2. Sets both `HOME` and `USERPROFILE` to one temporary user directory so
+   `Path.home()` resolves away from developer state on POSIX and Windows.
+3. Reads the exact default-config template under test, collects every variable
+   referenced through `${env:...}`, and removes those names from the child
+   process environment.
+4. Places a controlled empty `.env` in the working directory so standard
+   parent-directory discovery cannot load a developer file.
+5. Removes inherited config, plugin-cache, Python-path, and runtime-layout
+   variables that could make the command depend on developer state.
+6. Waits for `GET /api/hello` to become ready.
+7. Reads the generated `.crystal/config.json`.
+8. Requires `GET /agents` to equal the complete set of agent identifiers in
    that generated config.
-6. Enforces the level-specific plugin-cache expectation.
-7. Terminates the process on success or failure and includes the bounded log
+9. Enforces the level-specific plugin-cache expectation.
+10. Terminates the process on success or failure and includes the bounded log
    tail in early-exit and timeout errors.
 
 Subprocess output goes to a temporary file rather than an unread pipe because
@@ -53,26 +63,36 @@ The probe makes no provider request and must not contact a model API.
 ## Credentials and normal startup
 
 Starting the CLI, creating its default config, serving local HTTP endpoints,
-and listing configured agents do not require provider API keys, optional
-web-search keys, cloud-orchestrator credentials, or exported shell variables.
+and listing configured agents do not require values for the generated default
+config's external environment placeholders or exported shell variables.
 
-Missing credential placeholders may produce nonfatal configuration diagnostics
-or user-facing warnings. They must not become a fatal startup error and must
-not hide agents whose provider will need credentials later.
+When `${env:NAME}` remains unresolved after process and `.env` lookup, the
+config loader records an `env_missing` warning containing the variable name
+and config path, substitutes the loader's normal empty value, and continues
+resolution. The warning itself is nonfatal.
 
-The boot probe removes at least:
+The target warning shape is additive to the existing diagnostic:
 
-- `OPENROUTER_API_KEY`
-- `ANTHROPIC_API_KEY`
-- `OPENAI_API_KEY`
-- `FIREWORKS_API_KEY`
-- `ZAI_API_KEY`
-- `GEMINI_API_KEY`
-- `TAVILY_API_KEY`
-- `CLOUD_ORCHESTRATOR_TOKEN`
-- `CHATGPT_CREDENTIALS`
+```json
+{
+  "type": "env_missing",
+  "severity": "warning",
+  "variable": "NAME",
+  "path": "providers.example.api_key",
+  "detail": "Environment variable 'NAME' is not set"
+}
+```
 
-It does not replace them with dummy values.
+The resolved value is still subject to ordinary structural validation. For
+example, an empty plugin path may independently produce a fatal `plugin_*`
+error. This does not turn the earlier loader warning into a fatal credential or
+plugin-authentication check.
+
+The probe derives the environment names to remove from the default config
+rather than maintaining a credential denylist. It does not add generic
+secret-name filtering or inspect direct environment reads inside plugins.
+Those nonstandard reads belong to the owning plugin's contract and are not
+exercised because this probe makes no provider/tool request.
 
 The CLI loads `.env` values for config resolution in this precedence order:
 
@@ -86,16 +106,15 @@ Earlier `.env` locations win over later locations. Loaded values are
 config-resolution inputs and do not need to be exported into the launching
 shell or copied into the process environment.
 
-When an invoked provider or tool calls a credentialed API, its corresponding
-real credential remains required. The operation reports missing or invalid
-credentials at that use boundary. Credential-free startup does not imply
-anonymous API access, dummy production credentials, or suppression of
-configuration diagnostics.
+API-backed functionality still requires credentials according to the selected
+provider or tool contract. This specification neither defines a common
+request-time credential error nor treats provider authentication as
+distribution-test acceptance. Credential-free startup does not imply
+anonymous API access or dummy production credentials.
 
-Default-config tests that do not make provider requests must not inject
-unrelated dummy credentials solely to force an empty diagnostics list. A real
-provider integration keeps only credentials used by its selected request
-path.
+The level probes inject no dummy values. Existing startup-only setup changes
+only when it is directly consolidated with the shared probe. A repository-wide
+cleanup of provider test environments is not part of this specification.
 
 ## Level 1
 
@@ -178,7 +197,7 @@ Levels 1–3 use only the bundled-Python runtime layout and its
 `bin/crystal-lattice` or `Scripts/crystal-lattice.cmd` launcher shape.
 
 PyInstaller build code, archive selection, frozen-runtime policy, and test
-gates remain separate. Existing optimized-bundle startup-only setup may remove
-unnecessary dummy credentials to honor the common credential-free startup
-contract, but that does not make an optimized archive an input to these
-levels.
+gates remain separate. Existing optimized-bundle startup-only setup may lose
+dummy values if it is directly consolidated with the common boot probe, but
+that does not make an optimized archive an input to these levels or create a
+broader provider-test cleanup requirement.

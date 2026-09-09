@@ -15,9 +15,11 @@ and variants are resolved.
 ```
 
 A missing variable is reported as `env_missing` and resolves to an empty
-string. Missing credential variables do not prevent the CLI from starting,
-although an API request still needs the real credential required by its
-provider or tool.
+string. The `env_missing` diagnostic is not itself fatal, but the empty result
+may cause an independent validation failure when the field is structurally
+required, such as in a plugin path. Optional credential placeholders in the
+generated default config do not prevent the CLI from starting; API-backed
+functionality still needs the credentials defined by its provider or tool.
 
 Embedding applications can provide:
 

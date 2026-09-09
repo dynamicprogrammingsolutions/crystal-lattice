@@ -61,10 +61,15 @@ replace that user state.
 ## Startup and credentials
 
 The command can create and boot its default configuration without provider API
-keys, optional web-search keys, or cloud credentials. Missing `${env:...}`
-values resolve to empty strings and appear as `env_missing` configuration
-diagnostics; they are not among the plugin, mixin, merge, or variant failures
-that stop application construction.
+keys, optional web-search keys, or cloud credentials. Missing credential
+placeholders in the generated default config resolve to empty strings and
+appear as `env_missing` configuration diagnostics. Those diagnostics are not
+themselves among the plugin, mixin, merge, or variant failures that stop
+application construction.
+
+This does not make every missing environment placeholder safe. If an empty
+resolved value makes a plugin path or another structural setting invalid, the
+corresponding validator can still report its own fatal error.
 
 Users do not need to export shell variables before launching the CLI. The
 command supplies `.env` values to config resolution in this order:
@@ -80,8 +85,8 @@ files does not mutate the process environment.
 
 API-backed model and tool operations still require the credentials expected by
 the selected service. The default config can start and list those agents
-before their credentials are configured; credential failure belongs to the
-operation that needs the unavailable service.
+before their credentials are configured. Request authentication and direct
+environment reads remain owned by the selected provider or tool.
 
 ## Current verification boundaries
 
