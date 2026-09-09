@@ -36,6 +36,7 @@ Declarative UI element definitions for `request_options` keys. This generates **
 | `"string"` | text input | `request_options__{path}` |
 | `"number"` | number input | `request_options__{path}` |
 | `"boolean"` / `"checkbox"` | checkbox | `request_options__{path}` |
+| `{"type": "select", "options": [...], "rich_ui": true}` | fixed-choice select plus a pinned composer dropdown | `request_options__{path}` |
 | nested object | recursive subtree | `request_options__{parent}__{child}` |
 
 Keys are automatically converted to labels (for example, `max_tokens` → "Max Tokens", `thinking.type` → "Thinking Type").
@@ -44,6 +45,37 @@ Generated UI elements also include:
 
 - `config_path`: nested source path such as `request_options.thinking.type`
 - `default`: nested default copied from `request_options` when present in config
+
+### Composer controls
+
+Use an explicit select descriptor to make one fixed-choice request option
+available as a text-only rich control around the message composer:
+
+```json
+{
+  "request_options": {
+    "reasoning_effort": "max"
+  },
+  "request_options_ui": {
+    "reasoning_effort": {
+      "type": "select",
+      "options": ["high", "max"],
+      "rich_ui": true
+    }
+  }
+}
+```
+
+The descriptor keeps the ordinary Session Settings control and its flat
+`request_options__reasoning_effort` override key. `rich_ui: true` adds the
+same setting around the composer with the generated label and options,
+composer placement, default pinning, and no custom values, colors, or
+per-option icons.
+
+Without `rich_ui: true`, a select descriptor is equivalent to the existing
+array shorthand. Descriptors may appear inside nested `request_options_ui`
+subtrees and retain the same nested `config_path`, default lookup, deep merge,
+and request-payload behavior.
 
 ## How Flat Keys Work
 

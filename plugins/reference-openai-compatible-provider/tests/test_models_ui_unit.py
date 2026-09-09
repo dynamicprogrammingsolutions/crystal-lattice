@@ -69,16 +69,40 @@ def test_get_models_exception_returns_empty(monkeypatch):
     )
 
 
-def test_get_ui_elements_renders_text_when_no_models():
+def test_get_ui_elements_keeps_rich_dropdown_when_no_models():
     provider = OpenAICompatibleProvider()
     elements = provider.get_ui_elements({}, [], [])
     model_el = next(el for el in elements if el.get("key") == "model")
-    assert model_el.get("type") == "text"
-    assert "options" not in model_el
+    assert model_el == {
+        "ui_type": "config",
+        "type": "dropdown",
+        "key": "model",
+        "label": "Model",
+        "icon": "cpu",
+        "options": [],
+        "placeholder": "Search models or enter a model ID",
+        "custom_value": {
+            "enabled": True,
+            "option_label": "Use '{value}' as a custom model ID",
+        },
+        "rich_ui": {
+            "kind": "dropdown",
+            "label": "Model",
+            "show_label": False,
+            "options": [],
+            "placeholder": "Search models or enter a model ID",
+            "custom_value": {
+                "enabled": True,
+                "option_label": "Use '{value}' as a custom model ID",
+            },
+            "placements": ["composer"],
+            "default_pinned": True,
+        },
+    }
     assert all(el.get("key") != "base_url" for el in elements)
 
 
-def test_get_ui_elements_renders_select_when_models_present():
+def test_get_ui_elements_renders_rich_dropdown_when_models_present():
     provider = OpenAICompatibleProvider()
     elements = provider.get_ui_elements(
         {},
@@ -91,6 +115,26 @@ def test_get_ui_elements_renders_select_when_models_present():
         {"value": "m1", "label": "Model One"},
         {"value": "m2", "label": "m2"},
     ]
+    assert model_el["rich_ui"] == {
+        "kind": "dropdown",
+        "label": "Model",
+        "show_label": False,
+        "options": [
+            {"value": "m1", "label": "Model One"},
+            {"value": "m2", "label": "m2"},
+        ],
+        "placeholder": "Search models or enter a model ID",
+        "custom_value": {
+            "enabled": True,
+            "option_label": "Use '{value}' as a custom model ID",
+        },
+        "placements": ["composer"],
+        "default_pinned": True,
+    }
+    assert model_el["custom_value"] == {
+        "enabled": True,
+        "option_label": "Use '{value}' as a custom model ID",
+    }
 
 
 def test_get_ui_elements_renders_endpoint_dropdown_when_options_present():
@@ -119,7 +163,9 @@ def test_get_ui_elements_renders_endpoint_dropdown_when_options_present():
             {"value": "https://api.z.ai/api/coding/paas/v4", "label": "Coding"},
         ],
     }
-    assert model_el.get("type") == "text"
+    assert model_el.get("type") == "dropdown"
+    assert model_el.get("options") == []
+    assert model_el["rich_ui"]["custom_value"]["enabled"] is True
 
 
 def test_get_ui_elements_skips_invalid_endpoint_options_entries():

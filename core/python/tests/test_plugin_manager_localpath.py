@@ -374,6 +374,142 @@ def test_activate_sys_path_evicts_stale_imported_modules(tmp_path: Path) -> None
             sys.modules.pop("shadowpkg.sub", None)
 
 
+def test_activate_sys_path_evicts_record_discovered_dependency_modules(
+    tmp_path: Path,
+) -> None:
+    host = tmp_path / "host"
+    install_dir = tmp_path / "install"
+    host_dependency = host / "skew_dependency"
+    installed_dependency = install_dir / "skew_dependency"
+    installed_plugin = install_dir / "skew_plugin"
+    plugin_dist = install_dir / "skew_plugin-1.0.dist-info"
+    dependency_dist = install_dir / "skew_dependency-2.0.dist-info"
+
+    host_dependency.mkdir(parents=True)
+    installed_dependency.mkdir(parents=True)
+    installed_plugin.mkdir(parents=True)
+    plugin_dist.mkdir()
+    dependency_dist.mkdir()
+
+    (host_dependency / "__init__.py").write_text(
+        "VERSION = 'host-old'\n", encoding="utf-8"
+    )
+    (host_dependency / "submodule.py").write_text(
+        "VERSION = 'host-old'\n", encoding="utf-8"
+    )
+    (installed_dependency / "__init__.py").write_text(
+        "VERSION = 'cache-new'\nNEW_API = object()\n", encoding="utf-8"
+    )
+    (installed_dependency / "submodule.py").write_text(
+        "VERSION = 'cache-new'\n", encoding="utf-8"
+    )
+    (installed_plugin / "__init__.py").write_text(
+        "from skew_dependency import NEW_API\n", encoding="utf-8"
+    )
+    (plugin_dist / "top_level.txt").write_text("skew_plugin\n", encoding="utf-8")
+    (dependency_dist / "RECORD").write_text(
+        "\n".join(
+            [
+                "skew_dependency/__init__.py,,",
+                "skew_dependency/submodule.py,,",
+                "skew_dependency-2.0.dist-info/METADATA,,",
+                "skew_dependency-2.0.dist-info/RECORD,,",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    installer = PipTargetInstallStrategy()
+    original_sys_path = list(sys.path)
+    original_modules = {
+        name: sys.modules.pop(name, None)
+        for name in (
+            "skew_dependency",
+            "skew_dependency.submodule",
+            "skew_plugin",
+        )
+    }
+    try:
+        sys.path.insert(0, str(host))
+        host_module = importlib.import_module("skew_dependency")
+        host_submodule = importlib.import_module("skew_dependency.submodule")
+        assert host_module.VERSION == "host-old"
+        assert host_submodule.VERSION == "host-old"
+
+        installer._activate_sys_path(install_dir)
+
+        assert "skew_dependency" not in sys.modules
+        assert "skew_dependency.submodule" not in sys.modules
+        plugin_module = importlib.import_module("skew_plugin")
+        dependency_module = importlib.import_module("skew_dependency")
+        dependency_submodule = importlib.import_module("skew_dependency.submodule")
+        assert plugin_module.NEW_API is dependency_module.NEW_API
+        assert dependency_module.VERSION == "cache-new"
+        assert dependency_submodule.VERSION == "cache-new"
+
+        installer._activate_sys_path(install_dir)
+
+        assert sys.modules["skew_dependency"] is dependency_module
+        assert sys.modules["skew_dependency.submodule"] is dependency_submodule
+        assert sys.modules["skew_plugin"] is plugin_module
+    finally:
+        sys.path[:] = original_sys_path
+        for name, module in original_modules.items():
+            if module is not None:
+                sys.modules[name] = module
+            else:
+                sys.modules.pop(name, None)
+
+
+def test_top_level_discovery_uses_each_distributions_metadata(tmp_path: Path) -> None:
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    plugin_dist = install_dir / "plugin_dist-1.0.dist-info"
+    module_dependency_dist = install_dir / "module_dependency-1.0.dist-info"
+    package_dependency_dist = install_dir / "package_dependency-1.0.dist-info"
+    unusable_dist = install_dir / "unusable_dist-1.0.dist-info"
+    for dist_info in (
+        plugin_dist,
+        module_dependency_dist,
+        package_dependency_dist,
+        unusable_dist,
+    ):
+        dist_info.mkdir()
+
+    (install_dir / "plugin_package").mkdir()
+    (install_dir / "module_dependency.py").write_text("", encoding="utf-8")
+    package_dependency = install_dir / "package_dependency"
+    package_dependency.mkdir()
+    (package_dependency / "__init__.py").write_text("", encoding="utf-8")
+    (install_dir / "fallback_package").mkdir()
+
+    (plugin_dist / "top_level.txt").write_text(
+        "plugin_package\nnot-a-module\n", encoding="utf-8"
+    )
+    (module_dependency_dist / "RECORD").write_text(
+        "module_dependency.py,,\n" "module_dependency-1.0.dist-info/RECORD,,\n",
+        encoding="utf-8",
+    )
+    (package_dependency_dist / "RECORD").write_text(
+        "package_dependency/__init__.py,,\n"
+        "package_dependency/data.json,,\n"
+        "../outside.py,,\n",
+        encoding="utf-8",
+    )
+
+    discovered = PipTargetInstallStrategy()._top_level_modules_for_install_dir(
+        install_dir
+    )
+
+    assert discovered == {
+        "fallback_package",
+        "module_dependency",
+        "package_dependency",
+        "plugin_package",
+    }
+
+
 def test_non_preinstalled_bundled_localpath_source_installs_to_cache(
     tmp_path: Path, monkeypatch
 ) -> None:

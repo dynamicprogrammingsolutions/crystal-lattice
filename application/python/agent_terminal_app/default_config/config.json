@@ -956,7 +956,11 @@
         "reasoning_effort": "max"
       },
       "request_options_ui": {
-        "reasoning_effort": ["high", "max"]
+        "reasoning_effort": {
+          "type": "select",
+          "options": ["high", "max"],
+          "rich_ui": true
+        }
       }
     },
     "deepseek-ollama": {
@@ -970,7 +974,11 @@
         "reasoning_effort": "max"
       },
       "request_options_ui": {
-        "reasoning_effort": ["high", "max"]
+        "reasoning_effort": {
+          "type": "select",
+          "options": ["high", "max"],
+          "rich_ui": true
+        }
       }
     },
     "kimi-ollama": {
@@ -984,7 +992,11 @@
         "reasoning_effort": "max"
       },
       "request_options_ui": {
-        "reasoning_effort": ["high", "max"]
+        "reasoning_effort": {
+          "type": "select",
+          "options": ["high", "max"],
+          "rich_ui": true
+        }
       },
       "compaction": {
         "enabled": true,

@@ -750,13 +750,9 @@ export function normalizeConfigRichUiElement(
     }
     diagnostics = [...diagnostics, ...presentation.diagnostics];
     if (presentation.value.custom_value?.enabled === true) {
-      const outerCustom = normalizeCustomValue(
-        raw.custom_value,
-        raw.key,
-        "dropdown.custom_value",
-      );
-      diagnostics.push(...outerCustom.diagnostics);
-      if (outerCustom.value?.enabled !== true) {
+      const outerPresentation = normalizeConfigDropdownPresentation(raw);
+      diagnostics.push(...outerPresentation.diagnostics);
+      if (outerPresentation.value?.custom_value?.enabled !== true) {
         return fail(
           "A rich dropdown with custom_value.enabled requires custom_value.enabled on the containing config element.",
         );

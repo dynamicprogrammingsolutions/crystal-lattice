@@ -103,6 +103,42 @@ describe("config rich UI", () => {
     });
   });
 
+  it("uses the ordinary dropdown custom default for a rich custom model picker", () => {
+    const result = normalizeConfigRichUiElement({
+      ui_type: "config",
+      plugin: "reference_openai_compatible",
+      type: "dropdown",
+      key: "model",
+      label: "Model",
+      icon: "cpu",
+      options: [{ value: "glm-5.2:cloud", label: "glm-5.2:cloud" }],
+      placeholder: "Search models or enter a model ID",
+      rich_ui: {
+        kind: "dropdown",
+        label: "Model",
+        show_label: false,
+        options: [{ value: "glm-5.2:cloud", label: "glm-5.2:cloud" }],
+        placeholder: "Search models or enter a model ID",
+        custom_value: {
+          enabled: true,
+          option_label: "Use '{value}' as a custom model ID",
+        },
+        placements: ["composer"],
+        default_pinned: true,
+      },
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.value?.rich_ui).toMatchObject({
+      kind: "dropdown",
+      default_pinned: true,
+      custom_value: {
+        enabled: true,
+        option_label: "Use '{value}' as a custom model ID",
+      },
+    });
+  });
+
   it("does not inherit missing presentation fields from the config element", () => {
     const raw = modelElement();
     (raw.rich_ui as Record<string, unknown>).label = undefined;
@@ -304,10 +340,12 @@ describe("config dropdown suggestions", () => {
     const normalized = normalizeConfigRichUiElement({
       ui_type: "config",
       type: "select",
-      key: "reasoning_effort",
+      key: "request_options__reasoning_effort",
       label: "Reasoning effort",
       icon: "activity",
       options: [{ value: "high", label: "High" }],
+      config_path: "request_options.reasoning_effort",
+      default: "high",
       rich_ui: {
         kind: "dropdown",
         label: "Reasoning effort",

@@ -1199,3 +1199,211 @@ label. Rich dropdown metadata remains self-contained and repeats
 `custom_value` when its compact control should also accept custom values. This
 keeps ordinary provider dropdowns custom-capable without turning fixed-choice
 rich controls such as reasoning effort into free-form fields.
+
+## Post-completion follow-up
+
+### Reference OpenAI-compatible model and request-options composer controls
+
+Status: Approved
+
+Migrate the reference OpenAI-compatible provider to the standard rich model
+selector and add an opt-in fixed-choice rich descriptor to
+`request_options_ui`. This follow-up targets the
+[request options UI specification](../../plugins/feature-request-options/docs/development/specifications/request-options-ui/index.md)
+and requirements `ROUI-006` through `ROUI-014`. The user approved execution on
+September 8, 2026.
+
+The provider-owned model element becomes one custom-capable `dropdown` even
+when discovery returns no models. It includes the ordinary `cpu` fallback icon
+and a self-contained rich dropdown placed and pinned around the composer. The
+ordinary dropdown relies on the platform default that permits unrestricted
+custom values when outer `custom_value` is absent. The self-contained rich
+dropdown explicitly enables unrestricted custom model IDs and supplies its
+synthetic-option label.
+
+The request-options feature retains every existing shorthand and adds this
+fixed-choice leaf descriptor:
+
+```json
+"reasoning_effort": {
+  "type": "select",
+  "options": ["high", "max"],
+  "rich_ui": true
+}
+```
+
+`type: "select"` distinguishes the descriptor from a nested subtree.
+`rich_ui: true` expands to the standard text-only composer dropdown with a
+static ordinary `sliders` fallback icon, copied label and options,
+`placements: ["composer"]`, `default_pinned: true`, `show_label: false`, and
+`show_icon: false`. It does not enable custom values, tones, or per-option
+icons. The generated flat override key, nested `config_path`, default
+resolution, deep merge, and request injection remain unchanged.
+
+The descriptor works at nested request-option paths. The initial contract does
+not support rich numeric, text, or boolean controls or configurable rich
+appearance. A future extension may allow `rich_ui` to accept an object while
+retaining `true` as the concise default, but that is outside this follow-up.
+
+Representative Fireworks and Ollama configurations will replace only the
+existing reasoning-effort array shorthand with the descriptor. Temperature,
+top-p, seed, reasoning-history, and other request-option controls remain
+ordinary Session Settings elements. Repository implementation does not edit
+the user's home config; after verification, equivalent copyable configuration
+can be applied there separately.
+
+#### Implementation decisions and open questions
+
+- Decision: the reference provider owns model discovery and its ordinary/rich
+  model UI.
+- Decision: `feature-request-options` owns reasoning-effort UI generated from
+  `request_options_ui` and continues to own flat-key inflation and request
+  injection.
+- Decision: descriptor fields are ordinary plugin configuration and therefore
+  do not use dollar-prefixed names.
+- Decision: the initial descriptor supports only `type: "select"`,
+  non-empty string `options`, and optional `rich_ui: true`.
+- Decision: `rich_ui: true` has one fixed composer presentation and does not
+  introduce a second mutation or persistence path.
+- Decision: existing array and primitive shorthand forms remain supported
+  without output changes.
+- Open question: none.
+
+#### Documentation
+
+- The target contract is defined by the package-owned
+  [product specification](../../plugins/feature-request-options/docs/development/specifications/request-options-ui/product-spec.md)
+  and
+  [requirements](../../plugins/feature-request-options/docs/development/specifications/request-options-ui/requirements.md).
+- After implementation, update
+  `plugins/feature-request-options/README.md` with the delivered descriptor and
+  generated rich presentation.
+- Update the reference OpenAI-compatible provider README with its delivered
+  model discovery, manual-entry, and composer-selector behavior.
+- Review shared plugin UI authoring guidance only for a concise current
+  example; do not duplicate the request-options package contract there.
+
+#### Task checklist
+
+- [x] Record the approved design as a Draft follow-up for review.
+- [x] Create the request-options UI product specification and requirements.
+- [x] Obtain explicit approval to begin implementation.
+- [x] Add fixed-choice descriptor parsing and generated rich UI.
+- [x] Migrate the reference provider model element to the standard rich
+  dropdown.
+- [x] Update representative default/example Fireworks and Ollama
+  configurations.
+- [x] Update current package and provider documentation.
+- [x] Run focused, package, integration, and frontend verification.
+
+#### Requirement verification
+
+- `ROUI-006` and `ROUI-007`: deterministic feature tests compare descriptor
+  output with existing shorthand output and reject malformed descriptors
+  without losing valid siblings.
+- `ROUI-008` and `ROUI-009`: deterministic schema tests assert the exact
+  ordinary fallback and self-contained text-only composer declaration, then
+  validate it through the shared frontend SDK normalizer.
+- `ROUI-010`: nested descriptor and full-flow tests prove the selected value
+  reaches the same nested provider request payload without replacing sibling
+  fields.
+- `ROUI-011`: the complete existing request-options unit suite remains green.
+- `ROUI-012`: mobile and desktop production-screen tests render and mutate the
+  generated reasoning-effort control through the standard rich-UI path.
+- `ROUI-014`: malformed and unsupported descriptors are ignored while valid
+  sibling shorthand and descriptor elements remain available.
+- Reference-provider model tests cover discovery results, empty discovery,
+  unrestricted custom IDs, and exact ordinary/rich schema output.
+- Default-config or realistic application integration proves representative
+  Fireworks and Ollama agents expose both model and reasoning-effort composer
+  controls.
+- `ROUI-013`: documentation review checks package examples against generated
+  schemas and focused tests.
+
+#### Additional implementation verification
+
+- Run the complete `feature-request-options` unit suite.
+- Run focused reference OpenAI-compatible model UI tests and the package's
+  default non-API suite, reporting unrelated baseline failures separately.
+- Run frontend SDK rich-UI tests, focused mobile and desktop component tests,
+  and mobile TypeScript checking.
+- Run a realistic application/default-config schema integration without
+  requiring a paid model response.
+- No Detox or XCUITest is planned unless component verification exposes
+  native-only behavior.
+
+#### Implementation notes
+
+- The default Ollama GLM, DeepSeek, and Kimi agents now use the select
+  descriptor for `reasoning_effort`. The default Fireworks agent does not
+  currently declare reasoning effort, so the provider README supplies the
+  representative Fireworks descriptor using the already-tested GLM model and
+  effort values rather than adding an unsupported default-agent setting.
+- The application-level schema test accepts either an empty or populated model
+  catalog and asserts that the provider repeats the same options in its rich
+  selector. Provider unit tests separately make discovery success and empty
+  discovery deterministic.
+- The pre-existing broad default-config integration stops at an unrelated
+  session-search assertion because secondary search elements omit
+  `main_search: false`. A dedicated default-config integration verifies this
+  follow-up without weakening that assertion.
+- The reference provider's unrelated rate-limit unit file patches
+  `requests.post` while current code uses `requests.Session.post`; its known
+  failures remain outside this follow-up. The other default non-API provider
+  tests pass.
+
+#### Completion notes
+
+Completed September 8, 2026.
+
+`feature-request-options` now recognizes `type: "select"` descriptors with
+non-empty string `options`. A descriptor without `rich_ui: true` is equivalent
+to the existing array shorthand. `rich_ui: true` adds a default-pinned,
+text-only composer dropdown while preserving the same flat key, nested
+`config_path`, default resolution, sibling-preserving deep merge, and request
+payload injection. Malformed and unsupported descriptors are ignored without
+discarding valid siblings. Existing shorthand behavior remains unchanged.
+
+The reference OpenAI-compatible provider now emits one searchable model
+dropdown regardless of discovery results, with an ordinary `cpu` fallback
+icon and self-contained default-pinned composer presentation. Ordinary custom
+entry uses the platform default; the rich presentation explicitly enables
+unrestricted custom model IDs.
+
+The default Ollama GLM, DeepSeek, and Kimi agents opt their reasoning-effort
+controls into the composer. Package documentation describes the full existing
+and descriptor contracts, and the reference-provider guide includes a
+Fireworks reasoning-effort example. The user's home config was not edited.
+
+Verification passed with 32 request-options tests, 8 focused provider model-UI
+tests, 76 other reference-provider tests with 61 hosted/integration cases
+deselected, 2 focused default-config tests including the public application
+schema boundary, 340 frontend SDK tests, 13 focused mobile rich-UI tests,
+5 focused desktop rich-UI/settings tests, mobile TypeScript checking, Ruff,
+Black, JSON parsing, and diff checks. No Detox, XCUITest, or paid provider call
+was needed because the change uses the established rich renderer and request
+mutation path.
+
+September 8, 2026 follow-up verification: a temporary live-backend iOS Detox
+test connected through the normal mobile manual-connection flow to the active
+server, opened a real `glm-ollama` session, and initially exposed a contract
+normalization defect. The provider correctly omitted redundant outer
+`custom_value` while explicitly enabling custom entry in self-contained
+`rich_ui`, but the frontend rich validator still required the old explicit
+outer declaration and discarded the complete model control.
+
+The shared normalizer now evaluates the containing ordinary dropdown through
+its normal presentation contract, including the default unrestricted custom
+entry. A permanent frontend SDK regression uses the exact reference-provider
+model schema. After rebuilding the iOS release app, the live Detox test passed:
+the model control was visibly default-pinned, displayed the session's
+`glm-5.3:cloud` override, opened the real Ollama catalog, and exposed its
+declared model option. The environment-specific Detox file was removed after
+verification; generated screenshots, videos, and logs remain ignored.
+
+The provider also declares unrestricted outer `custom_value` explicitly, with
+no regex. The platform default remains valid for providers that omit it, while
+this provider uses the declaration to customize the ordinary synthetic-option
+label and remain compatible with the previously distributed TestFlight
+validator. The running server must reload the plugin before that existing
+mobile build receives the compatible schema.

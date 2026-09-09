@@ -10,6 +10,7 @@ Config keys (flat, optional):
 When request_options_ui is defined, the plugin generates:
 - Flat config keys like ``request_options__temperature`` for UI/session overrides
 - UI elements with flat keys plus nested source metadata
+- Optional fixed-choice rich composer controls from ``rich_ui: true`` descriptors
 - During init(), flat keys are extracted, inflated into nested objects, and
   deep-merged back into ``request_options``
 
@@ -46,7 +47,11 @@ class RequestOptionsFeature(FeaturePlugin):
             "request_options": {"temperature": 0.7},
             "request_options_ui": {
                 "temperature": "number",
-                "max_tokens": ["512", "1024", "2048"],
+                "reasoning_effort": {
+                    "type": "select",
+                    "options": ["high", "max"],
+                    "rich_ui": True,
+                },
             }
         }
 
@@ -73,17 +78,45 @@ class RequestOptionsFeature(FeaturePlugin):
 
     name: str = "request_options"
     version: str = "0.3.0"
-    priority: int = 200  # Run after extensions that prepare request_options (e.g., verbosity, reasoning)
+    # Run after extensions that prepare request_options (e.g. verbosity/reasoning).
+    priority: int = 200
 
     # Prefix for flat UI keys
     FLAT_KEY_PREFIX: str = "request_options__"
 
     # ---- Config / UI ----
     @staticmethod
+    def _is_ui_leaf_descriptor(ui_spec: Any) -> bool:
+        if not isinstance(ui_spec, dict):
+            return False
+        descriptor_type = ui_spec.get("type")
+        return isinstance(descriptor_type, str) and (
+            descriptor_type == "select" or "options" in ui_spec or "rich_ui" in ui_spec
+        )
+
+    @staticmethod
+    def _select_descriptor_options(ui_spec: Any) -> list[str] | None:
+        if not isinstance(ui_spec, dict) or ui_spec.get("type") != "select":
+            return None
+        options = ui_spec.get("options")
+        if (
+            not isinstance(options, list)
+            or not options
+            or any(not isinstance(value, str) for value in options)
+        ):
+            return None
+        rich_ui = ui_spec.get("rich_ui", False)
+        if not isinstance(rich_ui, bool):
+            return None
+        return options
+
+    @staticmethod
     def _normalize_ui_leaf_type(ui_spec: Any) -> str | None:
         if isinstance(ui_spec, list):
             options = [str(v) for v in ui_spec if isinstance(v, str)]
             return "select" if options else None
+        if RequestOptionsFeature._select_descriptor_options(ui_spec) is not None:
+            return "select"
         if isinstance(ui_spec, str) and ui_spec == "string":
             return "text"
         if isinstance(ui_spec, str) and ui_spec == "number":
@@ -133,14 +166,27 @@ class RequestOptionsFeature(FeaturePlugin):
         }
 
         if ui_type == "select":
-            options = [
-                {"value": str(v), "label": str(v)}
-                for v in ui_spec
-                if isinstance(v, str)
-            ]
-            if not options:
+            option_values = (
+                cls._select_descriptor_options(ui_spec)
+                if isinstance(ui_spec, dict)
+                else [v for v in ui_spec if isinstance(v, str)]
+            )
+            if not option_values:
                 return None
+            options = [{"value": value, "label": value} for value in option_values]
             element["options"] = options
+
+            if isinstance(ui_spec, dict) and ui_spec.get("rich_ui") is True:
+                element["icon"] = "sliders"
+                element["rich_ui"] = {
+                    "kind": "dropdown",
+                    "label": element["label"],
+                    "show_label": False,
+                    "show_icon": False,
+                    "options": options,
+                    "placements": ["composer"],
+                    "default_pinned": True,
+                }
 
         found_default, default_value = cls._nested_value(request_options, path)
         if found_default:
@@ -160,7 +206,9 @@ class RequestOptionsFeature(FeaturePlugin):
         current[path[-1]] = value
 
     @classmethod
-    def _deep_merge(cls, base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
+    def _deep_merge(
+        cls, base: Dict[str, Any], overlay: Dict[str, Any]
+    ) -> Dict[str, Any]:
         merged: Dict[str, Any] = dict(base)
         for key, value in overlay.items():
             existing = merged.get(key)
@@ -201,8 +249,10 @@ class RequestOptionsFeature(FeaturePlugin):
                     "Array values create select dropdowns, 'string' creates "
                     "text input, 'number' creates number input, and "
                     "'boolean'/'checkbox' creates a checkbox. Values may "
-                    "also be nested objects. Generated flat keys use the "
-                    "prefix 'request_options__'."
+                    "also be nested objects. A leaf object with type='select' "
+                    "and string options creates a fixed-choice descriptor; "
+                    "rich_ui=true adds its standard pinned composer dropdown. "
+                    "Generated flat keys use the prefix 'request_options__'."
                 ),
                 "additionalProperties": {
                     "oneOf": [
@@ -221,7 +271,11 @@ class RequestOptionsFeature(FeaturePlugin):
                         },
                         {
                             "type": "object",
-                            "description": "Nested request_options_ui subtree",
+                            "description": (
+                                "Nested request_options_ui subtree or a select "
+                                "descriptor with type, options, and optional "
+                                "rich_ui=true"
+                            ),
                         },
                     ]
                 },
@@ -245,6 +299,8 @@ class RequestOptionsFeature(FeaturePlugin):
                 - "string" → text input
                 - "number" → number input
                 - "boolean"/"checkbox" → checkbox
+                - {"type": "select", "options": [...], "rich_ui": true}
+                  → fixed-choice select plus a text-only composer dropdown
                 - nested dicts containing the same leaf forms
             key_prefix: Prefix for generated element keys
             path_prefix: Current nested request_options path
@@ -263,6 +319,16 @@ class RequestOptionsFeature(FeaturePlugin):
 
             path = [*path_prefix, key]
             if isinstance(value, dict):
+                if RequestOptionsFeature._is_ui_leaf_descriptor(value):
+                    element = RequestOptionsFeature._build_ui_element(
+                        path,
+                        value,
+                        request_options=request_options,
+                        key_prefix=key_prefix,
+                    )
+                    if element is not None:
+                        elements.append(element)
+                    continue
                 elements.extend(
                     RequestOptionsFeature._generate_ui_elements_from_options(
                         value,
@@ -304,7 +370,9 @@ class RequestOptionsFeature(FeaturePlugin):
         return self._generate_ui_elements_from_options(
             options_ui,
             key_prefix=self.FLAT_KEY_PREFIX,
-            request_options=request_options if isinstance(request_options, dict) else {},
+            request_options=(
+                request_options if isinstance(request_options, dict) else {}
+            ),
         )
 
     # Uses adapter default get_models (no-op on models)
