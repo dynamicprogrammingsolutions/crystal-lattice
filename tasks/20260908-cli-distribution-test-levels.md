@@ -276,7 +276,7 @@ current-tree corrections and additional findings appear after the inventory.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 Implement this in three ordered passes. First establish the target
 specification and an honest current-state implementation page. Then implement
@@ -345,6 +345,14 @@ probes. It will:
 - support an expected populated plugin cache for level 1 and an expected empty
   plugin cache for levels 2 and 3.
 
+The probe owns the launched process tree. On POSIX it starts a new session and
+sends `SIGTERM`, then `SIGKILL` if needed, to the process group. On Windows it
+launches the `.cmd` command through `cmd.exe` with
+`CREATE_NEW_PROCESS_GROUP`, attempts `CTRL_BREAK_EVENT`, and falls back to
+`taskkill /PID <wrapper-pid> /T /F`. Cleanup waits for the wrapper and verifies
+that the loopback port no longer accepts connections. A Windows-only helper
+test uses a nested `.cmd` and child Python server to verify descendant cleanup.
+
 Do not add generic secret-name patterns, a growing credential denylist, or
 special handling for plugins that read process environment variables directly.
 The distribution contract ends at config loading. Remove dummy values from the
@@ -369,11 +377,19 @@ three levels. Archive-consuming tests receive an already built
 current-platform archive and must never invoke Nox or install build
 dependencies from inside a running pytest process.
 
-The root-level orchestration will build before starting those tests or accept
-`CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` as an already built input. Its exact
-isolated-build and default-runtime mechanics remain blocked on the decisions
-listed below. The distinct archive-variable name avoids conflating these tests
-with the existing `CRYSTAL_LATTICE_BUNDLE_ARCHIVE` PyInstaller suite.
+A standard-library root runner orchestrates each npm command. For levels 2 and
+3 it accepts `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` as an already built
+input or invokes the isolated Nox `build_bundle` session and waits for it to
+finish before starting pytest. The distinct archive-variable name avoids
+conflating these tests with the existing
+`CRYSTAL_LATTICE_BUNDLE_ARCHIVE` PyInstaller suite.
+
+Convert `build_bundle` from `python=False` to a normal isolated Nox session.
+Install Core, application binary extras, and `uv` only inside that Nox
+environment. Unless `CRYSTAL_PYTHON_RUNTIME` explicitly supplies a runtime,
+the session provisions an `uv`-managed Python 3.11 under its temporary
+directory and passes it to the existing builder's `--python-runtime` option.
+The repository venv is orchestration-only and is never a pip-install target.
 
 Level 1 will:
 
@@ -492,19 +508,22 @@ Prepare and build the documentation site from authored sources; do not edit
   gates, archive variables, or behavior. Its existing default-config startup
   preflight may lose dummy values only if directly consolidated with the
   shared boot helper; otherwise its tests remain separate.
-- **Open question — isolated archive construction (blocking):** move archive
-  construction outside a running pytest process and prevent the Nox build from
-  installing into the repository environment. Recommendation: use an isolated
-  Nox build environment, then run archive-consuming tests after it exits.
-- **Open question — Windows process-tree cleanup (blocking):** define how the
-  probe terminates the descendant Python process started by `.cmd` launchers
-  and verifies that no server remains. Recommendation: a dedicated Windows
-  process group with graceful shutdown and a `taskkill /T /F` fallback.
-- **Open question — deterministic local runtime (blocking):** make the default
-  local archive path provision the same `uv`-managed Python family as release
-  CI, or make a prebuilt archive an explicit prerequisite. Recommendation:
-  automatic isolated `uv` provisioning, with archive/runtime variables as
-  optional overrides.
+- **Decision — isolated archive construction (user-approved):** the root
+  runner completes a normal isolated Nox `build_bundle` session before
+  starting archive-consuming pytest. No build-time pip command targets the
+  repository environment.
+- **Decision — deterministic local runtime (user-approved):** the isolated Nox
+  session automatically provisions an `uv`-managed Python 3.11 runtime,
+  matching release CI's runtime family. `CRYSTAL_PYTHON_RUNTIME` and
+  `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` remain optional overrides.
+- **Decision — Windows process-tree cleanup (user-approved):** launch `.cmd`
+  wrappers through `cmd.exe` in a new process group, try
+  `CTRL_BREAK_EVENT`, fall back to `taskkill /T /F`, wait for exit, and verify
+  the server port closes. POSIX uses `SIGTERM`/`SIGKILL` against a new process
+  group.
+- **Open questions:** none blocking implementation. A platform-specific
+  deviation discovered by native execution returns the plan to Draft if it
+  changes shipped behavior or weakens process-tree ownership.
 
 ### Documentation
 
@@ -531,7 +550,7 @@ Prepare and build the documentation site from authored sources; do not edit
   and initial requirements state.
 - [x] Create and index the honest current-state distribution implementation
   page before changing test behavior.
-- [ ] Resolve and approve isolated archive construction, Windows process-tree
+- [x] Resolve and approve isolated archive construction, Windows process-tree
   cleanup, and deterministic local runtime provisioning.
 - [ ] Add the shared isolated default-config boot probe and focused helper
   coverage.
@@ -642,3 +661,8 @@ fallback limit operational ambiguity.
   the agreed loader-owned warning and targeted environment-isolation model.
   Documentation preparation and MkDocs build passed after the revision with
   only the previously observed repository warnings.
+- 2026-09-08: The user approved the remaining review resolutions. Archive
+  construction will run in an isolated Nox environment before pytest,
+  automatically use an `uv`-managed Python 3.11 runtime by default, and use
+  explicit POSIX/Windows process-tree cleanup with a closed-port assertion.
+  The execution plan returned to Approved.

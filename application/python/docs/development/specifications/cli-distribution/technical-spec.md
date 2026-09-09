@@ -22,10 +22,13 @@ archive build before starting the consumer test. This variable is distinct
 from the existing `CRYSTAL_LATTICE_BUNDLE_ARCHIVE` input used by optimized
 PyInstaller tests.
 
-The deterministic default runtime and isolated build mechanism must be
-resolved in the active task before implementation. Portability validation
-remains part of level 2; an accidental dependency on the developer's active
-Python environment is not acceptable test setup.
+The default build uses a normal isolated Nox environment. Build dependencies
+are installed only there, never into the repository environment running the
+orchestrator or a test. Unless `CRYSTAL_PYTHON_RUNTIME` supplies an explicit
+runtime directory, Nox provisions an `uv`-managed Python 3.11 runtime under its
+temporary directory and passes that runtime to the package builder.
+Portability validation remains part of level 2; an accidental dependency on
+the developer's active Python environment is not acceptable test setup.
 
 ## Common default-config boot contract
 
@@ -59,6 +62,29 @@ Subprocess output goes to a temporary file rather than an unread pipe because
 dynamic plugin installation can produce enough output to block level 1.
 
 The probe makes no provider request and must not contact a model API.
+
+## Process-tree ownership
+
+On POSIX, the probe starts the command in a new session. Cleanup signals the
+entire process group with `SIGTERM`, waits for bounded graceful exit, and sends
+`SIGKILL` to the group if needed.
+
+On Windows, the probe executes archive and installed `.cmd` wrappers through
+`cmd.exe` with `CREATE_NEW_PROCESS_GROUP`. Cleanup sends
+`CTRL_BREAK_EVENT`, waits for bounded graceful exit, and then runs:
+
+```text
+taskkill /PID <wrapper-pid> /T /F
+```
+
+when the tree remains alive. The `/T` descendant cleanup is required because
+the wrappers start the packaged Python as a child process.
+
+Every cleanup path waits for the wrapper and confirms that the reserved
+loopback port no longer accepts connections. Failure to stop the process tree
+fails the smoke with the server log. Windows-specific helper coverage uses a
+nested `.cmd` that starts a child Python server before native release smoke is
+accepted as evidence.
 
 ## Credentials and normal startup
 
