@@ -75,7 +75,12 @@ def _save_session(
     )
 
 
-# Requirements: SLIST-003, SLIST-004, SLIST-005, SLIST-007, SLIST-010
+# Requirements:
+# - SLIST-003: Asserts the complete summary shape and native metadata exclusion over HTTP.
+# - SLIST-004: Asserts production plugins contribute fields through the shared service.
+# - SLIST-005: Asserts the HTTP collection preserves shared application ordering.
+# - SLIST-007: Asserts application filtering and limit behavior beside the HTTP contract.
+# - SLIST-010: Asserts list, exact lookup, missing lookup, and envelope behavior.
 def test_session_list_http_contract_serializes_shared_summaries(
     session_list_http_client: Tuple[TestClient, AgentApplication, Path],
 ) -> None:
@@ -153,7 +158,10 @@ def test_session_list_http_contract_serializes_shared_summaries(
     assert "missing" in missing.json()["detail"]
 
 
-# Requirements: SLIST-004, SLIST-005, SLIST-010
+# Requirements:
+# - SLIST-004: Asserts configured pin metadata contributes fields through a real plugin.
+# - SLIST-005: Asserts contributed pin ordering is reflected by the HTTP collection.
+# - SLIST-010: Confirms the HTTP adapter serializes the shared application result.
 def test_session_list_http_contract_orders_configured_pinned_metadata(
     tmp_path: Path,
 ) -> None:
@@ -242,7 +250,11 @@ def test_session_list_http_contract_orders_configured_pinned_metadata(
         application.close()
 
 
-# Requirements: SLIST-004, SLIST-005, SLIST-007, SLIST-010
+# Requirements:
+# - SLIST-004: Asserts archive/order plugins compose through list triggers.
+# - SLIST-005: Asserts bucket ordering composes with modification time.
+# - SLIST-007: Asserts archive defaults and explicit show-all filtering.
+# - SLIST-010: Confirms the HTTP adapter returns the shared ordered summaries.
 def test_session_list_http_contract_sorts_recent_archives_below_other_sessions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -364,7 +376,9 @@ def test_session_list_http_contract_sorts_recent_archives_below_other_sessions(
         application.close()
 
 
-# Requirements: SLIST-008, SLIST-010
+# Requirements:
+# - SLIST-008: Confirms one malformed file yields fallback values without failing HTTP.
+# - SLIST-010: Confirms the HTTP collection remains valid and includes every record.
 def test_session_list_http_contract_isolates_a_malformed_record(
     session_list_http_client: Tuple[TestClient, AgentApplication, Path],
 ) -> None:
@@ -434,7 +448,10 @@ class _BlockedHttpSessionStore:
         raise AssertionError("delete is not used by this test")
 
 
-# Requirements: SLIST-013, SLIST-015, SLIST-020
+# Requirements:
+# - SLIST-013: Asserts HTTP returns a normal-shaped placeholder for blocked content.
+# - SLIST-015: Asserts the configured foreground interval bounds the HTTP response.
+# - SLIST-020: Confirms the unchanged server envelope carries the fallback summary.
 def test_session_list_http_contract_returns_placeholder_before_slow_load() -> None:
     store = _BlockedHttpSessionStore()
     service = SessionListService(

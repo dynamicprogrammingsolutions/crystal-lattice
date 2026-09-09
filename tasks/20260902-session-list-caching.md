@@ -506,3 +506,25 @@ Assessment:
   split across component tests, existing complete-list integration behavior,
   and narrower HTTP assertions.
 - No implementation or test behavior was changed after this assessment.
+
+### In-table generated test evidence
+
+- [x] Restore evidence to each preserved/new functional/non-functional
+      requirement table.
+- [x] Keep hand-maintained implementation and documentation links in the table
+      while generating test links after a stable marker.
+- [x] Expand requirement annotations above tests with a concise statement of
+      what each test proves.
+- [x] Add `scripts/update_session_list_requirement_evidence.py` with explicit
+      requirements/test-file inputs, line-numbered relative links, update mode,
+      and `--check` mode.
+- [x] Add an automated synchronization test for generated requirement
+      evidence.
+- [x] Verify the updater, focused Core tests, selected HTTP/terminal tests,
+      documentation preparation, and MkDocs build.
+
+The generator currently emits 74 test-function links across all 20
+requirements. Link labels contain the package- or repository-relative test path
+and current definition line; targets use relative Markdown paths with `#L…`
+anchors. Manual source and documentation links remain editable before the
+`<!-- test-evidence -->` marker.

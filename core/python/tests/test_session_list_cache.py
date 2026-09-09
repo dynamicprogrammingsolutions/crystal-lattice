@@ -29,7 +29,9 @@ def _record(*, revision: str = "revision") -> _PersistedSessionSummary:
     )
 
 
-# Requirements: SLIST-014, SLIST-018
+# Requirements:
+# - SLIST-014: Confirms only matching revision and contract entries are reusable.
+# - SLIST-018: Confirms complete summaries round-trip through private persistence.
 def test_sqlite_summary_cache_round_trips_only_valid_entries(
     tmp_path: Path,
 ) -> None:
@@ -56,7 +58,9 @@ def test_sqlite_summary_cache_round_trips_only_valid_entries(
     )
 
 
-# Requirements: SLIST-018, SLIST-019
+# Requirements:
+# - SLIST-018: Confirms missing and explicitly invalidated rows are removed safely.
+# - SLIST-019: Confirms invalidation removes obsolete persistent summaries.
 def test_sqlite_summary_cache_removes_missing_and_invalidated_entries(
     tmp_path: Path,
 ) -> None:
@@ -84,7 +88,8 @@ def test_sqlite_summary_cache_removes_missing_and_invalidated_entries(
     )
 
 
-# Requirement: SLIST-018
+# Requirements:
+# - SLIST-018: Confirms corrupt derived state is moved aside and rebuilt.
 def test_sqlite_summary_cache_rebuilds_corrupt_database(tmp_path: Path) -> None:
     path = tmp_path / "cache.sqlite3"
     path.write_bytes(b"not a sqlite database")
