@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import platform
+import shutil
+from typing import Mapping
 
 try:
     import tomllib
@@ -89,6 +91,52 @@ def resolve_configured_archive() -> Path | None:
     return archive
 
 
+def resolve_bash(
+    *,
+    env: Mapping[str, str] | None = None,
+    windows: bool | None = None,
+) -> str:
+    environment = os.environ if env is None else env
+    if windows is None:
+        windows = os.name == "nt"
+    path_value = environment.get("PATH", "")
+    if not windows:
+        bash = shutil.which("bash", path=path_value)
+        if bash is None:
+            raise RuntimeError("Could not find bash on PATH")
+        return bash
+
+    candidates: list[Path] = []
+    path_entries = [
+        Path(entry)
+        for entry in path_value.split(";")
+        if entry and Path(entry).is_absolute()
+    ]
+    for entry in path_entries:
+        for parent in (entry, *entry.parents):
+            if parent.name.lower() == "git":
+                candidates.extend(
+                    [
+                        parent / "bin" / "bash.exe",
+                        parent / "usr" / "bin" / "bash.exe",
+                    ]
+                )
+                break
+
+    for variable in ("ProgramFiles", "ProgramFiles(x86)"):
+        root = environment.get(variable)
+        if root:
+            candidates.append(Path(root) / "Git" / "bin" / "bash.exe")
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    raise RuntimeError(
+        "Could not find Git Bash. Install Git for Windows or run with "
+        "an explicit Bash-compatible environment."
+    )
+
+
 __all__ = [
     "APP_PYPROJECT",
     "ARCHIVE_ENV",
@@ -101,5 +149,6 @@ __all__ = [
     "normalize_arch",
     "normalize_platform",
     "read_project_version",
+    "resolve_bash",
     "resolve_configured_archive",
 ]

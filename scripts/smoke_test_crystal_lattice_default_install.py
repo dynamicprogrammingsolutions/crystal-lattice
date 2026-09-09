@@ -22,6 +22,7 @@ from crystal_lattice_distribution import (
     archive_package_stem,
     assert_archive_matches_current_platform,
     read_project_version,
+    resolve_bash,
 )
 
 
@@ -80,9 +81,10 @@ def smoke_test_default_install(archive: Path) -> None:
                 bin_dir=bin_dir,
                 download_base=download_base,
             )
+            bash = resolve_bash(env=installer_env)
             run(
                 [
-                    "bash",
+                    bash,
                     "-c",
                     'curl -fsSL "$CRYSTAL_LATTICE_DOWNLOAD_BASE_URL/install.sh" '
                     "| bash",
@@ -98,7 +100,7 @@ def smoke_test_default_install(archive: Path) -> None:
         if staging_bundle.exists():
             raise RuntimeError("Installer did not remove the stale staging directory")
 
-        verify_command_name_resolution(installer_env)
+        verify_command_name_resolution(installer_env, bash=bash)
         assert_plugin_not_preinstalled(
             installed_bundle / "preinstalled-plugins.json",
             DYNAMIC_PLUGIN_PROBE,
@@ -160,10 +162,10 @@ def installer_environment(
     return env
 
 
-def verify_command_name_resolution(env: dict[str, str]) -> None:
+def verify_command_name_resolution(env: dict[str, str], *, bash: str) -> None:
     run(
         [
-            "bash",
+            bash,
             "-c",
             "command -v crystal-lattice >/dev/null && "
             "crystal-lattice --runtime-layout-json >/dev/null",

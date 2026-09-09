@@ -6,7 +6,11 @@ from pathlib import Path
 import subprocess
 import sys
 
-from crystal_lattice_distribution import ARCHIVE_ENV, current_platform_archive
+from crystal_lattice_distribution import (
+    ARCHIVE_ENV,
+    current_platform_archive,
+    resolve_bash,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,7 +31,7 @@ def main() -> None:
     env = dict(os.environ)
     env[ARCHIVE_ENV] = archive.as_posix()
     subprocess.run(
-        ["bash", str(ROOT / "scripts" / "install.sh")],
+        [resolve_bash(env=env), str(ROOT / "scripts" / "install.sh")],
         cwd=str(ROOT),
         env=env,
         check=True,

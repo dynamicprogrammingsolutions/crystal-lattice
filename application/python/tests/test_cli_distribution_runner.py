@@ -69,6 +69,25 @@ def test_managed_runtime_selection_ignores_hidden_and_symlink_directories(
     assert runtime_builder.find_managed_runtime(install_dir) == runtime
 
 
+def test_windows_bash_resolution_avoids_wsl_launcher(tmp_path: Path) -> None:
+    system_dir = tmp_path / "Windows" / "System32"
+    git_root = tmp_path / "Git"
+    system_dir.mkdir(parents=True)
+    (system_dir / "bash.exe").touch()
+    (git_root / "cmd").mkdir(parents=True)
+    (git_root / "cmd" / "git.exe").touch()
+    (git_root / "bin").mkdir()
+    git_bash = git_root / "bin" / "bash.exe"
+    git_bash.touch()
+
+    resolved = distribution.resolve_bash(
+        env={"PATH": f"{system_dir};{git_root / 'cmd'}"},
+        windows=True,
+    )
+
+    assert resolved == str(git_bash)
+
+
 def test_local_installer_builds_then_delegates_to_public_installer(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -78,6 +97,7 @@ def test_local_installer_builds_then_delegates_to_public_installer(
     calls: list[tuple[list[str], dict[str, str] | None]] = []
 
     monkeypatch.setattr(local_installer, "current_platform_archive", lambda: archive)
+    monkeypatch.setattr(local_installer, "resolve_bash", lambda **_kwargs: "/bin/bash")
 
     def fake_run(
         command: list[str],
@@ -98,6 +118,6 @@ def test_local_installer_builds_then_delegates_to_public_installer(
     assert calls[0][0][1].endswith(
         "scripts/build_crystal_lattice_python_runtime_archive.py"
     )
-    assert calls[1][0] == ["bash", str(ROOT / "scripts" / "install.sh")]
+    assert calls[1][0] == ["/bin/bash", str(ROOT / "scripts" / "install.sh")]
     assert calls[1][1] is not None
     assert calls[1][1][distribution.ARCHIVE_ENV] == str(archive)

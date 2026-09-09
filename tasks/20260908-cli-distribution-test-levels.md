@@ -851,6 +851,15 @@ scope. New work and evidence are recorded below.
   direct first-run `--config-local` generation. The archive-based smokes keep
   explicit default-derived configs only to add the non-preinstalled plugin
   probe.
+- 2026-09-09: Native GitHub Actions run
+  [34369660671](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34369660671)
+  passed both smokes on Linux AMD64, macOS AMD64, and macOS ARM64. Windows
+  passed the extracted-archive smoke but the default-installer smoke resolved
+  `bash` to the Windows Subsystem for Linux launcher, which had no installed
+  distribution, instead of Git Bash. Added a shared resolver that derives Git
+  Bash from Git for Windows PATH/install roots and is used by both the direct
+  installer smoke and local production installation. Focused tests and the
+  macOS default-installer smoke passed after the fix; native rerun pending.
 
 ### Follow-up execution plan
 
