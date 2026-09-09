@@ -19,9 +19,9 @@ WRAPPED_SCRIPTS = {
     "test:application",
     "test:application:unit",
     "test:examples",
-    "test:cli:clean-env",
-    "test:cli:bundle",
-    "test:cli:install",
+    "test:cli:source-install",
+    "test:cli:archive",
+    "test:cli:default-install",
     "test:core:integration",
     "test:application:integration",
     "test:ollama",
@@ -225,17 +225,38 @@ def test_cli_distribution_scripts_use_the_isolated_runner():
     scripts = _load_scripts()
 
     assert (
-        scripts["test:cli:clean-env"] == "python scripts/repo_run.py python "
-        "scripts/run_cli_distribution_test.py clean-env"
+        scripts["test:cli:source-install"] == "python scripts/repo_run.py python "
+        "scripts/run_cli_distribution_test.py source-install"
     )
     assert (
-        scripts["test:cli:bundle"] == "python scripts/repo_run.py python "
-        "scripts/run_cli_distribution_test.py bundle"
+        scripts["test:cli:archive"] == "python scripts/repo_run.py python "
+        "scripts/run_cli_distribution_test.py archive"
     )
     assert (
-        scripts["test:cli:install"] == "python scripts/repo_run.py python "
-        "scripts/run_cli_distribution_test.py install"
+        scripts["test:cli:default-install"] == "python scripts/repo_run.py python "
+        "scripts/run_cli_distribution_test.py default-install"
     )
+
+
+def test_build_and_install_scripts_do_not_use_nox():
+    scripts = _load_scripts()
+
+    assert scripts["build:bundle"] == (
+        "python scripts/repo_run.py python "
+        "scripts/build_crystal_lattice_python_runtime_archive.py"
+    )
+    assert scripts["build:optimized"] == (
+        "python scripts/repo_run.py python "
+        "scripts/build_crystal_lattice_optimized_archive.py"
+    )
+    assert scripts["install:prod:local"] == (
+        "python scripts/repo_run.py python "
+        "scripts/install_current_crystal_lattice_archive.py"
+    )
+    assert scripts["install:dev:local"] == (
+        "python scripts/repo_run.py python scripts/install_crystal_lattice_cli_dev.py"
+    )
+    assert all("nox" not in command for command in scripts.values())
 
 
 def test_release_scripts_run_local_gate_through_repo_run():

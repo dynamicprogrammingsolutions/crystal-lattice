@@ -33,10 +33,15 @@ application, and the default config's local plugin closure into the packaged
 Python. `preinstalled-plugins.json` lets runtime plugin resolution import that
 closure without copying it into user state.
 
-`scripts/install_crystal_lattice_archive.py` extracts an archive into a
-temporary staging directory, replaces the versioned target under the install
-root, creates a wrapper in the selected bin directory, and verifies
+`scripts/install.sh` is the user-facing installation authority. It downloads
+or accepts a matching local archive, extracts it into a temporary staging
+directory, replaces the versioned target under the install root, creates the
+installed command in a suitable existing PATH directory, and verifies
 `--runtime-layout-json` and `--help`.
+
+The installed command is a small forwarding script that invokes the archive
+launcher from its final versioned directory. On Windows the installer creates
+both the Git Bash shell command and a `.cmd` command for native command lookup.
 
 The principal local maintainer entry points are:
 
@@ -45,13 +50,20 @@ npm run build:bundle
 npm run install:prod:local
 ```
 
-The Nox `build_bundle` and `install_prod_local` sessions back these commands.
-`build_bundle` uses an isolated Nox environment for build dependencies and
-provisions an `uv`-managed Python 3.11 runtime by default. It does not install
-or upgrade packages in the repository environment that launched Nox.
+Direct scripts back these npm commands. The bundled-Python build creates a
+temporary host build venv and provisions an `uv`-managed Python 3.11 runtime
+by default. The optimized PyInstaller build uses its own temporary build venv.
+Neither installs or upgrades packages in the repository environment that
+launched the command.
 
 Set `CRYSTAL_PYTHON_RUNTIME` to build deliberately from another runtime
-directory.
+directory. `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` lets the public installer
+or either archive-based smoke use an existing matching archive.
+
+Without `BIN_DIR`, the public installer selects an existing writable directory
+already on PATH. It prefers a valid previous bundled-Python command,
+`~/.local/bin`, and `~/bin`, then another suitable PATH directory. Installation
+stops before replacing runtime state when no suitable directory exists.
 
 ## User-owned state
 
@@ -94,65 +106,89 @@ the selected service. The default config can start and list those agents
 before their credentials are configured. Request authentication and direct
 environment reads remain owned by the selected provider or tool.
 
-## Distribution test levels
+## Distribution smoke scenarios
 
-Run each level independently from the repository root:
+The original implementation work used numbered levels as shorthand for adding
+source installation, archive construction, and public installation
+transformations. Maintained commands and documentation use descriptive names.
+
+Run each scenario independently from the repository root:
 
 ```bash
-npm run test:cli:clean-env
-npm run test:cli:bundle
-npm run test:cli:install
+npm run test:cli:source-install
+npm run test:cli:archive
+npm run test:cli:default-install
 ```
 
-`test:cli:clean-env` creates a fresh venv, installs only editable Core and
-application packages without development extras, and boots the source command.
-The default config's `path:` plugins install into a fresh config-owned plugin
-cache. This level requires package-index network access and normally takes
-several minutes.
+The source-installation smoke creates a fresh venv, installs only editable Core
+and application packages without development extras, and boots the generated
+source command. The default config's `path:` plugins install into a fresh
+config-owned plugin cache. This scenario requires package-index network access
+and normally takes several minutes.
 
-`test:cli:bundle` constructs a bundled-Python archive in the isolated Nox
-environment, then starts pytest only after the build exits. The archive smoke
+The extracted-archive smoke builds or accepts a bundled-Python archive, unpacks
+it without installer code, and executes its archive launcher directly. It
 checks:
 
 - required archive paths and manifests;
 - launcher `--runtime-layout-json` behavior and runtime overrides;
 - linked-library portability on macOS;
 - credential-free default-config boot and the complete configured agent set;
-- use of the preinstalled plugin closure without user-cache installation.
+- use of the preinstalled default-plugin closure;
+- dynamic installation of packaged `generic-callback-app`, which must not be
+  listed in `preinstalled-plugins.json`.
 
-`test:cli:install` independently builds the archive, replaces stale
-installation staging/target directories in temporary storage, creates the
-platform wrapper, and boots that installed command. Set
+The default-installer smoke independently serves the checked-in public
+installer, `latest.txt`, and archive from a loopback download endpoint. It runs
+the normal `curl ... | bash` workflow without path, version, or command-name
+overrides, replaces stale installation state, resolves `crystal-lattice` by
+name through PATH, and boots it. It independently installs the same
+non-preinstalled plugin into a different fresh cache.
+
+Set
 `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` to reuse a matching prebuilt archive
-for either archive-consuming level.
+for either archive-based scenario.
 
-All boot probes isolate the workspace, `HOME`, `USERPROFILE`, config files, and
-plugin cache. Environment names are derived from placeholders in the exact
-default config under test; the probes supply no dummy values and make no model
-or tool API request.
+The archive-based scenarios may share that immutable archive, but they use
+different extraction, home, workspace, config, plugin-cache, pip-cache,
+installation, and command directories. Neither scenario invokes the other.
+
+All boot probes isolate the workspace, `HOME`, `USERPROFILE`, config files,
+plugin cache, and pip cache. Environment names are derived from placeholders in
+the exact default-derived config under test; the probes supply no dummy values
+and make no model or tool API request.
 
 On POSIX, cleanup owns the command's process group. On Windows, `.cmd`
 launchers run in a dedicated process group with a `CTRL_BREAK_EVENT` attempt
 and `taskkill /T /F` fallback. Every path verifies that the server port closes.
 
-The release workflow runs the same archive smoke for Linux AMD64, macOS AMD64,
-macOS ARM64, and Windows AMD64 on native runners. Existing deeper optimized
-bundle tests target the separate PyInstaller layout and remain manually gated.
+The release workflow runs both root npm archive-based smokes for Linux AMD64,
+macOS AMD64, macOS ARM64, and Windows AMD64 on native runners. Both use the one
+archive built by their matrix job while retaining separate mutable state. The
+default-installer step is still attempted after an archive-smoke failure when
+archive location succeeded.
+
+Existing deeper optimized-bundle tests target the separate PyInstaller layout
+and remain manually gated.
 
 ## Maintainer entry points
 
 - Runtime package builder:
   `scripts/build_crystal_lattice_python_runtime_package.py`
+- Managed runtime/build orchestrator:
+  `scripts/build_crystal_lattice_python_runtime_archive.py`
 - Runtime archive smoke:
   `scripts/smoke_test_crystal_lattice_python_runtime_archive.py`
+- Public default-installer smoke:
+  `scripts/smoke_test_crystal_lattice_default_install.py`
+- Source-installation smoke:
+  `scripts/smoke_test_crystal_lattice_source_install.py`
 - Distribution test runner: `scripts/run_cli_distribution_test.py`
-- Shared default-config boot probe: `scripts/crystal_lattice_cli_boot.py`
-- Local archive installer:
-  `scripts/install_crystal_lattice_archive.py`
-- Build/install sessions: `noxfile.py`
+- Shared config and boot probe: `scripts/crystal_lattice_cli_boot.py`
+- Public installer: `scripts/install.sh`
+- Local current-archive installer entry point:
+  `scripts/install_current_crystal_lattice_archive.py`
+- Isolated optimized-build orchestrator:
+  `scripts/build_crystal_lattice_optimized_archive.py`
 - Release workflow: `.github/workflows/release-crystal-lattice-cli.yml`
-- Distribution tests: `application/python/tests/test_binary_distribution_*.py`
-
-The archive smoke is the release-workflow extension point. Changing that
-script changes the checks applied to every native release archive without
-requiring another workflow job.
+- Focused helper/script tests: `application/python/tests/test_cli_distribution_*.py`

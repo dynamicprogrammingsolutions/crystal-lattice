@@ -14,9 +14,10 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from crystal_lattice_cli_boot import (  # noqa: E402
-    assert_default_config_boot,
+    assert_config_boot,
     build_isolated_cli_environment,
     collect_env_placeholder_names,
+    prepare_smoke_config,
 )
 
 
@@ -67,9 +68,62 @@ def test_build_isolated_cli_environment_removes_config_inputs_only(
     assert env["DIRECT_PLUGIN_INPUT"] == "plugin-owned"
     assert env["HOME"] == str(home_dir.resolve())
     assert env["USERPROFILE"] == str(home_dir.resolve())
+    assert env["PIP_CACHE_DIR"] == str((home_dir / ".cache" / "pip").resolve())
+
+
+def test_prepare_smoke_config_adds_packaged_plugin(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "config.json").write_text(
+        json.dumps({"plugins": ["existing"], "agents": {}}),
+        encoding="utf-8",
+    )
+
+    config_path = prepare_smoke_config(
+        source,
+        destination_dir=tmp_path / "config",
+        additional_plugin_name="generic-callback-app",
+    )
+
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    assert config["plugins"] == [
+        "existing",
+        "path:${env:BUILTIN_PLUGINS}/generic-callback-app",
+    ]
+    assert (config_path.parent / ".env").read_text(encoding="utf-8") == ""
 
 
 def test_default_config_boot_uses_clean_state_and_stops_server(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = _write_default_config(tmp_path)
+    copied_config = prepare_smoke_config(
+        config_path,
+        destination_dir=tmp_path / "config",
+    )
+    server_script = _write_fake_cli_server(tmp_path)
+    workspace = tmp_path / "workspace"
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("CONFIG_INPUT", "must-not-leak")
+
+    result = assert_config_boot(
+        [sys.executable, server_script, home_dir, config_path],
+        config_path=copied_config,
+        workspace=workspace,
+        home_dir=home_dir,
+        plugin_cache_expectation="empty",
+        timeout_seconds=20,
+    )
+
+    assert result.agents == ("alpha", "beta")
+    assert result.generated_config == copied_config
+    assert result.removed_placeholder_names == ("CONFIG_INPUT",)
+    assert (workspace / ".env").read_text(encoding="utf-8") == ""
+    assert result.plugin_metadata_ids == ()
+
+
+def test_local_default_config_boot_creates_workspace_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -79,19 +133,19 @@ def test_default_config_boot_uses_clean_state_and_stops_server(
     home_dir = tmp_path / "home"
     monkeypatch.setenv("CONFIG_INPUT", "must-not-leak")
 
-    result = assert_default_config_boot(
-        [sys.executable, server_script, config_path, home_dir],
-        default_config_template=config_path,
+    result = assert_config_boot(
+        [sys.executable, server_script, home_dir, config_path],
+        config_path=config_path,
         workspace=workspace,
         home_dir=home_dir,
         plugin_cache_expectation="empty",
+        config_mode="local-default",
         timeout_seconds=20,
     )
 
-    assert result.agents == ("alpha", "beta")
     assert result.generated_config == workspace / ".crystal" / "config.json"
-    assert result.removed_placeholder_names == ("CONFIG_INPUT",)
-    assert (workspace / ".env").read_text(encoding="utf-8") == ""
+    assert result.generated_config.is_file()
+    assert result.agents == ("alpha", "beta")
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows .cmd process-tree coverage")
@@ -100,20 +154,24 @@ def test_windows_cmd_boot_stops_descendant_python_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config_path = _write_default_config(tmp_path)
+    copied_config = prepare_smoke_config(
+        config_path,
+        destination_dir=tmp_path / "config",
+    )
     server_script = _write_fake_cli_server(tmp_path)
     workspace = tmp_path / "workspace"
     home_dir = tmp_path / "home"
     wrapper = tmp_path / "fake-crystal-lattice.cmd"
     wrapper.write_text(
         "@echo off\r\n"
-        f'"{sys.executable}" "{server_script}" "{config_path}" "{home_dir}" %*\r\n',
+        f'"{sys.executable}" "{server_script}" "{home_dir}" "{config_path}" %*\r\n',
         encoding="utf-8",
     )
     monkeypatch.setenv("CONFIG_INPUT", "must-not-leak")
 
-    result = assert_default_config_boot(
+    result = assert_config_boot(
         [wrapper],
-        default_config_template=config_path,
+        config_path=copied_config,
         workspace=workspace,
         home_dir=home_dir,
         plugin_cache_expectation="empty",
@@ -151,10 +209,11 @@ from pathlib import Path
 import sys
 
 
-template = Path(sys.argv[1])
-expected_home = Path(sys.argv[2]).resolve()
+expected_home = Path(sys.argv[1]).resolve()
+template = Path(sys.argv[2])
 parser = argparse.ArgumentParser()
 parser.add_argument("--server", action="store_true")
+parser.add_argument("--config")
 parser.add_argument("--config-local", action="store_true")
 parser.add_argument("--host", required=True)
 parser.add_argument("--port", required=True, type=int)
@@ -165,10 +224,14 @@ if os.environ.get("CONFIG_INPUT") is not None:
 if Path.home().resolve() != expected_home:
     raise SystemExit(f"unexpected home: {Path.home()}")
 
-config = json.loads(template.read_text(encoding="utf-8"))
-config_dir = Path.cwd() / ".crystal"
-config_dir.mkdir()
-(config_dir / "config.json").write_text(json.dumps(config), encoding="utf-8")
+if args.config_local:
+    config_dir = Path.cwd() / ".crystal"
+    config_dir.mkdir()
+    config_path = config_dir / "config.json"
+    config_path.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+else:
+    config_path = Path(args.config)
+config = json.loads(config_path.read_text(encoding="utf-8"))
 
 
 class Handler(BaseHTTPRequestHandler):

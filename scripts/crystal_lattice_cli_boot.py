@@ -6,16 +6,18 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import signal
 import socket
 import subprocess
 import time
-from typing import Any, Literal, Sequence
+from typing import Any, Literal, Mapping, Sequence
 import urllib.error
 import urllib.request
 
 
 PluginCacheExpectation = Literal["empty", "populated"]
+ConfigMode = Literal["explicit", "local-default"]
 
 _ENV_PLACEHOLDER_RE = re.compile(r"\$\{env:([^}]+)\}")
 _RUNTIME_ISOLATION_ENV_NAMES = frozenset(
@@ -40,6 +42,8 @@ class BootResult:
     generated_config: Path
     log_path: Path
     plugin_cache: Path
+    plugin_metadata_ids: tuple[str, ...]
+    pip_cache: Path
     removed_placeholder_names: tuple[str, ...]
 
 
@@ -72,48 +76,130 @@ def collect_env_placeholder_names(config_path: Path) -> set[str]:
 
 
 def build_isolated_cli_environment(
-    default_config_template: Path,
+    config_path: Path,
     *,
     home_dir: Path,
+    base_env: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, str], set[str]]:
     """Build a child environment isolated at the config-loader boundary."""
 
-    placeholder_names = collect_env_placeholder_names(default_config_template)
-    env = dict(os.environ)
+    placeholder_names = collect_env_placeholder_names(config_path)
+    env = dict(os.environ if base_env is None else base_env)
     for name in placeholder_names | _RUNTIME_ISOLATION_ENV_NAMES:
         env.pop(name, None)
 
     home = str(home_dir.resolve())
     env["HOME"] = home
     env["USERPROFILE"] = home
+    env["PIP_CACHE_DIR"] = str((home_dir / ".cache" / "pip").resolve())
     return env, placeholder_names
 
 
-def assert_default_config_boot(
+def prepare_smoke_config(
+    default_config_template: Path,
+    *,
+    destination_dir: Path,
+    additional_plugin_name: str | None = None,
+) -> Path:
+    """Copy the shipped default config and optionally add one packaged plugin."""
+
+    source_dir = (
+        default_config_template
+        if default_config_template.is_dir()
+        else default_config_template.parent
+    )
+    source_config = (
+        source_dir / "config.json"
+        if default_config_template.is_dir()
+        else default_config_template
+    )
+    if not source_config.is_file():
+        raise ValueError(f"Default config does not exist: {source_config}")
+
+    _prepare_empty_directory(destination_dir, label="config directory")
+    shutil.copytree(
+        source_dir,
+        destination_dir,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns(
+            ".plugin_cache",
+            "auth",
+            "__pycache__",
+            "*.pyc",
+        ),
+    )
+    config_path = destination_dir / source_config.name
+    if additional_plugin_name is not None:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        if not isinstance(config, dict):
+            raise ValueError("Default config root must be an object")
+        plugins = config.get("plugins")
+        if not isinstance(plugins, list):
+            raise ValueError("Default config plugins must be a list")
+        plugin_spec = f"path:${{env:BUILTIN_PLUGINS}}/{additional_plugin_name}"
+        if plugin_spec in plugins:
+            raise ValueError(
+                f"Dynamic plugin probe is already selected: {additional_plugin_name}"
+            )
+        plugins.append(plugin_spec)
+        config_path.write_text(
+            json.dumps(config, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    (destination_dir / ".env").write_text("", encoding="utf-8")
+    return config_path
+
+
+def assert_plugin_not_preinstalled(
+    preinstalled_manifest: Path,
+    plugin_name: str,
+) -> None:
+    manifest = json.loads(preinstalled_manifest.read_text(encoding="utf-8"))
+    raw_plugins = manifest.get("plugins") if isinstance(manifest, dict) else None
+    if not isinstance(raw_plugins, list):
+        raise ValueError("Preinstalled plugin manifest must contain a plugins list")
+    names = {
+        item.get("name")
+        for item in raw_plugins
+        if isinstance(item, dict) and isinstance(item.get("name"), str)
+    }
+    if plugin_name in names:
+        raise ValueError(f"Dynamic plugin probe is already preinstalled: {plugin_name}")
+
+
+def assert_config_boot(
     command: Sequence[str | os.PathLike[str]],
     *,
-    default_config_template: Path,
+    config_path: Path,
     workspace: Path,
     home_dir: Path,
     plugin_cache_expectation: PluginCacheExpectation,
+    config_mode: ConfigMode = "explicit",
+    expected_plugin_id: str | None = None,
+    base_env: Mapping[str, str] | None = None,
     timeout_seconds: float = 600,
 ) -> BootResult:
-    """Boot one CLI command with clean state and assert its default agents."""
+    """Boot one CLI command with clean state and assert its configured agents."""
 
     _prepare_empty_directory(workspace, label="workspace")
-    _prepare_empty_directory(home_dir, label="home")
+    home_dir.mkdir(parents=True, exist_ok=True)
     (workspace / ".env").write_text("", encoding="utf-8")
 
     env, placeholder_names = build_isolated_cli_environment(
-        default_config_template,
+        config_path,
         home_dir=home_dir,
+        base_env=base_env,
     )
     port = reserve_loopback_port()
     log_path = workspace.parent / f"{workspace.name}-server.log"
     full_command = [
         *(str(part) for part in command),
         "--server",
-        "--config-local",
+        *(
+            ["--config-local"]
+            if config_mode == "local-default"
+            else ["--config", str(config_path)]
+        ),
         "--host",
         "127.0.0.1",
         "--port",
@@ -124,8 +210,19 @@ def assert_default_config_boot(
     failure: Exception | None = None
     cleanup_failure: Exception | None = None
     agents: tuple[str, ...] = ()
-    generated_config = workspace / ".crystal" / "config.json"
-    plugin_cache = workspace / ".crystal" / ".plugin_cache" / "plugins"
+    plugin_metadata_ids: tuple[str, ...] = ()
+    generated_config = (
+        workspace / ".crystal" / "config.json"
+        if config_mode == "local-default"
+        else config_path
+    )
+    plugin_cache = (
+        workspace / ".crystal" / ".plugin_cache" / "plugins"
+        if config_mode == "local-default"
+        else config_path.parent / ".plugin_cache" / "plugins"
+    )
+    pip_cache = Path(env["PIP_CACHE_DIR"])
+    _assert_plugin_cache_initially_empty(plugin_cache)
 
     with log_path.open("wb") as log_file:
         try:
@@ -138,7 +235,11 @@ def assert_default_config_boot(
             base_url = f"http://127.0.0.1:{port}"
             _wait_for_server(base_url, process, timeout_seconds=timeout_seconds)
             agents = _assert_agents(base_url, generated_config)
-            _assert_plugin_cache(plugin_cache, plugin_cache_expectation)
+            plugin_metadata_ids = _assert_plugin_cache(
+                plugin_cache,
+                plugin_cache_expectation,
+                expected_plugin_id=expected_plugin_id,
+            )
         except Exception as exc:
             failure = exc
         finally:
@@ -164,6 +265,8 @@ def assert_default_config_boot(
         generated_config=generated_config,
         log_path=log_path,
         plugin_cache=plugin_cache,
+        plugin_metadata_ids=plugin_metadata_ids,
+        pip_cache=pip_cache,
         removed_placeholder_names=tuple(sorted(placeholder_names)),
     )
 
@@ -225,7 +328,9 @@ def _start_process(
     kwargs: dict[str, Any] = {}
     if os.name == "nt":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-        if Path(command[0]).suffix.lower() in {".bat", ".cmd"}:
+        resolved = shutil.which(command[0], path=env.get("PATH"))
+        command_path = Path(resolved or command[0])
+        if command_path.suffix.lower() in {".bat", ".cmd"}:
             command_line = subprocess.list2cmdline(command)
             process_command = [
                 env.get("COMSPEC") or os.environ.get("COMSPEC", "cmd.exe"),
@@ -292,14 +397,21 @@ def _assert_agents(base_url: str, generated_config: Path) -> tuple[str, ...]:
 def _assert_plugin_cache(
     plugin_cache: Path,
     expectation: PluginCacheExpectation,
-) -> None:
+    *,
+    expected_plugin_id: str | None,
+) -> tuple[str, ...]:
+    metadata_ids = _plugin_metadata_ids(plugin_cache)
     if expectation == "populated":
-        metadata = list(plugin_cache.rglob("plugin_metadata.json"))
-        if not metadata:
+        if not metadata_ids:
             raise AssertionError(
                 f"Expected dynamically installed plugin metadata under {plugin_cache}"
             )
-        return
+        if expected_plugin_id is not None and metadata_ids != (expected_plugin_id,):
+            raise AssertionError(
+                f"Expected only plugin {expected_plugin_id!r} in {plugin_cache}, "
+                f"found {metadata_ids!r}"
+            )
+        return metadata_ids
 
     entries = list(plugin_cache.iterdir()) if plugin_cache.is_dir() else []
     if entries:
@@ -307,6 +419,29 @@ def _assert_plugin_cache(
             f"Expected an empty user plugin cache, found: "
             f"{[entry.name for entry in entries]}"
         )
+    return ()
+
+
+def _assert_plugin_cache_initially_empty(plugin_cache: Path) -> None:
+    entries = list(plugin_cache.iterdir()) if plugin_cache.is_dir() else []
+    if entries:
+        raise ValueError(
+            f"Plugin cache must be empty before boot: "
+            f"{[entry.name for entry in entries]}"
+        )
+
+
+def _plugin_metadata_ids(plugin_cache: Path) -> tuple[str, ...]:
+    ids: list[str] = []
+    for metadata_path in sorted(plugin_cache.rglob("plugin_metadata.json")):
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        plugin_id = metadata.get("id") if isinstance(metadata, dict) else None
+        if not isinstance(plugin_id, str) or not plugin_id:
+            raise AssertionError(
+                f"Plugin metadata does not contain an id: {metadata_path}"
+            )
+        ids.append(plugin_id)
+    return tuple(sorted(ids))
 
 
 def _json_request(url: str, *, timeout: float) -> Any:
@@ -403,10 +538,13 @@ def _port_is_open(port: int) -> bool:
 
 __all__ = [
     "BootResult",
+    "ConfigMode",
     "PluginCacheExpectation",
-    "assert_default_config_boot",
+    "assert_config_boot",
+    "assert_plugin_not_preinstalled",
     "build_isolated_cli_environment",
     "collect_env_placeholder_names",
+    "prepare_smoke_config",
     "read_log_tail",
     "reserve_loopback_port",
     "stop_process_tree",

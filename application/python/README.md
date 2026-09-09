@@ -35,12 +35,18 @@ path for end users on macOS, Linux, or Git Bash on Windows:
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
 ```
 
-The default install locations are:
+The default runtime installation is:
 
 ```text
 ~/.local/opt/crystal-lattice-cli/<asset-stem>/
-~/.local/bin/crystal-lattice
 ```
+
+The installer writes `crystal-lattice` into an existing suitable writable
+directory already present on `PATH`. It prefers the directory containing a
+previous bundled-Python installation, then `~/.local/bin`, then `~/bin`, and
+finally another safe writable PATH directory. If none is available, the
+installer stops before replacing installation state and asks for an explicit
+`BIN_DIR`.
 
 Pinned install:
 
@@ -67,7 +73,10 @@ windows-amd64
 
 On Windows, run the shell installer from Git Bash, MSYS2, or Cygwin. Native
 PowerShell installation is not implemented yet; use the release `.zip` asset
-directly if you do not use a Bash-compatible shell.
+directly if you do not use a Bash-compatible shell. Installation from a
+Bash-compatible shell creates both the shell command and
+`crystal-lattice.cmd` in the selected PATH directory, so the installed command
+can also be found by native Windows command lookup.
 
 ### Python Install
 
@@ -134,19 +143,25 @@ For contributors and local validation:
   pytest application/python/tests -m docker -q
   ```
 
-The shipped CLI distribution has three opt-in local levels:
+The shipped CLI distribution has three independently executable local smoke
+scenarios:
 
 ```bash
-npm run test:cli:clean-env
-npm run test:cli:bundle
-npm run test:cli:install
+npm run test:cli:source-install
+npm run test:cli:archive
+npm run test:cli:default-install
 ```
 
-The first command exercises dynamic default-plugin installation in a fresh
-lean venv. The second builds and boots the bundled-Python archive. The third
-installs that archive into temporary directories and boots the installed
-wrapper. These tests require package-index network access and can take several
-minutes. See
+The source-installation smoke exercises dynamic default-plugin installation in
+a fresh lean venv. The extracted-archive smoke unpacks and runs the archive
+launcher directly. The default-installer smoke runs the public download
+installer with default paths and executes `crystal-lattice` by name through
+PATH.
+
+The two archive-based smokes each use separate temporary homes, configurations,
+plugin caches, and pip caches. Each independently installs a packaged plugin
+that is deliberately absent from the preinstalled manifest. These tests
+require package-index network access and can take several minutes. See
 [CLI distribution implementation and verification](docs/development/cli-distribution.md)
 for isolation, prebuilt-archive overrides, platform behavior, and the separate
 optimized PyInstaller suite.
@@ -998,58 +1013,61 @@ contains only preinstalled descriptors and resources. Runtime startup should not
 install bundled/default plugins into `/cloud-agent/cache/plugin_cache/plugins`;
 that cache remains for non-bundled or user-provided plugins.
 
-### Local Nox Scripts
+### Local Build And Install Scripts
 
-The repository root has package.json-like maintainer commands in `noxfile.py`.
-`nox` is part of the `core/python[dev]` extras, so the standard development
-install provides it:
+The standard development install provides `uv`, which is used to obtain the
+relocatable Python runtime for the shipped archive:
 
 ```bash
 python -m pip install -e "core/python[dev]"
 ```
 
-The root `package.json` wraps these sessions (`npm run build:bundle`,
+The root `package.json` exposes `npm run build:bundle`,
 `npm run build:optimized`, `npm run install:prod:local`,
-`npm run install:dev:local`) and runs them through the repository `.venv` via
-`scripts/repo_run.py`, so no manual activation is needed.
+and `npm run install:dev:local`. They run through the repository `.venv` via
+`scripts/repo_run.py`, so no manual activation is needed after
+`npm run install:venv`.
 
 Build the current-platform bundled-Python runtime package:
 
 ```bash
-nox -s build_bundle
+npm run build:bundle
 ```
 
-`build_bundle` installs build dependencies in its own Nox environment and
-provisions an `uv`-managed Python 3.11 runtime, matching the release runtime
-family without modifying the repository venv. Set `CRYSTAL_PYTHON_RUNTIME` to
-use an explicit runtime directory instead.
+The build script creates a temporary host-side build venv and provisions an
+`uv`-managed Python 3.11 runtime, matching the release runtime family without
+installing or upgrading packages in the repository venv. Set
+`CRYSTAL_PYTHON_RUNTIME` to use an explicit relocatable runtime directory
+instead.
 
-Build the current-platform optimized PyInstaller artifact directly:
+Build the separate current-platform optimized PyInstaller distribution:
 
 ```bash
-nox -s build_optimized_bundle
+npm run build:optimized
 ```
+
+That command also uses a temporary build venv because the optimized builder
+installs its selected plugin closure before running PyInstaller.
 
 Run a local production install rehearsal from the generated archive:
 
 ```bash
-nox -s install_prod_local
+npm run install:prod:local
 ```
 
-`build_bundle` and `install_prod_local` intentionally follow the release
-installer shape:
+The command follows the release installer shape:
 
-1. install build dependencies in an isolated Nox environment
+1. create an isolated host build environment
 2. provision or select the packaged Python runtime
 3. run `scripts/build_crystal_lattice_python_runtime_package.py`
-4. smoke-test the generated release archive, including default-config boot
+4. pass the generated archive to the public `scripts/install.sh`
 5. install from the archive, not from editable source
-6. link `crystal-lattice` into `~/.local/bin`
+6. place `crystal-lattice` in a suitable existing PATH directory
 
 Install an editable-source dev command:
 
 ```bash
-nox -s install_dev_local
+npm run install:dev:local
 ```
 
 This creates or updates `~/.crystal/dev-cli-venv`, installs the local checkout
@@ -1071,6 +1089,7 @@ INSTALL_ROOT="$HOME/.local/opt/crystal-lattice-cli"
 BIN_DIR="$HOME/.local/bin"
 COMMAND_NAME="crystal-lattice"
 CRYSTAL_LATTICE_DOWNLOAD_BASE_URL="https://example.com/crystal-lattice-cli"
+CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE="/path/to/local/archive.tar.gz"
 ```
 
 `CRYSTAL_LATTICE_DOWNLOAD_BASE_URL` is the main switch for testing another
@@ -1078,6 +1097,13 @@ CloudFront distribution, bucket, or local mirror. The same URL base is expected
 to contain `install.sh`, `latest.txt`, and the release archives. The shell
 installer downloads `.tar.gz` archives on macOS/Linux and the `.zip` archive
 when it detects Git Bash/MSYS/Cygwin on Windows.
+
+`BIN_DIR` explicitly selects another command directory and may create it; the
+caller then owns making that directory discoverable. Without `BIN_DIR`, the
+installer selects an existing suitable writable PATH directory or stops before
+installation. `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` bypasses downloading
+and installs a matching local archive through the same staging and command
+creation code.
 
 Release tag workflows publish downloads automatically after GitHub Release
 publishing succeeds. The workflow assumes the OIDC role configured by:

@@ -543,6 +543,16 @@ def test_release_workflow_uses_single_writer_artifact_handoff() -> None:
     )
 
 
+def test_release_workflow_runs_both_distribution_smokes_through_npm() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "id: locate_archive" in workflow
+    assert workflow.count("npm run test:cli:archive") == 1
+    assert workflow.count("npm run test:cli:default-install") == 1
+    assert "always() && steps.locate_archive.outcome == 'success'" in workflow
+    assert "smoke_test_crystal_lattice_python_runtime_archive.py" not in workflow
+
+
 def test_release_script_install_line_avoids_plugin_packages(tmp_path: Path) -> None:
     env = _release_env(tmp_path)
 

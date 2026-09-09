@@ -62,28 +62,28 @@ smoke:
 
 ### Approved post-completion requirements
 
-- [ ] The extracted-archive smoke follows the direct user workflow: it
+- [x] The extracted-archive smoke follows the direct user workflow: it
   independently unpacks the shipped archive, executes the archive launcher
   directly, and does not call or depend on installer scenario code.
-- [ ] The default-installer smoke follows the direct user workflow: it runs
+- [x] The default-installer smoke follows the direct user workflow: it runs
   the public download installer with default install root, command name, and
   automatic command-directory selection, then resolves and executes
   `crystal-lattice` by name rather than by a known absolute install path.
-- [ ] The extracted-archive and default-installer smokes each begin with
+- [x] The extracted-archive and default-installer smokes each begin with
   separate fresh home, workspace, config, plugin-cache, pip-cache, install,
   and command-directory state. Sharing the immutable built archive is allowed;
   neither smoke may reuse mutable state or installation results from the
   other.
-- [ ] Both archive-based smokes use a config derived from the packaged default
+- [x] Both archive-based smokes use a config derived from the packaged default
   to load a real packaged Python plugin that is absent from
   `preinstalled-plugins.json`. Each smoke independently triggers installation
   through packaged Python and asserts plugin-specific metadata in its own
   previously empty cache.
-- [ ] Each scenario remains independently interpretable. Archive validation,
+- [x] Each scenario remains independently interpretable. Archive validation,
   direct archive boot, public installation, installed-command boot, and plugin
   installation are not collapsed in a way that permits one scenario or shared
   mutable state to hide a defect in another.
-- [ ] Root npm commands invoke the direct source-installation,
+- [x] Root npm commands invoke the direct source-installation,
   extracted-archive, and default-installer acceptance implementations. Native
   release jobs invoke the archive and installer npm commands directly against
   the archive built by that job.
@@ -91,19 +91,19 @@ smoke:
   Runtime may increase; optimization is acceptable only when it preserves both
   direct workflows, separate mutable state, and failure evidence without
   disproportionate orchestration.
-- [ ] Without `BIN_DIR`, the public installer selects an existing suitable
+- [x] Without `BIN_DIR`, the public installer selects an existing suitable
   writable directory already on PATH and installs the default
   `crystal-lattice` command there, making it immediately resolvable by name in
   the supported terminal environment. An explicit `BIN_DIR` remains
   available.
-- [ ] If no suitable PATH directory exists, the default installer fails before
+- [x] If no suitable PATH directory exists, the default installer fails before
   replacing installation state with an actionable message instead of
   completing an installation whose command is not discoverable.
-- [ ] Build, install, and smoke orchestration has one clear implementation
+- [x] Build, install, and smoke orchestration has one clear implementation
   owner per behavior. Local npm and CI use the same acceptance entry points;
   scenario code may share lower-level helpers but may not invoke another
   scenario as a substitute.
-- [ ] Specifications, current documentation, commands, tests, and diagnostics
+- [x] Specifications, current documentation, commands, tests, and diagnostics
   use descriptive names for scenarios and components. Historical level
   terminology appears only where its meaning is explicitly introduced.
 
@@ -810,6 +810,48 @@ This extension supersedes two decisions from the completed plan:
 The original completion notes remain the record of the earlier delivered
 scope. New work and evidence are recorded below.
 
+### Follow-up implementation notes
+
+- 2026-09-09: The user approved the strengthened target and authorized removal
+  of Nox when direct npm/script orchestration preserved isolation. The
+  follow-up plan moved to Approved.
+- 2026-09-09: Replaced pytest-owned acceptance scenarios with three standalone
+  source-installation, extracted-archive, and default-installer smoke scripts.
+  Root npm commands invoke those scripts through one thin archive
+  build/selection dispatcher.
+- 2026-09-09: Both archive-based smokes now copy the packaged default config,
+  add `generic-callback-app`, prove it is absent from the preinstalled
+  manifest, and independently verify its exact installation metadata in
+  separate plugin and pip caches. Direct local npm runs passed in 25.1 seconds
+  for the extracted archive and 21.5 seconds for the public default installer
+  against the newly built macOS ARM64 archive.
+- 2026-09-09: The public installer now selects an existing suitable writable
+  PATH directory, avoids incompatible existing source/virtualenv commands,
+  fails before installation when no candidate exists, supports matching local
+  archives, and writes both shell and `.cmd` commands on Windows. The direct
+  installer smoke serves the real script/archive/latest marker over loopback,
+  uses no install-path or command-name override, resolves `crystal-lattice` by
+  name, and boots it.
+- 2026-09-09: Removed `noxfile.py`, replaced the Nox development dependency
+  with `uv`, added temporary-venv direct orchestrators for bundled-Python and
+  optimized builds, deleted the duplicate Python production installer, and
+  routed local production installation through `install.sh`. The direct
+  bundled build provisioned CPython 3.11.16 and preserved the worktree
+  `pip freeze` hash
+  `c173945f88d82974d9c600756086aa0ef1b36c4c8b16eb2878990962ab7b421a`;
+  the isolated optimized-build `--help` path also passed.
+- 2026-09-09: Focused helper, installer, runner, package-script, and release
+  workflow coverage passed 52 tests with one expected Windows-only skip.
+  Core fast regression passed 507 tests with one expected xfail; application
+  fast regression passed 404 tests with one skip and existing deprecation
+  warnings. Ruff, Black, targeted Pyright, shell syntax, workflow YAML,
+  documentation preparation, and MkDocs build passed. The updated native
+  workflow is implemented; native matrix execution remains pending.
+- 2026-09-09: Final source-installation verification passed after restoring
+  direct first-run `--config-local` generation. The archive-based smokes keep
+  explicit default-derived configs only to add the non-preinstalled plugin
+  probe.
+
 ### Follow-up execution plan
 
 Status: Approved
@@ -948,21 +990,21 @@ archive-based smokes.
 
 ### Task checklist
 
-- [ ] Rename scenario commands, tests, messages, and maintained documentation.
-- [ ] Refactor root scenario commands to invoke direct standalone acceptance
+- [x] Rename scenario commands, tests, messages, and maintained documentation.
+- [x] Refactor root scenario commands to invoke direct standalone acceptance
   implementations instead of pytest orchestration.
-- [ ] Add shared config/plugin-probe/cache-evidence helpers and focused tests.
-- [ ] Strengthen the extracted-archive smoke with independent dynamic plugin
+- [x] Add shared config/plugin-probe/cache-evidence helpers and focused tests.
+- [x] Strengthen the extracted-archive smoke with independent dynamic plugin
   installation.
-- [ ] Add safe automatic PATH-directory selection and failure behavior to the
+- [x] Add safe automatic PATH-directory selection and failure behavior to the
   public installer.
-- [ ] Add the Windows shell and `.cmd` command pair.
-- [ ] Add the direct public default-installer smoke through a loopback download
+- [x] Add the Windows shell and `.cmd` command pair.
+- [x] Add the direct public default-installer smoke through a loopback download
   endpoint and command-name resolution.
-- [ ] Consolidate or explicitly narrow the repository-only Python installer.
+- [x] Consolidate or explicitly narrow the repository-only Python installer.
 - [ ] Run both root archive-based smokes independently in every native release
   matrix job.
-- [ ] Update current user/maintainer documentation and requirement evidence.
+- [x] Update current user/maintainer documentation and requirement evidence.
 - [ ] Run focused, fast-regression, local distribution, documentation, and
   native matrix verification.
 

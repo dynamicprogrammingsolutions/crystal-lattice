@@ -62,7 +62,14 @@ acceptable test setup.
 
 ## Common configuration and boot contract
 
-Every scenario starts its directly selected command with:
+The source-installation smoke exercises first-run creation with:
+
+```text
+--server --config-local --host 127.0.0.1 --port <reserved-port>
+```
+
+The archive-based smokes need to add the designated plugin probe, so they
+start with an isolated copy of the packaged default config:
 
 ```text
 --server --config <isolated-config> --host 127.0.0.1 --port <reserved-port>
@@ -73,11 +80,12 @@ The probe:
 1. Uses a fresh working directory.
 2. Sets both `HOME` and `USERPROFILE` to one temporary user directory so
    `Path.home()` resolves away from developer state on POSIX and Windows.
-3. Copies the exact default-config directory shipped by the selected command
-   into a fresh config directory.
-4. For the extracted-archive and default-installer smokes, appends one
-   designated packaged Python plugin to the copied global plugin list. The
-   plugin must be absent from `preinstalled-plugins.json`.
+3. For source installation, lets `--config-local` copy the shipped default
+   config into the fresh workspace and verifies that generated file.
+4. For the archive-based smokes, copies the exact default-config directory
+   shipped by the selected command into a fresh config directory and appends
+   one designated packaged Python plugin to its global plugin list. The plugin
+   must be absent from `preinstalled-plugins.json`.
 5. Reads the resulting config, collects every variable referenced through
    `${env:...}`, and removes those names from the child process environment.
 6. Places a controlled empty `.env` in the working directory so standard
@@ -319,9 +327,9 @@ and through `cmd.exe`.
 The root commands are:
 
 ```text
-npm run test:cli:source
+npm run test:cli:source-install
 npm run test:cli:archive
-npm run test:cli:install
+npm run test:cli:default-install
 ```
 
 The source-installation, extracted-archive, and default-installer acceptance
@@ -335,7 +343,7 @@ darwin-amd64, darwin-arm64, and windows-amd64, then invokes:
 
 ```text
 npm run test:cli:archive
-npm run test:cli:install
+npm run test:cli:default-install
 ```
 
 Both commands receive that job's archive through

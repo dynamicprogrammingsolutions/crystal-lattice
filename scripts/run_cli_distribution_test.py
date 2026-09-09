@@ -2,74 +2,60 @@
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
-import platform
 import subprocess
 import sys
 
-from install_crystal_lattice_archive import (
+from crystal_lattice_distribution import (
+    assert_archive_matches_current_platform,
     current_platform_archive,
-    normalize_arch,
-    normalize_platform,
+    resolve_configured_archive,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ARCHIVE_ENV = "CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE"
-TEST_IDS = {
-    "clean-env": (
-        "application/python/tests/test_cli_distribution_levels.py::"
-        "test_level_1_clean_python_environment_boots_default_config"
-    ),
-    "bundle": (
-        "application/python/tests/test_cli_distribution_levels.py::"
-        "test_level_2_bundled_python_archive_boots_default_config"
-    ),
-    "install": (
-        "application/python/tests/test_cli_distribution_levels.py::"
-        "test_level_3_installed_wrapper_boots_default_config"
-    ),
+SCENARIO_SCRIPTS = {
+    "source-install": ROOT / "scripts" / "smoke_test_crystal_lattice_source_install.py",
+    "archive": ROOT
+    / "scripts"
+    / "smoke_test_crystal_lattice_python_runtime_archive.py",
+    "default-install": ROOT
+    / "scripts"
+    / "smoke_test_crystal_lattice_default_install.py",
 }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run one Crystal Lattice CLI distribution test level."
+        description="Run one direct Crystal Lattice CLI distribution smoke."
     )
-    parser.add_argument("level", choices=sorted(TEST_IDS))
+    parser.add_argument("scenario", choices=sorted(SCENARIO_SCRIPTS))
     args = parser.parse_args()
 
-    env = dict(os.environ)
-    if args.level in {"bundle", "install"}:
+    command = [sys.executable, str(SCENARIO_SCRIPTS[args.scenario])]
+    if args.scenario in {"archive", "default-install"}:
         archive = resolve_archive()
-        env[ARCHIVE_ENV] = str(archive)
         print(f"[cli-distribution] Using archive: {archive}", flush=True)
+        command.append(str(archive))
 
-    run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            TEST_IDS[args.level],
-            "-q",
-            "-m",
-            "integration and slow_integration",
-        ],
-        env=env,
-    )
+    run(command)
 
 
 def resolve_archive() -> Path:
-    configured = os.environ.get(ARCHIVE_ENV)
-    if configured:
-        archive = Path(configured).expanduser().resolve()
-    else:
+    archive = resolve_configured_archive()
+    if archive is None:
         print(
-            "[cli-distribution] Building archive in an isolated Nox environment",
+            "[cli-distribution] Building archive with a managed Python runtime",
             flush=True,
         )
-        run([sys.executable, "-m", "nox", "-s", "build_bundle"])
+        run(
+            [
+                sys.executable,
+                str(
+                    ROOT / "scripts" / "build_crystal_lattice_python_runtime_archive.py"
+                ),
+            ]
+        )
         archive = current_platform_archive().resolve()
 
     if not archive.is_file():
@@ -78,26 +64,12 @@ def resolve_archive() -> Path:
     return archive
 
 
-def assert_archive_matches_current_platform(archive: Path) -> None:
-    target = (
-        f"{normalize_platform(platform.system())}-"
-        f"{normalize_arch(platform.machine())}"
-    )
-    if f"-{target}." not in archive.name:
-        raise RuntimeError(
-            f"Archive {archive.name!r} does not match current platform {target!r}"
-        )
-
-
 def run(
     command: list[str],
-    *,
-    env: dict[str, str] | None = None,
 ) -> None:
     result = subprocess.run(
         command,
         cwd=str(ROOT),
-        env=env,
         check=False,
     )
     if result.returncode != 0:
