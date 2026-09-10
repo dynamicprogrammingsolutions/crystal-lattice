@@ -4,12 +4,21 @@ Pure-Python engines shared by the embedded Claude-like and Codex-like tool
 plugins.
 
 The package is model-invisible: it defines no plugin descriptor or tool
-schemas. It owns canonical workspace path resolution plus bounded UTF-8 text
-reading and writing. Model-facing packages provide their own names, schemas,
-result formatting, and tool-use conventions.
+schemas. It owns:
+
+- canonical workspace path resolution;
+- bounded UTF-8 reading, writing, and exact editing;
+- bounded path enumeration and regular-expression search;
+- workspace-restricted patch application;
+- public-only HTTP(S) fetching with redirect revalidation and verified TLS.
+
+Model-facing packages provide their own names, schemas, result formatting, and
+tool-use conventions.
 
 Workspace paths are relative to a configured root. Absolute paths, traversal,
-and symlink escapes are rejected.
+and symlink escapes are rejected. Public fetching rejects local, private,
+link-local, multicast, and reserved destinations and pins each connection to a
+validated DNS result.
 
 ## Development
 

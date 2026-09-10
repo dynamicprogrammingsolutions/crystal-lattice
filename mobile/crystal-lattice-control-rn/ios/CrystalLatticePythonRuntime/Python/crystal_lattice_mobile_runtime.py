@@ -95,6 +95,10 @@ def _config_payload(
             ),
             "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
             "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
+            "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
+            "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool",
+            "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
+            "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool",
         ]
 
     return {

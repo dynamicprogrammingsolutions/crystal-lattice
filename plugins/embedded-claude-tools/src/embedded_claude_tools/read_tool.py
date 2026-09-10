@@ -6,8 +6,11 @@ from agent_core.types import ToolPlugin
 from embedded_tools_shared import (
     DEFAULT_MAX_READ_LINES,
     read_text_file,
+    resolve_workspace_path,
     resolve_workspace_root,
 )
+
+from .activity import record_read_path
 
 
 READ_SCHEMA: dict[str, Any] = {
@@ -70,6 +73,8 @@ class ClaudeLikeReadTool(ToolPlugin):
         tool_name: str | None,
         payload: Any,
         state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
         **_: Any,
     ) -> dict[str, Any]:
         if tool_name != "Read" or not isinstance(payload, dict):
@@ -83,11 +88,20 @@ class ClaudeLikeReadTool(ToolPlugin):
             else DEFAULT_MAX_READ_LINES
         )
         try:
+            resolved = resolve_workspace_path(
+                state["workspace_root"],
+                payload.get("file_path"),
+            )
             result = read_text_file(
                 state["workspace_root"],
                 payload.get("file_path"),
                 offset=safe_offset,
                 limit=safe_limit,
+            )
+            record_read_path(
+                resolved.path,
+                context=context,
+                workspace_root=state["workspace_root"],
             )
             return {
                 "success": True,

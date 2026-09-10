@@ -3,7 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 from agent_core.types import ToolPlugin
-from embedded_tools_shared import resolve_workspace_root, write_text_file
+from embedded_tools_shared import (
+    resolve_workspace_path,
+    resolve_workspace_root,
+    write_text_file,
+)
+
+from .activity import has_read_path, record_read_path
 
 
 WRITE_SCHEMA: dict[str, Any] = {
@@ -59,6 +65,8 @@ class ClaudeLikeWriteTool(ToolPlugin):
         tool_name: str | None,
         payload: Any,
         state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
         **_: Any,
     ) -> dict[str, Any]:
         if tool_name != "Write" or not isinstance(payload, dict):
@@ -67,10 +75,27 @@ class ClaudeLikeWriteTool(ToolPlugin):
         if not isinstance(content, str):
             return {"success": False, "error": "content must be a string"}
         try:
+            resolved = resolve_workspace_path(
+                state["workspace_root"],
+                payload.get("file_path"),
+            )
+            if resolved.path.exists() and not has_read_path(
+                resolved.path,
+                context=context,
+                workspace_root=state["workspace_root"],
+            ):
+                raise ValueError(
+                    "File has not been read yet. Read it first before writing to it."
+                )
             result = write_text_file(
                 state["workspace_root"],
                 payload.get("file_path"),
                 content,
+            )
+            record_read_path(
+                resolved.path,
+                context=context,
+                workspace_root=state["workspace_root"],
             )
             return {
                 "success": True,

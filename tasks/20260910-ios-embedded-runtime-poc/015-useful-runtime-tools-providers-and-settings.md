@@ -426,15 +426,15 @@ an automatic snapshot, and survive process relaunch/backgrounding.
 
 ### Task checklist
 
-- [ ] Create and test the model-invisible `embedded-tools-shared` engine
+- [x] Create and test the model-invisible `embedded-tools-shared` engine
   package.
 - [x] Prove the Claude-like plugin-package staging path by moving
   `Read`/`Write` and rerunning the existing real-model simulator flow.
-- [ ] Implement and unit-test Claude-like `Edit`, `Glob`, `Grep`, and
+- [x] Implement and unit-test Claude-like `Edit`, `Glob`, `Grep`, and
   `WebFetch`.
-- [ ] Implement and unit-test Codex-like `sed`, `rg`, `find`, `curl`, and
+- [x] Implement and unit-test Codex-like `sed`, `rg`, `find`, `curl`, and
   `apply_patch` with lowercase schemas and Bash-like results.
-- [ ] Add cross-package conformance tests proving both tool families use the
+- [x] Add cross-package conformance tests proving both tool families use the
   same workspace and public-network authorization engines.
 - [ ] Run the OpenAI Responses and Anthropic iOS dependency/import spike.
 - [ ] Produce an exact embedded provider dependency lock and reject unsupported
@@ -528,3 +528,22 @@ an automatic snapshot, and survive process relaunch/backgrounding.
   `qwen3.5:0.8b` Detox scenario passed in 71.6 seconds. It completed the
   production-screen `Read`/`Write` flow, verified output, relaunched with the
   same session/workspace, and did not expose the temporary proxy key in logs.
+- 2026-09-10: Extended `embedded-tools-shared` with exact editing, bounded
+  enumeration/search, Codex-style patch parsing, and a public-only HTTP(S)
+  client that pins validated DNS addresses, revalidates redirects, and verifies
+  TLS with the bundled CA store.
+- 2026-09-10: Completed the Claude-like
+  `Read`/`Write`/`Edit`/`Glob`/`Grep`/`WebFetch` package and the separate
+  lowercase Codex-like `sed`/`rg`/`find`/`curl`/`apply_patch` package. The
+  existing reviewer agent now advertises the full Claude-like set; the Codex
+  set is staged but not yet assigned to an iOS agent.
+- 2026-09-10: Thirty-nine package/mobile tests and Ruff passed; archive
+  inspection found all shared and model-facing modules. A verified live fetch
+  of `https://www.python.org/` returned HTTP 200 and the expected page title.
+- 2026-09-10: A credential-gated real OpenAI Responses test using
+  `gpt-5.6-luna` passed in 22.3 seconds and used all five implemented Codex-like
+  tools, including a successful workspace patch and public fetch.
+- 2026-09-10: The Release simulator build passed with both tool families. The
+  unchanged authenticated Ollama `qwen3.5:0.8b` production-screen test passed
+  in 84.1 seconds with all six Claude-like tools advertised, preserved the
+  expected file output across relaunch, and did not log the temporary key.

@@ -27,10 +27,21 @@ EMBEDDED_CLAUDE_TOOLS = (
     / "embedded-claude-tools"
     / "src"
 )
+EMBEDDED_CODEX_TOOLS = (
+    Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "embedded-codex-tools"
+    / "src"
+)
 
 
 def load_runtime_module():
-    for path in (CORE_PYTHON, EMBEDDED_TOOLS_SHARED, EMBEDDED_CLAUDE_TOOLS):
+    for path in (
+        CORE_PYTHON,
+        EMBEDDED_TOOLS_SHARED,
+        EMBEDDED_CLAUDE_TOOLS,
+        EMBEDDED_CODEX_TOOLS,
+    ):
         sys.path.insert(0, str(path))
     spec = importlib.util.spec_from_file_location(
         "crystal_lattice_mobile_runtime",
@@ -175,3 +186,68 @@ def test_external_claude_like_tools_reject_escapes_and_round_trip_text(
     )
     assert not escaped["success"]
     assert not (outside / "escape.txt").exists()
+
+
+def test_fixed_runtime_config_loads_separate_tool_families(tmp_path: Path) -> None:
+    module = load_runtime_module()
+    from embedded_claude_tools import (
+        ClaudeLikeEditTool,
+        ClaudeLikeGlobTool,
+        ClaudeLikeGrepTool,
+        ClaudeLikeReadTool,
+        ClaudeLikeWebFetchTool,
+        ClaudeLikeWriteTool,
+    )
+    from embedded_codex_tools import (
+        CodexLikeApplyPatchTool,
+        CodexLikeCurlTool,
+        CodexLikeFindTool,
+        CodexLikeRgTool,
+        CodexLikeSedTool,
+    )
+
+    config = {"working_directory": str(tmp_path / "workspace")}
+    claude_names = [
+        tool().get_tool_schemas(tool().init(config))[0]["function"]["name"]
+        for tool in (
+            ClaudeLikeReadTool,
+            ClaudeLikeWriteTool,
+            ClaudeLikeEditTool,
+            ClaudeLikeGlobTool,
+            ClaudeLikeGrepTool,
+            ClaudeLikeWebFetchTool,
+        )
+    ]
+    codex_names = []
+    for tool in (
+        CodexLikeSedTool,
+        CodexLikeRgTool,
+        CodexLikeFindTool,
+        CodexLikeCurlTool,
+        CodexLikeApplyPatchTool,
+    ):
+        instance = tool()
+        schema = instance.get_tool_schemas(instance.init(config))[0]
+        codex_names.append(
+            schema.get("name") or schema.get("function", {}).get("name")
+        )
+
+    assert claude_names == ["Read", "Write", "Edit", "Glob", "Grep", "WebFetch"]
+    assert codex_names == ["sed", "rg", "find", "curl", "apply_patch"]
+
+    runtime_config = module._config_payload(
+        {
+            "api_key": "test-key",
+            "model": "test-model",
+            "proxy_url": "https://proxy.test/v1",
+        },
+        tmp_path / "workspace",
+    )
+    assert runtime_config["plugins"][-6:] == [
+        "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
+        "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
+        "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
+        "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool",
+        "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
+        "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool",
+    ]

@@ -2,14 +2,19 @@
 
 Claude-like, iOS-safe workspace tools for the embedded Crystal Lattice runtime.
 
-The initial package exposes:
+The package exposes:
 
 - `Read`: read a bounded UTF-8 line window from a workspace-relative file.
 - `Write`: create or replace a UTF-8 file inside the workspace.
+- `Edit`: perform exact text replacements after reading the file.
+- `Glob`: list files matching a workspace-relative glob.
+- `Grep`: search workspace text using bounded regular expressions.
+- `WebFetch`: fetch and extract bounded text from a public HTTP(S) page.
 
 The package uses `embedded-tools-shared` for canonical path authorization and
 text operations. Absolute paths, traversal, and symlink escapes are rejected.
-It does not provide shell execution or arbitrary filesystem access.
+Existing files must be read before `Write` or `Edit` changes them. The package
+does not provide shell execution or arbitrary filesystem access.
 
 ## Loading
 

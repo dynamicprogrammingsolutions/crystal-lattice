@@ -3,9 +3,11 @@
 The iOS app can run one fixed Crystal Lattice agent in process. The app bundles
 CPython, `agent_core`, `agent_app`, the reference OpenAI-compatible provider,
 the model-invisible `embedded-tools-shared` workspace engine, and the
-`embedded-claude-tools` plugin package. React Native talks to the runtime
-through an `inProcess` `AgentBackend`; the app does not start FastAPI, bind a
-loopback server, or launch a desktop Python process.
+`embedded-claude-tools` plugin package. The fixed archive also contains the
+separate `embedded-codex-tools` package, although the current single agent does
+not enable it yet. React Native talks to the runtime through an `inProcess`
+`AgentBackend`; the app does not start FastAPI, bind a loopback server, or
+launch a desktop Python process.
 
 This is a proof of concept. The endpoint and model are saved with the embedded
 connection record. The masked proxy API key is kept in iOS app-owned
@@ -87,14 +89,19 @@ The fixed Claude-like tool set currently contains:
 - `Read`: read a workspace-relative UTF-8 text file with optional line offset
   and limit.
 - `Write`: create or replace a workspace-relative UTF-8 text file.
+- `Edit`: perform an exact replacement after the file has been read.
+- `Glob`: list files matching a workspace-relative pattern.
+- `Grep`: search workspace text with bounded regular expressions and result
+  modes.
+- `WebFetch`: retrieve bounded text from public HTTP(S) pages.
 
 The model-visible schemas and result presentation belong to
 `embedded-claude-tools`. Canonical workspace path authorization and UTF-8 text
-operations belong to `embedded-tools-shared`; the mobile bridge does not
-define tool classes.
+operations, enumeration, search, patching, and public URL validation belong to
+`embedded-tools-shared`; the mobile bridge does not define tool classes.
 
-Web search and Python execution are intentionally not part of this runtime
-configuration yet.
+Tavily web search and Python execution are intentionally not part of this
+runtime configuration yet.
 
 ## Persistence and background behavior
 
@@ -161,8 +168,9 @@ assistant prose.
 ## Current limits
 
 - iOS only.
-- One fixed agent and provider profile.
-- Text `Read` and `Write` under one app-owned workspace.
+- One fixed OpenAI-compatible agent and provider profile.
+- One active Claude-like text/workspace/public-fetch tool set. The separate
+  Codex-like package is bundled but not yet assigned to an agent.
 - API-key authentication only; ChatGPT authorization is not included.
 - Ollama runs behind an external proxy; no model runs inside the app.
 - No Tavily search, restricted Python executor, email integration, dynamic

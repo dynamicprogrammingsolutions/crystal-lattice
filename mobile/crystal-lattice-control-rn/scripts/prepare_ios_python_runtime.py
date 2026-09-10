@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "6"
+RUNTIME_LAYOUT_VERSION = "7"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -109,6 +109,13 @@ def source_digest() -> str:
             / "embedded-claude-tools"
             / "src"
             / "embedded_claude_tools"
+        ),
+        (
+            REPO_ROOT
+            / "plugins"
+            / "embedded-codex-tools"
+            / "src"
+            / "embedded_codex_tools"
         ),
         PYTHON_APP_SOURCE,
     )
@@ -216,6 +223,17 @@ def create_application_archive(destination: Path) -> None:
                 / "embedded_claude_tools"
             ),
             Path("embedded_claude_tools"),
+        )
+        add_python_tree(
+            archive,
+            (
+                REPO_ROOT
+                / "plugins"
+                / "embedded-codex-tools"
+                / "src"
+                / "embedded_codex_tools"
+            ),
+            Path("embedded_codex_tools"),
         )
         add_python_tree(archive, PYTHON_APP_SOURCE, Path())
         for package_name in (

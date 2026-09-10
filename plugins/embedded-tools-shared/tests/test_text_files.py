@@ -7,6 +7,7 @@ import pytest
 from embedded_tools_shared import (
     DEFAULT_MAX_READ_BYTES,
     WorkspacePathError,
+    edit_text_file,
     read_text_file,
     resolve_workspace_path,
     resolve_workspace_root,
@@ -84,3 +85,33 @@ def test_invalid_utf8_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(UnicodeDecodeError):
         read_text_file(root, "binary.txt")
+
+
+def test_exact_edit_requires_unique_match_unless_replace_all(tmp_path: Path) -> None:
+    root = resolve_workspace_root({"working_directory": str(tmp_path)})
+    write_text_file(root, "edit.txt", "alpha beta alpha\n")
+
+    with pytest.raises(ValueError, match="Found 2 matches"):
+        edit_text_file(root, "edit.txt", "alpha", "omega")
+
+    edited = edit_text_file(
+        root,
+        "edit.txt",
+        "alpha",
+        "omega",
+        replace_all=True,
+    )
+    assert edited.replacements == 2
+    assert (root / "edit.txt").read_text(encoding="utf-8") == "omega beta omega\n"
+
+
+def test_edit_rejects_empty_missing_and_identical_strings(tmp_path: Path) -> None:
+    root = resolve_workspace_root({"working_directory": str(tmp_path)})
+    write_text_file(root, "edit.txt", "alpha\n")
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        edit_text_file(root, "edit.txt", "", "omega")
+    with pytest.raises(ValueError, match="must be different"):
+        edit_text_file(root, "edit.txt", "alpha", "alpha")
+    with pytest.raises(ValueError, match="not found"):
+        edit_text_file(root, "edit.txt", "missing", "omega")

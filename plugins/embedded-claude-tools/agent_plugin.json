@@ -3,11 +3,19 @@
   "subdirectory": ".",
   "entries": [
     "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
-    "embedded_claude_tools.write_tool.ClaudeLikeWriteTool"
+    "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
+    "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
+    "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool",
+    "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
+    "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool"
   ],
   "kinds": {
     "embedded_claude_tools.read_tool.ClaudeLikeReadTool": "tools",
-    "embedded_claude_tools.write_tool.ClaudeLikeWriteTool": "tools"
+    "embedded_claude_tools.write_tool.ClaudeLikeWriteTool": "tools",
+    "embedded_claude_tools.edit_tool.ClaudeLikeEditTool": "tools",
+    "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool": "tools",
+    "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool": "tools",
+    "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool": "tools"
   },
   "local_workspace_dependencies": [
     {
