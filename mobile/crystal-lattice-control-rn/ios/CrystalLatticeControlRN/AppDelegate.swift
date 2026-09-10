@@ -80,6 +80,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       $0 == "-clcRichSessionUiHarness" || $0 == "clcRichSessionUiHarness"
     }) {
       moduleName = "MobileRichSessionUiHarness"
+    } else if arguments.contains(where: {
+      $0 == "-clcEmbeddedPythonRuntimeHarness" ||
+        $0 == "clcEmbeddedPythonRuntimeHarness"
+    }) {
+      moduleName = "EmbeddedPythonRuntimeDiagnostics"
     } else {
       moduleName = "CrystalLatticeControlRN"
     }

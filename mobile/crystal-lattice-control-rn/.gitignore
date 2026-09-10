@@ -2,6 +2,10 @@ artifacts/detox/
 artifacts/notification-visual/
 artifacts/website-visual/
 ios/.xcode.env.local
+ios/CrystalLatticePythonRuntime/.prepared-python-runtime
+ios/CrystalLatticePythonRuntime/Resources/python/
+ios/CrystalLatticePythonRuntime/Resources/python312.zip
+ios/CrystalLatticePythonRuntime/Vendor/
 fastlane/.env
 fastlane/Preview.html
 fastlane/report.xml

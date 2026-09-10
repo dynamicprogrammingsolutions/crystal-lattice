@@ -179,12 +179,13 @@ evidence.
 
 ### Task checklist
 
-- [ ] Create and commit task tracking, cross-links, and the approved
+- [x] Create and commit task tracking, cross-links, and the approved
   mobile-owned specification.
-- [ ] Select and reproduce the iOS CPython framework/runtime input.
+- [x] Select and reproduce the iOS CPython framework/runtime input.
 - [ ] Stage the fixed Crystal Lattice Python/config/plugin resources.
-- [ ] Add the Swift runtime host and React Native bridge.
-- [ ] Add the local `AgentBackend` and foreground no-auth/no-tool smoke.
+- [x] Add the initial Swift runtime host and React Native bridge.
+- [x] Pass the foreground embedded-Python no-auth/no-tool smoke.
+- [ ] Add the production local `AgentBackend`.
 - [ ] Adapt and test the Ollama-targeted OpenAI proxy.
 - [ ] Add bounded background diagnostics, continuation, and recovery.
 - [ ] Add workspace-restricted `Read` and `Write` tools.
@@ -223,3 +224,21 @@ evidence.
   initially.
 - Run existing local mobile/runtime regressions affected by shared interfaces.
 - Inspect logs and committed files for credentials before every commit.
+
+## Implementation Notes
+
+- 2026-09-10: Created the approved task set and mobile-owned specification in
+  commit `124be8b7`. The implementation branch includes the completed
+  CLI-distribution work through merge commit `0d2e2f83`.
+- 2026-09-10: Selected Python Apple Support `3.12-b10`, containing CPython
+  3.12.14 device and simulator slices. Added a checksum-pinned preparation
+  script that keeps the generated 132 MB XCFramework and standard library out
+  of Git.
+- 2026-09-10: Added a local CocoaPod, mixed Swift/Objective-C native host,
+  React Native promise bridge, production diagnostics screen, and focused
+  Detox launch path. The stdlib is stored as an uncompressed importable zip so
+  startup codecs do not depend on an extension module before initialization.
+- 2026-09-10: The release simulator build passed with the Python framework and
+  resource bundle embedded. `npm run tsc` passed. The focused Detox test passed
+  on an iPhone 17 Pro simulator in 31.5 seconds and confirmed CPython 3.12
+  executed the smoke program with result `42`.
