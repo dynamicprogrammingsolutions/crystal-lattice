@@ -27,10 +27,21 @@ const PORT = parsedArgs.port;
 // For Anthropic pass /v1 so that Claude Code's requests to /v1/messages are forwarded correctly.
 const BASE_PATH = parsedArgs.basePath;
 const HIDE_HEADERS = parsedArgs.hideHeaders;
+const REQUIRED_API_KEY_ENV = parsedArgs.requireApiKeyEnv;
+const RESPONSE_DELAY_MS = parsedArgs.delayMs;
+const REQUIRED_API_KEY = REQUIRED_API_KEY_ENV
+  ? process.env[REQUIRED_API_KEY_ENV]
+  : null;
+
+if (REQUIRED_API_KEY_ENV && !REQUIRED_API_KEY) {
+  console.error(
+    `Error: required API key environment variable ${REQUIRED_API_KEY_ENV} is not set`,
+  );
+  process.exit(1);
+}
 
 // Remove trailing slash from endpoint if present
 const cleanEndpoint = TARGET_ENDPOINT.replace(/\/$/, "");
-
 
 // Global long-text registry persisted across all requests.
 // Maps sha256 hash -> { number, path (first seen), length }
@@ -64,17 +75,13 @@ app.use(express.text({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Function to find and extract long text fields with numbering
-function extractLongTexts(
-  obj,
-  path = "",
-  newTexts = []
-) {
+function extractLongTexts(obj, path = "", newTexts = []) {
   if (typeof obj === "string" && obj.length > 1000) {
     const num = getOrRegisterLongText(obj, path, newTexts);
     return `[LONG_TEXT_${num}]`;
   } else if (Array.isArray(obj)) {
     return obj.map((item, index) =>
-      extractLongTexts(item, `${path}[${index}]`, newTexts)
+      extractLongTexts(item, `${path}[${index}]`, newTexts),
     );
   } else if (obj && typeof obj === "object") {
     const result = {};
@@ -112,7 +119,16 @@ function logRequest(req) {
   if (HIDE_HEADERS) {
     console.log("Headers: [hidden]");
   } else {
-    console.log("Headers:", JSON.stringify(req.headers, null, 2));
+    const loggedHeaders = { ...req.headers };
+    if (REQUIRED_API_KEY) {
+      if (loggedHeaders.authorization) {
+        loggedHeaders.authorization = "[redacted]";
+      }
+      if (loggedHeaders["x-api-key"]) {
+        loggedHeaders["x-api-key"] = "[redacted]";
+      }
+    }
+    console.log("Headers:", JSON.stringify(loggedHeaders, null, 2));
   }
 
   // Only log body for methods that typically have bodies
@@ -140,12 +156,54 @@ app.get("/health", (req, res) => {
     port: PORT,
     base_path: BASE_PATH,
     proxy_pattern: `${BASE_PATH}/*`,
+    authentication: REQUIRED_API_KEY ? "bearer" : "none",
+    response_delay_ms: RESPONSE_DELAY_MS,
   });
 });
+
+function bearerToken(req) {
+  const authorization = req.headers.authorization;
+  if (typeof authorization !== "string") {
+    return null;
+  }
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1] : null;
+}
+
+function matchesRequiredApiKey(req) {
+  if (!REQUIRED_API_KEY) {
+    return true;
+  }
+  const supplied = bearerToken(req);
+  if (typeof supplied !== "string") {
+    return false;
+  }
+  const expectedBuffer = Buffer.from(REQUIRED_API_KEY);
+  const suppliedBuffer = Buffer.from(supplied);
+  return (
+    expectedBuffer.length === suppliedBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)
+  );
+}
+
+async function delayResponse() {
+  if (RESPONSE_DELAY_MS <= 0) {
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, RESPONSE_DELAY_MS));
+}
 
 // Shared proxy handler — used for both OpenAI-compatible and Anthropic base paths
 async function proxyHandler(req, res) {
   try {
+    if (!matchesRequiredApiKey(req)) {
+      res.status(401).json({
+        error: "Unauthorized",
+        message: "A valid bearer API key is required",
+      });
+      return;
+    }
+
     // Get the path after BASE_PATH
     const apiPath = req.path === "/" ? "" : req.path;
 
@@ -157,6 +215,10 @@ async function proxyHandler(req, res) {
     delete forwardHeaders.host;
     delete forwardHeaders.connection;
     delete forwardHeaders["content-length"];
+    if (REQUIRED_API_KEY) {
+      delete forwardHeaders.authorization;
+      delete forwardHeaders["x-api-key"];
+    }
 
     // Build target URL: cleanEndpoint already contains the full base (e.g.
     // "https://api.anthropic.com" for Anthropic, or
@@ -167,6 +229,8 @@ async function proxyHandler(req, res) {
       : `${cleanEndpoint}${BASE_PATH}${apiPath}`;
 
     console.log(`Forwarding ${req.method} request to: ${targetUrl}`);
+
+    await delayResponse();
 
     const isStreaming =
       req.body?.stream === true || req.body?.stream === "true";
@@ -274,6 +338,10 @@ app.listen(PORT, () => {
   console.log(`Target endpoint: ${cleanEndpoint}`);
   console.log(`Base path:       ${BASE_PATH}`);
   console.log(`Header logging:  ${HIDE_HEADERS ? "hidden" : "enabled"}`);
+  console.log(
+    `Authentication:  ${REQUIRED_API_KEY ? `bearer via ${REQUIRED_API_KEY_ENV}` : "none"}`,
+  );
+  console.log(`Response delay:  ${RESPONSE_DELAY_MS} ms`);
   console.log(`Proxy pattern:   http://localhost:${PORT}${BASE_PATH}/*`);
   console.log(`Health check:    http://localhost:${PORT}/health`);
   console.log("\nExample endpoints:");
@@ -281,14 +349,18 @@ app.listen(PORT, () => {
     console.log(`  - POST   ${BASE_PATH}/messages          (Anthropic)`);
     console.log(`  - GET    ${BASE_PATH}/models             (Anthropic)`);
   } else {
-    console.log(`  - POST   ${BASE_PATH}/chat/completions   (OpenAI-compatible)`);
-    console.log(`  - GET    ${BASE_PATH}/models              (OpenAI-compatible)`);
+    console.log(
+      `  - POST   ${BASE_PATH}/chat/completions   (OpenAI-compatible)`,
+    );
+    console.log(
+      `  - GET    ${BASE_PATH}/models              (OpenAI-compatible)`,
+    );
     console.log(`  - POST   ${BASE_PATH}/embeddings`);
     console.log(`  - POST   ${BASE_PATH}/completions`);
   }
   console.log(`  - And any other ${BASE_PATH}/* endpoint`);
   console.log(
-    "\nLong text detection: Enabled (>1000 characters, numbered for easy search)"
+    "\nLong text detection: Enabled (>1000 characters, numbered for easy search)",
   );
   console.log("Streaming support: Enabled (SSE chunks are piped and logged)");
   console.log("\nWaiting for requests...\n");

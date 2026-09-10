@@ -187,7 +187,7 @@ evidence.
 - [x] Add the initial Swift runtime host and React Native bridge.
 - [x] Pass the foreground embedded-Python no-auth/no-tool smoke.
 - [x] Add the production local `AgentBackend`.
-- [ ] Adapt and test the Ollama-targeted OpenAI proxy.
+- [x] Adapt and test the Ollama-targeted OpenAI proxy.
 - [ ] Add bounded background diagnostics, continuation, and recovery.
 - [ ] Add workspace-restricted `Read` and `Write` tools.
 - [ ] Add basic API-key input, proxy enforcement, and application reload.
@@ -261,3 +261,9 @@ evidence.
   application coordinator, poll completion events, and load the persisted user
   plus assistant messages. The release-simulator build and focused Detox test
   passed in 42.6 seconds.
+- 2026-09-10: Extended `tools/openai-proxy` with opt-in bearer authentication,
+  timing-safe comparison, credential redaction, upstream authorization
+  stripping, and bounded delay. Six proxy tests passed. A real
+  API-key-protected request through the proxy reached local Ollama
+  `qwen3:0.6b`; wrong credentials returned `401`, correct credentials returned
+  `READY`, and the test key was absent from proxy logs.

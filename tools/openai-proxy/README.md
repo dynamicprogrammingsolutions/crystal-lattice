@@ -20,10 +20,11 @@ npm --prefix tools/openai-proxy ci
 ## Start the Proxy
 
 The command accepts a target endpoint, local port, optional local base path,
-and optional `--hide-headers` flag:
+and optional authentication, delay, and logging flags:
 
 ```text
-node tools/openai-proxy/proxy.js <endpoint> <port> [base-path] [--hide-headers]
+node tools/openai-proxy/proxy.js <endpoint> <port> [base-path] \
+  [--hide-headers] [--require-api-key-env NAME] [--delay-ms N]
 ```
 
 OpenAI-compatible example:
@@ -66,6 +67,43 @@ The health endpoint reports the selected target and path:
 ```bash
 curl http://127.0.0.1:3000/health
 ```
+
+## API-Key-Protected Ollama Proxy
+
+The embedded iOS runtime proof of concept uses the proxy as a small
+OpenAI-compatible boundary in front of Ollama. Keep the client-facing key in an
+environment variable and require it explicitly:
+
+```bash
+export CRYSTAL_PROXY_API_KEY="replace-with-a-random-review-key"
+node tools/openai-proxy/proxy.js \
+  http://127.0.0.1:11434/v1 \
+  3000 \
+  /v1 \
+  --hide-headers \
+  --require-api-key-env CRYSTAL_PROXY_API_KEY
+```
+
+Clients send:
+
+```text
+Authorization: Bearer <the configured review key>
+```
+
+When required authentication is enabled, the proxy:
+
+- returns `401` before forwarding a missing or incorrect key;
+- compares the bearer value using a timing-safe comparison;
+- redacts authorization values from logs even without `--hide-headers`;
+- removes the client authorization header before forwarding to Ollama.
+
+Use `--delay-ms N` to add a bounded delay before forwarding a request when
+testing mobile background behavior. The delay is test support; it does not
+replace or modify model output.
+
+This remains a development/reviewer proxy, not a complete public-service
+security layer. Public deployment still needs TLS, rate limiting, service
+monitoring, bounded credentials, and a defined logging/retention policy.
 
 ## Inspect a Request
 
