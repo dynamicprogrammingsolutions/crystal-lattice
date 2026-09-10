@@ -24,9 +24,15 @@ These requirements track the live implementation of the
 | CLIDIST-081 | Default bin-directory selection is deterministic, prefers an existing installation and conventional user command directories, rejects unsafe or unusable PATH entries, and fails before installation with an actionable message when no suitable PATH directory exists; an explicit override remains supported. | Implemented | Automated | Documented | Installer tests cover preferred selection, incompatible existing command avoidance, explicit override, local archive input, and no-candidate failure |
 | CLIDIST-090 | Specifications, current documentation, commands, tests, and diagnostics use descriptive scenario and component names; any retained historical “level” terminology is introduced with its meaning rather than assumed. | Implemented | Automated | Documented | Named npm commands and scripts; focused search and current/specification documentation |
 | CLIDIST-091 | Distribution acceptance orchestration has one direct implementation per scenario; local npm commands and GitHub Actions call those same entry points, while shared code is limited to lower-level build, extraction, configuration, boot, and process-cleanup helpers that cannot substitute one scenario for another. | Implemented | Automated | Documented | Standalone scenario scripts, package/workflow contract tests, removed pytest scenario file, Nox, and duplicate Python production installer |
+| CLIDIST-100 | Application-only CLI build, install, version, distribution-smoke, and smoke-support entry points live under `application/python/scripts/`; root `scripts/` retains repository-wide utilities and the documented cross-runtime packaging primitive cluster. | Not started | Unverified | Pending | — |
+| CLIDIST-101 | Package-local maintainer scripts are not copied wholesale into bundled-Python runtime application trees or Python distributions; the runtime archive retains only its explicitly staged internal build scripts. | Not started | Unverified | Pending | — |
+| CLIDIST-102 | Root CLI build and install npm commands use the `action:cli:variant` convention consistently with `test:cli:*` and `release:cli:*`, and tracked consumers use the scoped names without obsolete aliases. | Not started | Unverified | Pending | — |
+| CLIDIST-103 | Every potentially long CLI environment-creation, dependency-installation, build, installation, smoke, or boot phase prints numbered progress before work begins; human-readable child output remains visible, boot waits identify the server log and periodically report status, and failure diagnostics remain bounded. | Not started | Unverified | Pending | — |
 
 ## Current-state note
 
-All requirements have local automated evidence. The extracted-archive and
-default-installer npm smokes also pass independently on Linux AMD64, macOS
-AMD64, macOS ARM64, and Windows AMD64.
+Requirements through `CLIDIST-091` have local automated evidence. The
+extracted-archive and default-installer npm smokes also pass independently on
+Linux AMD64, macOS AMD64, macOS ARM64, and Windows AMD64. Requirements
+`CLIDIST-100` through `CLIDIST-103` describe the approved script-ownership,
+command-naming, and progress-output follow-up.
