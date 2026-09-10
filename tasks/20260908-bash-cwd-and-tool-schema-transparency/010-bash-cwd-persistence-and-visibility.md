@@ -359,3 +359,21 @@ provider-defaults merge in `build_agent_config` shallow for every other key.
 Tests updated to the delta design (probe agent uses base + preset with the
 per-key policy; real-agent assertions added); suites pass: helpers 7,
 effective-configs + docs + cloud bundle builder 22, claude-tools 139.
+
+Follow-up (test cleanup + merge-semantics diagnosis, user-directed): diagnosed
+why a per-key `"$merge"` placed on the preset mixin itself does not work —
+`_resolve_node` merges every referenced mixin through
+`_overlay_with_merge_directive(..., replace_existing=True)`, which pops the
+mixin's root `$merge` at reference time (the referencing node owns the merge
+mode; pinned by core composition tests), so with no agent-level directive the
+preset's `system_message` shallow-replaces the base's and the variables are
+silently lost (rendered system message keeps literal `{{...}}` placeholders).
+Verified empirically; README now states the silent failure mode. Cleaned the
+helpers tests to assert behavior only: removed the preset key-shape assertion
+and the exact `files`-spec equality, made the configured-agent check a
+coherence invariant (the template's persistence claim must match
+`bash_cwd_persistence`, base variables must survive) instead of pinning which
+preset is default, and dropped variant-specific render assertions from the
+full-render test while keeping the section-presence guard. Config restored to
+the working agent-level per-key policy after the experiment. Suites: helpers
+7, effective-configs + docs + cloud bundle builder 22, ruff/black clean.

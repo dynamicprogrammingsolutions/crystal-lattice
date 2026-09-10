@@ -164,11 +164,6 @@ def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
     assert "# Context management" in compiled
     assert "Primary working directory:" in compiled
     assert "When a file-oriented tool requires an absolute path" in compiled
-    # The default template uses the permissive-cd tool-usage variable.
-    assert "You may use `cd` when a command must run from a specific directory" in (
-        compiled
-    )
-    assert "avoid unnecessary `cd`" not in compiled
     assert "Task files are a handoff mechanism" in compiled
     assert "# Contextual Instructions (AGENTS.md)" in compiled
     assert "Workspace agent instructions." in compiled
@@ -275,8 +270,7 @@ def test_default_config_claude_system_message_uses_permissive_tool_usage_variabl
     None
 ):
     """The default config wires the claude system message to the permissive-cd
-    tool-usage variable while keeping every tool-usage variant selectable as a
-    literal files-based variable."""
+    tool-usage variable while keeping every tool-usage variant selectable."""
     config_path = (
         ROOT
         / "application"
@@ -301,12 +295,8 @@ def test_default_config_claude_system_message_uses_permissive_tool_usage_variabl
         ),
     }
     for variable_name, filename in expected_tool_usage_variables.items():
-        spec = variables[variable_name]
-        assert spec["files"] == [
-            "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/" f"{filename}"
-        ]
-        # Literal config paths keep the files packaging-discoverable, so
-        # bundled binary/cloud layouts stage every selectable variant.
+        assert variable_name in variables
+        # The variant file must exist so the variable renders real content.
         assert (
             ROOT / "plugins" / "claude-tools" / "system_messages" / "claude" / filename
         ).is_file()
@@ -344,10 +334,12 @@ def _resolve_default_config_with_env(monkeypatch, config_path: Path):
 def test_default_config_claude_bash_presets_resolve_coherent_combinations(
     monkeypatch,
 ) -> None:
-    """The claude bash preset mixins chain ``claude_system_message`` via
-    ``mixin_refs`` and ``"$merge": "deep"``, so each preset keeps the base
-    system-message variables while overriding the tool-usage template variable
-    together with its matching Bash tool configuration keys."""
+    """Each claude bash preset, listed right after ``claude_system_message``
+    in an agent's ``mixin_refs`` with a per-key merge policy deep-merging
+    ``system_message``, yields its documented Bash tool configuration keys and
+    tool-usage template variable while keeping the base system-message
+    variables. The configured claude agents resolve to a coherent combination:
+    the template's persistence claim matches the actual Bash behavior."""
     from agent_app.config import build_agent_config, resolve_config_mixins
 
     config_path = (
@@ -387,18 +379,6 @@ def test_default_config_claude_bash_presets_resolve_coherent_combinations(
         permissive,
         variable,
     ) in expected_presets.items():
-        # Presets are pure deltas: they carry only the Bash keys and the
-        # template override, and are applied by listing them right after
-        # ``claude_system_message`` with a per-key merge policy that deep-merges
-        # only ``system_message`` on the agent.
-        preset_raw = resolved_placeholders["mixins"][preset_name]
-        assert sorted(preset_raw.keys()) == [
-            "bash_cwd_persistence",
-            "bash_include_cwd_in_result",
-            "bash_permissive_cd_guidance",
-            "system_message",
-        ]
-
         probe_config = dict(resolved_placeholders)
         probe_config["agents"] = {
             **resolved_placeholders["agents"],
@@ -421,7 +401,10 @@ def test_default_config_claude_bash_presets_resolve_coherent_combinations(
         assert agent_config["system_message"]["variables"]["TOOL_USAGE"]["files"]
         assert agent_config["system_message_enabled"] is True
 
-    # The configured claude agents use the coherent permissive preset.
+    # The configured claude agents resolve to a coherent combination without
+    # pinning which preset is the default: the template's persistence claim
+    # must match the actual Bash cwd persistence, and the base variables must
+    # survive the preset overlay.
     resolved, errors = resolve_config_mixins(resolved_placeholders)
     assert errors == []
     for agent_id in (
@@ -431,13 +414,13 @@ def test_default_config_claude_bash_presets_resolve_coherent_combinations(
         "deepseek-ollama",
     ):
         agent_config = build_agent_config(resolved, agent_id)
-        assert agent_config["bash_cwd_persistence"] is True
-        assert agent_config["bash_include_cwd_in_result"] is False
-        assert agent_config["bash_permissive_cd_guidance"] is True
-        assert (
-            "{{TOOL_USAGE_PERMISSIVE_CD}}" in agent_config["system_message"]["template"]
-        )
+        template = agent_config["system_message"]["template"]
+        if agent_config["bash_cwd_persistence"]:
+            assert "{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}" not in template
+        else:
+            assert "{{TOOL_USAGE_PERMISSIVE_CD}}" not in template
         assert agent_config["system_message"]["variables"]["TOOL_USAGE"]["files"]
+        assert agent_config["system_message_enabled"] is True
 
 
 def test_claude_bash_preset_applies_to_agent_and_renders_system_message(
