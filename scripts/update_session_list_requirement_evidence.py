@@ -15,6 +15,7 @@ _EVIDENCE_MARKER = "<!-- test-evidence -->"
 _REQUIREMENT_ID = re.compile(r"SLIST-\d{3}")
 _ANNOTATION = re.compile(r"^\s*#\s*-\s*(SLIST-\d{3}):\s*(\S(?:.*\S)?)\s*$")
 _TEST_DEFINITION = re.compile(r"^\s*(?:async\s+)?def\s+(test_[A-Za-z0-9_]+)\s*\(")
+_INTEGRATION_MARKER = re.compile(r"^\s*@pytest\.mark\.integration(?:\(|\s*$)")
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ def _parse_test_evidence(path: Path) -> list[TestEvidence]:
     pending: list[tuple[str, str]] = []
     evidence: list[TestEvidence] = []
     in_requirements = False
+    integration_marked = False
 
     for line_number, line in enumerate(
         path.read_text(encoding="utf-8").splitlines(),
@@ -38,6 +40,7 @@ def _parse_test_evidence(path: Path) -> list[TestEvidence]:
         if line.strip() == "# Requirements:":
             pending = []
             in_requirements = True
+            integration_marked = False
             continue
 
         annotation = _ANNOTATION.match(line)
@@ -45,11 +48,20 @@ def _parse_test_evidence(path: Path) -> list[TestEvidence]:
             pending.append((annotation.group(1), annotation.group(2)))
             continue
 
+        if in_requirements and _INTEGRATION_MARKER.match(line):
+            integration_marked = True
+            continue
+
         definition = _TEST_DEFINITION.match(line)
         if definition is not None:
             if not pending:
                 in_requirements = False
                 continue
+            if not integration_marked:
+                raise ValueError(
+                    f"{path}:{line_number} has SLIST evidence annotations "
+                    "but is not marked pytest.mark.integration"
+                )
             for requirement_id, description in pending:
                 evidence.append(
                     TestEvidence(
@@ -62,6 +74,7 @@ def _parse_test_evidence(path: Path) -> list[TestEvidence]:
                 )
             pending = []
             in_requirements = False
+            integration_marked = False
             continue
 
         stripped = line.strip()
@@ -71,6 +84,7 @@ def _parse_test_evidence(path: Path) -> list[TestEvidence]:
             continue
         pending = []
         in_requirements = False
+        integration_marked = False
 
     return evidence
 
@@ -118,9 +132,11 @@ def _test_link(
     relative_target = Path(
         os.path.relpath(evidence.path, requirements_path.parent)
     ).as_posix()
+    title = f"{evidence.test_name} — {evidence.description}".replace(
+        "\\", "\\\\"
+    ).replace('"', '\\"')
     return (
-        f"[{display}:{evidence.line}]"
-        f'({relative_target}#L{evidence.line} "{evidence.test_name}")'
+        f"[{display}:{evidence.line}]" f'({relative_target}#L{evidence.line} "{title}")'
     )
 
 
@@ -177,8 +193,7 @@ def update_requirements(
         evidence_cell = cells[-2].strip()
         if _EVIDENCE_MARKER not in evidence_cell:
             raise ValueError(f"{requirement_id} evidence is missing {_EVIDENCE_MARKER}")
-        manual, _marker, _generated = evidence_cell.partition(_EVIDENCE_MARKER)
-        manual = manual.rstrip().rstrip(";")
+        _manual, _marker, _generated = evidence_cell.partition(_EVIDENCE_MARKER)
         links = [
             _test_link(
                 item,
@@ -189,8 +204,7 @@ def update_requirements(
             for item in grouped.get(requirement_id, [])
         ]
         generated = "; ".join(links) if links else "No tagged test evidence."
-        prefix = f"{manual}; " if manual else ""
-        cells[-2] = f" {prefix}{_EVIDENCE_MARKER} {generated} "
+        cells[-2] = f" {_EVIDENCE_MARKER} {generated} "
         updated.append("|".join(cells))
         seen.add(requirement_id)
 
@@ -204,7 +218,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Regenerate line-numbered test evidence links from structured "
-            "SLIST comments immediately above test functions."
+            "SLIST comments immediately above integration test functions."
         )
     )
     parser.add_argument(
@@ -219,7 +233,7 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         type=Path,
         dest="tests",
-        help="Test file to scan; repeat for every evidence source.",
+        help="Integration test file to scan; repeat for every evidence source.",
     )
     parser.add_argument(
         "--check",

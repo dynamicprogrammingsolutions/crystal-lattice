@@ -102,10 +102,13 @@ system file read that is already blocked.
 - `core/python/tests/test_application_session_listing.py`
 - `core/python/tests/test_application_session_filters.py`
 - `core/python/tests/test_session_list_cache.py`
+- `application/python/tests/test_session_listing_requirements_integration.py`
 - `application/python/tests/test_session_list_http_contract.py`
 - focused terminal/server delegation tests in
   `application/python/tests/test_agent_terminal_app_server.py`
 
 The delayed test stores exercise bounded foreground return, newest-first work,
 metadata-only results, shared concurrent work, background completion, and
-shutdown without relying on iCloud.
+shutdown without relying on iCloud. The integration requirement suite combines
+those conditions with real `AgentApplication`, filesystem persistence,
+application plugins, and production HTTP routing.

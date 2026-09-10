@@ -479,7 +479,7 @@ or shutdown wiring.
 - [x] Assess preserved functional coverage and integration coverage of every
       new functional requirement without changing implementation code.
 
-Assessment:
+Assessment before dedicated integration evidence:
 
 - Preserved functional coverage is strong for `SLIST-001`, `SLIST-002`,
   `SLIST-006`, `SLIST-007`, and `SLIST-010`.
@@ -507,24 +507,70 @@ Assessment:
   and narrower HTTP assertions.
 - No implementation or test behavior was changed after this assessment.
 
-### In-table generated test evidence
+### In-table generated integration evidence
 
 - [x] Restore evidence to each preserved/new functional/non-functional
       requirement table.
-- [x] Keep hand-maintained implementation and documentation links in the table
-      while generating test links after a stable marker.
+- [x] Keep evidence limited to generated integration-test links rather than
+      implementation, decision, documentation, or unit-test references.
 - [x] Expand requirement annotations above tests with a concise statement of
       what each test proves.
 - [x] Add `scripts/update_session_list_requirement_evidence.py` with explicit
       requirements/test-file inputs, line-numbered relative links, update mode,
       and `--check` mode.
+- [x] Require every generated evidence test to carry
+      `pytest.mark.integration`.
 - [x] Add an automated synchronization test for generated requirement
       evidence.
 - [x] Verify the updater, focused Core tests, selected HTTP/terminal tests,
       documentation preparation, and MkDocs build.
 
-The generator currently emits 74 test-function links across all 20
-requirements. Link labels contain the package- or repository-relative test path
-and current definition line; targets use relative Markdown paths with `#L…`
-anchors. Manual source and documentation links remain editable before the
-`<!-- test-evidence -->` marker.
+The generator emits only links from
+`application/python/tests/test_session_listing_requirements_integration.py`.
+Link labels contain the repository-relative test path and current definition
+line; targets use relative Markdown paths with `#L…` anchors.
+
+Four reviewable integration scenarios now provide evidence for every
+`SLIST-001` through `SLIST-020` requirement:
+
+- established summaries, real plugin contributions, malformed storage,
+  filtering, exact lookup, and shared HTTP/terminal behavior;
+- delayed metadata and iCloud-like content hydration with bounded partial HTTP
+  results and background convergence;
+- cross-runtime persistent reuse followed by save, external edit, delete, and
+  corrupt-cache recovery;
+- concurrent HTTP listing, stale in-flight work, external revision
+  replacement, and application shutdown.
+
+All four scenarios use real `AgentApplication`, filesystem sessions, and the
+production HTTP route and are explicitly collected with `-m integration`.
+
+### Reviewable real-world integration scenarios
+
+- [x] Add one dedicated integration test module whose scenarios use real
+      `AgentApplication`, filesystem session documents, production FastAPI
+      routing, and real application-plugin loading.
+- [x] Simulate on-demand cloud storage by delaying metadata enumeration
+      separately from content hydration and blocking selected session loads.
+- [x] Cover persisted-summary restart reuse, application saves, external file
+      edits, deletion, corrupt derived state, concurrent HTTP requests, stale
+      in-flight work, and shutdown.
+- [x] Remove source, decision, documentation, and lower-level test links from
+      requirement evidence cells.
+- [x] Generate evidence only from explicitly marked integration tests and
+      reject annotated unmarked tests.
+- [x] Link every `SLIST-001` through `SLIST-020` requirement to at least one
+      described integration scenario with a generated line anchor.
+
+The earlier integration-gap assessment is superseded by
+`application/python/tests/test_session_listing_requirements_integration.py`.
+Its four scenarios are intentionally organized for human review:
+
+1. preserved summary, plugin, ordering, presentation, filter, failure, exact,
+   HTTP, and terminal contracts;
+2. delayed metadata plus iCloud-like hydration, bounded complete/placeholder
+   HTTP results, filtering, limits, and background convergence;
+3. process restart reuse followed by save, external edit, delete, and corrupt
+   cache recovery;
+4. concurrent HTTP requests, stale revision replacement, and close while a
+   resolver read is blocked.
