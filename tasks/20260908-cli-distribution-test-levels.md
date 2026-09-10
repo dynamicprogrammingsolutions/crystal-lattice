@@ -1413,3 +1413,12 @@ names, and progress logging.
   documentation preparation, and MkDocs build passed. Native acceptance passed
   both package-local npm smokes on all four release targets in GitHub Actions
   run `34455407631`.
+
+#### Merge-time follow-up
+
+- 2026-09-10: Inspection of the main worktree found an untracked generated
+  `application/python/agent_terminal_app/cache/` directory. The files were
+  preserved, and runtime application-tree staging was narrowed to exclude
+  generated `cache/` directories as well as package maintainer `scripts/`.
+  Added a focused regression test that stages representative cache and
+  maintainer files and proves neither enters the runtime package.

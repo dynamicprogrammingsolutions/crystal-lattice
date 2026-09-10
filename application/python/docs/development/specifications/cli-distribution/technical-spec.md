@@ -427,10 +427,10 @@ directory. This explicit cross-package and shipped-runtime contract is
 different from application maintainer entry-point ownership.
 
 When the runtime-package builder stages `application/python`, it excludes the
-package-local maintainer `scripts/` directory. It then explicitly stages only
-the root packaging scripts required by the shipped runtime. Python package
-builds likewise do not include the maintainer script directory as importable
-package code.
+package-local maintainer `scripts/` directory and generated application
+`cache/` directories. It then explicitly stages only the root packaging
+scripts required by the shipped runtime. Python package builds likewise do not
+include the maintainer script directory as importable package code.
 
 ## Progress output for long operations
 

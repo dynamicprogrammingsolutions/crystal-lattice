@@ -324,7 +324,7 @@ def stage_repo_like_runtime(package_dir: Path) -> None:
     copytree_sanitized(
         APP_DIR,
         package_dir / "application" / "python",
-        excluded_dir_names={"scripts"},
+        excluded_dir_names={"cache", "scripts"},
     )
     copytree_sanitized(PLUGINS_DIR, package_dir / "plugins")
     scripts_target = package_dir / "scripts"

@@ -211,7 +211,8 @@ Application-only CLI build/install wrappers, release-version maintenance,
 distribution-smoke scenarios, and their focused helpers live under
 `application/python/scripts/`. They are maintainer entry points, not importable
 application package code, and the bundled-Python package builder excludes this
-directory from the staged application tree.
+directory plus generated application `cache/` directories from the staged
+application tree.
 
 The root `scripts/` directory retains repository-wide utilities and these
 cross-runtime packaging primitives:

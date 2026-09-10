@@ -73,6 +73,47 @@ def test_python_runtime_package_stages_launcher_layout_and_bundle_script(
     )
 
 
+def test_runtime_application_staging_excludes_maintainer_and_cache_directories(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    app_dir = tmp_path / "application" / "python"
+    app_package_dir = app_dir / "agent_terminal_app"
+    (app_package_dir / "cache" / "session-list").mkdir(parents=True)
+    (app_package_dir / "cache" / "session-list" / "state.sqlite3").write_text(
+        "generated",
+        encoding="utf-8",
+    )
+    (app_dir / "scripts").mkdir()
+    (app_dir / "scripts" / "maintainer.py").write_text(
+        "raise SystemExit\n",
+        encoding="utf-8",
+    )
+    (app_package_dir / "__main__.py").write_text("", encoding="utf-8")
+
+    core_dir = tmp_path / "core" / "python"
+    plugins_dir = tmp_path / "plugins"
+    core_dir.mkdir(parents=True)
+    plugins_dir.mkdir()
+    package_dir = tmp_path / "package"
+
+    monkeypatch.setattr(runtime_builder, "APP_DIR", app_dir)
+    monkeypatch.setattr(runtime_builder, "CORE_DIR", core_dir)
+    monkeypatch.setattr(runtime_builder, "PLUGINS_DIR", plugins_dir)
+    monkeypatch.setattr(
+        runtime_builder,
+        "prepare_cloud_runtime_build_context",
+        lambda _destination: None,
+    )
+
+    runtime_builder.stage_repo_like_runtime(package_dir)
+
+    staged_application = package_dir / "application" / "python"
+    assert not (staged_application / "scripts").exists()
+    assert not (staged_application / "agent_terminal_app" / "cache").exists()
+    assert (staged_application / "agent_terminal_app" / "__main__.py").is_file()
+
+
 def test_optimized_bundle_layout_rejects_bundle_command(tmp_path: Path) -> None:
     manifest = tmp_path / "agent_terminal_app" / "runtime_layout.json"
     manifest.parent.mkdir()
