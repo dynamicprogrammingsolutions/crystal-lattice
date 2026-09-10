@@ -117,6 +117,7 @@ def test_luna_uses_complete_embedded_codex_tool_set(tmp_path: Path) -> None:
         "api_key": api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "auth_mode": "api",
+        "provider_transport": "requests",
         "timeout": 180,
         "reasoning_effort": "low",
         "reasoning_summary": "concise",

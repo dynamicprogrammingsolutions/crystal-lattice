@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "7"
+RUNTIME_LAYOUT_VERSION = "8"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -117,6 +117,20 @@ def source_digest() -> str:
             / "src"
             / "embedded_codex_tools"
         ),
+        (
+            REPO_ROOT
+            / "plugins"
+            / "openai_responses"
+            / "src"
+            / "openai_responses_plugins"
+        ),
+        (
+            REPO_ROOT
+            / "plugins"
+            / "anthropic-compatible"
+            / "src"
+            / "anthropic_plugins"
+        ),
         PYTHON_APP_SOURCE,
     )
     for source_root in source_roots:
@@ -172,7 +186,7 @@ def add_package_tree(
     for path in sorted(source.rglob("*")):
         if not path.is_file() or "__pycache__" in path.parts:
             continue
-        if path.suffix not in {".pem", ".py"}:
+        if path.suffix not in {".json", ".pem", ".py"}:
             continue
         archive.write(path, destination / path.relative_to(source))
 
@@ -234,6 +248,28 @@ def create_application_archive(destination: Path) -> None:
                 / "embedded_codex_tools"
             ),
             Path("embedded_codex_tools"),
+        )
+        add_package_tree(
+            archive,
+            (
+                REPO_ROOT
+                / "plugins"
+                / "openai_responses"
+                / "src"
+                / "openai_responses_plugins"
+            ),
+            Path("openai_responses_plugins"),
+        )
+        add_package_tree(
+            archive,
+            (
+                REPO_ROOT
+                / "plugins"
+                / "anthropic-compatible"
+                / "src"
+                / "anthropic_plugins"
+            ),
+            Path("anthropic_plugins"),
         )
         add_python_tree(archive, PYTHON_APP_SOURCE, Path())
         for package_name in (

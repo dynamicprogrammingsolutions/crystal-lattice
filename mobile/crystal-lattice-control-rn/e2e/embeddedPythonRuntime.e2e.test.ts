@@ -60,5 +60,8 @@ describe("embedded Python runtime", () => {
     await detoxExpect(
       element(by.id("embedded-python-runtime-provider-mode"))
     ).toHaveText("smoke");
+    await detoxExpect(
+      element(by.id("embedded-python-runtime-provider-imports"))
+    ).toHaveText("openai_responses:requests,anthropic:requests");
   });
 });

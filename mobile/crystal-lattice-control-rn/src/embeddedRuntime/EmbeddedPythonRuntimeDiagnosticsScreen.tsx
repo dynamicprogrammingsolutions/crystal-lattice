@@ -69,6 +69,12 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
         const runtimeInfo = await startEmbeddedPythonRuntime();
         const smokeInfo = await runEmbeddedPythonSmoke();
         const { backend, transport } = createEmbeddedRuntimeBackend();
+        const providerImports = await transport.request<{
+          providers: string[];
+        }>({
+          method: "GET",
+          path: "/embedded/runtime/provider-imports",
+        });
         const ownerConfiguration =
           await getEmbeddedPythonRuntimeConfiguration();
         if (ownerConfiguration.inspectionOnly) {
@@ -105,6 +111,7 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
               .filter((entry) => entry.message.role === "tool")
               .map((entry) => String(entry.message.metadata?.tool_name ?? ""))
               .filter(Boolean),
+            providerImports: providerImports.data.providers,
             outputExists: output.data.exists,
             outputContent: output.data.content,
           };
@@ -183,6 +190,7 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
             .filter((entry) => entry.message.role === "tool")
             .map((entry) => String(entry.message.metadata?.tool_name ?? ""))
             .filter(Boolean),
+          providerImports: providerImports.data.providers,
           outputExists: output.data.exists,
           outputContent: output.data.content,
         };
@@ -312,6 +320,12 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
               style={styles.detail}
             >
               {(runtimeState.info.toolNames ?? []).join(",")}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-provider-imports"
+              style={styles.detail}
+            >
+              {(runtimeState.info.providerImports ?? []).join(",")}
             </Text>
             <Text
               testID="embedded-python-runtime-output-exists"

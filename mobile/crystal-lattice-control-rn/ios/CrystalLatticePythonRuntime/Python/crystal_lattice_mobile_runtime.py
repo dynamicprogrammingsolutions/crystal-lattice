@@ -118,6 +118,36 @@ def _config_payload(
     }
 
 
+def _provider_import_smoke() -> list[str]:
+    from anthropic_plugins.provider import AnthropicProvider
+    from openai_responses_plugins.openai_responses_provider import (
+        OpenAIResponsesProvider,
+    )
+
+    openai_state = OpenAIResponsesProvider().init(
+        {
+            "provider_transport": "requests",
+            "api_key": "import-smoke",
+            "base_url": "https://api.openai.com/v1",
+            "model": "import-smoke",
+        }
+    )
+    openai_client = openai_state.get("client")
+    close_openai = getattr(openai_client, "close", None)
+    if callable(close_openai):
+        close_openai()
+
+    anthropic_client = AnthropicProvider()._client(
+        {
+            "provider_transport": "requests",
+            "api_key": "import-smoke",
+            "base_url": "https://api.anthropic.com",
+        }
+    )
+    anthropic_client.close()
+    return ["openai_responses:requests", "anthropic:requests"]
+
+
 class MobileRuntime:
     def __init__(
         self,
@@ -643,6 +673,9 @@ def _handle_request(
                 "proxy_url": runtime.runtime_configuration["proxy_url"],
             },
         )
+
+    if path_parts == ["embedded", "runtime", "provider-imports"] and method == "GET":
+        return _response(200, {"providers": _provider_import_smoke()})
 
     if path_parts == ["embedded", "runtime", "validate"] and method == "POST":
         if not all(runtime.runtime_configuration.values()):

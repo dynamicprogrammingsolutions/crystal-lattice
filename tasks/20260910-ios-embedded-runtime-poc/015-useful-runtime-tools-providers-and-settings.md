@@ -436,8 +436,8 @@ an automatic snapshot, and survive process relaunch/backgrounding.
   `apply_patch` with lowercase schemas and Bash-like results.
 - [x] Add cross-package conformance tests proving both tool families use the
   same workspace and public-network authorization engines.
-- [ ] Run the OpenAI Responses and Anthropic iOS dependency/import spike.
-- [ ] Produce an exact embedded provider dependency lock and reject unsupported
+- [x] Run the OpenAI Responses and Anthropic iOS dependency/import spike.
+- [x] Produce an exact embedded provider dependency lock and reject unsupported
   native modules or unreviewed major upgrades.
 - [ ] Bundle and configure the four provider profiles and minimal extension
   sets.
@@ -547,3 +547,21 @@ an automatic snapshot, and survive process relaunch/backgrounding.
   unchanged authenticated Ollama `qwen3.5:0.8b` production-screen test passed
   in 84.1 seconds with all six Claude-like tools advertised, preserved the
   expected file output across relaunch, and did not log the temporary key.
+- 2026-09-10: Added opt-in package-owned `requests` transports for OpenAI
+  Responses and Anthropic, including models, non-streaming/streaming messages,
+  provider error shape, and lazy vendor-SDK imports. Existing configurations
+  remain on the official SDK transports.
+- 2026-09-10: The requests transports passed 106 focused OpenAI Responses tests
+  and 24 Anthropic tests, including subprocess imports with each vendor SDK
+  deliberately blocked. The real Luna five-tool test passed through the
+  requests transport in 19 seconds.
+- 2026-09-10: The iOS archive now contains provider source/data and the exact
+  pinned requests closure while excluding `openai`, `anthropic`, `jiter`,
+  `pydantic`, and `pydantic-core`. Release simulator build and credential-free
+  Detox passed; the production diagnostic constructed both requests clients
+  inside embedded CPython.
+- 2026-09-10: Full fast provider verification passed: 425 OpenAI Responses
+  tests with 92 hosted/manual tests deselected, and 63 Anthropic tests with 24
+  hosted tests deselected. Three OpenAI native-history tests were corrected to
+  set `image_attachment_mode: "upload"` explicitly because their assertions
+  required image upload while the current documented default is inline.

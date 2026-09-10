@@ -33,6 +33,18 @@ EMBEDDED_CODEX_TOOLS = (
     / "embedded-codex-tools"
     / "src"
 )
+OPENAI_RESPONSES_PLUGIN = (
+    Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "openai_responses"
+    / "src"
+)
+ANTHROPIC_PLUGIN = (
+    Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "anthropic-compatible"
+    / "src"
+)
 
 
 def load_runtime_module():
@@ -41,6 +53,8 @@ def load_runtime_module():
         EMBEDDED_TOOLS_SHARED,
         EMBEDDED_CLAUDE_TOOLS,
         EMBEDDED_CODEX_TOOLS,
+        OPENAI_RESPONSES_PLUGIN,
+        ANTHROPIC_PLUGIN,
     ):
         sys.path.insert(0, str(path))
     spec = importlib.util.spec_from_file_location(
@@ -251,3 +265,20 @@ def test_fixed_runtime_config_loads_separate_tool_families(tmp_path: Path) -> No
         "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
         "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool",
     ]
+
+
+def test_provider_import_smoke_uses_requests_transports(tmp_path: Path) -> None:
+    module = load_runtime_module()
+
+    result = call(
+        module,
+        tmp_path,
+        "GET",
+        "/embedded/runtime/provider-imports",
+    )
+    assert result == {
+        "providers": [
+            "openai_responses:requests",
+            "anthropic:requests",
+        ]
+    }

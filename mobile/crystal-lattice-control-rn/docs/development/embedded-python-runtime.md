@@ -4,10 +4,11 @@ The iOS app can run one fixed Crystal Lattice agent in process. The app bundles
 CPython, `agent_core`, `agent_app`, the reference OpenAI-compatible provider,
 the model-invisible `embedded-tools-shared` workspace engine, and the
 `embedded-claude-tools` plugin package. The fixed archive also contains the
-separate `embedded-codex-tools` package, although the current single agent does
-not enable it yet. React Native talks to the runtime through an `inProcess`
-`AgentBackend`; the app does not start FastAPI, bind a loopback server, or
-launch a desktop Python process.
+separate `embedded-codex-tools` package plus the OpenAI Responses and Anthropic
+provider packages. The current single agent does not enable those providers
+yet. React Native talks to the runtime through an `inProcess` `AgentBackend`;
+the app does not start FastAPI, bind a loopback server, or launch a desktop
+Python process.
 
 This is a proof of concept. The endpoint and model are saved with the embedded
 connection record. The masked proxy API key is kept in iOS app-owned
@@ -20,6 +21,12 @@ The build uses the checksum-pinned Python Apple Support `3.12-b10` archive.
 Generated framework and resource trees stay ignored by Git. The preparation
 script builds an importable application archive containing the fixed Python
 source and pure-Python dependency closure.
+
+OpenAI Responses and Anthropic use their package-owned
+`provider_transport: "requests"` path in the embedded runtime. Their vendor
+SDKs and native dependencies such as `jiter` and `pydantic-core` are not
+bundled. The embedded dependency list pins the requests/certificate closure,
+and the Release simulator smoke constructs both provider clients.
 
 At runtime, mutable data lives under:
 

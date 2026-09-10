@@ -12,6 +12,7 @@ export interface EmbeddedPythonRuntimeInfo {
   assistantContent?: string;
   toolMessageCount?: number;
   toolNames?: string[];
+  providerImports?: string[];
   outputExists?: boolean;
   outputContent?: string;
 }
