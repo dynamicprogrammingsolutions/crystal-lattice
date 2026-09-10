@@ -52,7 +52,7 @@ Bash working-directory configuration keys:
 
 Working combinations (preset mixins):
 
-The three keys must stay coherent with the system message's tool-usage section, which must state the same persistence behavior the Bash tool actually applies. The default config ships four preset mixins — defined in its `mixins` section, each chaining `claude_system_message` via `mixin_refs` with `"$merge": "deep"` so only the `system_message.template` variable is swapped while the base variables survive:
+The three keys must stay coherent with the system message's tool-usage section, which must state the same persistence behavior the Bash tool actually applies. The default config ships four preset mixins — pure deltas defined in its `mixins` section that set the three keys plus the matching `system_message.template` tool-usage variable:
 
 | Preset mixin | `bash_cwd_persistence` | `bash_include_cwd_in_result` | `bash_permissive_cd_guidance` | Tool-usage variable |
 |---|---|---|---|---|
@@ -61,11 +61,16 @@ The three keys must stay coherent with the system message's tool-usage section, 
 | `claude_bash_permissive_visible` | `true` | `true` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD}}` |
 | `claude_bash_permissive_no_persistence` | `false` | `false` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}` |
 
-Apply a preset by swapping `claude_system_message` for it in an agent's `mixin_refs`:
+Apply a preset by listing it right after `claude_system_message` in an agent's `mixin_refs`, with a per-key merge policy that deep-merges only `system_message`:
 
 ```json
 "claude-anthropic": {
+  "$merge": {
+    "default": "shallow",
+    "deep": ["system_message"]
+  },
   "mixin_refs": [
+    "claude_system_message",
     "claude_bash_permissive_visible",
     "claude_mcp_defaults",
     "claude_anthropic_model_variants"
@@ -73,16 +78,18 @@ Apply a preset by swapping `claude_system_message` for it in an agent's `mixin_r
 }
 ```
 
+The merge policy must live on the agent, not inside the preset: `$merge` is parent-scoped (a mapping's `$merge` controls how its sibling keys merge), so a `$merge` inside the preset's `system_message` would govern `template` — a plain string — while the collision that needs the deep merge is between the two mixins' `system_message` mappings one level up. A root `$merge` on the preset is ignored at reference time because the referencing node owns the merge mode. The per-key policy keeps everything else shallow, including the provider-defaults merge in `build_agent_config`.
+
+The shipped default config uses `claude_bash_permissive` this way for the claude agents (`claude-openrouter`, `claude-anthropic`, `glm-ollama`, `deepseek-ollama`), so tool description and system message both give coherent permissive `cd` guidance. Switch an agent to `claude_bash_upstream_parity` for upstream-verbatim guidance everywhere.
+
 Agent-local keys still win over preset values, so a single tweak does not need a new mixin:
 
 ```json
 "claude-anthropic": {
-  "mixin_refs": ["claude_bash_permissive", "claude_mcp_defaults"],
+  "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
   "bash_include_cwd_in_result": true
 }
 ```
-
-The shipped default keeps `claude_system_message` in the agents' `mixin_refs`: all three keys at their defaults (upstream-verbatim Bash tool description) while the system message template uses `{{TOOL_USAGE_PERMISSIVE_CD}}`. Use a preset instead for fully coherent tool-description and system-message guidance.
 
 For custom templates, the tool-usage variants are available as `files` variables in `claude_system_message.system_message.variables`:
 

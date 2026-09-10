@@ -387,35 +387,56 @@ def test_default_config_claude_bash_presets_resolve_coherent_combinations(
         permissive,
         variable,
     ) in expected_presets.items():
+        # Presets are pure deltas: they carry only the Bash keys and the
+        # template override, and are applied by listing them right after
+        # ``claude_system_message`` with a per-key merge policy that deep-merges
+        # only ``system_message`` on the agent.
+        preset_raw = resolved_placeholders["mixins"][preset_name]
+        assert sorted(preset_raw.keys()) == [
+            "bash_cwd_persistence",
+            "bash_include_cwd_in_result",
+            "bash_permissive_cd_guidance",
+            "system_message",
+        ]
+
         probe_config = dict(resolved_placeholders)
         probe_config["agents"] = {
             **resolved_placeholders["agents"],
             "__preset_probe__": {
+                "$merge": {"default": "shallow", "deep": ["system_message"]},
                 "provider": "openrouter",
-                "mixin_refs": [preset_name],
+                "mixin_refs": ["claude_system_message", preset_name],
             },
         }
         resolved, errors = resolve_config_mixins(probe_config)
         assert errors == []
-
-        preset = resolved["mixins"][preset_name]
-        assert preset["$merge"] == "deep"
-        assert preset["bash_cwd_persistence"] == persistence
-        assert preset["bash_include_cwd_in_result"] == include
-        assert preset["bash_permissive_cd_guidance"] == permissive
-        assert variable in preset["system_message"]["template"]
-        # The deep merge keeps the base mixin's variables and toggle.
-        assert (
-            "TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE"
-            in preset["system_message"]["variables"]
-        )
-        assert preset["system_message_enabled"] is True
 
         agent_config = build_agent_config(resolved, "__preset_probe__")
         assert agent_config["bash_cwd_persistence"] == persistence
         assert agent_config["bash_include_cwd_in_result"] == include
         assert agent_config["bash_permissive_cd_guidance"] == permissive
         assert variable in agent_config["system_message"]["template"]
+        # The agent-level deep merge keeps the base mixin's variables and
+        # toggle while the preset overrides the template variable.
+        assert agent_config["system_message"]["variables"]["TOOL_USAGE"]["files"]
+        assert agent_config["system_message_enabled"] is True
+
+    # The configured claude agents use the coherent permissive preset.
+    resolved, errors = resolve_config_mixins(resolved_placeholders)
+    assert errors == []
+    for agent_id in (
+        "claude-openrouter",
+        "claude-anthropic",
+        "glm-ollama",
+        "deepseek-ollama",
+    ):
+        agent_config = build_agent_config(resolved, agent_id)
+        assert agent_config["bash_cwd_persistence"] is True
+        assert agent_config["bash_include_cwd_in_result"] is False
+        assert agent_config["bash_permissive_cd_guidance"] is True
+        assert (
+            "{{TOOL_USAGE_PERMISSIVE_CD}}" in agent_config["system_message"]["template"]
+        )
         assert agent_config["system_message"]["variables"]["TOOL_USAGE"]["files"]
 
 
@@ -423,9 +444,9 @@ def test_claude_bash_preset_applies_to_agent_and_renders_system_message(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    """Swapping ``claude_system_message`` for a preset mixin in an agent's
-    ``mixin_refs`` yields the preset's Bash tool configuration keys and renders
-    the preset's tool-usage section end to end."""
+    """Listing a preset mixin right after ``claude_system_message`` in an
+    agent's ``mixin_refs`` yields the preset's Bash tool configuration keys
+    and renders the preset's tool-usage section end to end."""
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
     from feature_system_message.system_message_feature import SystemMessageFeature
@@ -444,6 +465,7 @@ def test_claude_bash_preset_applies_to_agent_and_renders_system_message(
     )
     config = json.loads(config_path.read_text(encoding="utf-8"))
     config["agents"]["glm-ollama"]["mixin_refs"] = [
+        "claude_system_message",
         "claude_bash_permissive_no_persistence",
         "claude_mcp_defaults",
     ]

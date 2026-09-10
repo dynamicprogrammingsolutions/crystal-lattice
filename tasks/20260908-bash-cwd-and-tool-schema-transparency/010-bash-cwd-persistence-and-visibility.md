@@ -340,3 +340,22 @@ tests in `application/python/tests/test_claude_system_message_helpers.py`
 `build_agent_config`, and an end-to-end `AgentApplication` render with
 `claude_bash_permissive_no_persistence` applied to `glm-ollama`); suite passes
 (7 tests), cloud bundle builder suite still passes (11 tests).
+
+Follow-up refinement (user-directed): the presets are now pure delta mixins
+(no internal `mixin_refs` to `claude_system_message`, no root `$merge`), and
+the configured claude agents (`claude-openrouter`, `claude-anthropic`,
+`glm-ollama`, `deepseek-ollama`) list `claude_system_message` followed by
+`claude_bash_permissive` in `mixin_refs`, so the default combination is
+coherent permissive guidance in both the Bash tool description and the system
+message (supersedes the earlier upstream-parity tool-description default).
+Each agent declares a per-key merge policy
+`"$merge": {"default": "shallow", "deep": ["system_message"]}` instead of a
+broad `"deep"`: `$merge` is parent-scoped, so the directive governing the
+`system_message` collision between the base mixin and the preset must live on
+the agent; an inner `$merge` inside the preset's `system_message` and a root
+`$merge` on the preset were both verified to lose the base variables (the
+root directive is popped at reference time). The per-key policy keeps the
+provider-defaults merge in `build_agent_config` shallow for every other key.
+Tests updated to the delta design (probe agent uses base + preset with the
+per-key policy; real-agent assertions added); suites pass: helpers 7,
+effective-configs + docs + cloud bundle builder 22, claude-tools 139.
