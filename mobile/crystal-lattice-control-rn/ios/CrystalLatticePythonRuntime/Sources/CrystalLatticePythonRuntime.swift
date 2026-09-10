@@ -1,5 +1,6 @@
 import Foundation
 import React
+import UIKit
 
 @objc(CrystalLatticePythonRuntime)
 final class CrystalLatticePythonRuntime: NSObject {
@@ -8,6 +9,13 @@ final class CrystalLatticePythonRuntime: NSObject {
   )
   private static var initialized = false
   private static var runtimeInformation: [String: Any]?
+  private static var lifecycleInitialized = false
+  private static var activeRequestId: String?
+  private static var activeSessionId: String?
+  private static var backgroundTaskIdentifier: UIBackgroundTaskIdentifier =
+    .invalid
+  private static let lifecycleDefaultsKey =
+    "clcEmbeddedRuntimeLifecycleStatus"
 
   @objc
   static func requiresMainQueueSetup() -> Bool {
@@ -109,10 +117,51 @@ final class CrystalLatticePythonRuntime: NSObject {
         else {
           throw RuntimeError.invalidResponse
         }
+        Self.observeCommand(command, response: response)
         resolve(response)
       } catch {
         reject("python_command_failed", error.localizedDescription, error)
       }
+    }
+  }
+
+  @objc(noteAppState:resolver:rejecter:)
+  func noteAppState(
+    _ state: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.queue.async {
+      _ = reject
+      Self.ensureLifecycleInitialized()
+      var updates: [String: Any] = [
+        "appState": state,
+        "appStateChangedAtMs": Self.nowMs(),
+      ]
+      if Self.activeRequestId != nil {
+        if state == "active" {
+          updates["state"] = "running"
+          updates["foregroundedAtMs"] = Self.nowMs()
+        } else {
+          updates["state"] = "background"
+          updates["backgroundedAtMs"] = Self.nowMs()
+          updates["lastBackgroundedAtMs"] = Self.nowMs()
+        }
+      }
+      Self.updateLifecycle(updates)
+      resolve(Self.lifecycleStatus())
+    }
+  }
+
+  @objc(getLifecycleStatus:rejecter:)
+  func getLifecycleStatus(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.queue.async {
+      _ = reject
+      Self.ensureLifecycleInitialized()
+      resolve(Self.lifecycleStatus())
     }
   }
 
@@ -173,6 +222,7 @@ final class CrystalLatticePythonRuntime: NSObject {
   }
 
   private static func startIfNeeded() throws -> [String: Any] {
+    ensureLifecycleInitialized()
     if initialized, let runtimeInformation {
       return runtimeInformation
     }
@@ -249,9 +299,226 @@ final class CrystalLatticePythonRuntime: NSObject {
     let apiKey = defaults.string(forKey: "clcEmbeddedProxyAPIKey") ?? ""
     return [
       "hasApiKey": !apiKey.isEmpty,
+      "inspectionOnly": defaults.bool(
+        forKey: "clcEmbeddedInspectionOnly"
+      ),
       "model": defaults.string(forKey: "clcEmbeddedModel") ?? "",
       "proxyUrl": defaults.string(forKey: "clcEmbeddedProxyURL") ?? "",
     ]
+  }
+
+  private static func nowMs() -> Double {
+    Date().timeIntervalSince1970 * 1000
+  }
+
+  private static func ensureLifecycleInitialized() {
+    if lifecycleInitialized {
+      return
+    }
+    lifecycleInitialized = true
+    var status = UserDefaults.standard.dictionary(
+      forKey: lifecycleDefaultsKey
+    ) ?? ["state": "idle"]
+    let previousState = status["state"] as? String
+    if previousState == "running" || previousState == "background" {
+      status["state"] = "interrupted"
+      status["interruptedAtMs"] = nowMs()
+      status["recoverable"] = true
+    }
+    status["processStartedAtMs"] = nowMs()
+    UserDefaults.standard.set(status, forKey: lifecycleDefaultsKey)
+  }
+
+  private static func updateLifecycle(_ updates: [String: Any]) {
+    var status = UserDefaults.standard.dictionary(
+      forKey: lifecycleDefaultsKey
+    ) ?? [:]
+    for (key, value) in updates {
+      status[key] = value
+    }
+    UserDefaults.standard.set(status, forKey: lifecycleDefaultsKey)
+  }
+
+  private static func lifecycleStatus() -> [String: Any] {
+    var status = UserDefaults.standard.dictionary(
+      forKey: lifecycleDefaultsKey
+    ) ?? ["state": "idle"]
+    status["backgroundTaskActive"] =
+      backgroundTaskIdentifier != .invalid
+    status["backgroundTimeRemaining"] = backgroundTimeRemaining()
+    return status
+  }
+
+  private static func backgroundTimeRemaining() -> Double {
+    var remaining = 0.0
+    let read = {
+      remaining = UIApplication.shared.backgroundTimeRemaining
+    }
+    if Thread.isMainThread {
+      read()
+    } else {
+      DispatchQueue.main.sync(execute: read)
+    }
+    return remaining.isFinite && remaining < 86_400 ? remaining : -1
+  }
+
+  private static func beginRequest(
+    requestId: String,
+    sessionId: String?
+  ) {
+    endBackgroundTask()
+    activeRequestId = requestId
+    activeSessionId = sessionId
+    let startedAt = nowMs()
+    let previousStatus = UserDefaults.standard.dictionary(
+      forKey: lifecycleDefaultsKey
+    ) ?? [:]
+    var nextStatus: [String: Any] = [
+      "appState": UIApplication.shared.applicationState == .active
+        ? "active"
+        : "background",
+      "backgroundTaskActive": true,
+      "recoverable": false,
+      "requestId": requestId,
+      "sessionId": sessionId ?? "",
+      "startedAtMs": startedAt,
+      "state": "running",
+    ]
+    if let lastBackgroundedAt =
+      previousStatus["lastBackgroundedAtMs"]
+    {
+      nextStatus["lastBackgroundedAtMs"] = lastBackgroundedAt
+    }
+    UserDefaults.standard.set(
+      nextStatus,
+      forKey: lifecycleDefaultsKey
+    )
+
+    var identifier: UIBackgroundTaskIdentifier = .invalid
+    let begin = {
+      identifier = UIApplication.shared.beginBackgroundTask(
+        withName: "CrystalLatticeEmbeddedRequest"
+      ) {
+        Self.queue.async {
+          Self.expireActiveRequest()
+        }
+      }
+    }
+    if Thread.isMainThread {
+      begin()
+    } else {
+      DispatchQueue.main.sync(execute: begin)
+    }
+    backgroundTaskIdentifier = identifier
+    updateLifecycle([
+      "backgroundTaskActive": identifier != .invalid,
+      "backgroundTimeRemaining": backgroundTimeRemaining(),
+    ])
+  }
+
+  private static func expireActiveRequest() {
+    guard activeRequestId != nil else {
+      endBackgroundTask()
+      return
+    }
+    updateLifecycle([
+      "backgroundTaskActive": false,
+      "expiredAtMs": nowMs(),
+      "recoverable": true,
+      "state": "expired",
+    ])
+    activeRequestId = nil
+    activeSessionId = nil
+    endBackgroundTask()
+  }
+
+  private static func finishRequest(state: String) {
+    guard activeRequestId != nil else {
+      return
+    }
+    var updates: [String: Any] = [
+      "backgroundTaskActive": false,
+      "finishedAtMs": nowMs(),
+      "recoverable": state != "completed",
+      "state": state,
+    ]
+    if state == "completed" {
+      updates["completedAtMs"] = nowMs()
+    } else {
+      updates["failedAtMs"] = nowMs()
+    }
+    updateLifecycle(updates)
+    activeRequestId = nil
+    activeSessionId = nil
+    endBackgroundTask()
+  }
+
+  private static func endBackgroundTask() {
+    let identifier = backgroundTaskIdentifier
+    backgroundTaskIdentifier = .invalid
+    guard identifier != .invalid else {
+      return
+    }
+    DispatchQueue.main.async {
+      UIApplication.shared.endBackgroundTask(identifier)
+    }
+  }
+
+  private static func observeCommand(
+    _ command: [String: Any],
+    response: [String: Any]
+  ) {
+    let method = String(describing: command["method"] ?? "").uppercased()
+    let rawPath = String(describing: command["path"] ?? "")
+    let path = rawPath.split(separator: "?", maxSplits: 1).first.map(String.init)
+      ?? rawPath
+    let parts = path.split(separator: "/").map(String.init)
+    let data = response["data"] as? [String: Any] ?? [:]
+
+    if method == "POST",
+      parts.count >= 3,
+      parts[0] == "sessions",
+      parts.last == "send_message" || parts.last == "messages",
+      let requestId = data["request_id"] as? String
+    {
+      beginRequest(
+        requestId: requestId,
+        sessionId: parts.count > 1 ? parts[1] : nil
+      )
+      return
+    }
+
+    if method == "POST",
+      parts.count >= 3,
+      parts[0] == "sessions",
+      parts.last == "cancel"
+    {
+      finishRequest(state: "cancelled")
+      return
+    }
+
+    guard method == "GET", parts.first == "events",
+      let events = data["events"] as? [[String: Any]]
+    else {
+      return
+    }
+    for event in events.reversed() {
+      guard let type = event["type"] as? String else {
+        continue
+      }
+      if type == "request_completed" {
+        finishRequest(state: "completed")
+        return
+      }
+      if type == "request_failed" {
+        finishRequest(state: "failed")
+        return
+      }
+      if type == "request_cancelled" || type == "request_canceled" {
+        finishRequest(state: "cancelled")
+        return
+      }
+    }
   }
 
   private enum RuntimeError: LocalizedError {

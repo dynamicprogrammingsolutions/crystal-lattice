@@ -68,6 +68,7 @@ import { createEmbeddedRuntimeBackend } from './src/embeddedRuntime/createEmbedd
 import {
   configureEmbeddedPythonRuntime,
   getEmbeddedPythonRuntimeConfiguration,
+  noteEmbeddedPythonRuntimeAppState,
 } from './src/embeddedRuntime/embeddedPythonRuntime';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud' | 'embedded';
@@ -677,6 +678,27 @@ function App(): React.JSX.Element {
     const sub = AppState.addEventListener('change', (nextState) => {
       const previousState = appStateRef.current;
       appStateRef.current = nextState;
+      if (Platform.OS === 'ios') {
+        void noteEmbeddedPythonRuntimeAppState(nextState)
+          .then((status) => {
+            appendDebugNote({
+              scope: 'app',
+              title: 'Embedded runtime lifecycle updated',
+              detail: status.state,
+              meta: {
+                backgroundTaskActive: status.backgroundTaskActive ?? false,
+                requestId: status.requestId ?? null,
+              },
+            });
+          })
+          .catch((error) => {
+            appendDebugNote({
+              scope: 'app',
+              title: 'Embedded runtime lifecycle update failed',
+              detail: error instanceof Error ? error.message : String(error),
+            });
+          });
+      }
 
       if (nextState === 'active') {
         if (previousState !== 'active') {

@@ -88,7 +88,10 @@ def _workspace_path(root: Path, raw_path: Any) -> tuple[Path, str]:
     logical_path = raw_path.strip()
     untrusted = Path(logical_path)
     if untrusted.is_absolute():
-        raise ValueError("Absolute paths are not allowed")
+        raise ValueError(
+            "Absolute paths are not allowed. Remove the leading slash and use "
+            "a workspace-relative path such as input.txt."
+        )
     resolved = (root / untrusted).resolve()
     try:
         relative = resolved.relative_to(root)

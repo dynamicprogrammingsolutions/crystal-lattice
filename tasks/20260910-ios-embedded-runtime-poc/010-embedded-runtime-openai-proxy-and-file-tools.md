@@ -28,9 +28,9 @@ workspace `Read`/`Write` request.
 - [x] A real small Ollama model completes a deliberately simple request that
   causes multiple provider rounds and visible file-tool calls; exact prose is
   not an acceptance dependency.
-- [ ] Session and workspace state survive ordinary navigation and process
+- [x] Session and workspace state survive ordinary navigation and process
   relaunch.
-- [ ] The app can place the request in the background, records bounded
+- [x] The app can place the request in the background, records bounded
   continuation/expiration state, and either completes or recovers without
   silently losing the request.
 - [ ] Automated simulator coverage uses production screens/runtime adapters,
@@ -188,7 +188,7 @@ evidence.
 - [x] Pass the foreground embedded-Python no-auth/no-tool smoke.
 - [x] Add the production local `AgentBackend`.
 - [x] Adapt and test the Ollama-targeted OpenAI proxy.
-- [ ] Add bounded background diagnostics, continuation, and recovery.
+- [x] Add bounded background diagnostics, continuation, and recovery.
 - [x] Add workspace-restricted `Read` and `Write` tools.
 - [x] Add basic API-key input, proxy enforcement, and application reload.
 - [x] Add the complete real-model multi-round simulator test.
@@ -293,3 +293,22 @@ evidence.
   key was not visible, terminated and relaunched the app, and reconnected from
   saved owner configuration without entering the key again. The scenario
   passed in 101.9 seconds.
+- 2026-09-10: Added native lifecycle ownership for embedded requests. Each
+  request starts an iOS background task and persists request/session identity,
+  app-state transitions, remaining-time observations, and terminal
+  completed/failed/cancelled/expired/interrupted state. Relaunch converts an
+  unfinished prior-process state to recoverable `interrupted`; no request is
+  automatically replayed.
+- 2026-09-10: Split the capability demonstration into two explicit user
+  requests so tiny-model acceptance requires both `Read` and `Write` without
+  depending on an exact count in one stochastic model turn.
+- 2026-09-10: Release-simulator persistence Detox completed the authenticated
+  two-request tool flow, terminated the process, and loaded the same session
+  ID, tool messages, and `output.txt` from a fresh process in inspection-only
+  mode without sending another chat request. The final run passed in
+  130.1 seconds.
+- 2026-09-10: Release-simulator background Detox used the proxy's two-second
+  per-request delay, waited for native `running`, sent the app home for five
+  seconds, resumed the same process, and verified `completed`, ordered
+  background/completion timestamps, both model requests, and the final file.
+  The final run passed in 146.6 seconds.

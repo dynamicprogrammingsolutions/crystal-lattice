@@ -11,6 +11,7 @@ export interface EmbeddedPythonRuntimeInfo {
   providerMode?: "smoke" | "openai-compatible";
   assistantContent?: string;
   toolMessageCount?: number;
+  toolNames?: string[];
   outputExists?: boolean;
   outputContent?: string;
 }
@@ -30,6 +31,33 @@ export interface EmbeddedRuntimePublicConfiguration {
   proxyUrl: string;
   model: string;
   hasApiKey: boolean;
+  inspectionOnly?: boolean;
+}
+
+export interface EmbeddedRuntimeLifecycleStatus {
+  state:
+    | "idle"
+    | "running"
+    | "background"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "expired"
+    | "interrupted";
+  requestId?: string;
+  sessionId?: string;
+  appState?: string;
+  backgroundTaskActive?: boolean;
+  backgroundTimeRemaining?: number;
+  startedAtMs?: number;
+  backgroundedAtMs?: number;
+  lastBackgroundedAtMs?: number;
+  foregroundedAtMs?: number;
+  completedAtMs?: number;
+  failedAtMs?: number;
+  expiredAtMs?: number;
+  interruptedAtMs?: number;
+  recoverable?: boolean;
 }
 
 interface EmbeddedPythonRuntimeModule {
@@ -41,6 +69,8 @@ interface EmbeddedPythonRuntimeModule {
     configuration: EmbeddedRuntimeConfiguration
   ): Promise<EmbeddedRuntimePublicConfiguration>;
   getConfiguration(): Promise<EmbeddedRuntimePublicConfiguration>;
+  noteAppState(state: string): Promise<EmbeddedRuntimeLifecycleStatus>;
+  getLifecycleStatus(): Promise<EmbeddedRuntimeLifecycleStatus>;
 }
 
 const nativeRuntime =
@@ -83,4 +113,14 @@ export async function configureEmbeddedPythonRuntime(
 
 export async function getEmbeddedPythonRuntimeConfiguration(): Promise<EmbeddedRuntimePublicConfiguration> {
   return requireNativeRuntime().getConfiguration();
+}
+
+export async function noteEmbeddedPythonRuntimeAppState(
+  state: string
+): Promise<EmbeddedRuntimeLifecycleStatus> {
+  return requireNativeRuntime().noteAppState(state);
+}
+
+export async function getEmbeddedPythonRuntimeLifecycleStatus(): Promise<EmbeddedRuntimeLifecycleStatus> {
+  return requireNativeRuntime().getLifecycleStatus();
 }

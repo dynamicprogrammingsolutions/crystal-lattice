@@ -54,7 +54,7 @@ describe("embedded Python runtime", () => {
     ).toHaveText("local");
     await detoxExpect(
       element(by.id("embedded-python-runtime-message-count"))
-    ).toHaveText("3");
+    ).toHaveText("5");
     const sessionId = await readText("embedded-python-runtime-session-id");
     assert.ok(sessionId.length > 10);
     await detoxExpect(

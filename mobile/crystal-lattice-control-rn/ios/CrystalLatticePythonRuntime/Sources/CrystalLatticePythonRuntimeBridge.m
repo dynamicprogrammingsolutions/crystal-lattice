@@ -22,4 +22,11 @@ RCT_EXTERN_METHOD(configure:(NSDictionary *)configuration
 RCT_EXTERN_METHOD(getConfiguration:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(noteAppState:(NSString *)state
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(getLifecycleStatus:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

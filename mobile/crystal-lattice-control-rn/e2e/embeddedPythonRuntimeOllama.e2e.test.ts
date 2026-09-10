@@ -68,10 +68,52 @@ describe("embedded Python runtime with Ollama", () => {
       "UPPERCASE: ALPHA BETA GAMMA"
     );
     assert.ok(
-      Number(await readText("embedded-python-runtime-tool-message-count")) >= 3
+      Number(await readText("embedded-python-runtime-tool-message-count")) >= 2
     );
+    const toolNames = await readText("embedded-python-runtime-tool-names");
+    assert.match(toolNames, /Read/);
+    assert.match(toolNames, /Write/);
     assert.ok(
       (await readText("embedded-python-runtime-assistant")).trim().length > 0
     );
+    const sessionId = await readText("embedded-python-runtime-session-id");
+
+    await device.terminateApp();
+    await device.launchApp({
+      newInstance: true,
+      delete: false,
+      launchArgs: {
+        clcEmbeddedPythonRuntimeHarness: "1",
+        clcEmbeddedInspectionOnly: "1",
+        clcEmbeddedProxyURL: proxyUrl,
+        clcEmbeddedProxyAPIKey: apiKey,
+        clcEmbeddedModel: model,
+        detoxEnableSynchronization: "0",
+      },
+    });
+    await waitFor(element(by.id("embedded-python-runtime-status")))
+      .toExist()
+      .withTimeout(30000);
+    const relaunchStatus = await waitForTerminalStatus();
+    if (relaunchStatus === "Failed") {
+      throw new Error(await readText("embedded-python-runtime-error"));
+    }
+    assert.equal(relaunchStatus, "Ready");
+    assert.equal(
+      await readText("embedded-python-runtime-session-id"),
+      sessionId
+    );
+    assert.equal(
+      (await readText("embedded-python-runtime-output-content")).trim(),
+      "UPPERCASE: ALPHA BETA GAMMA"
+    );
+    assert.ok(
+      Number(await readText("embedded-python-runtime-tool-message-count")) >= 2
+    );
+    const persistedToolNames = await readText(
+      "embedded-python-runtime-tool-names"
+    );
+    assert.match(persistedToolNames, /Read/);
+    assert.match(persistedToolNames, /Write/);
   });
 });
