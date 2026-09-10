@@ -11,7 +11,7 @@ import signal
 import socket
 import subprocess
 import time
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Callable, Literal, Mapping, Sequence
 import urllib.error
 import urllib.request
 
@@ -178,6 +178,8 @@ def assert_config_boot(
     expected_plugin_id: str | None = None,
     base_env: Mapping[str, str] | None = None,
     timeout_seconds: float = 600,
+    progress: Callable[[str], None] | None = None,
+    progress_interval_seconds: float = 15,
 ) -> BootResult:
     """Boot one CLI command with clean state and assert its configured agents."""
 
@@ -224,6 +226,9 @@ def assert_config_boot(
     pip_cache = Path(env["PIP_CACHE_DIR"])
     _assert_plugin_cache_initially_empty(plugin_cache)
 
+    if progress is not None:
+        progress(f"server log: {log_path}")
+
     with log_path.open("wb") as log_file:
         try:
             process = _start_process(
@@ -233,7 +238,13 @@ def assert_config_boot(
                 log_file=log_file,
             )
             base_url = f"http://127.0.0.1:{port}"
-            _wait_for_server(base_url, process, timeout_seconds=timeout_seconds)
+            _wait_for_server(
+                base_url,
+                process,
+                timeout_seconds=timeout_seconds,
+                progress=progress,
+                progress_interval_seconds=progress_interval_seconds,
+            )
             agents = _assert_agents(base_url, generated_config)
             plugin_metadata_ids = _assert_plugin_cache(
                 plugin_cache,
@@ -357,8 +368,12 @@ def _wait_for_server(
     process: subprocess.Popen[Any],
     *,
     timeout_seconds: float,
+    progress: Callable[[str], None] | None,
+    progress_interval_seconds: float,
 ) -> None:
-    deadline = time.monotonic() + timeout_seconds
+    started_at = time.monotonic()
+    deadline = started_at + timeout_seconds
+    next_progress_at = started_at + max(progress_interval_seconds, 0)
     last_error = ""
     while time.monotonic() < deadline:
         return_code = process.poll()
@@ -369,6 +384,11 @@ def _wait_for_server(
             return
         except Exception as exc:
             last_error = str(exc)
+            now = time.monotonic()
+            if progress is not None and now >= next_progress_at:
+                elapsed = max(0, int(now - started_at))
+                progress(f"still waiting for CLI readiness after {elapsed} seconds")
+                next_progress_at = now + max(progress_interval_seconds, 0.1)
             time.sleep(0.25)
     raise TimeoutError(f"CLI did not become ready: {last_error}")
 

@@ -166,6 +166,11 @@ require package-index network access and can take several minutes. See
 for isolation, prebuilt-archive overrides, platform behavior, and the separate
 optimized PyInstaller suite.
 
+Long distribution commands print numbered phases before environment creation,
+dependency installation, building, installation, and boot. Dependency/build
+output remains visible while it runs; boot phases print the server-log path
+and periodic readiness status.
+
 The application test suite bootstraps the repo root `.env` for local
 real-provider tests and does not overwrite already-exported environment
 variables.
@@ -1022,16 +1027,16 @@ relocatable Python runtime for the shipped archive:
 python -m pip install -e "core/python[dev]"
 ```
 
-The root `package.json` exposes `npm run build:bundle`,
-`npm run build:optimized`, `npm run install:prod:local`,
-and `npm run install:dev:local`. They run through the repository `.venv` via
+The root `package.json` exposes `npm run build:cli:archive`,
+`npm run build:cli:optimized`, `npm run install:cli:archive`, and
+`npm run install:cli:dev`. They run through the repository `.venv` via
 `scripts/repo_run.py`, so no manual activation is needed after
 `npm run install:venv`.
 
 Build the current-platform bundled-Python runtime package:
 
 ```bash
-npm run build:bundle
+npm run build:cli:archive
 ```
 
 The build script creates a temporary host-side build venv and provisions an
@@ -1043,7 +1048,7 @@ instead.
 Build the separate current-platform optimized PyInstaller distribution:
 
 ```bash
-npm run build:optimized
+npm run build:cli:optimized
 ```
 
 That command also uses a temporary build venv because the optimized builder
@@ -1052,26 +1057,35 @@ installs its selected plugin closure before running PyInstaller.
 Run a local production install rehearsal from the generated archive:
 
 ```bash
-npm run install:prod:local
+npm run install:cli:archive
 ```
+
+By default this builds the current archive first. Set
+`CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` to install an existing matching
+archive without rebuilding it.
 
 The command follows the release installer shape:
 
 1. create an isolated host build environment
 2. provision or select the packaged Python runtime
 3. run `scripts/build_crystal_lattice_python_runtime_package.py`
-4. pass the generated archive to the public `scripts/install.sh`
+4. pass the generated archive to the public
+   `application/python/scripts/install.sh`
 5. install from the archive, not from editable source
 6. place `crystal-lattice` in a suitable existing PATH directory
 
 Install an editable-source dev command:
 
 ```bash
-npm run install:dev:local
+npm run install:cli:dev
 ```
 
 This creates or updates `~/.crystal/dev-cli-venv`, installs the local checkout
 in editable mode, and writes `~/.local/bin/crystal-lattice-cli-dev`.
+
+These npm entry points use application-owned scripts under
+`application/python/scripts/`. The root packaging builders remain low-level
+shared inputs for runtime archives and cloud-orchestrator source bundles.
 
 ### Curl Installer / Download Domain
 

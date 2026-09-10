@@ -7,14 +7,14 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS_DIR = ROOT / "scripts"
+SCRIPTS_DIR = ROOT / "application" / "python" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-import crystal_lattice_distribution as distribution  # type: ignore[import-not-found]  # noqa: E402
-import build_crystal_lattice_python_runtime_archive as runtime_builder  # type: ignore[import-not-found]  # noqa: E402
-import install_current_crystal_lattice_archive as local_installer  # type: ignore[import-not-found]  # noqa: E402
-import run_cli_distribution_test as distribution_runner  # type: ignore[import-not-found]  # noqa: E402
+import distribution_support as distribution  # type: ignore[import-not-found]  # noqa: E402
+import build_runtime_archive as runtime_builder  # type: ignore[import-not-found]  # noqa: E402
+import install_current_archive as local_installer  # type: ignore[import-not-found]  # noqa: E402
+import run_distribution_smoke as distribution_runner  # type: ignore[import-not-found]  # noqa: E402
 
 
 def test_current_platform_archive_uses_version_platform_and_arch(
@@ -96,28 +96,113 @@ def test_local_installer_builds_then_delegates_to_public_installer(
     archive.touch()
     calls: list[tuple[list[str], dict[str, str] | None]] = []
 
+    monkeypatch.delenv(distribution.ARCHIVE_ENV, raising=False)
     monkeypatch.setattr(local_installer, "current_platform_archive", lambda: archive)
     monkeypatch.setattr(local_installer, "resolve_bash", lambda **_kwargs: "/bin/bash")
 
-    def fake_run(
+    def fake_run_visible(
+        _self: object,
         command: list[str],
         *,
-        cwd: str,
-        check: bool,
+        cwd: Path,
         env: dict[str, str] | None = None,
+        **_kwargs: object,
     ) -> None:
-        assert cwd == str(ROOT)
-        assert check is True
+        assert cwd == ROOT
         calls.append((command, env))
 
-    monkeypatch.setattr(local_installer.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        local_installer.StepLogger,
+        "run_visible",
+        fake_run_visible,
+    )
 
     local_installer.main()
 
-    assert calls[0][0][0] == sys.executable
-    assert calls[0][0][1].endswith(
-        "scripts/build_crystal_lattice_python_runtime_archive.py"
-    )
-    assert calls[1][0] == ["/bin/bash", str(ROOT / "scripts" / "install.sh")]
+    assert calls[0][0] == [
+        sys.executable,
+        str(SCRIPTS_DIR / "build_runtime_archive.py"),
+    ]
+    assert calls[1][0] == [
+        "/bin/bash",
+        str(SCRIPTS_DIR / "install.sh"),
+    ]
     assert calls[1][1] is not None
     assert calls[1][1][distribution.ARCHIVE_ENV] == str(archive)
+
+
+def test_local_installer_accepts_prebuilt_archive_without_rebuilding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive = tmp_path / "crystal-lattice-python-runtime-v9.8.7-darwin-arm64.tar.gz"
+    archive.touch()
+    calls: list[tuple[list[str], dict[str, str] | None]] = []
+
+    monkeypatch.setattr(distribution.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(distribution.platform, "machine", lambda: "arm64")
+    monkeypatch.setenv(distribution.ARCHIVE_ENV, str(archive))
+    monkeypatch.setattr(local_installer, "resolve_bash", lambda **_kwargs: "/bin/bash")
+
+    def fake_run_visible(
+        _self: object,
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str] | None = None,
+        **_kwargs: object,
+    ) -> None:
+        assert cwd == ROOT
+        calls.append((command, env))
+
+    monkeypatch.setattr(
+        local_installer.StepLogger,
+        "run_visible",
+        fake_run_visible,
+    )
+
+    local_installer.main()
+
+    assert len(calls) == 1
+    assert calls[0][0] == ["/bin/bash", str(SCRIPTS_DIR / "install.sh")]
+    assert calls[0][1] is not None
+    assert calls[0][1][distribution.ARCHIVE_ENV] == str(archive)
+
+
+def test_application_owned_cli_scripts_are_package_local() -> None:
+    moved_names = {
+        "build_optimized_archive.py",
+        "build_runtime_archive.py",
+        "bump_version.py",
+        "boot_smoke.py",
+        "distribution_support.py",
+        "install.sh",
+        "install_dev.py",
+        "install_current_archive.py",
+        "progress.py",
+        "run_distribution_smoke.py",
+        "smoke_default_install.py",
+        "smoke_optimized_archive.py",
+        "smoke_runtime_archive.py",
+        "smoke_source_install.py",
+    }
+
+    assert moved_names <= {
+        path.name for path in SCRIPTS_DIR.iterdir() if path.is_file()
+    }
+    legacy_root_names = {
+        "build_crystal_lattice_optimized_archive.py",
+        "build_crystal_lattice_python_runtime_archive.py",
+        "bump_cli_version.py",
+        "crystal_lattice_cli_boot.py",
+        "crystal_lattice_distribution.py",
+        "install.sh",
+        "install_crystal_lattice_cli_dev.py",
+        "install_current_crystal_lattice_archive.py",
+        "run_cli_distribution_test.py",
+        "smoke_test_crystal_lattice_archive.py",
+        "smoke_test_crystal_lattice_default_install.py",
+        "smoke_test_crystal_lattice_python_runtime_archive.py",
+        "smoke_test_crystal_lattice_source_install.py",
+    }
+    assert not any((ROOT / "scripts" / name).exists() for name in legacy_root_names)

@@ -9,11 +9,11 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS_DIR = ROOT / "scripts"
+SCRIPTS_DIR = ROOT / "application" / "python" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from crystal_lattice_cli_boot import (  # noqa: E402
+from boot_smoke import (  # type: ignore[import-not-found]  # noqa: E402
     assert_config_boot,
     build_isolated_cli_environment,
     collect_env_placeholder_names,
@@ -105,6 +105,7 @@ def test_default_config_boot_uses_clean_state_and_stops_server(
     server_script = _write_fake_cli_server(tmp_path)
     workspace = tmp_path / "workspace"
     home_dir = tmp_path / "home"
+    progress: list[str] = []
     monkeypatch.setenv("CONFIG_INPUT", "must-not-leak")
 
     result = assert_config_boot(
@@ -114,6 +115,7 @@ def test_default_config_boot_uses_clean_state_and_stops_server(
         home_dir=home_dir,
         plugin_cache_expectation="empty",
         timeout_seconds=20,
+        progress=progress.append,
     )
 
     assert result.agents == ("alpha", "beta")
@@ -121,6 +123,7 @@ def test_default_config_boot_uses_clean_state_and_stops_server(
     assert result.removed_placeholder_names == ("CONFIG_INPUT",)
     assert (workspace / ".env").read_text(encoding="utf-8") == ""
     assert result.plugin_metadata_ids == ()
+    assert progress[0] == f"server log: {result.log_path}"
 
 
 def test_local_default_config_boot_creates_workspace_config(

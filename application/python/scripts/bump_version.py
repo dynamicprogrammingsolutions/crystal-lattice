@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Tuple
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 PYPROJECT_PATH = Path("application") / "python" / "pyproject.toml"
 DOC_PATHS = (
     Path("README.md"),
@@ -104,7 +104,11 @@ def main(argv: list[str] | None = None) -> int:
     index = version_indexes[0]
     match = VERSION_LINE_RE.match(lines[index])
     assert match is not None  # guaranteed by the scan above
-    current = tuple(int(part) for part in match.groups())
+    current = (
+        int(match.group(1)),
+        int(match.group(2)),
+        int(match.group(3)),
+    )
     updated = bump_version(current, args.bump)
     old_version = ".".join(str(part) for part in current)
     new_version = ".".join(str(part) for part in updated)

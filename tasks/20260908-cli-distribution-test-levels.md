@@ -1190,6 +1190,28 @@ Status: Approved
   command names, and immediate progress output. The technical specification
   now records the retained root packaging cluster and replaces its stale Nox
   description with the delivered temporary-venv/managed-runtime design.
+- 2026-09-10: Moved and shortened the thirteen application-only CLI scripts
+  under `application/python/scripts/`, retained the five cross-runtime
+  packaging primitives at root, excluded package maintainer scripts from
+  runtime staging, and removed the unreferenced legacy direct S3 publisher.
+  Renamed the local npm commands to `build:cli:archive`,
+  `build:cli:optimized`, `install:cli:archive`, and `install:cli:dev`.
+- 2026-09-10: Added shared Python numbered-step logging, live child output,
+  boot server-log/waiting status, and equivalent standalone installer steps.
+  Focused ownership, package, installer, release, progress, and distribution
+  coverage passed 72 tests with one expected Windows-only skip; Ruff, Python
+  compilation, shell syntax, JSON parsing, and diff checks passed.
+- 2026-09-10: Local acceptance passed with explicit status zero for a fresh
+  managed-runtime archive build, source-installation smoke,
+  extracted-archive smoke, default-installer smoke, prebuilt
+  `install:cli:archive`, temporary `install:cli:dev`, and the isolated
+  `build:cli:optimized -- --help` path. The source smoke reported readiness
+  every 15 seconds during its approximately three-minute plugin installation.
+- 2026-09-10: Core fast regression passed 507 tests with 26 deselected and one
+  expected xfail. Application fast regression passed 413 tests with one skip,
+  77 deselected, and seven existing deprecation warnings. Black, Ruff,
+  targeted Pyright, documentation preparation, and MkDocs build passed; the
+  native release matrix remains pending.
 
 #### Execution plan
 
@@ -1315,16 +1337,16 @@ names, and progress logging.
 
 - [x] Add specification requirements for placement, npm naming, and progress
   logging.
-- [ ] Create and document `application/python/scripts/`.
-- [ ] Move/rename application-only CLI scripts and update imports/paths.
-- [ ] Exclude package maintainer scripts from bundled-Python archive staging.
-- [ ] Remove or move the obsolete direct S3 publisher after final audit.
-- [ ] Rename CLI build/install npm commands and tracked consumers.
-- [ ] Add reusable Python progress/log helper and focused tests.
-- [ ] Add numbered progress, live child output, and boot waiting status to
+- [x] Create and document `application/python/scripts/`.
+- [x] Move/rename application-only CLI scripts and update imports/paths.
+- [x] Exclude package maintainer scripts from bundled-Python archive staging.
+- [x] Remove or move the obsolete direct S3 publisher after final audit.
+- [x] Rename CLI build/install npm commands and tracked consumers.
+- [x] Add reusable Python progress/log helper and focused tests.
+- [x] Add numbered progress, live child output, and boot waiting status to
   long CLI scripts.
-- [ ] Preserve the standalone installer's equivalent progress output.
-- [ ] Update current documentation and VS Code tasks.
+- [x] Preserve the standalone installer's equivalent progress output.
+- [x] Update current documentation and VS Code tasks.
 - [ ] Run local acceptance, regressions, docs validation, and native matrix.
 
 #### Requirement verification

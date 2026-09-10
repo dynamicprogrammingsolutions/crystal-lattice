@@ -7,27 +7,27 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
 from typing import Iterator
 
-from crystal_lattice_cli_boot import (
+from boot_smoke import (
     assert_config_boot,
     assert_plugin_not_preinstalled,
     prepare_smoke_config,
 )
-from crystal_lattice_distribution import (
+from distribution_support import (
     archive_package_stem,
     assert_archive_matches_current_platform,
     read_project_version,
     resolve_bash,
 )
+from progress import StepLogger
 
 
-ROOT = Path(__file__).resolve().parents[1]
-INSTALL_SCRIPT = ROOT / "scripts" / "install.sh"
+ROOT = Path(__file__).resolve().parents[3]
+INSTALL_SCRIPT = Path(__file__).resolve().parent / "install.sh"
 DYNAMIC_PLUGIN_PROBE = "generic-callback-app"
 COMMAND_NAME = "crystal-lattice"
 
@@ -39,9 +39,7 @@ class QuietFileHandler(SimpleHTTPRequestHandler):
 
 def main() -> None:
     if len(sys.argv) != 2:
-        raise SystemExit(
-            "usage: smoke_test_crystal_lattice_default_install.py <archive>"
-        )
+        raise SystemExit("usage: smoke_default_install.py <archive>")
     archive = Path(sys.argv[1]).expanduser().resolve()
     smoke_test_default_install(archive)
     print(f"Default-installer smoke test passed: {archive}")
@@ -52,8 +50,10 @@ def smoke_test_default_install(archive: Path) -> None:
         raise RuntimeError(f"Archive does not exist: {archive}")
     assert_archive_matches_current_platform(archive)
 
+    progress = StepLogger(total_steps=4)
     with tempfile.TemporaryDirectory(prefix="crystal-default-install-smoke-") as tmp:
         temp_dir = Path(tmp)
+        progress.step("Preparing isolated default-installer state")
         home_dir = temp_dir / "home"
         bin_dir = home_dir / ".local" / "bin"
         bin_dir.mkdir(parents=True)
@@ -82,13 +82,15 @@ def smoke_test_default_install(archive: Path) -> None:
                 download_base=download_base,
             )
             bash = resolve_bash(env=installer_env)
-            run(
+            progress.step("Running the public installer with default paths")
+            progress.run_visible(
                 [
                     bash,
                     "-c",
                     'curl -fsSL "$CRYSTAL_LATTICE_DOWNLOAD_BASE_URL/install.sh" '
                     "| bash",
                 ],
+                cwd=ROOT,
                 env=installer_env,
                 timeout=300,
             )
@@ -100,7 +102,12 @@ def smoke_test_default_install(archive: Path) -> None:
         if staging_bundle.exists():
             raise RuntimeError("Installer did not remove the stale staging directory")
 
-        verify_command_name_resolution(installer_env, bash=bash)
+        progress.step("Resolving and verifying the installed command by name")
+        verify_command_name_resolution(
+            installer_env,
+            bash=bash,
+            progress=progress,
+        )
         assert_plugin_not_preinstalled(
             installed_bundle / "preinstalled-plugins.json",
             DYNAMIC_PLUGIN_PROBE,
@@ -114,6 +121,7 @@ def smoke_test_default_install(archive: Path) -> None:
             destination_dir=temp_dir / "config",
             additional_plugin_name=DYNAMIC_PLUGIN_PROBE,
         )
+        progress.step("Booting the installed command and installing the probe plugin")
         assert_config_boot(
             [COMMAND_NAME],
             config_path=config_path,
@@ -123,6 +131,7 @@ def smoke_test_default_install(archive: Path) -> None:
             expected_plugin_id=DYNAMIC_PLUGIN_PROBE,
             base_env=installer_env,
             timeout_seconds=300,
+            progress=progress.detail,
         )
 
 
@@ -162,20 +171,26 @@ def installer_environment(
     return env
 
 
-def verify_command_name_resolution(env: dict[str, str], *, bash: str) -> None:
-    run(
+def verify_command_name_resolution(
+    env: dict[str, str],
+    *,
+    bash: str,
+    progress: StepLogger,
+) -> None:
+    progress.run_visible(
         [
             bash,
             "-c",
             "command -v crystal-lattice >/dev/null && "
             "crystal-lattice --runtime-layout-json >/dev/null",
         ],
+        cwd=ROOT,
         env=env,
         timeout=60,
     )
     if os.name == "nt":
         comspec = env.get("COMSPEC") or os.environ.get("COMSPEC", "cmd.exe")
-        run(
+        progress.run_visible(
             [
                 comspec,
                 "/d",
@@ -183,6 +198,7 @@ def verify_command_name_resolution(env: dict[str, str], *, bash: str) -> None:
                 "/c",
                 "crystal-lattice --runtime-layout-json >NUL",
             ],
+            cwd=ROOT,
             env=env,
             timeout=60,
         )
@@ -205,30 +221,6 @@ def serve_directory(directory: Path) -> Iterator[str]:
         thread.join(timeout=10)
         if thread.is_alive():
             raise RuntimeError("Download server did not stop")
-
-
-def run(
-    command: list[str],
-    *,
-    env: dict[str, str],
-    timeout: float,
-) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        command,
-        cwd=str(ROOT),
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=timeout,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Command failed with status {result.returncode}: "
-            f"{subprocess.list2cmdline(command)}\n{result.stdout}"
-        )
-    return result
 
 
 if __name__ == "__main__":

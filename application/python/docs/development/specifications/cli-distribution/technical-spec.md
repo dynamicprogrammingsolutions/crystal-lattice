@@ -379,6 +379,10 @@ archive. `install:cli:archive` builds and installs the current bundled-Python
 archive through the public installer. `install:cli:dev` installs the editable
 development command.
 
+When `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` names a matching existing
+archive, `install:cli:archive` installs it through the public installer without
+rebuilding. Without that override, it retains the build-then-install workflow.
+
 The earlier unscoped `build:bundle`, `build:optimized`,
 `install:prod:local`, and `install:dev:local` names are removed after tracked
 consumers migrate. Compatibility aliases are retained only when a maintained

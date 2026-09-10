@@ -5,13 +5,13 @@ import argparse
 import json
 import os
 from pathlib import Path
-import shutil
-import subprocess
 import sys
 import venv
 
+from progress import StepLogger
 
-ROOT = Path(__file__).resolve().parents[1]
+
+ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_VENV_DIR = Path.home() / ".crystal" / "dev-cli-venv"
 DEFAULT_BIN_DIR = Path.home() / ".local" / "bin"
 
@@ -42,9 +42,14 @@ def main() -> None:
     venv_dir = args.venv_dir.expanduser().resolve()
     bin_dir = args.bin_dir.expanduser().resolve()
 
+    progress = StepLogger(total_steps=4)
+    progress.step("Creating or reusing the editable CLI environment")
     ensure_venv(venv_dir)
     python = venv_python(venv_dir)
-    run(
+    progress.detail(f"environment: {venv_dir}")
+
+    progress.step("Installing editable CLI packages")
+    progress.run_visible(
         [
             str(python),
             "-m",
@@ -56,12 +61,16 @@ def main() -> None:
             "application/python",
             "-e",
             "plugins/openai_responses",
-        ]
+        ],
+        cwd=ROOT,
     )
 
+    progress.step("Installing the development command")
     command_path = install_dev_command(venv_dir, bin_dir, args.command_name)
-    verify_dev_command(command_path)
+    progress.detail(f"command: {command_path}")
 
+    progress.step("Verifying the development command")
+    verify_dev_command(command_path, progress=progress)
     print(f"Installed dev venv: {venv_dir}")
     print(f"Installed dev command: {command_path}")
     if not path_contains(bin_dir):
@@ -105,13 +114,18 @@ def install_dev_command(venv_dir: Path, bin_dir: Path, command_name: str) -> Pat
     return command_path
 
 
-def verify_dev_command(command_path: Path) -> None:
-    layout = json.loads(run([str(command_path), "--runtime-layout-json"]).stdout)
+def verify_dev_command(command_path: Path, *, progress: StepLogger) -> None:
+    layout = json.loads(
+        progress.run_capture(
+            [str(command_path), "--runtime-layout-json"],
+            cwd=ROOT,
+        ).stdout
+    )
     if layout.get("layout") != "source":
         raise RuntimeError(
             f"Dev command must use source layout, got {layout.get('layout')!r}"
         )
-    run([str(command_path), "--help"])
+    progress.run_capture([str(command_path), "--help"], cwd=ROOT)
 
 
 def path_contains(directory: Path) -> bool:
@@ -122,17 +136,6 @@ def path_contains(directory: Path) -> bool:
     ]
     resolved = directory.resolve()
     return any(path.resolve() == resolved for path in paths)
-
-
-def run(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        command,
-        cwd=str(ROOT),
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
 
 
 if __name__ == "__main__":

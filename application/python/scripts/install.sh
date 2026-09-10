@@ -11,9 +11,16 @@ BIN_DIR="${BIN_DIR:-}"
 LOCAL_ARCHIVE="${CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE:-}"
 CRYSTAL_LATTICE_TEMP_DIR=""
 INCOMPATIBLE_COMMAND_DIR=""
+LOG_STEP_TOTAL=5
+LOG_STEP_INDEX=0
 
-log() {
-  printf '%s\n' "$*"
+log_step() {
+  LOG_STEP_INDEX=$((LOG_STEP_INDEX + 1))
+  printf '[%d/%d] %s\n' "$LOG_STEP_INDEX" "$LOG_STEP_TOTAL" "$1"
+}
+
+log_detail() {
+  printf '      %s\n' "$1"
 }
 
 fail() {
@@ -297,6 +304,7 @@ verify_install() {
 }
 
 main() {
+  log_step "Checking installer prerequisites and command location"
   need_command curl
   need_command mktemp
   need_command grep
@@ -305,9 +313,12 @@ main() {
     BIN_DIR="$(select_default_bin_dir)" || fail \
       "could not find an existing writable command directory on PATH; set BIN_DIR to an explicit directory"
   fi
+  log_detail "command directory: $BIN_DIR"
 
+  log_step "Resolving the target platform and release"
   local target
   target="$(detect_target)"
+  log_detail "target: $target"
 
   local temp_dir
   temp_dir="$(mktemp -d)"
@@ -341,7 +352,7 @@ main() {
     local version="${archive_stem#"$ARCHIVE_PACKAGE_NAME-v"}"
     version="${version%-$target}"
     tag="crystal-lattice-cli-v$version"
-    log "Installing $PACKAGE_NAME $tag for $target from $archive_path"
+    log_detail "release: $tag"
   else
     if [ -n "${VERSION:-}" ]; then
       tag="$(normalize_tag "$VERSION")"
@@ -354,23 +365,32 @@ main() {
     archive_name="$(archive_name_for "$archive_stem" "$target")"
     local archive_url="$DOWNLOAD_BASE_URL/$archive_name"
     archive_path="$temp_dir/$archive_name"
-    log "Installing $PACKAGE_NAME $tag for $target"
-    log "Downloading $archive_url"
+    log_detail "release: $tag"
+  fi
+
+  log_step "Acquiring the bundled-Python archive"
+  if [ -n "$LOCAL_ARCHIVE" ]; then
+    log_detail "Installing $PACKAGE_NAME $tag for $target from $archive_path"
+  else
+    log_detail "Downloading $archive_url"
     curl -fL "$archive_url" -o "$archive_path"
   fi
 
+  log_step "Installing the runtime and command"
   local installed_bundle
   installed_bundle="$(install_bundle "$archive_path" "$archive_stem" "$target" "$temp_dir")"
+
+  log_step "Verifying the installed command"
   verify_install "$BIN_DIR/$COMMAND_NAME"
 
-  log "Installed bundle: $installed_bundle"
-  log "Installed command: $BIN_DIR/$COMMAND_NAME"
+  log_detail "Installed bundle: $installed_bundle"
+  log_detail "Installed command: $BIN_DIR/$COMMAND_NAME"
   case "$target" in
-    windows-*) log "Installed Windows command: $BIN_DIR/$COMMAND_NAME.cmd" ;;
+    windows-*) log_detail "Installed Windows command: $BIN_DIR/$COMMAND_NAME.cmd" ;;
   esac
   case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
-    *) log "Add this directory to PATH if needed: $BIN_DIR" ;;
+    *) log_detail "Add this directory to PATH if needed: $BIN_DIR" ;;
   esac
 }
 

@@ -11,7 +11,7 @@ SCRIPTS_DIR = ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-import build_crystal_lattice_python_runtime_package as runtime_builder
+import build_crystal_lattice_python_runtime_package as runtime_builder  # type: ignore[import-not-found]  # noqa: E402
 
 
 def test_python_runtime_package_stages_launcher_layout_and_bundle_script(
@@ -53,6 +53,7 @@ def test_python_runtime_package_stages_launcher_layout_and_bundle_script(
     assert runtime_builder.package_python(package_dir).is_file()
     assert (package_dir / "scripts" / "build_crystal_lattice_binary.py").is_file()
     assert (package_dir / "scripts" / "build_plugin_packaging_support.py").is_file()
+    assert not (package_dir / "application" / "python" / "scripts").exists()
     assert (package_dir / "plugins" / "message-export-actions").is_dir()
     assert (package_dir / "preinstalled-plugins.json").is_file()
 
