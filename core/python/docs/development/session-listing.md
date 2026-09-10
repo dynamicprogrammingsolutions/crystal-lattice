@@ -110,5 +110,5 @@ system file read that is already blocked.
 The delayed test stores exercise bounded foreground return, newest-first work,
 metadata-only results, shared concurrent work, background completion, and
 shutdown without relying on iCloud. The integration requirement suite combines
-those conditions with real `AgentApplication`, filesystem persistence,
+those conditions with `AgentApplication`, filesystem persistence,
 application plugins, and production HTTP routing.

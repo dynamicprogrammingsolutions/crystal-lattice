@@ -1,4 +1,4 @@
-"""Reviewable integration scenarios for the application session-list contract."""
+"""Integration coverage for the application session-list contract."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class SessionListIntegrationFixturePlugin:
-    """Real loader fixture for contribution, context, and failure assertions."""
+    """Application plugin used to exercise session-list action behavior."""
 
     name = "session_list_integration_fixture"
     version = "1.0.0"
@@ -197,20 +197,43 @@ def _session_by_id(response: Any) -> dict[str, dict[str, Any]]:
 
 # Requirements:
 # - SLIST-001: Exercises list, exact, diagnostics, filter schema, and filter evaluation.
-# - SLIST-002: Reviews opaque filesystem records and exact record lookup through the app store.
+# - SLIST-002: Asserts opaque filesystem records and exact record lookup through the app store.
 # - SLIST-003: Asserts normalized/truncated preview, metadata exclusion, fields, and presentation.
-# - SLIST-004: Checks declared inputs, contributions, and isolated failure through real loading.
+# - SLIST-004: Checks declared inputs, contributions, and isolated failure through plugin loading.
 # - SLIST-005: Confirms plugin ordering and diagnostic fallback for an invalid order.
 # - SLIST-006: Confirms dotted contributed presentation, title fallback, and status metadata.
-# - SLIST-007: Applies real declarative filters before a limit and bypasses them for exact lookup.
+# - SLIST-007: Applies configured filters before a limit and bypasses them for exact lookup.
 # - SLIST-008: Isolates both a failed list action and one malformed stored JSON document.
 # - SLIST-009: Reuses a summary, then observes an externally changed filesystem revision.
-# - SLIST-010: Reviews the same result through HTTP, terminal, and exact-summary adapters.
+# - SLIST-010: Asserts the same result through HTTP, terminal, and exact-summary adapters.
 @pytest.mark.integration
-def test_preserved_session_listing_contract_in_a_real_application(
+def test_preserved_session_listing_contract_across_storage_plugins_and_adapters(
     tmp_path: Path,
 ) -> None:
-    """Given real sessions and plugins, all established consumers share one contract."""
+    """Verify the established contract across storage, plugins, and adapters.
+
+    Setup:
+        Configure the session-list fixture, pin, status, and ordering plugins.
+        Store one newer session, one older pinned session, and one malformed
+        JSON file. The pinned session asks the fixture action to fail after an
+        earlier action contributes a nested field. The newer session returns
+        an invalid order declaration.
+
+    Requirement assertions:
+        SLIST-001 and SLIST-002 are asserted by the record collection, exact
+        record lookup, filter schema, diagnostics, and exact summary calls.
+        SLIST-003 and SLIST-006 are asserted by the preview, metadata,
+        contributed fields, and presentation checks on ``older-pinned``.
+        SLIST-004, SLIST-005, and SLIST-008 are asserted by the contributed
+        field, pin ordering, malformed-file fallback, and the three diagnostic
+        code checks.
+        SLIST-007 is asserted by the pinned filter with ``limit=1`` and the
+        unfiltered exact lookup.
+        SLIST-009 is asserted by identical repeated output followed by an
+        external file revision whose new preview is returned.
+        SLIST-010 is asserted by matching HTTP and terminal collections, the
+        HTTP envelope helper, exact HTTP lookup, and the missing-ID 404.
+    """
 
     config_path = _write_config(tmp_path)
     session_root = tmp_path / "sessions"
@@ -243,6 +266,7 @@ def test_preserved_session_listing_contract_in_a_real_application(
     _set_mtime(malformed_path, 0.5)
 
     try:
+        # SLIST-001, SLIST-002: membership and exact storage records expose no path.
         records = application._session_store.list_records()
         assert {record.session_id for record in records} == {
             "older-pinned",
@@ -253,15 +277,18 @@ def test_preserved_session_listing_contract_in_a_real_application(
         assert application._session_store.get_record("older-pinned") is not None
 
         with _serve(application) as client:
+            # SLIST-001, SLIST-010: the HTTP adapter returns the shared envelope.
             first_response = client.get("/sessions")
             first = first_response.json()["sessions"]
             by_id = _session_by_id(first_response)
 
+            # SLIST-004, SLIST-005: declared contributions place the pin first.
             assert [summary["session_id"] for summary in first][:2] == [
                 "older-pinned",
                 "newer-active",
             ]
             pinned = by_id["older-pinned"]
+            # SLIST-003, SLIST-004, SLIST-006: complete summary and presentation.
             assert len(pinned["preview"]) == 80
             assert pinned["preview"].startswith("Alpha word word")
             assert "  " not in pinned["preview"]
@@ -272,6 +299,8 @@ def test_preserved_session_listing_contract_in_a_real_application(
             assert pinned["presentation"]["meta"] == "Status: Done"
             assert pinned["integration"]["marker"] == "older-pinned"
             assert "after_integration_failure" not in pinned
+
+            # SLIST-004, SLIST-005, SLIST-008: independent failures use fallbacks.
             assert by_id["malformed"]["preview"] == ""
             assert by_id["malformed"]["metadata"] == {}
             diagnostic_codes = {
@@ -281,11 +310,13 @@ def test_preserved_session_listing_contract_in_a_real_application(
             assert "session_list_action_failed" in diagnostic_codes
             assert "invalid_session_list_order_spec" in diagnostic_codes
 
+            # SLIST-001, SLIST-007, SLIST-010: exact lookup is unfiltered.
             exact = client.get("/sessions/older-pinned/summary")
             assert exact.status_code == 200
             assert exact.json()["session"] == pinned
             assert client.get("/sessions/missing/summary").status_code == 404
 
+            # SLIST-010: terminal listing delegates to the same application result.
             terminal = TerminalApplication(
                 config_path=config_path,
                 session_root=session_root,
@@ -293,6 +324,7 @@ def test_preserved_session_listing_contract_in_a_real_application(
             )
             assert terminal.list_sessions_metadata() == first
 
+            # SLIST-001, SLIST-007: configured filters run before the limit.
             filtered = application.list_session_summaries(
                 filter_values={"pinned_state": True},
                 apply_filter_defaults=True,
@@ -307,9 +339,12 @@ def test_preserved_session_listing_contract_in_a_real_application(
             assert {"pinned_state", "session_status"}.issubset(
                 {item["id"] for item in schema["filters"]}
             )
+
+            # SLIST-009: an unchanged revision reuses the same summary result.
             second_response = client.get("/sessions")
             assert second_response.json() == first_response.json()
 
+            # SLIST-009: a changed filesystem revision invalidates that result.
             newer_path = session_root / "newer-active.json"
             raw = json.loads(newer_path.read_text(encoding="utf-8"))
             raw["messages"][1]["content"] = "externally updated"
@@ -327,15 +362,36 @@ def test_preserved_session_listing_contract_in_a_real_application(
 # - SLIST-012: Delays attribute enumeration and proves no content load starts before it ends.
 # - SLIST-013: Returns every mixed complete/blocked session in the unchanged HTTP shape.
 # - SLIST-015: Verifies newest-first work, the post-enumeration deadline, and later completion.
-# - SLIST-016: Reviews complete-first ordering, conservative filters, and limit-last behavior.
+# - SLIST-016: Asserts complete-first ordering, conservative filters, and limit-last behavior.
 # - SLIST-017: Leaves one bounded background worker to finish the simulated hydration.
 # - SLIST-020: Exercises the production HTTP route without any client-specific scan protocol.
 @pytest.mark.integration
-def test_cold_icloud_like_http_listing_returns_all_sessions_then_converges(
+def test_delayed_session_content_returns_all_http_entries_then_converges(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Given slow metadata and hydration, HTTP returns a useful complete collection."""
+    """Verify bounded listing when file attributes and content arrive separately.
+
+    Setup:
+        Store three sessions with descending modification times and configure a
+        50 ms foreground interval with one resolver worker. Delay attribute
+        enumeration by 60 ms, let the newest session load immediately, block
+        the middle session, and leave the oldest session queued.
+
+    Requirement assertions:
+        SLIST-012 is asserted inside ``delayed_load`` and by the enumeration
+        event checks: no content load begins before enumeration finishes.
+        SLIST-015 is asserted by the elapsed-time bounds and ``load_order``:
+        enumeration time is outside the foreground interval and work starts
+        newest first before continuing in the background.
+        SLIST-011, SLIST-013, and SLIST-020 are asserted by the first HTTP
+        response: it retains the normal envelope and summary shape, includes
+        all three IDs, and exposes no resolver-state field.
+        SLIST-016 is asserted by the complete/placeholder order and by the
+        filtered, limited result that conservatively retains the blocked item.
+        SLIST-017 is asserted by the single-worker load sequence and eventual
+        completion after the hydration gate is released.
+    """
 
     metadata_delay = 0.06
     foreground_timeout = 0.05
@@ -387,6 +443,7 @@ def test_cold_icloud_like_http_listing_returns_all_sessions_then_converges(
         *,
         snapshot_id: str | None = None,
     ) -> Session | None:
+        # SLIST-012: content access is forbidden until enumeration completes.
         assert enumeration_finished.is_set()
         with load_lock:
             load_order.append(session_id)
@@ -400,6 +457,7 @@ def test_cold_icloud_like_http_listing_returns_all_sessions_then_converges(
 
     try:
         with _serve(application) as client:
+            # SLIST-012, SLIST-015: enumeration precedes the bounded content wait.
             started = time.monotonic()
             response = client.get("/sessions")
             elapsed = time.monotonic() - started
@@ -408,6 +466,8 @@ def test_cold_icloud_like_http_listing_returns_all_sessions_then_converges(
             assert hydration_started.is_set()
             assert elapsed >= metadata_delay + (foreground_timeout * 0.7)
             assert elapsed < metadata_delay + foreground_timeout + 0.35
+
+            # SLIST-011, SLIST-013, SLIST-016, SLIST-020: all entries use one shape.
             sessions = response.json()["sessions"]
             assert [item["session_id"] for item in sessions] == [
                 "newest",
@@ -420,6 +480,7 @@ def test_cold_icloud_like_http_listing_returns_all_sessions_then_converges(
             assert all("summary_state" not in item for item in sessions)
             assert load_order == ["newest", "middle-blocked"]
 
+            # SLIST-016: unresolved filter data is retained and limit is last.
             filtered_and_limited = application.list_session_summaries(
                 filter_values={"session_status": ["done"]},
                 apply_filter_defaults=True,
@@ -430,6 +491,7 @@ def test_cold_icloud_like_http_listing_returns_all_sessions_then_converges(
                 "middle-blocked",
             ]
 
+            # SLIST-015, SLIST-017: queued content completes in mtime order.
             release_hydration.set()
             deadline = time.monotonic() + 3.0
             completed: list[dict[str, Any]] = []
@@ -449,16 +511,35 @@ def test_cold_icloud_like_http_listing_returns_all_sessions_then_converges(
 
 
 # Requirements:
-# - SLIST-009: Confirms real save, external revision, and delete paths invalidate reused data.
+# - SLIST-009: Confirms application save, external revision, and delete invalidation paths.
 # - SLIST-014: Restarts AgentApplication and lists unchanged sessions with zero content loads.
 # - SLIST-018: Corrupts only derived state, then verifies safe rebuild and source preservation.
 # - SLIST-019: Converges persistent summaries after save, external edit, and deletion.
 @pytest.mark.integration
-def test_persistent_summaries_survive_restart_and_follow_real_mutations(
+def test_persistent_summaries_survive_restart_and_follow_source_mutations(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Given persisted summaries, restarts and source mutations converge safely."""
+    """Verify persistent reuse, source invalidation, and cache recovery.
+
+    Setup:
+        Populate the persistent summary cache from two filesystem sessions,
+        close the first application, and open a second application over the
+        same configuration and session root. Count every session-content load.
+        Then update one session through the application, edit its JSON file
+        externally, delete it, close the application, and corrupt the SQLite
+        cache before opening a third application.
+
+    Requirement assertions:
+        SLIST-014 is asserted when the second application returns both cached
+        previews while ``load_calls`` remains empty.
+        SLIST-009 and SLIST-019 are asserted by the targeted load after
+        ``save_session``, the externally edited preview, and the deleted ID's
+        absence from the next collection.
+        SLIST-018 is asserted when the third application reconstructs the
+        survivor summary, leaves its source JSON file intact, and quarantines
+        the corrupt derived database.
+    """
 
     config_path = _write_config(tmp_path, include_list_plugins=False)
     session_root = tmp_path / "sessions"
@@ -476,6 +557,7 @@ def test_persistent_summaries_survive_restart_and_follow_real_mutations(
         user_messages=["survives cache corruption"],
     )
     with _serve(first_application) as client:
+        # Setup for SLIST-014: populate complete persistent summaries.
         assert set(_session_by_id(client.get("/sessions"))) == {
             "mutable",
             "survivor",
@@ -498,10 +580,12 @@ def test_persistent_summaries_survive_restart_and_follow_real_mutations(
     monkeypatch.setattr(second_store, "load", counting_load)
     try:
         with _serve(second_application) as client:
+            # SLIST-014: unchanged summaries survive restart without content reads.
             warm = _session_by_id(client.get("/sessions"))
             assert warm["mutable"]["preview"] == "original"
             assert load_calls == []
 
+            # SLIST-009, SLIST-019: application save invalidates only its session.
             second_application.save_session(
                 Session(
                     session_id="mutable",
@@ -514,6 +598,7 @@ def test_persistent_summaries_survive_restart_and_follow_real_mutations(
             assert saved["mutable"]["preview"] == "saved update"
             assert load_calls == ["mutable"]
 
+            # SLIST-009, SLIST-019: an external revision replaces cached content.
             mutable_path = session_root / "mutable.json"
             raw = json.loads(mutable_path.read_text(encoding="utf-8"))
             raw["messages"][0]["content"] = "external update"
@@ -527,6 +612,7 @@ def test_persistent_summaries_survive_restart_and_follow_real_mutations(
             assert external.status_code == 200
             assert external.json()["session"]["preview"] == "external update"
 
+            # SLIST-009, SLIST-019: deletion removes source and derived membership.
             second_application.delete_session("mutable")
             after_delete = _session_by_id(client.get("/sessions"))
             assert set(after_delete) == {"survivor"}
@@ -540,6 +626,7 @@ def test_persistent_summaries_survive_restart_and_follow_real_mutations(
     third_application = AgentApplication(config_path, session_root)
     try:
         with _serve(third_application) as client:
+            # SLIST-018: corrupt derived state is quarantined and rebuilt.
             rebuilt = _session_by_id(client.get("/sessions"))
             assert rebuilt["survivor"]["preview"] == "survives cache corruption"
             assert (session_root / "survivor.json").is_file()
@@ -549,17 +636,35 @@ def test_persistent_summaries_survive_restart_and_follow_real_mutations(
 
 
 # Requirements:
-# - SLIST-013: Keeps the session present while two real HTTP requests await one hydration.
+# - SLIST-013: Keeps the session present while two concurrent HTTP requests await hydration.
 # - SLIST-015: Automatically resolves the newest externally changed revision in background.
 # - SLIST-017: Coalesces concurrent HTTP calls and cooperatively closes a blocked resolver.
 # - SLIST-019: Discards stale in-flight content and publishes only the external revision.
 # - SLIST-020: Preserves the ordinary HTTP response throughout concurrency and shutdown.
 @pytest.mark.integration
-def test_concurrent_http_hydration_discards_stale_work_and_closes_cleanly(
+def test_concurrent_http_hydration_discards_stale_work_and_stops_workers(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Given concurrent hydration and an external edit, only current data is published."""
+    """Verify coalescing, revision replacement, and resolver shutdown.
+
+    Setup:
+        Disable persistence, configure one worker and a 40 ms foreground
+        interval, and store one session. Two HTTP threads list concurrently
+        while the first content load is blocked after reading the old revision.
+        The source file is then edited twice: once to supersede the in-flight
+        result and once to start another blocked load during application close.
+
+    Requirement assertions:
+        SLIST-013, SLIST-017, and SLIST-020 are asserted when both concurrent
+        HTTP responses contain the session as a normal placeholder while
+        ``load_count`` remains one.
+        SLIST-015 and SLIST-019 are asserted when releasing the stale load
+        triggers one new load and only the externally updated preview appears.
+        SLIST-017 and SLIST-020 are asserted when close returns during the
+        third blocked load and every implementation-owned worker subsequently
+        terminates.
+    """
 
     config_path = _write_config(
         tmp_path,
@@ -623,12 +728,14 @@ def test_concurrent_http_hydration_discards_stale_work_and_closes_cleanly(
             for thread in threads:
                 thread.join(timeout=1.0)
 
+            # SLIST-013, SLIST-017, SLIST-020: two requests share one load.
             assert len(responses) == 2
             assert load_count == 1
             for response in responses:
                 by_id = _session_by_id(response)
                 assert by_id["changing"]["preview"] == ""
 
+            # SLIST-015, SLIST-019: change the source while old work is in flight.
             session_path = session_root / "changing.json"
             raw = json.loads(session_path.read_text(encoding="utf-8"))
             raw["messages"][1]["content"] = "current external content"
@@ -641,6 +748,7 @@ def test_concurrent_http_hydration_discards_stale_work_and_closes_cleanly(
             while_stale = _session_by_id(client.get("/sessions"))
             assert while_stale["changing"]["preview"] == ""
 
+            # SLIST-015, SLIST-019: stale output is discarded and current data wins.
             release_first_load.set()
             deadline = time.monotonic() + 3.0
             current: dict[str, dict[str, Any]] = {}
@@ -651,6 +759,7 @@ def test_concurrent_http_hydration_discards_stale_work_and_closes_cleanly(
             assert current["changing"]["preview"] == "current external content"
             assert load_count == 2
 
+            # SLIST-017, SLIST-020: close while the replacement load is blocked.
             raw = json.loads(session_path.read_text(encoding="utf-8"))
             raw["messages"][1]["content"] = "blocked during close"
             session_path.write_text(json.dumps(raw), encoding="utf-8")
@@ -674,4 +783,5 @@ def test_concurrent_http_hydration_discards_stale_work_and_closes_cleanly(
     deadline = time.monotonic() + 1.0
     while time.monotonic() < deadline and any(worker.is_alive() for worker in workers):
         time.sleep(0.01)
+    # SLIST-017: every resolver worker terminates after the blocked read returns.
     assert all(not worker.is_alive() for worker in workers)

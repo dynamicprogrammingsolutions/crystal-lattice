@@ -530,10 +530,10 @@ The generator emits only links from
 Link labels contain the repository-relative test path and current definition
 line; targets use relative Markdown paths with `#L…` anchors.
 
-Four reviewable integration scenarios now provide evidence for every
+Four integration scenarios now provide evidence for every
 `SLIST-001` through `SLIST-020` requirement:
 
-- established summaries, real plugin contributions, malformed storage,
+- established summaries, plugin contributions, malformed storage,
   filtering, exact lookup, and shared HTTP/terminal behavior;
 - delayed metadata and iCloud-like content hydration with bounded partial HTTP
   results and background convergence;
@@ -542,14 +542,14 @@ Four reviewable integration scenarios now provide evidence for every
 - concurrent HTTP listing, stale in-flight work, external revision
   replacement, and application shutdown.
 
-All four scenarios use real `AgentApplication`, filesystem sessions, and the
+All four scenarios use `AgentApplication`, filesystem sessions, and the
 production HTTP route and are explicitly collected with `-m integration`.
 
-### Reviewable real-world integration scenarios
+### Session-list integration scenarios
 
-- [x] Add one dedicated integration test module whose scenarios use real
+- [x] Add one dedicated integration test module whose scenarios use
       `AgentApplication`, filesystem session documents, production FastAPI
-      routing, and real application-plugin loading.
+      routing, and application-plugin loading.
 - [x] Simulate on-demand cloud storage by delaying metadata enumeration
       separately from content hydration and blocking selected session loads.
 - [x] Cover persisted-summary restart reuse, application saves, external file
@@ -561,10 +561,14 @@ production HTTP route and are explicitly collected with `-m integration`.
       reject annotated unmarked tests.
 - [x] Link every `SLIST-001` through `SLIST-020` requirement to at least one
       described integration scenario with a generated line anchor.
+- [x] Record each scenario's setup and requirement-to-assertion mapping in its
+      test docstring.
+- [x] Label related assertion blocks with their `SLIST-*` IDs.
+- [x] Name scenarios after the behavior and conditions they exercise.
 
 The earlier integration-gap assessment is superseded by
 `application/python/tests/test_session_listing_requirements_integration.py`.
-Its four scenarios are intentionally organized for human review:
+Its four scenarios cover:
 
 1. preserved summary, plugin, ordering, presentation, filter, failure, exact,
    HTTP, and terminal contracts;
