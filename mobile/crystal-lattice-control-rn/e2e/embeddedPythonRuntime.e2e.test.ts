@@ -47,13 +47,15 @@ describe("embedded Python runtime", () => {
     const versionText = await readText("embedded-python-runtime-version");
     assert.match(versionText, /3\.12/);
     await detoxExpect(
-      element(by.id("embedded-python-runtime-answer"))
-    ).toHaveText("undefined");
+      element(by.id("embedded-python-runtime-answer")),
+    ).toHaveText("42");
     await detoxExpect(
-      element(by.id("embedded-python-runtime-agents"))
+      element(by.id("embedded-python-runtime-agents")),
     ).toHaveText("local");
     await detoxExpect(
-      element(by.id("embedded-python-runtime-message-count"))
-    ).toHaveText("1");
+      element(by.id("embedded-python-runtime-message-count")),
+    ).toHaveText("2");
+    const sessionId = await readText("embedded-python-runtime-session-id");
+    assert.ok(sessionId.length > 10);
   });
 });

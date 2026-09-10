@@ -11,4 +11,8 @@ RCT_EXTERN_METHOD(runSmoke:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(runApplicationSmoke:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(execute:(NSDictionary *)request
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

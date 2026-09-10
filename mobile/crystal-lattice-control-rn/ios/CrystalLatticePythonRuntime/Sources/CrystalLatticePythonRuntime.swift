@@ -72,6 +72,42 @@ final class CrystalLatticePythonRuntime: NSObject {
     }
   }
 
+  @objc(execute:resolver:rejecter:)
+  func execute(
+    _ request: NSDictionary,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.queue.async {
+      do {
+        _ = try Self.startIfNeeded()
+        guard JSONSerialization.isValidJSONObject(request) else {
+          throw RuntimeError.invalidCommand
+        }
+        let requestData = try JSONSerialization.data(withJSONObject: request)
+        guard let requestJSON = String(data: requestData, encoding: .utf8) else {
+          throw RuntimeError.invalidCommand
+        }
+        let runtimeRoot = try Self.runtimeRoot()
+        let responseJSON = try CLPythonHostSupport.executeCommandJSON(
+          requestJSON,
+          runtimeRoot: runtimeRoot.path
+        )
+        guard
+          let responseData = responseJSON.data(using: .utf8),
+          let response = try JSONSerialization.jsonObject(
+            with: responseData
+          ) as? [String: Any]
+        else {
+          throw RuntimeError.invalidResponse
+        }
+        resolve(response)
+      } catch {
+        reject("python_command_failed", error.localizedDescription, error)
+      }
+    }
+  }
+
   private static func startIfNeeded() throws -> [String: Any] {
     if initialized, let runtimeInformation {
       return runtimeInformation
@@ -137,6 +173,8 @@ final class CrystalLatticePythonRuntime: NSObject {
     case applicationSupportMissing
     case initializationFailed
     case executionFailed
+    case invalidCommand
+    case invalidResponse
 
     var errorDescription: String? {
       switch self {
@@ -148,6 +186,10 @@ final class CrystalLatticePythonRuntime: NSObject {
         return "The bundled Python interpreter did not initialize."
       case .executionFailed:
         return "The bundled Python smoke program failed."
+      case .invalidCommand:
+        return "The embedded runtime command is not valid JSON."
+      case .invalidResponse:
+        return "The embedded runtime returned an invalid response."
       }
     }
   }

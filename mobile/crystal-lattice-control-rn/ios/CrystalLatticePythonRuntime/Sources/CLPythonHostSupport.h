@@ -16,6 +16,10 @@ NS_ASSUME_NONNULL_BEGIN
     (NSString *)runtimeRoot
     error:(NSError *_Nullable *_Nullable)error;
 
++ (nullable NSString *)executeCommandJSON:(NSString *)commandJSON
+                              runtimeRoot:(NSString *)runtimeRoot
+                                    error:(NSError *_Nullable *_Nullable)error;
+
 @end
 
 NS_ASSUME_NONNULL_END

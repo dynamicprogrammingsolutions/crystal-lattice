@@ -175,6 +175,63 @@ static NSString *const CLPythonRuntimeErrorDomain =
   return dictionary;
 }
 
++ (nullable NSString *)executeCommandJSON:(NSString *)commandJSON
+                              runtimeRoot:(NSString *)runtimeRoot
+                                    error:(NSError *_Nullable *_Nullable)error {
+  if (!Py_IsInitialized()) {
+    [self setError:error
+              code:16
+           message:@"The bundled Python interpreter has not been initialized."];
+    return nil;
+  }
+
+  PyGILState_STATE gilState = PyGILState_Ensure();
+  PyObject *module = PyImport_ImportModule("crystal_lattice_mobile_runtime");
+  if (module == NULL) {
+    NSString *message = [self currentPythonError];
+    PyGILState_Release(gilState);
+    [self setError:error code:17 message:message];
+    return nil;
+  }
+
+  PyObject *function = PyObject_GetAttrString(module, "execute_json");
+  Py_DECREF(module);
+  if (function == NULL || !PyCallable_Check(function)) {
+    Py_XDECREF(function);
+    NSString *message = [self currentPythonError];
+    PyGILState_Release(gilState);
+    [self setError:error code:18 message:message];
+    return nil;
+  }
+
+  PyObject *commandArgument = PyUnicode_FromString(commandJSON.UTF8String);
+  PyObject *rootArgument = PyUnicode_FromString(runtimeRoot.UTF8String);
+  PyObject *result =
+      PyObject_CallFunctionObjArgs(function, commandArgument, rootArgument, NULL);
+  Py_DECREF(commandArgument);
+  Py_DECREF(rootArgument);
+  Py_DECREF(function);
+  if (result == NULL) {
+    NSString *message = [self currentPythonError];
+    PyGILState_Release(gilState);
+    [self setError:error code:19 message:message];
+    return nil;
+  }
+
+  const char *utf8 = PyUnicode_AsUTF8(result);
+  if (utf8 == NULL) {
+    Py_DECREF(result);
+    NSString *message = [self currentPythonError];
+    PyGILState_Release(gilState);
+    [self setError:error code:20 message:message];
+    return nil;
+  }
+  NSString *response = [NSString stringWithUTF8String:utf8];
+  Py_DECREF(result);
+  PyGILState_Release(gilState);
+  return response;
+}
+
 + (NSDictionary<NSString *, id> *)runtimeInfo {
   return @{
     @"status" : @"ready",

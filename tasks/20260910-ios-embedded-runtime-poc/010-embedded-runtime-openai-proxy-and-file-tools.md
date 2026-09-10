@@ -186,7 +186,7 @@ evidence.
   their current pure-Python dependency closure.
 - [x] Add the initial Swift runtime host and React Native bridge.
 - [x] Pass the foreground embedded-Python no-auth/no-tool smoke.
-- [ ] Add the production local `AgentBackend`.
+- [x] Add the production local `AgentBackend`.
 - [ ] Adapt and test the Ollama-targeted OpenAI proxy.
 - [ ] Add bounded background diagnostics, continuation, and recovery.
 - [ ] Add workspace-restricted `Read` and `Write` tools.
@@ -252,3 +252,12 @@ evidence.
   signed frameworks, and creates `.fwork` markers. The focused Detox test then
   imported `agent_core`/`agent_app`, constructed `AgentApplication`, created a
   `local` session, persisted one user message, and loaded it back successfully.
+- 2026-09-10: Added a native JSON command boundary and an HTTP-shaped Python
+  router over the embedded `AgentApplication`. `RestAgentBackend` now accepts
+  an explicit `inProcess` identity while preserving `rest` as its default.
+  Host-side integration and the focused SDK test passed.
+- 2026-09-10: The production diagnostics component used the in-process backend
+  to list agents, create a session, append and run a request through the
+  application coordinator, poll completion events, and load the persisted user
+  plus assistant messages. The release-simulator build and focused Detox test
+  passed in 42.6 seconds.

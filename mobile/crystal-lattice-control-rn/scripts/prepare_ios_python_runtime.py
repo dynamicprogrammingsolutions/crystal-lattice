@@ -28,7 +28,9 @@ PYTHON_APP_SOURCE = RUNTIME_ROOT / "Python"
 VENDOR_DIR = RUNTIME_ROOT / "Vendor"
 RESOURCES_DIR = RUNTIME_ROOT / "Resources"
 MARKER_PATH = RUNTIME_ROOT / ".prepared-python-runtime"
-CACHE_DIR = Path.home() / "Library" / "Caches" / "CrystalLattice" / "python-apple-support"
+CACHE_DIR = (
+    Path.home() / "Library" / "Caches" / "CrystalLattice" / "python-apple-support"
+)
 CACHE_ARCHIVE = CACHE_DIR / ARCHIVE_NAME
 PURE_DEPENDENCY_CACHE = CACHE_DIR / "pure-dependencies-v1"
 PURE_DEPENDENCIES = (
@@ -36,6 +38,7 @@ PURE_DEPENDENCIES = (
     "ply==3.11",
     "structlog==25.5.0",
 )
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -74,6 +77,7 @@ def ensure_archive() -> Path:
         )
     temporary.replace(CACHE_ARCHIVE)
     return CACHE_ARCHIVE
+
 
 def source_digest() -> str:
     digest = hashlib.sha256()
@@ -182,9 +186,7 @@ def prepare_runtime(archive: Path) -> None:
         staged_vendor = extracted / "staged-vendor"
         staged_resources = extracted / "staged-resources"
         shutil.copytree(source_framework, staged_vendor / "Python.xcframework")
-        create_application_archive(
-            staged_resources / "crystal_lattice_app.zip"
-        )
+        create_application_archive(staged_resources / "crystal_lattice_app.zip")
 
         shutil.rmtree(VENDOR_DIR, ignore_errors=True)
         shutil.rmtree(RESOURCES_DIR, ignore_errors=True)

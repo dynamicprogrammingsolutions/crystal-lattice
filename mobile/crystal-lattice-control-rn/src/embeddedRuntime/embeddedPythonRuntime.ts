@@ -10,17 +10,22 @@ export interface EmbeddedPythonRuntimeInfo {
   messageCount?: number;
 }
 
+export interface EmbeddedRuntimeResponse<T = any> {
+  status: number;
+  data: T;
+}
+
 interface EmbeddedPythonRuntimeModule {
   start(): Promise<EmbeddedPythonRuntimeInfo>;
   runSmoke(): Promise<EmbeddedPythonRuntimeInfo>;
   runApplicationSmoke(): Promise<EmbeddedPythonRuntimeInfo>;
+  execute(request: Record<string, unknown>): Promise<EmbeddedRuntimeResponse>;
 }
 
 const nativeRuntime =
   Platform.OS === "ios"
     ? (NativeModules.CrystalLatticePythonRuntime as
-        | EmbeddedPythonRuntimeModule
-        | undefined)
+        EmbeddedPythonRuntimeModule | undefined)
     : undefined;
 
 function requireNativeRuntime(): EmbeddedPythonRuntimeModule {
@@ -40,4 +45,10 @@ export async function runEmbeddedPythonSmoke(): Promise<EmbeddedPythonRuntimeInf
 
 export async function runEmbeddedApplicationSmoke(): Promise<EmbeddedPythonRuntimeInfo> {
   return requireNativeRuntime().runApplicationSmoke();
+}
+
+export async function executeEmbeddedRuntimeCommand<T = any>(
+  request: Record<string, unknown>,
+): Promise<EmbeddedRuntimeResponse<T>> {
+  return requireNativeRuntime().execute(request);
 }

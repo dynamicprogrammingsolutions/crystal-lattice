@@ -9,10 +9,10 @@ import {
 
 import {
   EmbeddedPythonRuntimeInfo,
-  runEmbeddedApplicationSmoke,
   runEmbeddedPythonSmoke,
   startEmbeddedPythonRuntime,
 } from "./embeddedPythonRuntime";
+import { createEmbeddedRuntimeBackend } from "./createEmbeddedRuntimeBackend";
 
 type RuntimeState =
   | { status: "starting" }
@@ -29,9 +29,45 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
 
     async function start(): Promise<void> {
       try {
-        await startEmbeddedPythonRuntime();
-        await runEmbeddedPythonSmoke();
-        const info = await runEmbeddedApplicationSmoke();
+        const runtimeInfo = await startEmbeddedPythonRuntime();
+        const smokeInfo = await runEmbeddedPythonSmoke();
+        const { backend } = createEmbeddedRuntimeBackend();
+        const agents = await backend.listAgents();
+        const created = await backend.createSession({
+          agentId: agents[0],
+        });
+        const sessionId = created.session.session_id;
+        const started = await backend.sendMessage(sessionId, {
+          message: {
+            role: "user",
+            content: "Embedded backend smoke",
+          },
+        });
+        const deadline = Date.now() + 10000;
+        let completed = false;
+        while (Date.now() < deadline && !completed) {
+          const events = await backend.listEvents({
+            sessionId,
+            requestId: started.request_id,
+          });
+          completed = events.events.some(
+            (event) => event.type === "request_completed",
+          );
+          if (!completed) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 50));
+          }
+        }
+        if (!completed) {
+          throw new Error("Embedded backend request did not complete.");
+        }
+        const messages = await backend.listMessages(sessionId);
+        const info: EmbeddedPythonRuntimeInfo = {
+          ...runtimeInfo,
+          answer: smokeInfo.answer,
+          agents,
+          sessionId,
+          messageCount: messages.messages.length,
+        };
         if (active) {
           setRuntimeState({ status: "ready", info });
         }
@@ -76,10 +112,16 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
             <Text testID="embedded-python-runtime-status" style={styles.ready}>
               Ready
             </Text>
-            <Text testID="embedded-python-runtime-version" style={styles.detail}>
+            <Text
+              testID="embedded-python-runtime-version"
+              style={styles.detail}
+            >
               {runtimeState.info.pythonVersion}
             </Text>
-            <Text testID="embedded-python-runtime-platform" style={styles.detail}>
+            <Text
+              testID="embedded-python-runtime-platform"
+              style={styles.detail}
+            >
               {runtimeState.info.pythonPlatform}
             </Text>
             <Text testID="embedded-python-runtime-answer" style={styles.detail}>
@@ -88,8 +130,17 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
             <Text testID="embedded-python-runtime-agents" style={styles.detail}>
               {(runtimeState.info.agents ?? []).join(",")}
             </Text>
-            <Text testID="embedded-python-runtime-message-count" style={styles.detail}>
+            <Text
+              testID="embedded-python-runtime-message-count"
+              style={styles.detail}
+            >
               {String(runtimeState.info.messageCount)}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-session-id"
+              style={styles.detail}
+            >
+              {runtimeState.info.sessionId}
             </Text>
           </>
         )}
