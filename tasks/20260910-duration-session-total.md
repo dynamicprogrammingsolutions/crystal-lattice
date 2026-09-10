@@ -105,7 +105,7 @@ turn-TPS calculations.
 - [x] Add deterministic regression and UI-schema tests.
 - [x] Update package documentation.
 - [x] Run package-local and relevant application-level verification.
-- [ ] Commit the completed implementation.
+- [x] Commit the completed implementation.
 
 ### Requirement verification
 
@@ -151,3 +151,35 @@ turn-TPS calculations.
   result. Package coverage now exercises the production
   `AgentCore.get_ui_schema()` aggregation boundary directly, so no
   application-specific behavior remains unverified for this change.
+
+## Completion Notes
+
+- Completed the approved cost-style duration-total flow: calculation occurs in
+  `finalize()`, durable values live in provider-native `_metadata`, and
+  `from_native_messages()` projects them into core message metadata.
+- `total_duration_ms` and `total_duration_formatted` now represent the sum of
+  retained LLM/provider-request durations. An explicit private owner marker and
+  legacy request-plus-turn fallback exclude unrelated generic duration fields.
+- The formatted total is exposed through a plugin-contributed status bar and
+  can be disabled independently with
+  `duration_extension_show_status_total=false`.
+- Existing request duration, turn duration, Responses-style owner selection,
+  native-index projection, and turn TPS remain covered by the passing package
+  suite.
+- Requirement evidence:
+  - Two-request core flow verifies session accumulation and turn reset.
+  - Tool-turn and Responses-style tests verify all provider requests contribute
+    once.
+  - Unowned and malformed metadata tests verify accounting boundaries.
+  - Native-history and `native_indices` tests verify persistence and
+    reconstruction.
+  - Core UI-schema aggregation verifies the status-bar declaration and plugin
+    ownership.
+- Verification: 12 timestamp-extension tests passed; Ruff, Black check, and
+  `git diff --check` passed.
+- The default-config application UI-schema integration attempt timed out after
+  120 seconds without producing a result. No implementation was weakened or
+  bypassed; the relevant production core aggregation boundary is covered
+  deterministically.
+- The implementation was committed in `57a4cad9`.
+- No requirements were deferred and no scope changes were made.
