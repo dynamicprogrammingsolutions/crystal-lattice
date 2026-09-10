@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "embedded-claude-tools"
+version = "0.1.0"
+description = "Claude-like iOS-safe workspace tools for the embedded runtime"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = ["embedded-tools-shared>=0.1.0"]
+
+
+[project.optional-dependencies]
+dev = ["agent-core>=0.3.0", "pytest>=7.0.0"]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["embedded_claude_tools*"]
+
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

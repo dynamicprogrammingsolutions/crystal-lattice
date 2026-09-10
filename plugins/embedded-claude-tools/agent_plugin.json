@@ -1,0 +1,18 @@
+{
+  "module": "embedded_claude_tools",
+  "subdirectory": ".",
+  "entries": [
+    "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
+    "embedded_claude_tools.write_tool.ClaudeLikeWriteTool"
+  ],
+  "kinds": {
+    "embedded_claude_tools.read_tool.ClaudeLikeReadTool": "tools",
+    "embedded_claude_tools.write_tool.ClaudeLikeWriteTool": "tools"
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "embedded-tools-shared",
+      "path": "../embedded-tools-shared"
+    }
+  ]
+}

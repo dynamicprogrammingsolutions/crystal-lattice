@@ -2,9 +2,10 @@
 
 The iOS app can run one fixed Crystal Lattice agent in process. The app bundles
 CPython, `agent_core`, `agent_app`, the reference OpenAI-compatible provider,
-and text-only workspace `Read` and `Write` tools. React Native talks to the
-runtime through an `inProcess` `AgentBackend`; the app does not start FastAPI,
-bind a loopback server, or launch a desktop Python process.
+the model-invisible `embedded-tools-shared` workspace engine, and the
+`embedded-claude-tools` plugin package. React Native talks to the runtime
+through an `inProcess` `AgentBackend`; the app does not start FastAPI, bind a
+loopback server, or launch a desktop Python process.
 
 This is a proof of concept. The endpoint and model are saved with the embedded
 connection record. The masked proxy API key is kept in iOS app-owned
@@ -81,11 +82,16 @@ the connection. The saved connection omits the key. Reopening the saved
 connection uses the native owner configuration and reconstructs the complete
 `AgentApplication` when endpoint, model, or key changes.
 
-The fixed tool set contains:
+The fixed Claude-like tool set currently contains:
 
 - `Read`: read a workspace-relative UTF-8 text file with optional line offset
   and limit.
 - `Write`: create or replace a workspace-relative UTF-8 text file.
+
+The model-visible schemas and result presentation belong to
+`embedded-claude-tools`. Canonical workspace path authorization and UTF-8 text
+operations belong to `embedded-tools-shared`; the mobile bridge does not
+define tool classes.
 
 Web search and Python execution are intentionally not part of this runtime
 configuration yet.

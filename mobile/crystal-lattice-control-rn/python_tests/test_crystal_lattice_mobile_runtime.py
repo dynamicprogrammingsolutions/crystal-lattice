@@ -15,10 +15,23 @@ RUNTIME_MODULE = (
     / "crystal_lattice_mobile_runtime.py"
 )
 CORE_PYTHON = Path(__file__).resolve().parents[3] / "core" / "python"
+EMBEDDED_TOOLS_SHARED = (
+    Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "embedded-tools-shared"
+    / "src"
+)
+EMBEDDED_CLAUDE_TOOLS = (
+    Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "embedded-claude-tools"
+    / "src"
+)
 
 
 def load_runtime_module():
-    sys.path.insert(0, str(CORE_PYTHON))
+    for path in (CORE_PYTHON, EMBEDDED_TOOLS_SHARED, EMBEDDED_CLAUDE_TOOLS):
+        sys.path.insert(0, str(path))
     spec = importlib.util.spec_from_file_location(
         "crystal_lattice_mobile_runtime",
         RUNTIME_MODULE,
@@ -111,14 +124,18 @@ def test_in_process_transport_session_request_flow(tmp_path: Path) -> None:
         module.shutdown_runtime()
 
 
-def test_workspace_tools_reject_escapes_and_round_trip_text(
+def test_external_claude_like_tools_reject_escapes_and_round_trip_text(
     tmp_path: Path,
 ) -> None:
     module = load_runtime_module()
+    from embedded_claude_tools import ClaudeLikeReadTool, ClaudeLikeWriteTool
+
+    assert not hasattr(module, "WorkspaceReadTool")
+    assert not hasattr(module, "WorkspaceWriteTool")
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    read_tool = module.WorkspaceReadTool()
-    write_tool = module.WorkspaceWriteTool()
+    read_tool = ClaudeLikeReadTool()
+    write_tool = ClaudeLikeWriteTool()
     read_state = read_tool.init({"working_directory": str(workspace)})
     write_state = write_tool.init({"working_directory": str(workspace)})
 

@@ -428,7 +428,7 @@ an automatic snapshot, and survive process relaunch/backgrounding.
 
 - [ ] Create and test the model-invisible `embedded-tools-shared` engine
   package.
-- [ ] Prove the Claude-like plugin-package staging path by moving
+- [x] Prove the Claude-like plugin-package staging path by moving
   `Read`/`Write` and rerunning the existing real-model simulator flow.
 - [ ] Implement and unit-test Claude-like `Edit`, `Glob`, `Grep`, and
   `WebFetch`.
@@ -517,3 +517,14 @@ an automatic snapshot, and survive process relaunch/backgrounding.
 - 2026-09-10: The user approved the Draft execution plan. Execution begins
   with the shared engine package and Claude-like `Read`/`Write` extraction,
   followed by the existing authenticated Ollama simulator regression.
+- 2026-09-10: Added model-invisible `embedded-tools-shared` workspace/text
+  primitives and the separate `embedded-claude-tools` plugin package. Removed
+  the model-visible `Read`/`Write` implementations from the mobile bridge and
+  staged both packages in the fixed iOS archive.
+- 2026-09-10: Thirteen focused package/mobile runtime tests and Ruff passed,
+  archive inspection found the new modules and no inline bridge tool classes,
+  and the Release simulator build succeeded.
+- 2026-09-10: The unchanged authenticated Ollama
+  `qwen3.5:0.8b` Detox scenario passed in 71.6 seconds. It completed the
+  production-screen `Read`/`Write` flow, verified output, relaunched with the
+  same session/workspace, and did not expose the temporary proxy key in logs.

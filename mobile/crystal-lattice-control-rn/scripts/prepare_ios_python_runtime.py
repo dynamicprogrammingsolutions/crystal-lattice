@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "5"
+RUNTIME_LAYOUT_VERSION = "6"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -95,6 +95,20 @@ def source_digest() -> str:
             / "reference-openai-compatible-provider"
             / "src"
             / "reference_openai_compatible_provider"
+        ),
+        (
+            REPO_ROOT
+            / "plugins"
+            / "embedded-tools-shared"
+            / "src"
+            / "embedded_tools_shared"
+        ),
+        (
+            REPO_ROOT
+            / "plugins"
+            / "embedded-claude-tools"
+            / "src"
+            / "embedded_claude_tools"
         ),
         PYTHON_APP_SOURCE,
     )
@@ -180,6 +194,28 @@ def create_application_archive(destination: Path) -> None:
                 / "reference_openai_compatible_provider"
             ),
             Path("reference_openai_compatible_provider"),
+        )
+        add_python_tree(
+            archive,
+            (
+                REPO_ROOT
+                / "plugins"
+                / "embedded-tools-shared"
+                / "src"
+                / "embedded_tools_shared"
+            ),
+            Path("embedded_tools_shared"),
+        )
+        add_python_tree(
+            archive,
+            (
+                REPO_ROOT
+                / "plugins"
+                / "embedded-claude-tools"
+                / "src"
+                / "embedded_claude_tools"
+            ),
+            Path("embedded_claude_tools"),
         )
         add_python_tree(archive, PYTHON_APP_SOURCE, Path())
         for package_name in (
