@@ -61,8 +61,15 @@ describe("embedded Python runtime with Ollama", () => {
       element(by.id("embedded-python-runtime-provider-mode"))
     ).toHaveText("openai-compatible");
     await detoxExpect(
-      element(by.id("embedded-python-runtime-message-count"))
-    ).toHaveText("2");
+      element(by.id("embedded-python-runtime-output-exists"))
+    ).toHaveText("true");
+    assert.equal(
+      (await readText("embedded-python-runtime-output-content")).trim(),
+      "UPPERCASE: ALPHA BETA GAMMA"
+    );
+    assert.ok(
+      Number(await readText("embedded-python-runtime-tool-message-count")) >= 3
+    );
     assert.ok(
       (await readText("embedded-python-runtime-assistant")).trim().length > 0
     );

@@ -109,3 +109,52 @@ def test_in_process_transport_session_request_flow(tmp_path: Path) -> None:
         )
     finally:
         module.shutdown_runtime()
+
+
+def test_workspace_tools_reject_escapes_and_round_trip_text(
+    tmp_path: Path,
+) -> None:
+    module = load_runtime_module()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    read_tool = module.WorkspaceReadTool()
+    write_tool = module.WorkspaceWriteTool()
+    read_state = read_tool.init({"working_directory": str(workspace)})
+    write_state = write_tool.init({"working_directory": str(workspace)})
+
+    assert not write_tool.execute_tool(
+        "Write",
+        {"file_path": "../outside.txt", "content": "blocked"},
+        write_state,
+    )["success"]
+    assert not read_tool.execute_tool(
+        "Read",
+        {"file_path": str(tmp_path / "outside.txt")},
+        read_state,
+    )["success"]
+
+    written = write_tool.execute_tool(
+        "Write",
+        {"file_path": "nested/output.txt", "content": "hello\nworld\n"},
+        write_state,
+    )
+    assert written["success"]
+    read = read_tool.execute_tool(
+        "Read",
+        {"file_path": "nested/output.txt"},
+        read_state,
+    )
+    assert read["success"]
+    assert read["result"] == "1\thello\n2\tworld"
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    symlink = workspace / "linked"
+    symlink.symlink_to(outside, target_is_directory=True)
+    escaped = write_tool.execute_tool(
+        "Write",
+        {"file_path": "linked/escape.txt", "content": "blocked"},
+        write_state,
+    )
+    assert not escaped["success"]
+    assert not (outside / "escape.txt").exists()

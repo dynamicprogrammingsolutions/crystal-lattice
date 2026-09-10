@@ -8,7 +8,276 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from agent_app.application_future import AgentApplication
 from agent_app.application_notifications import InMemoryApplicationNotificationStore
 from agent_app.plugin_sources.dotted import DottedClassSource
-from agent_core.types import ProviderPlugin, Session
+from agent_core.types import ProviderPlugin, Session, ToolPlugin
+
+
+READ_SCHEMA: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "Read",
+        "description": (
+            "Read a UTF-8 text file inside the configured workspace. "
+            "Use workspace-relative paths only."
+        ),
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Workspace-relative path to read",
+                },
+                "offset": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Optional zero-based starting line",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2000,
+                    "description": "Optional maximum number of lines",
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+}
+
+WRITE_SCHEMA: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "Write",
+        "description": (
+            "Create or replace a UTF-8 text file inside the configured workspace. "
+            "Use workspace-relative paths only."
+        ),
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Workspace-relative path to write",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Complete text content",
+                },
+            },
+            "required": ["file_path", "content"],
+        },
+    },
+}
+
+MAX_READ_BYTES = 256 * 1024
+
+
+def _workspace_root(config: dict[str, Any]) -> Path:
+    raw_root = config.get("working_directory")
+    if not isinstance(raw_root, str) or not raw_root.strip():
+        raise ValueError("working_directory is required")
+    root = Path(raw_root).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _workspace_path(root: Path, raw_path: Any) -> tuple[Path, str]:
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise ValueError("file_path must be a non-empty string")
+    logical_path = raw_path.strip()
+    untrusted = Path(logical_path)
+    if untrusted.is_absolute():
+        raise ValueError("Absolute paths are not allowed")
+    resolved = (root / untrusted).resolve()
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError as error:
+        raise ValueError("Path escapes the configured workspace") from error
+    return resolved, relative.as_posix()
+
+
+class WorkspaceReadTool(ToolPlugin):
+    name = "workspace_read"
+    version = "0.1.0"
+
+    def init(self, config: dict[str, Any]) -> dict[str, Any]:
+        return {"workspace_root": _workspace_root(config)}
+
+    def get_tool_schemas(self, state: dict[str, Any]) -> list[dict[str, Any]]:
+        _ = state
+        return [READ_SCHEMA]
+
+    def can_handle_tool_call(
+        self,
+        tool_name: str | None,
+        payload: Any,
+        state: dict[str, Any],
+        **_: Any,
+    ) -> bool | None:
+        _ = payload, state
+        return tool_name == "Read"
+
+    def execute_tool(
+        self,
+        tool_name: str | None,
+        payload: Any,
+        state: dict[str, Any],
+        **_: Any,
+    ) -> dict[str, Any]:
+        if tool_name != "Read" or not isinstance(payload, dict):
+            return {"success": False, "error": "Read input must be an object"}
+        try:
+            path, logical_path = _workspace_path(
+                state["workspace_root"],
+                payload.get("file_path"),
+            )
+            if not path.is_file():
+                raise ValueError(f"File does not exist: {logical_path}")
+            if path.stat().st_size > MAX_READ_BYTES:
+                raise ValueError("File is larger than the 256 KB read limit")
+            text = path.read_text(encoding="utf-8")
+            lines = text.splitlines()
+            offset = payload.get("offset")
+            offset = offset if isinstance(offset, int) and offset >= 0 else 0
+            limit = payload.get("limit")
+            limit = limit if isinstance(limit, int) and limit > 0 else 2000
+            selected = lines[offset : offset + min(limit, 2000)]
+            numbered = "\n".join(
+                f"{offset + index + 1}\t{line}" for index, line in enumerate(selected)
+            )
+            return {
+                "success": True,
+                "result": numbered,
+                "path": logical_path,
+            }
+        except (OSError, UnicodeError, ValueError) as error:
+            return {"success": False, "error": str(error)}
+
+    def format_tool_result(
+        self,
+        result: dict[str, Any],
+        state: dict[str, Any],
+    ) -> str:
+        _ = state
+        if result.get("success"):
+            return str(result.get("result") or "")
+        return f"Error: {result.get('error')}"
+
+    def format_tool_call_preview(
+        self,
+        tool_name: str | None,
+        payload: Any,
+        state: dict[str, Any],
+        **_: Any,
+    ) -> str:
+        _ = tool_name, state
+        return (
+            f"Read {payload.get('file_path')}"
+            if isinstance(payload, dict)
+            else "Read workspace file"
+        )
+
+    def to_display_format(
+        self,
+        text: str,
+        result: dict[str, Any],
+        state: dict[str, Any],
+    ) -> dict[str, Any]:
+        _ = state
+        path = str(result.get("path") or "file")
+        return {
+            "type": "text",
+            "content": text,
+            "single_line": f"Read: {path}",
+        }
+
+
+class WorkspaceWriteTool(ToolPlugin):
+    name = "workspace_write"
+    version = "0.1.0"
+
+    def init(self, config: dict[str, Any]) -> dict[str, Any]:
+        return {"workspace_root": _workspace_root(config)}
+
+    def get_tool_schemas(self, state: dict[str, Any]) -> list[dict[str, Any]]:
+        _ = state
+        return [WRITE_SCHEMA]
+
+    def can_handle_tool_call(
+        self,
+        tool_name: str | None,
+        payload: Any,
+        state: dict[str, Any],
+        **_: Any,
+    ) -> bool | None:
+        _ = payload, state
+        return tool_name == "Write"
+
+    def execute_tool(
+        self,
+        tool_name: str | None,
+        payload: Any,
+        state: dict[str, Any],
+        **_: Any,
+    ) -> dict[str, Any]:
+        if tool_name != "Write" or not isinstance(payload, dict):
+            return {"success": False, "error": "Write input must be an object"}
+        content = payload.get("content")
+        if not isinstance(content, str):
+            return {"success": False, "error": "content must be a string"}
+        try:
+            path, logical_path = _workspace_path(
+                state["workspace_root"],
+                payload.get("file_path"),
+            )
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+            return {
+                "success": True,
+                "result": f"Wrote {len(content.encode('utf-8'))} bytes to {logical_path}",
+                "path": logical_path,
+            }
+        except (OSError, UnicodeError, ValueError) as error:
+            return {"success": False, "error": str(error)}
+
+    def format_tool_result(
+        self,
+        result: dict[str, Any],
+        state: dict[str, Any],
+    ) -> str:
+        _ = state
+        if result.get("success"):
+            return str(result.get("result") or "")
+        return f"Error: {result.get('error')}"
+
+    def format_tool_call_preview(
+        self,
+        tool_name: str | None,
+        payload: Any,
+        state: dict[str, Any],
+        **_: Any,
+    ) -> str:
+        _ = tool_name, state
+        return (
+            f"Write {payload.get('file_path')}"
+            if isinstance(payload, dict)
+            else "Write workspace file"
+        )
+
+    def to_display_format(
+        self,
+        text: str,
+        result: dict[str, Any],
+        state: dict[str, Any],
+    ) -> dict[str, Any]:
+        _ = state
+        path = str(result.get("path") or "file")
+        return {
+            "type": "text",
+            "content": text,
+            "single_line": f"Write: {path}",
+        }
 
 
 class EmbeddedSmokeProvider(ProviderPlugin):
@@ -56,6 +325,7 @@ def _normalized_runtime_configuration(
 
 def _config_payload(
     runtime_configuration: dict[str, Any] | None = None,
+    workspace_root: Path | None = None,
 ) -> dict[str, Any]:
     configuration = _normalized_runtime_configuration(runtime_configuration)
     use_openai_compatible = all(configuration.values())
@@ -72,11 +342,15 @@ def _config_payload(
     }
     plugins = ["crystal_lattice_mobile_runtime.EmbeddedSmokeProvider"]
     if use_openai_compatible:
+        if workspace_root is None:
+            raise ValueError("workspace_root is required for the real provider")
         provider_config.update(
             {
                 "api_key": configuration["api_key"],
                 "base_url": configuration["proxy_url"],
                 "timeout": 120,
+                "working_directory": str(workspace_root),
+                "allowed_paths": [str(workspace_root)],
             }
         )
         plugins = [
@@ -84,6 +358,12 @@ def _config_payload(
                 "reference_openai_compatible_provider.provider."
                 "OpenAICompatibleProvider"
             ),
+            (
+                "reference_openai_compatible_provider.tools_extension."
+                "OpenAICompatibleToolsExtension"
+            ),
+            "crystal_lattice_mobile_runtime.WorkspaceReadTool",
+            "crystal_lattice_mobile_runtime.WorkspaceWriteTool",
         ]
 
     return {
@@ -119,11 +399,20 @@ class MobileRuntime:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
+        input_path = self.workspace_dir / "input.txt"
+        if not input_path.exists():
+            input_path.write_text(
+                "alpha beta gamma\n",
+                encoding="utf-8",
+            )
 
         self.config_path = self.config_dir / "config.json"
         self.config_path.write_text(
             json.dumps(
-                _config_payload(self.runtime_configuration),
+                _config_payload(
+                    self.runtime_configuration,
+                    self.workspace_dir,
+                ),
                 indent=2,
             )
             + "\n",
@@ -576,6 +865,36 @@ def _handle_request(
     body = request.get("body")
     body = body if isinstance(body, dict) else {}
     application = runtime.application
+
+    if path_parts == ["embedded", "workspace", "reset"] and method == "POST":
+        input_content = body.get("input")
+        if not isinstance(input_content, str):
+            input_content = "alpha beta gamma\n"
+        (runtime.workspace_dir / "input.txt").write_text(
+            input_content,
+            encoding="utf-8",
+        )
+        (runtime.workspace_dir / "output.txt").unlink(missing_ok=True)
+        return _response(200, {"status": "ok"})
+
+    if path_parts == ["embedded", "workspace", "output"] and method == "GET":
+        output_path = runtime.workspace_dir / "output.txt"
+        return _response(
+            200,
+            {
+                "exists": output_path.is_file(),
+                "content": (
+                    output_path.read_text(encoding="utf-8")
+                    if output_path.is_file()
+                    else ""
+                ),
+                "provider_mode": (
+                    "openai-compatible"
+                    if all(runtime.runtime_configuration.values())
+                    else "smoke"
+                ),
+            },
+        )
 
     if path_parts == ["agents"] and method == "GET":
         return _response(200, {"agents": application.list_agents()})

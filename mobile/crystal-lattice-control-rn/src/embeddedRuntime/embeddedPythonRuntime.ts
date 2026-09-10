@@ -10,6 +10,9 @@ export interface EmbeddedPythonRuntimeInfo {
   messageCount?: number;
   providerMode?: "smoke" | "openai-compatible";
   assistantContent?: string;
+  toolMessageCount?: number;
+  outputExists?: boolean;
+  outputContent?: string;
 }
 
 export interface EmbeddedRuntimeResponse<T = any> {

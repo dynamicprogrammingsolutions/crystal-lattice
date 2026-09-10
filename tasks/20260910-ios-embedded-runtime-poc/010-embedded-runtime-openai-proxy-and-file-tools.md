@@ -7,25 +7,25 @@ workspace `Read`/`Write` request.
 
 ## Requirements checklist
 
-- [ ] The production iOS application bundle contains an embedded CPython
+- [x] The production iOS application bundle contains an embedded CPython
   runtime and the fixed Python package/plugin closure needed by the proof of
   concept.
-- [ ] The app starts and stops the embedded runtime through a native bridge
+- [x] The app starts and stops the embedded runtime through a native bridge
   without requiring a desktop CLI process or loopback application server.
-- [ ] A production `AgentBackend` implementation exposes enough local runtime
+- [x] A production `AgentBackend` implementation exposes enough local runtime
   behavior for agent listing, session creation/listing, messages, request
   execution, events, and the relevant application configuration action.
-- [ ] One fixed proof-of-concept agent calls an OpenAI-compatible endpoint and
+- [x] One fixed proof-of-concept agent calls an OpenAI-compatible endpoint and
   supports the real Crystal Lattice tool loop.
-- [ ] `tools/openai-proxy` can target Ollama, supports streaming and
+- [x] `tools/openai-proxy` can target Ollama, supports streaming and
   non-streaming OpenAI-compatible requests used by the agent, and requires a
   configured incoming API key by the final proof-of-concept stage.
 - [ ] The app exposes a basic API-key input for this local runtime and applies
   it through owner-supplied configuration plus complete application reload.
-- [ ] The agent exposes simplified Claude-equivalent `Read` and `Write` tools
+- [x] The agent exposes simplified Claude-equivalent `Read` and `Write` tools
   rooted in one app-owned workspace; paths outside that workspace are
   rejected.
-- [ ] A real small Ollama model completes a deliberately simple request that
+- [x] A real small Ollama model completes a deliberately simple request that
   causes multiple provider rounds and visible file-tool calls; exact prose is
   not an acceptance dependency.
 - [ ] Session and workspace state survive ordinary navigation and process
@@ -189,9 +189,9 @@ evidence.
 - [x] Add the production local `AgentBackend`.
 - [x] Adapt and test the Ollama-targeted OpenAI proxy.
 - [ ] Add bounded background diagnostics, continuation, and recovery.
-- [ ] Add workspace-restricted `Read` and `Write` tools.
+- [x] Add workspace-restricted `Read` and `Write` tools.
 - [ ] Add basic API-key input, proxy enforcement, and application reload.
-- [ ] Add the complete real-model multi-round simulator test.
+- [x] Add the complete real-model multi-round simulator test.
 - [ ] Run and record physical-device foreground/background verification.
 - [ ] Update requirement evidence, current implementation documentation, and
   completion notes.
@@ -276,3 +276,11 @@ evidence.
   of the development smoke provider, completed a model request, and persisted
   a non-empty assistant response. The run passed in 103.9 seconds and the API
   key was absent from proxy logs.
+- 2026-09-10: Added fixed text-only `Read` and `Write` tools using native
+  OpenAI Chat schemas. Unit tests cover successful nested write/read plus
+  rejection of absolute paths, traversal, and symlink escape.
+- 2026-09-10: A host integration and the release-simulator Detox scenario both
+  completed a real `Read input.txt` → `Write output.txt` → `Read output.txt`
+  loop through authenticated Ollama `qwen3.5:0.8b`. The simulator run passed
+  in 62 seconds, persisted three tool messages, and verified that
+  `output.txt` contained exactly `UPPERCASE: ALPHA BETA GAMMA`.

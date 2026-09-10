@@ -31,19 +31,29 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
       try {
         const runtimeInfo = await startEmbeddedPythonRuntime();
         const smokeInfo = await runEmbeddedPythonSmoke();
-        const { backend } = createEmbeddedRuntimeBackend();
+        const { backend, transport } = createEmbeddedRuntimeBackend();
+        await transport.request({
+          method: "POST",
+          path: "/embedded/workspace/reset",
+          body: {
+            input: "alpha beta gamma\n",
+          },
+        });
         const agents = await backend.listAgents();
         const created = await backend.createSession({
           agentId: agents[0],
+          systemMessage:
+            "Use the Read and Write tools when the user asks for workspace file operations.",
         });
         const sessionId = created.session.session_id;
         const started = await backend.sendMessage(sessionId, {
           message: {
             role: "user",
-            content: "Embedded backend smoke",
+            content:
+              "Use Read to read input.txt. Use Write to create output.txt containing exactly `UPPERCASE: ALPHA BETA GAMMA`. Then use Read to read output.txt and briefly confirm completion.",
           },
         });
-        const deadline = Date.now() + 10000;
+        const deadline = Date.now() + 180000;
         let completed = false;
         while (Date.now() < deadline && !completed) {
           const events = await backend.listEvents({
@@ -64,17 +74,27 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
         const assistant = [...messages.messages]
           .reverse()
           .find((entry) => entry.message.role === "assistant");
+        const output = await transport.request<{
+          exists: boolean;
+          content: string;
+          provider_mode: "smoke" | "openai-compatible";
+        }>({
+          method: "GET",
+          path: "/embedded/workspace/output",
+        });
         const info: EmbeddedPythonRuntimeInfo = {
           ...runtimeInfo,
           answer: smokeInfo.answer,
           agents,
           sessionId,
           messageCount: messages.messages.length,
-          providerMode:
-            assistant?.message.metadata?.development_smoke_provider === true
-              ? "smoke"
-              : "openai-compatible",
+          providerMode: output.data.provider_mode,
           assistantContent: String(assistant?.message.content ?? ""),
+          toolMessageCount: messages.messages.filter(
+            (entry) => entry.message.role === "tool"
+          ).length,
+          outputExists: output.data.exists,
+          outputContent: output.data.content,
         };
         if (active) {
           setRuntimeState({ status: "ready", info });
@@ -161,6 +181,24 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
               style={styles.detail}
             >
               {runtimeState.info.assistantContent}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-tool-message-count"
+              style={styles.detail}
+            >
+              {String(runtimeState.info.toolMessageCount)}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-output-exists"
+              style={styles.detail}
+            >
+              {String(runtimeState.info.outputExists)}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-output-content"
+              style={styles.detail}
+            >
+              {runtimeState.info.outputContent}
             </Text>
           </>
         )}
