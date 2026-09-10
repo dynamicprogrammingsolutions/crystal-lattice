@@ -3,12 +3,16 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import threading
+import time
 from typing import Iterator, Tuple
 
 import pytest
 from fastapi.testclient import TestClient
 
 from agent_app.application_future import AgentApplication
+from agent_app.session_listing import SessionListService
+from agent_app.sessions import SessionStoreRecord
 from agent_core import Message, Session
 from agent_terminal_app import server as server_mod
 
@@ -71,6 +75,12 @@ def _save_session(
     )
 
 
+# Requirements:
+# - SLIST-003: Asserts the complete summary shape and native metadata exclusion over HTTP.
+# - SLIST-004: Asserts production plugins contribute fields through the shared service.
+# - SLIST-005: Asserts the HTTP collection preserves shared application ordering.
+# - SLIST-007: Asserts application filtering and limit behavior beside the HTTP contract.
+# - SLIST-010: Asserts list, exact lookup, missing lookup, and envelope behavior.
 def test_session_list_http_contract_serializes_shared_summaries(
     session_list_http_client: Tuple[TestClient, AgentApplication, Path],
 ) -> None:
@@ -148,6 +158,10 @@ def test_session_list_http_contract_serializes_shared_summaries(
     assert "missing" in missing.json()["detail"]
 
 
+# Requirements:
+# - SLIST-004: Asserts configured pin metadata contributes fields through a real plugin.
+# - SLIST-005: Asserts contributed pin ordering is reflected by the HTTP collection.
+# - SLIST-010: Confirms the HTTP adapter serializes the shared application result.
 def test_session_list_http_contract_orders_configured_pinned_metadata(
     tmp_path: Path,
 ) -> None:
@@ -236,6 +250,11 @@ def test_session_list_http_contract_orders_configured_pinned_metadata(
         application.close()
 
 
+# Requirements:
+# - SLIST-004: Asserts archive/order plugins compose through list triggers.
+# - SLIST-005: Asserts bucket ordering composes with modification time.
+# - SLIST-007: Asserts archive defaults and explicit show-all filtering.
+# - SLIST-010: Confirms the HTTP adapter returns the shared ordered summaries.
 def test_session_list_http_contract_sorts_recent_archives_below_other_sessions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -357,6 +376,9 @@ def test_session_list_http_contract_sorts_recent_archives_below_other_sessions(
         application.close()
 
 
+# Requirements:
+# - SLIST-008: Confirms one malformed file yields fallback values without failing HTTP.
+# - SLIST-010: Confirms the HTTP collection remains valid and includes every record.
 def test_session_list_http_contract_isolates_a_malformed_record(
     session_list_http_client: Tuple[TestClient, AgentApplication, Path],
 ) -> None:
@@ -386,3 +408,103 @@ def test_session_list_http_contract_isolates_a_malformed_record(
             "meta": "Status: To do",
         },
     }
+
+
+class _BlockedHttpSessionStore:
+    def __init__(self) -> None:
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.record = SessionStoreRecord(
+            session_id="icloud-placeholder",
+            modified=2.0,
+            revision=("icloud-placeholder", 1),
+        )
+
+    def list_records(self) -> list[SessionStoreRecord]:
+        return [self.record]
+
+    def get_record(self, session_id: str) -> SessionStoreRecord | None:
+        return self.record if session_id == self.record.session_id else None
+
+    def load(
+        self,
+        session_id: str,
+        *,
+        snapshot_id: str | None = None,
+    ) -> Session | None:
+        _ = snapshot_id
+        self.started.set()
+        assert self.release.wait(timeout=2.0)
+        return Session(
+            session_id=session_id,
+            messages=[Message(role="user", content="hydrated")],
+            metadata={},
+        )
+
+    def save(self, session: Session) -> None:
+        raise AssertionError("save is not used by this test")
+
+    def delete(self, session_id: str) -> None:
+        raise AssertionError("delete is not used by this test")
+
+
+# Requirements:
+# - SLIST-013: Asserts HTTP returns a normal-shaped placeholder for blocked content.
+# - SLIST-015: Asserts the configured foreground interval bounds the HTTP response.
+# - SLIST-020: Confirms the unchanged server envelope carries the fallback summary.
+def test_session_list_http_contract_returns_placeholder_before_slow_load() -> None:
+    store = _BlockedHttpSessionStore()
+    service = SessionListService(
+        store=store,
+        list_actions=lambda: [],
+        list_ui_elements=lambda: [],
+        execute_action=lambda *_args, **_kwargs: {},
+        logger=None,
+        context={
+            "application_config": {
+                "application": {
+                    "cached_background_session_list": {
+                        "foreground_timeout_seconds": 0.03,
+                    }
+                }
+            }
+        },
+    )
+
+    class _Application:
+        def list_session_summaries(
+            self,
+            *,
+            limit: int | None = None,
+        ) -> list[dict[str, object]]:
+            return service.list_session_summaries(limit=limit)
+
+    server_mod.app.dependency_overrides[server_mod.get_agent_app] = _Application
+    client = TestClient(server_mod.app)
+    started = time.monotonic()
+    try:
+        response = client.get("/sessions")
+    finally:
+        server_mod.app.dependency_overrides.clear()
+
+    assert time.monotonic() - started < 0.5
+    assert response.status_code == 200
+    assert response.json() == {
+        "sessions": [
+            {
+                "session_id": "icloud-placeholder",
+                "modified": 2.0,
+                "preview": "",
+                "metadata": {},
+                "presentation": {
+                    "title": "Session icloud-p",
+                    "subtitle": None,
+                    "meta": None,
+                },
+            }
+        ]
+    }
+    assert store.started.is_set()
+
+    store.release.set()
+    service._shutdown()

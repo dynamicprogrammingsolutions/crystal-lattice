@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import threading
+import time
 from typing import Any, Dict, List
 
 import pytest
@@ -13,7 +15,7 @@ from agent_app.session_listing import (
     derive_session_list_presentation,
     resolve_session_list_path,
 )
-from agent_app.sessions import FilesystemSessionStore
+from agent_app.sessions import FilesystemSessionStore, SessionStoreRecord
 from agent_core import AgentCore, Message, Session
 
 from .dummy_provider import DummyProvider  # noqa: F401
@@ -93,6 +95,9 @@ def _store_session(
     return app.save_session(session)
 
 
+# Requirements:
+# - SLIST-002: Verifies opaque record identity, revision, and exact lookup without paths.
+# - SLIST-012: Verifies filesystem enumeration obtains metadata without loading content.
 def test_filesystem_session_store_enumerates_opaque_records(tmp_path: Path) -> None:
     root = tmp_path / "sessions"
     store = FilesystemSessionStore(root, AgentCore())
@@ -121,6 +126,13 @@ def test_filesystem_session_store_enumerates_opaque_records(tmp_path: Path) -> N
     assert changed.revision != first_revision
 
 
+# Requirements:
+# - SLIST-001: Exercises the shared AgentApplication list and diagnostics API.
+# - SLIST-003: Asserts base summary, contributed fields, metadata exclusion, and presentation.
+# - SLIST-004: Asserts ordered trigger execution, declared inputs, reserved keys, and isolation.
+# - SLIST-005: Asserts deterministic contributed ordering and invalid-order diagnostics.
+# - SLIST-006: Asserts declared presentation fields and preview fallback.
+# - SLIST-008: Confirms one failed action does not fail unrelated actions or sessions.
 def test_agent_application_builds_shared_summaries_and_plugin_order(
     tmp_path: Path,
 ) -> None:
@@ -189,6 +201,9 @@ def test_agent_application_builds_shared_summaries_and_plugin_order(
     assert "invalid_session_list_order_spec" in diagnostic_codes
 
 
+# Requirements:
+# - SLIST-004: Confirms application plugin configuration order governs equal priorities.
+# - SLIST-005: Confirms equal-priority ordering is deterministic across plugins.
 def test_equal_priority_order_uses_plugin_configuration_order(
     tmp_path: Path,
 ) -> None:
@@ -224,6 +239,8 @@ def test_equal_priority_order_uses_plugin_configuration_order(
     ]
 
 
+# Requirements:
+# - SLIST-005: Confirms descending modification time is the no-plugin fallback.
 def test_fallback_order_is_modified_descending_only(tmp_path: Path) -> None:
     config_path = _make_config(tmp_path, with_listing_plugin=False)
     root = tmp_path / "sessions"
@@ -256,6 +273,9 @@ def test_fallback_order_is_modified_descending_only(tmp_path: Path) -> None:
     assert all("pinned" not in item for item in summaries)
 
 
+# Requirements:
+# - SLIST-005: Confirms an invalid order declaration falls back to modification time.
+# - SLIST-008: Confirms the invalid declaration is diagnosed without failing the list.
 def test_invalid_plugin_order_falls_back_to_modified_descending(
     tmp_path: Path,
 ) -> None:
@@ -289,7 +309,11 @@ def test_invalid_plugin_order_falls_back_to_modified_descending(
     )
 
 
-def test_summary_cache_is_per_application_and_invalidates_on_save(
+# Requirements:
+# - SLIST-009: Asserts in-process reuse and save-driven invalidation.
+# - SLIST-014: Asserts a second application reuses persistence without loading content.
+# - SLIST-019: Confirms a saved revision replaces the previous persistent summary.
+def test_summary_cache_persists_across_applications_and_invalidates_on_save(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -338,9 +362,446 @@ def test_summary_cache_is_per_application_and_invalidates_on_save(
 
     monkeypatch.setattr(second_store, "load", second_counting_load)
     assert second_app.list_session_summaries()[0]["preview"] == "after"
-    assert second_calls == ["cached"]
+    assert second_calls == []
 
 
+class _DelayedSessionStore:
+    def __init__(self) -> None:
+        self.release_older = threading.Event()
+        self.load_order: List[str] = []
+        self.records = [
+            SessionStoreRecord(
+                session_id="older",
+                modified=1.0,
+                revision=("older", 1),
+                accessed=3.0,
+                created=1.0,
+                size=200,
+            ),
+            SessionStoreRecord(
+                session_id="newer",
+                modified=2.0,
+                revision=("newer", 1),
+                accessed=4.0,
+                created=2.0,
+                size=100,
+            ),
+        ]
+
+    def list_records(self) -> List[SessionStoreRecord]:
+        return self.records
+
+    def get_record(self, session_id: str) -> SessionStoreRecord | None:
+        return next(
+            (record for record in self.records if record.session_id == session_id),
+            None,
+        )
+
+    def load(
+        self,
+        session_id: str,
+        *,
+        snapshot_id: str | None = None,
+    ) -> Session | None:
+        _ = snapshot_id
+        self.load_order.append(session_id)
+        if session_id == "older":
+            assert self.release_older.wait(timeout=2.0)
+        return Session(
+            session_id=session_id,
+            messages=[Message(role="user", content=f"{session_id} preview")],
+            metadata={},
+        )
+
+    def save(self, session: Session) -> None:
+        raise AssertionError("save is not used by this test")
+
+    def delete(self, session_id: str) -> None:
+        raise AssertionError("delete is not used by this test")
+
+
+# Requirements:
+# - SLIST-012: Starts the content deadline only after records are available.
+# - SLIST-013: Returns one normal-shaped entry for both complete and blocked sessions.
+# - SLIST-015: Asserts newest-first loading, bounded return, and later background completion.
+# - SLIST-016: Asserts the complete prefix and modification-ordered placeholder suffix.
+def test_bounded_listing_returns_complete_prefix_and_placeholder_suffix() -> None:
+    store = _DelayedSessionStore()
+    service = SessionListService(
+        store=store,
+        list_actions=lambda: [],
+        list_ui_elements=lambda: [],
+        execute_action=lambda *_args, **_kwargs: {},
+        logger=None,
+        context={
+            "application_config": {
+                "application": {
+                    "cached_background_session_list": {
+                        "foreground_timeout_seconds": 0.05,
+                        "worker_count": 1,
+                    }
+                }
+            }
+        },
+    )
+
+    started = time.monotonic()
+    first = service.list_session_summaries()
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.5
+    assert [summary["session_id"] for summary in first] == ["newer", "older"]
+    assert first[0]["preview"] == "newer preview"
+    assert first[1] == {
+        "session_id": "older",
+        "modified": 1.0,
+        "preview": "",
+        "metadata": {},
+        "presentation": {
+            "title": "Session older",
+            "subtitle": None,
+            "meta": None,
+        },
+    }
+    assert store.load_order == ["newer", "older"]
+
+    store.release_older.set()
+    deadline = time.monotonic() + 2.0
+    completed: List[Dict[str, Any]] = []
+    while time.monotonic() < deadline:
+        completed = service.list_session_summaries()
+        if all(summary["preview"] for summary in completed):
+            break
+    service._shutdown()
+
+    assert [summary["preview"] for summary in completed] == [
+        "newer preview",
+        "older preview",
+    ]
+
+
+# Requirements:
+# - SLIST-012: Builds directly from an opaque metadata record.
+# - SLIST-013: Asserts the exact content-free fallback summary and presentation shape.
+def test_metadata_placeholder_builder_does_not_load_session_content() -> None:
+    record = SessionStoreRecord(
+        session_id="metadata-only",
+        modified=5.0,
+        revision=("metadata-only", 1),
+        accessed=6.0,
+        created=4.0,
+        size=123,
+    )
+
+    summary = SessionListService._build_metadata_summary(
+        record=record,
+        fields=(),
+    )
+
+    assert summary == {
+        "session_id": "metadata-only",
+        "modified": 5.0,
+        "preview": "",
+        "metadata": {},
+        "presentation": {
+            "title": "Session metadata",
+            "subtitle": None,
+            "meta": None,
+        },
+    }
+
+
+class _OneBlockingSessionStore:
+    def __init__(self) -> None:
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.finished = threading.Event()
+        self.load_calls = 0
+        self._lock = threading.Lock()
+        self.record = SessionStoreRecord(
+            session_id="blocked",
+            modified=1.0,
+            revision=("blocked", 1),
+        )
+
+    def list_records(self) -> List[SessionStoreRecord]:
+        return [self.record]
+
+    def get_record(self, session_id: str) -> SessionStoreRecord | None:
+        return self.record if session_id == self.record.session_id else None
+
+    def load(
+        self,
+        session_id: str,
+        *,
+        snapshot_id: str | None = None,
+    ) -> Session | None:
+        _ = snapshot_id
+        with self._lock:
+            self.load_calls += 1
+        self.started.set()
+        assert self.release.wait(timeout=2.0)
+        self.finished.set()
+        return Session(
+            session_id=session_id,
+            messages=[Message(role="user", content="complete")],
+            metadata={},
+        )
+
+    def save(self, session: Session) -> None:
+        raise AssertionError("save is not used by this test")
+
+    def delete(self, session_id: str) -> None:
+        raise AssertionError("delete is not used by this test")
+
+
+def _blocking_service(
+    store: _OneBlockingSessionStore,
+    *,
+    execute_action: Any = None,
+    list_actions: Any = None,
+) -> SessionListService:
+    return SessionListService(
+        store=store,
+        list_actions=list_actions or (lambda: []),
+        list_ui_elements=lambda: [],
+        execute_action=execute_action or (lambda *_args, **_kwargs: {}),
+        logger=None,
+        context={
+            "application_config": {
+                "application": {
+                    "cached_background_session_list": {
+                        "foreground_timeout_seconds": 0.03,
+                    }
+                }
+            }
+        },
+    )
+
+
+# Requirements:
+# - SLIST-017: Confirms concurrent callers share one blocked session load.
+def test_concurrent_lists_share_one_inflight_load() -> None:
+    store = _OneBlockingSessionStore()
+    service = _blocking_service(store)
+    barrier = threading.Barrier(3)
+    results: List[List[Dict[str, Any]]] = []
+
+    def list_sessions() -> None:
+        barrier.wait()
+        results.append(service.list_session_summaries())
+
+    threads = [
+        threading.Thread(target=list_sessions),
+        threading.Thread(target=list_sessions),
+    ]
+    for thread in threads:
+        thread.start()
+    barrier.wait()
+    assert store.started.wait(timeout=1.0)
+    for thread in threads:
+        thread.join(timeout=1.0)
+
+    assert len(results) == 2
+    assert store.load_calls == 1
+    assert all(result[0]["preview"] == "" for result in results)
+
+    store.release.set()
+    assert store.finished.wait(timeout=1.0)
+    service._shutdown()
+
+
+# Requirements:
+# - SLIST-017: Confirms shutdown prevents blocked work from enriching or publishing.
+def test_shutdown_discards_blocked_work_before_plugin_enrichment() -> None:
+    store = _OneBlockingSessionStore()
+    action_calls: List[str] = []
+    service = _blocking_service(
+        store,
+        list_actions=lambda: [
+            {
+                "plugin": "fixture",
+                "id": "enrich",
+                "trigger": "session_list",
+                "inputs": {"session": {"required": True}},
+            }
+        ],
+        execute_action=lambda _plugin, action, _params, _context: (
+            action_calls.append(action) or {}
+        ),
+    )
+
+    summaries = service.list_session_summaries()
+    assert summaries[0]["preview"] == ""
+    assert store.started.is_set()
+
+    service._shutdown()
+    store.release.set()
+    assert store.finished.wait(timeout=1.0)
+
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline:
+        if all(not worker.is_alive() for worker in service._resolver._workers):
+            break
+        time.sleep(0.01)
+
+    assert action_calls == []
+    assert all(not worker.is_alive() for worker in service._resolver._workers)
+
+
+class _ImmediateSessionStore:
+    def __init__(self) -> None:
+        self.load_calls = 0
+        self.record = SessionStoreRecord(
+            session_id="immediate",
+            modified=1.0,
+            revision=("immediate", 1),
+        )
+
+    def list_records(self) -> List[SessionStoreRecord]:
+        return [self.record]
+
+    def get_record(self, session_id: str) -> SessionStoreRecord | None:
+        return self.record if session_id == self.record.session_id else None
+
+    def load(
+        self,
+        session_id: str,
+        *,
+        snapshot_id: str | None = None,
+    ) -> Session | None:
+        _ = snapshot_id
+        self.load_calls += 1
+        return Session(
+            session_id=session_id,
+            messages=[Message(role="user", content="persisted")],
+            metadata={},
+        )
+
+    def save(self, session: Session) -> None:
+        raise AssertionError("save is not used by this test")
+
+    def delete(self, session_id: str) -> None:
+        raise AssertionError("delete is not used by this test")
+
+
+# Requirements:
+# - SLIST-011: Confirms implementation-owned settings are read from opaque context.
+# - SLIST-014: Confirms configured persistence is reused by a second service.
+# - SLIST-018: Confirms persistence can be located privately or disabled safely.
+def test_implementation_configuration_controls_persistent_reuse(
+    tmp_path: Path,
+) -> None:
+    cache_directory = tmp_path / "derived"
+    application_config = {
+        "application": {
+            "cached_background_session_list": {
+                "foreground_timeout_seconds": 1.0,
+                "persistent_cache_enabled": True,
+                "local_cache_directory": str(cache_directory),
+            }
+        }
+    }
+
+    def new_service(store: _ImmediateSessionStore) -> SessionListService:
+        return SessionListService(
+            store=store,
+            list_actions=lambda: [],
+            list_ui_elements=lambda: [],
+            execute_action=lambda *_args, **_kwargs: {},
+            logger=None,
+            context={
+                "application_config": application_config,
+                "session_store_identity": "configured-store",
+            },
+        )
+
+    first_store = _ImmediateSessionStore()
+    first_service = new_service(first_store)
+    assert first_service.list_session_summaries()[0]["preview"] == "persisted"
+    first_service._shutdown()
+    assert first_store.load_calls == 1
+    assert list(cache_directory.glob("*.sqlite3"))
+
+    second_store = _ImmediateSessionStore()
+    second_service = new_service(second_store)
+    assert second_service.list_session_summaries()[0]["preview"] == "persisted"
+    second_service._shutdown()
+    assert second_store.load_calls == 0
+
+    application_config["application"]["cached_background_session_list"][
+        "persistent_cache_enabled"
+    ] = False
+    uncached_store = _ImmediateSessionStore()
+    uncached_service = new_service(uncached_store)
+    assert uncached_service.list_session_summaries()[0]["preview"] == "persisted"
+    uncached_service._shutdown()
+    assert uncached_store.load_calls == 1
+
+
+class _ChangingBlockedSessionStore(_OneBlockingSessionStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.content = "old"
+
+    def load(
+        self,
+        session_id: str,
+        *,
+        snapshot_id: str | None = None,
+    ) -> Session | None:
+        _ = snapshot_id
+        with self._lock:
+            self.load_calls += 1
+            content = self.content
+        self.started.set()
+        if content == "old":
+            assert self.release.wait(timeout=2.0)
+        self.finished.set()
+        return Session(
+            session_id=session_id,
+            messages=[Message(role="user", content=content)],
+            metadata={},
+        )
+
+
+# Requirements:
+# - SLIST-015: Confirms stale completion automatically schedules current background work.
+# - SLIST-019: Confirms an invalidated blocked result cannot replace a newer revision.
+def test_invalidated_blocked_result_cannot_replace_newer_revision() -> None:
+    store = _ChangingBlockedSessionStore()
+    service = _blocking_service(store)
+
+    assert service.list_session_summaries()[0]["preview"] == ""
+    assert store.started.is_set()
+
+    store.record = SessionStoreRecord(
+        session_id="blocked",
+        modified=2.0,
+        revision=("blocked", 2),
+    )
+    store.content = "new"
+    service.invalidate("blocked")
+
+    assert service.list_session_summaries()[0]["preview"] == ""
+    store.release.set()
+
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if store.load_calls == 2:
+            break
+        time.sleep(0.01)
+    summaries = service.list_session_summaries()
+    service._shutdown()
+
+    assert summaries[0]["preview"] == "new"
+    assert store.load_calls == 2
+
+
+# Requirements:
+# - SLIST-008: Confirms malformed content yields a safe summary and diagnostic.
+# - SLIST-009: Confirms external revision changes bypass the in-process result.
+# - SLIST-019: Confirms externally changed content becomes the current summary.
 def test_external_change_and_malformed_record_bypass_stale_summary(
     tmp_path: Path,
 ) -> None:
@@ -378,6 +839,10 @@ def test_external_change_and_malformed_record_bypass_stale_summary(
     )
 
 
+# Requirements:
+# - SLIST-001: Exercises filter-evaluator installation through AgentApplication.
+# - SLIST-007: Confirms filtering receives ordered summaries and runs before the limit.
+# - SLIST-016: Confirms the limit remains the final collection operation.
 def test_filter_seam_runs_after_ordering_and_before_limit(tmp_path: Path) -> None:
     config_path = _make_config(tmp_path)
     root = tmp_path / "sessions"
@@ -434,6 +899,9 @@ def test_filter_seam_runs_after_ordering_and_before_limit(tmp_path: Path) -> Non
     assert [item["session_id"] for item in result] == ["second"]
 
 
+# Requirements:
+# - SLIST-001: Exercises exact summary lookup through AgentApplication.
+# - SLIST-007: Confirms exact lookup bypasses collection filter state.
 def test_exact_summary_is_independent_of_filters_and_missing_id_errors(
     tmp_path: Path,
 ) -> None:
@@ -459,6 +927,8 @@ def test_exact_summary_is_independent_of_filters_and_missing_id_errors(
         raise AssertionError("missing exact summary should raise KeyError")
 
 
+# Requirements:
+# - SLIST-006: Verifies shared dotted-path and presentation contract cases.
 def test_python_uses_shared_path_and_presentation_contract_cases() -> None:
     fixtures = json.loads(_CONTRACT_CASES_PATH.read_text(encoding="utf-8"))
 

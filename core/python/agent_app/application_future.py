@@ -619,6 +619,19 @@ class AgentApplication:
             execute_action=_execute_session_list_action,
             logger=self._logger,
             filter_evaluator=self._session_list_filter_engine,
+            context={
+                "application_config": self._config,
+                "application_plugins": tuple(
+                    {
+                        "id": self._plugin_id_for_class(plugin_class),
+                        "module": plugin_class.__module__,
+                        "qualname": plugin_class.__qualname__,
+                        "version": getattr(plugin_class, "version", None),
+                    }
+                    for plugin_class in self._app_plugin_classes
+                ),
+                "session_store_identity": str(session_root_path.resolve()),
+            },
         )
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
@@ -2262,6 +2275,7 @@ class AgentApplication:
             return
         self._closed = True
         self._session_request_coordinator.close()
+        self._session_list_service._shutdown()
 
         for wrapper in list(self._app_plugins.values()):
             try:
