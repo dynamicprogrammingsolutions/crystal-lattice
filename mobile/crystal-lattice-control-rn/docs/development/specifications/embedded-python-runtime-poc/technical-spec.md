@@ -60,36 +60,34 @@ closure check fails when an unsupported selected dependency is detected.
 
 ## Native host
 
-One Swift host instance owns one active runtime generation. Its public
-operations are intentionally small:
+One Swift host instance owns one active interpreter and application
+generation. Its public operations are intentionally small:
 
-- `start(configuration:)`;
+- `start()`;
 - `execute(command:)`;
-- event subscription;
-- `prepareForBackground()`;
-- `resumeAfterForeground()`;
-- `stop()`.
+- `configure(configuration:)`;
+- `getConfiguration()`;
+- `noteAppState(state:)`;
+- `getLifecycleStatus()`.
 
 Commands and events use serialized dictionaries/JSON rather than exposing
 Python objects to React Native. The host supplies canonical application-support
 paths:
 
 ```text
-Application Support/CrystalLattice/
+Application Support/CrystalLatticeEmbeddedRuntime/
 ├── config/
 ├── sessions/
-├── workspace/
-└── runtime-state/
+└── workspace/
 ```
 
 Temporary files use the application cache/temp directories. Bundled source,
 credentials, runtime state, and session persistence are not descendants of the
 model-visible workspace root.
 
-Python initialization is serialized. Runtime replacement drains or rejects new
-commands using the existing owner/reload contract. A failed candidate start
-keeps or restores the previously usable generation when practical and returns
-a visible error.
+Python initialization and commands are serialized at the native bridge.
+Changing owner configuration causes the Python bridge to close and reconstruct
+the complete `AgentApplication` before handling the next command.
 
 ## Python bridge
 
@@ -103,7 +101,7 @@ needed for the proof of concept:
 - append/list messages;
 - start/cancel a request;
 - poll or subscribe to request/application events;
-- expose the API-key configuration action;
+- accept app-owned runtime configuration;
 - reconstruct the application from the current owner overlay.
 
 Session persistence uses the app-sandboxed filesystem store. The bridge does
@@ -211,15 +209,14 @@ For an active request, the native host records:
 
 On background:
 
-1. Flush session, configuration, and workspace state.
-2. Request permitted bounded background execution for the active user request.
-3. Continue consuming provider/tool-loop work while permitted.
-4. On expiration, cancel or checkpoint at the supported boundary and persist a
-   recoverable interruption record.
+1. Record the app-state transition and current request identity.
+2. Continue under the bounded background task already acquired for the active
+   request.
+3. Persist `expired` if the operating system invokes the expiration handler.
 
 On foreground:
 
-1. Reconcile the native request record and Python session state.
+1. Reconcile the persisted native request record and Python session state.
 2. Surface completed output or an explicit interrupted/retryable state.
 3. Do not duplicate a provider request automatically.
 

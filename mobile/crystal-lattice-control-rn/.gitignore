@@ -2,6 +2,7 @@ artifacts/detox/
 artifacts/notification-visual/
 artifacts/website-visual/
 ios/.xcode.env.local
+ios/build-device/
 ios/CrystalLatticePythonRuntime/.prepared-python-runtime
 ios/CrystalLatticePythonRuntime/Resources/python/
 ios/CrystalLatticePythonRuntime/Resources/python312.zip

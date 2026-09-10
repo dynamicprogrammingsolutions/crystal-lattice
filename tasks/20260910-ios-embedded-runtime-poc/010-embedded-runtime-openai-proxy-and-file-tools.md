@@ -36,7 +36,7 @@ workspace `Read`/`Write` request.
 - [ ] Automated simulator coverage uses production screens/runtime adapters,
   and physical-device evidence records startup plus foreground/background
   behavior.
-- [ ] The proof of concept is explicitly limited: production credential
+- [x] The proof of concept is explicitly limited: production credential
   hardening, polished onboarding, Tavily search, restricted Python execution,
   ChatGPT authorization, and local-model fallback are not required here.
 
@@ -312,3 +312,13 @@ evidence.
   seconds, resumed the same process, and verified `completed`, ordered
   background/completion timestamps, both model requests, and the final file.
   The final run passed in 146.6 seconds.
+- 2026-09-10: Added current mobile package documentation for runtime
+  preparation, the authenticated Ollama proxy, the production setup flow,
+  workspace boundaries, persistence, lifecycle states, focused verification,
+  and explicit exclusions. Updated the README and technical specification to
+  match delivered APIs and paths.
+- 2026-09-10: A development-signed Release build for the paired iPhone 12 mini
+  succeeded and installed using the existing team provisioning profile.
+  Automated launch was attempted twice but iOS denied it because the device
+  was locked; foreground/background device evidence remains incomplete pending
+  unlock.
