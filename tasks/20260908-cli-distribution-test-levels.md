@@ -1212,6 +1212,11 @@ Status: Approved
   77 deselected, and seven existing deprecation warnings. Black, Ruff,
   targeted Pyright, documentation preparation, and MkDocs build passed; the
   native release matrix remains pending.
+- 2026-09-10: Native GitHub Actions run
+  [34455407631](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34455407631)
+  passed the test gate and both package-local npm smokes on Linux AMD64,
+  macOS AMD64, macOS ARM64, and Windows AMD64. Manual-dispatch publication
+  jobs were correctly skipped.
 
 #### Execution plan
 
@@ -1347,7 +1352,7 @@ names, and progress logging.
   long CLI scripts.
 - [x] Preserve the standalone installer's equivalent progress output.
 - [x] Update current documentation and VS Code tasks.
-- [ ] Run local acceptance, regressions, docs validation, and native matrix.
+- [x] Run local acceptance, regressions, docs validation, and native matrix.
 
 #### Requirement verification
 
@@ -1382,3 +1387,29 @@ names, and progress logging.
 - Run an early-failing fake subprocess and confirm its command and output are
   visible before the exception; run a delayed fake boot and confirm the
   server-log path and waiting status are printed before completion.
+
+#### Completion notes
+
+- Moved thirteen application-owned CLI maintainer scripts into
+  `application/python/scripts/` with shorter package-context names. Root
+  `scripts/` now contains repository-wide utilities and the five documented
+  cross-runtime packaging primitives.
+- Removed the superseded unreferenced direct S3 publisher. The maintained
+  download release path remains under `deploy/aws-cli-downloads/`.
+- Renamed local commands to `build:cli:archive`, `build:cli:optimized`,
+  `install:cli:archive`, and `install:cli:dev`; all tracked consumers use the
+  scoped names without compatibility aliases.
+- Added numbered progress and immediate child output for application-owned
+  long-running Python commands, boot-log and readiness status, and equivalent
+  standalone progress in the public shell installer.
+- Excluded `application/python/scripts/` from bundled-Python application-tree
+  staging while preserving the archive's explicitly copied root packaging
+  scripts. Setuptools remains restricted to `agent_terminal_app*`.
+- Local acceptance passed all renamed build/install commands and all three
+  distribution smokes. Focused coverage passed 72 tests with one expected
+  Windows skip; Core fast passed 507 tests with one expected xfail;
+  application fast passed 413 tests with one skip.
+- Black, Ruff, targeted Pyright, shell/JSON/Python syntax validation,
+  documentation preparation, and MkDocs build passed. Native acceptance passed
+  both package-local npm smokes on all four release targets in GitHub Actions
+  run `34455407631`.
