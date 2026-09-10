@@ -49,6 +49,29 @@ final class CrystalLatticePythonRuntime: NSObject {
     }
   }
 
+  @objc(runApplicationSmoke:rejecter:)
+  func runApplicationSmoke(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.queue.async {
+      do {
+        _ = try Self.startIfNeeded()
+        let runtimeRoot = try Self.runtimeRoot()
+        guard
+          let info = try CLPythonHostSupport.runApplicationSmoke(
+            atRoot: runtimeRoot.path
+          ) as? [String: Any]
+        else {
+          throw RuntimeError.executionFailed
+        }
+        resolve(info)
+      } catch {
+        reject("python_application_smoke_failed", error.localizedDescription, error)
+      }
+    }
+  }
+
   private static func startIfNeeded() throws -> [String: Any] {
     if initialized, let runtimeInformation {
       return runtimeInformation
@@ -60,17 +83,26 @@ final class CrystalLatticePythonRuntime: NSObject {
         withExtension: "bundle"
       ),
       let resources = Bundle(url: resourcesURL),
-      let stdlibArchive = resources.url(
-        forResource: "python312",
+      let appArchive = resources.url(
+        forResource: "crystal_lattice_app",
         withExtension: "zip"
       )
     else {
       throw RuntimeError.resourcesMissing
     }
 
+    let stdlibPath = Bundle.main.bundleURL
+      .appendingPathComponent("python")
+      .appendingPathComponent("lib")
+      .appendingPathComponent("python3.12")
+    guard FileManager.default.fileExists(atPath: stdlibPath.path) else {
+      throw RuntimeError.resourcesMissing
+    }
+
     guard
       let info = try CLPythonHostSupport.start(
-        withStdlibArchive: stdlibArchive.path
+        withStdlibPath: stdlibPath.path,
+        appArchive: appArchive.path
       ) as? [String: Any]
     else {
       throw RuntimeError.initializationFailed
@@ -80,8 +112,29 @@ final class CrystalLatticePythonRuntime: NSObject {
     return info
   }
 
+  private static func runtimeRoot() throws -> URL {
+    guard
+      let applicationSupport = FileManager.default.urls(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask
+      ).first
+    else {
+      throw RuntimeError.applicationSupportMissing
+    }
+    let root = applicationSupport.appendingPathComponent(
+      "CrystalLatticeEmbeddedRuntime",
+      isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+      at: root,
+      withIntermediateDirectories: true
+    )
+    return root
+  }
+
   private enum RuntimeError: LocalizedError {
     case resourcesMissing
+    case applicationSupportMissing
     case initializationFailed
     case executionFailed
 
@@ -89,6 +142,8 @@ final class CrystalLatticePythonRuntime: NSObject {
       switch self {
       case .resourcesMissing:
         return "The bundled Python resources could not be found."
+      case .applicationSupportMissing:
+        return "The application-support directory could not be created."
       case .initializationFailed:
         return "The bundled Python interpreter did not initialize."
       case .executionFailed:

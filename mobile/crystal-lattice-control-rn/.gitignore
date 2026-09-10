@@ -5,6 +5,7 @@ ios/.xcode.env.local
 ios/CrystalLatticePythonRuntime/.prepared-python-runtime
 ios/CrystalLatticePythonRuntime/Resources/python/
 ios/CrystalLatticePythonRuntime/Resources/python312.zip
+ios/CrystalLatticePythonRuntime/Resources/crystal_lattice_app.zip
 ios/CrystalLatticePythonRuntime/Vendor/
 fastlane/.env
 fastlane/Preview.html

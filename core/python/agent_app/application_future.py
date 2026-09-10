@@ -65,6 +65,7 @@ from .sessions import (
 from .tool_loop import RequestCancellation, ToolLoopRunner, ToolLoopCheckpointError
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
+from .plugin_sources.types import PluginSource
 from .runtime_env import RuntimeEnvOverlay
 from .notifications import SessionNotifications
 from .operations import get_application_operation_service
@@ -349,6 +350,7 @@ class AgentApplication:
         replay_server_settings_on_startup: bool = True,
         application_control: ApplicationControl | None = None,
         notification_owner_epoch: str | None = None,
+        plugin_sources: Optional[List[PluginSource]] = None,
     ) -> None:
         logger = get_logger("AgentApplication")
         self._logger = logger
@@ -451,7 +453,11 @@ class AgentApplication:
                 "preinstalled_plugin_manifest", preinstalled_manifest
             )
 
-        mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
+        mgr = PluginManager(
+            cache_dir=cache_path,
+            policy=plugin_policy,
+            sources=plugin_sources,
+        )
 
         providers_cfg = self._config.get("providers") or {}
         provider_plugin_specs: Dict[str, List[Any]] = {}

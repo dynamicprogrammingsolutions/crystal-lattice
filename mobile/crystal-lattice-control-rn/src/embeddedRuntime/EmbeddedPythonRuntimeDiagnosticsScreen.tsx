@@ -9,6 +9,7 @@ import {
 
 import {
   EmbeddedPythonRuntimeInfo,
+  runEmbeddedApplicationSmoke,
   runEmbeddedPythonSmoke,
   startEmbeddedPythonRuntime,
 } from "./embeddedPythonRuntime";
@@ -29,7 +30,8 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
     async function start(): Promise<void> {
       try {
         await startEmbeddedPythonRuntime();
-        const info = await runEmbeddedPythonSmoke();
+        await runEmbeddedPythonSmoke();
+        const info = await runEmbeddedApplicationSmoke();
         if (active) {
           setRuntimeState({ status: "ready", info });
         }
@@ -82,6 +84,12 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
             </Text>
             <Text testID="embedded-python-runtime-answer" style={styles.detail}>
               {String(runtimeState.info.answer)}
+            </Text>
+            <Text testID="embedded-python-runtime-agents" style={styles.detail}>
+              {(runtimeState.info.agents ?? []).join(",")}
+            </Text>
+            <Text testID="embedded-python-runtime-message-count" style={styles.detail}>
+              {String(runtimeState.info.messageCount)}
             </Text>
           </>
         )}

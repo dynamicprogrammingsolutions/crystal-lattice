@@ -5,11 +5,15 @@ export interface EmbeddedPythonRuntimeInfo {
   pythonVersion: string;
   pythonPlatform: string;
   answer?: number;
+  agents?: string[];
+  sessionId?: string;
+  messageCount?: number;
 }
 
 interface EmbeddedPythonRuntimeModule {
   start(): Promise<EmbeddedPythonRuntimeInfo>;
   runSmoke(): Promise<EmbeddedPythonRuntimeInfo>;
+  runApplicationSmoke(): Promise<EmbeddedPythonRuntimeInfo>;
 }
 
 const nativeRuntime =
@@ -32,4 +36,8 @@ export async function startEmbeddedPythonRuntime(): Promise<EmbeddedPythonRuntim
 
 export async function runEmbeddedPythonSmoke(): Promise<EmbeddedPythonRuntimeInfo> {
   return requireNativeRuntime().runSmoke();
+}
+
+export async function runEmbeddedApplicationSmoke(): Promise<EmbeddedPythonRuntimeInfo> {
+  return requireNativeRuntime().runApplicationSmoke();
 }

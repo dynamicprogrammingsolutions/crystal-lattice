@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -12,8 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-PYTHON_VERSION = "3.12"
-RUNTIME_LAYOUT_VERSION = "2"
+RUNTIME_LAYOUT_VERSION = "4"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -22,24 +22,20 @@ ARCHIVE_URL = (
 ARCHIVE_SHA256 = "18fb042d47b7ec441282eb96da0193e3093de7f02add35f5745d73491c6c0843"
 
 APP_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = APP_ROOT.parents[1]
 RUNTIME_ROOT = APP_ROOT / "ios" / "CrystalLatticePythonRuntime"
+PYTHON_APP_SOURCE = RUNTIME_ROOT / "Python"
 VENDOR_DIR = RUNTIME_ROOT / "Vendor"
 RESOURCES_DIR = RUNTIME_ROOT / "Resources"
 MARKER_PATH = RUNTIME_ROOT / ".prepared-python-runtime"
 CACHE_DIR = Path.home() / "Library" / "Caches" / "CrystalLattice" / "python-apple-support"
 CACHE_ARCHIVE = CACHE_DIR / ARCHIVE_NAME
-
-STDLIB_EXCLUDES = {
-    "__pycache__",
-    "ensurepip",
-    "idlelib",
-    "lib2to3",
-    "test",
-    "tkinter",
-    "turtledemo",
-    "venv",
-}
-
+PURE_DEPENDENCY_CACHE = CACHE_DIR / "pure-dependencies-v1"
+PURE_DEPENDENCIES = (
+    "jsonpath-ng==1.7.0",
+    "ply==3.11",
+    "structlog==25.5.0",
+)
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -79,31 +75,97 @@ def ensure_archive() -> Path:
     temporary.replace(CACHE_ARCHIVE)
     return CACHE_ARCHIVE
 
+def source_digest() -> str:
+    digest = hashlib.sha256()
+    source_roots = (
+        REPO_ROOT / "core" / "python" / "agent_core",
+        REPO_ROOT / "core" / "python" / "agent_app",
+        PYTHON_APP_SOURCE,
+    )
+    for source_root in source_roots:
+        for path in sorted(source_root.rglob("*.py")):
+            digest.update(str(path.relative_to(REPO_ROOT)).encode("utf-8"))
+            digest.update(path.read_bytes())
+    for requirement in PURE_DEPENDENCIES:
+        digest.update(requirement.encode("utf-8"))
+    return digest.hexdigest()
 
-def include_stdlib_path(path: Path, source: Path) -> bool:
-    relative = path.relative_to(source)
-    if any(part in STDLIB_EXCLUDES for part in relative.parts):
-        return False
-    return path.suffix not in {".pyc", ".pyo"}
+
+def ensure_pure_dependencies() -> Path:
+    marker = PURE_DEPENDENCY_CACHE / ".requirements"
+    expected = "\n".join(PURE_DEPENDENCIES) + "\n"
+    if marker.is_file() and marker.read_text(encoding="utf-8") == expected:
+        return PURE_DEPENDENCY_CACHE
+
+    shutil.rmtree(PURE_DEPENDENCY_CACHE, ignore_errors=True)
+    PURE_DEPENDENCY_CACHE.mkdir(parents=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--target",
+            str(PURE_DEPENDENCY_CACHE),
+            *PURE_DEPENDENCIES,
+        ],
+        check=True,
+    )
+    marker.write_text(expected, encoding="utf-8")
+    return PURE_DEPENDENCY_CACHE
 
 
-def create_stdlib_archive(source: Path, destination: Path) -> None:
+def add_python_tree(
+    archive: zipfile.ZipFile,
+    source: Path,
+    destination: Path,
+) -> None:
+    for path in sorted(source.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        archive.write(path, destination / path.relative_to(source))
+
+
+def create_application_archive(destination: Path) -> None:
+    dependencies = ensure_pure_dependencies()
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_STORED) as archive:
-        for path in sorted(source.rglob("*")):
-            if path.is_file() and include_stdlib_path(path, source):
-                archive.write(path, path.relative_to(source))
+        add_python_tree(
+            archive,
+            REPO_ROOT / "core" / "python" / "agent_core",
+            Path("agent_core"),
+        )
+        add_python_tree(
+            archive,
+            REPO_ROOT / "core" / "python" / "agent_app",
+            Path("agent_app"),
+        )
+        add_python_tree(archive, PYTHON_APP_SOURCE, Path())
+        for package_name in ("jsonpath_ng", "ply", "structlog"):
+            package_path = dependencies / package_name
+            if package_path.is_dir():
+                add_python_tree(archive, package_path, Path(package_name))
+            else:
+                module_path = dependencies / f"{package_name}.py"
+                if not module_path.is_file():
+                    raise RuntimeError(
+                        f"Pure Python dependency is missing after installation: {package_name}"
+                    )
+                archive.write(module_path, module_path.name)
 
 
 def prepare_runtime(archive: Path) -> None:
+    app_source_digest = source_digest()
     expected_marker = (
-        f"{PYTHON_SUPPORT_TAG}:{ARCHIVE_SHA256}:{RUNTIME_LAYOUT_VERSION}\n"
+        f"{PYTHON_SUPPORT_TAG}:{ARCHIVE_SHA256}:{RUNTIME_LAYOUT_VERSION}:"
+        f"{app_source_digest}\n"
     )
     if (
         MARKER_PATH.is_file()
         and MARKER_PATH.read_text(encoding="utf-8") == expected_marker
         and (VENDOR_DIR / "Python.xcframework").is_dir()
-        and (RESOURCES_DIR / "python312.zip").is_file()
+        and (RESOURCES_DIR / "crystal_lattice_app.zip").is_file()
     ):
         print(f"iOS Python runtime already prepared at {RUNTIME_ROOT}")
         return
@@ -114,21 +176,25 @@ def prepare_runtime(archive: Path) -> None:
             support_archive.extractall(extracted, filter="data")
 
         source_framework = extracted / "Python.xcframework"
-        source_stdlib = source_framework / "lib" / f"python{PYTHON_VERSION}"
-        if not source_framework.is_dir() or not source_stdlib.is_dir():
+        if not source_framework.is_dir():
             raise RuntimeError("Python support archive has an unexpected layout")
 
         staged_vendor = extracted / "staged-vendor"
         staged_resources = extracted / "staged-resources"
         shutil.copytree(source_framework, staged_vendor / "Python.xcframework")
-        create_stdlib_archive(source_stdlib, staged_resources / "python312.zip")
+        create_application_archive(
+            staged_resources / "crystal_lattice_app.zip"
+        )
 
         shutil.rmtree(VENDOR_DIR, ignore_errors=True)
         shutil.rmtree(RESOURCES_DIR, ignore_errors=True)
         VENDOR_DIR.parent.mkdir(parents=True, exist_ok=True)
         RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
         shutil.move(staged_vendor, VENDOR_DIR)
-        shutil.move(staged_resources / "python312.zip", RESOURCES_DIR / "python312.zip")
+        shutil.move(
+            staged_resources / "crystal_lattice_app.zip",
+            RESOURCES_DIR / "crystal_lattice_app.zip",
+        )
 
     MARKER_PATH.write_text(expected_marker, encoding="utf-8")
     print(f"Prepared iOS Python runtime at {RUNTIME_ROOT}")

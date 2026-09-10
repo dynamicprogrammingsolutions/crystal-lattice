@@ -182,7 +182,8 @@ evidence.
 - [x] Create and commit task tracking, cross-links, and the approved
   mobile-owned specification.
 - [x] Select and reproduce the iOS CPython framework/runtime input.
-- [ ] Stage the fixed Crystal Lattice Python/config/plugin resources.
+- [x] Stage `agent_core`, `agent_app`, the initial fixed config/provider, and
+  their current pure-Python dependency closure.
 - [x] Add the initial Swift runtime host and React Native bridge.
 - [x] Pass the foreground embedded-Python no-auth/no-tool smoke.
 - [ ] Add the production local `AgentBackend`.
@@ -242,3 +243,12 @@ evidence.
   resource bundle embedded. `npm run tsc` passed. The focused Detox test passed
   on an iPhone 17 Pro simulator in 31.5 seconds and confirmed CPython 3.12
   executed the smoke program with result `42`.
+- 2026-09-10: Added the real Core/application source archive and a fixed-source
+  `AgentApplication` construction path. Refactored default plugin sources and
+  SQLite loading to stay lazy when an embedded owner supplies only dotted
+  sources and in-memory notifications; focused Core tests passed.
+- 2026-09-10: Added the Python support package's official post-processing build
+  phase. It installs the stdlib in the app, converts extension modules to
+  signed frameworks, and creates `.fwork` markers. The focused Detox test then
+  imported `agent_core`/`agent_app`, constructed `AgentApplication`, created a
+  `local` session, persisted one user message, and loaded it back successfully.

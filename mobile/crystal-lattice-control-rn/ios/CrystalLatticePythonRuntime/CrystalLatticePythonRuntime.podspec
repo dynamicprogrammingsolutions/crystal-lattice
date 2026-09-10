@@ -14,7 +14,9 @@ Pod::Spec.new do |spec|
   spec.public_header_files = 'Sources/CLPythonHostSupport.h'
   spec.vendored_frameworks = 'Vendor/Python.xcframework'
   spec.resource_bundles = {
-    'CrystalLatticePythonRuntimeResources' => ['Resources/python312.zip']
+    'CrystalLatticePythonRuntimeResources' => [
+      'Resources/crystal_lattice_app.zip'
+    ]
   }
 
   spec.dependency 'React-Core'

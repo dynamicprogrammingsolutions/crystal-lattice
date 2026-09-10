@@ -8,4 +8,7 @@ RCT_EXTERN_METHOD(start:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(runSmoke:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(runApplicationSmoke:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end
