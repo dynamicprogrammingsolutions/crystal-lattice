@@ -15,8 +15,9 @@ session-management parity, then add the next research-oriented capabilities.
 - [x] A simple multi-round request is verifiable in the simulator, including
   bounded background continuation or recovery. Simulator evidence is
   sufficient for this proof of concept.
-- [ ] A separate iOS-safe tool package provides a useful Claude-like workspace
-  tool set plus simple public web fetching across the supported providers.
+- [ ] Separate iOS-safe Claude-like and Codex-like plugin sets provide useful
+  workspace and public-fetch tools with model-family-appropriate names,
+  schemas, and result formatting.
 - [ ] The embedded runtime offers fixed OpenAI-compatible, OpenAI Responses,
   OpenRouter, and Anthropic agents with provider-specific settings.
 - [ ] The local connection is preconfigured, and Home exposes a separate local
