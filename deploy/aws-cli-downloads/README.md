@@ -351,8 +351,14 @@ crystal-lattice --runtime-layout-json
 
 On Windows, run the shell installer from Git Bash/MSYS/Cygwin. The installer
 detects `MINGW*`, `MSYS*`, and `CYGWIN*` from `uname -s`, downloads the
-`windows-amd64` `.zip` archive, and writes a Bash shim that calls the bundled
-`Scripts/crystal-lattice.cmd` launcher.
+`windows-amd64` `.zip` archive, and writes both a Bash command and a `.cmd`
+command that call the bundled `Scripts/crystal-lattice.cmd` launcher.
+
+For a normal installation, `install.sh` selects an existing suitable writable
+directory already on PATH. It prefers an existing bundled-Python installation,
+then `~/.local/bin` and `~/bin`. The download smoke supplies `BIN_DIR`
+explicitly to keep post-publication checks isolated; direct default-selection
+coverage runs in the native release workflow.
 
 Skip installer execution and only check URLs/content:
 
@@ -374,8 +380,8 @@ Recommended cutover:
    workflow artifacts with `publish-assets.sh` if the GitHub Release assets do
    not use the current `crystal-lattice-python-runtime-v<version>-...` names.
 8. Run `deploy/aws-cli-downloads/smoke.sh --profile prod`.
-9. Update `scripts/install.sh` `DEFAULT_DOWNLOAD_BASE_URL` if production is now
-   the canonical default.
+9. Update `application/python/scripts/install.sh`
+   `DEFAULT_DOWNLOAD_BASE_URL` if production is now the canonical default.
 10. Update `README.md` and `application/python/README.md` install commands.
 11. Create a follow-up release so the published source installer default is
    canonical.

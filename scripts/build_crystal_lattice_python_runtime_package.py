@@ -8,7 +8,6 @@ from pathlib import Path
 import platform
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 import venv
@@ -322,7 +321,11 @@ def iter_versioned_python_binaries(bin_dir: Path) -> list[Path]:
 
 def stage_repo_like_runtime(package_dir: Path) -> None:
     copytree_sanitized(CORE_DIR, package_dir / "core" / "python")
-    copytree_sanitized(APP_DIR, package_dir / "application" / "python")
+    copytree_sanitized(
+        APP_DIR,
+        package_dir / "application" / "python",
+        excluded_dir_names={"cache", "scripts"},
+    )
     copytree_sanitized(PLUGINS_DIR, package_dir / "plugins")
     scripts_target = package_dir / "scripts"
     scripts_target.mkdir(parents=True, exist_ok=True)

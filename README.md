@@ -35,8 +35,11 @@ On macOS, Linux, or Git Bash on Windows, install the bundled CLI:
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
 ```
 
-The installer links the command as `~/.local/bin/crystal-lattice`. If that
-directory is not on your `PATH`, add it or call the command by its full path.
+The installer places `crystal-lattice` in an existing suitable writable
+directory already on your `PATH`, preferring an existing installation,
+`~/.local/bin`, or `~/bin`. If no suitable directory is available, it stops
+with instructions for setting `BIN_DIR` instead of installing an undiscoverable
+command.
 
 The Python packages are not currently published to PyPI. For development from
 a source checkout, use the editable-install instructions later in this README.
@@ -333,6 +336,11 @@ npm run install:venv
 npm run install:all
 npm run test:core:unit
 ```
+
+Application-owned CLI build, install, release-maintenance, and distribution
+smoke entry points live under `application/python/scripts/`. Root `scripts/`
+retains repository-wide utilities and the cross-runtime packaging primitives
+used by shipped archives and cloud-orchestrator builds.
 
 Install the plugin-suite packages into the same `.venv` when working on the
 kimi-tools, claude-tools, web-fetch-shared, tool-compat-shared, or

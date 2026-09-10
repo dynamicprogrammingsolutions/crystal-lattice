@@ -3,15 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, BinaryIO, Iterator, List, Mapping, Protocol
 
+import csv
+import importlib
+import importlib.machinery
 import json
 import os
 import shutil
 import subprocess
 import sys
-import importlib
 
 
 class PluginInstallError(Exception):
@@ -216,17 +218,71 @@ class PipTargetInstallStrategy:
 
     def _top_level_modules_for_install_dir(self, install_dir: Path) -> set[str]:
         discovered: set[str] = set()
-        for top_level_file in install_dir.glob("*.dist-info/top_level.txt"):
+        needs_install_dir_scan = False
+        dist_info_dirs = [
+            path for path in install_dir.glob("*.dist-info") if path.is_dir()
+        ]
+        for dist_info_dir in dist_info_dirs:
+            distribution_modules = self._top_level_modules_for_distribution(
+                dist_info_dir
+            )
+            if distribution_modules:
+                discovered.update(distribution_modules)
+            else:
+                needs_install_dir_scan = True
+        if not dist_info_dirs or needs_install_dir_scan:
+            discovered.update(self._top_level_modules_from_install_dir(install_dir))
+        return discovered
+
+    def _top_level_modules_for_distribution(self, dist_info_dir: Path) -> set[str]:
+        top_level_file = dist_info_dir / "top_level.txt"
+        if top_level_file.is_file():
             try:
                 text = top_level_file.read_text(encoding="utf-8", errors="ignore")
             except Exception:
+                text = ""
+            discovered = {
+                name
+                for line in text.splitlines()
+                if (name := line.strip()) and name.isidentifier()
+            }
+            if discovered:
+                return discovered
+
+        record_file = dist_info_dir / "RECORD"
+        if not record_file.is_file():
+            return set()
+        try:
+            with record_file.open(
+                encoding="utf-8", errors="ignore", newline=""
+            ) as file:
+                rows = list(csv.reader(file))
+        except Exception:
+            return set()
+
+        discovered: set[str] = set()
+        for row in rows:
+            if not row:
                 continue
-            for line in text.splitlines():
-                name = line.strip()
-                if name and name.isidentifier():
-                    discovered.add(name)
-        if discovered:
-            return discovered
+            parts = PurePosixPath(row[0]).parts
+            if not parts or parts[0] in {"", ".", ".."}:
+                continue
+            top_level = parts[0]
+            if top_level.endswith((".dist-info", ".data")):
+                continue
+            if len(parts) > 1:
+                if top_level.isidentifier() and self._is_importable_module_file(
+                    parts[-1]
+                ):
+                    discovered.add(top_level)
+                continue
+            module_name = self._module_name_from_file(top_level)
+            if module_name is not None:
+                discovered.add(module_name)
+        return discovered
+
+    def _top_level_modules_from_install_dir(self, install_dir: Path) -> set[str]:
+        discovered: set[str] = set()
         for child in install_dir.iterdir():
             name = child.name
             if child.is_dir():
@@ -235,11 +291,31 @@ class PipTargetInstallStrategy:
                 if name.isidentifier():
                     discovered.add(name)
                 continue
-            if child.is_file() and child.suffix == ".py":
-                stem = child.stem
-                if stem.isidentifier():
-                    discovered.add(stem)
+            if child.is_file():
+                module_name = self._module_name_from_file(name)
+                if module_name is not None:
+                    discovered.add(module_name)
         return discovered
+
+    def _module_name_from_file(self, filename: str) -> str | None:
+        if filename.endswith(".py"):
+            name = filename[:-3]
+            return name if name.isidentifier() else None
+        for suffix in importlib.machinery.EXTENSION_SUFFIXES:
+            if filename.endswith(suffix):
+                name = filename[: -len(suffix)]
+                return name if name.isidentifier() else None
+        return None
+
+    def _is_importable_module_file(self, filename: str) -> bool:
+        if filename in {"__init__.py", "__init__.pyc"}:
+            return True
+        if filename.endswith((".py", ".pyc")):
+            return True
+        return any(
+            filename.endswith(suffix)
+            for suffix in importlib.machinery.EXTENSION_SUFFIXES
+        )
 
     def _pip_cache_args(
         self, request: InstallRequest, pip_args: List[str]

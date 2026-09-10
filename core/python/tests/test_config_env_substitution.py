@@ -19,10 +19,20 @@ def test_embedded_env_substitution_multiple(monkeypatch):
 
 
 def test_embedded_env_substitution_missing(monkeypatch):
+    monkeypatch.delenv("MISSING", raising=False)
     raw = {"value": "aaa_${env:MISSING}_bbb"}
     resolved, errors = resolve_placeholders(raw)
+
     assert resolved["value"] == "aaa__bbb"
-    assert any(e.get("type") == "env_missing" for e in errors)
+    assert errors == [
+        {
+            "path": "value",
+            "type": "env_missing",
+            "severity": "warning",
+            "variable": "MISSING",
+            "detail": "Environment variable 'MISSING' is not set",
+        }
+    ]
 
 
 def test_raw_wrapper_preserves_literal_string(monkeypatch):

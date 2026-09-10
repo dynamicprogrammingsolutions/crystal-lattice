@@ -109,9 +109,9 @@
       "group": "build"
     },
     {
-      "label": "Install: Prod Local",
+      "label": "CLI: Install Archive",
       "type": "npm",
-      "script": "install:prod:local",
+      "script": "install:cli:archive",
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -119,9 +119,9 @@
       "group": "build"
     },
     {
-      "label": "Install: Dev Local",
+      "label": "CLI: Install Dev",
       "type": "npm",
-      "script": "install:dev:local",
+      "script": "install:cli:dev",
       "presentation": {
         "reveal": "always",
         "panel": "shared"

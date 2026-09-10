@@ -21,3 +21,7 @@ def test_terminal_app_distribution_and_console_script_metadata() -> None:
         "runtime_layout.json"
         in metadata["tool"]["setuptools"]["package-data"]["agent_terminal_app"]
     )
+    assert metadata["tool"]["setuptools"]["packages"]["find"]["include"] == [
+        "agent_terminal_app*"
+    ]
+    assert not (pyproject_path.parent / "scripts" / "__init__.py").exists()

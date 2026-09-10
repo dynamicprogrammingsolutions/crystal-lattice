@@ -846,13 +846,30 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
         model_el: dict[str, Any] = {
             "ui_type": "config",
-            "type": "dropdown" if options else "text",
+            "type": "dropdown",
             "key": "model",
             "label": "Model",
+            "icon": "cpu",
+            "options": options,
+            "placeholder": "Search models or enter a model ID",
+            "custom_value": {
+                "enabled": True,
+                "option_label": "Use '{value}' as a custom model ID",
+            },
+            "rich_ui": {
+                "kind": "dropdown",
+                "label": "Model",
+                "show_label": False,
+                "options": options,
+                "placeholder": "Search models or enter a model ID",
+                "custom_value": {
+                    "enabled": True,
+                    "option_label": "Use '{value}' as a custom model ID",
+                },
+                "placements": ["composer"],
+                "default_pinned": True,
+            },
         }
-
-        if options:
-            model_el["options"] = options
 
         elements.append(model_el)
         return elements

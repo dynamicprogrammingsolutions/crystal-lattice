@@ -104,6 +104,14 @@ These keys are read by `reference_openai_compatible_provider.provider.OpenAIComp
 
 When `endpoint_options` is provided, the provider emits a config UI dropdown for `base_url`. Selecting an option updates `base_url` directly, so model discovery, request URLs, and rate-limit scoping automatically follow the selected endpoint.
 
+The provider exposes `model` as a searchable dropdown in Session Settings and
+as a default-pinned rich control around the message composer. Discovered
+models appear as declared options. If discovery is empty or incomplete, both
+surfaces continue to accept an explicit model ID; the ordinary dropdown uses
+an explicit unrestricted custom-value declaration so its synthetic option can
+say “custom model ID” and older rich-UI clients remain compatible. The
+self-contained rich dropdown repeats the same manual-entry behavior.
+
 ### Complete provider config example
 
 This example shows all provider-owned config keys together. `request_options` is intentionally omitted here because it is provided by the separate `feature-request-options` plugin.
@@ -164,6 +172,30 @@ Example:
   }
 }
 ```
+
+For a Fireworks model that accepts `reasoning_effort`, the select descriptor
+keeps an ordinary Session Settings field and adds the same fixed-choice setting
+around the composer:
+
+```json
+{
+  "model": "accounts/fireworks/models/glm-5p2",
+  "request_options": {
+    "reasoning_effort": "max"
+  },
+  "request_options_ui": {
+    "reasoning_effort": {
+      "type": "select",
+      "options": ["high", "max"],
+      "rich_ui": true
+    }
+  }
+}
+```
+
+The compatible endpoint remains authoritative for accepting the selected
+request value. Other models or endpoints may expose different effort levels
+or reject the option.
 
 ### Tool calling
 

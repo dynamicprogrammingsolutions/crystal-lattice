@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
-INSTALL_SCRIPT = ROOT / "scripts" / "install.sh"
+INSTALL_SCRIPT = ROOT / "application" / "python" / "scripts" / "install.sh"
 
 
 def _write_executable(path: Path, text: str) -> None:
@@ -94,20 +94,47 @@ def _run_installer(
     archive: Path,
     uname_s: str,
     uname_m: str,
+    explicit_bin_dir: bool = True,
+    local_archive: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path]:
     requested_url = tmp_path / "requested-url.txt"
     fake_bin = _write_fake_commands(tmp_path, archive, requested_url)
     install_root = tmp_path / "install-root"
-    bin_dir = tmp_path / "bin"
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    bin_dir = tmp_path / "bin" if explicit_bin_dir else home_dir / ".local" / "bin"
+    bin_dir.mkdir(parents=True)
+    inherited_path = os.pathsep.join(
+        entry
+        for entry in os.environ["PATH"].split(os.pathsep)
+        if not any(
+            (Path(entry) / name).exists()
+            for name in (
+                "crystal-lattice",
+                "crystal-lattice.cmd",
+                "crystal-lattice.exe",
+            )
+        )
+    )
     env = {
         **os.environ,
-        "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        "PATH": os.pathsep.join([str(bin_dir), str(fake_bin), inherited_path]),
+        "HOME": str(home_dir),
+        "USERPROFILE": str(home_dir),
         "FAKE_UNAME_S": uname_s,
         "FAKE_UNAME_M": uname_m,
         "INSTALL_ROOT": str(install_root),
-        "BIN_DIR": str(bin_dir),
         "CRYSTAL_LATTICE_DOWNLOAD_BASE_URL": "https://example.test/crystal-lattice-cli",
     }
+    if explicit_bin_dir:
+        env["BIN_DIR"] = str(bin_dir)
+    else:
+        env.pop("BIN_DIR", None)
+    if local_archive:
+        env["CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE"] = str(archive)
+    else:
+        env.pop("CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE", None)
+    env.pop("VIRTUAL_ENV", None)
     result = subprocess.run(
         ["bash", str(INSTALL_SCRIPT)],
         env=env,
@@ -118,7 +145,9 @@ def _run_installer(
     return result, requested_url, install_root, bin_dir
 
 
-def test_install_script_installs_linux_tarball_to_isolated_paths(tmp_path: Path) -> None:
+def test_install_script_installs_linux_tarball_to_isolated_paths(
+    tmp_path: Path,
+) -> None:
     stem = "crystal-lattice-python-runtime-v9.8.7-linux-amd64"
     archive = _make_posix_archive(tmp_path, stem)
 
@@ -132,6 +161,10 @@ def test_install_script_installs_linux_tarball_to_isolated_paths(tmp_path: Path)
     assert result.returncode == 0, result.stderr
     assert requested_url.read_text(encoding="utf-8").strip().endswith(f"/{stem}.tar.gz")
     assert (install_root / stem / "bin" / "crystal-lattice").is_file()
+    assert (
+        "[1/5] Checking installer prerequisites and command location" in result.stdout
+    )
+    assert "[5/5] Verifying the installed command" in result.stdout
     shim = bin_dir / "crystal-lattice"
     assert shim.is_file()
     assert f'exec "{install_root / stem}/bin/crystal-lattice" "$@"' in shim.read_text(
@@ -159,9 +192,190 @@ def test_install_script_installs_windows_zip_from_git_bash(tmp_path: Path) -> No
         f'exec "{install_root / stem}/Scripts/crystal-lattice.cmd" "$@"'
         in shim.read_text(encoding="utf-8")
     )
+    windows_shim = bin_dir / "crystal-lattice.cmd"
+    assert windows_shim.is_file()
+    assert "call " in windows_shim.read_text(encoding="utf-8")
 
 
-def test_install_script_rejects_unsupported_windows_architecture(tmp_path: Path) -> None:
+def test_install_script_selects_existing_user_bin_from_path(tmp_path: Path) -> None:
+    stem = "crystal-lattice-python-runtime-v9.8.7-linux-amd64"
+    archive = _make_posix_archive(tmp_path, stem)
+
+    result, _requested_url, install_root, bin_dir = _run_installer(
+        tmp_path,
+        archive=archive,
+        uname_s="Linux",
+        uname_m="x86_64",
+        explicit_bin_dir=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (install_root / stem).is_dir()
+    assert (bin_dir / "crystal-lattice").is_file()
+    assert "Add this directory to PATH" not in result.stdout
+
+
+def test_install_script_accepts_local_runtime_archive(tmp_path: Path) -> None:
+    stem = "crystal-lattice-python-runtime-v9.8.7-linux-amd64"
+    archive = _make_posix_archive(tmp_path, stem)
+
+    result, requested_url, install_root, bin_dir = _run_installer(
+        tmp_path,
+        archive=archive,
+        uname_s="Linux",
+        uname_m="x86_64",
+        local_archive=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert not requested_url.exists()
+    assert (install_root / stem).is_dir()
+    assert (bin_dir / "crystal-lattice").is_file()
+    assert f"from {archive}" in result.stdout
+
+
+def test_install_script_skips_incompatible_existing_command_directory(
+    tmp_path: Path,
+) -> None:
+    stem = "crystal-lattice-python-runtime-v9.8.7-linux-amd64"
+    archive = _make_posix_archive(tmp_path, stem)
+    requested_url = tmp_path / "requested-url.txt"
+    fake_bin = _write_fake_commands(tmp_path, archive, requested_url)
+    conflict_bin = tmp_path / "conflict-bin"
+    _write_executable(
+        conflict_bin / "crystal-lattice",
+        """#!/usr/bin/env sh
+if [ "$1" = "--runtime-layout-json" ]; then
+  printf '%s\n' '{"layout": "source"}'
+fi
+""",
+    )
+    home_dir = tmp_path / "home"
+    preferred_bin = home_dir / ".local" / "bin"
+    preferred_bin.mkdir(parents=True)
+    install_root = tmp_path / "install-root"
+    env = {
+        **os.environ,
+        "PATH": os.pathsep.join(
+            [str(conflict_bin), str(preferred_bin), str(fake_bin), os.environ["PATH"]]
+        ),
+        "HOME": str(home_dir),
+        "USERPROFILE": str(home_dir),
+        "FAKE_UNAME_S": "Linux",
+        "FAKE_UNAME_M": "x86_64",
+        "INSTALL_ROOT": str(install_root),
+        "CRYSTAL_LATTICE_DOWNLOAD_BASE_URL": "https://example.test/crystal-lattice-cli",
+    }
+    env.pop("BIN_DIR", None)
+    env.pop("VIRTUAL_ENV", None)
+
+    result = subprocess.run(
+        ["bash", str(INSTALL_SCRIPT)],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert '"layout": "source"' in (conflict_bin / "crystal-lattice").read_text(
+        encoding="utf-8"
+    )
+    assert (preferred_bin / "crystal-lattice").is_file()
+
+
+def test_install_script_reuses_existing_runtime_command_directory(
+    tmp_path: Path,
+) -> None:
+    stem = "crystal-lattice-python-runtime-v9.8.7-linux-amd64"
+    archive = _make_posix_archive(tmp_path, stem)
+    requested_url = tmp_path / "requested-url.txt"
+    fake_bin = _write_fake_commands(tmp_path, archive, requested_url)
+    existing_bin = tmp_path / "existing-bin"
+    _write_executable(
+        existing_bin / "crystal-lattice",
+        """#!/usr/bin/env sh
+if [ "$1" = "--runtime-layout-json" ]; then
+  printf '%s\n' '{"layout": "python-runtime"}'
+fi
+""",
+    )
+    home_dir = tmp_path / "home"
+    preferred_bin = home_dir / ".local" / "bin"
+    preferred_bin.mkdir(parents=True)
+    install_root = tmp_path / "install-root"
+    env = {
+        **os.environ,
+        "PATH": os.pathsep.join(
+            [str(existing_bin), str(preferred_bin), str(fake_bin), os.environ["PATH"]]
+        ),
+        "HOME": str(home_dir),
+        "USERPROFILE": str(home_dir),
+        "FAKE_UNAME_S": "Linux",
+        "FAKE_UNAME_M": "x86_64",
+        "INSTALL_ROOT": str(install_root),
+        "CRYSTAL_LATTICE_DOWNLOAD_BASE_URL": "https://example.test/crystal-lattice-cli",
+    }
+    env.pop("BIN_DIR", None)
+    env.pop("VIRTUAL_ENV", None)
+
+    result = subprocess.run(
+        ["bash", str(INSTALL_SCRIPT)],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f"Installed command: {existing_bin}/crystal-lattice" in result.stdout
+    assert f'exec "{install_root / stem}/bin/crystal-lattice" "$@"' in (
+        existing_bin / "crystal-lattice"
+    ).read_text(encoding="utf-8")
+    assert not (preferred_bin / "crystal-lattice").exists()
+
+
+def test_install_script_fails_when_path_has_no_suitable_directory(
+    tmp_path: Path,
+) -> None:
+    stem = "crystal-lattice-python-runtime-v9.8.7-linux-amd64"
+    archive = _make_posix_archive(tmp_path, stem)
+    requested_url = tmp_path / "requested-url.txt"
+    fake_bin = _write_fake_commands(tmp_path, archive, requested_url)
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    install_root = tmp_path / "install-root"
+    env = {
+        **os.environ,
+        "PATH": os.pathsep.join([str(fake_bin), "/usr/bin", "/bin"]),
+        "HOME": str(home_dir),
+        "USERPROFILE": str(home_dir),
+        "VIRTUAL_ENV": str(tmp_path),
+        "FAKE_UNAME_S": "Linux",
+        "FAKE_UNAME_M": "x86_64",
+        "INSTALL_ROOT": str(install_root),
+        "CRYSTAL_LATTICE_DOWNLOAD_BASE_URL": "https://example.test/crystal-lattice-cli",
+    }
+    env.pop("BIN_DIR", None)
+
+    result = subprocess.run(
+        ["bash", str(INSTALL_SCRIPT)],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "could not find an existing writable command directory on PATH" in (
+        result.stderr
+    )
+    assert not install_root.exists()
+
+
+def test_install_script_rejects_unsupported_windows_architecture(
+    tmp_path: Path,
+) -> None:
     stem = "crystal-lattice-python-runtime-v9.8.7-windows-amd64"
     archive = _make_windows_archive(tmp_path, stem)
 

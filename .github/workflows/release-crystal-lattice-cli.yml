@@ -105,6 +105,9 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      - name: Create repository Python environment
+        run: npm run install:venv
+
       - name: Install build dependencies
         run: python -m pip install -e core/python -e "application/python[binary]"
 
@@ -130,6 +133,7 @@ jobs:
             --python-runtime "$CRYSTAL_PYTHON_RUNTIME"
 
       - name: Locate release archive
+        id: locate_archive
         env:
           ARCHIVE_GLOB: ${{ matrix.archive-glob }}
           TARGET: ${{ matrix.target }}
@@ -150,8 +154,16 @@ jobs:
           print(archive)
           PY
 
-      - name: Smoke-test release archive
-        run: python scripts/smoke_test_crystal_lattice_python_runtime_archive.py "$CRYSTAL_RELEASE_ARCHIVE"
+      - name: Smoke-test extracted archive
+        env:
+          CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
+        run: npm run test:cli:archive
+
+      - name: Smoke-test default installer
+        if: ${{ always() && steps.locate_archive.outcome == 'success' }}
+        env:
+          CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
+        run: npm run test:cli:default-install
 
       - name: Upload release archive
         if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')

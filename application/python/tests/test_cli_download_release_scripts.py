@@ -15,7 +15,8 @@ OIDC_TEMPLATE = ROOT / "deploy" / "aws-cli-downloads" / "github-oidc-role.yaml"
 CONFIGURE_GITHUB_SCRIPT = (
     ROOT / "deploy" / "aws-cli-downloads" / "configure-github-actions-vars.sh"
 )
-BUMP_SCRIPT = ROOT / "scripts" / "bump_cli_version.py"
+UPLOAD_INSTALLER_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "upload-installer.sh"
+BUMP_SCRIPT = ROOT / "application" / "python" / "scripts" / "bump_version.py"
 PACKAGE_JSON = ROOT / "package.json"
 RELEASE_SHA = "a" * 40
 
@@ -543,6 +544,23 @@ def test_release_workflow_uses_single_writer_artifact_handoff() -> None:
     )
 
 
+def test_release_workflow_runs_both_distribution_smokes_through_npm() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "id: locate_archive" in workflow
+    assert workflow.count("npm run test:cli:archive") == 1
+    assert workflow.count("npm run test:cli:default-install") == 1
+    assert "always() && steps.locate_archive.outcome == 'success'" in workflow
+    assert "smoke_runtime_archive.py" not in workflow
+
+
+def test_installer_upload_uses_package_owned_public_installer() -> None:
+    upload_script = UPLOAD_INSTALLER_SCRIPT.read_text(encoding="utf-8")
+
+    assert '$REPO_ROOT/application/python/scripts/install.sh"' in upload_script
+    assert '$REPO_ROOT/scripts/install.sh"' not in upload_script
+
+
 def test_release_script_install_line_avoids_plugin_packages(tmp_path: Path) -> None:
     env = _release_env(tmp_path)
 
@@ -735,5 +753,5 @@ def test_root_package_json_exposes_cli_release_scripts() -> None:
     )
     assert (
         scripts["release:cli:version:bump-patch"]
-        == "python scripts/bump_cli_version.py"
+        == "python application/python/scripts/bump_version.py"
     )

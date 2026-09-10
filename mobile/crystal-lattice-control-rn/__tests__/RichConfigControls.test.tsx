@@ -139,8 +139,8 @@ test("compact dropdown can suppress the outer fallback icon", () => {
         control={{
           element: {
             ui_type: "config",
-            key: "reasoning_effort",
-            type: "dropdown",
+            key: "request_options__reasoning_effort",
+            type: "select",
             icon: "sliders",
             rich_ui: {},
           } as any,
