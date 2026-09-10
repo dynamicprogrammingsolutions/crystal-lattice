@@ -50,11 +50,45 @@ Bash working-directory configuration keys:
 - `bash_include_cwd_in_result`: surface the working directory in Bash tool results (default `false`). When `true`, the initial working directory appears as a `[cwd: ...]` first line, and the end working directory is noted as a last line when a command changed it and persistence is enabled.
 - `bash_permissive_cd_guidance`: use permissive `cd` guidance in the Bash tool description instead of the upstream restrictive wording (default `false`). With all options at their defaults and persistence on, the tool description matches upstream Claude Code verbatim.
 
-The claude system message's tool-usage section is selected through the `{{TOOL_USAGE...}}` template variable in the default config's `claude_system_message` mixin. All variants are available as `files` variables; pick the one matching your Bash tool settings:
+Working combinations (preset mixins):
 
-- `{{TOOL_USAGE_PERMISSIVE_CD}}` (default): permissive `cd` guidance for `bash_cwd_persistence: true` — the working directory persists between commands, so `cd` alone is sufficient.
-- `{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}`: permissive `cd` guidance for `bash_cwd_persistence: false` — chain `cd dir && cmd` in a single Bash call.
-- `{{TOOL_USAGE}}`: the original upstream Claude Code wording with restrictive `cd` guidance, for upstream parity with any tool setting.
+The three keys must stay coherent with the system message's tool-usage section, which must state the same persistence behavior the Bash tool actually applies. The default config ships four preset mixins — defined in its `mixins` section, each chaining `claude_system_message` via `mixin_refs` with `"$merge": "deep"` so only the `system_message.template` variable is swapped while the base variables survive:
+
+| Preset mixin | `bash_cwd_persistence` | `bash_include_cwd_in_result` | `bash_permissive_cd_guidance` | Tool-usage variable |
+|---|---|---|---|---|
+| `claude_bash_upstream_parity` | `true` | `false` | `false` | `{{TOOL_USAGE}}` |
+| `claude_bash_permissive` | `true` | `false` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD}}` |
+| `claude_bash_permissive_visible` | `true` | `true` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD}}` |
+| `claude_bash_permissive_no_persistence` | `false` | `false` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}` |
+
+Apply a preset by swapping `claude_system_message` for it in an agent's `mixin_refs`:
+
+```json
+"claude-anthropic": {
+  "mixin_refs": [
+    "claude_bash_permissive_visible",
+    "claude_mcp_defaults",
+    "claude_anthropic_model_variants"
+  ]
+}
+```
+
+Agent-local keys still win over preset values, so a single tweak does not need a new mixin:
+
+```json
+"claude-anthropic": {
+  "mixin_refs": ["claude_bash_permissive", "claude_mcp_defaults"],
+  "bash_include_cwd_in_result": true
+}
+```
+
+The shipped default keeps `claude_system_message` in the agents' `mixin_refs`: all three keys at their defaults (upstream-verbatim Bash tool description) while the system message template uses `{{TOOL_USAGE_PERMISSIVE_CD}}`. Use a preset instead for fully coherent tool-description and system-message guidance.
+
+For custom templates, the tool-usage variants are available as `files` variables in `claude_system_message.system_message.variables`:
+
+- `{{TOOL_USAGE}}` — the original upstream Claude Code wording with restrictive `cd` guidance.
+- `{{TOOL_USAGE_PERMISSIVE_CD}}` — permissive `cd` guidance; the working directory persists between commands.
+- `{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}` — permissive `cd` guidance; chain `cd dir && cmd` in a single Bash call.
 
 `TaskStop` currently supports stopping running background Bash tasks by the background ID returned from `Bash`. `Read` remains the primary Claude-shaped way to inspect Bash background output via the returned output path.
 

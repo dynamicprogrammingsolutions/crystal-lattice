@@ -310,3 +310,173 @@ def test_default_config_claude_system_message_uses_permissive_tool_usage_variabl
         assert (
             ROOT / "plugins" / "claude-tools" / "system_messages" / "claude" / filename
         ).is_file()
+
+
+def _resolve_default_config_with_env(monkeypatch, config_path: Path):
+    from agent_app.config import (
+        build_config_resolution_env,
+        load_raw_config,
+        resolve_placeholders,
+    )
+
+    for key in (
+        "OPENROUTER_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "TAVILY_API_KEY",
+        "OPENAI_API_KEY",
+        "FIREWORKS_API_KEY",
+        "ZAI_API_KEY",
+        "CLOUD_ORCHESTRATOR_URL",
+        "CLOUD_ORCHESTRATOR_TOKEN",
+    ):
+        monkeypatch.setenv(key, "test")
+    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
+
+    raw = load_raw_config(config_path)
+    resolved_placeholders, _errors = resolve_placeholders(
+        raw, env=build_config_resolution_env(config_path)
+    )
+    return resolved_placeholders
+
+
+def test_default_config_claude_bash_presets_resolve_coherent_combinations(
+    monkeypatch,
+) -> None:
+    """The claude bash preset mixins chain ``claude_system_message`` via
+    ``mixin_refs`` and ``"$merge": "deep"``, so each preset keeps the base
+    system-message variables while overriding the tool-usage template variable
+    together with its matching Bash tool configuration keys."""
+    from agent_app.config import build_agent_config, resolve_config_mixins
+
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    resolved_placeholders = _resolve_default_config_with_env(monkeypatch, config_path)
+
+    expected_presets = {
+        "claude_bash_upstream_parity": (True, False, False, "{{TOOL_USAGE}}"),
+        "claude_bash_permissive": (
+            True,
+            False,
+            True,
+            "{{TOOL_USAGE_PERMISSIVE_CD}}",
+        ),
+        "claude_bash_permissive_visible": (
+            True,
+            True,
+            True,
+            "{{TOOL_USAGE_PERMISSIVE_CD}}",
+        ),
+        "claude_bash_permissive_no_persistence": (
+            False,
+            False,
+            True,
+            "{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}",
+        ),
+    }
+    for preset_name, (
+        persistence,
+        include,
+        permissive,
+        variable,
+    ) in expected_presets.items():
+        probe_config = dict(resolved_placeholders)
+        probe_config["agents"] = {
+            **resolved_placeholders["agents"],
+            "__preset_probe__": {
+                "provider": "openrouter",
+                "mixin_refs": [preset_name],
+            },
+        }
+        resolved, errors = resolve_config_mixins(probe_config)
+        assert errors == []
+
+        preset = resolved["mixins"][preset_name]
+        assert preset["$merge"] == "deep"
+        assert preset["bash_cwd_persistence"] == persistence
+        assert preset["bash_include_cwd_in_result"] == include
+        assert preset["bash_permissive_cd_guidance"] == permissive
+        assert variable in preset["system_message"]["template"]
+        # The deep merge keeps the base mixin's variables and toggle.
+        assert (
+            "TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE"
+            in preset["system_message"]["variables"]
+        )
+        assert preset["system_message_enabled"] is True
+
+        agent_config = build_agent_config(resolved, "__preset_probe__")
+        assert agent_config["bash_cwd_persistence"] == persistence
+        assert agent_config["bash_include_cwd_in_result"] == include
+        assert agent_config["bash_permissive_cd_guidance"] == permissive
+        assert variable in agent_config["system_message"]["template"]
+        assert agent_config["system_message"]["variables"]["TOOL_USAGE"]["files"]
+
+
+def test_claude_bash_preset_applies_to_agent_and_renders_system_message(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Swapping ``claude_system_message`` for a preset mixin in an agent's
+    ``mixin_refs`` yields the preset's Bash tool configuration keys and renders
+    the preset's tool-usage section end to end."""
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from feature_system_message.system_message_feature import SystemMessageFeature
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.chdir(workspace)
+
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["agents"]["glm-ollama"]["mixin_refs"] = [
+        "claude_bash_permissive_no_persistence",
+        "claude_mcp_defaults",
+    ]
+    preset_config_path = tmp_path / "config.json"
+    preset_config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+    _resolved_placeholders = _resolve_default_config_with_env(monkeypatch, config_path)
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
+
+    app = AgentApplication(
+        str(preset_config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+    )
+    assert app.get_config_errors() == []
+
+    _core, base_config, _session = app.create_session("glm-ollama")
+    assert base_config["bash_cwd_persistence"] is False
+    assert base_config["bash_include_cwd_in_result"] is False
+    assert base_config["bash_permissive_cd_guidance"] is True
+
+    feature = SystemMessageFeature()
+    state = feature.init(base_config, {})
+    native, _new_state = feature.initialize_request(
+        [{"role": "user", "content": "Inspect the repo."}],
+        state,
+    )
+    compiled = native[0]["_metadata"]["compiled_content"]
+    assert "# Using your tools" in compiled
+    assert (
+        "The working directory does not persist between commands; chain "
+        "`cd dir && cmd` in a single Bash call"
+    ) in compiled
+    assert "persists between commands, so `cd` alone" not in compiled

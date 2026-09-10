@@ -455,6 +455,46 @@
         }
       }
     },
+    "claude_bash_upstream_parity": {
+      "$merge": "deep",
+      "mixin_refs": ["claude_system_message"],
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": false,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_bash_permissive": {
+      "$merge": "deep",
+      "mixin_refs": ["claude_system_message"],
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_bash_permissive_visible": {
+      "$merge": "deep",
+      "mixin_refs": ["claude_system_message"],
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": true,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_bash_permissive_no_persistence": {
+      "$merge": "deep",
+      "mixin_refs": ["claude_system_message"],
+      "bash_cwd_persistence": false,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
     "claude_anthropic_model_variants": {
       "$variants": [
         {

@@ -323,3 +323,20 @@ old code-variable config and passes with the files variables.
 5 passed; `pytest application/python/tests/test_cloud_runtime_plugin_bundle_builder.py -q`
 → 11 passed; `pytest plugins/claude-tools/tests -q` → 139 passed, 9
 deselected; ruff and black clean.
+
+Follow-up addition (user-directed): added four coherent preset mixins to the
+default config's `mixins` section — `claude_bash_upstream_parity`,
+`claude_bash_permissive`, `claude_bash_permissive_visible`, and
+`claude_bash_permissive_no_persistence` — each chaining `claude_system_message`
+via `mixin_refs` with `"$merge": "deep"` so the preset overrides the three
+Bash config keys plus the `system_message.template` tool-usage variable while
+the base variables survive (shallow merge would wipe them, verified). The
+shipped default agents keep `claude_system_message`; presets are opt-in via an
+agent's `mixin_refs`, and agent-local keys still win over preset values
+(verified). README now documents the exact working combinations as a table
+with concise `mixin_refs` and local-override examples. Verification: two new
+tests in `application/python/tests/test_claude_system_message_helpers.py`
+(preset resolution for all four presets through `resolve_config_mixins` +
+`build_agent_config`, and an end-to-end `AgentApplication` render with
+`claude_bash_permissive_no_persistence` applied to `glm-ollama`); suite passes
+(7 tests), cloud bundle builder suite still passes (11 tests).
