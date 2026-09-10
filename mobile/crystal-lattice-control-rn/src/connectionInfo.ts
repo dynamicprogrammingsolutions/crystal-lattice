@@ -3,6 +3,9 @@ import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
 import { resolveBridgeTransportMode } from './bridgeConnection';
 
 export function getConnectionAdditionalInfo(record: ConnectionRecord): string {
+  if (record.kind === 'embedded') {
+    return `${record.model} via ${record.proxyUrl}`;
+  }
   if (record.kind === 'bridge') {
     const mode = resolveBridgeTransportMode(record);
     if (record.serverId.length > 0) {

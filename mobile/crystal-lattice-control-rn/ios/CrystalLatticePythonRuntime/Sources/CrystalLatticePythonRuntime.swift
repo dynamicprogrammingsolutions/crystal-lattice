@@ -116,6 +116,62 @@ final class CrystalLatticePythonRuntime: NSObject {
     }
   }
 
+  @objc(configure:resolver:rejecter:)
+  func configure(
+    _ configuration: NSDictionary,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.queue.async {
+      do {
+        guard
+          let proxyURL = configuration["proxyUrl"] as? String,
+          !proxyURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+          let model = configuration["model"] as? String,
+          !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+          throw RuntimeError.invalidConfiguration
+        }
+
+        let defaults = UserDefaults.standard
+        defaults.set(
+          proxyURL.trimmingCharacters(in: .whitespacesAndNewlines),
+          forKey: "clcEmbeddedProxyURL"
+        )
+        defaults.set(
+          model.trimmingCharacters(in: .whitespacesAndNewlines),
+          forKey: "clcEmbeddedModel"
+        )
+        if let apiKey = configuration["apiKey"] as? String,
+          !apiKey.isEmpty
+        {
+          defaults.set(apiKey, forKey: "clcEmbeddedProxyAPIKey")
+        }
+        guard Self.runtimeConfiguration() != nil else {
+          throw RuntimeError.missingAPIKey
+        }
+        resolve(Self.publicConfiguration())
+      } catch {
+        reject(
+          "python_configuration_failed",
+          error.localizedDescription,
+          error
+        )
+      }
+    }
+  }
+
+  @objc(getConfiguration:rejecter:)
+  func getConfiguration(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.queue.async {
+      _ = reject
+      resolve(Self.publicConfiguration())
+    }
+  }
+
   private static func startIfNeeded() throws -> [String: Any] {
     if initialized, let runtimeInformation {
       return runtimeInformation
@@ -188,13 +244,25 @@ final class CrystalLatticePythonRuntime: NSObject {
       : nil
   }
 
+  private static func publicConfiguration() -> [String: Any] {
+    let defaults = UserDefaults.standard
+    let apiKey = defaults.string(forKey: "clcEmbeddedProxyAPIKey") ?? ""
+    return [
+      "hasApiKey": !apiKey.isEmpty,
+      "model": defaults.string(forKey: "clcEmbeddedModel") ?? "",
+      "proxyUrl": defaults.string(forKey: "clcEmbeddedProxyURL") ?? "",
+    ]
+  }
+
   private enum RuntimeError: LocalizedError {
     case resourcesMissing
     case applicationSupportMissing
     case initializationFailed
     case executionFailed
     case invalidCommand
+    case invalidConfiguration
     case invalidResponse
+    case missingAPIKey
 
     var errorDescription: String? {
       switch self {
@@ -208,8 +276,12 @@ final class CrystalLatticePythonRuntime: NSObject {
         return "The bundled Python smoke program failed."
       case .invalidCommand:
         return "The embedded runtime command is not valid JSON."
+      case .invalidConfiguration:
+        return "The embedded runtime endpoint and model are required."
       case .invalidResponse:
         return "The embedded runtime returned an invalid response."
+      case .missingAPIKey:
+        return "Enter an API key before connecting the embedded runtime."
       }
     }
   }

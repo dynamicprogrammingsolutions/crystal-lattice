@@ -20,11 +20,27 @@ export interface EmbeddedRuntimeResponse<T = any> {
   data: T;
 }
 
+export interface EmbeddedRuntimeConfiguration {
+  proxyUrl: string;
+  model: string;
+  apiKey?: string;
+}
+
+export interface EmbeddedRuntimePublicConfiguration {
+  proxyUrl: string;
+  model: string;
+  hasApiKey: boolean;
+}
+
 interface EmbeddedPythonRuntimeModule {
   start(): Promise<EmbeddedPythonRuntimeInfo>;
   runSmoke(): Promise<EmbeddedPythonRuntimeInfo>;
   runApplicationSmoke(): Promise<EmbeddedPythonRuntimeInfo>;
   execute(request: Record<string, unknown>): Promise<EmbeddedRuntimeResponse>;
+  configure(
+    configuration: EmbeddedRuntimeConfiguration
+  ): Promise<EmbeddedRuntimePublicConfiguration>;
+  getConfiguration(): Promise<EmbeddedRuntimePublicConfiguration>;
 }
 
 const nativeRuntime =
@@ -57,4 +73,14 @@ export async function executeEmbeddedRuntimeCommand<T = any>(
   request: Record<string, unknown>
 ): Promise<EmbeddedRuntimeResponse<T>> {
   return requireNativeRuntime().execute(request);
+}
+
+export async function configureEmbeddedPythonRuntime(
+  configuration: EmbeddedRuntimeConfiguration
+): Promise<EmbeddedRuntimePublicConfiguration> {
+  return requireNativeRuntime().configure(configuration);
+}
+
+export async function getEmbeddedPythonRuntimeConfiguration(): Promise<EmbeddedRuntimePublicConfiguration> {
+  return requireNativeRuntime().getConfiguration();
 }

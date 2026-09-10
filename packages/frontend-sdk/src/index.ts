@@ -466,6 +466,7 @@ export type {
   DiscoveryConnectionRecord,
   BridgeConnectionRecord,
   CloudConnectionRecord,
+  EmbeddedConnectionRecord,
   ConnectionRecord,
 } from "./connections/types";
 export type {

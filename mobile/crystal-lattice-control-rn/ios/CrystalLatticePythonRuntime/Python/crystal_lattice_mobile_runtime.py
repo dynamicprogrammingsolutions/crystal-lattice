@@ -866,6 +866,88 @@ def _handle_request(
     body = body if isinstance(body, dict) else {}
     application = runtime.application
 
+    if path_parts == ["api", "hello"] and method == "GET":
+        output_path = runtime.workspace_dir / "output.txt"
+        return _response(
+            200,
+            {
+                "message": "Embedded Python runtime is ready",
+                "provider_mode": (
+                    "openai-compatible"
+                    if all(runtime.runtime_configuration.values())
+                    else "smoke"
+                ),
+                "workspace_output": (
+                    output_path.read_text(encoding="utf-8")
+                    if output_path.is_file()
+                    else None
+                ),
+            },
+        )
+
+    if path_parts == ["api", "data"] and method in {"GET", "PUT"}:
+        return _response(
+            200,
+            {
+                "message": "Embedded Python runtime",
+                "echo": body if method == "PUT" else None,
+            },
+        )
+
+    if path_parts == ["embedded", "runtime", "status"] and method == "GET":
+        return _response(
+            200,
+            {
+                "provider_mode": (
+                    "openai-compatible"
+                    if all(runtime.runtime_configuration.values())
+                    else "smoke"
+                ),
+                "has_api_key": bool(runtime.runtime_configuration["api_key"]),
+                "model": runtime.runtime_configuration["model"],
+                "proxy_url": runtime.runtime_configuration["proxy_url"],
+            },
+        )
+
+    if path_parts == ["embedded", "runtime", "validate"] and method == "POST":
+        if not all(runtime.runtime_configuration.values()):
+            return _response(400, {"detail": "Runtime configuration is incomplete"})
+        from reference_openai_compatible_provider.provider import (
+            OpenAICompatibleProvider,
+        )
+
+        models = OpenAICompatibleProvider().get_models(
+            {
+                "api_key": runtime.runtime_configuration["api_key"],
+                "base_url": runtime.runtime_configuration["proxy_url"],
+                "model": runtime.runtime_configuration["model"],
+                "timeout": 15,
+            }
+        )
+        model_ids = {
+            model.get("id")
+            for model in models
+            if isinstance(model, dict) and isinstance(model.get("id"), str)
+        }
+        configured_model = runtime.runtime_configuration["model"]
+        if configured_model not in model_ids:
+            return _response(
+                401,
+                {
+                    "detail": (
+                        "The proxy credentials were rejected or the configured "
+                        "model is unavailable"
+                    )
+                },
+            )
+        return _response(
+            200,
+            {
+                "status": "ok",
+                "model": configured_model,
+            },
+        )
+
     if path_parts == ["embedded", "workspace", "reset"] and method == "POST":
         input_content = body.get("input")
         if not isinstance(input_content, str):

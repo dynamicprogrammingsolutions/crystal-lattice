@@ -20,7 +20,7 @@ workspace `Read`/`Write` request.
 - [x] `tools/openai-proxy` can target Ollama, supports streaming and
   non-streaming OpenAI-compatible requests used by the agent, and requires a
   configured incoming API key by the final proof-of-concept stage.
-- [ ] The app exposes a basic API-key input for this local runtime and applies
+- [x] The app exposes a basic API-key input for this local runtime and applies
   it through owner-supplied configuration plus complete application reload.
 - [x] The agent exposes simplified Claude-equivalent `Read` and `Write` tools
   rooted in one app-owned workspace; paths outside that workspace are
@@ -190,7 +190,7 @@ evidence.
 - [x] Adapt and test the Ollama-targeted OpenAI proxy.
 - [ ] Add bounded background diagnostics, continuation, and recovery.
 - [x] Add workspace-restricted `Read` and `Write` tools.
-- [ ] Add basic API-key input, proxy enforcement, and application reload.
+- [x] Add basic API-key input, proxy enforcement, and application reload.
 - [x] Add the complete real-model multi-round simulator test.
 - [ ] Run and record physical-device foreground/background verification.
 - [ ] Update requirement evidence, current implementation documentation, and
@@ -284,3 +284,12 @@ evidence.
   loop through authenticated Ollama `qwen3.5:0.8b`. The simulator run passed
   in 62 seconds, persisted three tool messages, and verified that
   `output.txt` contained exactly `UPPERCASE: ALPHA BETA GAMMA`.
+- 2026-09-10: Added an iOS-only production connection path with endpoint,
+  model, and masked API-key fields plus a saved `embedded` connection record
+  that omits the credential. The native owner keeps the key and reconstructs
+  the complete Python application when configuration changes.
+- 2026-09-10: Production-screen Detox rejected a wrong key, accepted the
+  configured key only after authenticated model validation, verified that the
+  key was not visible, terminated and relaunched the app, and reconnected from
+  saved owner configuration without entering the key again. The scenario
+  passed in 101.9 seconds.
