@@ -17,6 +17,13 @@ Tool results receive timestamps **only after the session is persisted and reload
 
 - Adds per-request `duration` (start/end timestamps + elapsed time).
 - Adds per-turn cumulative `turn duration` similar to OpenRouter usage turn totals.
+- Adds cumulative `total duration` for all LLM/provider requests retained in
+  the session history. This total excludes tool execution, human activity, and
+  the wall-clock age of the session.
+- Exposes the formatted total in the chat status bar. Set
+  `duration_extension_show_status_total` to `false` to hide the status total
+  independently from the message footers controlled by
+  `duration_extension_show_duration`.
 
 ## License
 

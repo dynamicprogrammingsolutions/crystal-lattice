@@ -6,16 +6,16 @@ message-metadata and status-bar pattern used by usage-cost plugins.
 
 ## Requirements checklist
 
-- [ ] Each duration-bearing response exposes a numeric and formatted cumulative
+- [x] Each duration-bearing response exposes a numeric and formatted cumulative
   session duration in core message metadata.
-- [ ] The cumulative session duration is the sum of LLM/provider-request
+- [x] The cumulative session duration is the sum of LLM/provider-request
   durations in retained native history, including all requests in tool turns,
   and excludes unrelated tool, human, and session wall-clock time.
-- [ ] Cumulative duration metadata survives native-history persistence and
+- [x] Cumulative duration metadata survives native-history persistence and
   reconstruction across requests.
-- [ ] The cumulative duration is available as a plugin-contributed chat status
+- [x] The cumulative duration is available as a plugin-contributed chat status
   bar field and can be hidden independently from duration message footers.
-- [ ] Existing per-request duration, per-turn duration, and turn-TPS behavior
+- [x] Existing per-request duration, per-turn duration, and turn-TPS behavior
   remains compatible across chat-style and Responses-style native histories.
 
 ## Supporting details
@@ -99,12 +99,12 @@ turn-TPS calculations.
 
 ### Task checklist
 
-- [ ] Add duration-owner-aware cumulative calculation in `finalize()`.
-- [ ] Persist and project numeric/formatted cumulative duration metadata.
-- [ ] Add the independently configurable status-bar declaration.
-- [ ] Add deterministic regression and UI-schema tests.
-- [ ] Update package documentation.
-- [ ] Run package-local and relevant application-level verification.
+- [x] Add duration-owner-aware cumulative calculation in `finalize()`.
+- [x] Persist and project numeric/formatted cumulative duration metadata.
+- [x] Add the independently configurable status-bar declaration.
+- [x] Add deterministic regression and UI-schema tests.
+- [x] Update package documentation.
+- [x] Run package-local and relevant application-level verification.
 - [ ] Commit the completed implementation.
 
 ### Requirement verification
@@ -123,3 +123,31 @@ turn-TPS calculations.
   core SDK and timestamp plugin with development dependencies.
 - Run targeted application UI-schema/status-bar tests if package-level schema
   tests do not exercise the production aggregation boundary.
+
+## Implementation Notes
+
+- `DurationExtension.finalize()` now sums prior individual request durations and
+  adds the current measurement once, then persists `total_duration_ms` and
+  `total_duration_formatted` on the selected native response owner.
+- New records carry the private `_duration_extension_owner` marker. Retained
+  records from older versions remain countable when they contain both
+  `duration_ms` and `turn_duration_ms`. Records with only a generic
+  `duration_ms`, such as tool timing, are excluded.
+- `from_native_messages()` projects precomputed total fields for one-to-one and
+  `native_indices`-aggregated provider outputs; it does not calculate normal
+  request totals.
+- `duration_extension_show_status_total` independently controls the
+  `metadata.total_duration_formatted` status-bar declaration.
+- Verification completed:
+  - `pytest plugins/timestamp-extension/tests -q` — 12 passed.
+  - `ruff check plugins/timestamp-extension/src plugins/timestamp-extension/tests`
+    — passed.
+  - `black --check` for the changed Python files — passed.
+  - `git diff --check` — passed.
+  - The tests import `timestamp_extension` from this worktree's editable
+    checkout.
+- The broader default-config application UI-schema integration slice was
+  explicitly enabled but exceeded the 120-second command timeout without a
+  result. Package coverage now exercises the production
+  `AgentCore.get_ui_schema()` aggregation boundary directly, so no
+  application-specific behavior remains unverified for this change.

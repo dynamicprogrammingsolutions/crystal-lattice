@@ -16,6 +16,8 @@ Behavior:
       point plus the current request duration.
     * "Turn duration" is only surfaced on assistant messages that do not
       include tool calls.
+- Exposes cumulative provider-request duration across retained session history
+  on the latest assistant message and through a status-bar UI element.
 """
 
 from __future__ import annotations
@@ -62,7 +64,9 @@ def _has_tool_calls(native_msg: Dict[str, Any]) -> bool:
     return False
 
 
-def _sum_assistant_durations_since_turn_start(native_history: List[Dict[str, Any]]) -> int:
+def _sum_assistant_durations_since_turn_start(
+    native_history: List[Dict[str, Any]],
+) -> int:
     """Return cumulative assistant duration since the last turn separator."""
 
     last_sep_idx = -1
@@ -103,8 +107,10 @@ class DurationExtension(FeaturePlugin):
     priority: int = 200
 
     _SHOW_DURATION_KEY = "duration_extension_show_duration"
+    _SHOW_STATUS_TOTAL_KEY = "duration_extension_show_status_total"
 
     _STATE_KEY = "_duration_extension"
+    _OWNER_KEY = "_duration_extension_owner"
 
     @staticmethod
     def _turn_metadata(native_msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -138,7 +144,9 @@ class DurationExtension(FeaturePlugin):
             if not isinstance(internal_md, dict):
                 continue
             duration_ms = internal_md.get("duration_ms")
-            if isinstance(duration_ms, (int, float)) and not isinstance(duration_ms, bool):
+            if isinstance(duration_ms, (int, float)) and not isinstance(
+                duration_ms, bool
+            ):
                 try:
                     total_ms += int(duration_ms)
                 except Exception:
@@ -146,11 +154,48 @@ class DurationExtension(FeaturePlugin):
         return total_ms
 
     @classmethod
-    def _base_turn_duration_ms(cls, native_history: List[Dict[str, Any]], current_msg: Dict[str, Any]) -> int:
+    def _base_turn_duration_ms(
+        cls,
+        native_history: List[Dict[str, Any]],
+        current_msg: Dict[str, Any],
+    ) -> int:
         turn_id = cls._turn_id(current_msg)
         if turn_id is not None:
             return cls._sum_durations_for_turn(native_history, turn_id)
         return _sum_assistant_durations_since_turn_start(native_history)
+
+    @classmethod
+    def _sum_session_duration_ms(cls, native_history: List[Dict[str, Any]]) -> int:
+        """Sum provider-request durations owned by this feature.
+
+        New records carry an explicit private owner marker. The turn-duration
+        fallback keeps retained histories written by earlier versions
+        countable without treating unrelated tool duration fields as LLM time.
+        """
+
+        total_ms = 0
+        for msg in native_history:
+            if not isinstance(msg, dict):
+                continue
+            internal_md = msg.get("_metadata") or {}
+            if not isinstance(internal_md, dict):
+                continue
+            is_owned = internal_md.get(cls._OWNER_KEY) is True
+            is_legacy_owned = (
+                "duration_ms" in internal_md and "turn_duration_ms" in internal_md
+            )
+            if not is_owned and not is_legacy_owned:
+                continue
+            duration_ms = internal_md.get("duration_ms")
+            if not isinstance(duration_ms, (int, float)) or isinstance(
+                duration_ms, bool
+            ):
+                continue
+            try:
+                total_ms += max(0, int(duration_ms))
+            except (TypeError, ValueError, OverflowError):
+                continue
+        return total_ms
 
     @classmethod
     def _turn_input_tokens(cls, native_msg: Dict[str, Any]) -> Optional[int]:
@@ -198,7 +243,9 @@ class DurationExtension(FeaturePlugin):
         return native_msg.get("role") == "assistant"
 
     @classmethod
-    def _select_duration_owner_index(cls, final_messages: List[Dict[str, Any]]) -> Optional[int]:
+    def _select_duration_owner_index(
+        cls, final_messages: List[Dict[str, Any]]
+    ) -> Optional[int]:
         if not final_messages:
             return None
 
@@ -240,6 +287,11 @@ class DurationExtension(FeaturePlugin):
                 "default": True,
                 "description": "Show per-message duration footers.",
             },
+            self._SHOW_STATUS_TOTAL_KEY: {
+                "type": "boolean",
+                "default": True,
+                "description": "Show cumulative provider-request duration in the chat status bar.",
+            },
         }
 
     def get_ui_elements(
@@ -251,6 +303,9 @@ class DurationExtension(FeaturePlugin):
         show_duration = True
         if isinstance(config, dict) and self._SHOW_DURATION_KEY in config:
             show_duration = bool(config.get(self._SHOW_DURATION_KEY))
+        show_status_total = True
+        if isinstance(config, dict) and self._SHOW_STATUS_TOTAL_KEY in config:
+            show_status_total = bool(config.get(self._SHOW_STATUS_TOTAL_KEY))
 
         elements: List[Dict[str, Any]] = [
             {
@@ -259,7 +314,14 @@ class DurationExtension(FeaturePlugin):
                 "key": self._SHOW_DURATION_KEY,
                 "label": "Show duration",
                 "description": "Show per-message duration in message footers.",
-            }
+            },
+            {
+                "ui_type": "config",
+                "type": "checkbox",
+                "key": self._SHOW_STATUS_TOTAL_KEY,
+                "label": "Show total duration",
+                "description": "Show cumulative provider-request duration in the chat status bar.",
+            },
         ]
 
         if show_duration:
@@ -281,6 +343,15 @@ class DurationExtension(FeaturePlugin):
                         "template": "turn TPS: {{data}}",
                     },
                 ]
+            )
+
+        if show_status_total:
+            elements.append(
+                {
+                    "ui_type": "status_bar",
+                    "data": "metadata.total_duration_formatted",
+                    "template": "Total duration: {{data}}",
+                }
             )
 
         return elements
@@ -328,6 +399,10 @@ class DurationExtension(FeaturePlugin):
         history_before_current = (
             native_messages[:history_offset] if history_offset > 0 else []
         )
+        total_duration_ms = self._sum_session_duration_ms(history_before_current) + max(
+            0, duration_ms
+        )
+        total_duration_formatted = _format_duration_ms(total_duration_ms)
         owner_rel_idx = self._select_duration_owner_index(final_messages)
 
         def _stamp_owner(native_msg: Dict[str, Any]) -> Dict[str, Any]:
@@ -338,7 +413,9 @@ class DurationExtension(FeaturePlugin):
             if not isinstance(internal_md, dict):
                 internal_md = {}
 
-            base_turn_ms = self._base_turn_duration_ms(history_before_current, native_msg)
+            base_turn_ms = self._base_turn_duration_ms(
+                history_before_current, native_msg
+            )
             turn_duration_ms = base_turn_ms + duration_ms
             turn_duration_formatted = _format_duration_ms(turn_duration_ms)
 
@@ -350,6 +427,9 @@ class DurationExtension(FeaturePlugin):
                 "duration_formatted": duration_formatted,
                 "turn_duration_ms": turn_duration_ms,
                 "turn_duration_formatted": turn_duration_formatted,
+                "total_duration_ms": total_duration_ms,
+                "total_duration_formatted": total_duration_formatted,
+                self._OWNER_KEY: True,
             }
 
             turn_tps_tokens = self._turn_tps_tokens(native_msg)
@@ -360,7 +440,9 @@ class DurationExtension(FeaturePlugin):
             return {**native_msg, "_metadata": merged_md}
 
         stamped_finals = list(final_messages)
-        if owner_rel_idx is not None and isinstance(stamped_finals[owner_rel_idx], dict):
+        if owner_rel_idx is not None and isinstance(
+            stamped_finals[owner_rel_idx], dict
+        ):
             stamped_finals[owner_rel_idx] = _stamp_owner(stamped_finals[owner_rel_idx])
 
         if not native_messages or len(stamped_finals) > len(native_messages):
@@ -392,6 +474,10 @@ class DurationExtension(FeaturePlugin):
             "turn_tps",
             "turn_tps_formatted",
         )
+        total_keys = (
+            "total_duration_ms",
+            "total_duration_formatted",
+        )
 
         def _merge_duration_metadata(
             core_msg: Dict[str, Any],
@@ -403,16 +489,16 @@ class DurationExtension(FeaturePlugin):
             )
 
             chosen_internal: Optional[Dict[str, Any]] = None
-            chosen_native: Optional[Dict[str, Any]] = None
             for native in native_candidates:
                 if not isinstance(native, dict):
                     continue
                 internal_md = native.get("_metadata") or {}
                 if not isinstance(internal_md, dict):
                     continue
-                if any(key in internal_md for key in duration_keys + turn_keys):
+                if any(
+                    key in internal_md for key in duration_keys + turn_keys + total_keys
+                ):
                     chosen_internal = internal_md
-                    chosen_native = native
 
             if not isinstance(chosen_internal, dict):
                 return {**core_msg, "metadata": core_md}
@@ -422,6 +508,10 @@ class DurationExtension(FeaturePlugin):
                     core_md[key] = chosen_internal.get(key)
 
             for key in turn_keys:
+                if key in chosen_internal and key not in core_md:
+                    core_md[key] = chosen_internal.get(key)
+
+            for key in total_keys:
                 if key in chosen_internal and key not in core_md:
                     core_md[key] = chosen_internal.get(key)
 
