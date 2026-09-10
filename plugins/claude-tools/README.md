@@ -61,14 +61,10 @@ The three keys must stay coherent with the system message's tool-usage section, 
 | `claude_bash_permissive_visible` | `true` | `true` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD}}` |
 | `claude_bash_permissive_no_persistence` | `false` | `false` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}` |
 
-Apply a preset by listing it right after `claude_system_message` in an agent's `mixin_refs`, with a per-key merge policy that deep-merges only `system_message`:
+Each preset carries its own per-key merge policy, so applying one needs no merge configuration on the agent — just list it right after `claude_system_message` in the agent's `mixin_refs`:
 
 ```json
 "claude-anthropic": {
-  "$merge": {
-    "default": "shallow",
-    "deep": ["system_message"]
-  },
   "mixin_refs": [
     "claude_system_message",
     "claude_bash_permissive_visible",
@@ -78,7 +74,7 @@ Apply a preset by listing it right after `claude_system_message` in an agent's `
 }
 ```
 
-The merge policy must live on the agent, not inside the preset: `$merge` is parent-scoped (a mapping's `$merge` controls how its sibling keys merge), so a `$merge` inside the preset's `system_message` would govern `template` — a plain string — while the collision that needs the deep merge is between the two mixins' `system_message` mappings one level up. A root `$merge` on the preset is ignored at reference time because the referencing node owns the merge mode. Without an agent-level policy the preset's `system_message` shallow-replaces the base's and the base variables are silently lost — the rendered system message then keeps literal `{{...}}` placeholders. The per-key policy keeps everything else shallow, including the provider-defaults merge in `build_agent_config`.
+The interpreter applies a referenced mixin's own root `$merge` to that mixin's merge action and then consumes it: the policy deep-merges only `system_message` (keeping the base mixin's variables and toggle while the preset overrides the template variable), leaves everything else shallow, and neither the root nor any nested directive persists into the agent's resolved configuration. `$merge` is parent-scoped (a mapping's `$merge` controls how its sibling keys merge), so a `$merge` nested inside the preset's `system_message` would instead govern `template` — a plain string — which is why the policy sits at the preset root naming `system_message` as a deep key. References without their own directive use the referencing node's root policy.
 
 The shipped default config uses `claude_bash_permissive` this way for the claude agents (`claude-openrouter`, `claude-anthropic`, `glm-ollama`, `deepseek-ollama`), so tool description and system message both give coherent permissive `cd` guidance. Switch an agent to `claude_bash_upstream_parity` for upstream-verbatim guidance everywhere.
 

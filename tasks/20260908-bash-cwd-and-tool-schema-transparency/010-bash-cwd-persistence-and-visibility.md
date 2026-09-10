@@ -377,3 +377,19 @@ preset is default, and dropped variant-specific render assertions from the
 full-render test while keeping the section-presence guard. Config restored to
 the working agent-level per-key policy after the experiment. Suites: helpers
 7, effective-configs + docs + cloud bundle builder 22, ruff/black clean.
+
+Follow-up (mixin application policy, user-directed): changed the config
+interpreter so a referenced mixin's own root `$merge` governs that mixin's
+merge action and is consumed by it (root and nested directives no longer
+persist into the referrer's resolved configuration; directive-less references
+keep using the referrer's root policy). This makes the preset-carried per-key
+policy work: all four `claude_bash_*` presets now carry
+`{"default": "shallow", "deep": ["system_message"]}` themselves and the four
+claude agents dropped their agent-level `$merge` boilerplate. Spec updated
+first (`application-configuration-composition`: new "Mixin application
+policy" section, requirement `ACFG-013`), consumer mixin guide documents the
+behavior, the old nested-survival composition test was reworked into
+own-merge/consumption/agent-carried/chained tests, the claude-tools README
+placement guidance was reversed, and the stale `docs/reference/default-config.md`
+snapshot was regenerated. Suites: core 507 passed, application 389 passed,
+ruff/black clean, no new pyright errors.

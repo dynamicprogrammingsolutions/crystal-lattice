@@ -335,11 +335,12 @@ def test_default_config_claude_bash_presets_resolve_coherent_combinations(
     monkeypatch,
 ) -> None:
     """Each claude bash preset, listed right after ``claude_system_message``
-    in an agent's ``mixin_refs`` with a per-key merge policy deep-merging
-    ``system_message``, yields its documented Bash tool configuration keys and
-    tool-usage template variable while keeping the base system-message
-    variables. The configured claude agents resolve to a coherent combination:
-    the template's persistence claim matches the actual Bash behavior."""
+    in an agent's ``mixin_refs``, yields its documented Bash tool
+    configuration keys and tool-usage template variable while its own
+    per-key merge policy deep-merges ``system_message`` and keeps the base
+    system-message variables. The configured claude agents resolve to a
+    coherent combination: the template's persistence claim matches the actual
+    Bash behavior."""
     from agent_app.config import build_agent_config, resolve_config_mixins
 
     config_path = (
@@ -383,7 +384,6 @@ def test_default_config_claude_bash_presets_resolve_coherent_combinations(
         probe_config["agents"] = {
             **resolved_placeholders["agents"],
             "__preset_probe__": {
-                "$merge": {"default": "shallow", "deep": ["system_message"]},
                 "provider": "openrouter",
                 "mixin_refs": ["claude_system_message", preset_name],
             },
@@ -396,8 +396,9 @@ def test_default_config_claude_bash_presets_resolve_coherent_combinations(
         assert agent_config["bash_include_cwd_in_result"] == include
         assert agent_config["bash_permissive_cd_guidance"] == permissive
         assert variable in agent_config["system_message"]["template"]
-        # The agent-level deep merge keeps the base mixin's variables and
-        # toggle while the preset overrides the template variable.
+        # The preset's own merge policy deep-merges system_message, keeping
+        # the base mixin's variables and toggle while the preset overrides
+        # the template variable.
         assert agent_config["system_message"]["variables"]["TOOL_USAGE"]["files"]
         assert agent_config["system_message_enabled"] is True
 

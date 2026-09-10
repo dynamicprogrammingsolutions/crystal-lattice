@@ -115,6 +115,23 @@ If both are present:
 Mixin defaults continue to come from `mixin_policy.default_merge`. Variant
 overlays default to deep merge.
 
+### Mixin application policy
+
+A mixin's own root `$merge` governs how that mixin merges into its referrer.
+The directive is scoped to that merge action:
+
+- a referenced mixin carrying a root `$merge` is merged under its own policy;
+- a referenced mixin without a root `$merge` is merged under the referrer's
+  root policy, or the `mixin_policy.default_merge` default;
+- the referrer's root policy still governs the referrer's local overlay and
+  any later merge actions the referrer performs, such as provider-to-agent
+  composition.
+
+Mixin-carried directives are consumed by the merge action. Neither the root
+directive nor nested `$merge` directives inside the referenced mixin persist
+into the referrer's resolved configuration. A referrer that needs a nested
+policy for a later merge action declares that policy on itself.
+
 ## Variant language
 
 ### Collection

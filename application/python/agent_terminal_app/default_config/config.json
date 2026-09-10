@@ -456,6 +456,10 @@
       }
     },
     "claude_bash_upstream_parity": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
       "bash_cwd_persistence": true,
       "bash_include_cwd_in_result": false,
       "bash_permissive_cd_guidance": false,
@@ -464,6 +468,10 @@
       }
     },
     "claude_bash_permissive": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
       "bash_cwd_persistence": true,
       "bash_include_cwd_in_result": false,
       "bash_permissive_cd_guidance": true,
@@ -472,6 +480,10 @@
       }
     },
     "claude_bash_permissive_visible": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
       "bash_cwd_persistence": true,
       "bash_include_cwd_in_result": true,
       "bash_permissive_cd_guidance": true,
@@ -480,6 +492,10 @@
       }
     },
     "claude_bash_permissive_no_persistence": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
       "bash_cwd_persistence": false,
       "bash_include_cwd_in_result": false,
       "bash_permissive_cd_guidance": true,
@@ -929,10 +945,6 @@
       }
     },
     "claude-openrouter": {
-      "$merge": {
-        "default": "shallow",
-        "deep": ["system_message"]
-      },
       "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
@@ -952,10 +964,6 @@
       "web_search_provider": "gemini_api"
     },
     "claude-anthropic": {
-      "$merge": {
-        "default": "shallow",
-        "deep": ["system_message"]
-      },
       "mixin_refs": [
         "claude_system_message",
         "claude_bash_permissive",
@@ -997,10 +1005,6 @@
       "model": "qwen3:0.6b"
     },
     "glm-ollama": {
-      "$merge": {
-        "default": "shallow",
-        "deep": ["system_message"]
-      },
       "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "ollama",
       "model": "glm-5.2:cloud",
@@ -1015,10 +1019,6 @@
       }
     },
     "deepseek-ollama": {
-      "$merge": {
-        "default": "shallow",
-        "deep": ["system_message"]
-      },
       "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "ollama",
       "model": "deepseek-v4-pro:cloud",

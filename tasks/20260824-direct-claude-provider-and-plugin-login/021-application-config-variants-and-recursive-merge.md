@@ -324,3 +324,20 @@ Findings and deviations:
 
 The final full Core run after adding the last three edge-case tests completed
 with `502 passed, 26 deselected, 1 xfailed`.
+Follow-up (mixin application policy change, 2026-09-08, user-directed from
+task 010): the mixin-carried directive semantics were redesigned. A
+referenced mixin's own root `$merge` now governs that mixin's merge into its
+referrer and is consumed by that merge action — neither the root directive
+nor nested `$merge` directives inside the referenced mixin persist into the
+referrer's resolved configuration, and directive-less references keep using
+the referrer's root policy. Previously a referenced mixin's root directive
+was popped and replaced by the referrer's at reference time, and nested
+directives survived into the resolved agent to govern later merges (the
+pinned `test_nested_mixin_merge_directive_survives_until_provider_agent_merge`
+behavior). That use case now declares the nested policy on the agent itself.
+The specification gained a "Mixin application policy" section and requirement
+`ACFG-013`; `test_nested_mixin_merge_directive_survives_until_provider_agent_merge`
+was replaced by own-merge governance, consumption, agent-carried, and chained
+mixin tests; the consumer mixin guide documents the new behavior. No shipped
+config relied on the old semantics (the claude bash presets are the first
+directive-carrying mixins and now carry their own per-key policy).
