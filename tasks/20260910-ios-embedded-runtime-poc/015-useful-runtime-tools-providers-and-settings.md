@@ -246,7 +246,7 @@ proven in scope.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 Implement this as a sequence of working vertical checkpoints. Preserve the
 completed `010` simulator flows while replacing inline proof-of-concept pieces
@@ -511,3 +511,9 @@ an automatic snapshot, and survive process relaunch/backgrounding.
   and committed files.
 - Treat skipped credential-gated hosted tests as not run, not as passing
   evidence.
+
+## Implementation Notes
+
+- 2026-09-10: The user approved the Draft execution plan. Execution begins
+  with the shared engine package and Claude-like `Read`/`Write` extraction,
+  followed by the existing authenticated Ollama simulator regression.
