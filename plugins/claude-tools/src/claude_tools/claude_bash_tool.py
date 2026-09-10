@@ -249,6 +249,80 @@ BASH_SCHEMA: Dict[str, Any] = {
     },
 }
 
+# Segments of the upstream ``BASH_DESCRIPTION`` that vary with the cwd
+# persistence and permissive-cd-guidance config options. The constants must
+# match the upstream text exactly; tests assert their presence so upstream
+# description changes are caught.
+_UPSTREAM_OPENING = (
+    "The working directory persists between commands, but shell state does not. "
+    "The shell environment is initialized from the user's profile (bash or zsh).\n\n"
+)
+_NO_PERSISTENCE_OPENING = (
+    "The working directory does not persist between commands; each command "
+    "starts in the configured working directory. Shell state does not persist "
+    "either. The shell environment is initialized from the user's profile "
+    "(bash or zsh).\n\n"
+)
+_UPSTREAM_CD_GUIDANCE = (
+    " - Try to maintain your current working directory throughout the session "
+    "by using absolute paths and avoiding usage of `cd`. You may use `cd` if "
+    "the User explicitly requests it. In particular, never prepend "
+    "`cd <current-directory>` to a `git` command — `git` already operates on "
+    "the current working tree, and the compound triggers a permission prompt.\n"
+)
+_UPSTREAM_CD_GUIDANCE_NO_PERSISTENCE = (
+    " - Try to maintain your current working directory throughout the session "
+    "by using absolute paths and avoiding usage of `cd`. You may use `cd` if "
+    "the User explicitly requests it. When you do use `cd`, chain it with the "
+    "command in a single Bash call (`cd dir && cmd`) because the working "
+    "directory does not persist between commands. In particular, never "
+    "prepend `cd <current-directory>` to a `git` command — `git` already "
+    "operates on the current working tree, and the compound triggers a "
+    "permission prompt.\n"
+)
+_PERMISSIVE_CD_GUIDANCE_PERSISTENT = (
+    " - You may use `cd` when a command must run from a specific directory. "
+    "The working directory persists between commands, so `cd` alone is "
+    "sufficient; you don't need to chain `cd dir && cmd` for one-off "
+    "directory changes. Avoid prepending `cd <current-directory>` to a `git` "
+    "command — `git` already operates on the current working tree, and the "
+    "compound triggers a permission prompt.\n"
+)
+_PERMISSIVE_CD_GUIDANCE_NON_PERSISTENT = (
+    " - You may use `cd` when a command must run from a specific directory. "
+    "The working directory does not persist between commands, so chain "
+    "`cd dir && cmd` in a single Bash call when you need to run from a "
+    "specific directory. Avoid prepending `cd <current-directory>` to a `git` "
+    "command — `git` already operates on the current working tree, and the "
+    "compound triggers a permission prompt.\n"
+)
+
+
+def _bash_description_for_options(
+    *,
+    cwd_persistence: bool,
+    permissive_cd_guidance: bool,
+) -> str:
+    """Build the Bash tool description for the cwd config options.
+
+    With both options at their defaults (persistence on, upstream guidance)
+    the result is the unmodified upstream ``BASH_DESCRIPTION``.
+    """
+    description = BASH_DESCRIPTION
+    if not cwd_persistence:
+        description = description.replace(_UPSTREAM_OPENING, _NO_PERSISTENCE_OPENING)
+        cd_guidance = (
+            _PERMISSIVE_CD_GUIDANCE_NON_PERSISTENT
+            if permissive_cd_guidance
+            else _UPSTREAM_CD_GUIDANCE_NO_PERSISTENCE
+        )
+    elif permissive_cd_guidance:
+        cd_guidance = _PERMISSIVE_CD_GUIDANCE_PERSISTENT
+    else:
+        return description
+    return description.replace(_UPSTREAM_CD_GUIDANCE, cd_guidance)
+
+
 DEFAULT_TIMEOUT_MS = 120_000
 MAX_TIMEOUT_MS = 600_000
 SENTINEL_STATUS = "__CLAUDE_BASH_STATUS__:"
@@ -361,6 +435,24 @@ def _resolve_stored_cwd(stored: Any, configured_wd: str) -> str:
     return candidate
 
 
+def _apply_cwd_lines(
+    message: str,
+    *,
+    start_cwd: str,
+    end_cwd: str,
+    cwd_persistence: bool,
+) -> str:
+    """Wrap a bash result message with cwd visibility lines for the model.
+
+    The initial cwd always appears as the first line. The end cwd is noted as
+    the last line only when the command changed it and the change persists.
+    """
+    parts = [f"[cwd: {start_cwd}]", message]
+    if cwd_persistence and end_cwd != start_cwd:
+        parts.append(f"[cwd: {end_cwd}]")
+    return "\n".join(parts)
+
+
 def _last_bash_end_cwd_from_context(
     context: Optional[Dict[str, Any]],
 ) -> Optional[str]:
@@ -443,6 +535,13 @@ class ClaudeBashTool(ToolPlugin):
             "working_directory": str(Path(working_directory).resolve()),
             "timeout_ms": int(config.get("shell_timeout_ms") or DEFAULT_TIMEOUT_MS),
             "max_timeout_ms": int(config.get("shell_max_timeout_ms") or MAX_TIMEOUT_MS),
+            "cwd_persistence": bool(config.get("bash_cwd_persistence", True)),
+            "include_cwd_in_result": bool(
+                config.get("bash_include_cwd_in_result", False)
+            ),
+            "permissive_cd_guidance": bool(
+                config.get("bash_permissive_cd_guidance", False)
+            ),
             "background_ownership_mode": str(
                 config.get("background_process_ownership_mode")
                 or DEFAULT_BACKGROUND_OWNERSHIP_MODE
@@ -457,7 +556,11 @@ class ClaudeBashTool(ToolPlugin):
         return claude_tool_interop_contribution()
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        return [BASH_SCHEMA]
+        description = _bash_description_for_options(
+            cwd_persistence=bool(state.get("cwd_persistence", True)),
+            permissive_cd_guidance=bool(state.get("permissive_cd_guidance", False)),
+        )
+        return [{**BASH_SCHEMA, "description": description}]
 
     def can_handle_tool_call(
         self,
@@ -570,6 +673,8 @@ class ClaudeBashTool(ToolPlugin):
             timeout_ms = min(default_timeout_ms, max_timeout_ms)
 
         working_directory = str(state.get("working_directory") or os.getcwd())
+        cwd_persistence = bool(state.get("cwd_persistence", True))
+        include_cwd = bool(state.get("include_cwd_in_result", False))
         if bool(payload.get("run_in_background")):
             registry = ensure_background_process_registry(
                 runtime_state_root=_runtime_state_root_from_context(
@@ -606,6 +711,13 @@ class ClaudeBashTool(ToolPlugin):
                     f"Command running in background with ID: {background_id}. "
                     f"Output is being written to: {output_path}"
                 )
+                if include_cwd:
+                    message = _apply_cwd_lines(
+                        message,
+                        start_cwd=working_directory,
+                        end_cwd=working_directory,
+                        cwd_persistence=False,
+                    )
                 return self._result(
                     tool_use_id=tool_use_id,
                     message=message,
@@ -623,27 +735,48 @@ class ClaudeBashTool(ToolPlugin):
                 else ""
             )
             if background.status == "succeeded":
+                message = self._format_success_output(output)
+                if include_cwd:
+                    message = _apply_cwd_lines(
+                        message,
+                        start_cwd=working_directory,
+                        end_cwd=working_directory,
+                        cwd_persistence=False,
+                    )
                 return self._result(
                     tool_use_id=tool_use_id,
-                    message=self._format_success_output(output),
+                    message=message,
                     success=True,
+                )
+            message = self._format_failure_output(
+                exit_code=int(background.exit_code or 0),
+                output=output,
+            )
+            if include_cwd:
+                message = _apply_cwd_lines(
+                    message,
+                    start_cwd=working_directory,
+                    end_cwd=working_directory,
+                    cwd_persistence=False,
                 )
             return self._result(
                 tool_use_id=tool_use_id,
-                message=self._format_failure_output(
-                    exit_code=int(background.exit_code or 0),
-                    output=output,
-                ),
+                message=message,
                 success=False,
             )
 
         # Resolve the working directory from the most recent bash tool-result
         # ``end_cwd`` in the session, falling back to the configured working
         # directory. This makes ``cd`` persist between commands the way the
-        # upstream Claude Code Bash tool description says it does.
-        stored_cwd = _last_bash_end_cwd_from_context(context)
-        if stored_cwd is not None:
-            resolved = _resolve_stored_cwd(stored_cwd, working_directory)
+        # upstream Claude Code Bash tool description says it does. When cwd
+        # persistence is disabled, every command starts in the configured
+        # working directory and no ``end_cwd`` metadata is emitted.
+        if cwd_persistence:
+            stored_cwd = _last_bash_end_cwd_from_context(context)
+            if stored_cwd is not None:
+                resolved = _resolve_stored_cwd(stored_cwd, working_directory)
+            else:
+                resolved = str(Path(working_directory).resolve())
         else:
             resolved = str(Path(working_directory).resolve())
 
@@ -655,20 +788,26 @@ class ClaudeBashTool(ToolPlugin):
         exit_code = int(foreground["exit_code"])
         output = str(foreground["output"] or "")
         end_cwd = str(foreground.get("cwd") or resolved)
-        stored = _cwd_for_storage(end_cwd, working_directory)
-        cwd_metadata = {"bash": {"end_cwd": stored}}
         if foreground["success"]:
-            return self._result(
-                tool_use_id=tool_use_id,
-                message=self._format_success_output(output),
-                success=True,
-                extra={"metadata": cwd_metadata},
+            message = self._format_success_output(output)
+        else:
+            message = self._format_failure_output(exit_code=exit_code, output=output)
+        if include_cwd:
+            message = _apply_cwd_lines(
+                message,
+                start_cwd=resolved,
+                end_cwd=end_cwd,
+                cwd_persistence=cwd_persistence,
             )
+        extra: Optional[Dict[str, Any]] = None
+        if cwd_persistence:
+            stored = _cwd_for_storage(end_cwd, working_directory)
+            extra = {"metadata": {"bash": {"end_cwd": stored}}}
         return self._result(
             tool_use_id=tool_use_id,
-            message=self._format_failure_output(exit_code=exit_code, output=output),
-            success=False,
-            extra={"metadata": cwd_metadata},
+            message=message,
+            success=bool(foreground["success"]),
+            extra=extra,
         )
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:

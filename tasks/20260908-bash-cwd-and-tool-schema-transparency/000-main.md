@@ -9,12 +9,12 @@ no dependency on each other and can be executed in parallel.
 
 ## Requirements checklist
 
-- [ ] Bash tool cwd persistence, result visibility, and cd guidance config options are delivered and verified per `tasks/20260908-bash-cwd-and-tool-schema-transparency/010-bash-cwd-persistence-and-visibility.md`.
+- [x] Bash tool cwd persistence, result visibility, and cd guidance config options are delivered and verified per `tasks/20260908-bash-cwd-and-tool-schema-transparency/010-bash-cwd-persistence-and-visibility.md`.
 - [ ] Tool schema transparency capabilities are delivered per the requirements in `tasks/20260908-bash-cwd-and-tool-schema-transparency/020-tool-schema-transparency.md`, with the implementation approach and UX planned in a separate brainstorming session before execution.
 
 ## Subtasks
 
-- [ ] `tasks/20260908-bash-cwd-and-tool-schema-transparency/010-bash-cwd-persistence-and-visibility.md`
+- [x] `tasks/20260908-bash-cwd-and-tool-schema-transparency/010-bash-cwd-persistence-and-visibility.md`
 - [ ] `tasks/20260908-bash-cwd-and-tool-schema-transparency/020-tool-schema-transparency.md`
   - PARALLEL with `010-bash-cwd-persistence-and-visibility.md` — no dependency in either direction.
 

@@ -396,7 +396,7 @@
     "claude_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
         "variables": {
           "INTRODUCTION": {
@@ -412,6 +412,16 @@
           "TOOL_USAGE": {
             "files": [
               "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage.md"
+            ]
+          },
+          "TOOL_USAGE_PERMISSIVE_CD": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd.md"
+            ]
+          },
+          "TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd-no-persistence.md"
             ]
           },
           "TONE_AND_STYLE": {
@@ -443,6 +453,54 @@
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
           }
         }
+      }
+    },
+    "claude_bash_upstream_parity": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": false,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_bash_permissive": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_bash_permissive_visible": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": true,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_bash_permissive_no_persistence": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
+      "bash_cwd_persistence": false,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
       }
     },
     "claude_anthropic_model_variants": {
@@ -887,7 +945,7 @@
       }
     },
     "claude-openrouter": {
-      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
+      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
       "plugins": [
@@ -908,6 +966,7 @@
     "claude-anthropic": {
       "mixin_refs": [
         "claude_system_message",
+        "claude_bash_permissive",
         "claude_mcp_defaults",
         "claude_anthropic_model_variants"
       ],
@@ -946,7 +1005,7 @@
       "model": "qwen3:0.6b"
     },
     "glm-ollama": {
-      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
+      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "ollama",
       "model": "glm-5.2:cloud",
       "plugins": [
@@ -964,7 +1023,7 @@
       }
     },
     "deepseek-ollama": {
-      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
+      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "ollama",
       "model": "deepseek-v4-pro:cloud",
       "plugins": [

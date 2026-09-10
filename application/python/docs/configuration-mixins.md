@@ -136,6 +136,48 @@ Nested mappings can define another policy for their children:
 Key lists use direct names, not dotted paths. One key cannot appear under both
 `shallow` and `deep`.
 
+## Mixin application policy
+
+A mixin's own root `$merge` governs how that mixin merges into its referrer.
+The directive is scoped to that merge action:
+
+- a referenced mixin carrying a root `$merge` is merged under its own policy;
+- a referenced mixin without a root `$merge` is merged under the referrer's
+  root policy, or the `mixin_policy.default_merge` default;
+- the referrer's root policy still governs the referrer's local keys and any
+  later merge actions it performs, such as provider-to-agent composition.
+
+Mixin-carried directives are consumed by the merge action. Neither the root
+directive nor nested `$merge` directives inside the referenced mixin persist
+into the referrer's resolved configuration:
+
+```json
+{
+  "mixins": {
+    "system-base": {
+      "system_message": {
+        "template": "{{INTRO}}",
+        "variables": {"INTRO": "x"}
+      }
+    },
+    "preset": {
+      "$merge": {"default": "shallow", "deep": ["system_message"]},
+      "system_message": {"template": "{{INTRO}}\n{{EXTRA}}"}
+    }
+  },
+  "agents": {
+    "default": {
+      "mixin_refs": ["system-base", "preset"]
+    }
+  }
+}
+```
+
+The `preset` mixin deep-merges only `system_message`, so the resolved agent
+keeps the base variables while using the preset template, and the resolved
+agent contains no `$merge` keys. A referrer that needs a nested policy for a
+later merge action declares that policy on itself.
+
 ## Compatibility
 
 Existing configurations can continue using:
