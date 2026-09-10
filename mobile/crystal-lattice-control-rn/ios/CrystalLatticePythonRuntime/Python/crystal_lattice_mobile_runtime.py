@@ -44,7 +44,48 @@ class EmbeddedSmokeProvider(ProviderPlugin):
         yield {"content": "Embedded runtime smoke response"}
 
 
-def _config_payload() -> dict[str, Any]:
+def _normalized_runtime_configuration(
+    runtime_configuration: dict[str, Any] | None,
+) -> dict[str, str]:
+    source = runtime_configuration if isinstance(runtime_configuration, dict) else {}
+    return {
+        key: str(source.get(key) or "").strip()
+        for key in ("api_key", "model", "proxy_url")
+    }
+
+
+def _config_payload(
+    runtime_configuration: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    configuration = _normalized_runtime_configuration(runtime_configuration)
+    use_openai_compatible = all(configuration.values())
+    provider_id = (
+        "reference_openai_compatible"
+        if use_openai_compatible
+        else "embedded_smoke_provider"
+    )
+    provider_config: dict[str, Any] = {
+        "provider": provider_id,
+        "model": (
+            configuration["model"] if use_openai_compatible else "embedded-smoke"
+        ),
+    }
+    plugins = ["crystal_lattice_mobile_runtime.EmbeddedSmokeProvider"]
+    if use_openai_compatible:
+        provider_config.update(
+            {
+                "api_key": configuration["api_key"],
+                "base_url": configuration["proxy_url"],
+                "timeout": 120,
+            }
+        )
+        plugins = [
+            (
+                "reference_openai_compatible_provider.provider."
+                "OpenAICompatibleProvider"
+            ),
+        ]
+
     return {
         "plugin_policy": {
             "allow_bash_tools": False,
@@ -52,15 +93,8 @@ def _config_payload() -> dict[str, Any]:
             "allow_node_tools": False,
             "allow_remote": False,
         },
-        "providers": {
-            "embedded": {
-                "provider": "embedded_smoke_provider",
-                "model": "embedded-smoke",
-            }
-        },
-        "plugins": [
-            "crystal_lattice_mobile_runtime.EmbeddedSmokeProvider",
-        ],
+        "providers": {"embedded": provider_config},
+        "plugins": plugins,
         "agents": {
             "local": {
                 "provider": "embedded",
@@ -70,8 +104,15 @@ def _config_payload() -> dict[str, Any]:
 
 
 class MobileRuntime:
-    def __init__(self, runtime_root: str) -> None:
+    def __init__(
+        self,
+        runtime_root: str,
+        runtime_configuration: dict[str, Any] | None = None,
+    ) -> None:
         self.root = Path(runtime_root)
+        self.runtime_configuration = _normalized_runtime_configuration(
+            runtime_configuration
+        )
         self.config_dir = self.root / "config"
         self.sessions_dir = self.root / "sessions"
         self.workspace_dir = self.root / "workspace"
@@ -81,7 +122,11 @@ class MobileRuntime:
 
         self.config_path = self.config_dir / "config.json"
         self.config_path.write_text(
-            json.dumps(_config_payload(), indent=2) + "\n",
+            json.dumps(
+                _config_payload(self.runtime_configuration),
+                indent=2,
+            )
+            + "\n",
             encoding="utf-8",
         )
         self.application = AgentApplication(
@@ -174,13 +219,21 @@ class MobileRuntime:
 _runtime: MobileRuntime | None = None
 
 
-def _get_runtime(runtime_root: str) -> MobileRuntime:
+def _get_runtime(
+    runtime_root: str,
+    runtime_configuration: dict[str, Any] | None = None,
+) -> MobileRuntime:
     global _runtime
     resolved = str(Path(runtime_root).resolve())
-    if _runtime is None or str(_runtime.root.resolve()) != resolved:
+    normalized_configuration = _normalized_runtime_configuration(runtime_configuration)
+    if (
+        _runtime is None
+        or str(_runtime.root.resolve()) != resolved
+        or _runtime.runtime_configuration != normalized_configuration
+    ):
         if _runtime is not None:
             _runtime.application.close()
-        _runtime = MobileRuntime(resolved)
+        _runtime = MobileRuntime(resolved, normalized_configuration)
     return _runtime
 
 
@@ -615,7 +668,18 @@ def execute_json(command_json: str, runtime_root: str) -> str:
         request = json.loads(command_json)
         if not isinstance(request, dict):
             raise ValueError("Embedded runtime request must be an object")
-        response = _handle_request(_get_runtime(runtime_root), request)
+        runtime_configuration = request.get("runtimeConfiguration")
+        response = _handle_request(
+            _get_runtime(
+                runtime_root,
+                (
+                    runtime_configuration
+                    if isinstance(runtime_configuration, dict)
+                    else None
+                ),
+            ),
+            request,
+        )
     except KeyError as error:
         response = _response(404, {"detail": str(error)})
     except ValueError as error:

@@ -8,6 +8,8 @@ export interface EmbeddedPythonRuntimeInfo {
   agents?: string[];
   sessionId?: string;
   messageCount?: number;
+  providerMode?: "smoke" | "openai-compatible";
+  assistantContent?: string;
 }
 
 export interface EmbeddedRuntimeResponse<T = any> {
@@ -25,7 +27,8 @@ interface EmbeddedPythonRuntimeModule {
 const nativeRuntime =
   Platform.OS === "ios"
     ? (NativeModules.CrystalLatticePythonRuntime as
-        EmbeddedPythonRuntimeModule | undefined)
+        | EmbeddedPythonRuntimeModule
+        | undefined)
     : undefined;
 
 function requireNativeRuntime(): EmbeddedPythonRuntimeModule {
@@ -48,7 +51,7 @@ export async function runEmbeddedApplicationSmoke(): Promise<EmbeddedPythonRunti
 }
 
 export async function executeEmbeddedRuntimeCommand<T = any>(
-  request: Record<string, unknown>,
+  request: Record<string, unknown>
 ): Promise<EmbeddedRuntimeResponse<T>> {
   return requireNativeRuntime().execute(request);
 }

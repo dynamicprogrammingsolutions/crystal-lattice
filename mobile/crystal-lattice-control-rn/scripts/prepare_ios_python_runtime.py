@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "4"
+RUNTIME_LAYOUT_VERSION = "5"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -34,9 +34,14 @@ CACHE_DIR = (
 CACHE_ARCHIVE = CACHE_DIR / ARCHIVE_NAME
 PURE_DEPENDENCY_CACHE = CACHE_DIR / "pure-dependencies-v1"
 PURE_DEPENDENCIES = (
+    "certifi==2024.2.2",
+    "charset-normalizer==3.4.4",
+    "idna==3.18",
     "jsonpath-ng==1.7.0",
     "ply==3.11",
+    "requests==2.31.0",
     "structlog==25.5.0",
+    "urllib3==2.2.1",
 )
 
 
@@ -84,6 +89,13 @@ def source_digest() -> str:
     source_roots = (
         REPO_ROOT / "core" / "python" / "agent_core",
         REPO_ROOT / "core" / "python" / "agent_app",
+        (
+            REPO_ROOT
+            / "plugins"
+            / "reference-openai-compatible-provider"
+            / "src"
+            / "reference_openai_compatible_provider"
+        ),
         PYTHON_APP_SOURCE,
     )
     for source_root in source_roots:
@@ -131,6 +143,19 @@ def add_python_tree(
         archive.write(path, destination / path.relative_to(source))
 
 
+def add_package_tree(
+    archive: zipfile.ZipFile,
+    source: Path,
+    destination: Path,
+) -> None:
+    for path in sorted(source.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        if path.suffix not in {".pem", ".py"}:
+            continue
+        archive.write(path, destination / path.relative_to(source))
+
+
 def create_application_archive(destination: Path) -> None:
     dependencies = ensure_pure_dependencies()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -145,11 +170,31 @@ def create_application_archive(destination: Path) -> None:
             REPO_ROOT / "core" / "python" / "agent_app",
             Path("agent_app"),
         )
+        add_python_tree(
+            archive,
+            (
+                REPO_ROOT
+                / "plugins"
+                / "reference-openai-compatible-provider"
+                / "src"
+                / "reference_openai_compatible_provider"
+            ),
+            Path("reference_openai_compatible_provider"),
+        )
         add_python_tree(archive, PYTHON_APP_SOURCE, Path())
-        for package_name in ("jsonpath_ng", "ply", "structlog"):
+        for package_name in (
+            "certifi",
+            "charset_normalizer",
+            "idna",
+            "jsonpath_ng",
+            "ply",
+            "requests",
+            "structlog",
+            "urllib3",
+        ):
             package_path = dependencies / package_name
             if package_path.is_dir():
-                add_python_tree(archive, package_path, Path(package_name))
+                add_package_tree(archive, package_path, Path(package_name))
             else:
                 module_path = dependencies / f"{package_name}.py"
                 if not module_path.is_file():

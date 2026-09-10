@@ -267,3 +267,12 @@ evidence.
   API-key-protected request through the proxy reached local Ollama
   `qwen3:0.6b`; wrong credentials returned `401`, correct credentials returned
   `READY`, and the test key was absent from proxy logs.
+- 2026-09-10: Bundled the repository's reference OpenAI-compatible provider and
+  a pinned pure-Python `requests` closure. The native owner injects proxy URL,
+  API key, and model at runtime; committed config contains no credential.
+  Host integration reached `qwen3:0.6b` through the authenticated proxy.
+- 2026-09-10: The dedicated Ollama Detox scenario launched the release
+  simulator app with owner configuration, selected the real provider instead
+  of the development smoke provider, completed a model request, and persisted
+  a non-empty assistant response. The run passed in 103.9 seconds and the API
+  key was absent from proxy logs.

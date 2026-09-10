@@ -51,7 +51,7 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
             requestId: started.request_id,
           });
           completed = events.events.some(
-            (event) => event.type === "request_completed",
+            (event) => event.type === "request_completed"
           );
           if (!completed) {
             await new Promise<void>((resolve) => setTimeout(resolve, 50));
@@ -61,12 +61,20 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
           throw new Error("Embedded backend request did not complete.");
         }
         const messages = await backend.listMessages(sessionId);
+        const assistant = [...messages.messages]
+          .reverse()
+          .find((entry) => entry.message.role === "assistant");
         const info: EmbeddedPythonRuntimeInfo = {
           ...runtimeInfo,
           answer: smokeInfo.answer,
           agents,
           sessionId,
           messageCount: messages.messages.length,
+          providerMode:
+            assistant?.message.metadata?.development_smoke_provider === true
+              ? "smoke"
+              : "openai-compatible",
+          assistantContent: String(assistant?.message.content ?? ""),
         };
         if (active) {
           setRuntimeState({ status: "ready", info });
@@ -141,6 +149,18 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
               style={styles.detail}
             >
               {runtimeState.info.sessionId}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-provider-mode"
+              style={styles.detail}
+            >
+              {runtimeState.info.providerMode}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-assistant"
+              style={styles.detail}
+            >
+              {runtimeState.info.assistantContent}
             </Text>
           </>
         )}

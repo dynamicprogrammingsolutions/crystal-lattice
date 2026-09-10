@@ -40,6 +40,7 @@
     "detox:test:ordered-list:ios": "detox test -c ios.sim.release e2e/orderedListMarkdown.e2e.test.ts --cleanup",
     "detox:test:ordered-list:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/orderedListMarkdown.e2e.test.ts --cleanup",
     "detox:test:embedded-python-runtime:ios": "detox test -c ios.sim.release e2e/embeddedPythonRuntime.e2e.test.ts --cleanup",
+    "detox:test:embedded-python-ollama:ios": "detox test -c ios.sim.release e2e/embeddedPythonRuntimeOllama.e2e.test.ts --cleanup",
     "detox:test:notification-ui-effects:ios": "detox test -c ios.sim.release e2e/notificationUiEffects.e2e.test.ts --cleanup",
     "detox:test:notification-ui-effects:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/notificationUiEffects.e2e.test.ts --cleanup",
     "detox:test:website-visual:ios": "detox test -c ios.sim.release e2e/websiteVisualCapture.e2e.test.ts --cleanup",

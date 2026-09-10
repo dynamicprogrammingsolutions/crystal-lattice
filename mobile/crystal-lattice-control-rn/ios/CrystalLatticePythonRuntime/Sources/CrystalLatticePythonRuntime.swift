@@ -81,10 +81,18 @@ final class CrystalLatticePythonRuntime: NSObject {
     Self.queue.async {
       do {
         _ = try Self.startIfNeeded()
-        guard JSONSerialization.isValidJSONObject(request) else {
+        guard var command = request as? [String: Any] else {
           throw RuntimeError.invalidCommand
         }
-        let requestData = try JSONSerialization.data(withJSONObject: request)
+        if command["runtimeConfiguration"] == nil,
+          let runtimeConfiguration = Self.runtimeConfiguration()
+        {
+          command["runtimeConfiguration"] = runtimeConfiguration
+        }
+        guard JSONSerialization.isValidJSONObject(command) else {
+          throw RuntimeError.invalidCommand
+        }
+        let requestData = try JSONSerialization.data(withJSONObject: command)
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
           throw RuntimeError.invalidCommand
         }
@@ -166,6 +174,18 @@ final class CrystalLatticePythonRuntime: NSObject {
       withIntermediateDirectories: true
     )
     return root
+  }
+
+  private static func runtimeConfiguration() -> [String: String]? {
+    let defaults = UserDefaults.standard
+    let configuration = [
+      "api_key": defaults.string(forKey: "clcEmbeddedProxyAPIKey") ?? "",
+      "model": defaults.string(forKey: "clcEmbeddedModel") ?? "",
+      "proxy_url": defaults.string(forKey: "clcEmbeddedProxyURL") ?? "",
+    ]
+    return configuration.values.allSatisfy { !$0.isEmpty }
+      ? configuration
+      : nil
   }
 
   private enum RuntimeError: LocalizedError {

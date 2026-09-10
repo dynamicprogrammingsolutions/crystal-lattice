@@ -14,9 +14,11 @@ RUNTIME_MODULE = (
     / "Python"
     / "crystal_lattice_mobile_runtime.py"
 )
+CORE_PYTHON = Path(__file__).resolve().parents[3] / "core" / "python"
 
 
 def load_runtime_module():
+    sys.path.insert(0, str(CORE_PYTHON))
     spec = importlib.util.spec_from_file_location(
         "crystal_lattice_mobile_runtime",
         RUNTIME_MODULE,
