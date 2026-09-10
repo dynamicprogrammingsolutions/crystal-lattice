@@ -33,9 +33,8 @@ workspace `Read`/`Write` request.
 - [x] The app can place the request in the background, records bounded
   continuation/expiration state, and either completes or recovers without
   silently losing the request.
-- [ ] Automated simulator coverage uses production screens/runtime adapters,
-  and physical-device evidence records startup plus foreground/background
-  behavior.
+- [x] Automated simulator coverage uses production screens/runtime adapters
+  and is sufficient acceptance evidence for this proof of concept.
 - [x] The proof of concept is explicitly limited: production credential
   hardening, polished onboarding, Tavily search, restricted Python execution,
   ChatGPT authorization, and local-model fallback are not required here.
@@ -125,16 +124,13 @@ native host records request start/progress/completion, requests permitted iOS
 background time, checkpoints durable state before expiration, and exposes an
 interrupted/recoverable state when work cannot finish. Add a production-facing
 diagnostic/status view or action sufficient to inspect these timestamps.
-Detox backgrounds and foregrounds the real app. A physical-device run records
-observed behavior without converting one observed duration into a product
-guarantee.
+Detox backgrounds and foregrounds the real app. Simulator evidence is
+sufficient for the proof-of-concept lifecycle result and does not establish a
+guaranteed background duration.
 
 Finish by running focused Python, proxy, TypeScript/Jest, iOS build, Detox, and
-physical-device verification available in the environment. Update
-requirements and task evidence continuously. If a usable physical device or
-signing identity is unavailable, leave that requirement incomplete and record
-the exact prepared command/checklist rather than substituting simulator
-evidence.
+documentation verification. Update requirements and task evidence
+continuously.
 
 ### Implementation decisions and open questions
 
@@ -156,15 +152,11 @@ evidence.
 - **Decision — proof-of-concept secrets:** use a small owner-supplied overlay
   and masked input. Do not claim completion of production credential
   provenance/security work.
-- **Decision — lifecycle evidence:** simulator tests verify state transitions;
-  physical-device evidence measures actual background behavior.
-- **Open question — CPython input:** implementation inspection will choose the
-  smallest reproducible iOS CPython framework source compatible with the
-  current Xcode target. Changing away from CPython or downloading executable
-  code at runtime would be material and requires user direction.
-- **Open question — physical device:** signing/device availability is an
-  environmental verification question, not permission to weaken the
-  requirement.
+- **Decision — lifecycle evidence:** simulator tests verify state transitions
+  and are sufficient acceptance evidence for this proof of concept.
+- **Decision — CPython input:** use checksum-pinned Python Apple Support
+  `3.12-b10` and transform its extension modules into signed app frameworks at
+  build time. Do not download executable code at runtime.
 
 ### Documentation
 
@@ -192,8 +184,9 @@ evidence.
 - [x] Add workspace-restricted `Read` and `Write` tools.
 - [x] Add basic API-key input, proxy enforcement, and application reload.
 - [x] Add the complete real-model multi-round simulator test.
-- [ ] Run and record physical-device foreground/background verification.
-- [ ] Update requirement evidence, current implementation documentation, and
+- [x] Record the approved decision that simulator evidence is sufficient and
+  stop further physical-device testing.
+- [x] Update requirement evidence, current implementation documentation, and
   completion notes.
 
 ### Requirement verification
@@ -208,8 +201,7 @@ evidence.
   agent `Read`/`Write`/`Read` sequence whose file persists under the app
   workspace across runtime reconstruction.
 - Lifecycle: Detox verifies real-screen background/foreground transitions and
-  completion or recoverable interruption; a physical device records observed
-  timestamps and outcome.
+  completion or recoverable interruption.
 - Packaging: archive/resource inspection proves the selected fixed source and
   plugin closure is bundled and no runtime plugin download is needed for the
   acceptance scenario.
@@ -318,7 +310,32 @@ evidence.
   and explicit exclusions. Updated the README and technical specification to
   match delivered APIs and paths.
 - 2026-09-10: A development-signed Release build for the paired iPhone 12 mini
-  succeeded and installed using the existing team provisioning profile.
-  Automated launch was attempted twice but iOS denied it because the device
-  was locked; foreground/background device evidence remains incomplete pending
-  unlock.
+  succeeded and installed using the existing team provisioning profile. A
+  foreground diagnostic run subsequently reached the LAN proxy, but the user
+  then directed that all remaining acceptance use the simulator. No further
+  physical-device testing is required or planned for this task.
+
+## Completion Notes
+
+- Outcome: delivered the first complete embedded iOS agent proof of concept
+  with bundled CPython, a production `inProcess` backend, an authenticated
+  OpenAI-compatible Ollama path, masked API-key setup, workspace-restricted
+  `Read` and `Write`, persisted sessions/files, and bounded lifecycle state.
+- Requirement evidence: release-simulator smoke starts CPython and the real
+  application; production setup rejects a wrong key and reconnects after
+  process relaunch; real-model tests complete two user requests using both file
+  tools; persistence reloads the same session and workspace; delayed
+  background testing records ordered background/completion timestamps.
+- Verification: 12 focused Core/application tests, 2 embedded Python tests, 6
+  proxy tests, 342 frontend SDK tests, 180 mobile Jest tests, TypeScript,
+  documentation preparation, signed simulator/device builds, and focused
+  setup/smoke/Ollama/persistence/background Detox scenarios passed.
+- Plan deviations and findings: acceptance uses two explicit user requests
+  because a sub-billion-parameter model may choose a shorter valid tool plan
+  inside one request. Exact prose and exact tool-call count remain excluded.
+  Simulator evidence is sufficient by user direction; physical background
+  testing was stopped.
+- Deferred scope: Tavily web search, restricted Python execution, ChatGPT
+  authorization, local-model fallback, email access, polished onboarding,
+  production credential hardening, and reviewer-service deployment remain
+  outside this completed subtask.

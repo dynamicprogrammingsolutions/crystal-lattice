@@ -18,24 +18,24 @@ users can drive with their own provider credentials.
 - [ ] The minimal reviewed flow exercises sessions, message send/receive,
   visible tool calls/results, workspace persistence, and recovery across
   navigation or relaunch.
-- [ ] The completed built-in runtime includes general file reader and writer
+- [x] The completed built-in runtime includes general file reader and writer
   tools restricted to one app-owned or user-selected workspace.
 - [ ] A near-term fixed tool set adds Tavily web search, an equivalent
   authenticated reviewer search proxy, and restricted Python execution that
   cannot change the application, runtime, configuration, or plugin set.
-- [ ] Provider credentials and bundled-agent controls flow through generic
+- [x] Provider credentials and bundled-agent controls flow through generic
   application configuration and complete runtime reload rather than only
   session overrides.
-- [ ] The built-in runtime uses a fixed, reviewed configuration and plugin/tool
+- [x] The built-in runtime uses a fixed, reviewed configuration and plugin/tool
   closure, with no downloaded executable or plugin code required to unlock
   reviewed behavior.
-- [ ] Background work is bounded by iOS execution policy, persists enough
+- [x] Background work is bounded by iOS execution policy, persists enough
   request/session state to recover, and communicates completion,
   interruption, or retry honestly.
 - [ ] App Review notes contain the supplied credentials, exact test steps,
   expected structural results, and any device/runtime limitations.
-- [ ] Simulator automation and physical-device evidence cover the initial
-  embedded-runtime path before external TestFlight review.
+- [x] Simulator automation covers the initial embedded-runtime path and is
+  sufficient evidence for this capability before external TestFlight review.
 
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
 
@@ -132,9 +132,8 @@ As of September 10, 2026:
 - The current mobile host disconnects its selected transport when the app
   leaves the active state. An in-process runtime needs a distinct
   prepare/checkpoint/recover path.
-- Simulator automation can verify lifecycle transitions and persisted state,
-  but physical-device testing is required to observe real background time and
-  expiration behavior.
+- Simulator automation verifies lifecycle transitions and persisted state and
+  is sufficient acceptance evidence for the initial capability.
 - The proof of concept should add runtime timestamps and state diagnostics to
   the real app path, use a deliberately slow multi-round request, and test both
   completion and interruption recovery. It should not promise a fixed
@@ -173,7 +172,7 @@ The initial implementation may stage behavior in this order:
 4. Workspace-restricted `Read` and `Write` tools are added.
 5. The proxy enforces an API key and the app supplies it through a basic
    configuration path.
-6. Simulator and physical-device checks exercise the complete scenario.
+6. Simulator checks exercise the complete scenario.
 
 The unauthenticated stages are temporary development checkpoints. The end of
 the proof of concept requires proxy API-key enforcement.
@@ -192,6 +191,24 @@ the proof of concept requires proxy API-key enforcement.
   integrations only through later direction-setting work.
 
 These ideas do not expand the initial proof-of-concept specification.
+
+## Delivered embedded-runtime foundation
+
+`tasks/20260910-ios-embedded-runtime-poc/010-embedded-runtime-openai-proxy-and-file-tools.md`
+is complete. It delivered:
+
+- app-bundled CPython and the fixed Crystal Lattice closure;
+- a production `inProcess` backend and iOS connection/setup path;
+- masked API-key owner configuration with complete application reconstruction;
+- an authenticated OpenAI-compatible Ollama proxy;
+- workspace-restricted text `Read` and `Write`;
+- persisted sessions and workspace output across process relaunch;
+- bounded native lifecycle state and delayed background continuation;
+- production-screen, real-model, persistence, and background simulator tests.
+
+The completed foundation does not deliver the public reviewer service,
+ChatGPT authorization, on-device model fallback, Tavily, restricted Python,
+privacy reconciliation, or external TestFlight review package.
 
 ## App Review and completion notes
 

@@ -220,9 +220,9 @@ On foreground:
 2. Surface completed output or an explicit interrupted/retryable state.
 3. Do not duplicate a provider request automatically.
 
-The simulator verifies transitions and persistence. Physical-device
-verification records observed timing and outcome; it does not establish a
-guaranteed number of background minutes.
+The simulator verifies transitions and persistence and is sufficient
+acceptance evidence for this proof of concept. Actual background duration
+remains controlled by iOS and is not a guaranteed number of minutes.
 
 ## Staged acceptance
 
@@ -248,7 +248,6 @@ is complete only for the final authenticated combined path.
   diagnostics.
 - Mobile Jest tests own adapter and settings state.
 - Detox owns the real production-screen simulator flow.
-- Physical-device evidence owns real iOS background behavior and startup.
 - A real Ollama model owns final provider/tool-loop evidence. Deterministic
   test providers may support lower-level tests but are not acceptance evidence
   for the product path.
