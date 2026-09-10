@@ -1,8 +1,8 @@
 # Embedded iOS Agent Runtime Proof Of Concept
 
 Create the first working embedded Python agent runtime in the real iOS
-application, then add only the two nearest tool capabilities needed to extend
-it.
+application, make it minimally useful with provider, tool, settings, and
+session-management parity, then add the next research-oriented capabilities.
 
 ## Requirements checklist
 
@@ -15,6 +15,17 @@ it.
 - [x] A simple multi-round request is verifiable in the simulator, including
   bounded background continuation or recovery. Simulator evidence is
   sufficient for this proof of concept.
+- [ ] A separate iOS-safe tool package provides a useful Claude-like workspace
+  tool set plus simple public web fetching across the supported providers.
+- [ ] The embedded runtime offers fixed OpenAI-compatible, OpenAI Responses,
+  OpenRouter, and Anthropic agents with provider-specific settings.
+- [ ] The local connection is preconfigured, and Home exposes a separate local
+  runtime settings window for provider credentials, URLs, models, and default
+  selection.
+- [ ] The iOS-safe application plugins from the ordinary default configuration
+  expose session actions, message deletion, titles, search, metadata, status,
+  pinning, archive, ordering, and attachments through the production mobile
+  UI.
 - [ ] Tavily web search is added as the next fixed tool, with an equivalent
   reviewer proxy path.
 - [ ] A restricted Python interpreter is exposed as a later fixed tool without
@@ -29,19 +40,21 @@ tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-t
 
 The related task retains the broader App Review, local-model fallback,
 privacy, reviewer-service, and external TestFlight outcomes. This task owns
-the initial implementation and only the first two tool enhancements.
+the embedded implementation and its staged tool/provider enhancements.
 
 ## Scope boundaries
 
-- Subtask `010` is approved for immediate execution.
-- Subtasks `020` and `030` record likely next increments but have no approved
+- Subtask `010` is complete.
+- Subtask `015` contains a Draft execution plan awaiting approval.
+- Subtasks `020` and `030` record later increments but have no approved
   execution plan.
-- ChatGPT authorization, local-model fallback, email, broad file operations,
-  production reviewer deployment, and polished production credential
-  hardening are outside this task's current execution scope.
+- ChatGPT authorization, local-model fallback, email, arbitrary workspace
+  roots, production reviewer deployment, and polished cross-platform
+  credential hardening are outside this task's current execution scope.
 
 ## Subtasks
 
 - [x] `tasks/20260910-ios-embedded-runtime-poc/010-embedded-runtime-openai-proxy-and-file-tools.md`
+- [ ] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/020-tavily-web-search.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`
