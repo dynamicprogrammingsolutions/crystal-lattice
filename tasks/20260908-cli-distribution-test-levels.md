@@ -1097,3 +1097,328 @@ archive-based smokes.
   targets in GitHub Actions run `34372198266`. The first native attempt
   correctly isolated a Windows WSL-versus-Git-Bash resolution defect, which
   was fixed and covered before the successful rerun.
+
+### Additional follow-up — script ownership, npm names, and progress logs
+
+Status: Approved
+
+#### Requirements checklist
+
+- [ ] CLI application build, install, release, and smoke entry-point scripts
+  live under `application/python/scripts/` unless a documented cross-package
+  consumer or shipped-runtime contract requires root ownership.
+- [ ] The root `scripts/` directory retains only repository-wide utilities and
+  the tightly coupled cross-runtime packaging primitives that are consumed by
+  the cloud orchestrator or copied into shipped runtime packages.
+- [ ] Moving package-local maintainer scripts does not cause
+  `application/python/scripts/` to be copied wholesale into the shipped
+  bundled-Python runtime or Python wheel.
+- [ ] Root npm command names consistently use the existing
+  `action:cli:variant` convention for CLI build and install commands.
+- [ ] Tracked documentation, VS Code tasks, workflows, tests, and release
+  tooling use the renamed npm commands and package-local script paths without
+  compatibility aliases unless a concrete external consumer requires one.
+- [ ] Every CLI script with a potentially long environment creation,
+  dependency installation, archive build, installation, or boot phase prints
+  progress before that phase begins and streams useful child-process output.
+- [ ] A long boot phase identifies its server-log path before waiting and
+  periodically reports that it is still waiting; failures retain the existing
+  bounded log-tail diagnostics.
+- [ ] Python progress output follows the numbered-step and indented-detail
+  convention used by `release:cli`; the standalone public shell installer
+  uses the same visible convention without requiring repository files after
+  download.
+- [ ] Progress logging does not print configured credentials or full child
+  environments, does not reintroduce unread-pipe deadlocks, and preserves
+  bounded failure diagnostics.
+
+#### Findings
+
+- The root `scripts/` directory currently contains 21 files. Thirteen are
+  application-only CLI entry points or smoke helpers directly exercised by
+  `application/python/tests`.
+- The coherent package-local move set is:
+  `build_crystal_lattice_optimized_archive.py`,
+  `build_crystal_lattice_python_runtime_archive.py`, `bump_cli_version.py`,
+  `crystal_lattice_cli_boot.py`, `crystal_lattice_distribution.py`,
+  `install.sh`, `install_crystal_lattice_cli_dev.py`,
+  `install_current_crystal_lattice_archive.py`,
+  `run_cli_distribution_test.py`, `smoke_test_crystal_lattice_archive.py`,
+  `smoke_test_crystal_lattice_default_install.py`,
+  `smoke_test_crystal_lattice_python_runtime_archive.py`, and
+  `smoke_test_crystal_lattice_source_install.py`.
+- `publish_crystal_lattice_s3.py` is also CLI-owned but has no tracked
+  consumer. The current download release path uses
+  `deploy/aws-cli-downloads/`; implementation should remove the obsolete
+  script if final inspection confirms no maintained manual contract, otherwise
+  move it with the package-local scripts.
+- Keep these low-level packaging primitives at root for this follow-up:
+  `build_cloud_runtime_plugin_bundle.py`,
+  `build_crystal_lattice_binary.py`,
+  `build_crystal_lattice_python_runtime_package.py`,
+  `build_plugin_packaging_support.py`, and
+  `prepare_cloud_runtime_build_context.py`. They form one import/copy cluster;
+  cloud-orchestrator source bundles consume them, and the runtime-package
+  builder copies part of the cluster into shipped archives.
+- Keep `check_github_actions_security.py`, `generate_examples_md.py`, and
+  `repo_run.py` at root because they are repository-wide.
+- `copytree_sanitized(application/python, ...)` would currently include a new
+  package-local `scripts/` directory. The runtime-package builder must
+  explicitly exclude that directory and continue copying only the runtime
+  build scripts required by the archive into its internal root `scripts/`
+  layout.
+- The established npm namespace is already action first and scope second:
+  `test:cli:*` and `release:cli:*`. The unscoped build/install commands are the
+  exception.
+- `test:cli:source-install` captures pip output and emits no progress between
+  command start and final success or failure. The runtime and optimized build
+  wrappers stream child output but do not identify numbered phases or the
+  server-log path before a boot wait.
+- `deploy/aws-cli-downloads/lib/common.sh` provides shell
+  `log_set_step_total`, `log_step`, and `log_detail`. Python cannot directly
+  source those functions, so literal reuse across languages would add more
+  complexity than it removes. A Python helper should preserve their interface
+  semantics and exact visible format.
+
+#### Implementation notes
+
+- 2026-09-10: The user approved the script-ownership, npm-naming, and progress
+  logging follow-up. The plan moved to Approved; specification changes precede
+  implementation.
+- 2026-09-10: Added target requirements `CLIDIST-100` through `CLIDIST-103`
+  for package-local maintainer scripts, shipped-runtime exclusion, scoped npm
+  command names, and immediate progress output. The technical specification
+  now records the retained root packaging cluster and replaces its stale Nox
+  description with the delivered temporary-venv/managed-runtime design.
+- 2026-09-10: Moved and shortened the thirteen application-only CLI scripts
+  under `application/python/scripts/`, retained the five cross-runtime
+  packaging primitives at root, excluded package maintainer scripts from
+  runtime staging, and removed the unreferenced legacy direct S3 publisher.
+  Renamed the local npm commands to `build:cli:archive`,
+  `build:cli:optimized`, `install:cli:archive`, and `install:cli:dev`.
+- 2026-09-10: Added shared Python numbered-step logging, live child output,
+  boot server-log/waiting status, and equivalent standalone installer steps.
+  Focused ownership, package, installer, release, progress, and distribution
+  coverage passed 72 tests with one expected Windows-only skip; Ruff, Python
+  compilation, shell syntax, JSON parsing, and diff checks passed.
+- 2026-09-10: Local acceptance passed with explicit status zero for a fresh
+  managed-runtime archive build, source-installation smoke,
+  extracted-archive smoke, default-installer smoke, prebuilt
+  `install:cli:archive`, temporary `install:cli:dev`, and the isolated
+  `build:cli:optimized -- --help` path. The source smoke reported readiness
+  every 15 seconds during its approximately three-minute plugin installation.
+- 2026-09-10: Core fast regression passed 507 tests with 26 deselected and one
+  expected xfail. Application fast regression passed 413 tests with one skip,
+  77 deselected, and seven existing deprecation warnings. Black, Ruff,
+  targeted Pyright, documentation preparation, and MkDocs build passed; the
+  native release matrix remains pending.
+- 2026-09-10: Native GitHub Actions run
+  [34455407631](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34455407631)
+  passed the test gate and both package-local npm smokes on Linux AMD64,
+  macOS AMD64, macOS ARM64, and Windows AMD64. Manual-dispatch publication
+  jobs were correctly skipped.
+
+#### Execution plan
+
+Implement this as three checkpoints after updating the CLI distribution
+specification and adding live requirements for script ownership, npm command
+names, and progress logging.
+
+##### Checkpoint 1 — package-local ownership and path migration
+
+- Create `application/python/scripts/` with a concise README that distinguishes
+  application-owned maintainer entry points from root cross-runtime packaging
+  primitives.
+- Move the thirteen confirmed application-only scripts listed in Findings.
+  Remove the redundant `crystal_lattice` filename prefix where package context
+  makes shorter names unambiguous:
+  `build_runtime_archive.py`, `build_optimized_archive.py`, `bump_version.py`,
+  `boot_smoke.py`, `distribution_support.py`, `install_dev.py`,
+  `install_current_archive.py`, `run_distribution_smoke.py`,
+  `smoke_optimized_archive.py`, `smoke_default_install.py`,
+  `smoke_runtime_archive.py`, and `smoke_source_install.py`; retain
+  `install.sh` because it is the public download filename.
+- Update script-local repository-root resolution from `parents[1]` to the
+  package-local path and keep same-directory helper imports local.
+- Update root npm commands, release workflow consumers, installer publication,
+  version-bump tests, application tests, docs, and VS Code tasks to the new
+  paths.
+- Exclude `application/python/scripts/` from the application tree copied into
+  bundled-Python archives. Preserve the archive's existing internal
+  `scripts/build_crystal_lattice_binary.py` contract and test both the required
+  internal scripts and the absence of package maintainer scripts.
+- Inspect `publish_crystal_lattice_s3.py` against release documentation and
+  history. Remove it if superseded; otherwise move and rename it consistently.
+- Add a focused ownership test that rejects the moved filenames at root and
+  verifies their package-local locations.
+
+##### Checkpoint 2 — npm namespace and reusable progress logging
+
+- Rename:
+  - `build:bundle` to `build:cli:archive`;
+  - `build:optimized` to `build:cli:optimized`;
+  - `install:prod:local` to `install:cli:archive`;
+  - `install:dev:local` to `install:cli:dev`.
+- Remove the old names after updating every tracked consumer; do not retain
+  aliases because these are maintainer commands and aliases would preserve the
+  naming inconsistency.
+- Add `application/python/scripts/progress.py` with a small `StepLogger`
+  abstraction matching release output:
+  `[n/total] <step>` and six-space-indented detail lines.
+- Add a visible subprocess helper that prints the command and inherits
+  stdout/stderr so output appears immediately without an intermediate pipe.
+  Keep a separate capture helper only for short machine-readable output.
+- Apply numbered steps and live output to source installation, managed-runtime
+  and optimized builds, local dev/archive installation, distribution
+  orchestration, direct archive smoke, and default-installer smoke.
+- Keep the public `install.sh` standalone. Add the same numbered-step/detail
+  functions inline or generated into the published file; it must not source a
+  repository-only helper after download.
+- Print a step immediately before CLI boot/plugin installation and print the
+  server-log path. Add a bounded periodic progress callback while readiness is
+  pending. Preserve existing timeout, tail, process-tree, and port cleanup
+  behavior.
+
+##### Checkpoint 3 — documentation and verification
+
+- After implementation passes, update the root/application READMEs,
+  application development page, release/download documentation, and VS Code
+  task labels. Introduce package-local script paths and log locations where
+  maintainers first use them.
+- Run focused path/import, package-script, release-workflow, installer,
+  archive-layout, progress-format, streaming-output, and failure-log tests.
+- Run each renamed npm command that owns changed behavior. Use a prebuilt
+  archive for smoke-command repetition, but run one fresh managed-runtime
+  archive build and one source-installation smoke.
+- Run Core and application fast suites, Ruff, Black, targeted Pyright, shell
+  syntax checks, documentation preparation, and MkDocs build.
+- Push and run the native release matrix because package-local paths affect
+  Linux, both macOS targets, Windows Git Bash, installer publication inputs,
+  and archive assembly.
+
+#### Implementation decisions and open questions
+
+- **Recommendation — package boundary:** move application-only entry points and
+  smoke helpers now; keep the cross-runtime packaging cluster at root. Moving
+  that cluster would require a larger cloud-orchestrator/build-support
+  ownership refactor and is not needed to solve the root-directory clutter.
+- **Recommendation — filenames:** shorten redundant package-local filenames as
+  listed above. Keep complete nouns such as `runtime_archive`,
+  `default_install`, and `source_install`; do not replace them with unexplained
+  numbers or generic “bundle” terminology.
+- **Recommendation — npm names:** use `build:cli:archive`,
+  `build:cli:optimized`, `install:cli:archive`, and `install:cli:dev`, matching
+  the existing `test:cli:*` and `release:cli:*` convention.
+- **Recommendation — compatibility:** update all tracked consumers atomically
+  and remove the old npm names. Add aliases only if implementation discovers a
+  maintained external automation consumer.
+- **Recommendation — logging reuse:** reuse the release helper's output
+  contract and naming semantics. Keep a Python implementation for Python
+  scripts and the existing shell implementation for release scripts; forcing
+  literal cross-language reuse would add process and quoting complexity.
+- **Recommendation — subprocess output:** inherit child stdout/stderr for
+  long human-readable operations. Capture only short values that the script
+  must parse, and keep server output in the existing bounded diagnostic log.
+- **Open questions:** none blocking. Discovery of an external consumer for an
+  old npm name, `publish_crystal_lattice_s3.py`, or one of the proposed moved
+  scripts returns the plan to Draft only if it changes the ownership or
+  compatibility outcome.
+
+#### Documentation
+
+- Update
+  `application/python/docs/development/specifications/cli-distribution/`
+  before implementation.
+- Update current paths and commands in `README.md`,
+  `application/python/README.md`,
+  `application/python/docs/development/cli-distribution.md`, and
+  `deploy/aws-cli-downloads/README.md` only with the implementation that makes
+  them true.
+- Add `application/python/scripts/README.md` as a concise maintainer index; do
+  not turn it into a competing copy of the distribution development page.
+- Update `.vscode/tasks.json` labels and npm script references.
+
+#### Task checklist
+
+- [x] Add specification requirements for placement, npm naming, and progress
+  logging.
+- [x] Create and document `application/python/scripts/`.
+- [x] Move/rename application-only CLI scripts and update imports/paths.
+- [x] Exclude package maintainer scripts from bundled-Python archive staging.
+- [x] Remove or move the obsolete direct S3 publisher after final audit.
+- [x] Rename CLI build/install npm commands and tracked consumers.
+- [x] Add reusable Python progress/log helper and focused tests.
+- [x] Add numbered progress, live child output, and boot waiting status to
+  long CLI scripts.
+- [x] Preserve the standalone installer's equivalent progress output.
+- [x] Update current documentation and VS Code tasks.
+- [x] Run local acceptance, regressions, docs validation, and native matrix.
+
+#### Requirement verification
+
+- Package ownership: repository inventory and archive-layout tests show the
+  moved application scripts only under `application/python/scripts/`, the
+  documented root exceptions still present, and package maintainer scripts
+  absent from shipped runtime/application trees.
+- npm names: exact package-script and VS Code task tests prove the new
+  `action:cli:variant` names and absence of the old names; docs and workflow
+  commands match.
+- Progress/logging: deterministic tests assert numbered step order, detail
+  formatting, server-log-path announcement, visible child output, periodic
+  readiness status, and failure diagnostics without environment dumps.
+- Long user workflows: actual source-installation, archive build, archive
+  smoke, and default-installer commands emit a status before each long phase,
+  stream human-readable child output, and identify the server log before a
+  boot wait.
+- Native behavior: all release targets build and pass the two npm smokes after
+  path migration.
+
+#### Additional implementation verification
+
+- Verify installer upload/rewrite tests read
+  `application/python/scripts/install.sh`.
+- Verify version-bump tests and release npm commands use the package-local
+  script.
+- Verify cloud-orchestrator source bundles and packaged runtime internal
+  `scripts/` paths remain unchanged for the root packaging cluster.
+- Verify tests importing script helpers add only
+  `application/python/scripts/` for package-owned helpers and root `scripts/`
+  only for retained shared packaging primitives.
+- Run an early-failing fake subprocess and confirm its command and output are
+  visible before the exception; run a delayed fake boot and confirm the
+  server-log path and waiting status are printed before completion.
+
+#### Completion notes
+
+- Moved thirteen application-owned CLI maintainer scripts into
+  `application/python/scripts/` with shorter package-context names. Root
+  `scripts/` now contains repository-wide utilities and the five documented
+  cross-runtime packaging primitives.
+- Removed the superseded unreferenced direct S3 publisher. The maintained
+  download release path remains under `deploy/aws-cli-downloads/`.
+- Renamed local commands to `build:cli:archive`, `build:cli:optimized`,
+  `install:cli:archive`, and `install:cli:dev`; all tracked consumers use the
+  scoped names without compatibility aliases.
+- Added numbered progress and immediate child output for application-owned
+  long-running Python commands, boot-log and readiness status, and equivalent
+  standalone progress in the public shell installer.
+- Excluded `application/python/scripts/` from bundled-Python application-tree
+  staging while preserving the archive's explicitly copied root packaging
+  scripts. Setuptools remains restricted to `agent_terminal_app*`.
+- Local acceptance passed all renamed build/install commands and all three
+  distribution smokes. Focused coverage passed 72 tests with one expected
+  Windows skip; Core fast passed 507 tests with one expected xfail;
+  application fast passed 413 tests with one skip.
+- Black, Ruff, targeted Pyright, shell/JSON/Python syntax validation,
+  documentation preparation, and MkDocs build passed. Native acceptance passed
+  both package-local npm smokes on all four release targets in GitHub Actions
+  run `34455407631`.
+
+#### Merge-time follow-up
+
+- 2026-09-10: Inspection of the main worktree found an untracked generated
+  `application/python/agent_terminal_app/cache/` directory. The files were
+  preserved, and runtime application-tree staging was narrowed to exclude
+  generated `cache/` directories as well as package maintainer `scripts/`.
+  Added a focused regression test that stages representative cache and
+  maintainer files and proves neither enters the runtime package.

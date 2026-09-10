@@ -2,17 +2,16 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
-from typing import Iterator
 import venv
 
+from progress import StepLogger
 
-ROOT = Path(__file__).resolve().parents[1]
+
+ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_BUILDER = ROOT / "scripts" / "build_crystal_lattice_python_runtime_package.py"
 
 
@@ -35,18 +34,29 @@ def main() -> None:
         configured = os.environ.get("CRYSTAL_PYTHON_RUNTIME")
         configured_runtime = Path(configured) if configured else None
 
+    progress = StepLogger(total_steps=4)
     if configured_runtime is not None:
+        progress.step("Resolving the supplied relocatable Python runtime")
         runtime = configured_runtime.expanduser().resolve()
         if not runtime.is_dir():
             raise RuntimeError(f"Python runtime is not a directory: {runtime}")
-        with temporary_build_python() as (python, env):
-            build_archive(runtime, args, python=python, env=env)
+        progress.detail(f"runtime: {runtime}")
+        with tempfile.TemporaryDirectory(
+            prefix="crystal-runtime-build-environment-"
+        ) as tmp:
+            build_with_runtime(
+                runtime,
+                args,
+                temp_dir=Path(tmp),
+                progress=progress,
+            )
         return
 
     with tempfile.TemporaryDirectory(prefix="crystal-uv-python-") as tmp:
         temp_dir = Path(tmp)
         install_dir = temp_dir / "uv-python"
-        subprocess.run(
+        progress.step("Provisioning an uv-managed Python 3.11 runtime")
+        progress.run_visible(
             [
                 sys.executable,
                 "-m",
@@ -60,12 +70,16 @@ def main() -> None:
                 "--no-bin",
                 "3.11",
             ],
-            cwd=str(ROOT),
-            check=True,
+            cwd=ROOT,
         )
         runtime = find_managed_runtime(install_dir)
-        with temporary_build_python(temp_dir=temp_dir) as (python, env):
-            build_archive(runtime, args, python=python, env=env)
+        progress.detail(f"runtime: {runtime}")
+        build_with_runtime(
+            runtime,
+            args,
+            temp_dir=temp_dir,
+            progress=progress,
+        )
 
 
 def find_managed_runtime(install_dir: Path) -> Path:
@@ -83,18 +97,35 @@ def find_managed_runtime(install_dir: Path) -> Path:
     return candidates[0]
 
 
-@contextmanager
-def temporary_build_python(
+def build_with_runtime(
+    runtime: Path,
+    args: argparse.Namespace,
     *,
-    temp_dir: Path | None = None,
-) -> Iterator[tuple[Path, dict[str, str]]]:
-    if temp_dir is None:
-        with tempfile.TemporaryDirectory(
-            prefix="crystal-runtime-build-environment-"
-        ) as tmp:
-            yield create_build_python(Path(tmp))
-        return
-    yield create_build_python(temp_dir)
+    temp_dir: Path,
+    progress: StepLogger,
+) -> None:
+    progress.step("Creating an isolated archive-build environment")
+    python, env = create_build_python(temp_dir)
+
+    progress.step("Installing archive-build dependencies")
+    progress.run_visible(
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "-e",
+            str(ROOT / "core" / "python"),
+            "-e",
+            str(ROOT / "application" / "python"),
+        ],
+        cwd=ROOT,
+        env=env,
+    )
+
+    progress.step("Building the bundled-Python runtime archive")
+    build_archive(runtime, args, python=python, env=env, progress=progress)
 
 
 def create_build_python(root: Path) -> tuple[Path, dict[str, str]]:
@@ -114,22 +145,6 @@ def create_build_python(root: Path) -> tuple[Path, dict[str, str]]:
     env["HOME"] = home
     env["USERPROFILE"] = home
     env["PIP_CACHE_DIR"] = str((home_dir / ".cache" / "pip").resolve())
-    subprocess.run(
-        [
-            str(python),
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            "-e",
-            str(ROOT / "core" / "python"),
-            "-e",
-            str(ROOT / "application" / "python"),
-        ],
-        cwd=str(ROOT),
-        env=env,
-        check=True,
-    )
     return python, env
 
 
@@ -139,6 +154,7 @@ def build_archive(
     *,
     python: Path,
     env: dict[str, str],
+    progress: StepLogger,
 ) -> None:
     command = [
         str(python),
@@ -154,7 +170,7 @@ def build_archive(
         command.extend(["--arch", args.arch])
     if args.output:
         command.extend(["--output", str(args.output.expanduser().resolve())])
-    subprocess.run(command, cwd=str(ROOT), env=env, check=True)
+    progress.run_visible(command, cwd=ROOT, env=env)
 
 
 if __name__ == "__main__":

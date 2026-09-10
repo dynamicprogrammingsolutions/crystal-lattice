@@ -340,6 +340,11 @@ npm run install:all
 npm run test:core:unit
 ```
 
+Application-owned CLI build, install, release-maintenance, and distribution
+smoke entry points live under `application/python/scripts/`. Root `scripts/`
+retains repository-wide utilities and the cross-runtime packaging primitives
+used by shipped archives and cloud-orchestrator builds.
+
 Install the plugin-suite packages into the same `.venv` when working on the
 kimi-tools, claude-tools, web-fetch-shared, tool-compat-shared, or
 openai_responses plugins:

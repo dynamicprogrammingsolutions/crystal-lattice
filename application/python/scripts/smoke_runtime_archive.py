@@ -10,11 +10,12 @@ import tarfile
 import tempfile
 import zipfile
 
-from crystal_lattice_cli_boot import (
+from boot_smoke import (
     assert_config_boot,
     assert_plugin_not_preinstalled,
     prepare_smoke_config,
 )
+from progress import StepLogger
 
 
 DYNAMIC_PLUGIN_PROBE = "generic-callback-app"
@@ -36,16 +37,21 @@ def smoke_test_archive(archive: Path) -> None:
     if not archive.is_file():
         raise RuntimeError(f"Archive does not exist: {archive}")
 
+    progress = StepLogger(total_steps=4)
     with tempfile.TemporaryDirectory(prefix="crystal-python-runtime-smoke-") as tmp:
         temp_dir = Path(tmp)
         extract_dir = temp_dir / "extract"
+        progress.step("Extracting the bundled-Python runtime archive")
         extract_archive(archive, extract_dir)
         package_dir = find_package_dir(extract_dir)
+
+        progress.step("Validating the extracted runtime package")
         validate_package(package_dir)
         assert_plugin_not_preinstalled(
             package_dir / "preinstalled-plugins.json",
             DYNAMIC_PLUGIN_PROBE,
         )
+        progress.step("Preparing a clean config with the dynamic plugin probe")
         config_path = prepare_smoke_config(
             package_dir
             / "application"
@@ -55,6 +61,7 @@ def smoke_test_archive(archive: Path) -> None:
             destination_dir=temp_dir / "config",
             additional_plugin_name=DYNAMIC_PLUGIN_PROBE,
         )
+        progress.step("Booting the archive launcher and installing the probe plugin")
         assert_config_boot(
             [launcher_path(package_dir)],
             config_path=config_path,
@@ -63,6 +70,7 @@ def smoke_test_archive(archive: Path) -> None:
             plugin_cache_expectation="populated",
             expected_plugin_id=DYNAMIC_PLUGIN_PROBE,
             timeout_seconds=300,
+            progress=progress.detail,
         )
 
 

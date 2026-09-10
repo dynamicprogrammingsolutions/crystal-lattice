@@ -13,7 +13,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
     import tomli as tomllib  # type: ignore[no-redef]
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 APP_PYPROJECT = ROOT / "application" / "python" / "pyproject.toml"
 PYTHON_RUNTIME_RELEASES_DIR = ROOT / "dist" / "crystal-lattice-python-runtime"
 ARCHIVE_ENV = "CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE"

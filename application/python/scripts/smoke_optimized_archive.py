@@ -11,6 +11,8 @@ import tarfile
 import tempfile
 import zipfile
 
+from progress import StepLogger
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -23,10 +25,13 @@ def main() -> None:
     if not archive.is_file():
         raise RuntimeError(f"Archive does not exist: {archive}")
 
+    progress = StepLogger(total_steps=2)
     with tempfile.TemporaryDirectory(prefix="crystal-lattice-smoke-") as temp_dir:
         extract_dir = Path(temp_dir)
+        progress.step("Extracting the optimized CLI archive")
         extract_archive(archive, extract_dir)
         bundle_dir = find_bundle_dir(extract_dir)
+        progress.step("Validating the optimized bundle and launcher")
         validate_bundle(bundle_dir)
         print(f"Bundle smoke test passed: {bundle_dir}")
 
@@ -93,19 +98,9 @@ def validate_bundle(bundle_dir: Path) -> None:
         / "agent_terminal_app"
         / "default_config"
         / "config.json",
-        bundle_dir
-        / "_internal"
-        / "cloud_runtime"
-        / "Dockerfile",
-        bundle_dir
-        / "_internal"
-        / "cloud_runtime"
-        / "runtime.py",
-        bundle_dir
-        / "_internal"
-        / "cloud_runtime"
-        / "python_lib"
-        / "agent_core",
+        bundle_dir / "_internal" / "cloud_runtime" / "Dockerfile",
+        bundle_dir / "_internal" / "cloud_runtime" / "runtime.py",
+        bundle_dir / "_internal" / "cloud_runtime" / "python_lib" / "agent_core",
         bundle_dir
         / "_internal"
         / "cloud_runtime"
@@ -190,6 +185,7 @@ def validate_bundle(bundle_dir: Path) -> None:
             "BUILTIN_PLUGINS points to the wrong path: "
             f"expected {expected_plugins}, got {actual_plugins}"
         )
+
 
 def executable_name() -> str:
     return "crystal-lattice.exe" if os.name == "nt" else "crystal-lattice"

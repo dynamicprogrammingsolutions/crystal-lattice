@@ -33,11 +33,11 @@ application, and the default config's local plugin closure into the packaged
 Python. `preinstalled-plugins.json` lets runtime plugin resolution import that
 closure without copying it into user state.
 
-`scripts/install.sh` is the user-facing installation authority. It downloads
-or accepts a matching local archive, extracts it into a temporary staging
-directory, replaces the versioned target under the install root, creates the
-installed command in a suitable existing PATH directory, and verifies
-`--runtime-layout-json` and `--help`.
+`application/python/scripts/install.sh` is the user-facing installation
+authority. It downloads or accepts a matching local archive, extracts it into
+a temporary staging directory, replaces the versioned target under the install
+root, creates the installed command in a suitable existing PATH directory, and
+verifies `--runtime-layout-json` and `--help`.
 
 The installed command is a small forwarding script that invokes the archive
 launcher from its final versioned directory. On Windows the installer creates
@@ -46,8 +46,8 @@ both the Git Bash shell command and a `.cmd` command for native command lookup.
 The principal local maintainer entry points are:
 
 ```bash
-npm run build:bundle
-npm run install:prod:local
+npm run build:cli:archive
+npm run install:cli:archive
 ```
 
 Direct scripts back these npm commands. The bundled-Python build creates a
@@ -56,9 +56,18 @@ by default. The optimized PyInstaller build uses its own temporary build venv.
 Neither installs or upgrades packages in the repository environment that
 launched the command.
 
+The remaining local entry points follow the same scoped naming convention:
+
+```bash
+npm run build:cli:optimized
+npm run install:cli:dev
+```
+
 Set `CRYSTAL_PYTHON_RUNTIME` to build deliberately from another runtime
 directory. `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` lets the public installer
-or either archive-based smoke use an existing matching archive.
+or either archive-based smoke use an existing matching archive. The same
+archive override makes `npm run install:cli:archive` skip its default build
+step and install that archive directly.
 
 Without `BIN_DIR`, the public installer selects an existing writable directory
 already on PATH. It prefers a valid previous bundled-Python command,
@@ -171,24 +180,77 @@ archive location succeeded.
 Existing deeper optimized-bundle tests target the separate PyInstaller layout
 and remain manually gated.
 
+## Progress output
+
+Application-owned Python entry points share a small progress helper under
+`application/python/scripts/`. Long operations print numbered phases using
+the same visible convention as `release:cli`:
+
+```text
+[1/4] Creating a clean source-installation environment
+[2/4] Installing Core and the CLI from source
+      $ python -m pip install ...
+```
+
+Human-readable dependency, build, and installation subprocesses inherit the
+terminal's output streams, so their logs are visible immediately. Short
+machine-readable checks remain captured for parsing.
+
+Boot output continues going to a dedicated server log to avoid blocking on an
+unread pipe during dynamic plugin installation. Before waiting, each smoke
+prints that log path and periodically reports how long readiness is still
+pending. Timeout and early-exit failures include a bounded log tail.
+
+The public `install.sh` is published as a standalone file, so it carries the
+equivalent small shell step/detail functions instead of sourcing a
+repository-only helper.
+
+## Script ownership
+
+Application-only CLI build/install wrappers, release-version maintenance,
+distribution-smoke scenarios, and their focused helpers live under
+`application/python/scripts/`. They are maintainer entry points, not importable
+application package code, and the bundled-Python package builder excludes this
+directory plus generated application `cache/` directories from the staged
+application tree.
+
+The root `scripts/` directory retains repository-wide utilities and these
+cross-runtime packaging primitives:
+
+- `build_cloud_runtime_plugin_bundle.py`
+- `build_crystal_lattice_binary.py`
+- `build_crystal_lattice_python_runtime_package.py`
+- `build_plugin_packaging_support.py`
+- `prepare_cloud_runtime_build_context.py`
+
+Cloud-orchestrator source bundles consume this group, and the runtime package
+explicitly copies the subset it needs into its own root `scripts/` directory.
+That shipped internal layout remains separate from package maintainer script
+placement.
+
 ## Maintainer entry points
 
 - Runtime package builder:
   `scripts/build_crystal_lattice_python_runtime_package.py`
 - Managed runtime/build orchestrator:
-  `scripts/build_crystal_lattice_python_runtime_archive.py`
+  `application/python/scripts/build_runtime_archive.py`
 - Runtime archive smoke:
-  `scripts/smoke_test_crystal_lattice_python_runtime_archive.py`
+  `application/python/scripts/smoke_runtime_archive.py`
 - Public default-installer smoke:
-  `scripts/smoke_test_crystal_lattice_default_install.py`
+  `application/python/scripts/smoke_default_install.py`
 - Source-installation smoke:
-  `scripts/smoke_test_crystal_lattice_source_install.py`
-- Distribution test runner: `scripts/run_cli_distribution_test.py`
-- Shared config and boot probe: `scripts/crystal_lattice_cli_boot.py`
-- Public installer: `scripts/install.sh`
+  `application/python/scripts/smoke_source_install.py`
+- Distribution smoke runner:
+  `application/python/scripts/run_distribution_smoke.py`
+- Shared config and boot probe:
+  `application/python/scripts/boot_smoke.py`
+- Shared progress helper: `application/python/scripts/progress.py`
+- Public installer: `application/python/scripts/install.sh`
 - Local current-archive installer entry point:
-  `scripts/install_current_crystal_lattice_archive.py`
+  `application/python/scripts/install_current_archive.py`
+- Local editable-development installer:
+  `application/python/scripts/install_dev.py`
 - Isolated optimized-build orchestrator:
-  `scripts/build_crystal_lattice_optimized_archive.py`
+  `application/python/scripts/build_optimized_archive.py`
 - Release workflow: `.github/workflows/release-crystal-lattice-cli.yml`
 - Focused helper/script tests: `application/python/tests/test_cli_distribution_*.py`

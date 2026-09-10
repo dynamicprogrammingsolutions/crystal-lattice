@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
-INSTALL_SCRIPT = ROOT / "scripts" / "install.sh"
+INSTALL_SCRIPT = ROOT / "application" / "python" / "scripts" / "install.sh"
 
 
 def _write_executable(path: Path, text: str) -> None:
@@ -161,6 +161,10 @@ def test_install_script_installs_linux_tarball_to_isolated_paths(
     assert result.returncode == 0, result.stderr
     assert requested_url.read_text(encoding="utf-8").strip().endswith(f"/{stem}.tar.gz")
     assert (install_root / stem / "bin" / "crystal-lattice").is_file()
+    assert (
+        "[1/5] Checking installer prerequisites and command location" in result.stdout
+    )
+    assert "[5/5] Verifying the installed command" in result.stdout
     shim = bin_dir / "crystal-lattice"
     assert shim.is_file()
     assert f'exec "{install_root / stem}/bin/crystal-lattice" "$@"' in shim.read_text(

@@ -9,10 +9,11 @@ import sys
 import tempfile
 import venv
 
-from crystal_lattice_cli_boot import assert_config_boot
+from boot_smoke import assert_config_boot
+from progress import StepLogger
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def main() -> None:
@@ -21,16 +22,21 @@ def main() -> None:
 
 
 def smoke_test_source_install() -> None:
+    progress = StepLogger(total_steps=4)
     with tempfile.TemporaryDirectory(prefix="crystal-source-install-smoke-") as tmp:
         temp_dir = Path(tmp)
         environment_dir = temp_dir / "python-environment"
         home_dir = temp_dir / "home"
         home_dir.mkdir()
+
+        progress.step("Creating a clean source-installation environment")
         venv.EnvBuilder(with_pip=True, clear=True).create(environment_dir)
         python = venv_python(environment_dir)
         install_env = lean_subprocess_environment(home_dir)
+        progress.detail(f"environment: {environment_dir}")
 
-        run(
+        progress.step("Installing Core and the CLI from source")
+        progress.run_visible(
             [
                 str(python),
                 "-m",
@@ -42,10 +48,12 @@ def smoke_test_source_install() -> None:
                 "-e",
                 str(ROOT / "application" / "python"),
             ],
+            cwd=ROOT,
             env=install_env,
             timeout=900,
         )
 
+        progress.step("Verifying the lean installed environment")
         installed_distributions = installed_distribution_names(
             python,
             env=install_env,
@@ -80,6 +88,7 @@ def smoke_test_source_install() -> None:
             / "default_config"
             / "config.json"
         )
+        progress.step("Booting the CLI and installing default plugins")
         result = assert_config_boot(
             [command],
             config_path=config_path,
@@ -89,6 +98,7 @@ def smoke_test_source_install() -> None:
             config_mode="local-default",
             base_env=install_env,
             timeout_seconds=1200,
+            progress=progress.detail,
         )
         if not result.plugin_metadata_ids:
             raise RuntimeError("Default plugins were not dynamically installed")
@@ -122,7 +132,7 @@ def installed_distribution_names(
     *,
     env: dict[str, str],
 ) -> set[str]:
-    result = run(
+    result = subprocess.run(
         [
             str(python),
             "-c",
@@ -134,35 +144,20 @@ def installed_distribution_names(
                 "if distribution.metadata['Name'])))"
             ),
         ],
-        env=env,
-        timeout=60,
-    )
-    names = json.loads(result.stdout)
-    return {str(name).lower().replace("_", "-") for name in names}
-
-
-def run(
-    command: list[str],
-    *,
-    env: dict[str, str],
-    timeout: float,
-) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        command,
         cwd=str(ROOT),
         env=env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        timeout=timeout,
+        timeout=60,
         check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
-            f"Command failed with status {result.returncode}: "
-            f"{subprocess.list2cmdline(command)}\n{result.stdout}"
+            f"Could not inspect installed distributions:\n{result.stdout}"
         )
-    return result
+    names = json.loads(result.stdout)
+    return {str(name).lower().replace("_", "-") for name in names}
 
 
 if __name__ == "__main__":

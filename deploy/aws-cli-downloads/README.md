@@ -380,8 +380,8 @@ Recommended cutover:
    workflow artifacts with `publish-assets.sh` if the GitHub Release assets do
    not use the current `crystal-lattice-python-runtime-v<version>-...` names.
 8. Run `deploy/aws-cli-downloads/smoke.sh --profile prod`.
-9. Update `scripts/install.sh` `DEFAULT_DOWNLOAD_BASE_URL` if production is now
-   the canonical default.
+9. Update `application/python/scripts/install.sh`
+   `DEFAULT_DOWNLOAD_BASE_URL` if production is now the canonical default.
 10. Update `README.md` and `application/python/README.md` install commands.
 11. Create a follow-up release so the published source installer default is
    canonical.
