@@ -5,7 +5,7 @@ import React, {
   useState,
   useMemo,
 } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import type { AgentBackend, ConnectionRecord, Transport } from '@crystal-lattice/frontend-sdk';
@@ -28,6 +28,8 @@ import { useHomeWorkspace } from './HomeWorkspaceContext';
 import { deriveHomeSessionCollections } from './homeWorkspaceState';
 import { MobileConnectionSessionStatusReader } from './connectionSessionStatusReader';
 import { useSessionRequestStatuses } from './useSessionRequestStatuses';
+import EmbeddedRuntimeSettingsModal from './embeddedRuntime/EmbeddedRuntimeSettingsModal';
+import type { EmbeddedRuntimePublicConfiguration } from './embeddedRuntime/embeddedPythonRuntime';
 
 interface ConnectedRootProps {
   backend: AgentBackend | null;
@@ -75,6 +77,9 @@ interface ConnectedRootProps {
       meta?: Record<string, any> | null;
     },
   ) => void;
+  onEmbeddedSettingsChanged?: (
+    configuration: EmbeddedRuntimePublicConfiguration,
+  ) => void;
 }
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({
@@ -97,6 +102,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onSaveMessagesHistoryRange,
   debugTimeline,
   onAppendDebugTimelineEntry,
+  onEmbeddedSettingsChanged,
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -107,6 +113,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   const [demoResponse, setDemoResponse] = useState('');
   const [globalSettingsVisible, setGlobalSettingsVisible] = useState(false);
   const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
+  const [embeddedSettingsVisible, setEmbeddedSettingsVisible] = useState(false);
   const [newSessionRequestToken, setNewSessionRequestToken] = useState(0);
   const navigationIntentRef = useRef(0);
   const {
@@ -267,6 +274,11 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
             hasActiveBackend={backend !== null}
             isActive={tab === 'home'}
             onOpenGlobalSettings={() => setGlobalSettingsVisible(true)}
+            onOpenEmbeddedSettings={
+              Platform.OS === 'ios'
+                ? () => setEmbeddedSettingsVisible(true)
+                : undefined
+            }
             onNewConnection={() => {
               navigationIntentRef.current += 1;
               setTab('connection');
@@ -514,6 +526,11 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         cacheKey={activeConnectionId ?? 'default'}
         visible={serverSettingsVisible}
         onRequestClose={() => setServerSettingsVisible(false)}
+      />
+      <EmbeddedRuntimeSettingsModal
+        visible={embeddedSettingsVisible}
+        onRequestClose={() => setEmbeddedSettingsVisible(false)}
+        onSaved={onEmbeddedSettingsChanged}
       />
 
       <View style={styles.navBar}>

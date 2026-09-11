@@ -1,5 +1,6 @@
 import Foundation
 import React
+import Security
 import UIKit
 
 @objc(CrystalLatticePythonRuntime)
@@ -16,6 +17,46 @@ final class CrystalLatticePythonRuntime: NSObject {
     .invalid
   private static let lifecycleDefaultsKey =
     "clcEmbeddedRuntimeLifecycleStatus"
+  private static let providerSettingsDefaultsKey =
+    "clcEmbeddedProviderSettingsV2"
+  private static let providerKeychainService =
+    "com.dynamicprogrammingsolutions.crystallattice.embedded-provider-key"
+  private static let providerOrder = [
+    "reviewer",
+    "openai",
+    "openrouter",
+    "anthropic",
+  ]
+  private static let providerDefinitions: [String: [String: String]] = [
+    "reviewer": [
+      "agentId": "reviewer-claude",
+      "baseUrl": "http://127.0.0.1:3000/v1",
+      "label": "OpenAI-compatible reviewer",
+      "model": "qwen3.5:0.8b",
+      "toolFamily": "claude-like",
+    ],
+    "openai": [
+      "agentId": "openai-codex",
+      "baseUrl": "https://api.openai.com/v1",
+      "label": "OpenAI Responses",
+      "model": "gpt-5.6-luna",
+      "toolFamily": "codex-like",
+    ],
+    "openrouter": [
+      "agentId": "openrouter-claude",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "label": "OpenRouter",
+      "model": "anthropic/claude-haiku-4.5",
+      "toolFamily": "claude-like",
+    ],
+    "anthropic": [
+      "agentId": "anthropic-claude",
+      "baseUrl": "https://api.anthropic.com",
+      "label": "Anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "toolFamily": "claude-like",
+    ],
+  ]
 
   @objc
   static func requiresMainQueueSetup() -> Bool {
@@ -173,36 +214,70 @@ final class CrystalLatticePythonRuntime: NSObject {
   ) {
     Self.queue.async {
       do {
-        guard
-          let proxyURL = configuration["proxyUrl"] as? String,
-          !proxyURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-          let model = configuration["model"] as? String,
-          !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else {
-          throw RuntimeError.invalidConfiguration
-        }
-
-        let defaults = UserDefaults.standard
-        defaults.set(
-          proxyURL.trimmingCharacters(in: .whitespacesAndNewlines),
-          forKey: "clcEmbeddedProxyURL"
-        )
-        defaults.set(
-          model.trimmingCharacters(in: .whitespacesAndNewlines),
-          forKey: "clcEmbeddedModel"
-        )
-        if let apiKey = configuration["apiKey"] as? String,
-          !apiKey.isEmpty
-        {
-          defaults.set(apiKey, forKey: "clcEmbeddedProxyAPIKey")
-        }
-        guard Self.runtimeConfiguration() != nil else {
-          throw RuntimeError.missingAPIKey
-        }
+        let settings = try Self.settingsByApplying(configuration)
+        try Self.applyAPIKeyUpdates(configuration)
+        Self.saveProviderSettings(settings)
         resolve(Self.publicConfiguration())
       } catch {
         reject(
           "python_configuration_failed",
+          error.localizedDescription,
+          error
+        )
+      }
+    }
+  }
+
+  @objc(validateConfiguration:resolver:rejecter:)
+  func validateConfiguration(
+    _ configuration: NSDictionary,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.queue.async {
+      do {
+        _ = try Self.startIfNeeded()
+        let candidate = try Self.candidateRuntimeConfiguration(configuration)
+        let profileId =
+          (configuration["profileId"] as? String)?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+          ) ?? Self.profileId(
+            forAgent: candidate["default_agent"] as? String
+          )
+        let command: [String: Any] = [
+          "method": "POST",
+          "path": "/embedded/runtime/validate",
+          "body": ["profile_id": profileId],
+          "runtimeConfiguration": candidate,
+        ]
+        let requestData = try JSONSerialization.data(withJSONObject: command)
+        guard let requestJSON = String(data: requestData, encoding: .utf8) else {
+          throw RuntimeError.invalidCommand
+        }
+        let runtimeRoot = try Self.runtimeRoot()
+        let responseJSON = try CLPythonHostSupport.executeCommandJSON(
+          requestJSON,
+          runtimeRoot: runtimeRoot.path
+        )
+        guard
+          let responseData = responseJSON.data(using: .utf8),
+          let response = try JSONSerialization.jsonObject(
+            with: responseData
+          ) as? [String: Any],
+          let status = response["status"] as? Int
+        else {
+          throw RuntimeError.invalidResponse
+        }
+        if status >= 300 {
+          let data = response["data"] as? [String: Any]
+          throw RuntimeError.validationFailed(
+            data?["detail"] as? String ?? "Provider validation failed."
+          )
+        }
+        resolve(response["data"] ?? [:])
+      } catch {
+        reject(
+          "python_configuration_validation_failed",
           error.localizedDescription,
           error
         )
@@ -282,28 +357,341 @@ final class CrystalLatticePythonRuntime: NSObject {
     return root
   }
 
-  private static func runtimeConfiguration() -> [String: String]? {
-    let defaults = UserDefaults.standard
-    let configuration = [
-      "api_key": defaults.string(forKey: "clcEmbeddedProxyAPIKey") ?? "",
-      "model": defaults.string(forKey: "clcEmbeddedModel") ?? "",
-      "proxy_url": defaults.string(forKey: "clcEmbeddedProxyURL") ?? "",
+  private static func defaultProviderSettings() -> [String: Any] {
+    var providers: [String: Any] = [:]
+    for profileId in providerOrder {
+      guard let definition = providerDefinitions[profileId] else {
+        continue
+      }
+      providers[profileId] = [
+        "enabled": profileId == "reviewer",
+        "baseUrl": definition["baseUrl"] ?? "",
+        "model": definition["model"] ?? "",
+      ]
+    }
+    return [
+      "version": 2,
+      "defaultAgent": "reviewer-claude",
+      "providers": providers,
     ]
-    return configuration.values.allSatisfy { !$0.isEmpty }
-      ? configuration
-      : nil
+  }
+
+  private static func normalizedProviderSettings(
+    _ rawSettings: [String: Any]
+  ) -> [String: Any] {
+    let defaults = defaultProviderSettings()
+    let rawProviders = rawSettings["providers"] as? [String: Any] ?? [:]
+    let defaultProviders = defaults["providers"] as? [String: Any] ?? [:]
+    var providers: [String: Any] = [:]
+    for profileId in providerOrder {
+      let rawProfile = rawProviders[profileId] as? [String: Any] ?? [:]
+      let defaultProfile =
+        defaultProviders[profileId] as? [String: Any] ?? [:]
+      let baseUrl =
+        (rawProfile["baseUrl"] as? String)?
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+      let model =
+        (rawProfile["model"] as? String)?
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+      providers[profileId] = [
+        "enabled": rawProfile["enabled"] as? Bool
+          ?? defaultProfile["enabled"] as? Bool
+          ?? false,
+        "baseUrl": !(baseUrl ?? "").isEmpty
+          ? baseUrl!
+          : defaultProfile["baseUrl"] as? String ?? "",
+        "model": !(model ?? "").isEmpty
+          ? model!
+          : defaultProfile["model"] as? String ?? "",
+      ]
+    }
+    let requestedDefault =
+      rawSettings["defaultAgent"] as? String ?? "reviewer-claude"
+    let validAgents = Set(
+      providerDefinitions.values.compactMap { $0["agentId"] }
+    )
+    return [
+      "version": 2,
+      "defaultAgent": validAgents.contains(requestedDefault)
+        ? requestedDefault
+        : "reviewer-claude",
+      "providers": providers,
+    ]
+  }
+
+  private static func storedProviderSettings() -> [String: Any] {
+    let defaults = UserDefaults.standard
+    if let stored = defaults.dictionary(
+      forKey: providerSettingsDefaultsKey
+    ) {
+      return normalizedProviderSettings(stored)
+    }
+
+    var settings = defaultProviderSettings()
+    var providers = settings["providers"] as? [String: Any] ?? [:]
+    var reviewer = providers["reviewer"] as? [String: Any] ?? [:]
+    if let legacyUrl = defaults.string(forKey: "clcEmbeddedProxyURL"),
+      !legacyUrl.isEmpty
+    {
+      reviewer["baseUrl"] = legacyUrl
+    }
+    if let legacyModel = defaults.string(forKey: "clcEmbeddedModel"),
+      !legacyModel.isEmpty
+    {
+      reviewer["model"] = legacyModel
+    }
+    reviewer["enabled"] = true
+    providers["reviewer"] = reviewer
+    settings["providers"] = providers
+    saveProviderSettings(settings)
+
+    if let legacyKey = defaults.string(
+      forKey: "clcEmbeddedProxyAPIKey"
+    ), !legacyKey.isEmpty {
+      try? setAPIKey(legacyKey, profileId: "reviewer")
+    }
+    defaults.removeObject(forKey: "clcEmbeddedProxyAPIKey")
+    return settings
+  }
+
+  private static func saveProviderSettings(_ settings: [String: Any]) {
+    UserDefaults.standard.set(
+      normalizedProviderSettings(settings),
+      forKey: providerSettingsDefaultsKey
+    )
+  }
+
+  private static func settingsByApplying(
+    _ configuration: NSDictionary
+  ) throws -> [String: Any] {
+    var settings = storedProviderSettings()
+    var providers = settings["providers"] as? [String: Any] ?? [:]
+    if let rawProviders = configuration["providers"] as? NSDictionary {
+      for profileId in providerOrder {
+        guard
+          let rawProfile = rawProviders[profileId] as? NSDictionary
+        else {
+          continue
+        }
+        var profile = providers[profileId] as? [String: Any] ?? [:]
+        if let enabled = rawProfile["enabled"] as? Bool {
+          profile["enabled"] = enabled
+        }
+        if let baseUrl = rawProfile["baseUrl"] as? String {
+          let normalized = baseUrl.trimmingCharacters(
+            in: .whitespacesAndNewlines
+          )
+          guard !normalized.isEmpty else {
+            throw RuntimeError.invalidConfiguration
+          }
+          profile["baseUrl"] = normalized
+        }
+        if let model = rawProfile["model"] as? String {
+          let normalized = model.trimmingCharacters(
+            in: .whitespacesAndNewlines
+          )
+          guard !normalized.isEmpty else {
+            throw RuntimeError.invalidConfiguration
+          }
+          profile["model"] = normalized
+        }
+        providers[profileId] = profile
+      }
+    } else if configuration["proxyUrl"] != nil
+      || configuration["model"] != nil
+    {
+      guard
+        let proxyUrl = configuration["proxyUrl"] as? String,
+        !proxyUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        let model = configuration["model"] as? String,
+        !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else {
+        throw RuntimeError.invalidConfiguration
+      }
+      var reviewer = providers["reviewer"] as? [String: Any] ?? [:]
+      reviewer["enabled"] = true
+      reviewer["baseUrl"] = proxyUrl.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+      reviewer["model"] = model.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+      providers["reviewer"] = reviewer
+      settings["defaultAgent"] = "reviewer-claude"
+    }
+    settings["providers"] = providers
+    if let defaultAgent = configuration["defaultAgent"] as? String {
+      settings["defaultAgent"] = defaultAgent
+    }
+    return normalizedProviderSettings(settings)
+  }
+
+  private static func keyOverrides(
+    from configuration: NSDictionary
+  ) -> [String: Any] {
+    var overrides: [String: Any] = [:]
+    if let rawProviders = configuration["providers"] as? NSDictionary {
+      for profileId in providerOrder {
+        guard
+          let rawProfile = rawProviders[profileId] as? NSDictionary
+        else {
+          continue
+        }
+        if rawProfile["clearApiKey"] as? Bool == true {
+          overrides[profileId] = NSNull()
+        } else if let apiKey = rawProfile["apiKey"] as? String,
+          !apiKey.isEmpty
+        {
+          overrides[profileId] = apiKey
+        }
+      }
+    } else if let apiKey = configuration["apiKey"] as? String,
+      !apiKey.isEmpty
+    {
+      overrides["reviewer"] = apiKey
+    }
+    return overrides
+  }
+
+  private static func applyAPIKeyUpdates(
+    _ configuration: NSDictionary
+  ) throws {
+    for (profileId, value) in keyOverrides(from: configuration) {
+      if value is NSNull {
+        try setAPIKey(nil, profileId: profileId)
+      } else if let apiKey = value as? String {
+        try setAPIKey(apiKey, profileId: profileId)
+      }
+    }
+  }
+
+  private static func setAPIKey(
+    _ apiKey: String?,
+    profileId: String
+  ) throws {
+    let baseQuery: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: providerKeychainService,
+      kSecAttrAccount as String: profileId,
+    ]
+    SecItemDelete(baseQuery as CFDictionary)
+    guard let apiKey, !apiKey.isEmpty else {
+      return
+    }
+    var addQuery = baseQuery
+    addQuery[kSecValueData as String] = Data(apiKey.utf8)
+    addQuery[kSecAttrAccessible as String] =
+      kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    let status = SecItemAdd(addQuery as CFDictionary, nil)
+    guard status == errSecSuccess else {
+      throw RuntimeError.keychainFailure(status)
+    }
+  }
+
+  private static func apiKey(profileId: String) -> String {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: providerKeychainService,
+      kSecAttrAccount as String: profileId,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+      kSecReturnData as String: true,
+    ]
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(
+      query as CFDictionary,
+      &result
+    )
+    guard status == errSecSuccess,
+      let data = result as? Data,
+      let value = String(data: data, encoding: .utf8)
+    else {
+      return ""
+    }
+    return value
+  }
+
+  private static func profileId(forAgent agentId: String?) -> String {
+    for profileId in providerOrder {
+      if providerDefinitions[profileId]?["agentId"] == agentId {
+        return profileId
+      }
+    }
+    return "reviewer"
+  }
+
+  private static func runtimeConfiguration(
+    settings: [String: Any],
+    overrides: [String: Any] = [:]
+  ) -> [String: Any] {
+    let normalized = normalizedProviderSettings(settings)
+    let storedProfiles = normalized["providers"] as? [String: Any] ?? [:]
+    var providers: [String: Any] = [:]
+    for profileId in providerOrder {
+      let stored = storedProfiles[profileId] as? [String: Any] ?? [:]
+      let key: String
+      if overrides[profileId] is NSNull {
+        key = ""
+      } else {
+        key = overrides[profileId] as? String ?? apiKey(profileId: profileId)
+      }
+      providers[profileId] = [
+        "enabled": stored["enabled"] as? Bool ?? false,
+        "base_url": stored["baseUrl"] as? String ?? "",
+        "model": stored["model"] as? String ?? "",
+        "api_key": key,
+      ]
+    }
+    return [
+      "version": 2,
+      "default_agent": normalized["defaultAgent"] as? String
+        ?? "reviewer-claude",
+      "providers": providers,
+    ]
+  }
+
+  private static func runtimeConfiguration() -> [String: Any]? {
+    runtimeConfiguration(settings: storedProviderSettings())
+  }
+
+  private static func candidateRuntimeConfiguration(
+    _ configuration: NSDictionary
+  ) throws -> [String: Any] {
+    runtimeConfiguration(
+      settings: try settingsByApplying(configuration),
+      overrides: keyOverrides(from: configuration)
+    )
   }
 
   private static func publicConfiguration() -> [String: Any] {
-    let defaults = UserDefaults.standard
-    let apiKey = defaults.string(forKey: "clcEmbeddedProxyAPIKey") ?? ""
+    let settings = storedProviderSettings()
+    let storedProfiles = settings["providers"] as? [String: Any] ?? [:]
+    var providers: [String: Any] = [:]
+    for profileId in providerOrder {
+      let stored = storedProfiles[profileId] as? [String: Any] ?? [:]
+      let definition = providerDefinitions[profileId] ?? [:]
+      providers[profileId] = [
+        "id": profileId,
+        "label": definition["label"] ?? profileId,
+        "agentId": definition["agentId"] ?? "",
+        "toolFamily": definition["toolFamily"] ?? "",
+        "enabled": stored["enabled"] as? Bool ?? false,
+        "baseUrl": stored["baseUrl"] as? String ?? "",
+        "model": stored["model"] as? String ?? "",
+        "hasApiKey": !apiKey(profileId: profileId).isEmpty,
+      ]
+    }
+    let reviewer = providers["reviewer"] as? [String: Any] ?? [:]
     return [
-      "hasApiKey": !apiKey.isEmpty,
-      "inspectionOnly": defaults.bool(
+      "version": 2,
+      "defaultAgent": settings["defaultAgent"] as? String
+        ?? "reviewer-claude",
+      "providers": providers,
+      "hasApiKey": reviewer["hasApiKey"] as? Bool ?? false,
+      "inspectionOnly": UserDefaults.standard.bool(
         forKey: "clcEmbeddedInspectionOnly"
       ),
-      "model": defaults.string(forKey: "clcEmbeddedModel") ?? "",
-      "proxyUrl": defaults.string(forKey: "clcEmbeddedProxyURL") ?? "",
+      "model": reviewer["model"] as? String ?? "",
+      "proxyUrl": reviewer["baseUrl"] as? String ?? "",
     ]
   }
 
@@ -529,7 +917,8 @@ final class CrystalLatticePythonRuntime: NSObject {
     case invalidCommand
     case invalidConfiguration
     case invalidResponse
-    case missingAPIKey
+    case keychainFailure(OSStatus)
+    case validationFailed(String)
 
     var errorDescription: String? {
       switch self {
@@ -544,11 +933,13 @@ final class CrystalLatticePythonRuntime: NSObject {
       case .invalidCommand:
         return "The embedded runtime command is not valid JSON."
       case .invalidConfiguration:
-        return "The embedded runtime endpoint and model are required."
+        return "Every embedded provider endpoint and model must be non-empty."
       case .invalidResponse:
         return "The embedded runtime returned an invalid response."
-      case .missingAPIKey:
-        return "Enter an API key before connecting the embedded runtime."
+      case .keychainFailure(let status):
+        return "The provider API key could not be saved (Keychain status \(status))."
+      case .validationFailed(let detail):
+        return detail
       }
     }
   }

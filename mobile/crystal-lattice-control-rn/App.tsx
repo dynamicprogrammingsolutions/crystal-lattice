@@ -88,6 +88,23 @@ const connectionsStore: KeyValueStore = {
 const STORAGE_KEY_SESSIONS_CACHE = 'clc_sessions_cache_v1';
 const EMBEDDED_CONNECTION_ID = 'embedded-ios-runtime';
 
+function embeddedConnectionRecord(
+  configuration: {
+    proxyUrl: string;
+    model: string;
+  },
+  lastUsedAt = Date.now(),
+): EmbeddedConnectionRecord {
+  return {
+    id: EMBEDDED_CONNECTION_ID,
+    kind: 'embedded',
+    name: 'On-device Python agents',
+    proxyUrl: configuration.proxyUrl,
+    model: configuration.model,
+    lastUsedAt,
+  };
+}
+
 export interface SessionsCacheEntry {
   connectionId: string;
   sessions: SessionSummary[];
@@ -227,7 +244,7 @@ function App(): React.JSX.Element {
   const [backend, setBackend] = useState<AgentBackend | null>(null);
   const [connections, setConnections] = useState<ConnectionRecord[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
-  const [connectionsLoading, setConnectionsLoading] = useState(false);
+  const [connectionsLoading, setConnectionsLoading] = useState(true);
   const [sessionsCache, setSessionsCache] = useState<SessionsCache>({});
   const [debugTimeline, setDebugTimeline] = useState<DebugTimelineEntry[]>([]);
   
@@ -447,7 +464,40 @@ function App(): React.JSX.Element {
     const loadSavedConnections = async () => {
       setConnectionsLoading(true);
       try {
-        const records = await loadConnections(connectionsStore);
+        let records = await loadConnections(connectionsStore);
+        if (Platform.OS === 'ios') {
+          let configuration = {
+            proxyUrl: 'http://127.0.0.1:3000/v1',
+            model: 'qwen3.5:0.8b',
+          };
+          try {
+            const stored = await getEmbeddedPythonRuntimeConfiguration();
+            configuration = {
+              proxyUrl: stored.proxyUrl,
+              model: stored.model,
+            };
+          } catch (error) {
+            appendDebugNote({
+              scope: 'app',
+              title: 'Embedded settings seed failed',
+              detail: error instanceof Error ? error.message : String(error),
+            });
+          }
+          const prior = records.find(
+            (record): record is EmbeddedConnectionRecord =>
+              record.id === EMBEDDED_CONNECTION_ID &&
+              record.kind === 'embedded',
+          );
+          records = [
+            embeddedConnectionRecord(
+              configuration,
+              prior?.lastUsedAt ?? Date.now(),
+            ),
+            ...records.filter(
+              (record) => record.id !== EMBEDDED_CONNECTION_ID,
+            ),
+          ];
+        }
         setConnections(records);
       } catch (err) {
         console.log('Failed to load saved connections', err);
@@ -457,7 +507,7 @@ function App(): React.JSX.Element {
     };
 
     loadSavedConnections();
-  }, []);
+  }, [appendDebugNote]);
 
   useEffect(() => {
     const loadSessionsCache = async () => {
@@ -484,6 +534,9 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     const save = async () => {
+      if (connectionsLoading) {
+        return;
+      }
       try {
         await saveConnections(connectionsStore, connections);
       } catch (err) {
@@ -492,7 +545,7 @@ function App(): React.JSX.Element {
     };
 
     save();
-  }, [connections]);
+  }, [connections, connectionsLoading]);
 
   useEffect(() => {
     const saveSessions = async () => {
@@ -1161,6 +1214,13 @@ function App(): React.JSX.Element {
   };
 
   const handleDeleteConnection = (record: ConnectionRecord) => {
+    if (record.kind === 'embedded') {
+      Alert.alert(
+        'Built-in Connection',
+        'The on-device Python connection is always available on iOS.',
+      );
+      return;
+    }
     setConnections((prev) => prev.filter((r) => r.id !== record.id));
 
     setSessionsCache((prev) => {
@@ -1644,15 +1704,7 @@ function App(): React.JSX.Element {
       let nextBackend: AgentBackend | null = null;
 
       if (record.kind === 'embedded') {
-        await configureEmbeddedPythonRuntime({
-          proxyUrl: record.proxyUrl,
-          model: record.model,
-        });
         const embedded = createEmbeddedRuntimeBackend();
-        await embedded.transport.request({
-          method: 'POST',
-          path: '/embedded/runtime/validate',
-        });
         await embedded.backend.listAgents();
         nextTransport = embedded.transport;
         nextBackend = embedded.backend;
@@ -1775,6 +1827,19 @@ function App(): React.JSX.Element {
                       onSaveMessagesHistoryRange={saveMessagesHistoryRange}
                       debugTimeline={debugTimeline}
                       onAppendDebugTimelineEntry={appendDebugNote}
+                      onEmbeddedSettingsChanged={(configuration) => {
+                        const prior = connections.find(
+                          (record) =>
+                            record.id === EMBEDDED_CONNECTION_ID &&
+                            record.kind === 'embedded',
+                        );
+                        upsertConnection(
+                          embeddedConnectionRecord(
+                            configuration,
+                            prior?.lastUsedAt ?? Date.now(),
+                          ),
+                        );
+                      }}
                     />
                   );
                 })()}

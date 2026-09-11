@@ -439,14 +439,14 @@ an automatic snapshot, and survive process relaunch/backgrounding.
 - [x] Run the OpenAI Responses and Anthropic iOS dependency/import spike.
 - [x] Produce an exact embedded provider dependency lock and reject unsupported
   native modules or unreviewed major upgrades.
-- [ ] Bundle and configure the four provider profiles and minimal extension
+- [x] Bundle and configure the four provider profiles and minimal extension
   sets.
-- [ ] Implement the four explicit provider/tool-family pairings and interop
+- [x] Implement the four explicit provider/tool-family pairings and interop
   tests.
-- [ ] Add versioned native settings with Keychain-backed provider keys,
+- [x] Add versioned native settings with Keychain-backed provider keys,
   validation, reload, and rollback.
-- [ ] Preconfigure and auto-open the local iOS connection.
-- [ ] Add the Home-menu Local Runtime Settings window and focused component
+- [x] Preconfigure the local iOS connection and allow credential-free opening.
+- [x] Add the Home-menu Local Runtime Settings window and focused component
   tests.
 - [ ] Bundle the selected application plugins and replace embedded router
   stubs with real application/action/snapshot/settings parity.
@@ -565,3 +565,24 @@ an automatic snapshot, and survive process relaunch/backgrounding.
   hosted tests deselected. Three OpenAI native-history tests were corrected to
   set `image_attachment_mode: "upload"` explicitly because their assertions
   required image upload while the current documented default is inline.
+- 2026-09-11: Replaced the single embedded proxy configuration with four
+  versioned profiles and fixed agents: reviewer/OpenAI-compatible,
+  OpenAI Responses, OpenRouter, and Anthropic. Source integration constructs
+  all four agent cores, assigns Claude-like tools to reviewer, OpenRouter, and
+  Anthropic, assigns Codex-like tools to OpenAI Responses, and honors the
+  configured default agent.
+- 2026-09-11: Added a dedicated Home settings window with enabled/default,
+  endpoint, model, masked API-key, removal, candidate validation, and save
+  controls. URLs/models/enabled state persist in `UserDefaults`; per-provider
+  keys persist as Keychain generic-password items. The legacy reviewer key is
+  migrated and removed from `UserDefaults`.
+- 2026-09-11: The built-in on-device connection is seeded during iOS
+  connection hydration and opens before credential validation. Candidate
+  validation runs without replacing stored settings, so a failed test leaves
+  the prior configuration intact.
+- 2026-09-11: Release simulator setup Detox passed in 91.3 seconds against an
+  isolated authenticated Ollama proxy: the built-in connection was present,
+  a wrong key was rejected, the correct reviewer profile validated and saved,
+  the connection opened, and relaunch showed a masked Keychain-backed key.
+  The authenticated multi-turn Claude-like Read/Write test then passed in 66.9
+  seconds and preserved the expected workspace output across relaunch.

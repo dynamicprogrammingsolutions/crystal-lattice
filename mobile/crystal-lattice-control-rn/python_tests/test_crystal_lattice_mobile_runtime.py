@@ -45,6 +45,18 @@ ANTHROPIC_PLUGIN = (
     / "anthropic-compatible"
     / "src"
 )
+OPENROUTER_PLUGIN = (
+    Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "openrouter"
+    / "src"
+)
+REFERENCE_PROVIDER_PLUGIN = (
+    Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "reference-openai-compatible-provider"
+    / "src"
+)
 
 
 def load_runtime_module():
@@ -55,6 +67,8 @@ def load_runtime_module():
         EMBEDDED_CODEX_TOOLS,
         OPENAI_RESPONSES_PLUGIN,
         ANTHROPIC_PLUGIN,
+        OPENROUTER_PLUGIN,
+        REFERENCE_PROVIDER_PLUGIN,
     ):
         sys.path.insert(0, str(path))
     spec = importlib.util.spec_from_file_location(
@@ -202,7 +216,10 @@ def test_external_claude_like_tools_reject_escapes_and_round_trip_text(
     assert not (outside / "escape.txt").exists()
 
 
-def test_fixed_runtime_config_loads_separate_tool_families(tmp_path: Path) -> None:
+def test_fixed_runtime_config_loads_separate_tool_families(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     module = load_runtime_module()
     from embedded_claude_tools import (
         ClaudeLikeEditTool,
@@ -249,7 +266,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(tmp_path: Path) -> No
     assert claude_names == ["Read", "Write", "Edit", "Glob", "Grep", "WebFetch"]
     assert codex_names == ["sed", "rg", "find", "curl", "apply_patch"]
 
-    runtime_config = module._config_payload(
+    legacy_config = module._config_payload(
         {
             "api_key": "test-key",
             "model": "test-model",
@@ -257,7 +274,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(tmp_path: Path) -> No
         },
         tmp_path / "workspace",
     )
-    assert runtime_config["plugins"][-6:] == [
+    assert legacy_config["agents"]["reviewer-claude"]["plugins"] == [
         "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
         "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
         "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
@@ -265,6 +282,76 @@ def test_fixed_runtime_config_loads_separate_tool_families(tmp_path: Path) -> No
         "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
         "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool",
     ]
+
+    full_configuration = {
+        "version": 2,
+        "default_agent": "openai-codex",
+        "providers": {
+            profile_id: {
+                "enabled": True,
+                "api_key": f"{profile_id}-key",
+                "base_url": f"https://{profile_id}.test/v1",
+                "model": f"{profile_id}-model",
+            }
+            for profile_id in module.PROFILE_ORDER
+        },
+    }
+    runtime_config = module._config_payload(
+        full_configuration,
+        tmp_path / "workspace",
+    )
+    assert runtime_config["providers"]["reviewer"]["provider"] == (
+        "reference_openai_compatible"
+    )
+    assert runtime_config["providers"]["openai"]["provider"] == "openai_responses"
+    assert runtime_config["providers"]["openai"]["provider_transport"] == "requests"
+    assert runtime_config["providers"]["openrouter"]["provider"] == "openrouter"
+    assert runtime_config["providers"]["anthropic"]["provider"] == "anthropic"
+    assert runtime_config["providers"]["anthropic"]["provider_transport"] == (
+        "requests"
+    )
+    assert runtime_config["agents"]["openai-codex"]["plugins"] == (
+        module.CODEX_TOOL_PLUGINS
+    )
+    for agent_id in (
+        "reviewer-claude",
+        "openrouter-claude",
+        "anthropic-claude",
+    ):
+        assert runtime_config["agents"][agent_id]["plugins"] == (
+            module.CLAUDE_TOOL_PLUGINS
+        )
+
+    from anthropic_plugins.provider import AnthropicProvider
+    from openai_responses_plugins.openai_responses_provider import (
+        OpenAIResponsesProvider,
+    )
+    from openrouter_plugins.openrouter_provider import OpenRouterProvider
+    from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
+
+    for provider_type in (
+        AnthropicProvider,
+        OpenAIResponsesProvider,
+        OpenRouterProvider,
+        OpenAICompatibleProvider,
+    ):
+        monkeypatch.setattr(provider_type, "get_models", lambda self, config: [])
+
+    runtime = module.MobileRuntime(
+        str(tmp_path / "runtime"),
+        full_configuration,
+    )
+    try:
+        assert runtime.application.list_agents() == [
+            "anthropic-claude",
+            "openai-codex",
+            "openrouter-claude",
+            "reviewer-claude",
+        ]
+        default_session = runtime.create_session()
+        assert default_session.metadata["agent_id"] == "openai-codex"
+    finally:
+        runtime.application.close()
 
 
 def test_provider_import_smoke_uses_requests_transports(tmp_path: Path) -> None:
@@ -279,6 +366,7 @@ def test_provider_import_smoke_uses_requests_transports(tmp_path: Path) -> None:
     assert result == {
         "providers": [
             "openai_responses:requests",
+            "openrouter:requests",
             "anthropic:requests",
         ]
     }

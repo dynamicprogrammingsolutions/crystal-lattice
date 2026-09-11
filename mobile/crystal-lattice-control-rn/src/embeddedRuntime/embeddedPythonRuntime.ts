@@ -8,7 +8,7 @@ export interface EmbeddedPythonRuntimeInfo {
   agents?: string[];
   sessionId?: string;
   messageCount?: number;
-  providerMode?: "smoke" | "openai-compatible";
+  providerMode?: "smoke" | "openai-compatible" | "multi-provider";
   assistantContent?: string;
   toolMessageCount?: number;
   toolNames?: string[];
@@ -22,13 +22,49 @@ export interface EmbeddedRuntimeResponse<T = any> {
   data: T;
 }
 
-export interface EmbeddedRuntimeConfiguration {
-  proxyUrl: string;
+export type EmbeddedProviderProfileId =
+  | "reviewer"
+  | "openai"
+  | "openrouter"
+  | "anthropic";
+
+export interface EmbeddedProviderProfileUpdate {
+  enabled?: boolean;
+  baseUrl?: string;
+  model?: string;
+  apiKey?: string;
+  clearApiKey?: boolean;
+}
+
+export interface EmbeddedProviderProfile {
+  id: EmbeddedProviderProfileId;
+  label: string;
+  agentId: string;
+  toolFamily: "claude-like" | "codex-like";
+  enabled: boolean;
+  baseUrl: string;
   model: string;
+  hasApiKey: boolean;
+}
+
+export interface EmbeddedRuntimeConfiguration {
+  version?: 2;
+  defaultAgent?: string;
+  providers?: Partial<
+    Record<EmbeddedProviderProfileId, EmbeddedProviderProfileUpdate>
+  >;
+  profileId?: EmbeddedProviderProfileId;
+  // Legacy reviewer setup aliases.
+  proxyUrl?: string;
+  model?: string;
   apiKey?: string;
 }
 
 export interface EmbeddedRuntimePublicConfiguration {
+  version: 2;
+  defaultAgent: string;
+  providers: Record<EmbeddedProviderProfileId, EmbeddedProviderProfile>;
+  // Legacy reviewer setup aliases.
   proxyUrl: string;
   model: string;
   hasApiKey: boolean;
@@ -69,6 +105,9 @@ interface EmbeddedPythonRuntimeModule {
   configure(
     configuration: EmbeddedRuntimeConfiguration
   ): Promise<EmbeddedRuntimePublicConfiguration>;
+  validateConfiguration(
+    configuration: EmbeddedRuntimeConfiguration
+  ): Promise<{ status: "ok"; profile_id: string; model: string }>;
   getConfiguration(): Promise<EmbeddedRuntimePublicConfiguration>;
   noteAppState(state: string): Promise<EmbeddedRuntimeLifecycleStatus>;
   getLifecycleStatus(): Promise<EmbeddedRuntimeLifecycleStatus>;
@@ -114,6 +153,12 @@ export async function configureEmbeddedPythonRuntime(
 
 export async function getEmbeddedPythonRuntimeConfiguration(): Promise<EmbeddedRuntimePublicConfiguration> {
   return requireNativeRuntime().getConfiguration();
+}
+
+export async function validateEmbeddedPythonRuntimeConfiguration(
+  configuration: EmbeddedRuntimeConfiguration
+): Promise<{ status: "ok"; profile_id: string; model: string }> {
+  return requireNativeRuntime().validateConfiguration(configuration);
 }
 
 export async function noteEmbeddedPythonRuntimeAppState(

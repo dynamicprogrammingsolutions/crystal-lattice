@@ -44,14 +44,144 @@ class EmbeddedSmokeProvider(ProviderPlugin):
         yield {"content": "Embedded runtime smoke response"}
 
 
+PROFILE_ORDER = (
+    "reviewer",
+    "openai",
+    "openrouter",
+    "anthropic",
+)
+PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
+    "reviewer": {
+        "enabled": True,
+        "base_url": "http://127.0.0.1:3000/v1",
+        "model": "qwen3.5:0.8b",
+    },
+    "openai": {
+        "enabled": False,
+        "base_url": "https://api.openai.com/v1",
+        "model": "gpt-5.6-luna",
+    },
+    "openrouter": {
+        "enabled": False,
+        "base_url": "https://openrouter.ai/api/v1",
+        "model": "anthropic/claude-haiku-4.5",
+    },
+    "anthropic": {
+        "enabled": False,
+        "base_url": "https://api.anthropic.com",
+        "model": "claude-haiku-4-5-20251001",
+    },
+}
+PROFILE_AGENTS = {
+    "reviewer": "reviewer-claude",
+    "openai": "openai-codex",
+    "openrouter": "openrouter-claude",
+    "anthropic": "anthropic-claude",
+}
+CLAUDE_TOOL_PLUGINS = [
+    "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
+    "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
+    "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
+    "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool",
+    "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
+    "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool",
+]
+CODEX_TOOL_PLUGINS = [
+    "embedded_codex_tools.sed_tool.CodexLikeSedTool",
+    "embedded_codex_tools.rg_tool.CodexLikeRgTool",
+    "embedded_codex_tools.find_tool.CodexLikeFindTool",
+    "embedded_codex_tools.curl_tool.CodexLikeCurlTool",
+    "embedded_codex_tools.apply_patch_tool.CodexLikeApplyPatchTool",
+]
+
+
+def _normalized_profile(
+    profile_id: str,
+    raw_profile: Any,
+) -> dict[str, Any]:
+    defaults = PROFILE_DEFAULTS[profile_id]
+    source = raw_profile if isinstance(raw_profile, dict) else {}
+    return {
+        "enabled": bool(source.get("enabled", defaults["enabled"])),
+        "base_url": str(
+            source.get("base_url")
+            or source.get("proxy_url")
+            or defaults["base_url"]
+        ).strip(),
+        "model": str(source.get("model") or defaults["model"]).strip(),
+        "api_key": str(source.get("api_key") or "").strip(),
+    }
+
+
 def _normalized_runtime_configuration(
     runtime_configuration: dict[str, Any] | None,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     source = runtime_configuration if isinstance(runtime_configuration, dict) else {}
-    return {
-        key: str(source.get(key) or "").strip()
-        for key in ("api_key", "model", "proxy_url")
+    raw_profiles = source.get("providers")
+    profiles_source = raw_profiles if isinstance(raw_profiles, dict) else {}
+
+    if not profiles_source and any(
+        source.get(key) for key in ("api_key", "model", "proxy_url")
+    ):
+        profiles_source = {
+            "reviewer": {
+                "enabled": True,
+                "api_key": source.get("api_key"),
+                "model": source.get("model"),
+                "base_url": source.get("proxy_url"),
+            }
+        }
+
+    profiles = {
+        profile_id: _normalized_profile(
+            profile_id,
+            profiles_source.get(profile_id),
+        )
+        for profile_id in PROFILE_ORDER
     }
+    default_agent = str(
+        source.get("default_agent") or PROFILE_AGENTS["reviewer"]
+    ).strip()
+    if default_agent not in PROFILE_AGENTS.values():
+        default_agent = PROFILE_AGENTS["reviewer"]
+    return {
+        "version": 2,
+        "default_agent": default_agent,
+        "providers": profiles,
+    }
+
+
+def _profile_is_ready(profile: dict[str, Any]) -> bool:
+    return (
+        profile.get("enabled") is True
+        and all(
+            isinstance(profile.get(key), str) and bool(profile[key])
+            for key in ("api_key", "base_url", "model")
+        )
+    )
+
+
+def _runtime_provider_mode(configuration: dict[str, Any]) -> str:
+    profiles = configuration.get("providers")
+    if not isinstance(profiles, dict):
+        return "smoke"
+    configured = [
+        profile_id
+        for profile_id in PROFILE_ORDER
+        if isinstance(profiles.get(profile_id), dict)
+        and _profile_is_ready(profiles[profile_id])
+    ]
+    if configured == ["reviewer"]:
+        return "openai-compatible"
+    return "multi-provider" if configured else "smoke"
+
+
+def _default_profile_id(configuration: dict[str, Any]) -> str:
+    default_agent = configuration.get("default_agent")
+    for profile_id, agent_id in PROFILE_AGENTS.items():
+        if default_agent == agent_id:
+            return profile_id
+    return "reviewer"
 
 
 def _config_payload(
@@ -59,32 +189,48 @@ def _config_payload(
     workspace_root: Path | None = None,
 ) -> dict[str, Any]:
     configuration = _normalized_runtime_configuration(runtime_configuration)
-    use_openai_compatible = all(configuration.values())
-    provider_id = (
-        "reference_openai_compatible"
-        if use_openai_compatible
-        else "embedded_smoke_provider"
-    )
-    provider_config: dict[str, Any] = {
-        "provider": provider_id,
-        "model": (
-            configuration["model"] if use_openai_compatible else "embedded-smoke"
+    profiles = configuration["providers"]
+    ready_profiles = [
+        profile_id
+        for profile_id in PROFILE_ORDER
+        if _profile_is_ready(profiles[profile_id])
+    ]
+    if not ready_profiles:
+        return {
+            "plugin_policy": {
+                "allow_bash_tools": False,
+                "allow_dynamic_plugin_install": False,
+                "allow_node_tools": False,
+                "allow_remote": False,
+            },
+            "providers": {
+                "embedded": {
+                    "provider": "embedded_smoke_provider",
+                    "model": "embedded-smoke",
+                }
+            },
+            "plugins": ["crystal_lattice_mobile_runtime.EmbeddedSmokeProvider"],
+            "agents": {"local": {"provider": "embedded"}},
+        }
+    if workspace_root is None:
+        raise ValueError("workspace_root is required for configured providers")
+
+    default_agent = configuration["default_agent"]
+    default_profile = next(
+        (
+            profile_id
+            for profile_id in ready_profiles
+            if PROFILE_AGENTS[profile_id] == default_agent
         ),
-    }
-    plugins = ["crystal_lattice_mobile_runtime.EmbeddedSmokeProvider"]
-    if use_openai_compatible:
-        if workspace_root is None:
-            raise ValueError("workspace_root is required for the real provider")
-        provider_config.update(
-            {
-                "api_key": configuration["api_key"],
-                "base_url": configuration["proxy_url"],
-                "timeout": 120,
-                "working_directory": str(workspace_root),
-                "allowed_paths": [str(workspace_root)],
-            }
-        )
-        plugins = [
+        ready_profiles[0],
+    )
+    ordered_profiles = [
+        default_profile,
+        *[profile_id for profile_id in ready_profiles if profile_id != default_profile],
+    ]
+
+    provider_plugins: dict[str, list[str]] = {
+        "reviewer": [
             (
                 "reference_openai_compatible_provider.provider."
                 "OpenAICompatibleProvider"
@@ -93,13 +239,99 @@ def _config_payload(
                 "reference_openai_compatible_provider.tools_extension."
                 "OpenAICompatibleToolsExtension"
             ),
-            "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
-            "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
-            "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
-            "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool",
-            "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
-            "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool",
-        ]
+        ],
+        "openai": [
+            (
+                "openai_responses_plugins.openai_responses_provider."
+                "OpenAIResponsesProvider"
+            ),
+            (
+                "openai_responses_plugins.openai_responses_tools_extension."
+                "OpenAIResponsesToolsExtension"
+            ),
+            (
+                "openai_responses_plugins.openai_responses_reasoning_extension."
+                "OpenAIResponsesReasoningExtension"
+            ),
+            (
+                "openai_responses_plugins.openai_responses_usage_extension."
+                "OpenAIResponsesUsageExtension"
+            ),
+        ],
+        "openrouter": [
+            "openrouter_plugins.openrouter_provider.OpenRouterProvider",
+            (
+                "openrouter_plugins.openrouter_tools_extension."
+                "OpenRouterToolsExtension"
+            ),
+            (
+                "openrouter_plugins.openrouter_reasoning_extension."
+                "OpenRouterReasoningExtension"
+            ),
+            (
+                "openrouter_plugins.openrouter_usage_extension."
+                "OpenRouterUsageExtension"
+            ),
+        ],
+        "anthropic": [
+            "anthropic_plugins.provider.AnthropicProvider",
+            "anthropic_plugins.tools_extension.AnthropicToolsExtension",
+            "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
+            "anthropic_plugins.usage_extension.AnthropicUsageExtension",
+        ],
+    }
+    providers: dict[str, dict[str, Any]] = {}
+    agents: dict[str, dict[str, Any]] = {}
+    plugins: list[str] = []
+    for profile_id in ordered_profiles:
+        profile = profiles[profile_id]
+        provider_config: dict[str, Any] = {
+            "api_key": profile["api_key"],
+            "base_url": profile["base_url"],
+            "model": profile["model"],
+            "timeout": 180,
+            "working_directory": str(workspace_root),
+            "allowed_paths": [str(workspace_root)],
+        }
+        if profile_id == "reviewer":
+            provider_config["provider"] = "reference_openai_compatible"
+            tool_plugins = CLAUDE_TOOL_PLUGINS
+        elif profile_id == "openai":
+            provider_config.update(
+                {
+                    "provider": "openai_responses",
+                    "provider_transport": "requests",
+                    "auth_mode": "api",
+                    "reasoning_effort": "low",
+                    "reasoning_summary": "concise",
+                }
+            )
+            tool_plugins = CODEX_TOOL_PLUGINS
+        elif profile_id == "openrouter":
+            provider_config["provider"] = "openrouter"
+            tool_plugins = CLAUDE_TOOL_PLUGINS
+        else:
+            provider_config.update(
+                {
+                    "provider": "anthropic",
+                    "provider_transport": "requests",
+                    "max_tokens": 4096,
+                }
+            )
+            tool_plugins = CLAUDE_TOOL_PLUGINS
+
+        providers[profile_id] = provider_config
+        agent_id = PROFILE_AGENTS[profile_id]
+        agents[agent_id] = {
+            "provider": profile_id,
+            "plugins": list(tool_plugins),
+            "working_directory": str(workspace_root),
+            "allowed_paths": [str(workspace_root)],
+            "tool_family": "codex-like" if profile_id == "openai" else "claude-like",
+        }
+        for plugin in provider_plugins[profile_id]:
+            if plugin not in plugins:
+                plugins.append(plugin)
 
     return {
         "plugin_policy": {
@@ -108,13 +340,9 @@ def _config_payload(
             "allow_node_tools": False,
             "allow_remote": False,
         },
-        "providers": {"embedded": provider_config},
+        "providers": providers,
         "plugins": plugins,
-        "agents": {
-            "local": {
-                "provider": "embedded",
-            }
-        },
+        "agents": agents,
     }
 
 
@@ -123,6 +351,7 @@ def _provider_import_smoke() -> list[str]:
     from openai_responses_plugins.openai_responses_provider import (
         OpenAIResponsesProvider,
     )
+    from openrouter_plugins.openrouter_provider import OpenRouterProvider
 
     openai_state = OpenAIResponsesProvider().init(
         {
@@ -145,7 +374,20 @@ def _provider_import_smoke() -> list[str]:
         }
     )
     anthropic_client.close()
-    return ["openai_responses:requests", "anthropic:requests"]
+    openrouter_state = OpenRouterProvider().init(
+        {
+            "api_key": "import-smoke",
+            "base_url": "https://openrouter.ai/api/v1",
+            "model": "import-smoke",
+        }
+    )
+    if not isinstance(openrouter_state, dict):
+        raise RuntimeError("OpenRouter provider import smoke returned invalid state")
+    return [
+        "openai_responses:requests",
+        "openrouter:requests",
+        "anthropic:requests",
+    ]
 
 
 class MobileRuntime:
@@ -196,7 +438,13 @@ class MobileRuntime:
         agent_id: str | None = None,
         system_message: str | None = None,
     ) -> Session:
-        selected_agent = agent_id or self.application.list_agents()[0]
+        available_agents = self.application.list_agents()
+        configured_default = self.runtime_configuration.get("default_agent")
+        selected_agent = agent_id or (
+            configured_default
+            if configured_default in available_agents
+            else available_agents[0]
+        )
         core, base_config, session = self.application.create_session(selected_agent)
         if system_message:
             session = core.add_message(
@@ -637,10 +885,8 @@ def _handle_request(
             200,
             {
                 "message": "Embedded Python runtime is ready",
-                "provider_mode": (
-                    "openai-compatible"
-                    if all(runtime.runtime_configuration.values())
-                    else "smoke"
+                "provider_mode": _runtime_provider_mode(
+                    runtime.runtime_configuration
                 ),
                 "workspace_output": (
                     output_path.read_text(encoding="utf-8")
@@ -663,14 +909,22 @@ def _handle_request(
         return _response(
             200,
             {
-                "provider_mode": (
-                    "openai-compatible"
-                    if all(runtime.runtime_configuration.values())
-                    else "smoke"
+                "provider_mode": _runtime_provider_mode(
+                    runtime.runtime_configuration
                 ),
-                "has_api_key": bool(runtime.runtime_configuration["api_key"]),
-                "model": runtime.runtime_configuration["model"],
-                "proxy_url": runtime.runtime_configuration["proxy_url"],
+                "default_agent": runtime.runtime_configuration["default_agent"],
+                "providers": {
+                    profile_id: {
+                        "enabled": profile["enabled"],
+                        "has_api_key": bool(profile["api_key"]),
+                        "model": profile["model"],
+                        "base_url": profile["base_url"],
+                        "ready": _profile_is_ready(profile),
+                    }
+                    for profile_id, profile in runtime.runtime_configuration[
+                        "providers"
+                    ].items()
+                },
             },
         )
 
@@ -678,26 +932,56 @@ def _handle_request(
         return _response(200, {"providers": _provider_import_smoke()})
 
     if path_parts == ["embedded", "runtime", "validate"] and method == "POST":
-        if not all(runtime.runtime_configuration.values()):
-            return _response(400, {"detail": "Runtime configuration is incomplete"})
-        from reference_openai_compatible_provider.provider import (
-            OpenAICompatibleProvider,
+        requested_profile_id = str(
+            body.get("profile_id")
+            or _default_profile_id(runtime.runtime_configuration)
         )
+        profiles = runtime.runtime_configuration["providers"]
+        profile = profiles.get(requested_profile_id)
+        if not isinstance(profile, dict) or not _profile_is_ready(profile):
+            return _response(400, {"detail": "Provider configuration is incomplete"})
+        provider_config = {
+            "api_key": profile["api_key"],
+            "base_url": profile["base_url"],
+            "model": profile["model"],
+            "timeout": 15,
+        }
+        if requested_profile_id == "reviewer":
+            from reference_openai_compatible_provider.provider import (
+                OpenAICompatibleProvider,
+            )
 
-        models = OpenAICompatibleProvider().get_models(
-            {
-                "api_key": runtime.runtime_configuration["api_key"],
-                "base_url": runtime.runtime_configuration["proxy_url"],
-                "model": runtime.runtime_configuration["model"],
-                "timeout": 15,
-            }
-        )
+            provider = OpenAICompatibleProvider()
+        elif requested_profile_id == "openai":
+            from openai_responses_plugins.openai_responses_provider import (
+                OpenAIResponsesProvider,
+            )
+
+            provider_config.update(
+                {
+                    "provider_transport": "requests",
+                    "auth_mode": "api",
+                }
+            )
+            provider = OpenAIResponsesProvider()
+        elif requested_profile_id == "openrouter":
+            from openrouter_plugins.openrouter_provider import OpenRouterProvider
+
+            provider = OpenRouterProvider()
+        elif requested_profile_id == "anthropic":
+            from anthropic_plugins.provider import AnthropicProvider
+
+            provider_config["provider_transport"] = "requests"
+            provider = AnthropicProvider()
+        else:
+            return _response(404, {"detail": "Unknown provider profile"})
+        models = provider.get_models(provider_config)
         model_ids = {
             model.get("id")
             for model in models
             if isinstance(model, dict) and isinstance(model.get("id"), str)
         }
-        configured_model = runtime.runtime_configuration["model"]
+        configured_model = profile["model"]
         if configured_model not in model_ids:
             return _response(
                 401,
@@ -712,6 +996,7 @@ def _handle_request(
             200,
             {
                 "status": "ok",
+                "profile_id": requested_profile_id,
                 "model": configured_model,
             },
         )
@@ -738,10 +1023,8 @@ def _handle_request(
                     if output_path.is_file()
                     else ""
                 ),
-                "provider_mode": (
-                    "openai-compatible"
-                    if all(runtime.runtime_configuration.values())
-                    else "smoke"
+                "provider_mode": _runtime_provider_mode(
+                    runtime.runtime_configuration
                 ),
             },
         )
