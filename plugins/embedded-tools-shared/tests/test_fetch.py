@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import gzip
 import socket
+import zlib
 
 import pytest
 
@@ -144,3 +146,37 @@ def test_fetch_clamps_text_and_rejects_unsupported_content(
     )
     with pytest.raises(FetchError, match="Unsupported"):
         fetch_module.fetch_public_url("https://example.test/image")
+
+
+def test_decode_content_encoding_is_bounded() -> None:
+    html = b"<html><head><title>Compressed</title></head><body>hello</body></html>"
+
+    decoded_gzip, gzip_truncated = fetch_module._decode_content_encoding(
+        gzip.compress(html),
+        {"content-encoding": "gzip"},
+        max_bytes=1024,
+    )
+    decoded_deflate, deflate_truncated = fetch_module._decode_content_encoding(
+        zlib.compress(html),
+        {"content-encoding": "deflate"},
+        max_bytes=1024,
+    )
+    truncated, was_truncated = fetch_module._decode_content_encoding(
+        gzip.compress(b"x" * 4096),
+        {"content-encoding": "gzip"},
+        max_bytes=1024,
+    )
+
+    assert decoded_gzip == html
+    assert decoded_deflate == html
+    assert not gzip_truncated
+    assert not deflate_truncated
+    assert truncated == b"x" * 1024
+    assert was_truncated
+
+    with pytest.raises(FetchError, match="Unsupported Content-Encoding"):
+        fetch_module._decode_content_encoding(
+            b"payload",
+            {"content-encoding": "br"},
+            max_bytes=1024,
+        )

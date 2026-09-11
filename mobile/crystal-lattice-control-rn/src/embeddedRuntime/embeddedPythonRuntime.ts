@@ -13,6 +13,10 @@ export interface EmbeddedPythonRuntimeInfo {
   toolMessageCount?: number;
   toolNames?: string[];
   providerImports?: string[];
+  applicationForkSessionId?: string;
+  applicationForkTitle?: string;
+  applicationSnapshotCount?: number;
+  applicationSnapshotReadonly?: boolean;
   outputExists?: boolean;
   outputContent?: string;
 }

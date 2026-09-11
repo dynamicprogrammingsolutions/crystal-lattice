@@ -15,7 +15,7 @@ dependencies = ["embedded-tools-shared>=0.1.0"]
 
 
 [project.optional-dependencies]
-dev = ["agent-core>=0.3.0", "pytest>=7.0.0"]
+dev = ["agent-core>=0.3.0", "pytest>=7.0.0", "python-dotenv>=1.0"]
 
 
 [tool.setuptools]
@@ -34,3 +34,10 @@ include = ["embedded_claude_tools*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "-m 'not integration'"
+markers = [
+  "integration: tests crossing provider or package boundaries",
+  "api: hosted API tests requiring credentials",
+  "openrouter: OpenRouter-backed tests",
+  "anthropic: Anthropic-backed tests",
+]

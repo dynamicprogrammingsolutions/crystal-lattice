@@ -7,48 +7,48 @@ actions from the ordinary default configuration.
 
 ## Requirements checklist
 
-- [ ] Separate first-party Claude-like and Codex-like plugin packages under
+- [x] Separate first-party Claude-like and Codex-like plugin packages under
   `plugins/` own the embedded runtime's model-visible tools; the tools are no
   longer implemented inside the mobile bridge module.
-- [ ] A shared, model-invisible iOS-safe engine package owns workspace
+- [x] A shared, model-invisible iOS-safe engine package owns workspace
   authorization, text reading/writing/editing, file enumeration, text search,
   patching, and public HTTP fetching without imposing one vendor's schemas.
-- [ ] The Claude-like plugin package exposes fully implemented `Read`, `Write`,
+- [x] The Claude-like plugin package exposes fully implemented `Read`, `Write`,
   `Edit`, `Glob`, `Grep`, and `WebFetch` tools with Claude-like names, schemas,
   and result presentation for their documented text/workspace scope.
-- [ ] The Codex-like plugin package exposes fully implemented lowercase
+- [x] The Codex-like plugin package exposes fully implemented lowercase
   `sed`, `rg`, `find`, `curl`, and `apply_patch` tools with command-oriented
   parameter descriptions and Bash-like result presentation.
-- [ ] Every filesystem-mutating or inspecting tool is restricted to the
+- [x] Every filesystem-mutating or inspecting tool is restricted to the
   canonical app workspace and rejects absolute paths, traversal, and symlink
   escape.
-- [ ] Claude-like `WebFetch` and Codex-like `curl` accept only public HTTP(S)
+- [x] Claude-like `WebFetch` and Codex-like `curl` accept only public HTTP(S)
   URLs, revalidate redirects, reject local/private/reserved destinations, and
   bound time, redirects, downloaded bytes, and returned text.
-- [ ] Four fixed provider-backed agents are available through the local
+- [x] Four fixed provider-backed agents are available through the local
   runtime: generic OpenAI-compatible, OpenAI Responses, OpenRouter, and the
   official Anthropic API.
-- [ ] Each fixed agent explicitly identifies its tool family. Generic
+- [x] Each fixed agent explicitly identifies its tool family. Generic
   OpenAI-compatible, OpenRouter, and Anthropic use the Claude-like set in this
   task; OpenAI Responses uses the Codex-like set.
-- [ ] The local connection is created automatically and can list existing
+- [x] The local connection is created automatically and can list existing
   sessions before any provider credential is configured.
-- [ ] A separate Local Runtime Settings window is accessible from the Home
+- [x] A separate Local Runtime Settings window is accessible from the Home
   menu and configures each provider's API key, base URL, model, enabled state,
   and the default agent.
-- [ ] Provider API keys are stored in the native credential owner rather than
+- [x] Provider API keys are stored in the native credential owner rather than
   saved connection records, AsyncStorage, sessions, tool results, logs, or
   committed configuration.
-- [ ] Saving settings validates a candidate provider configuration and performs
+- [x] Saving settings validates a candidate provider configuration and performs
   a complete embedded `AgentApplication` reconstruction while preserving
   sessions and workspace files.
-- [ ] The embedded application loads the selected iOS-safe default application
+- [x] The embedded application loads the selected iOS-safe default application
   plugins and exposes their real application/session/message actions through
   the production mobile UI.
-- [ ] Users can at minimum fork/copy/delete sessions, delete message ranges,
+- [x] Users can at minimum fork/copy/delete sessions, delete message ranges,
   restore automatic snapshots, edit/generate titles, search/filter sessions,
   and use pin/archive/status metadata.
-- [ ] Simulator acceptance covers the preconfigured connection, settings and
+- [x] Simulator acceptance covers the preconfigured connection, settings and
   reload, provider/tool interoperability, simple web fetch, application
   actions, persistence, and background lifecycle without a deterministic
   product provider.
@@ -448,16 +448,16 @@ an automatic snapshot, and survive process relaunch/backgrounding.
 - [x] Preconfigure the local iOS connection and allow credential-free opening.
 - [x] Add the Home-menu Local Runtime Settings window and focused component
   tests.
-- [ ] Bundle the selected application plugins and replace embedded router
+- [x] Bundle the selected application plugins and replace embedded router
   stubs with real application/action/snapshot/settings parity.
-- [ ] Verify fork, copy, delete, snapshot restore, title, search, pin, archive,
+- [x] Verify fork, copy, delete, snapshot restore, title, search, pin, archive,
   status, ordering, and attachment behavior through production mobile
   consumers.
-- [ ] Run real-provider Claude-like smokes for the reviewer proxy, OpenRouter,
+- [x] Run real-provider Claude-like smokes for the reviewer proxy, OpenRouter,
   and Anthropic, plus a Codex-like OpenAI Responses smoke.
-- [ ] Pass production-screen simulator acceptance for settings, web fetch,
+- [x] Pass production-screen simulator acceptance for settings, web fetch,
   file mutation, application actions, persistence, and backgrounding.
-- [ ] Update package/mobile/provider documentation, requirement evidence, and
+- [x] Update package/mobile/provider documentation, requirement evidence, and
   completion notes.
 
 ### Requirement verification
@@ -586,3 +586,69 @@ an automatic snapshot, and survive process relaunch/backgrounding.
   the connection opened, and relaunch showed a masked Keychain-backed key.
   The authenticated multi-turn Claude-like Read/Write test then passed in 66.9
   seconds and preserved the expected workspace output across relaunch.
+- 2026-09-11: Bundled the iOS-safe default application plugins for session
+  actions, title editing/generation, search, message-count/timestamp metadata,
+  pin, archive, status, ordering, and generic attachment download. Replaced
+  embedded stubs with `AgentApplication` delegation for action/UI discovery,
+  action execution, plugin overrides, snapshots, readonly selection, restore,
+  fork, message deletion, and server settings.
+- 2026-09-11: The public in-process route matrix passed five tests and covered
+  title/archive/pin/status actions, copy/delete/fork, Python-style range
+  deletion with an automatic snapshot, readonly selection and restore, search
+  and ordering UI schema, server settings, plugin overrides, generated-title
+  discovery, and attachment download. Generate-title's own fast suite passed
+  13 tests with two integration tests deselected.
+- 2026-09-11: Real provider checks passed using the production embedded tool
+  packages: OpenRouter Claude-like `Write`/`Read`/`WebFetch` in 9.8 seconds,
+  official Anthropic through `provider_transport: requests` in 9.5 seconds,
+  and OpenAI Responses Luna with all five Codex-like tools in 20.1 seconds.
+  The authenticated reviewer simulator previously passed the persisted
+  Read/Write workflow and application-action matrix; an isolated real Ollama
+  probe also emitted and executed `WebFetch` with the single-tool required
+  configuration.
+- 2026-09-11: Fixed bounded gzip/deflate decoding in the shared public fetcher
+  after Python.org ignored `Accept-Encoding: identity`. Ten focused fetch
+  tests and a live host fetch passed. The dedicated Release simulator WebFetch
+  test then extracted `Welcome to Python.org` in 38 seconds.
+- 2026-09-11: Final simulator checks passed on the Release build: Home provider
+  setup/preconfigured connection in 77.5 seconds and delayed background
+  continuation in 88.9 seconds. Credential/archive scanning found no
+  credential-like values in changed files and no bundled OpenAI/Anthropic SDK
+  or native `jiter`/`pydantic-core` closure.
+- 2026-09-11: Full frontend verification passed: 182 mobile Jest tests, 342
+  frontend SDK tests, 51 shared React Native component tests, and TypeScript.
+  Default embedded-package tests passed with 26 shared-engine, seven
+  Claude-like, and four Codex-like tests; hosted tests remained explicitly
+  gated.
+- 2026-09-11: Broad suites in untouched neighboring code still expose known
+  baseline/test-harness failures: three OpenRouter metadata/web-search
+  assertions, reference-provider rate-limit tests that monkeypatch
+  `requests.post` while runtime code uses `Session.post`, and standalone
+  session-plugin tests with stale event-store assumptions, unknown-agent
+  deletion expectations, or cross-package runtime-overlay/pip isolation.
+  Changed-file provider tests, focused OpenRouter tests (38), the embedded
+  route matrix, and all acceptance tests above passed.
+
+## Completion Notes
+
+- Completed the minimally useful embedded runtime with separate shared,
+  Claude-like, and Codex-like tool packages; four configurable provider
+  profiles; Keychain-backed settings; a preconfigured local connection; and
+  iOS-safe application/session actions.
+- Requirement evidence includes package and route tests, exact archive
+  inspection, real OpenRouter/Anthropic/OpenAI tool loops, authenticated
+  reviewer simulator runs, Home settings and Keychain persistence, dedicated
+  simulator WebFetch, application action/snapshot behavior, relaunch
+  persistence, and background continuation.
+- OpenAI Responses and Anthropic use package-owned requests transports in the
+  embedded archive. Ordinary installations retain official SDK transports.
+  The archive deliberately excludes the vendor SDK/native dependency closure.
+- The implementation added opt-in OpenAI-compatible `tool_choice` forwarding
+  after real Ollama investigation. Its default remains `auto`.
+- App Review deployment hardening, ChatGPT login, Tavily search, restricted
+  Python execution, email tools, arbitrary workspaces, and future Kimi/Gemini
+  tool families remain outside this subtask. Tavily and Python are tracked by
+  subtasks `020` and `030`.
+- The unrelated user-owned SSH resolution change in
+  `mobile/crystal-lattice-control-rn/package-lock.json` was preserved and not
+  committed.

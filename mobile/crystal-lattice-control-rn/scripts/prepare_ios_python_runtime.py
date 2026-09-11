@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "9"
+RUNTIME_LAYOUT_VERSION = "10"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -42,6 +42,19 @@ PURE_DEPENDENCIES = (
     "requests==2.31.0",
     "structlog==25.5.0",
     "urllib3==2.2.1",
+)
+APP_PLUGIN_PACKAGES = (
+    ("generate-title-app", "generate_title_app"),
+    ("session-actions-app", "session_actions_app"),
+    ("session-archive-app", "session_archive_app"),
+    ("session-main-search-app", "session_main_search_app"),
+    ("session-message-count-meta-app", "session_message_count_meta_app"),
+    ("session-ordering-buckets-app", "session_ordering_buckets_app"),
+    ("session-pinned-app", "session_pinned_app"),
+    ("session-status-app", "session_status_app"),
+    ("session-timestamp-meta-app", "session_timestamp_meta_app"),
+    ("session-title-app", "session_title_app"),
+    ("session-asset-attachments", "session_asset_attachments"),
 )
 
 
@@ -132,6 +145,10 @@ def source_digest() -> str:
             / "anthropic_plugins"
         ),
         REPO_ROOT / "plugins" / "openrouter" / "src" / "openrouter_plugins",
+        *(
+            REPO_ROOT / "plugins" / project / "src" / package
+            for project, package in APP_PLUGIN_PACKAGES
+        ),
         PYTHON_APP_SOURCE,
     )
     for source_root in source_roots:
@@ -277,6 +294,12 @@ def create_application_archive(destination: Path) -> None:
             REPO_ROOT / "plugins" / "openrouter" / "src" / "openrouter_plugins",
             Path("openrouter_plugins"),
         )
+        for project, package in APP_PLUGIN_PACKAGES:
+            add_python_tree(
+                archive,
+                REPO_ROOT / "plugins" / project / "src" / package,
+                Path(package),
+            )
         add_python_tree(archive, PYTHON_APP_SOURCE, Path())
         for package_name in (
             "certifi",

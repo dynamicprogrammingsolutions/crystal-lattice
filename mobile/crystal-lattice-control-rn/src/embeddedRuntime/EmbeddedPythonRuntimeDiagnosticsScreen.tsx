@@ -24,6 +24,68 @@ type RuntimeState =
   | { status: "ready"; info: EmbeddedPythonRuntimeInfo }
   | { status: "error"; message: string };
 
+async function runApplicationRouteSmoke(
+  backend: ReturnType<typeof createEmbeddedRuntimeBackend>["backend"],
+  transport: ReturnType<typeof createEmbeddedRuntimeBackend>["transport"],
+  sourceSessionId: string,
+  sourceMessageCount: number
+): Promise<{
+  forkSessionId: string;
+  forkTitle: string;
+  snapshotCount: number;
+  snapshotReadonly: boolean;
+}> {
+  const forked = await backend.forkSession(sourceSessionId, {
+    index: Math.max(0, sourceMessageCount - 1),
+  });
+  const forkSessionId = forked.session.session_id;
+  if (!backend.executeSessionAction) {
+    throw new Error("The embedded backend does not support session actions.");
+  }
+  await backend.executeSessionAction({
+    sessionId: forkSessionId,
+    pluginId: "session_title",
+    actionId: "set_session_title",
+    inputs: {
+      session_id: forkSessionId,
+      title: "Embedded application routes",
+    },
+  });
+  const forkMessages = await backend.listMessages(forkSessionId);
+  await backend.deleteMessages(forkSessionId, {
+    indices: [Math.max(0, forkMessages.messages.length - 1)],
+  });
+  const snapshots = await backend.listSessionSnapshots(forkSessionId);
+  if (snapshots.length === 0) {
+    throw new Error("Message deletion did not create a session snapshot.");
+  }
+  await backend.selectSessionSnapshot(
+    forkSessionId,
+    snapshots[0].snapshot_id
+  );
+  const selected = await backend.listMessages(forkSessionId);
+  await backend.clearSelectedSessionSnapshot(forkSessionId);
+  await backend.restoreSessionSnapshot(
+    forkSessionId,
+    snapshots[0].snapshot_id
+  );
+  const summaries = await backend.listSessions();
+  const forkSummary = summaries.find(
+    (session) => session.session_id === forkSessionId
+  );
+  const result = {
+    forkSessionId,
+    forkTitle: String(forkSummary?.presentation?.title ?? ""),
+    snapshotCount: snapshots.length,
+    snapshotReadonly: selected.readonly === true,
+  };
+  await transport.request({
+    method: "DELETE",
+    path: `/sessions/${encodeURIComponent(forkSessionId)}`,
+  });
+  return result;
+}
+
 export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
   const [runtimeState, setRuntimeState] = useState<RuntimeState>({
     status: "starting",
@@ -87,7 +149,11 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
           const messages = await backend.listMessages(sessionId);
           const assistant = [...messages.messages]
             .reverse()
-            .find((entry) => entry.message.role === "assistant");
+            .find(
+              (entry) =>
+                entry.message.role === "assistant" &&
+                String(entry.message.content ?? "").trim().length > 0
+            );
           const output = await transport.request<{
             exists: boolean;
             content: string;
@@ -161,12 +227,19 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
           "Call Read with file_path exactly `input.txt` (no slash or directory prefix), then reply with the text you found."
         );
         await sendAndWait(
-          "Call Write with file_path exactly `output.txt` and content exactly `UPPERCASE: ALPHA BETA GAMMA`. Then call Read with file_path exactly `output.txt` and briefly confirm completion. Never add a leading slash."
+          "Call Write exactly once with file_path exactly `output.txt` and content exactly `UPPERCASE: ALPHA BETA GAMMA`. Do not copy the previous Read result and do not call any other tool. Never add a leading slash."
+        );
+        await sendAndWait(
+          "Call Read with file_path exactly `output.txt` and briefly confirm that its content is `UPPERCASE: ALPHA BETA GAMMA`. Never add a leading slash."
         );
         const messages = await backend.listMessages(sessionId);
         const assistant = [...messages.messages]
           .reverse()
-          .find((entry) => entry.message.role === "assistant");
+          .find(
+            (entry) =>
+              entry.message.role === "assistant" &&
+              String(entry.message.content ?? "").trim().length > 0
+          );
         const output = await transport.request<{
           exists: boolean;
           content: string;
@@ -175,6 +248,12 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
           method: "GET",
           path: "/embedded/workspace/output",
         });
+        const applicationSmoke = await runApplicationRouteSmoke(
+          backend,
+          transport,
+          sessionId,
+          messages.messages.length
+        );
         const info: EmbeddedPythonRuntimeInfo = {
           ...runtimeInfo,
           answer: smokeInfo.answer,
@@ -191,6 +270,10 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
             .map((entry) => String(entry.message.metadata?.tool_name ?? ""))
             .filter(Boolean),
           providerImports: providerImports.data.providers,
+          applicationForkSessionId: applicationSmoke.forkSessionId,
+          applicationForkTitle: applicationSmoke.forkTitle,
+          applicationSnapshotCount: applicationSmoke.snapshotCount,
+          applicationSnapshotReadonly: applicationSmoke.snapshotReadonly,
           outputExists: output.data.exists,
           outputContent: output.data.content,
         };
@@ -326,6 +409,30 @@ export function EmbeddedPythonRuntimeDiagnosticsScreen(): React.JSX.Element {
               style={styles.detail}
             >
               {(runtimeState.info.providerImports ?? []).join(",")}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-application-fork"
+              style={styles.detail}
+            >
+              {runtimeState.info.applicationForkSessionId ?? ""}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-application-title"
+              style={styles.detail}
+            >
+              {runtimeState.info.applicationForkTitle ?? ""}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-application-snapshots"
+              style={styles.detail}
+            >
+              {String(runtimeState.info.applicationSnapshotCount ?? "")}
+            </Text>
+            <Text
+              testID="embedded-python-runtime-application-readonly"
+              style={styles.detail}
+            >
+              {String(runtimeState.info.applicationSnapshotReadonly ?? "")}
             </Text>
             <Text
               testID="embedded-python-runtime-output-exists"

@@ -16,6 +16,12 @@ text operations. Absolute paths, traversal, and symlink escapes are rejected.
 Existing files must be read before `Write` or `Edit` changes them. The package
 does not provide shell execution or arbitrary filesystem access.
 
+`WebFetch` retrieves one public page; it is not a Tavily or general web-search
+tool. It rejects private, local, reserved, and non-HTTP(S) destinations,
+revalidates redirects, and bounds time, redirects, downloaded bytes, and
+returned text. Requests and tool results may be sent to the selected model
+provider as part of the conversation.
+
 ## Loading
 
 Load the package through its plugin descriptor:
@@ -44,6 +50,16 @@ From the repository root:
 python -m pip install -e core/python
 python -m pip install -e "plugins/embedded-claude-tools[dev]"
 pytest plugins/embedded-claude-tools/tests -q
+```
+
+Credential-gated provider checks use the same package with OpenRouter and
+official Anthropic:
+
+```bash
+pytest plugins/embedded-claude-tools/tests/test_provider_real_api.py \
+  -m 'integration and api and openrouter' -q
+pytest plugins/embedded-claude-tools/tests/test_provider_real_api.py \
+  -m 'integration and api and anthropic' -q
 ```
 
 ## License

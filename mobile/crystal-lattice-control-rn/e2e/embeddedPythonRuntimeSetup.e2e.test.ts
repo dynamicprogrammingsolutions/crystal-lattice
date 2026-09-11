@@ -96,6 +96,9 @@ describe("embedded Python runtime setup", () => {
       .withTimeout(5000);
     await new Promise<void>((resolve) => setTimeout(resolve, 2000));
     await element(by.id("connections-tab")).tap();
+    await waitFor(element(by.id("connection-card-embedded-ios-runtime")))
+      .toBeVisible()
+      .withTimeout(30000);
     await element(by.id("connection-card-embedded-ios-runtime")).tap();
     await waitFor(element(by.id("sessions-screen-title")))
       .toHaveText("On-device Python agents")

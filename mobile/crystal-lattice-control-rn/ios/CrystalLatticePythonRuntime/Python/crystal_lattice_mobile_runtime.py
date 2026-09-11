@@ -4,10 +4,12 @@ import json
 from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import parse_qs, unquote, urlsplit
+import uuid
 
-from agent_app.application_future import AgentApplication
+from agent_app.application_future import AgentApplication, ReadonlySessionViewError
 from agent_app.application_notifications import InMemoryApplicationNotificationStore
 from agent_app.plugin_sources.dotted import DottedClassSource
+from agent_app.sessions import FilesystemSnapshotSelectionStore
 from agent_core.types import ProviderPlugin, Session
 
 
@@ -93,6 +95,24 @@ CODEX_TOOL_PLUGINS = [
     "embedded_codex_tools.curl_tool.CodexLikeCurlTool",
     "embedded_codex_tools.apply_patch_tool.CodexLikeApplyPatchTool",
 ]
+APPLICATION_PLUGINS = [
+    "generate_title_app.GenerateTitleAppPlugin",
+    "session_actions_app.SessionActionsAppPlugin",
+    "session_archive_app.SessionArchiveAppPlugin",
+    "session_main_search_app.SessionMainSearchAppPlugin",
+    "session_message_count_meta_app.SessionMessageCountMetaAppPlugin",
+    "session_ordering_buckets_app.SessionOrderingBucketsAppPlugin",
+    "session_pinned_app.SessionPinnedAppPlugin",
+    "session_status_app.SessionStatusAppPlugin",
+    "session_timestamp_meta_app.SessionTimestampMetaAppPlugin",
+    "session_title_app.SessionTitleAppPlugin",
+    "session_asset_attachments.SessionAssetAttachmentsAppPlugin",
+]
+APPLICATION_CONFIG = {
+    "generate_title_max_messages": 999,
+    "session_actions": {"allow_delete": True},
+    "session_status_show_in_session_list_footer": True,
+}
 
 
 def _normalized_profile(
@@ -209,8 +229,12 @@ def _config_payload(
                     "model": "embedded-smoke",
                 }
             },
-            "plugins": ["crystal_lattice_mobile_runtime.EmbeddedSmokeProvider"],
+            "plugins": [
+                "crystal_lattice_mobile_runtime.EmbeddedSmokeProvider",
+                *APPLICATION_PLUGINS,
+            ],
             "agents": {"local": {"provider": "embedded"}},
+            "application": APPLICATION_CONFIG,
         }
     if workspace_root is None:
         raise ValueError("workspace_root is required for configured providers")
@@ -282,7 +306,7 @@ def _config_payload(
     }
     providers: dict[str, dict[str, Any]] = {}
     agents: dict[str, dict[str, Any]] = {}
-    plugins: list[str] = []
+    plugins: list[str] = list(APPLICATION_PLUGINS)
     for profile_id in ordered_profiles:
         profile = profiles[profile_id]
         provider_config: dict[str, Any] = {
@@ -343,6 +367,7 @@ def _config_payload(
         "providers": providers,
         "plugins": plugins,
         "agents": agents,
+        "application": APPLICATION_CONFIG,
     }
 
 
@@ -429,6 +454,9 @@ class MobileRuntime:
             self.config_path,
             self.sessions_dir,
             application_notification_store=InMemoryApplicationNotificationStore(),
+            snapshot_selection_store=FilesystemSnapshotSelectionStore(
+                self.sessions_dir / ".snapshots"
+            ),
             plugin_sources=[DottedClassSource()],
         )
 
@@ -614,6 +642,152 @@ def _update_session_metadata(
     return runtime.application.save_session(updated)
 
 
+def _normalize_message_index(raw_index: int, message_count: int) -> int:
+    index = raw_index + message_count if raw_index < 0 else raw_index
+    if index < 0 or index >= message_count:
+        raise ValueError("message index out of range")
+    return index
+
+
+def _session_plugins(
+    application: AgentApplication,
+    core: Any,
+    base_config: dict[str, Any],
+    session: Session,
+) -> list[dict[str, Any]]:
+    metadata = session.metadata if isinstance(session.metadata, dict) else {}
+    agent_id = str(metadata.get("agent_id") or "")
+    all_plugins = (
+        application.list_plugins_for_agent(agent_id)
+        if agent_id
+        else application.list_plugins()
+    )
+    configured_plugins = metadata.get("plugins")
+    if isinstance(configured_plugins, list):
+        enabled_ids: set[str] | None = {
+            value for value in configured_plugins if isinstance(value, str)
+        }
+        source = "session"
+    else:
+        default_ids = application.get_agent_plugins(agent_id) if agent_id else None
+        enabled_ids = (
+            {value for value in default_ids if isinstance(value, str)}
+            if isinstance(default_ids, list)
+            else None
+        )
+        source = "agent" if enabled_ids is not None else "implicit"
+
+    effective_config = application.resolve_effective_config(
+        base_config,
+        session,
+        _session_overrides(session),
+    )
+    try:
+        active_by_kind = core.get_plugins_for_config(effective_config)
+    except Exception:
+        active_by_kind = None
+
+    result: list[dict[str, Any]] = []
+    for entry in all_plugins:
+        plugin_id = entry.get("id")
+        if not isinstance(plugin_id, str) or not plugin_id:
+            continue
+        kind = entry.get("kind")
+        active = True
+        if isinstance(active_by_kind, dict) and isinstance(kind, str):
+            active_ids = active_by_kind.get(kind)
+            if isinstance(active_ids, list):
+                active = plugin_id in active_ids
+        result.append(
+            {
+                **entry,
+                "enabled": enabled_ids is None or plugin_id in enabled_ids,
+                "source": "implicit" if enabled_ids is None else source,
+                "active": active,
+            }
+        )
+    return result
+
+
+def _snapshot_payload(snapshot: Any) -> dict[str, Any]:
+    return {
+        "snapshot_id": snapshot.snapshot_id,
+        "session_id": snapshot.session_id,
+        "created_at": snapshot.created_at,
+        "reason": snapshot.reason,
+    }
+
+
+def _execute_action_response(
+    application: AgentApplication,
+    body: dict[str, Any],
+    *,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    plugin_id = body.get("plugin")
+    action_id = body.get("action_id")
+    action_owner = body.get("action_owner")
+    inputs = body.get("inputs") or {}
+    resolved_plugin_id = plugin_id
+    try:
+        executed = application.execute_action_with_metadata(
+            plugin_id=plugin_id if "plugin" in body else None,
+            action_id=action_id,
+            params=inputs,
+            action_owner=action_owner if isinstance(action_owner, str) else None,
+            context={"session_id": session_id} if session_id else None,
+        )
+        resolved_plugin_id = executed.plugin_id
+        return {
+            "status": "ok",
+            "plugin": executed.plugin_id,
+            "action_id": executed.action_id,
+            "action_owner": executed.action_owner,
+            "result": executed.result if isinstance(executed.result, dict) else {},
+        }
+    except AgentApplication._ApplicationActionResolutionError as error:
+        return {
+            "status": "error",
+            "plugin": resolved_plugin_id,
+            "action_id": action_id,
+            "action_owner": action_owner,
+            "error_type": getattr(error, "error_type", "unknown_action"),
+            "message": str(error),
+            "details": getattr(error, "details", {}) or {},
+        }
+    except AgentApplication._ApplicationActionValidationError as error:
+        return {
+            "status": "error",
+            "plugin": resolved_plugin_id,
+            "action_id": action_id,
+            "action_owner": action_owner,
+            "error_type": "validation",
+            "message": str(error),
+            "details": getattr(error, "details", {}) or {},
+        }
+    except KeyError as error:
+        error_type = "not_found"
+        message = str(error)
+    except ReadonlySessionViewError as error:
+        error_type = "readonly"
+        message = str(error)
+    except ValueError as error:
+        error_type = "validation"
+        message = str(error)
+    except Exception as error:
+        error_type = "internal"
+        message = str(error)
+    return {
+        "status": "error",
+        "plugin": resolved_plugin_id,
+        "action_id": action_id,
+        "action_owner": action_owner,
+        "error_type": error_type,
+        "message": message,
+        "details": {},
+    }
+
+
 def _handle_session_request(
     runtime: MobileRuntime,
     method: str,
@@ -654,6 +828,7 @@ def _handle_session_request(
             session = application.load_session_record(session_id)
             if session is None:
                 raise KeyError(f"Session {session_id!r} not found")
+            snapshot_id = application.get_selected_session_snapshot(session_id)
             message_count = len(session.messages)
             start = _int_query(query, "start")
             end = _int_query(query, "end")
@@ -671,53 +846,100 @@ def _handle_session_request(
                     ),
                     "active_request_id": application.get_active_session_request_id(
                         session_id
-                    ),
-                    "readonly": False,
-                    "snapshot_id": None,
+                    )
+                    if snapshot_id is None
+                    else None,
+                    "readonly": snapshot_id is not None,
+                    "snapshot_id": snapshot_id,
                 },
             )
         if method == "POST":
             session = runtime.append_message(session_id, body)
             return _response(200, {"session": session.to_dict()})
         if method == "DELETE":
-            core, base_config, session = _session_context(runtime, session_id)
-            indices = body.get("indices")
-            remove_indices: list[int]
-            if isinstance(indices, list):
-                remove_indices = [value for value in indices if isinstance(value, int)]
-            else:
-                range_value = body.get("range")
-                if not isinstance(range_value, dict):
-                    raise ValueError("Message deletion requires indices or range")
-                start = range_value.get("start")
-                end = range_value.get("end")
-                start_index, end_index, _step = slice(start, end).indices(
-                    len(session.messages)
+            with application.acquire_session_lock(session_id):
+                core, base_config, session = _session_context(runtime, session_id)
+                message_count = len(session.messages)
+                if message_count == 0:
+                    raise ValueError("no messages to delete")
+                modes = [
+                    key for key in ("indices", "range", "last") if key in body
+                ]
+                if len(modes) != 1:
+                    raise ValueError(
+                        "Exactly one of 'indices', 'range', or 'last' must be provided"
+                    )
+                remove_indices: list[int]
+                if modes[0] == "indices":
+                    indices = body.get("indices")
+                    if not isinstance(indices, list):
+                        raise ValueError("indices must be a list of integers")
+                    remove_indices = [
+                        _normalize_message_index(value, message_count)
+                        for value in indices
+                        if isinstance(value, int) and not isinstance(value, bool)
+                    ]
+                elif modes[0] == "range":
+                    range_value = body.get("range")
+                    if not isinstance(range_value, dict):
+                        raise ValueError("range must be an object")
+                    start = range_value.get("start")
+                    end = range_value.get("end")
+                    start_index, end_index, _step = slice(start, end).indices(
+                        message_count
+                    )
+                    remove_indices = list(range(start_index, end_index))
+                else:
+                    last = body.get("last")
+                    if not isinstance(last, int) or isinstance(last, bool) or last <= 0:
+                        raise ValueError("last must be a positive integer")
+                    remove_indices = list(
+                        range(max(0, message_count - last), message_count)
+                    )
+                concrete_indices = sorted(set(remove_indices))
+                if not concrete_indices:
+                    return _response(
+                        200,
+                        {
+                            "session": session.to_dict(),
+                            "deleted_indices": [],
+                        },
+                    )
+                application.create_session_snapshot(
+                    session_id,
+                    reason=(
+                        "Before deleting messages ["
+                        + ", ".join(str(index) for index in concrete_indices)
+                        + "]"
+                    ),
                 )
-                remove_indices = list(range(start_index, end_index))
-            effective_config = application.resolve_effective_config(
-                base_config,
-                session,
-                _session_overrides(session),
-            )
-            next_session = core.slice_session(
-                session,
-                effective_config,
-                remove_indices=remove_indices,
-            )
-            application.save_session(next_session)
-            application.publish_event(
-                {
-                    "type": "messages_deleted",
-                    "session_id": session_id,
-                    "indices": remove_indices,
-                }
-            )
+                effective_config = application.resolve_effective_config(
+                    base_config,
+                    session,
+                    _session_overrides(session),
+                )
+                next_session = core.slice_session(
+                    session,
+                    effective_config,
+                    remove_indices=concrete_indices,
+                )
+                application.save_session(next_session)
+                stored = application.publish_event(
+                    {
+                        "type": "messages_deleted",
+                        "session_id": session_id,
+                        "indices": concrete_indices,
+                    }
+                )
+                application.record_checkpoint(
+                    session_id,
+                    stored.get("request_id"),
+                )
             return _response(
                 200,
                 {
                     "session": next_session.to_dict(),
-                    "deleted_indices": remove_indices,
+                    "deleted_indices": concrete_indices,
                 },
             )
 
@@ -799,12 +1021,51 @@ def _handle_session_request(
         )
 
     if tail == ["plugins"] and method == "GET":
-        _core, _base_config, session = _session_context(runtime, session_id)
-        agent_id = str(session.metadata.get("agent_id") or "local")
-        plugins = application.list_plugins_for_agent(agent_id)
-        return _response(200, {"plugins": plugins})
+        core, base_config, session = _session_context(runtime, session_id)
+        return _response(
+            200,
+            {
+                "plugins": _session_plugins(
+                    application,
+                    core,
+                    base_config,
+                    session,
+                )
+            },
+        )
     if tail == ["plugins"] and method in {"PUT", "DELETE"}:
-        return _response(200, {"status": "ok"})
+        with application.acquire_session_lock(session_id):
+            core, base_config, session = _session_context(runtime, session_id)
+            metadata = (
+                dict(session.metadata) if isinstance(session.metadata, dict) else {}
+            )
+            if method == "PUT":
+                enabled = body.get("enabled")
+                if not isinstance(enabled, list):
+                    raise ValueError("enabled must be a list of plugin ids")
+                metadata["plugins"] = list(
+                    dict.fromkeys(
+                        value
+                        for value in enabled
+                        if isinstance(value, str) and value
+                    )
+                )
+            else:
+                metadata.pop("plugins", None)
+            updated = _update_session_metadata(runtime, session, metadata)
+            refreshed = application.load_session(session_id)
+            if refreshed is not None:
+                core, base_config, updated = refreshed
+            plugins = _session_plugins(
+                application,
+                core,
+                base_config,
+                updated,
+            )
+        return _response(
+            200,
+            {"session": updated.to_dict(), "plugins": plugins},
+        )
 
     if tail == ["ui-schema"] and method == "GET":
         core, base_config, session = _session_context(runtime, session_id)
@@ -819,7 +1080,16 @@ def _handle_session_request(
         )
 
     if tail == ["application", "ui-schema"] and method == "GET":
-        return _response(200, {"elements": []})
+        plugin = (query.get("plugin") or [None])[-1]
+        return _response(
+            200,
+            {
+                "elements": application.get_session_application_ui_schema(
+                    session_id,
+                    plugin=plugin,
+                )
+            },
+        )
     if tail == ["config", "schema"] and method == "GET":
         core, _base_config, _session = _session_context(runtime, session_id)
         return _response(200, {"schema": core.get_config_schema() or []})
@@ -849,10 +1119,159 @@ def _handle_session_request(
         _update_session_metadata(runtime, session, metadata)
         return _response(200, {"status": "ok"})
 
-    if tail == ["snapshots"] and method == "GET":
-        return _response(200, {"snapshots": []})
-    if tail == ["snapshots", "selected"] and method == "GET":
-        return _response(200, {"snapshot_id": None})
+    if tail == ["actions"] and method == "POST":
+        return _response(
+            200,
+            _execute_action_response(
+                application,
+                body,
+                session_id=session_id,
+            ),
+        )
+
+    if tail == ["snapshots"]:
+        if method == "GET":
+            return _response(
+                200,
+                {
+                    "snapshots": [
+                        _snapshot_payload(snapshot)
+                        for snapshot in application.list_session_snapshots(
+                            session_id
+                        )
+                    ]
+                },
+            )
+        if method == "POST":
+            reason = body.get("reason")
+            if not isinstance(reason, str) or not reason.strip():
+                raise ValueError("reason must be a non-empty string")
+            with application.acquire_session_lock(session_id):
+                snapshot = application.create_session_snapshot(
+                    session_id,
+                    reason=reason.strip(),
+                    metadata=(
+                        body.get("metadata")
+                        if isinstance(body.get("metadata"), dict)
+                        else None
+                    ),
+                )
+            return _response(200, {"snapshot": _snapshot_payload(snapshot)})
+    if tail == ["snapshots", "selected"]:
+        if method == "GET":
+            return _response(
+                200,
+                {
+                    "snapshot_id": application.get_selected_session_snapshot(
+                        session_id
+                    )
+                },
+            )
+        if method == "DELETE":
+            with application.acquire_session_lock(session_id):
+                application.clear_selected_session_snapshot(session_id)
+                stored = application.publish_event(
+                    {
+                        "type": "session_snapshot_cleared",
+                        "session_id": session_id,
+                    }
+                )
+                event_id = stored.get("event_id")
+                if isinstance(event_id, str) and event_id:
+                    application.advance_session_cursor(session_id, event_id)
+            return _response(200, {"status": "ok", "snapshot_id": None})
+    if len(tail) == 3 and tail[0] == "snapshots" and method == "POST":
+        snapshot_id = tail[1]
+        operation = tail[2]
+        if operation == "select":
+            with application.acquire_session_lock(session_id):
+                application.select_session_snapshot(session_id, snapshot_id)
+                stored = application.publish_event(
+                    {
+                        "type": "session_snapshot_selected",
+                        "session_id": session_id,
+                        "snapshot_id": snapshot_id,
+                    }
+                )
+                event_id = stored.get("event_id")
+                if isinstance(event_id, str) and event_id:
+                    application.advance_session_cursor(session_id, event_id)
+            return _response(
+                200,
+                {"status": "ok", "snapshot_id": snapshot_id},
+            )
+        if operation == "restore":
+            with application.acquire_session_lock(session_id):
+                restored = application.restore_session_snapshot(
+                    session_id,
+                    snapshot_id,
+                )
+                stored = application.publish_event(
+                    {
+                        "type": "session_restored_from_snapshot",
+                        "session_id": session_id,
+                        "snapshot_id": snapshot_id,
+                    }
+                )
+                event_id = stored.get("event_id")
+                if isinstance(event_id, str) and event_id:
+                    application.advance_session_cursor(session_id, event_id)
+            return _response(
+                200,
+                {"status": "ok", "session": restored.to_dict()},
+            )
+    if len(tail) == 2 and tail[0] == "snapshots" and method == "DELETE":
+        return _response(
+            200,
+            {
+                "status": "ok",
+                "deleted": bool(
+                    application.delete_session_snapshot(session_id, tail[1])
+                ),
+            },
+        )
+
+    if tail == ["fork"] and method == "POST":
+        raw_index = body.get("index", -1)
+        if not isinstance(raw_index, int) or isinstance(raw_index, bool):
+            raise ValueError("index must be an integer")
+        with application.acquire_session_lock(session_id):
+            core, base_config, session = _session_context(runtime, session_id)
+            if not session.messages:
+                raise ValueError("no messages to fork")
+            target_index = _normalize_message_index(
+                raw_index,
+                len(session.messages),
+            )
+            _new_core, _new_config, forked = application.fork_session(
+                core,
+                session,
+                base_config,
+                upto_index=target_index,
+                new_session_id=str(uuid.uuid4()),
+            )
+            application.save_session(forked)
+            stored = application.publish_event(
+                {
+                    "type": "session_created",
+                    "session_id": forked.session_id,
+                    "agent_id": forked.metadata.get("agent_id"),
+                    "source_session_id": session_id,
+                    "fork_upto_index": target_index,
+                }
+            )
+            application.record_checkpoint(
+                forked.session_id,
+                stored.get("request_id"),
+            )
+        return _response(
+            200,
+            {
+                "session": forked.to_dict(),
+                "source_session_id": session_id,
+                "fork_upto_index": target_index,
+            },
+        )
     if tail == ["notifications"] and method == "GET":
         return _response(
             200,
@@ -930,6 +1349,38 @@ def _handle_request(
 
     if path_parts == ["embedded", "runtime", "provider-imports"] and method == "GET":
         return _response(200, {"providers": _provider_import_smoke()})
+
+    if path_parts == ["embedded", "runtime", "web-fetch-smoke"] and method == "GET":
+        from embedded_claude_tools import ClaudeLikeWebFetchTool
+
+        tool = ClaudeLikeWebFetchTool()
+        result = tool.execute_tool(
+            "WebFetch",
+            {
+                "url": "https://www.python.org/",
+                "prompt": "Identify the page title",
+            },
+            tool.init({}),
+        )
+        if not result.get("success"):
+            raise RuntimeError(str(result.get("error") or "WebFetch failed"))
+        content = str(result.get("result") or "")
+        title = next(
+            (
+                line.removeprefix("Title:").strip()
+                for line in content.splitlines()
+                if line.startswith("Title:")
+            ),
+            "",
+        )
+        return _response(
+            200,
+            {
+                "status": "ok",
+                "title": title,
+                "content": content,
+            },
+        )
 
     if path_parts == ["embedded", "runtime", "validate"] and method == "POST":
         requested_profile_id = str(
@@ -1095,9 +1546,28 @@ def _handle_request(
             return _response(200, {"status": "ok"})
 
     if path_parts == ["application", "actions"] and method == "GET":
-        return _response(200, {"actions": []})
+        plugin = (query.get("plugin") or [None])[-1]
+        actions = [
+            action
+            for action in application.get_application_actions()
+            if isinstance(action, dict)
+            and (plugin is None or action.get("plugin") == plugin)
+        ]
+        return _response(200, {"actions": actions})
     if path_parts == ["application", "ui-schema"] and method == "GET":
-        return _response(200, {"elements": []})
+        plugin = (query.get("plugin") or [None])[-1]
+        elements = [
+            element
+            for element in application.get_application_ui_schema()
+            if isinstance(element, dict)
+            and (plugin is None or element.get("plugin") == plugin)
+        ]
+        return _response(200, {"elements": elements})
+    if path_parts == ["application", "plugins"] and method == "GET":
+        return _response(
+            200,
+            {"plugins": application.list_application_plugins()},
+        )
     if path_parts == ["application", "notifications"] and method == "GET":
         return _response(
             200,
@@ -1107,10 +1577,56 @@ def _handle_request(
                 )
             },
         )
-    if path_parts == ["server", "settings"] and method == "GET":
-        return _response(200, {"settings": {}})
+    if path_parts == ["server", "settings"]:
+        if method == "GET":
+            return _response(
+                200,
+                {"settings": application.get_server_settings()},
+            )
+        if method == "PATCH":
+            values = body.get("values", body)
+            if not isinstance(values, dict):
+                raise ValueError(
+                    "server settings body must be an object or {'values': object}"
+                )
+            return _response(
+                200,
+                {
+                    "settings": application.patch_server_settings(
+                        values,
+                        source="api",
+                    )
+                },
+            )
     if path_parts == ["server", "settings", "ui-schema"] and method == "GET":
-        return _response(200, {"elements": []})
+        plugin = (query.get("plugin") or [None])[-1]
+        elements = [
+            element
+            for element in application.get_server_settings_ui_schema()
+            if isinstance(element, dict)
+            and (plugin is None or element.get("plugin") == plugin)
+        ]
+        return _response(200, {"elements": elements})
+    if (
+        len(path_parts) == 3
+        and path_parts[:2] == ["server", "settings"]
+        and method == "DELETE"
+    ):
+        return _response(
+            200,
+            {
+                "settings": application.delete_server_setting(
+                    path_parts[2],
+                    source="api",
+                )
+            },
+        )
+
+    if path_parts == ["actions"] and method == "POST":
+        return _response(
+            200,
+            _execute_action_response(application, body),
+        )
 
     raise ValueError(f"Unsupported embedded runtime route: {method} {parsed.path}")
 
@@ -1134,6 +1650,8 @@ def execute_json(command_json: str, runtime_root: str) -> str:
         )
     except KeyError as error:
         response = _response(404, {"detail": str(error)})
+    except ReadonlySessionViewError as error:
+        response = _response(409, {"detail": str(error)})
     except ValueError as error:
         response = _response(400, {"detail": str(error)})
     except Exception as error:

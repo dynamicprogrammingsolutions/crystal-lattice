@@ -124,7 +124,13 @@ class OpenAICompatibleToolsExtension(
                 target=ToolInteropTarget("openai.chat_completions"),
                 target_formats=target_formats,
             )
-            payload["tool_choice"] = payload.get("tool_choice", "auto")
+            config = state.get("config") or {}
+            configured_choice = config.get("tool_choice")
+            payload["tool_choice"] = (
+                configured_choice
+                if isinstance(configured_choice, (str, dict))
+                else payload.get("tool_choice", "auto")
+            )
         return native_messages, {**state, "request": {**req, "payload": payload}}
 
     def extract_delta(self, native_chunk: dict[str, Any]) -> dict[str, Any]:

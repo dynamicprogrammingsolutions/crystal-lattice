@@ -76,6 +76,20 @@ describe("embedded Python runtime with Ollama", () => {
     assert.ok(
       (await readText("embedded-python-runtime-assistant")).trim().length > 0
     );
+    assert.ok(
+      (await readText("embedded-python-runtime-application-fork")).length > 10
+    );
+    await detoxExpect(
+      element(by.id("embedded-python-runtime-application-title"))
+    ).toHaveText("Embedded application routes");
+    assert.ok(
+      Number(
+        await readText("embedded-python-runtime-application-snapshots")
+      ) >= 1
+    );
+    await detoxExpect(
+      element(by.id("embedded-python-runtime-application-readonly"))
+    ).toHaveText("true");
     const sessionId = await readText("embedded-python-runtime-session-id");
 
     await device.terminateApp();

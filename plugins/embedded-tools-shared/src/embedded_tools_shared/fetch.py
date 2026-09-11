@@ -6,6 +6,7 @@ import re
 import socket
 import ssl
 import time
+import zlib
 from dataclasses import dataclass
 from email.message import Message
 from html.parser import HTMLParser
@@ -325,21 +326,76 @@ def _request_once(
     try:
         connection.request("GET", validated.target, headers=headers)
         response = connection.getresponse()
+        response_headers = tuple(response.getheaders())
         body = response.read(policy.max_bytes + 1)
         truncated = len(body) > policy.max_bytes
         if truncated:
             body = body[: policy.max_bytes]
+        body, decompressed_truncated = _decode_content_encoding(
+            body,
+            {name.lower(): value for name, value in response_headers},
+            max_bytes=policy.max_bytes,
+        )
         return _RawResponse(
             status_code=response.status,
             reason=response.reason or "",
-            headers=tuple(response.getheaders()),
+            headers=response_headers,
             body=body,
-            truncated=truncated,
+            truncated=truncated or decompressed_truncated,
         )
     except (OSError, http.client.HTTPException, ssl.SSLError) as error:
         raise FetchError(f"Fetch failed: {error}") from error
     finally:
         connection.close()
+
+
+def _decompress_limited(
+    body: bytes,
+    *,
+    max_bytes: int,
+    wbits: int,
+) -> tuple[bytes, bool]:
+    decompressor = zlib.decompressobj(wbits)
+    try:
+        decoded = decompressor.decompress(body, max_bytes + 1)
+        if len(decoded) <= max_bytes:
+            decoded += decompressor.flush(max_bytes + 1 - len(decoded))
+    except zlib.error as error:
+        raise FetchError("Fetch response compression is invalid") from error
+    truncated = len(decoded) > max_bytes or bool(decompressor.unconsumed_tail)
+    return decoded[:max_bytes], truncated
+
+
+def _decode_content_encoding(
+    body: bytes,
+    headers: Mapping[str, str],
+    *,
+    max_bytes: int,
+) -> tuple[bytes, bool]:
+    raw_encoding = headers.get("content-encoding", "")
+    encoding = raw_encoding.split(",", maxsplit=1)[0].strip().lower()
+    if not encoding or encoding == "identity":
+        return body, False
+    if encoding in {"gzip", "x-gzip"}:
+        return _decompress_limited(
+            body,
+            max_bytes=max_bytes,
+            wbits=zlib.MAX_WBITS | 16,
+        )
+    if encoding == "deflate":
+        try:
+            return _decompress_limited(
+                body,
+                max_bytes=max_bytes,
+                wbits=zlib.MAX_WBITS,
+            )
+        except FetchError:
+            return _decompress_limited(
+                body,
+                max_bytes=max_bytes,
+                wbits=-zlib.MAX_WBITS,
+            )
+    raise FetchError(f"Unsupported Content-Encoding: {encoding}")
 
 
 def _content_type_and_charset(headers: Mapping[str, str]) -> tuple[str, str]:

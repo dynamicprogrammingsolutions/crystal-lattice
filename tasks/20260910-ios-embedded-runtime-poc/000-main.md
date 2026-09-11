@@ -15,15 +15,15 @@ session-management parity, then add the next research-oriented capabilities.
 - [x] A simple multi-round request is verifiable in the simulator, including
   bounded background continuation or recovery. Simulator evidence is
   sufficient for this proof of concept.
-- [ ] Separate iOS-safe Claude-like and Codex-like plugin sets provide useful
+- [x] Separate iOS-safe Claude-like and Codex-like plugin sets provide useful
   workspace and public-fetch tools with model-family-appropriate names,
   schemas, and result formatting.
-- [ ] The embedded runtime offers fixed OpenAI-compatible, OpenAI Responses,
+- [x] The embedded runtime offers fixed OpenAI-compatible, OpenAI Responses,
   OpenRouter, and Anthropic agents with provider-specific settings.
-- [ ] The local connection is preconfigured, and Home exposes a separate local
+- [x] The local connection is preconfigured, and Home exposes a separate local
   runtime settings window for provider credentials, URLs, models, and default
   selection.
-- [ ] The iOS-safe application plugins from the ordinary default configuration
+- [x] The iOS-safe application plugins from the ordinary default configuration
   expose session actions, message deletion, titles, search, metadata, status,
   pinning, archive, ordering, and attachments through the production mobile
   UI.
@@ -46,7 +46,7 @@ the embedded implementation and its staged tool/provider enhancements.
 ## Scope boundaries
 
 - Subtask `010` is complete.
-- Subtask `015` contains a Draft execution plan awaiting approval.
+- Subtask `015` is complete.
 - Subtasks `020` and `030` record later increments but have no approved
   execution plan.
 - ChatGPT authorization, local-model fallback, email, arbitrary workspace
@@ -56,6 +56,6 @@ the embedded implementation and its staged tool/provider enhancements.
 ## Subtasks
 
 - [x] `tasks/20260910-ios-embedded-runtime-poc/010-embedded-runtime-openai-proxy-and-file-tools.md`
-- [ ] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
+- [x] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/020-tavily-web-search.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`
