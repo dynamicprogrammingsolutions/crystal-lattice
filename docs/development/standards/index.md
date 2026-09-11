@@ -1,14 +1,8 @@
-# Reusable development standards
+# Documentation guidance moved
 
-These standards are package-neutral. They define concepts and rules that can be
-adapted to other repositories without carrying Crystal Lattice package names,
-paths, or tooling assumptions.
+The maintained guidance now lives in:
 
-- [Documentation structure](documentation.md): documentation profiles,
-  audience and reference boundaries, ownership, discoverability, generated
-  output, and blocked-workflow behavior.
-- [Specification-driven development](specifications.md)
+- [Documentation and specification guide](../documentation.md)
+- [Crystal Lattice documentation conventions](../crystal-lattice-documentation.md)
 
-The [Crystal Lattice repository policy](../repository/index.md) maps these
-standards to this repository's packages, shared documentation domains, task
-workflow, publication pipeline, and validation.
+This page preserves the previous address and does not define separate rules.

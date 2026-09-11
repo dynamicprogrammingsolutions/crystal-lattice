@@ -23,18 +23,16 @@ harnesses.
   default application configuration.
 - [Event stream types](api/events.md): understand application events exposed by
   HTTP polling and bridge streaming.
-- [Development documentation](development/index.md): reusable standards,
-  Crystal Lattice repository policy, and cross-package target specifications.
+- [Development documentation](development/index.md): documentation and
+  specification guidance, Crystal Lattice conventions, and cross-package
+  targets.
 
 ## Developer Reference
 
-- [Reusable documentation standard](development/standards/documentation.md):
-  package-neutral documentation ownership, document roles, and discoverability
-  rules.
-- [Reusable specification standard](development/standards/specifications.md):
-  target specifications, live requirements, work tracking, and evidence.
-- [Crystal Lattice repository policy](development/repository/index.md): local
-  package profiles, plugin documentation, task workflow, and publication rules.
+- [Documentation and specification guide](development/documentation.md):
+  structure, file roles, writing, requirements, testing, and verification.
+- [Crystal Lattice documentation conventions](development/crystal-lattice-documentation.md):
+  package paths, plugin guidance, tasks, publication, and migration.
 - [AgentCore API](reference/agent_core/core.md): core session, message, request,
   streaming, and tool orchestration APIs.
 - [Core SDK guide](api/core-sdk.md): hand-written overview of the functional SDK

@@ -37,9 +37,9 @@ maintainer/
 are the only public guidance pages created by this work.
 
 Existing routes under `docs/development/standards/` and
-`docs/development/repository/` receive the compatibility treatment owned by the
-navigation and compatibility workstream. They do not remain parallel editable
-sources.
+`docs/development/repository/` contain minimal non-authoritative compatibility
+pointers. The navigation and compatibility workstream may later replace them
+with redirects. They do not remain parallel editable sources.
 
 ## Documentation and specification guide
 

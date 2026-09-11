@@ -197,6 +197,12 @@ baseline evidence. They are not the target of the current plan.
   Generalized the target to avoid exact assertions about any value, structure,
   ordering, or internal call that is outside the required public, persisted,
   interoperability, or otherwise approved behavior.
+- September 11, 2026: Drafted the two maintained guidance pages at 1,999 and
+  959 words, reduced the root documentation section to 231 words, rewrote the
+  118-word development index, updated README/docs/contributor routes, and
+  replaced the six previous guidance pages with compatibility-only pointers.
+  Updated the review-bundle procedure to include only the two maintained pages,
+  the development index, and the exact root AGENTS section.
 
 ## Prior execution plan
 
@@ -1142,11 +1148,11 @@ and route checks are completed by the agent before the bundle is sent.
 - [x] Add new redesign requirements without repurposing baseline IDs.
 - [x] Write the detailed replacement outline.
 - [x] Obtain user approval of this detailed plan.
-- [ ] Draft the project-independent documentation and specification guide.
-- [ ] Draft the Crystal Lattice documentation conventions.
-- [ ] Reduce root documentation guidance.
-- [ ] Update the development index and authored inbound links.
-- [ ] Apply or hand off public route compatibility.
+- [x] Draft the project-independent documentation and specification guide.
+- [x] Draft the Crystal Lattice documentation conventions.
+- [x] Reduce root documentation guidance.
+- [x] Update the development index and authored inbound links.
+- [x] Apply or hand off public route compatibility.
 - [ ] Reconcile specification and live requirements with the final text.
 - [ ] Present revised behavior-scenario contracts for approval.
 - [ ] Run static, documentation-build, and approved behavioral verification.

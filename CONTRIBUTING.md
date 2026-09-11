@@ -498,10 +498,9 @@ maintains the record structure and consistency.
 
 For the repository rules, see:
 
-- [Specification standard](docs/development/standards/specifications.md)
-- [Repository specification policy](docs/development/repository/specifications.md)
+- [Documentation and specification guide](docs/development/documentation.md)
+- [Crystal Lattice documentation conventions](docs/development/crystal-lattice-documentation.md)
 - [Task-file guidance](agents/TASKS-v7.md)
-- [Documentation structure](docs/development/repository/documentation.md)
 
 The
 [application runtime reload specification](docs/development/specifications/application-runtime-reload/index.md)
@@ -549,7 +548,7 @@ These maintained project documents provide the most useful next steps:
 
 - [Project overview and development quickstart](README.md)
 - [Development documentation](docs/development/index.md)
-- [Repository documentation policy](docs/development/repository/index.md)
-- [Documentation and specification standards](docs/development/standards/index.md)
+- [Documentation and specification guide](docs/development/documentation.md)
+- [Crystal Lattice documentation conventions](docs/development/crystal-lattice-documentation.md)
 - [Plugin documentation](plugins/docs/index.md)
 - [Task-file and execution-plan guidance](agents/TASKS-v7.md)
