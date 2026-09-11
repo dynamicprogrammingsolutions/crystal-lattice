@@ -11,7 +11,7 @@ Implementation values use `Not started`, `In progress`, `Implemented`,
 | ID | Requirement | Implementation | Verification | Documentation | Evidence |
 |---|---|---|---|---|---|
 | DOCMETA-001 | `maintainer/` has a clear non-public maintenance boundary and uses the simplified `maintainer/specifications/` layout. | Implemented | Human verified | Documented | `maintainer/README.md`; `maintainer/documentation-standards-review-bundle.md`; user approval on August 5, 2026 |
-| DOCMETA-002 | One meta-specification defines both reusable standards and Crystal Lattice repository policy because they share ownership, approval, delivery, and validation. | Implemented | Human verified | Documented | `index.md`, `product-spec.md`, `technical-spec.md`; user approval on August 5, 2026 |
+| DOCMETA-002 | One meta-specification defines both the project-independent guide and Crystal Lattice conventions because they share ownership, approval, delivery, and validation. | Implemented | Human verified | Documented | `index.md`, `product-spec.md`, `technical-spec.md`; user approvals on August 5 and September 11, 2026 |
 | DOCMETA-003 | The documentation-standard task and its subtasks link their scope to stable requirements in this file without duplicating the specification. | Implemented | Human verified | Documented | `tasks/20260728-package-local-documentation-standard/`; user approval on August 5, 2026 |
 
 ## Reusable generic standards
@@ -95,3 +95,27 @@ Implementation values use `Not started`, `In progress`, `Implemented`,
 | ID | Requirement | Implementation | Verification | Documentation | Evidence |
 |---|---|---|---|---|---|
 | DOCGEN-010 | Documentation and specification guidance uses concrete nouns for documents, pages, files, specifications, requirements, work items, tests, source code, and generated output. It does not use “artifact” as an umbrella label for those items, while preserving established technical uses such as build, release, test, evaluation, or provider-native artifacts and literal paths or APIs. | Implemented | Unverified | Documented | Generic standards; repository policy; root `AGENTS.md`; corrected specification indexes; all preserved August 18 Test 21 baseline/candidate indexes exhibit the rejected generic heading; deterministic terminology check and revised candidate assertion authored but intentionally not rerun |
+
+## Approved September 11 guidance redesign
+
+These requirements define the replacement target for the first
+`DOCGEN-*`/`DOCREP-*` implementation. The earlier IDs and their behavioral
+evidence remain intact while the replacement is being designed. When the two
+new guidance documents are delivered, superseded baseline requirements will be
+marked explicitly rather than silently repurposed.
+
+All rows below share this approval evidence: user review and approval on
+September 11, 2026, and the approved execution plan in subtask 010.
+
+| ID | Requirement | Implementation | Verification | Documentation | Primary evidence |
+|---|---|---|---|---|---|
+| DOCGUIDE-001 | Public guidance consists of a short development index, one project-independent guide, and one Crystal Lattice addendum; the guidance plus root agent section fits a focused review of at most 30 normal Kindle pages. | Not started | Unverified | Pending | — |
+| DOCGUIDE-002 | The project-independent guide begins with a default structure, explains that every shown file and directory is optional, and covers README-only, one-page, index-plus-page, small-specification, and larger-specification forms. | Not started | Unverified | Pending | — |
+| DOCGUIDE-003 | File roles are introduced once with practical writing guidance, expected content, exclusions, and concrete verified examples before later placement or workflow rules use those terms. | Not started | Unverified | Pending | — |
+| DOCGUIDE-004 | The guide explains specifications as targets, requirements as live state, tasks as approval and execution, optional concise progress notes, and branch-only `Not implemented` markers for user documentation drafted before implementation. | Not started | Unverified | Pending | — |
+| DOCGUIDE-005 | Requirements contain only approved necessary outcomes or constraints, keep supporting ideas outside the requirement set, retain separate live states, and record only the smallest direct primary evidence in each row. | Not started | Unverified | Pending | — |
+| DOCGUIDE-006 | Testing guidance selects the cheapest reliable layer, requires important real boundary coverage, avoids brittle assertions about implementation details outside the required contract and unnecessary duplication, records deliberate exclusions, and keeps routine quality checks secondary in completion reports. | Not started | Unverified | Pending | — |
+| DOCLOCAL-001 | The Crystal Lattice addendum contains only local paths, package and cross-package placement, shared plugin guidance, the short maintainer boundary, tasks and AGENTS integration, publication, generation, migration, and compatibility rules. | Not started | Unverified | Pending | — |
+| DOCLOCAL-002 | Crystal Lattice specifications are named for their capability; cross-package placement and portability are properties of scope rather than mandatory title or path terminology. | Not started | Unverified | Pending | — |
+| DOCAGENT-001 | The root documentation guidance is approximately 200–300 words and contains only essential placement, source, target/live-state, incremental-adoption, routing, and maintainer-entry rules. | Not started | Unverified | Pending | — |
+| DOCVAL-010 | Behavioral validation assesses the underlying reader, scope, requirements, testing, and reporting decisions without teaching literal forbidden words; requirement-restraint cases run across supported reasoning efforts, and testing cases cover both non-contractual implementation detail and important layer crossings, using UI JSON keys only as one example. | Not started | Unverified | Pending | — |

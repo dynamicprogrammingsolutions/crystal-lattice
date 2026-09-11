@@ -1,15 +1,23 @@
 # Documentation and specification standard
 
 This specification defines the target documentation structure, specification
-workflow, repository policy, agent routing, publication behavior, migration,
-audience/reference boundaries, blocked-workflow behavior, proportional routed
-reading, placement communication, explicit safe layout overrides, and
-validation rules.
+workflow, Crystal Lattice conventions, agent routing, publication behavior,
+migration, audience/reference boundaries, blocked-workflow behavior,
+proportional routed reading, placement communication, explicit safe layout
+overrides, and validation rules.
 
-It governs two user-facing output layers:
+It governs two public guidance documents:
 
-- reusable, package-neutral standards under `docs/development/standards/`;
-- Crystal Lattice repository policy under `docs/development/repository/`.
+- a project-independent documentation and specification guide at
+  `docs/development/documentation.md`;
+- a Crystal Lattice addendum at
+  `docs/development/crystal-lattice-documentation.md`.
+
+`docs/development/index.md` provides a short route to those documents and to
+cross-package specifications. The guide documents a menu of useful file roles,
+not a required directory schema: a task may use one existing page, one new
+page, a small specification, or a larger documentation tree according to its
+actual needs.
 
 It also governs related operational files such as root `AGENTS.md`,
 `CONTRIBUTING.md`, task guidance, documentation-site assembly, and standards
@@ -34,11 +42,11 @@ Approval and execution are tracked by:
 Related maintainer specification:
 
 - [Agent evaluation framework](../agent-evaluation-framework/index.md), whose
-  first consumers provide behavioral evidence for the generic and
-  repository-specific instructions governed here.
+  first consumers provide behavioral evidence for the project-independent and
+  Crystal Lattice instructions governed here.
 
-The generic and repository-specific rules share one meta-specification because
-they have one approval path, owner, delivery, and validation system. If the
-generic standard later gains independent owners, releases, or multiple
-repository consumers, it may be split into a separately versioned
+The project-independent and Crystal Lattice rules share one meta-specification
+because they have one approval path, owner, delivery, and validation system. If
+the project-independent guide later gains independent owners, releases, or
+multiple repository consumers, it may be split into a separately versioned
 specification.
