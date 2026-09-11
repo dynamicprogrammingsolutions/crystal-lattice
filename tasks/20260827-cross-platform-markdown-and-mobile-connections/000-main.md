@@ -803,7 +803,7 @@ subtasks without creating another subtask. The approved coordinated plan and
 full desktop/shared requirements are recorded in `070`; mobile-specific
 requirements are recorded in `060`.
 
-- [ ] Chunk 1: preserve the three-pane desktop warm set across Home, eliminate
+- [x] Chunk 1: preserve the three-pane desktop warm set across Home, eliminate
   status disappearance across focus changes, and correct vertical desktop
   Watchlist drag direction.
 - [ ] Chunk 2: separate connection reopen from sidebar following, correct

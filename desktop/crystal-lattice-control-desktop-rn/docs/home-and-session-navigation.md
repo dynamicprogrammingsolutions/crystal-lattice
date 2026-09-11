@@ -49,6 +49,9 @@ Permanent order, the current preview, and the active Home or session workspace
 are restored after relaunch. Selecting or restoring a session tab attempts to
 reopen its saved connection while cached messages remain visible.
 
+Opening Home does not close session tabs or discard the three most recently
+active Chat panes kept ready by the desktop workspace.
+
 ## Request status
 
 Home, History, Sessions, session tabs, and the Chat header can show:

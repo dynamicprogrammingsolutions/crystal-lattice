@@ -127,14 +127,24 @@ doCommandBySelector:(SEL)commandSelector
 {
   NSPoint translation = [recognizer translationInView:self];
   NSPoint location = [recognizer locationInView:self];
-  NSPoint windowLocation = [self convertPoint:location toView:nil];
+  BOOL usesTopLeftCoordinates = self.isFlipped;
+  NSView *pageView = self.window.contentView;
+  NSPoint pageLocation =
+      pageView != nil ? [self convertPoint:location toView:pageView]
+                      : [self convertPoint:location toView:nil];
+  BOOL pageUsesTopLeftCoordinates = pageView == nil || pageView.isFlipped;
   return @{
     @"translationX" : @(translation.x),
-    @"translationY" : @(-translation.y),
+    @"translationY" : @(usesTopLeftCoordinates ? translation.y
+                                                : -translation.y),
     @"locationX" : @(location.x),
-    @"locationY" : @(NSHeight(self.bounds) - location.y),
-    @"pageX" : @(windowLocation.x),
-    @"pageY" : @(windowLocation.y),
+    @"locationY" : @(usesTopLeftCoordinates
+                         ? location.y
+                         : NSHeight(self.bounds) - location.y),
+    @"pageX" : @(pageLocation.x),
+    @"pageY" : @(pageUsesTopLeftCoordinates
+                     ? pageLocation.y
+                     : NSHeight(pageView.bounds) - pageLocation.y),
   };
 }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 const mockConnection = {
   id: 'connection',
@@ -110,17 +110,23 @@ jest.mock('../src/home/DesktopHomeView', () => ({
   },
 }));
 jest.mock('../src/tabs/SessionTabs', () => ({
-  SessionTabs: () => {
+  SessionTabs: ({ onSelectHome }: { onSelectHome: () => void }) => {
     const ReactModule = require('react');
-    const { View } = require('react-native');
-    return ReactModule.createElement(View, { testID: 'session-tabs' });
+    const { Pressable } = require('react-native');
+    return ReactModule.createElement(Pressable, {
+      testID: 'session-tabs',
+      onPress: onSelectHome,
+    });
   },
 }));
 jest.mock('../src/tabs/ChatPaneTabStack', () => ({
-  ChatPaneTabStack: () => {
+  ChatPaneTabStack: ({ workspaceVisible }: { workspaceVisible: boolean }) => {
     const ReactModule = require('react');
     const { View } = require('react-native');
-    return ReactModule.createElement(View, { testID: 'chat-stack' });
+    return ReactModule.createElement(View, {
+      testID: 'chat-stack',
+      accessibilityLabel: workspaceVisible ? 'visible' : 'hidden',
+    });
   },
 }));
 jest.mock('../src/ui/DesktopGlobalDisplayLayer', () => ({
@@ -130,9 +136,18 @@ jest.mock('../src/ui/DesktopGlobalDisplayLayer', () => ({
 import { DesktopRoot } from '../src/DesktopRoot';
 
 test('restores an active preview and attempts to reopen its connection at startup', async () => {
-  render(<DesktopRoot />);
+  const screen = render(<DesktopRoot />);
   await waitFor(() =>
     expect(mockOpenConnection).toHaveBeenCalledWith(mockConnection),
   );
   expect(mockOpenConnection).toHaveBeenCalledTimes(1);
+
+  expect(screen.getByTestId('chat-stack').props.accessibilityLabel).toBe(
+    'visible',
+  );
+  fireEvent.press(screen.getByTestId('session-tabs'));
+  expect(screen.getByTestId('home-view')).toBeTruthy();
+  expect(screen.getByTestId('chat-stack').props.accessibilityLabel).toBe(
+    'hidden',
+  );
 });

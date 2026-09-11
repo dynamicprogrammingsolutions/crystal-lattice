@@ -87,9 +87,11 @@ The frontend SDK exposes an optional backend method and normalized projection.
   cannot guarantee a no-wake read.
 
 `useSessionRequestStatuses` unions exact consumer IDs, groups by connection,
-uses independent cancellable timers, stops in the background, and applies
-bounded per-connection backoff. Unsupported readers are not repeatedly
-probed. Loss of authority removes stale Running state.
+splits large groups into bounded requests, uses independent cancellable
+timers, stops in the background, and applies bounded per-connection backoff.
+Successful batches reconcile only their queried IDs. Transient unavailability
+retains a recently observed Running result through retry, while authoritative
+replacement or bounded loss of authority removes stale Running state.
 
 ## Verification
 

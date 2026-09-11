@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import type { SessionSummary } from '@crystal-lattice/frontend-sdk';
@@ -7,14 +7,21 @@ import type { SessionRequestStatus } from '@crystal-lattice/frontend-sdk';
 
 import { ApplicationPluginsProvider } from '@crystal-lattice/frontend-sdk-react';
 
-import type { MessagesCache, MessagesCacheEntry, SessionsCache } from '../cache/types';
+import type {
+  MessagesCache,
+  MessagesCacheEntry,
+  SessionsCache,
+} from '../cache/types';
 import { ChatPane, type ChatPaneProps } from '../chat/ChatPane';
 import type { DesktopSessionTab } from './SessionTabs';
 import type { TabStripStyle } from './tabStripStyle';
 
 const RECENT_ACTIVE_TAB_COUNT = 3;
 
-function stringArrayEqual(a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean {
+function stringArrayEqual(
+  a: ReadonlyArray<string>,
+  b: ReadonlyArray<string>,
+): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i += 1) {
@@ -28,11 +35,16 @@ function deriveMruTabIds(
   tabs: ReadonlyArray<DesktopSessionTab>,
   activeTabId: string | null,
 ): string[] {
-  const validTabIds = new Set(tabs.map((tab) => tab.tabId));
-  const prunedMruTabIds = previousMruTabIds.filter((tabId) => validTabIds.has(tabId));
+  const validTabIds = new Set(tabs.map(tab => tab.tabId));
+  const prunedMruTabIds = previousMruTabIds.filter(tabId =>
+    validTabIds.has(tabId),
+  );
 
   if (activeTabId && validTabIds.has(activeTabId)) {
-    return [activeTabId, ...prunedMruTabIds.filter((tabId) => tabId !== activeTabId)];
+    return [
+      activeTabId,
+      ...prunedMruTabIds.filter(tabId => tabId !== activeTabId),
+    ];
   }
 
   return prunedMruTabIds;
@@ -45,6 +57,7 @@ function deriveWarmTabIds(mruTabIds: ReadonlyArray<string>): string[] {
 export interface ChatPaneTabStackProps {
   tabs: DesktopSessionTab[];
   activeTabId: string | null;
+  workspaceVisible?: boolean;
   styleVariant: TabStripStyle;
   connectionNameById: Record<string, string>;
   getBackend: (connectionId: string) => AgentBackend | null;
@@ -84,7 +97,9 @@ type TabFrameProps = {
   onPromotePreview?: ChatPaneTabStackProps['onPromotePreview'];
 };
 
-const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.Element {
+const TabFrame = React.memo(function TabFrame(
+  props: TabFrameProps,
+): React.JSX.Element {
   const {
     isVisible,
     isActive,
@@ -106,7 +121,11 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
 
   return (
     <View
-      style={[styles.frame, isVisible ? styles.visible : styles.hidden, isActive ? styles.active : styles.inactive]}
+      style={[
+        styles.frame,
+        isVisible ? styles.visible : styles.hidden,
+        isActive ? styles.active : styles.inactive,
+      ]}
       pointerEvents={isVisible ? 'auto' : 'none'}
     >
       <ApplicationPluginsProvider backend={backend} connectionId={connectionId}>
@@ -133,15 +152,23 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
   );
 });
 
-export function ChatPaneTabStackPlaceholder(_props: ChatPaneTabStackProps): React.JSX.Element {
-
-  return <View><Text>Placeholder</Text></View>
+export function ChatPaneTabStackPlaceholder(
+  _props: ChatPaneTabStackProps,
+): React.JSX.Element {
+  return (
+    <View>
+      <Text>Placeholder</Text>
+    </View>
+  );
 }
 
-export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Element {
+export function ChatPaneTabStack(
+  props: ChatPaneTabStackProps,
+): React.JSX.Element {
   const {
     tabs,
     activeTabId,
+    workspaceVisible = true,
     styleVariant,
     connectionNameById,
     getBackend,
@@ -153,7 +180,7 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
     requestStatuses = {},
     onPromotePreview,
   } = props;
-  
+
   // Keep MRU ordering in a ref so switching among already-active tabs
   // doesn't force a second render from state updates.
   const mruTabIdsRef = useRef<string[]>(activeTabId ? [activeTabId] : []);
@@ -174,20 +201,30 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
 
   const warmSet = useMemo(() => new Set(warmTabIds), [warmTabIds]);
   const renderedTabs = useMemo(
-    () => tabs.filter((tab) => warmSet.has(tab.tabId)),
+    () => tabs.filter(tab => warmSet.has(tab.tabId)),
     [tabs, warmSet],
   );
 
   return (
-    <View style={styles.stack}>
-      {renderedTabs.map((tab) => {
-        const connectionName = connectionNameById[tab.connectionId] ?? tab.connectionId;
+    <View
+      testID="desktop-chat-pane-stack"
+      style={[styles.stack, !workspaceVisible && styles.workspaceHidden]}
+      pointerEvents={workspaceVisible ? 'auto' : 'none'}
+      accessibilityElementsHidden={!workspaceVisible}
+      importantForAccessibility={
+        workspaceVisible ? 'auto' : 'no-hide-descendants'
+      }
+    >
+      {renderedTabs.map(tab => {
+        const connectionName =
+          connectionNameById[tab.connectionId] ?? tab.connectionId;
         const backend = getBackend(tab.connectionId);
-	        const sessionSummary =
-	          (sessionsCache[tab.connectionId]?.sessions ?? []).find(
-	            (session) => session.session_id === tab.sessionId,
-	          ) ?? null;
-        const cachedEntry = messagesCache[tab.connectionId]?.[tab.sessionId] ?? null;
+        const sessionSummary =
+          (sessionsCache[tab.connectionId]?.sessions ?? []).find(
+            session => session.session_id === tab.sessionId,
+          ) ?? null;
+        const cachedEntry =
+          messagesCache[tab.connectionId]?.[tab.sessionId] ?? null;
         const isVisible = tab.tabId === activeTabId;
         const isActive = isVisible || warmSet.has(tab.tabId);
 
@@ -224,6 +261,9 @@ const styles = StyleSheet.create({
   stack: {
     flex: 1,
   },
+  workspaceHidden: {
+    opacity: 0,
+  },
   frame: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -236,10 +276,8 @@ const styles = StyleSheet.create({
     opacity: 0,
     //zIndex: 0,
   },
-  active: {
-
-  },
+  active: {},
   inactive: {
     display: 'none',
-  }
+  },
 });

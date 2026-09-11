@@ -637,13 +637,13 @@ acceptable completion chunks and proceeds in the order below.
 
 #### Functional requirements
 
-- [ ] Selecting desktop Home preserves the existing bounded warm-pane
+- [x] Selecting desktop Home preserves the existing bounded warm-pane
   behavior: the three most recently active Chat panes remain mounted, while
   Home is visible and no Chat pane remains interactively active.
-- [ ] A server-reported in-progress request remains visible consistently on
+- [x] A server-reported in-progress request remains visible consistently on
   desktop Home, Sessions, the tab strip, and Chat when the user selects Home,
   another session, the owning connection, or another connection.
-- [ ] Desktop Watchlist pointer dragging follows screen direction vertically:
+- [x] Desktop Watchlist pointer dragging follows screen direction vertically:
   upward movement targets earlier rows and downward movement targets later
   rows.
 - [ ] Selecting, opening, or restoring a desktop session tab attempts to open
@@ -684,13 +684,13 @@ acceptable completion chunks and proceeds in the order below.
 
 #### Non-functional requirements
 
-- [ ] `ChatPaneTabStack` remains mounted across Home/session workspace
+- [x] `ChatPaneTabStack` remains mounted across Home/session workspace
   selection and retains one stable MRU owner for the three-pane warm set.
-- [ ] Status polling registers only consumed or visible explicit IDs, respects
+- [x] Status polling registers only consumed or visible explicit IDs, respects
   endpoint batch bounds, merges results by queried ID, and does not erase an
   otherwise current running value because an unrelated batch changes or a
   transient read restarts.
-- [ ] Successful non-running or missing-session results remain authoritative,
+- [x] Successful non-running or missing-session results remain authoritative,
   and unavailable/unsupported authority cannot leave an unbounded stale
   in-progress result.
 - [ ] Shared React Native code owns only portable Home card/timeline
@@ -808,7 +808,7 @@ raw three-finger trackpad recognizer.
 
 ### Task checklist
 
-- [ ] Complete Chunk 1 workspace and status reliability, including native
+- [x] Complete Chunk 1 workspace and status reliability, including native
   vertical drag correction.
 - [ ] Complete Chunk 2 activation semantics and mobile/desktop local session
   actions.
@@ -855,3 +855,55 @@ raw three-finger trackpad recognizer.
 - Run targeted lint/format checks, `git diff --check`, and package
   documentation preparation in every chunk; report existing baselines
   separately.
+
+### Chunk 1 implementation notes
+
+- `DesktopRoot` previously replaced `ChatPaneTabStack` with Home. The stack's
+  component-local MRU owner was therefore destroyed even though permanent and
+  preview tab records remained. The stack now stays mounted in a workspace
+  layer, receives no visible tab while Home is active, and is hidden from
+  pointer and accessibility interaction.
+- Selecting the focused connection previously registered every cached session
+  for status polling. This could exceed the server's 200-ID request bound and
+  made a read failure erase every remembered Running value for that
+  connection. `SessionsPanel` now reports its rendered window, while a pure
+  desktop scope selector unions only tabs, active Home/History entries, and
+  visible Sessions rows.
+- The host-neutral status hook now splits large ID sets into conservative
+  bounded batches. Successful batches replace only queried IDs; consumer and
+  reader identity churn preserves still-consumed results. Transient
+  unavailability retains a recently observed Running status through retry,
+  while successful replacement, missing IDs, terminal unsupported authority,
+  or the bounded staleness window removes it.
+- React Native macOS views already expose top-left-oriented pan translation.
+  The native adapter's unconditional Y negation inverted Watchlist movement.
+  Native payload conversion now checks the actual local and page view
+  orientation before normalizing Y.
+- While touching `SessionsPanel`, its unused destructured focus value and
+  unstable conditional session-array expression were removed so targeted
+  lint finishes without errors.
+
+### Chunk 1 completion notes
+
+- Home now preserves the existing three most-recently-active Chat panes and
+  does not make hidden panes pointer- or accessibility-interactive.
+- Request status remains connection/session scoped while focus and visible
+  consumers change, including status sets larger than one endpoint request.
+- Desktop Watchlist movement now follows the physical pointer in both vertical
+  directions without changing horizontal permanent-tab dragging.
+- Verification passed:
+  - SDK React: 6 files and 24 tests;
+  - desktop Jest: 34 suites and 148 tests;
+  - mobile Jest: 42 suites and 181 tests;
+  - mobile and SDK React TypeScript;
+  - real FastAPI/HTTP/frontend-backend request-status integration: 1 test;
+  - focused signed macOS `ConnectionsPanelUITests`: 5 tests and zero
+    failures, including upward/downward Watchlist drag plus Home/tab status
+    accessibility;
+  - targeted desktop lint with warnings only, Prettier, `git diff --check`,
+    and documentation preparation.
+- Desktop full TypeScript remains non-clean in the existing frontend SDK URL,
+  ChatPane declaration-order/optional-string, and Theme `shadow` baselines.
+  No Chunk 1 file adds a TypeScript error.
+- The complete mobile suite retained its existing asynchronous `act(...)`
+  warnings and exited successfully.

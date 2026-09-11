@@ -48,6 +48,16 @@ const summaries: SessionSummary[] = [
     modified: Date.now() / 1000 - 20,
     preview: 'Preview session',
   },
+  {
+    session_id: 'three',
+    modified: Date.now() / 1000 - 30,
+    preview: 'Third session',
+  },
+  {
+    session_id: 'four',
+    modified: Date.now() / 1000 - 40,
+    preview: 'Fourth session',
+  },
 ];
 
 function tab(sessionId: string): DesktopSessionTab {
@@ -63,13 +73,17 @@ function tab(sessionId: string): DesktopSessionTab {
   };
 }
 
-const requestStatus: SessionRequestStatus = {
-  session_id: 'preview',
-  request_id: 'request',
-  state: 'running',
-  basis: 'active_request',
-  session_modified: summaries[2].modified,
-};
+function runningStatus(sessionId: string): SessionRequestStatus {
+  return {
+    session_id: sessionId,
+    request_id: `request-${sessionId}`,
+    state: 'running',
+    basis: 'active_request',
+    session_modified:
+      summaries.find(summary => summary.session_id === sessionId)?.modified ??
+      0,
+  };
+}
 
 export function DesktopWorkspaceHarness(): React.JSX.Element {
   const theme = useDesktopTheme();
@@ -84,6 +98,8 @@ export function DesktopWorkspaceHarness(): React.JSX.Element {
   const [watchlist, setWatchlist] = useState([
     { connectionId: connection.id, sessionId: 'one' },
     { connectionId: connection.id, sessionId: 'two' },
+    { connectionId: connection.id, sessionId: 'three' },
+    { connectionId: connection.id, sessionId: 'four' },
   ]);
   const collections = useMemo(
     () =>
@@ -99,7 +115,10 @@ export function DesktopWorkspaceHarness(): React.JSX.Element {
     [watchlist],
   );
   const statuses = {
-    [connection.id]: { preview: requestStatus },
+    [connection.id]: {
+      one: runningStatus('one'),
+      preview: runningStatus('preview'),
+    },
   };
 
   useEffect(() => {
