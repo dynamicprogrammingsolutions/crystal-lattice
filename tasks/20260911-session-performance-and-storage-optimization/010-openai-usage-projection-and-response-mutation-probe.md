@@ -1,0 +1,532 @@
+# OpenAI usage projection, response mutation probe, and session sanitization
+
+Replace whole-object OpenAI usage persistence with a supported root-field
+projection, probe other provider-response levels through the real OpenAI
+Responses provider, and sanitize affected live sessions and snapshots.
+
+## Requirements checklist
+
+- [x] **OURP-001** Raw OpenAI response usage remains available transiently for
+  current-turn token, cost, cache, turn, auth-mode, service-tier, and reasoning
+  calculations.
+- [ ] **OURP-002** Newly persisted OpenAI `usage` contains only explicitly
+  supported root fields; arbitrary current or future usage-root keys are not
+  retained in core messages, phase messages, or native `_metadata`.
+- [x] **OURP-003** Provider-native `_metadata` remains the intentional channel
+  for metadata that must survive native-history rebuild and be projected back
+  into core message metadata.
+- [ ] **OURP-004** A test-only mutation proxy wraps a real OpenAI API response
+  while the production OpenAI Responses provider and extension pipeline remain
+  responsible for all response processing.
+- [ ] **OURP-005** The mutation probe recursively discovers every eligible
+  object in the actual provider response, traversing every array element, and
+  inserts a unique recognizable arbitrary key into every discovered object
+  when the candidate count is within the configured limit.
+- [ ] **OURP-006** The mutation probe has an explicit fixed test-only ignore
+  list for intentionally open or platform-owned data such as `_metadata` and
+  approved reasoning payloads; ignored subtrees are excluded during recursive
+  candidate discovery.
+- [ ] **OURP-007** If recursive discovery exceeds the mutation limit, a
+  reproducible seed selects no more than 100 candidates from the complete
+  discovered set without limiting array traversal or collapsing differently
+  shaped array elements.
+- [ ] **OURP-008** The primary probe stringifies the complete exported session
+  JSON once, searches for the exact `PROBE_CONTENT_` prefix, resolves every
+  discovered suffix through the mutation manifest, and reports the
+  corresponding injected response path.
+- [ ] **OURP-009** The marker-search helper can optionally stringify and scan
+  core messages and retained native messages independently so later tests can
+  distinguish core-only, native-only, and shared retention without requiring a
+  recursive parsed-object search.
+- [ ] **OURP-010** No production filtering outside OpenAI usage is implemented
+  until the initial probe results identify a concrete unwanted retention path
+  and a follow-up plan for that path is reviewed.
+- [ ] **OURP-011** Existing canonical live sessions and snapshots are scanned
+  and sanitized with the same supported usage-root projection used by new
+  requests.
+- [x] **OURP-012** The maintenance command supports dry run, validated
+  compressed recovery backups, source-state rechecks, atomic apply, live
+  sessions, snapshots, and a second idempotence scan.
+- [x] **OURP-013** Snapshot selection records, conflict backups, malformed
+  records, and other non-canonical JSON files are not rewritten.
+- [ ] **OURP-014** One focused usage unit test, one real-API mutation
+  integration, the two existing sanitizer tests, and relevant existing suites
+  provide the new coverage without a broad test matrix.
+- [ ] **OURP-015** All affected canonical live sessions and snapshots in the
+  approved session root are sanitized in a confirmed no-writer window, and a
+  final dry run reports no unsupported usage-root fields.
+- [ ] **OURP-016** Before/after evidence records affected records, removed
+  usage-root keys by path, occurrence counts, and serialized-byte savings
+  without recording message content.
+- [x] **OURP-017** General large-session fixture generation and reusable
+  performance benchmarking remain deferred to a later storage optimization.
+
+## Scope
+
+In scope:
+
+- OpenAI Responses raw usage handoff and persisted usage projection.
+- An explicit allowlist of supported OpenAI usage root keys.
+- A test-only deterministic mutation engine and proxy over a real OpenAI API
+  response.
+- Recursive discovery and mutation of eligible dictionaries at any depth in
+  the actual response, including dictionaries nested in arrays.
+- Mutation of every eligible object when there are at most 100 candidates, or
+  seeded selection of at most 100 candidates after complete discovery.
+- One primary full exported-session JSON marker scan, with optional separate
+  core/native string scans available to future tests.
+- A fixed test-only ignore list for `_metadata`, reasoning payloads, and any
+  other path
+  explicitly accepted before or after the initial diagnostic run.
+- Reuse of the usage projection by the existing live-session and snapshot
+  sanitizer.
+- Safe migration and before/after evidence for the current session root.
+
+Out of scope:
+
+- A generic core persistence-policy engine.
+- Runtime byte thresholds or bulk-data path policies.
+- Generic filtering of provider-native `_metadata`.
+- Preemptive filtering of output message items, content parts, reasoning,
+  tools, attachments, compaction state, or other native response data.
+- Changes to providers other than OpenAI Responses.
+- Storage layout, incremental message APIs, bridge compression, and locking.
+- General performance fixture generation or benchmarking.
+
+Parent Task: `tasks/20260911-session-performance-and-storage-optimization/000-main.md`
+
+## Requirement questions and decisions
+
+- **Decision:** `_metadata` is not an arbitrary provider leak. It is the
+  framework's explicit persistence channel for reconstructing core metadata
+  from native history.
+- **Decision:** The whitelist discussed in this task is implemented as the
+  mutation test's fixed ignore list. It identifies subtrees where arbitrary
+  additional keys are intentionally not injected, not a global runtime
+  whitelist.
+- **Decision:** The only production behavior change planned before the probe is
+  a supported root-key projection for OpenAI usage.
+- **Decision:** Any non-usage production change requires actual probe evidence
+  and a revised or separate follow-up plan before implementation.
+- **Decision:** Every inserted key and value receives a unique random or
+  sequential identifier. The earlier `123` was illustrative and is not a
+  fixed marker.
+- **Decision:** Recursively discover all possible dictionary placements before
+  mutating the response. Do not stop traversing an array or collapse its
+  elements merely because several elements appear structurally similar.
+- **Decision:** Mutate every eligible object when discovery returns at most
+  100 candidates. If there are more, use a reproducible seed to sample no more
+  than 100 from the complete candidate set.
+- **Decision:** Use recognizable marker strings instead of allocating
+  genuinely large payloads. The defect under test is retention of arbitrary
+  keys, not JSON throughput.
+- **Question:** After the first probe run, which retained output-item or
+  content-part paths are intentional provider-native forward compatibility,
+  and which should become a separate filtering bugfix? Do not answer this in
+  advance of the evidence.
+
+## Research details
+
+### Current OpenAI response boundaries
+
+The provider currently treats each response level differently:
+
+1. The response root is projected explicitly. The provider reads `output`,
+   `id`, `usage`, service tier, and selected reasoning values; unrelated
+   response-root siblings are already discarded.
+2. The complete `usage` mapping is handed to the usage extension. The
+   extension reads a small known set of fields but historically persisted the
+   complete mapping.
+3. Provider output items are retained in native history so opaque continuation
+   state can survive core conversion.
+4. Message content parts are also retained in native history and normalized
+   selectively when replayed to the API.
+5. `_metadata` is created and owned by the platform/provider pipeline. The
+   provider intentionally projects non-private `_metadata` fields into core
+   message metadata during rebuild.
+6. Response-segment construction can copy projected metadata into
+   `phase_messages`, which explains why one unsupported usage field appeared
+   in several serialized locations.
+
+The known production fix belongs in step 2: the extension should persist the
+supported usage contract rather than the complete upstream mapping.
+
+### Supported usage root fields
+
+Current OpenAI usage and pricing code consumes these root fields:
+
+- `input_tokens`;
+- `input_tokens_details`;
+- `output_tokens`;
+- `output_tokens_details`;
+- `completion_tokens_details` as a compatibility fallback for reasoning-token
+  details;
+- `total_tokens`.
+
+Nested detail mappings remain intact in this task. The root projection prevents
+new siblings such as `attribution` or another arbitrary provider addition from
+being persisted. A future supported root field requires an intentional code
+and test update.
+
+### Why the previous generalized plan was too early
+
+A local probe confirmed that arbitrary data can survive at several native
+levels, but it injected data without distinguishing framework-owned
+`_metadata`, deliberately opaque reasoning state, and ordinary provider
+response objects. Native retention alone is not proof of a bug because native
+history exists specifically to preserve data that lossy core messages cannot
+represent.
+
+The correct next step is an evidence-producing mutation test with explicit
+test exclusions. Only after the test shows exactly where non-excluded
+provider-added root keys survive can the task decide whether a native-item or
+content-part change is warranted.
+
+### Existing session evidence
+
+The attribution-focused dry run scanned 626 canonical records:
+
+- 389 live sessions;
+- 237 snapshots;
+- 29 affected live sessions;
+- 38 affected snapshots;
+- 6,310 core, 2,342 phase, and 6,310 native attribution copies;
+- projected savings of 2,966,685,068 bytes.
+
+The broader usage-root projection requires another dry run before apply
+because it may find unsupported usage siblings other than `attribution`.
+
+## Execution plan
+
+Status: Approved
+
+### 1. Build the test-only recursive response mutation engine
+
+Create a small deterministic helper owned by the OpenAI Responses tests. It
+accepts:
+
+- a real response dictionary;
+- an explicit fixed ignore-path list;
+- a configurable maximum mutation count, initially 100;
+- a reproducibility seed used only when sampling or generating identifiers;
+- a marker prefix.
+
+The helper should operate in two passes:
+
+1. Recursively traverse the complete JSON-compatible response and collect the
+   exact path of every dictionary not inside an ignored subtree.
+2. After discovery is complete, mutate either every candidate or a seeded
+   sample of at most 100 candidates.
+
+Dictionary mutation means adding one new root key to that dictionary. The key
+and string value must both carry a unique probe ID. Probe IDs may be sequential
+within a run, such as `probe_0001`, or generated by a seeded pseudo-random
+generator. They must not reuse one fixed number.
+
+Candidate discovery rules:
+
+- visit the response root;
+- recurse through every dictionary value;
+- recurse through every element of every array;
+- retain exact numeric array indices in the manifest;
+- do not deduplicate candidates by normalized path or object shape;
+- do not impose a candidate limit during discovery;
+- optionally enforce a generous recursion-depth safety limit, but report a
+  fixture failure if real response data exceeds it.
+
+If the discovered candidate count is at most 100, mutate all candidates. If it
+is greater than 100, select 100 candidates with a fixed CI seed from the full
+candidate list. The failure report records the seed so a local run can
+reproduce the same selection.
+
+Initial excluded paths:
+
+- every `_metadata` subtree;
+- reasoning content, summaries, signatures, and encrypted continuation data;
+- test harness bookkeeping;
+- any explicit opaque path already required by a documented OpenAI
+  continuation contract.
+
+The ignore list is fixed input to the test. It controls traversal: when a path
+matches an ignored subtree, neither that dictionary nor descendants beneath it
+become mutation candidates.
+
+The helper returns a manifest mapping every probe ID to:
+
+- its exact response-object path;
+- the inserted key;
+- the inserted marker value;
+- whether it was selected after sampling;
+- the seed and total discovered candidate count.
+
+Do not use message text or provider response content as assertion identity.
+
+### 2. Proxy a real OpenAI API response
+
+Use the production `OpenAIResponsesProvider` request, conversion, extension,
+and finalization implementation. Add only a test-owned client/response proxy:
+
+1. The wrapped client calls the real OpenAI Responses API.
+2. The proxy obtains the response dictionary immediately before the provider's
+   normal `_response_to_dict` processing.
+3. The mutation helper adds the deterministic keys.
+4. The proxy returns the mutated response object to the unchanged provider
+   pipeline.
+
+A small provider subclass or monkeypatched client factory is acceptable when
+it changes only client construction. Do not duplicate provider response
+processing in the test.
+
+Start with the non-streaming real API path. Streaming mutation requires an SSE
+proxy and should be added only if the non-streaming results reveal a
+streaming-specific question.
+
+### 3. Run the diagnostic test before broadening implementation
+
+The first targeted run is expected to fail. Export the complete returned
+session to JSON and search that string for the exact `PROBE_CONTENT_` prefix.
+When the prefix is found, parse the following marker suffix, such as
+`0005_6e81`, and resolve it through the mutation manifest to identify the
+injected key and exact original response path.
+
+The primary probe does not recursively search the parsed session object and
+does not separately inspect every projection. The exported full session
+already includes both core messages and retained native history.
+
+The reusable search helper should nevertheless accept optional scopes:
+
+- full exported session JSON;
+- core messages only;
+- retained native messages only.
+
+Each scope is implemented by serializing that complete branch and performing
+the same prefix/suffix string search. Do not add a positive core/native
+retention test in this task; the optional scopes are only an interface for
+later tests that may require native-only, core-only, or shared preservation.
+
+The failure output must contain:
+
+- probe ID;
+- exact original response injection path from the manifest;
+- selected scan scope;
+- seed and candidate counts.
+
+Do not print real response or conversation content. Report every distinct
+marker suffix found in the serialized scope.
+
+Record the results in Implementation Notes. Then classify every retained
+non-usage path as one of:
+
+- intentional native forward compatibility;
+- already excluded/allowlisted test scope;
+- unnecessary but harmless retention;
+- concrete unwanted retention requiring a follow-up production change.
+
+Stop and return the plan to `Draft` before implementing any non-usage
+production fix. Add the resulting code plan only after the observed path and
+its continuation implications are known.
+
+### 4. Replace attribution-specific handling with usage root projection
+
+Change the existing usage persistence helper from “remove `attribution`” to
+“retain supported usage root fields.”
+
+Apply that one helper at the existing usage persistence/rebuild boundaries:
+
+- public/core usage metadata;
+- native `_metadata["usage"]`;
+- phase-message usage reconstructed from native history;
+- existing-session migration.
+
+Do not filter unrelated `_metadata` fields or native item/part roots in this
+step.
+
+Update the focused unit test to include:
+
+- every supported usage root field;
+- `attribution`;
+- at least one different arbitrary root key;
+- an arbitrary nested detail key under a supported detail mapping.
+
+The two unsupported root keys must be discarded. Supported roots and their
+nested detail mappings must remain.
+
+### 5. Turn the mutation probe into stable regression coverage
+
+After the initial retention matrix is reviewed:
+
+- keep the fixed test-only ignore list explicit and minimal;
+- keep recursive candidate discovery independent of fixed response paths;
+- assert every non-ignored injected marker has the reviewed expected retention
+  outcome;
+- add any intentionally retained non-usage native subtree to the test ignore
+  list only with a short reviewed rationale;
+- leave any disputed non-usage path as a failing/expected-failing follow-up
+  until its separate plan is approved.
+
+Do not choose a fresh unreported seed in CI. Mutate all candidates when
+possible; otherwise use the fixed and reported sampling seed to avoid flaky
+coverage.
+
+### 6. Generalize the existing-session usage sanitizer
+
+Reuse the supported usage-root projection in the existing sanitizer. A usage
+object is affected when it contains at least one unsupported root key, not
+only when it contains `attribution`.
+
+Keep:
+
+- live-session and snapshot discovery;
+- dry-run default;
+- optional session selection;
+- structured reports without content;
+- separate compressed backups for sessions and snapshots;
+- source hash/state rechecks;
+- temporary validation and atomic replacement;
+- second-run idempotence.
+
+Update the existing two sanitizer tests rather than adding more test cases.
+
+### 7. Verify and migrate
+
+Run:
+
+1. the focused usage unit test;
+2. the mutation helper/proxy integration against the real API;
+3. the two sanitizer tests;
+4. existing OpenAI usage, provider, native-history, reasoning, tools,
+   attachments, and compaction tests;
+5. the explicitly enabled ordinary real OpenAI usage test if it remains
+   separate from the mutation test.
+
+Then run a new dry scan over live sessions and snapshots, review every removed
+usage root key, and apply only after the CLI and active requests are stopped.
+
+### Implementation decisions and open questions
+
+- **Decision:** Keep `_metadata` as the intentional native-to-core persistence
+  mechanism.
+- **Decision:** The mutation allowlist is test-only.
+- **Decision:** Use real OpenAI API output with a test-owned mutation proxy.
+- **Decision:** Recursively discover every non-ignored dictionary before
+  deciding whether sampling is required.
+- **Decision:** Traverse every array element and keep each exact indexed path.
+- **Decision:** Mutate all candidates up to 100 and seed-sample exactly 100
+  only when the discovered set is larger.
+- **Decision:** Use unique sequential or seeded marker strings instead of
+  large payloads or one fixed marker number.
+- **Decision:** Implement only the supported usage-root projection before
+  evidence supports another production change.
+- **Decision:** Preserve nested mappings under supported usage roots in this
+  task.
+- **Decision:** Update the current sanitizer to remove all unsupported usage
+  root keys.
+- After the diagnostic run, decide which non-usage retained paths are
+  intentional and which need a new plan.
+- Confirm whether the mutation integration replaces or supplements the
+  existing real-API usage integration.
+- Confirm the no-writer window before applying the sanitizer.
+
+### Documentation
+
+- Update OpenAI Responses cost/usage development documentation to list the
+  supported persisted usage root fields and state that other upstream usage
+  roots remain transient.
+- Update the maintenance page so reports and cleanup refer to unsupported usage
+  roots rather than only attribution.
+- Document the test mutation proxy only in test/contributor guidance if it
+  becomes reusable; do not present it as a user feature.
+- Do not change core/provider standards unless a later evidence-backed
+  non-usage fix introduces a new provider contract.
+
+### Task checklist
+
+- [ ] Add recursive dictionary-candidate discovery and the explicit fixed
+  ignore list.
+- [ ] Add unique probe-key/value generation and the mutation manifest.
+- [ ] Add mutate-all behavior up to 100 candidates and seeded sampling above
+  100.
+- [ ] Add the real-response proxy around the OpenAI client.
+- [ ] Run the initial expected-failing mutation probe.
+- [ ] Record every surviving marker and its exact original response injection
+  path without provider content.
+- [ ] Classify retained non-usage paths.
+- [ ] Pause and revise the plan before any non-usage production change.
+- [ ] Replace attribution-specific usage persistence with supported root
+  projection.
+- [ ] Update the one focused usage unit test.
+- [ ] Stabilize the mutation integration's accepted-path list after review.
+- [ ] Refactor the existing sanitizer to use the usage root projection.
+- [ ] Update the two sanitizer tests without increasing their count.
+- [ ] Run focused, existing, and hosted OpenAI verification.
+- [ ] Run and review the new live-session and snapshot dry report.
+- [ ] Establish a no-writer window and apply sanitization.
+- [ ] Validate every rewritten record and run a zero-change final scan.
+- [ ] Record final counts and byte savings.
+- [ ] Update OpenAI development and maintenance documentation.
+- [ ] Add completion notes and close the parent subtask.
+
+### Requirement verification
+
+- **OURP-001 through OURP-003:** Focused usage tests and existing
+  native-history rebuild tests prove transient calculation and `_metadata`
+  behavior.
+- **OURP-004 through OURP-009:** The hosted mutation integration, complete
+  recursive candidate inventory, sampling record, marker manifest, and
+  exported-session prefix scan prove placement coverage and identify every
+  retained marker. Inspect the optional core/native scan interface without
+  adding a positive retention test.
+- **OURP-010:** Change-set inspection before each implementation stage confirms
+  no non-usage production filter was added without the required plan update.
+- **OURP-011 through OURP-013:** The two sanitizer tests and command inspection
+  prove generalized usage-root cleanup, safe apply behavior, and canonical
+  file selection.
+- **OURP-014:** Test inventory and command results show the deliberately small
+  new coverage set plus relevant existing suites.
+- **OURP-015 and OURP-016:** Apply reports, backup inspection, transformed-file
+  validation, and the final zero-change dry run provide migration evidence.
+- **OURP-017:** Change-set inspection confirms no performance fixture or
+  benchmark framework was added.
+
+### Additional implementation verification
+
+- Run Ruff, Black, and targeted Pyright over changed OpenAI plugin, script, and
+  test files.
+- Run `pytest plugins/openai_responses/tests -q`, recording the known unrelated
+  attachment-history failures separately unless this work changes them.
+- Verify one transformed large live session and one snapshot through
+  `Session.from_dict`, native-integrity checking, and a fresh core rebuild.
+
+## Implementation Notes
+
+### 2026-09-11
+
+- Added the initial attribution-specific runtime transformation and
+  live-session/snapshot sanitizer.
+- Added one focused runtime unit test, one real OpenAI API assertion, and two
+  sanitizer tests.
+- Focused tests and the explicitly enabled real OpenAI API usage integration
+  passed.
+
+### 2026-09-12
+
+- Added snapshot discovery and the executable
+  `plugins/openai_responses/scripts/sanitize_session_usage.py` wrapper.
+- The attribution-only dry run scanned 626 canonical records, found 67
+  affected records, and projected 2,966,685,068 bytes of savings.
+- No live session or snapshot has been rewritten because a safe no-writer
+  window has not yet been confirmed.
+- Commit `138c56c0` records the attribution-specific runtime fix, sanitizer,
+  executable command, tests, documentation, and the prior task-plan state.
+- The earlier generalized core persistence-policy proposal was superseded.
+  `_metadata` is explicitly legitimate, the whitelist belongs to the mutation
+  test, and non-usage production changes now require concrete probe evidence
+  plus a reviewed follow-up plan.
+- Refined the mutation design to discover every eligible dictionary in the
+  real response before mutation, traverse every array element, mutate all
+  candidates up to 100, and seed-sample 100 only when the complete candidate
+  set is larger.
+- Simplified marker detection to one string search over the full exported
+  session JSON. Marker suffixes map back to exact injection paths through the
+  manifest. Optional core-only and native-only string scopes remain available
+  for later preservation tests but are not exercised as positive tests here.

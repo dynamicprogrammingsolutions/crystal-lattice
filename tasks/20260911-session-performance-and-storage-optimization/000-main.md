@@ -24,11 +24,11 @@ This task set does not itself authorize implementation. Each subtask must be rea
 
 ## Cross-cutting decisions and requirement questions
 
-- **Decision:** The first subtask introduces a generalized persisted-session
-  data policy, adopts it for OpenAI Responses, and sanitizes existing live
-  sessions and snapshots. Realistic large-session fixture generation is
-  deferred until a later optimization needs it and remains part of that
-  optimization rather than a standalone benchmark task.
+- **Decision:** The first subtask projects supported OpenAI usage root fields,
+  probes arbitrary provider-response keys through the real OpenAI Responses
+  provider before planning any broader filtering, and sanitizes existing live
+  sessions and snapshots. Realistic large-session fixture generation remains
+  deferred to a later optimization.
 - **Decision:** Compact serialization alone is insufficient; the canonical storage task includes a lightweight JSON plus JSONL/NDJSON layout.
 - **Decision:** The first concurrency task keeps reads lock-free and writers serialized with the smallest correctness mechanism practical. Historical version storage or general MVCC is not assumed.
 - **Decision:** The previous parsed-session cache and advanced versioning work are combined into one later SQLite/cache task.
@@ -49,7 +49,7 @@ This task set does not itself authorize implementation. Each subtask must be rea
 
 ## Subtasks
 
-- [ ] `tasks/20260911-session-performance-and-storage-optimization/010-persisted-session-data-policy-and-sanitization.md`
+- [ ] `tasks/20260911-session-performance-and-storage-optimization/010-openai-usage-projection-and-response-mutation-probe.md`
 - [ ] `tasks/20260911-session-performance-and-storage-optimization/020-file-backed-session-storage.md`
 - [ ] `tasks/20260911-session-performance-and-storage-optimization/030-lock-free-reads-and-writer-serialization.md`
 - [ ] `tasks/20260911-session-performance-and-storage-optimization/040-message-api-and-incremental-history.md`

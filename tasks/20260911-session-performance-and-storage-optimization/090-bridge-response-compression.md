@@ -34,7 +34,7 @@ Out of scope:
 
 Parent Task: `tasks/20260911-session-performance-and-storage-optimization/000-main.md`
 
-Depends On: `tasks/20260911-session-performance-and-storage-optimization/010-persisted-session-data-policy-and-sanitization.md`
+Depends On: `tasks/20260911-session-performance-and-storage-optimization/010-openai-usage-projection-and-response-mutation-probe.md`
 
 ## Requirement questions
 
