@@ -11,7 +11,9 @@ from openai_responses_plugins.openai_responses_flex_processing_extension import 
     OpenAIResponsesFlexProcessingExtension,
 )
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
-from openai_responses_plugins.openai_responses_usage_extension import OpenAIResponsesUsageExtension
+from openai_responses_plugins.openai_responses_usage_extension import (
+    OpenAIResponsesUsageExtension,
+)
 
 
 pytestmark = pytest.mark.api
@@ -62,6 +64,7 @@ def test_openai_responses_nonstreaming_usage_metadata_real_api(
     usage = metadata.get("usage")
 
     assert isinstance(usage, dict)
+    assert "attribution" not in usage
     assert isinstance(metadata.get("usage_prompt_tokens_formatted"), str)
     assert isinstance(metadata.get("usage_completion_tokens_formatted"), str)
     assert isinstance(metadata.get("usage_total_cost"), (int, float))
@@ -71,7 +74,9 @@ def test_openai_responses_nonstreaming_usage_metadata_real_api(
     assert isinstance(metadata.get("usage_turn_cost_cumulative"), (int, float))
     assert isinstance(metadata.get("usage_turn_cost_cumulative_formatted"), str)
     assert isinstance(metadata.get("usage_turn_reasoning_tokens_cumulative"), int)
-    assert isinstance(metadata.get("usage_turn_reasoning_tokens_cumulative_formatted"), str)
+    assert isinstance(
+        metadata.get("usage_turn_reasoning_tokens_cumulative_formatted"), str
+    )
     assert "usage_estimated_cost" not in metadata
     assert "usage_cost_source" not in metadata
     assert "usage_pricing_model" not in metadata
@@ -84,6 +89,14 @@ def test_openai_responses_nonstreaming_usage_metadata_real_api(
         and isinstance(item["_metadata"].get("usage"), dict)
         for item in native_history
     )
+    assert all(
+        "attribution" not in item["_metadata"]["usage"]
+        for item in native_history
+        if isinstance(item, dict)
+        and isinstance(item.get("_metadata"), dict)
+        and isinstance(item["_metadata"].get("usage"), dict)
+    )
+
 
 def _maybe_skip_flex_unavailable(exc: Exception) -> None:
     message = str(exc).lower()
@@ -109,7 +122,10 @@ def test_openai_responses_nonstreaming_usage_metadata_surfaces_flex_tier_real_ap
     core = AgentCore()
     core.register_provider(
         OpenAIResponsesProvider,
-        extensions=[OpenAIResponsesFlexProcessingExtension, OpenAIResponsesUsageExtension],
+        extensions=[
+            OpenAIResponsesFlexProcessingExtension,
+            OpenAIResponsesUsageExtension,
+        ],
     )
 
     config = {
@@ -124,7 +140,9 @@ def test_openai_responses_nonstreaming_usage_metadata_surfaces_flex_tier_real_ap
     }
 
     session = core.create_session()
-    session = core.add_message(session, "user", "Reply with exactly: OPENAI_USAGE_FLEX_OK")
+    session = core.add_message(
+        session, "user", "Reply with exactly: OPENAI_USAGE_FLEX_OK"
+    )
 
     try:
         _new_session, responses = core.send_request(session, config)

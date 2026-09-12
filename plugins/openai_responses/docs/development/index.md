@@ -13,6 +13,8 @@ This documentation covers implementation and maintenance of the
   effort sets, silent drops, metadata footers, and Pro mode billing.
 - [Cost estimation](cost-estimation.md): pricing snapshot format, token-bucket
   splitting, ChatGPT cached-token estimation, and explicit cache boundaries.
+- [Usage attribution sanitization](usage-sanitization.md): persisted usage
+  boundary and dry-run/apply maintenance command for older sessions.
 - [Bundle layout](bundle-layout.md): responsibility split across provider and
   extensions, implementation classes, and background compaction notification
   handling.

@@ -65,6 +65,14 @@ _USAGE_MESSAGE_FOOTER_FIELDS = (
 )
 
 
+def sanitize_usage_for_persistence(usage: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove unbounded provider attribution from persisted usage metadata."""
+
+    if "attribution" not in usage:
+        return usage
+    return {key: value for key, value in usage.items() if key != "attribution"}
+
+
 class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
     name: str = "openai_responses_usage"
     version: str = "0.1.0"
@@ -384,9 +392,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
             metadata_raw = message.get("metadata")
             metadata = dict(metadata_raw) if isinstance(metadata_raw, dict) else {}
+            metadata, metadata_changed = self._sanitize_core_message_metadata(metadata)
             native_indices = metadata.get("native_indices")
             if not isinstance(native_indices, list):
-                out.append(message)
+                out.append(
+                    {**message, "metadata": metadata} if metadata_changed else message
+                )
                 continue
 
             extra_md: Dict[str, Any] = {}
@@ -404,7 +415,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     extra_md = candidate
 
             if not extra_md:
-                out.append(message)
+                out.append(
+                    {**message, "metadata": metadata} if metadata_changed else message
+                )
                 continue
 
             merged = dict(metadata)
@@ -415,6 +428,56 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             out.append({**message, "metadata": merged})
 
         return out
+
+    @staticmethod
+    def _sanitize_core_message_metadata(
+        metadata: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], bool]:
+        updated = metadata
+        changed = False
+
+        usage = metadata.get("usage")
+        if isinstance(usage, dict):
+            sanitized_usage = sanitize_usage_for_persistence(usage)
+            if sanitized_usage is not usage:
+                updated = {**updated, "usage": sanitized_usage}
+                changed = True
+
+        phase_messages = metadata.get("phase_messages")
+        if isinstance(phase_messages, list):
+            sanitized_phases: List[Any] = []
+            phases_changed = False
+            for phase_message in phase_messages:
+                if not isinstance(phase_message, dict):
+                    sanitized_phases.append(phase_message)
+                    continue
+                phase_metadata = phase_message.get("metadata")
+                if not isinstance(phase_metadata, dict):
+                    sanitized_phases.append(phase_message)
+                    continue
+                phase_usage = phase_metadata.get("usage")
+                if not isinstance(phase_usage, dict):
+                    sanitized_phases.append(phase_message)
+                    continue
+                sanitized_phase_usage = sanitize_usage_for_persistence(phase_usage)
+                if sanitized_phase_usage is phase_usage:
+                    sanitized_phases.append(phase_message)
+                    continue
+                sanitized_phases.append(
+                    {
+                        **phase_message,
+                        "metadata": {
+                            **phase_metadata,
+                            "usage": sanitized_phase_usage,
+                        },
+                    }
+                )
+                phases_changed = True
+            if phases_changed:
+                updated = {**updated, "phase_messages": sanitized_phases}
+                changed = True
+
+        return updated, changed
 
     @staticmethod
     def _usage_reasoning_tokens(usage: Dict[str, Any]) -> int:
@@ -549,7 +612,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         out: Dict[str, Any] = {}
         usage = cls._public_usage_from_internal(internal)
         if isinstance(usage, dict) and usage:
-            out["usage"] = usage
+            out["usage"] = sanitize_usage_for_persistence(usage)
 
         has_tool_calls = internal.get("has_tool_calls")
         if isinstance(has_tool_calls, bool):
@@ -984,7 +1047,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         )
 
         extra_md: Dict[str, Any] = {
-            "usage": usage,
+            "usage": sanitize_usage_for_persistence(usage),
             "has_tool_calls": has_tool_calls,
             "turn": {
                 "id": current_turn_id,

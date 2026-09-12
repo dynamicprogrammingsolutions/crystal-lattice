@@ -147,6 +147,73 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
     assert md.get("usage_effective_auth_mode_label") == "API"
 
 
+def test_usage_persistence_removes_attribution_and_preserves_usage_fields() -> None:
+    ext = OpenAIResponsesUsageExtension()
+    usage = {
+        "input_tokens": 120,
+        "input_tokens_details": {"cached_tokens": 20},
+        "output_tokens": 30,
+        "output_tokens_details": {"reasoning_tokens": 5},
+        "total_tokens": 150,
+        "future_scalar": "preserved",
+        "attribution": {
+            "request_fields": {"model": "gpt-test"},
+            "items": [
+                {
+                    "input_tokens": 120,
+                    "output_tokens": 30,
+                    "content": "repeated provider attribution",
+                }
+            ],
+        },
+    }
+    final_messages = [_assistant_output_item("done", response_id="resp_attr")]
+
+    _partials, finals, new_native, _state = ext.process_chunk(
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_attr", "usage": usage},
+        },
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=list(final_messages),
+        state={"config": {"model": "gpt-5-mini"}},
+    )
+
+    expected_usage = {
+        key: value for key, value in usage.items() if key != "attribution"
+    }
+    persisted_metadata = finals[0]["_metadata"]
+    assert persisted_metadata["usage"] == expected_usage
+    assert new_native[0]["_metadata"]["usage"] == expected_usage
+    assert persisted_metadata["usage_prompt_tokens_formatted"] == "120"
+    assert persisted_metadata["usage_completion_tokens_formatted"] == "30"
+    assert persisted_metadata["usage_turn_reasoning_tokens_cumulative"] == 5
+
+    rebuilt = ext.from_native_messages(
+        new_native,
+        [
+            {
+                "role": "assistant",
+                "content": "done",
+                "metadata": {
+                    "native_indices": [0],
+                    "phase_messages": [
+                        {
+                            "phase": "final_answer",
+                            "content": "done",
+                            "metadata": {"usage": usage},
+                        }
+                    ],
+                },
+            }
+        ],
+    )
+    rebuilt_metadata = rebuilt[0]["metadata"]
+    assert rebuilt_metadata["usage"] == expected_usage
+    assert rebuilt_metadata["phase_messages"][0]["metadata"]["usage"] == expected_usage
+
+
 def test_streaming_usage_surfaces_flex_tier_and_uses_tier_pricing(
     tmp_path: Path,
 ) -> None:

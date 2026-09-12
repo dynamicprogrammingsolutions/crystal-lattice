@@ -18,6 +18,23 @@ python plugins/openai_responses/benchmark/refresh_openai_responses_pricing.py
 The `pricing_snapshot_path` provider config key can override the checked-in
 snapshot path when needed.
 
+## Persisted usage boundary
+
+The provider passes the complete response `usage` object to the usage extension
+as transient private metadata. The extension uses that object to calculate
+token fields, cached-token estimates, cost, turn totals, service tier, and
+display metadata.
+
+Persisted core and provider-native usage metadata omits the provider-specific
+`usage.attribution` member. ChatGPT/Codex responses may return attribution
+items and request fields that grow with request history; those values are not
+needed for supported cost or token presentation and are not retained in the
+session. Other usage fields remain unchanged.
+
+Existing monolithic JSON sessions created before this behavior can be cleaned
+with the maintenance command described in
+[Usage attribution sanitization](usage-sanitization.md).
+
 ## Snapshot format
 
 Each model entry has a top-level `pricing` block (the standard-tier

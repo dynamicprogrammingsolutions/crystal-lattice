@@ -11,7 +11,7 @@ Improve session growth, persistence, concurrent access, reload behavior, snapsho
 - [ ] **SPSO-005** Snapshot listing, snapshot selection checks, session listing, and request-status lookup do not require importing unrelated large message payloads.
 - [ ] **SPSO-006** Large bridge responses use an efficient body-transfer path and negotiated compression while retaining an explicit compatibility path.
 - [ ] **SPSO-007** Conflict backups and repeated diagnostics do not pollute ordinary session discovery or create avoidable synchronous I/O.
-- [ ] **SPSO-008** Every optimization is evaluated with the reusable benchmark foundation established in the first subtask and has functional regression evidence at its public or persistence boundary.
+- [ ] **SPSO-008** Every optimization has reproducible functional and performance evidence at its public or persistence boundary; realistic large-session fixtures are added within the first later optimization that needs them rather than as standalone benchmark work.
 - [ ] **SPSO-009** Existing single-file JSON sessions remain importable, and sessions remain exportable as portable single-file JSON.
 
 ## Scope
@@ -24,7 +24,11 @@ This task set does not itself authorize implementation. Each subtask must be rea
 
 ## Cross-cutting decisions and requirement questions
 
-- **Decision:** The performance benchmark is established as part of the first real optimization, not tracked as a standalone subtask.
+- **Decision:** The first subtask introduces a generalized persisted-session
+  data policy, adopts it for OpenAI Responses, and sanitizes existing live
+  sessions and snapshots. Realistic large-session fixture generation is
+  deferred until a later optimization needs it and remains part of that
+  optimization rather than a standalone benchmark task.
 - **Decision:** Compact serialization alone is insufficient; the canonical storage task includes a lightweight JSON plus JSONL/NDJSON layout.
 - **Decision:** The first concurrency task keeps reads lock-free and writers serialized with the smallest correctness mechanism practical. Historical version storage or general MVCC is not assumed.
 - **Decision:** The previous parsed-session cache and advanced versioning work are combined into one later SQLite/cache task.
@@ -45,7 +49,7 @@ This task set does not itself authorize implementation. Each subtask must be rea
 
 ## Subtasks
 
-- [ ] `tasks/20260911-session-performance-and-storage-optimization/010-session-growth-and-benchmark-foundation.md`
+- [ ] `tasks/20260911-session-performance-and-storage-optimization/010-persisted-session-data-policy-and-sanitization.md`
 - [ ] `tasks/20260911-session-performance-and-storage-optimization/020-file-backed-session-storage.md`
 - [ ] `tasks/20260911-session-performance-and-storage-optimization/030-lock-free-reads-and-writer-serialization.md`
 - [ ] `tasks/20260911-session-performance-and-storage-optimization/040-message-api-and-incremental-history.md`
