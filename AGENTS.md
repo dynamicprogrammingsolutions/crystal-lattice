@@ -201,6 +201,12 @@ validation—not merely applying them—also read in full:
 
 ## 3. Development Workflow
 
+### Commit guidance
+
+Create a commit only when the user explicitly requests one in the current conversation. Use a short, clear message—usually two to six words—without type or scope prefixes unless a specific format is requested. Stage only files belonging to the requested work and leave unrelated changes unstaged.
+
+Examples: `Improve error handling`, `Add cache validation`, `Update deployment notes`.
+
 **Setup (Python 3.10+)**
 - Core SDK + core-packaged plugins:
   ```bash
