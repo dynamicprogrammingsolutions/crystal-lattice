@@ -1,21 +1,25 @@
-# Usage attribution sanitization
+# Usage persistence sanitization
 
 OpenAI Responses usage metadata persists token and cost information used by
 message footers, status totals, ChatGPT cached-token estimation, and later
-native-history reconstruction. Provider-specific `usage.attribution` data is
-processed only as part of the current response and is not persisted.
+native-history reconstruction. Persisted usage retains only the supported
+OpenAI root fields documented in
+[Cost estimation](cost-estimation.md#persisted-usage-boundary). Other root
+fields are processed only as part of the current response and are not
+persisted.
 
-Older monolithic JSON sessions may still contain attribution copies in:
+Older monolithic JSON sessions may still contain unsupported usage root fields
+in:
 
 - assistant message metadata;
 - nested phase-message metadata;
 - retained provider-native metadata;
 - stale private raw-usage metadata.
 
-The package provides a maintenance command that removes only the attribution
-member while retaining all other usage and derived metadata. The scan includes
-canonical live sessions and immutable snapshots under
-`<session-root>/.snapshots`.
+The package provides a maintenance command that removes unsupported usage root
+members while retaining supported roots, their nested detail mappings, and all
+derived usage metadata. The scan includes canonical live sessions and
+immutable snapshots under `<session-root>/.snapshots`.
 
 ## Dry run
 
@@ -36,8 +40,9 @@ plugins/openai_responses/scripts/sanitize_session_usage.py \
   --report-path /tmp/openai-usage-sanitizer-session.json
 ```
 
-The JSON report contains affected occurrence counts and projected byte savings.
-It does not include message content.
+The JSON report contains affected occurrence counts, removed root-key counts
+grouped by persisted path, and projected byte savings. It does not include
+message content.
 
 ## Apply
 

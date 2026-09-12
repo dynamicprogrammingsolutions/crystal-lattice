@@ -16,8 +16,12 @@ SANITIZER_SCRIPT = (
 def _usage() -> dict[str, object]:
     return {
         "input_tokens": 100,
+        "input_tokens_details": {
+            "cached_tokens": 10,
+            "future_nested_detail": "preserved",
+        },
         "output_tokens": 20,
-        "future_scalar": "preserved",
+        "future_scalar": "discarded",
         "attribution": {
             "request_fields": {"model": "gpt-test"},
             "items": [{"input_tokens": 100, "content": "repeated"}],
@@ -34,11 +38,15 @@ def _session_payload(session_id: str = "session-1") -> dict[str, object]:
                 "content": "answer",
                 "metadata": {
                     "usage": _usage(),
+                    "usage_effective_auth_mode": "api",
                     "phase_messages": [
                         {
                             "phase": "final_answer",
                             "content": "answer",
-                            "metadata": {"usage": _usage()},
+                            "metadata": {
+                                "usage": _usage(),
+                                "usage_effective_auth_mode": "api",
+                            },
                         }
                     ],
                 },
@@ -52,6 +60,7 @@ def _session_payload(session_id: str = "session-1") -> dict[str, object]:
                     "content": [{"type": "output_text", "text": "answer"}],
                     "_metadata": {
                         "usage": _usage(),
+                        "usage_effective_auth_mode": "api",
                         "_openai_responses_usage_raw": _usage(),
                     },
                 }
@@ -68,29 +77,52 @@ def _session_payload(session_id: str = "session-1") -> dict[str, object]:
 def test_sanitize_session_payload_is_targeted_and_idempotent() -> None:
     original = _session_payload()
 
-    sanitized, counts = sanitize_session_payload(original)
-    sanitized_again, second_counts = sanitize_session_payload(sanitized)
+    sanitized, stats = sanitize_session_payload(original)
+    sanitized_again, second_stats = sanitize_session_payload(sanitized)
 
-    assert counts == {"core": 1, "phase": 1, "native": 1, "private": 1}
-    assert second_counts == {"core": 0, "phase": 0, "native": 0, "private": 0}
+    assert stats.occurrences == {
+        "core": 1,
+        "phase": 1,
+        "native": 1,
+        "private": 1,
+    }
+    assert second_stats.occurrences == {
+        "core": 0,
+        "phase": 0,
+        "native": 0,
+        "private": 0,
+    }
+    assert stats.removed_usage_root_keys["messages[*].metadata.usage"] == {
+        "future_scalar": 1,
+        "attribution": 1,
+    }
+    assert second_stats.removed_usage_root_keys == {}
     assert sanitized_again is sanitized
     assert sanitized["messages"][0]["content"] == "answer"
     assert sanitized["messages"][0]["metadata"]["usage"] == {
         "input_tokens": 100,
+        "input_tokens_details": {
+            "cached_tokens": 10,
+            "future_nested_detail": "preserved",
+        },
         "output_tokens": 20,
-        "future_scalar": "preserved",
     }
     phase_usage = sanitized["messages"][0]["metadata"]["phase_messages"][0]["metadata"][
         "usage"
     ]
     assert phase_usage == {
         "input_tokens": 100,
+        "input_tokens_details": {
+            "cached_tokens": 10,
+            "future_nested_detail": "preserved",
+        },
         "output_tokens": 20,
-        "future_scalar": "preserved",
     }
     native_metadata = sanitized["metadata"]["native_messages"][0]["_metadata"]
     assert "attribution" not in native_metadata["usage"]
+    assert "future_scalar" not in native_metadata["usage"]
     assert "attribution" not in native_metadata["_openai_responses_usage_raw"]
+    assert "future_scalar" not in native_metadata["_openai_responses_usage_raw"]
     assert sanitized["metadata"]["unrelated"] == original["metadata"]["unrelated"]
     assert original["messages"][0]["metadata"]["usage"]["attribution"]
 
@@ -134,6 +166,12 @@ def test_sanitizer_command_dry_run_and_apply(
         "native": 2,
         "private": 2,
     }
+    assert dry_report["totals"]["removed_usage_root_keys"][
+        "messages[*].metadata.usage"
+    ] == {
+        "future_scalar": 2,
+        "attribution": 2,
+    }
     assert "attribution" in session_path.read_text(encoding="utf-8")
     assert "attribution" in snapshot_path.read_text(encoding="utf-8")
 
@@ -163,6 +201,7 @@ def test_sanitizer_command_dry_run_and_apply(
     )
     published = json.loads(session_path.read_text(encoding="utf-8"))
     assert "attribution" not in published["messages"][0]["metadata"]["usage"]
+    assert "future_scalar" not in published["messages"][0]["metadata"]["usage"]
     assert (
         "attribution"
         not in published["messages"][0]["metadata"]["phase_messages"][0]["metadata"][

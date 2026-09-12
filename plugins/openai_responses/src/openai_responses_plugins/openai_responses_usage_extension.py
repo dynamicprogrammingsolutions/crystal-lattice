@@ -19,6 +19,16 @@ from .openai_responses_codex_models import (
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"
+_PERSISTED_USAGE_ROOT_KEYS = frozenset(
+    {
+        "input_tokens",
+        "input_tokens_details",
+        "output_tokens",
+        "output_tokens_details",
+        "completion_tokens_details",
+        "total_tokens",
+    }
+)
 _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_turn_input_tokens_cumulative",
     "usage_turn_input_tokens_cumulative_formatted",
@@ -65,12 +75,20 @@ _USAGE_MESSAGE_FOOTER_FIELDS = (
 )
 
 
-def sanitize_usage_for_persistence(usage: Dict[str, Any]) -> Dict[str, Any]:
-    """Remove unbounded provider attribution from persisted usage metadata."""
+def unsupported_usage_root_keys(usage: Dict[str, Any]) -> Tuple[str, ...]:
+    """Return OpenAI usage root keys outside the persisted local contract."""
 
-    if "attribution" not in usage:
+    return tuple(key for key in usage if key not in _PERSISTED_USAGE_ROOT_KEYS)
+
+
+def project_usage_for_persistence(usage: Dict[str, Any]) -> Dict[str, Any]:
+    """Project raw OpenAI usage onto the supported persisted root fields."""
+
+    if not unsupported_usage_root_keys(usage):
         return usage
-    return {key: value for key, value in usage.items() if key != "attribution"}
+    return {
+        key: value for key, value in usage.items() if key in _PERSISTED_USAGE_ROOT_KEYS
+    }
 
 
 class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
@@ -438,7 +456,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
         usage = metadata.get("usage")
         if isinstance(usage, dict):
-            sanitized_usage = sanitize_usage_for_persistence(usage)
+            sanitized_usage = project_usage_for_persistence(usage)
             if sanitized_usage is not usage:
                 updated = {**updated, "usage": sanitized_usage}
                 changed = True
@@ -459,7 +477,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 if not isinstance(phase_usage, dict):
                     sanitized_phases.append(phase_message)
                     continue
-                sanitized_phase_usage = sanitize_usage_for_persistence(phase_usage)
+                sanitized_phase_usage = project_usage_for_persistence(phase_usage)
                 if sanitized_phase_usage is phase_usage:
                     sanitized_phases.append(phase_message)
                     continue
@@ -612,7 +630,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         out: Dict[str, Any] = {}
         usage = cls._public_usage_from_internal(internal)
         if isinstance(usage, dict) and usage:
-            out["usage"] = sanitize_usage_for_persistence(usage)
+            out["usage"] = project_usage_for_persistence(usage)
 
         has_tool_calls = internal.get("has_tool_calls")
         if isinstance(has_tool_calls, bool):
@@ -1047,7 +1065,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         )
 
         extra_md: Dict[str, Any] = {
-            "usage": sanitize_usage_for_persistence(usage),
+            "usage": project_usage_for_persistence(usage),
             "has_tool_calls": has_tool_calls,
             "turn": {
                 "id": current_turn_id,

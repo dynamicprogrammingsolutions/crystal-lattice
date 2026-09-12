@@ -1,4 +1,4 @@
-"""Sanitize persisted OpenAI Responses usage attribution from session JSON."""
+"""Project persisted OpenAI Responses usage in session JSON."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import gzip
 import hashlib
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from uuid import uuid4
@@ -14,45 +15,118 @@ from uuid import uuid4
 from agent_core import AgentCore
 from agent_core.types import Session
 
-from .openai_responses_usage_extension import sanitize_usage_for_persistence
+from .openai_responses_usage_extension import (
+    project_usage_for_persistence,
+    unsupported_usage_root_keys,
+)
 
 
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _COUNT_KEYS = ("core", "phase", "native", "private")
+_USAGE_PATHS = {
+    "core": "messages[*].metadata.usage",
+    "phase": "messages[*].metadata.phase_messages[*].metadata.usage",
+    "native": "metadata.native_messages[*]._metadata.usage",
+}
+_RAW_USAGE_PATHS = {
+    "core": "messages[*].metadata._openai_responses_usage_raw",
+    "phase": (
+        "messages[*].metadata.phase_messages[*].metadata." "_openai_responses_usage_raw"
+    ),
+    "native": "metadata.native_messages[*]._metadata._openai_responses_usage_raw",
+}
+_OPENAI_RESPONSES_USAGE_OWNER_KEYS = frozenset(
+    {
+        "usage_effective_auth_mode",
+        "usage_effective_auth_mode_label",
+    }
+)
 
 
-def _is_target_usage(value: Any) -> bool:
-    if not isinstance(value, dict) or "attribution" not in value:
-        return False
-    return any(
-        key in value for key in ("input_tokens", "output_tokens", "total_tokens")
+@dataclass
+class UsageSanitizationStats:
+    occurrences: Dict[str, int]
+    removed_usage_root_keys: Dict[str, Dict[str, int]]
+
+    @property
+    def total_occurrences(self) -> int:
+        return sum(self.occurrences.values())
+
+
+def _new_stats() -> UsageSanitizationStats:
+    return UsageSanitizationStats(
+        occurrences={key: 0 for key in _COUNT_KEYS},
+        removed_usage_root_keys={},
     )
+
+
+def _unsupported_target_usage_root_keys(value: Any) -> Tuple[str, ...]:
+    if not isinstance(value, dict):
+        return ()
+    if not any(
+        key in value for key in ("input_tokens", "output_tokens", "total_tokens")
+    ):
+        return ()
+    return unsupported_usage_root_keys(value)
+
+
+def _is_openai_responses_usage_metadata(metadata: Dict[str, Any]) -> bool:
+    if _RAW_USAGE_METADATA_KEY in metadata:
+        return True
+    return any(key in metadata for key in _OPENAI_RESPONSES_USAGE_OWNER_KEYS)
+
+
+def _record_removed_root_keys(
+    stats: UsageSanitizationStats,
+    *,
+    path: str,
+    keys: Sequence[str],
+) -> None:
+    counts = stats.removed_usage_root_keys.setdefault(path, {})
+    for key in keys:
+        counts[key] = counts.get(key, 0) + 1
 
 
 def _sanitize_metadata_usage(
     metadata: Dict[str, Any],
     *,
     location: str,
-    counts: Dict[str, int],
+    stats: UsageSanitizationStats,
 ) -> Tuple[Dict[str, Any], bool]:
     updated = metadata
     changed = False
 
     usage = metadata.get("usage")
-    if isinstance(usage, dict) and _is_target_usage(usage):
+    unsupported_usage_keys = (
+        _unsupported_target_usage_root_keys(usage)
+        if _is_openai_responses_usage_metadata(metadata)
+        else ()
+    )
+    if isinstance(usage, dict) and unsupported_usage_keys:
         updated = {
             **updated,
-            "usage": sanitize_usage_for_persistence(usage),
+            "usage": project_usage_for_persistence(usage),
         }
-        counts[location] += 1
+        stats.occurrences[location] += 1
+        _record_removed_root_keys(
+            stats,
+            path=_USAGE_PATHS[location],
+            keys=unsupported_usage_keys,
+        )
         changed = True
 
     raw_usage = metadata.get(_RAW_USAGE_METADATA_KEY)
-    if isinstance(raw_usage, dict) and _is_target_usage(raw_usage):
+    unsupported_raw_keys = _unsupported_target_usage_root_keys(raw_usage)
+    if isinstance(raw_usage, dict) and unsupported_raw_keys:
         if not changed:
             updated = dict(updated)
-        updated[_RAW_USAGE_METADATA_KEY] = sanitize_usage_for_persistence(raw_usage)
-        counts["private"] += 1
+        updated[_RAW_USAGE_METADATA_KEY] = project_usage_for_persistence(raw_usage)
+        stats.occurrences["private"] += 1
+        _record_removed_root_keys(
+            stats,
+            path=_RAW_USAGE_PATHS[location],
+            keys=unsupported_raw_keys,
+        )
         changed = True
 
     return updated, changed
@@ -60,7 +134,7 @@ def _sanitize_metadata_usage(
 
 def _sanitize_core_message(
     message: Dict[str, Any],
-    counts: Dict[str, int],
+    stats: UsageSanitizationStats,
 ) -> Tuple[Dict[str, Any], bool]:
     metadata = message.get("metadata")
     if not isinstance(metadata, dict):
@@ -69,7 +143,7 @@ def _sanitize_core_message(
     updated_metadata, changed = _sanitize_metadata_usage(
         metadata,
         location="core",
-        counts=counts,
+        stats=stats,
     )
 
     phase_messages = metadata.get("phase_messages")
@@ -87,7 +161,7 @@ def _sanitize_core_message(
             sanitized_phase_metadata, phase_changed = _sanitize_metadata_usage(
                 phase_metadata,
                 location="phase",
-                counts=counts,
+                stats=stats,
             )
             updated_phases.append(
                 {**phase_message, "metadata": sanitized_phase_metadata}
@@ -109,7 +183,7 @@ def _sanitize_core_message(
 
 def _sanitize_native_item(
     item: Dict[str, Any],
-    counts: Dict[str, int],
+    stats: UsageSanitizationStats,
 ) -> Tuple[Dict[str, Any], bool]:
     metadata = item.get("_metadata")
     if not isinstance(metadata, dict):
@@ -117,7 +191,7 @@ def _sanitize_native_item(
     updated_metadata, changed = _sanitize_metadata_usage(
         metadata,
         location="native",
-        counts=counts,
+        stats=stats,
     )
     if not changed:
         return item, False
@@ -126,10 +200,10 @@ def _sanitize_native_item(
 
 def sanitize_session_payload(
     payload: Dict[str, Any],
-) -> Tuple[Dict[str, Any], Dict[str, int]]:
-    """Return a session payload without persisted OpenAI usage attribution."""
+) -> Tuple[Dict[str, Any], UsageSanitizationStats]:
+    """Return a session payload with supported OpenAI usage root fields."""
 
-    counts = {key: 0 for key in _COUNT_KEYS}
+    stats = _new_stats()
     updated_payload = payload
     changed = False
 
@@ -141,7 +215,7 @@ def sanitize_session_payload(
             if not isinstance(message, dict):
                 updated_messages.append(message)
                 continue
-            updated_message, message_changed = _sanitize_core_message(message, counts)
+            updated_message, message_changed = _sanitize_core_message(message, stats)
             updated_messages.append(updated_message)
             messages_changed = messages_changed or message_changed
         if messages_changed:
@@ -158,7 +232,7 @@ def sanitize_session_payload(
                 if not isinstance(item, dict):
                     updated_native.append(item)
                     continue
-                updated_item, item_changed = _sanitize_native_item(item, counts)
+                updated_item, item_changed = _sanitize_native_item(item, stats)
                 updated_native.append(updated_item)
                 native_changed = native_changed or item_changed
             if native_changed:
@@ -169,7 +243,7 @@ def sanitize_session_payload(
                 updated_payload = {**updated_payload, "metadata": updated_metadata}
                 changed = True
 
-    return (updated_payload if changed else payload), counts
+    return (updated_payload if changed else payload), stats
 
 
 def _validate_session_payload(payload: Dict[str, Any]) -> Session:
@@ -285,15 +359,15 @@ def _sanitize_file(
             "error": str(exc),
         }
 
-    sanitized, counts = sanitize_session_payload(payload)
-    occurrence_count = sum(counts.values())
-    if occurrence_count == 0:
+    sanitized, stats = sanitize_session_payload(payload)
+    if stats.total_occurrences == 0:
         return {
             "path": str(path),
             "record_kind": record_kind,
             "session_id": str(session_id),
             "status": "unchanged",
-            "occurrences": counts,
+            "occurrences": stats.occurrences,
+            "removed_usage_root_keys": stats.removed_usage_root_keys,
             "original_bytes": len(original),
             "projected_bytes": len(original),
             "bytes_saved": 0,
@@ -312,7 +386,8 @@ def _sanitize_file(
             "session_id": str(session_id),
             "status": "replacement_validation_failed",
             "error": str(exc),
-            "occurrences": counts,
+            "occurrences": stats.occurrences,
+            "removed_usage_root_keys": stats.removed_usage_root_keys,
         }
 
     report: Dict[str, Any] = {
@@ -320,7 +395,8 @@ def _sanitize_file(
         "record_kind": record_kind,
         "session_id": str(session_id),
         "status": "would_change" if not apply else "pending",
-        "occurrences": counts,
+        "occurrences": stats.occurrences,
+        "removed_usage_root_keys": stats.removed_usage_root_keys,
         "original_bytes": len(original),
         "projected_bytes": len(replacement),
         "bytes_saved": len(original) - len(replacement),
@@ -388,6 +464,20 @@ def run_sanitizer(
         for path, record_kind in _canonical_payload_paths(root, session_ids)
     ]
     statuses_in_totals = {"changed", "would_change", "unchanged"}
+    removed_usage_root_keys: Dict[str, Dict[str, int]] = {}
+    for item in files:
+        item_removed = item.get("removed_usage_root_keys")
+        if not isinstance(item_removed, dict):
+            continue
+        for path, raw_counts in item_removed.items():
+            if not isinstance(path, str) or not isinstance(raw_counts, dict):
+                continue
+            path_counts = removed_usage_root_keys.setdefault(path, {})
+            for key, raw_count in raw_counts.items():
+                if not isinstance(key, str):
+                    continue
+                path_counts[key] = path_counts.get(key, 0) + int(raw_count)
+
     totals = {
         "files_scanned": len(files),
         "files_changed": sum(item.get("status") == "changed" for item in files),
@@ -418,6 +508,7 @@ def run_sanitizer(
             key: sum(int((item.get("occurrences") or {}).get(key, 0)) for item in files)
             for key in _COUNT_KEYS
         },
+        "removed_usage_root_keys": removed_usage_root_keys,
         "original_bytes": sum(
             int(item.get("original_bytes", 0))
             for item in files
@@ -445,7 +536,10 @@ def run_sanitizer(
 
 def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Remove persisted OpenAI Responses usage attribution from sessions."
+        description=(
+            "Remove unsupported persisted OpenAI Responses usage root fields "
+            "from sessions."
+        )
     )
     parser.add_argument(
         "--session-root",

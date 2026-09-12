@@ -147,15 +147,23 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
     assert md.get("usage_effective_auth_mode_label") == "API"
 
 
-def test_usage_persistence_removes_attribution_and_preserves_usage_fields() -> None:
+def test_usage_persistence_projects_supported_root_fields() -> None:
     ext = OpenAIResponsesUsageExtension()
     usage = {
         "input_tokens": 120,
-        "input_tokens_details": {"cached_tokens": 20},
+        "input_tokens_details": {
+            "cached_tokens": 20,
+            "future_nested_detail": "preserved",
+        },
         "output_tokens": 30,
-        "output_tokens_details": {"reasoning_tokens": 5},
+        "output_tokens_details": {
+            "reasoning_tokens": 5,
+            "future_output_detail": "preserved",
+        },
+        "completion_tokens_details": {"reasoning_tokens": 6},
         "total_tokens": 150,
-        "future_scalar": "preserved",
+        "future_scalar": "discarded",
+        "future_object": {"payload": "discarded"},
         "attribution": {
             "request_fields": {"model": "gpt-test"},
             "items": [
@@ -181,7 +189,17 @@ def test_usage_persistence_removes_attribution_and_preserves_usage_fields() -> N
     )
 
     expected_usage = {
-        key: value for key, value in usage.items() if key != "attribution"
+        key: value
+        for key, value in usage.items()
+        if key
+        in {
+            "input_tokens",
+            "input_tokens_details",
+            "output_tokens",
+            "output_tokens_details",
+            "completion_tokens_details",
+            "total_tokens",
+        }
     }
     persisted_metadata = finals[0]["_metadata"]
     assert persisted_metadata["usage"] == expected_usage
@@ -189,6 +207,13 @@ def test_usage_persistence_removes_attribution_and_preserves_usage_fields() -> N
     assert persisted_metadata["usage_prompt_tokens_formatted"] == "120"
     assert persisted_metadata["usage_completion_tokens_formatted"] == "30"
     assert persisted_metadata["usage_turn_reasoning_tokens_cumulative"] == 5
+    assert (
+        persisted_metadata["usage"]["input_tokens_details"]["future_nested_detail"]
+        == "preserved"
+    )
+    assert "future_scalar" not in persisted_metadata["usage"]
+    assert "future_object" not in persisted_metadata["usage"]
+    assert "attribution" not in persisted_metadata["usage"]
 
     rebuilt = ext.from_native_messages(
         new_native,

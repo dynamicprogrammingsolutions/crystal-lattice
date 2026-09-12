@@ -9,39 +9,39 @@ Responses provider, and sanitize affected live sessions and snapshots.
 - [x] **OURP-001** Raw OpenAI response usage remains available transiently for
   current-turn token, cost, cache, turn, auth-mode, service-tier, and reasoning
   calculations.
-- [ ] **OURP-002** Newly persisted OpenAI `usage` contains only explicitly
+- [x] **OURP-002** Newly persisted OpenAI `usage` contains only explicitly
   supported root fields; arbitrary current or future usage-root keys are not
   retained in core messages, phase messages, or native `_metadata`.
 - [x] **OURP-003** Provider-native `_metadata` remains the intentional channel
   for metadata that must survive native-history rebuild and be projected back
   into core message metadata.
-- [ ] **OURP-004** A test-only mutation proxy wraps a real OpenAI API response
+- [x] **OURP-004** A test-only mutation proxy wraps a real OpenAI API response
   while the production OpenAI Responses provider and extension pipeline remain
   responsible for all response processing.
-- [ ] **OURP-005** The mutation probe recursively discovers every eligible
+- [x] **OURP-005** The mutation probe recursively discovers every eligible
   object in the actual provider response, traversing every array element, and
   inserts a unique recognizable arbitrary key into every discovered object
   when the candidate count is within the configured limit.
-- [ ] **OURP-006** The mutation probe has an explicit fixed test-only ignore
+- [x] **OURP-006** The mutation probe has an explicit fixed test-only ignore
   list for intentionally open or platform-owned data such as `_metadata` and
   approved reasoning payloads; ignored subtrees are excluded during recursive
   candidate discovery.
-- [ ] **OURP-007** If recursive discovery exceeds the mutation limit, a
+- [x] **OURP-007** If recursive discovery exceeds the mutation limit, a
   reproducible seed selects no more than 100 candidates from the complete
   discovered set without limiting array traversal or collapsing differently
   shaped array elements.
-- [ ] **OURP-008** The primary probe stringifies the complete exported session
+- [x] **OURP-008** The primary probe stringifies the complete exported session
   JSON once, searches for the exact `PROBE_CONTENT_` prefix, resolves every
   discovered suffix through the mutation manifest, and reports the
   corresponding injected response path.
-- [ ] **OURP-009** The marker-search helper can optionally stringify and scan
+- [x] **OURP-009** The marker-search helper can optionally stringify and scan
   core messages and retained native messages independently so later tests can
   distinguish core-only, native-only, and shared retention without requiring a
   recursive parsed-object search.
-- [ ] **OURP-010** No production filtering outside OpenAI usage is implemented
+- [x] **OURP-010** No production filtering outside OpenAI usage is implemented
   until the initial probe results identify a concrete unwanted retention path
   and a follow-up plan for that path is reviewed.
-- [ ] **OURP-011** Existing canonical live sessions and snapshots are scanned
+- [x] **OURP-011** Existing canonical live sessions and snapshots are scanned
   and sanitized with the same supported usage-root projection used by new
   requests.
 - [x] **OURP-012** The maintenance command supports dry run, validated
@@ -49,7 +49,7 @@ Responses provider, and sanitize affected live sessions and snapshots.
   sessions, snapshots, and a second idempotence scan.
 - [x] **OURP-013** Snapshot selection records, conflict backups, malformed
   records, and other non-canonical JSON files are not rewritten.
-- [ ] **OURP-014** One focused usage unit test, one real-API mutation
+- [x] **OURP-014** One focused usage unit test, one real-API mutation
   integration, the two existing sanitizer tests, and relevant existing suites
   provide the new coverage without a broad test matrix.
 - [ ] **OURP-015** All affected canonical live sessions and snapshots in the
@@ -441,29 +441,31 @@ usage root key, and apply only after the CLI and active requests are stopped.
 
 ### Task checklist
 
-- [ ] Add recursive dictionary-candidate discovery and the explicit fixed
+- [x] Add recursive dictionary-candidate discovery and the explicit fixed
   ignore list.
-- [ ] Add unique probe-key/value generation and the mutation manifest.
-- [ ] Add mutate-all behavior up to 100 candidates and seeded sampling above
+- [x] Add unique probe-key/value generation and the mutation manifest.
+- [x] Add mutate-all behavior up to 100 candidates and seeded sampling above
   100.
-- [ ] Add the real-response proxy around the OpenAI client.
-- [ ] Run the initial expected-failing mutation probe.
-- [ ] Record every surviving marker and its exact original response injection
+- [x] Add the real-response proxy around the OpenAI client.
+- [x] Run the initial expected-failing mutation probe.
+- [x] Record every surviving marker and its exact original response injection
   path without provider content.
-- [ ] Classify retained non-usage paths.
-- [ ] Pause and revise the plan before any non-usage production change.
-- [ ] Replace attribution-specific usage persistence with supported root
+- [x] Classify retained non-usage paths as native-only probe findings deferred
+  for a separately reviewed follow-up.
+- [x] Keep the approved scope boundary and make no non-usage production
+  change.
+- [x] Replace attribution-specific usage persistence with supported root
   projection.
-- [ ] Update the one focused usage unit test.
+- [x] Update the one focused usage unit test.
 - [ ] Stabilize the mutation integration's accepted-path list after review.
-- [ ] Refactor the existing sanitizer to use the usage root projection.
-- [ ] Update the two sanitizer tests without increasing their count.
-- [ ] Run focused, existing, and hosted OpenAI verification.
-- [ ] Run and review the new live-session and snapshot dry report.
+- [x] Refactor the existing sanitizer to use the usage root projection.
+- [x] Update the two sanitizer tests without increasing their count.
+- [x] Run focused, existing, and hosted OpenAI verification.
+- [x] Run and review the new live-session and snapshot dry report.
 - [ ] Establish a no-writer window and apply sanitization.
 - [ ] Validate every rewritten record and run a zero-change final scan.
 - [ ] Record final counts and byte savings.
-- [ ] Update OpenAI development and maintenance documentation.
+- [x] Update OpenAI development and maintenance documentation.
 - [ ] Add completion notes and close the parent subtask.
 
 ### Requirement verification
@@ -530,3 +532,44 @@ usage root key, and apply only after the CLI and active requests are stopped.
   session JSON. Marker suffixes map back to exact injection paths through the
   manifest. Optional core-only and native-only string scopes remain available
   for later preservation tests but are not exercised as positive tests here.
+- The first hosted mutation run recursively discovered 17 response
+  dictionaries and mutated all 17. Before usage-root projection, six markers
+  survived: the two output-item roots, one output-text part, the usage root,
+  and both nested token-detail mappings.
+- After implementing supported usage-root projection, the ordinary hosted API
+  usage integration passed and the mutation integration reported the expected
+  diagnostic xfail with five retained markers. The usage-root marker no longer
+  survives. The remaining markers are the reasoning-item root, message-item
+  root, output-text part root, and one nested marker in each token-detail
+  mapping.
+- No production filtering was added for output items, content parts,
+  `_metadata`, reasoning, or nested usage detail mappings.
+- Added a supported usage-root projection for `input_tokens`,
+  `input_tokens_details`, `output_tokens`, `output_tokens_details`,
+  `completion_tokens_details`, and `total_tokens`. Existing-session
+  sanitization reuses the same projection and reports removed root keys by
+  persisted path.
+- The first generalized dry scan exposed unrelated provider usage fields, so
+  the sanitizer now requires OpenAI Responses ownership metadata before
+  projecting ordinary `usage`. This prevented removal of OpenRouter/Ollama
+  usage contracts.
+- The corrected dry scan inspected 629 canonical records and found four
+  affected OpenAI Responses records: one live session and three snapshots.
+  They contain 17 core, 14 phase, and 17 native copies of the unsupported
+  `compute_units` usage root and would save 1,702 bytes.
+- The previously reported multi-gigabyte `attribution` data is absent from the
+  current session root, indicating that the earlier cleanup was applied
+  outside this implementation turn.
+- Verification completed:
+  - 37 focused usage/sanitizer tests passed;
+  - one ordinary hosted OpenAI usage test passed;
+  - the hosted mutation probe produced one expected xfail with exact injection
+    paths for five retained markers;
+  - 422 existing OpenAI Responses tests passed when the same three pre-existing
+    attachment-history failures were excluded;
+  - the unfiltered suite reported only those three existing failures;
+  - Ruff, Black, and targeted Pyright passed;
+  - a synthetic 151-candidate run selected exactly 100 reproducibly and the
+    optional core/native string scopes each found all selected markers.
+- Migration apply remains blocked because the CLI is still listening on port
+  57889 as PID 20874. No live session or snapshot was changed by this turn.
