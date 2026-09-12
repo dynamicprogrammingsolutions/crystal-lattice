@@ -1,5 +1,9 @@
 # Test 21: explicit specification layout and terminology
 
+Legacy status: retained for the direct pre/post comparison. Its layout
+assertion remains useful, but the required full file set and literal
+terminology assertion are obsolete. Test 26 covers the retained behavior.
+
 Requirement coverage: `DOCGEN-008`, `DOCGEN-009`, `DOCGEN-010`,
 `DOCVAL-009`
 

@@ -34,12 +34,13 @@ include = ["agent_eval*"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "suites"]
 python_files = ["test_*.py"]
-pythonpath = ["src", "."]
+pythonpath = ["src", ".", "../../core/python", "../../application/python"]
 addopts = "-m 'not agent_eval'"
 markers = [
   "agent_eval: explicitly enabled tests that invoke real agents or models",
   "routine: frequent high-signal behavioral guidance checks",
   "extended: lower-frequency workflow and reverse-ownership checks",
+  "obsolete: legacy consumer retained only for direct pre/post guidance comparison",
   "requirements(*ids): requirement identifiers covered by an acceptance test",
 ]
 

@@ -203,6 +203,31 @@ baseline evidence. They are not the target of the current plan.
   replaced the six previous guidance pages with compatibility-only pointers.
   Updated the review-bundle procedure to include only the two maintained pages,
   the development index, and the exact root AGENTS section.
+- September 11, 2026: Committed the guidance draft as `24ba9c24`. Added
+  source-aware previous-develop and current guidance overlays, changed the GLM
+  profile to the user-requested `glm-4.3-flash:cloud`, classified legacy Tests
+  17, 20, and 21 as obsolete for the revised target, and added Tests 22–27.
+  Deterministic support tests pass and the suite collects 21 legacy and 26
+  revised branches. `ollama show` and a real Test 01 smoke both report that
+  `glm-4.3-flash` is not found, so no model result is counted.
+- September 11, 2026: Added a fail-fast Ollama model preflight and pinned
+  evaluation imports and built-in plugin resolution to this worktree after the
+  first smoke exposed global editable installs from another active worktree.
+  The exact-model smoke now stops before plugin/runtime setup with the same
+  model-not-found result.
+- September 12, 2026: The user corrected the model identifier to
+  `glm-5.3-flash:cloud`. Updated every GLM seed and branch to that model,
+  changed the requirement-restraint efforts to supported `low`, `high`, and
+  `max`, and bumped profile/cache identity to v8.
+- September 12, 2026: Sent the focused 3,730-word rewrite review bundle to the
+  configured Kindle address. Completed the previous/current legacy comparison
+  and calibrated revised comparison. Previous guidance produced 13/21 legacy
+  passes and 19/26 revised passes; rewritten guidance produced 14/21 legacy
+  passes and 22/26 revised passes. Tests 01, 15, 17, 20, and 21 are obsolete
+  for the revised target. A fresh candidate repeat failed Test 18 again and
+  passed Test 27, leaving persistent concerns in Tests 6, 13, and 18 and mixed
+  routing evidence in Test 27. Full interpretation is recorded in
+  `agent-behavior-verification/20260912-guidance-rewrite-results.md`.
 
 ## Prior execution plan
 
@@ -1153,10 +1178,11 @@ and route checks are completed by the agent before the bundle is sent.
 - [x] Reduce root documentation guidance.
 - [x] Update the development index and authored inbound links.
 - [x] Apply or hand off public route compatibility.
-- [ ] Reconcile specification and live requirements with the final text.
-- [ ] Present revised behavior-scenario contracts for approval.
-- [ ] Run static, documentation-build, and approved behavioral verification.
-- [ ] Send a review bundle no longer than 30 normal Kindle pages.
+- [x] Reconcile specification and live requirements with the draft and test
+  results.
+- [x] Present revised behavior-scenario contracts for approval.
+- [x] Run static, documentation-build, and approved behavioral verification.
+- [x] Send a review bundle no longer than 30 normal Kindle pages.
 - [ ] Obtain final human readability review.
 - [ ] Add completion notes and update the parent task.
 

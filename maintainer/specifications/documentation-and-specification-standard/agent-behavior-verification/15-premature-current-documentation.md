@@ -1,5 +1,9 @@
 # Premature current documentation
 
+Legacy status: retained for the direct pre/post comparison. Its prohibition on
+every pre-implementation user-doc edit conflicts with the approved branch-only
+`Not implemented` rule and is replaced by Test 29.
+
 Requirement coverage: `DOCGEN-002`, `DOCGEN-006`, `DOCREP-006`,
 `DOCVAL-007`–`DOCVAL-008`
 
