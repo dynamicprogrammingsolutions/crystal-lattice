@@ -25,21 +25,24 @@ as transient private metadata. The extension uses that object to calculate
 token fields, cached-token estimates, cost, turn totals, service tier, and
 display metadata.
 
-Persisted core and provider-native usage metadata retains these supported root
-fields:
+Persisted core and provider-native usage metadata retains this explicit
+allowlist:
 
 - `input_tokens`
-- `input_tokens_details`
+- `input_tokens_details.cached_tokens`
+- `input_tokens_details.cache_write_tokens`
 - `output_tokens`
-- `output_tokens_details`
-- `completion_tokens_details`
+- `output_tokens_details.reasoning_tokens`
+- `completion_tokens_details.reasoning_tokens`
 - `total_tokens`
 
-Nested detail mappings remain intact. Other provider usage roots are transient
-and are not retained in the session. This includes ChatGPT/Codex
-`usage.attribution`, whose items and request fields can grow with request
-history, as well as any future upstream root field that has not been adopted
-into the local usage contract.
+The root fields and detail fields reported by current OpenAI Responses usage
+remain inspectable, along with the compatibility completion-token reasoning
+path used by the extension. Other provider usage roots and nested detail fields
+are transient and are not retained in the session. This includes
+ChatGPT/Codex `usage.attribution`, whose items and request fields can grow with
+request history, as well as any future upstream field that has not been
+adopted into the local usage contract.
 
 Existing monolithic JSON sessions created before this behavior can be cleaned
 with the maintenance command described in

@@ -18,13 +18,22 @@ from openai_responses_plugins.openai_responses_flex_processing_extension import 
     OpenAIResponsesFlexProcessingExtension,
 )
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
+from openai_responses_plugins.openai_responses_tools_extension import (
+    OpenAIResponsesToolsExtension,
+)
 from openai_responses_plugins.openai_responses_usage_extension import (
     OpenAIResponsesUsageExtension,
 )
+from plugins.math_tools import MathTools
 
 
 pytestmark = pytest.mark.api
 _PROBE_SEED = 20260912
+
+
+class _RedactedApiKey(str):
+    def __repr__(self) -> str:
+        return "<redacted OpenAI API key>"
 
 
 class _MutatingResponseProxy:
@@ -38,7 +47,10 @@ class _MutatingResponseProxy:
             raise AssertionError(
                 "OpenAI response model_dump did not return a dictionary"
             )
-        mutation = mutate_response_objects(payload, seed=_PROBE_SEED)
+        mutation = mutate_response_objects(
+            payload,
+            seed=_PROBE_SEED + len(self._recorder),
+        )
         self._recorder.append(mutation)
         return mutation.payload
 
@@ -103,7 +115,7 @@ def ensure_openai_api_key() -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         pytest.skip("OPENAI_API_KEY not set; skipping OpenAI usage integration tests")
-    return api_key
+    return _RedactedApiKey(api_key)
 
 
 @pytest.mark.integration
@@ -141,6 +153,21 @@ def test_openai_responses_nonstreaming_usage_metadata_real_api(
 
     assert isinstance(usage, dict)
     assert "attribution" not in usage
+    assert set(usage) == {
+        "input_tokens",
+        "input_tokens_details",
+        "output_tokens",
+        "output_tokens_details",
+        "total_tokens",
+    }
+    assert set(usage["input_tokens_details"]) <= {
+        "cached_tokens",
+        "cache_write_tokens",
+    }
+    assert "cached_tokens" in usage["input_tokens_details"]
+    assert set(usage["output_tokens_details"]) <= {"reasoning_tokens"}
+    assert "reasoning_tokens" in usage["output_tokens_details"]
+    assert isinstance(usage["total_tokens"], int)
     assert isinstance(metadata.get("usage_prompt_tokens_formatted"), str)
     assert isinstance(metadata.get("usage_completion_tokens_formatted"), str)
     assert isinstance(metadata.get("usage_total_cost"), (int, float))
@@ -183,11 +210,15 @@ def test_openai_responses_real_api_response_mutation_probe(
     core = AgentCore()
     core.register_provider(
         _MutatingOpenAIResponsesProvider,
-        extensions=[OpenAIResponsesUsageExtension],
+        extensions=[
+            OpenAIResponsesToolsExtension,
+            OpenAIResponsesUsageExtension,
+        ],
     )
+    core.register_tool(MathTools)
 
     config = {
-        "model": "gpt-5-mini",
+        "model": "gpt-5.6-luna",
         "api_key": ensure_openai_api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 120,
@@ -197,34 +228,61 @@ def test_openai_responses_real_api_response_mutation_probe(
     session = core.add_message(
         session,
         "user",
-        "Reply with exactly: OPENAI_RESPONSE_MUTATION_PROBE_OK",
+        (
+            "You must call the add tool exactly once with a=123 and b=456. "
+            "Do not calculate the result yourself and do not answer before the "
+            "tool returns. After receiving the tool result, reply with exactly: "
+            "OPENAI_RESPONSE_MUTATION_PROBE_OK 579"
+        ),
     )
 
-    new_session, responses = core.send_request(session, config)
+    session, first_responses = core.send_request(session, config)
 
-    assert responses
-    assert "OPENAI_RESPONSE_MUTATION_PROBE_OK" in str(responses[-1].get("content"))
-    assert len(_MutatingOpenAIResponsesProvider.probe_mutations) == 1
-    mutation = _MutatingOpenAIResponsesProvider.probe_mutations[0]
-    serialized_session = core.export_session(new_session)
-    retained = detect_probe_markers_in_json(serialized_session, mutation)
+    assert first_responses
+    first_metadata = first_responses[-1].get("metadata") or {}
+    tool_calls = first_metadata.get("tool_calls")
+    assert isinstance(tool_calls, list) and tool_calls
+    assert len(tool_calls) == 1
+    tool_call = tool_calls[0]
+    function = tool_call.get("function") or {}
+    assert function.get("name") == "add"
 
-    retained_ids = {detection.marker.marker_id for detection in retained}
-    response_root_ids = {
-        marker.marker_id
-        for marker in mutation.markers
-        if marker.response_path.startswith("$.__probe_")
-    }
-    usage_root_ids = {
-        marker.marker_id
-        for marker in mutation.markers
-        if marker.response_path.startswith("$.usage.__probe_")
-    }
-    assert retained_ids.isdisjoint(response_root_ids)
-    assert retained_ids.isdisjoint(usage_root_ids)
+    tool_messages = core.execute_tool_calls(tool_calls, config)
+    assert len(tool_messages) == 1
+    assert tool_messages[0].get("content") == "579"
+    for tool_message in tool_messages:
+        session = core.add_message(
+            session,
+            role=tool_message.get("role", "tool"),
+            content=tool_message.get("content", ""),
+            metadata=tool_message.get("metadata"),
+            config=config,
+            tool_result=tool_message.get("toolResult"),
+        )
 
-    if retained:
-        pytest.xfail(format_probe_detections(retained, mutation))
+    final_session, final_responses = core.send_request(session, config)
+
+    assert final_responses
+    final_content = str(final_responses[-1].get("content"))
+    assert "OPENAI_RESPONSE_MUTATION_PROBE_OK" in final_content
+    assert "579" in final_content
+    assert len(_MutatingOpenAIResponsesProvider.probe_mutations) == 2
+
+    serialized_session = core.export_session(final_session)
+    retained_reports: list[str] = []
+    for mutation in _MutatingOpenAIResponsesProvider.probe_mutations:
+        assert all(
+            not marker.response_path.startswith("$.output")
+            for marker in mutation.markers
+        )
+        assert any(
+            marker.response_path.startswith("$.usage") for marker in mutation.markers
+        )
+        retained = detect_probe_markers_in_json(serialized_session, mutation)
+        if retained:
+            retained_reports.append(format_probe_detections(retained, mutation))
+
+    assert not retained_reports, "\n\n".join(retained_reports)
 
 
 def _maybe_skip_flex_unavailable(exc: Exception) -> None:

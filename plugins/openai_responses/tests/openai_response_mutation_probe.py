@@ -10,15 +10,9 @@ from typing import Any, Literal, Sequence
 
 
 PROBE_CONTENT_PREFIX = "PROBE_CONTENT_"
+PROBE_KEY_PREFIX = "__probe_"
 _PROBE_ID_PATTERN = re.compile(r"PROBE_CONTENT_([0-9]{4}_[0-9a-f]{8})")
-_REASONING_IGNORED_KEYS = frozenset(
-    {
-        "content",
-        "encrypted_content",
-        "signature",
-        "summary",
-    }
-)
+_IGNORED_SUBTREE_PATHS = frozenset({("output",)})
 
 JsonPathSegment = str | int
 JsonPath = tuple[JsonPathSegment, ...]
@@ -31,6 +25,7 @@ class ProbeMarker:
     key: str
     value: str
     response_path: str
+    object_type: str | None
 
 
 @dataclass(frozen=True)
@@ -85,15 +80,15 @@ def _discover_candidates(
                 f"probe response exceeds maximum discovery depth at {_render_path(path)}"
             )
 
+        if path in _IGNORED_SUBTREE_PATHS:
+            return
+
         if isinstance(current, dict):
             if "_metadata" in path:
                 return
 
             candidates.append(_Candidate(path=path, target=current))
-            is_reasoning = current.get("type") == "reasoning"
             for key, child in current.items():
-                if is_reasoning and key in _REASONING_IGNORED_KEYS:
-                    continue
                 visit(child, (*path, str(key)), depth + 1)
             return
 
@@ -135,7 +130,7 @@ def mutate_response_objects(
     for index, candidate in enumerate(selected, start=1):
         while True:
             marker_id = f"{index:04d}_{rng.getrandbits(32):08x}"
-            key = f"__probe_{marker_id}"
+            key = f"{PROBE_KEY_PREFIX}{marker_id}"
             if marker_id not in used_ids and key not in candidate.target:
                 used_ids.add(marker_id)
                 break
@@ -147,6 +142,11 @@ def mutate_response_objects(
                 key=key,
                 value=value,
                 response_path=f"{_render_path(candidate.path)}.{key}",
+                object_type=(
+                    candidate.target.get("type")
+                    if isinstance(candidate.target.get("type"), str)
+                    else None
+                ),
             )
         )
 
@@ -219,6 +219,7 @@ def format_probe_detections(
         (
             f"{detection.marker.marker_id} "
             f"injected={detection.marker.response_path} "
+            f"object_type={detection.marker.object_type or '<object>'} "
             f"scope={detection.scope} "
             f"occurrences={detection.occurrences}"
         )

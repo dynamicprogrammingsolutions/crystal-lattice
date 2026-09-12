@@ -147,20 +147,24 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
     assert md.get("usage_effective_auth_mode_label") == "API"
 
 
-def test_usage_persistence_projects_supported_root_fields() -> None:
+def test_usage_persistence_projects_supported_field_paths() -> None:
     ext = OpenAIResponsesUsageExtension()
     usage = {
         "input_tokens": 120,
         "input_tokens_details": {
             "cached_tokens": 20,
-            "future_nested_detail": "preserved",
+            "cache_write_tokens": 3,
+            "future_nested_detail": "discarded",
         },
         "output_tokens": 30,
         "output_tokens_details": {
             "reasoning_tokens": 5,
-            "future_output_detail": "preserved",
+            "future_output_detail": "discarded",
         },
-        "completion_tokens_details": {"reasoning_tokens": 6},
+        "completion_tokens_details": {
+            "reasoning_tokens": 6,
+            "future_completion_detail": "discarded",
+        },
         "total_tokens": 150,
         "future_scalar": "discarded",
         "future_object": {"payload": "discarded"},
@@ -189,17 +193,15 @@ def test_usage_persistence_projects_supported_root_fields() -> None:
     )
 
     expected_usage = {
-        key: value
-        for key, value in usage.items()
-        if key
-        in {
-            "input_tokens",
-            "input_tokens_details",
-            "output_tokens",
-            "output_tokens_details",
-            "completion_tokens_details",
-            "total_tokens",
-        }
+        "input_tokens": 120,
+        "input_tokens_details": {
+            "cached_tokens": 20,
+            "cache_write_tokens": 3,
+        },
+        "output_tokens": 30,
+        "output_tokens_details": {"reasoning_tokens": 5},
+        "completion_tokens_details": {"reasoning_tokens": 6},
+        "total_tokens": 150,
     }
     persisted_metadata = finals[0]["_metadata"]
     assert persisted_metadata["usage"] == expected_usage
@@ -208,8 +210,16 @@ def test_usage_persistence_projects_supported_root_fields() -> None:
     assert persisted_metadata["usage_completion_tokens_formatted"] == "30"
     assert persisted_metadata["usage_turn_reasoning_tokens_cumulative"] == 5
     assert (
-        persisted_metadata["usage"]["input_tokens_details"]["future_nested_detail"]
-        == "preserved"
+        "future_nested_detail"
+        not in persisted_metadata["usage"]["input_tokens_details"]
+    )
+    assert (
+        "future_output_detail"
+        not in persisted_metadata["usage"]["output_tokens_details"]
+    )
+    assert (
+        "future_completion_detail"
+        not in persisted_metadata["usage"]["completion_tokens_details"]
     )
     assert "future_scalar" not in persisted_metadata["usage"]
     assert "future_object" not in persisted_metadata["usage"]

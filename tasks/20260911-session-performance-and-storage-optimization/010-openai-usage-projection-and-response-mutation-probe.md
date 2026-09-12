@@ -60,35 +60,56 @@ Responses provider, and sanitize affected live sessions and snapshots.
   without recording message content.
 - [x] **OURP-017** General large-session fixture generation and reusable
   performance benchmarking remain deferred to a later storage optimization.
+- [x] **OURP-018** The mutation probe treats the complete
+  `response.output[*]` subtree as intentionally retained provider-native data
+  and excludes it from arbitrary-key injection.
+- [x] **OURP-019** No provider output-item persistence, core conversion,
+  request replay, or other non-usage production behavior changes in this
+  follow-up.
+- [x] **OURP-020** Persisted OpenAI usage contains an explicit allowlist of
+  fields observed in current real responses plus the compatibility paths used
+  by usage, pricing, cache, and reasoning logic; arbitrary future root and
+  nested detail keys are not retained.
+- [x] **OURP-021** After exact usage allowlisting, the real
+  `gpt-5.6-luna` two-request tool-loop mutation test completes and the full
+  exported-session string scan finds no non-ignored marker.
+- [x] **OURP-022** The existing focused usage unit test and two sanitizer tests
+  cover exact root and nested-path projection without adding provider-message
+  test coverage.
 
 ## Scope
 
 In scope:
 
 - OpenAI Responses raw usage handoff and persisted usage projection.
-- An explicit allowlist of supported OpenAI usage root keys.
+- An explicit allowlist of supported OpenAI usage fields and nested paths.
 - A test-only deterministic mutation engine and proxy over a real OpenAI API
   response.
+- A two-request `gpt-5.6-luna` tool loop that requires a real `add` tool call,
+  executes it through `MathTools`, and mutates both provider responses.
 - Recursive discovery and mutation of eligible dictionaries at any depth in
   the actual response, including dictionaries nested in arrays.
 - Mutation of every eligible object when there are at most 100 candidates, or
   seeded selection of at most 100 candidates after complete discovery.
 - One primary full exported-session JSON marker scan, with optional separate
   core/native string scans available to future tests.
-- A fixed test-only ignore list for `_metadata`, reasoning payloads, and any
-  other path
-  explicitly accepted before or after the initial diagnostic run.
+- A fixed test-only ignore list for `_metadata`, the complete
+  `response.output` subtree, and any other path explicitly accepted before or
+  after the initial diagnostic run.
 - Reuse of the usage projection by the existing live-session and snapshot
   sanitizer.
 - Safe migration and before/after evidence for the current session root.
+- Exact persisted usage path projection, including nested token-detail fields.
 
 Out of scope:
 
 - A generic core persistence-policy engine.
 - Runtime byte thresholds or bulk-data path policies.
 - Generic filtering of provider-native `_metadata`.
-- Preemptive filtering of output message items, content parts, reasoning,
-  tools, attachments, compaction state, or other native response data.
+- Any change to provider output-item persistence, core conversion, request
+  replay, or wire sanitization.
+- Deep filtering or rewriting of known message content, tool payload,
+  reasoning, compaction, attachment, or server-tool payload values.
 - Changes to providers other than OpenAI Responses.
 - Storage layout, incremental message APIs, bridge compression, and locking.
 - General performance fixture generation or benchmarking.
@@ -120,10 +141,12 @@ Parent Task: `tasks/20260911-session-performance-and-storage-optimization/000-ma
 - **Decision:** Use recognizable marker strings instead of allocating
   genuinely large payloads. The defect under test is retention of arbitrary
   keys, not JSON throughput.
-- **Question:** After the first probe run, which retained output-item or
-  content-part paths are intentional provider-native forward compatibility,
-  and which should become a separate filtering bugfix? Do not answer this in
-  advance of the evidence.
+- **Decision:** The complete `response.output` subtree is intentionally
+  retained provider-native data. The mutation test excludes it instead of
+  treating its retained markers as defects.
+- **Decision:** The follow-up contains only two changes: the test exclusion and
+  exact persisted usage allowlisting. Existing provider message handling is
+  left unchanged.
 
 ## Research details
 
@@ -151,22 +174,22 @@ The provider currently treats each response level differently:
 The known production fix belongs in step 2: the extension should persist the
 supported usage contract rather than the complete upstream mapping.
 
-### Supported usage root fields
+### Exact persisted usage paths
 
-Current OpenAI usage and pricing code consumes these root fields:
+Current OpenAI usage and pricing code consumes:
 
 - `input_tokens`;
-- `input_tokens_details`;
+- `input_tokens_details.cached_tokens`;
+- `input_tokens_details.cache_write_tokens`;
 - `output_tokens`;
-- `output_tokens_details`;
-- `completion_tokens_details` as a compatibility fallback for reasoning-token
-  details;
-- `total_tokens`.
+- `output_tokens_details.reasoning_tokens`;
+- `completion_tokens_details.reasoning_tokens` as a compatibility fallback.
 
-Nested detail mappings remain intact in this task. The root projection prevents
-new siblings such as `attribution` or another arbitrary provider addition from
-being persisted. A future supported root field requires an intentional code
-and test update.
+The already implemented root projection still retains complete supported
+detail mappings. The remaining production change narrows those mappings while
+retaining `total_tokens`, which appears in the real response and is useful for
+inspection. Future persisted usage data requires an intentional code and test
+update.
 
 ### Why the previous generalized plan was too early
 
@@ -181,6 +204,96 @@ The correct next step is an evidence-producing mutation test with explicit
 test exclusions. Only after the test shows exactly where non-excluded
 provider-added root keys survive can the task decide whether a native-item or
 content-part change is warranted.
+
+### Hosted tool-loop probe findings
+
+The completed `gpt-5.6-luna` tool-loop probe used two real API responses. The
+test-only proxy removed probe keys from the outgoing second request so retained
+session data could not prevent completion of the diagnostic scenario. This
+transport scrub does not change production provider behavior.
+
+In the latest completed run, the first response contained 29 eligible
+dictionaries and retained three markers in the exported session:
+
+- `$.output[0]`, type `function_call`, once;
+- `$.usage.input_tokens_details`, twice;
+- `$.usage.output_tokens_details`, twice.
+
+The second response also contained 30 eligible dictionaries and retained four
+markers:
+
+- `$.output[0]`, type `message`, once;
+- `$.output[0].content[0]`, type `output_text`, once;
+- `$.usage.input_tokens_details`, three times;
+- `$.usage.output_tokens_details`, three times.
+
+An immediately preceding real-API run returned a separate `reasoning` output
+item before the function call; its injected root marker also survived once.
+The test must therefore continue discovering the actual response recursively
+instead of assuming a fixed output array shape.
+
+The final test failure lists every retained marker with its seed, exact
+injection path, provider object type, and occurrence count. In the latest run,
+26 injections from each response did not survive. Response-root and usage-root
+probe keys were among the filtered values.
+
+Evidence-based follow-up recommendations:
+
+1. Keep every provider object under `response.output[*]` unchanged and make no
+   provider production change. Exclude that complete subtree from mutation
+   candidate discovery because its retention is intentional.
+2. Extend persisted usage projection into supported detail mappings and remove
+   unused roots. `input_tokens_details` retains `cached_tokens` and
+   `cache_write_tokens`; `output_tokens_details` and
+   `completion_tokens_details` retain `reasoning_tokens`.
+3. Keep `_metadata` unchanged as the explicit internal persistence channel and
+   strip it only from the provider wire request, as the provider already does.
+
+These are recommendations, not an approved implementation plan.
+
+### Response structure and usage paths
+
+The provider response shape relevant to this issue is:
+
+```text
+response
+├── output[]
+│   ├── reasoning item
+│   ├── function/custom-tool item
+│   └── message item
+│       └── content[]
+└── usage
+    ├── input_tokens
+    ├── input_tokens_details
+    ├── output_tokens
+    └── output_tokens_details
+```
+
+`usage` is a response-root sibling of `output`; it is not part of a message
+item. The provider temporarily copies raw response usage into output-item
+`_metadata` so the usage extension can calculate derived values. The extension
+then persists projected usage in native/core metadata, which is why one
+unsupported usage field can appear in several session locations.
+
+Objects under `response.output[*]` are the provider-native continuation
+history and remain complete in storage. The mutation test therefore stops
+traversal at `response.output`; it does not attempt to define or enforce an
+allowlist for messages, reasoning, tool calls, content parts, or future output
+item types.
+
+Current usage and pricing code reads only:
+
+- `input_tokens`;
+- `input_tokens_details.cached_tokens`;
+- `input_tokens_details.cache_write_tokens`;
+- `output_tokens`;
+- `output_tokens_details.reasoning_tokens`;
+- `completion_tokens_details.reasoning_tokens`.
+
+The real OpenAI response also reports `total_tokens`; it remains in the
+explicit allowlist for inspectability even though current displayed totals are
+derived from the input/output fields and the extension's local cumulative
+metadata.
 
 ### Existing session evidence
 
@@ -280,6 +393,13 @@ processing in the test.
 Start with the non-streaming real API path. Streaming mutation requires an SSE
 proxy and should be added only if the non-streaming results reveal a
 streaming-specific question.
+
+Use `gpt-5.6-luna` and expose the real `MathTools` schemas through
+`OpenAIResponsesToolsExtension`. The first request must require exactly one
+`add(123, 456)` call. Execute the emitted call through AgentCore, append the
+tool result, and send the second request. The final assistant response must be
+exactly `OPENAI_RESPONSE_MUTATION_PROBE_OK 579`. Mutate and inspect both real
+API responses.
 
 ### 3. Run the diagnostic test before broadening implementation
 
@@ -402,6 +522,61 @@ Run:
 Then run a new dry scan over live sessions and snapshots, review every removed
 usage root key, and apply only after the CLI and active requests are stopped.
 
+### 8. Exclude provider output from mutation probing
+
+Add `response.output` to the mutation helper's fixed ignored subtrees. When
+candidate discovery reaches that path, it does not mutate the output array,
+its item dictionaries, content parts, reasoning, tool calls, or descendants.
+
+Keep recursive mutation for the rest of the actual response, including the
+response root, `usage`, and both usage-detail mappings. The existing test-only
+outgoing probe scrub can then be removed because no marker is inserted into
+the provider-native continuation items sent on the second request.
+
+Do not add native/core scoped assertions, provider item allowlists, request
+projection, or output-item sanitization.
+
+### 9. Project exact persisted usage paths
+
+Replace the current root-only usage projection with a small constructor that
+retains only:
+
+```text
+input_tokens
+input_tokens_details.cached_tokens
+input_tokens_details.cache_write_tokens
+output_tokens
+output_tokens_details.reasoning_tokens
+completion_tokens_details.reasoning_tokens
+total_tokens
+```
+
+Preserve supported roots even when a detail mapping is empty. Remove arbitrary
+root fields and arbitrary nested detail fields. Continue calculating derived
+totals, cost, and formatted metadata from transient raw usage before applying
+the persisted projection.
+
+Reuse the exact projection in native metadata, core metadata, phase messages,
+native rebuild, and the existing session/snapshot sanitizer.
+
+### 10. Verify and re-scan
+
+After the two changes:
+
+- the two-request `gpt-5.6-luna` tool loop completes without the test-only
+  outgoing scrub;
+- the full exported-session string scan finds no injected marker;
+- the focused usage unit test proves only consumed usage paths remain.
+
+Run the focused usage unit test, hosted mutation integration, two sanitizer
+tests, and relevant existing usage/provider tests. No new provider-message test
+is needed because provider-message behavior does not change.
+
+Update the sanitizer report to include removed nested usage paths and the
+unused `total_tokens` root. Run dry mode again against live sessions and
+snapshots, verify that unrelated provider usage remains untouched, and review
+the expanded OpenAI-only change set before requesting a no-writer apply window.
+
 ### Implementation decisions and open questions
 
 - **Decision:** Keep `_metadata` as the intentional native-to-core persistence
@@ -415,14 +590,14 @@ usage root key, and apply only after the CLI and active requests are stopped.
   only when the discovered set is larger.
 - **Decision:** Use unique sequential or seeded marker strings instead of
   large payloads or one fixed marker number.
-- **Decision:** Implement only the supported usage-root projection before
-  evidence supports another production change.
-- **Decision:** Preserve nested mappings under supported usage roots in this
-  task.
+- **Decision:** The complete `response.output` subtree is intentionally
+  retained and is excluded from the mutation probe.
+- **Decision:** No provider-message, native-history, core-conversion, or
+  request-replay production change is needed.
 - **Decision:** Update the current sanitizer to remove all unsupported usage
-  root keys.
-- After the diagnostic run, decide which non-usage retained paths are
-  intentional and which need a new plan.
+  root and nested keys.
+- **Decision:** Persist the explicit current-response field set, including
+  `total_tokens`, plus the compatibility paths consumed by current code.
 - Confirm whether the mutation integration replaces or supplements the
   existing real-API usage integration.
 - Confirm the no-writer window before applying the sanitizer.
@@ -430,14 +605,13 @@ usage root key, and apply only after the CLI and active requests are stopped.
 ### Documentation
 
 - Update OpenAI Responses cost/usage development documentation to list the
-  supported persisted usage root fields and state that other upstream usage
-  roots remain transient.
+  exact supported persisted usage paths and state that other upstream usage
+  data remains transient.
 - Update the maintenance page so reports and cleanup refer to unsupported usage
-  roots rather than only attribution.
+  roots and nested paths rather than only attribution.
 - Document the test mutation proxy only in test/contributor guidance if it
   becomes reusable; do not present it as a user feature.
-- Do not change core/provider standards unless a later evidence-backed
-  non-usage fix introduces a new provider contract.
+- No provider-message documentation changes are required.
 
 ### Task checklist
 
@@ -447,25 +621,38 @@ usage root key, and apply only after the CLI and active requests are stopped.
 - [x] Add mutate-all behavior up to 100 candidates and seeded sampling above
   100.
 - [x] Add the real-response proxy around the OpenAI client.
+- [x] Run the mutation probe as a two-request `gpt-5.6-luna` tool loop and
+  verify the emitted `add` call and real `MathTools` result.
 - [x] Run the initial expected-failing mutation probe.
 - [x] Record every surviving marker and its exact original response injection
   path without provider content.
-- [x] Classify retained non-usage paths as native-only probe findings deferred
-  for a separately reviewed follow-up.
+- [x] Classify retained non-usage paths: output-item and part markers persist
+  in native history, and an output-item root marker is replayed on the next
+  request and rejected by the real API; defer its fix to a reviewed follow-up.
 - [x] Keep the approved scope boundary and make no non-usage production
   change.
 - [x] Replace attribution-specific usage persistence with supported root
   projection.
 - [x] Update the one focused usage unit test.
-- [ ] Stabilize the mutation integration's accepted-path list after review.
 - [x] Refactor the existing sanitizer to use the usage root projection.
 - [x] Update the two sanitizer tests without increasing their count.
 - [x] Run focused, existing, and hosted OpenAI verification.
 - [x] Run and review the new live-session and snapshot dry report.
+- [x] Update OpenAI development and maintenance documentation.
+- [x] Add `response.output` to the mutation probe's ignored subtrees.
+- [x] Remove the now-unneeded test-only outgoing probe scrub.
+- [x] Replace root-only usage projection with the explicit current-response
+  and compatibility path allowlist.
+- [x] Update the existing focused usage unit test for exact nested paths.
+- [x] Update the existing two sanitizer tests for exact nested paths.
+- [x] Run the hosted probe to a passing full-session zero-marker result.
+- [x] Run relevant existing usage/provider tests.
+- [x] Re-run the OpenAI-only live-session and snapshot dry scan.
+- [x] Update OpenAI development and maintenance documentation for exact usage
+  paths.
 - [ ] Establish a no-writer window and apply sanitization.
 - [ ] Validate every rewritten record and run a zero-change final scan.
 - [ ] Record final counts and byte savings.
-- [x] Update OpenAI development and maintenance documentation.
 - [ ] Add completion notes and close the parent subtask.
 
 ### Requirement verification
@@ -489,6 +676,16 @@ usage root key, and apply only after the CLI and active requests are stopped.
   validation, and the final zero-change dry run provide migration evidence.
 - **OURP-017:** Change-set inspection confirms no performance fixture or
   benchmark framework was added.
+- **OURP-018 and OURP-019:** Mutation-helper inspection and production
+  change-set inspection prove `response.output` is excluded and no
+  provider-message behavior changed.
+- **OURP-020:** The focused usage unit test, installed-SDK schema inspection,
+  and hosted real-response assertion prove that only the explicit observed and
+  compatibility usage paths are persisted.
+- **OURP-021:** The hosted mutation test completes without transport scrub and
+  the full exported-session scan finds no marker.
+- **OURP-022:** The focused usage unit test and two existing sanitizer tests
+  provide the deliberately small regression coverage.
 
 ### Additional implementation verification
 
@@ -573,3 +770,70 @@ usage root key, and apply only after the CLI and active requests are stopped.
     optional core/native string scopes each found all selected markers.
 - Migration apply remains blocked because the CLI is still listening on port
   57889 as PID 20874. No live session or snapshot was changed by this turn.
+- Follow-up verification now requires the hosted mutation probe to use
+  `gpt-5.6-luna`, emit one real `add(123, 456)` tool call, execute it through
+  `MathTools`, and mutate both the tool-call and final-answer responses.
+- The updated `gpt-5.6-luna` hosted run successfully emitted the required
+  `add(123, 456)` call and `MathTools` returned `579`. The second provider
+  request failed before a final response because a probe key retained on the
+  first response's native function-call item was replayed as
+  `input[1].__probe_...`; the API rejected that unknown parameter with status
+  400.
+- This is a concrete non-usage retention and wire-replay defect. The mutation
+  test is currently a genuine failure rather than an expected xfail. No
+  production fix was implemented because the plan requires a reviewed
+  follow-up before changing native item or request sanitization behavior.
+- Added a test-only outgoing-request scrub that removes only `__probe_` keys.
+  Both real requests now complete, and the test fails exclusively at the final
+  exported-session marker assertion.
+- The latest completed run discovered 29 first-response and 30 second-response
+  dictionaries. It retained seven markers: `function_call`, `message`,
+  `output_text`, and both usage-detail objects in each response. Twenty-six
+  markers from each response were filtered. A preceding run additionally
+  retained a `reasoning` item root, demonstrating expected real-response shape
+  variation.
+- The final failure reports every retained marker with exact injection path,
+  provider object type, and occurrence count. The failing traceback uses a
+  string-compatible redacted API-key value and was checked to contain no
+  API-key-like `sk-` text.
+- Repository and installed-SDK inspection confirmed the user's proposed
+  boundary: known response-item root fields can be enumerated, while their
+  semantic payload values should remain unchanged. Current code consumes only
+  `input_tokens`, two input-detail cache counters, `output_tokens`, and the
+  reasoning-token counter under output/completion details; raw
+  `total_tokens` has no current consumer.
+- Added an evidence-backed exact usage-path and mutation-probe follow-up as a
+  Draft plan. No production implementation or commit was made.
+- Revised the Draft after the user clarified that complete provider output
+  items should remain untouched. Removed all proposed provider-message and
+  request-replay changes. The follow-up now contains only the
+  `response.output` test exclusion and exact persisted usage allowlisting.
+- The user approved the two-change follow-up. The usage allowlist retains the
+  five roots observed in real OpenAI Responses usage (`input_tokens`,
+  `input_tokens_details`, `output_tokens`, `output_tokens_details`, and
+  `total_tokens`) plus the extension's
+  `completion_tokens_details.reasoning_tokens` compatibility path. Nested
+  detail allowlists retain cache-read/cache-write and reasoning-token fields.
+- The mutation probe now excludes the complete `response.output` subtree and
+  no longer scrubs outgoing request dictionaries. Both real API requests
+  complete normally.
+- Verification completed:
+  - 37 focused usage and sanitizer tests passed;
+  - the ordinary real-API usage test passed and confirmed all five current
+    usage roots, `cached_tokens`, `reasoning_tokens`, and `total_tokens`;
+  - the `gpt-5.6-luna` tool-loop mutation probe passed with a real
+    `add(123, 456)` call and no retained non-ignored marker;
+  - 422 existing OpenAI Responses tests passed with the three previously known
+    unrelated attachment-history failures excluded;
+  - Ruff, Black, and diff checks passed;
+  - targeted Pyright continued to report only the existing provider protocol
+    signature and inference errors in the usage extension.
+- The repository-local read-only dry scan inspected 630 canonical records:
+  390 live sessions and 240 snapshots. Four records would change, all for
+  session `ee99d1cb-be3c-4d39-882f-06c3a2afbbd1`: one live session and three
+  snapshots containing 17 core, 14 phase, and 17 native copies of
+  `compute_units`. No newly disallowed nested usage field was found. Projected
+  savings remain 1,702 bytes. The report is
+  `/tmp/ourp-openai-records-exact-paths-dry-run-20260912.json`.
+- No session or snapshot was rewritten because the active CLI still prevents a
+  confirmed no-writer window. No commit was created.

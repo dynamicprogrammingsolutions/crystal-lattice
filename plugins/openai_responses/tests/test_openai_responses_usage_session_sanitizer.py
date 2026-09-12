@@ -18,9 +18,19 @@ def _usage() -> dict[str, object]:
         "input_tokens": 100,
         "input_tokens_details": {
             "cached_tokens": 10,
-            "future_nested_detail": "preserved",
+            "cache_write_tokens": 5,
+            "future_nested_detail": "discarded",
         },
         "output_tokens": 20,
+        "output_tokens_details": {
+            "reasoning_tokens": 4,
+            "future_output_detail": "discarded",
+        },
+        "completion_tokens_details": {
+            "reasoning_tokens": 3,
+            "future_completion_detail": "discarded",
+        },
+        "total_tokens": 120,
         "future_scalar": "discarded",
         "attribution": {
             "request_fields": {"model": "gpt-test"},
@@ -95,6 +105,9 @@ def test_sanitize_session_payload_is_targeted_and_idempotent() -> None:
     assert stats.removed_usage_root_keys["messages[*].metadata.usage"] == {
         "future_scalar": 1,
         "attribution": 1,
+        "input_tokens_details.future_nested_detail": 1,
+        "output_tokens_details.future_output_detail": 1,
+        "completion_tokens_details.future_completion_detail": 1,
     }
     assert second_stats.removed_usage_root_keys == {}
     assert sanitized_again is sanitized
@@ -103,9 +116,12 @@ def test_sanitize_session_payload_is_targeted_and_idempotent() -> None:
         "input_tokens": 100,
         "input_tokens_details": {
             "cached_tokens": 10,
-            "future_nested_detail": "preserved",
+            "cache_write_tokens": 5,
         },
         "output_tokens": 20,
+        "output_tokens_details": {"reasoning_tokens": 4},
+        "completion_tokens_details": {"reasoning_tokens": 3},
+        "total_tokens": 120,
     }
     phase_usage = sanitized["messages"][0]["metadata"]["phase_messages"][0]["metadata"][
         "usage"
@@ -114,9 +130,12 @@ def test_sanitize_session_payload_is_targeted_and_idempotent() -> None:
         "input_tokens": 100,
         "input_tokens_details": {
             "cached_tokens": 10,
-            "future_nested_detail": "preserved",
+            "cache_write_tokens": 5,
         },
         "output_tokens": 20,
+        "output_tokens_details": {"reasoning_tokens": 4},
+        "completion_tokens_details": {"reasoning_tokens": 3},
+        "total_tokens": 120,
     }
     native_metadata = sanitized["metadata"]["native_messages"][0]["_metadata"]
     assert "attribution" not in native_metadata["usage"]
@@ -171,6 +190,9 @@ def test_sanitizer_command_dry_run_and_apply(
     ] == {
         "future_scalar": 2,
         "attribution": 2,
+        "input_tokens_details.future_nested_detail": 2,
+        "output_tokens_details.future_output_detail": 2,
+        "completion_tokens_details.future_completion_detail": 2,
     }
     assert "attribution" in session_path.read_text(encoding="utf-8")
     assert "attribution" in snapshot_path.read_text(encoding="utf-8")
@@ -202,6 +224,11 @@ def test_sanitizer_command_dry_run_and_apply(
     published = json.loads(session_path.read_text(encoding="utf-8"))
     assert "attribution" not in published["messages"][0]["metadata"]["usage"]
     assert "future_scalar" not in published["messages"][0]["metadata"]["usage"]
+    assert (
+        "future_nested_detail"
+        not in published["messages"][0]["metadata"]["usage"]["input_tokens_details"]
+    )
+    assert published["messages"][0]["metadata"]["usage"]["total_tokens"] == 120
     assert (
         "attribution"
         not in published["messages"][0]["metadata"]["phase_messages"][0]["metadata"][

@@ -17,7 +17,7 @@ from agent_core.types import Session
 
 from .openai_responses_usage_extension import (
     project_usage_for_persistence,
-    unsupported_usage_root_keys,
+    unsupported_usage_paths,
 )
 
 
@@ -60,14 +60,14 @@ def _new_stats() -> UsageSanitizationStats:
     )
 
 
-def _unsupported_target_usage_root_keys(value: Any) -> Tuple[str, ...]:
+def _unsupported_target_usage_paths(value: Any) -> Tuple[str, ...]:
     if not isinstance(value, dict):
         return ()
     if not any(
         key in value for key in ("input_tokens", "output_tokens", "total_tokens")
     ):
         return ()
-    return unsupported_usage_root_keys(value)
+    return unsupported_usage_paths(value)
 
 
 def _is_openai_responses_usage_metadata(metadata: Dict[str, Any]) -> bool:
@@ -98,7 +98,7 @@ def _sanitize_metadata_usage(
 
     usage = metadata.get("usage")
     unsupported_usage_keys = (
-        _unsupported_target_usage_root_keys(usage)
+        _unsupported_target_usage_paths(usage)
         if _is_openai_responses_usage_metadata(metadata)
         else ()
     )
@@ -116,7 +116,7 @@ def _sanitize_metadata_usage(
         changed = True
 
     raw_usage = metadata.get(_RAW_USAGE_METADATA_KEY)
-    unsupported_raw_keys = _unsupported_target_usage_root_keys(raw_usage)
+    unsupported_raw_keys = _unsupported_target_usage_paths(raw_usage)
     if isinstance(raw_usage, dict) and unsupported_raw_keys:
         if not changed:
             updated = dict(updated)
@@ -201,7 +201,7 @@ def _sanitize_native_item(
 def sanitize_session_payload(
     payload: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], UsageSanitizationStats]:
-    """Return a session payload with supported OpenAI usage root fields."""
+    """Return a session payload with supported OpenAI usage field paths."""
 
     stats = _new_stats()
     updated_payload = payload
@@ -537,7 +537,7 @@ def run_sanitizer(
 def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Remove unsupported persisted OpenAI Responses usage root fields "
+            "Remove unsupported persisted OpenAI Responses usage fields "
             "from sessions."
         )
     )

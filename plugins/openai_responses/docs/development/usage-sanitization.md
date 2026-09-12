@@ -3,12 +3,12 @@
 OpenAI Responses usage metadata persists token and cost information used by
 message footers, status totals, ChatGPT cached-token estimation, and later
 native-history reconstruction. Persisted usage retains only the supported
-OpenAI root fields documented in
-[Cost estimation](cost-estimation.md#persisted-usage-boundary). Other root
-fields are processed only as part of the current response and are not
+OpenAI field paths documented in
+[Cost estimation](cost-estimation.md#persisted-usage-boundary). Other root or
+nested fields are processed only as part of the current response and are not
 persisted.
 
-Older monolithic JSON sessions may still contain unsupported usage root fields
+Older monolithic JSON sessions may still contain unsupported usage fields
 in:
 
 - assistant message metadata;
@@ -16,8 +16,8 @@ in:
 - retained provider-native metadata;
 - stale private raw-usage metadata.
 
-The package provides a maintenance command that removes unsupported usage root
-members while retaining supported roots, their nested detail mappings, and all
+The package provides a maintenance command that removes unsupported usage
+members while retaining the explicit root and nested-field allowlist and all
 derived usage metadata. The scan includes canonical live sessions and
 immutable snapshots under `<session-root>/.snapshots`.
 
@@ -40,9 +40,11 @@ plugins/openai_responses/scripts/sanitize_session_usage.py \
   --report-path /tmp/openai-usage-sanitizer-session.json
 ```
 
-The JSON report contains affected occurrence counts, removed root-key counts
-grouped by persisted path, and projected byte savings. It does not include
-message content.
+The JSON report contains affected occurrence counts, removed-field counts
+grouped by persisted path, and projected byte savings. Nested removed fields
+use dotted names such as
+`input_tokens_details.future_nested_detail`. The legacy report property is
+named `removed_usage_root_keys`. Reports do not include message content.
 
 ## Apply
 
