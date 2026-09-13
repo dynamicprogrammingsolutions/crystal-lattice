@@ -555,3 +555,11 @@ support can be released before the approved current-content commit is pushed.
   current MCP OAuth support instead of downgrading MCP, omitting a default
   plugin, or accepting an emulated archive. Focused workflow/release tests and
   Actions security validation pass locally.
+- 2026-09-13: Pushed OpenSSL preparation commit `1029761f` and dispatched
+  native run `34755560764`. GitHub rejected that run and push-triggered Public
+  CI run `34755549621` before any step started, with the annotation that recent
+  account payments failed or the Actions spending limit must be increased.
+  The authenticated token has repository and read-organization access but not
+  the `admin:org` scope needed to inspect billing. The compatibility gate is
+  blocked until billing is restored and run `34755560764` can be rerun against
+  the same commit.
