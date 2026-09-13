@@ -32,6 +32,17 @@ session-management parity, then add the next research-oriented capabilities.
 - [ ] A restricted Python interpreter is exposed as a later fixed tool without
   access to application/runtime mutation.
 - [x] No deterministic product or reviewer model is introduced.
+- [ ] Provider packages intended for the embedded ZIP pass their existing unit
+  and integration suites while imported from that ZIP, and the root
+  `package.json` exposes the important bundle and Detox matrix commands.
+- [ ] Release-simulator real-API Detox covers the generic OpenAI-compatible,
+  OpenAI Responses API-key, OpenAI Responses ChatGPT-action login, OpenRouter,
+  Anthropic, and external reviewer paths.
+- [ ] An externally reachable, authenticated, model-limited, cost-limited
+  GPT-5.6 Luna proxy makes the app usable by App Review without exposing the
+  upstream OpenAI credential.
+- [ ] Sessions created with the credential-free `local` agent remain usable
+  after a provider profile is enabled and the embedded application reloads.
 
 Related Task:
 tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md
@@ -46,16 +57,18 @@ the embedded implementation and its staged tool/provider enhancements.
 ## Scope boundaries
 
 - Subtask `010` is complete.
-- Subtask `015` is complete.
+- Subtask `015` is reopened with an approved testing and reviewer-proxy
+  follow-up under execution.
 - Subtasks `020` and `030` record later increments but have no approved
   execution plan.
-- ChatGPT authorization, local-model fallback, email, arbitrary workspace
-  roots, production reviewer deployment, and polished cross-platform
-  credential hardening are outside this task's current execution scope.
+- ChatGPT authorization actions and production reviewer deployment are in the
+  approved subtask `015` follow-up. Local-model fallback, email, arbitrary
+  workspace roots, and polished cross-platform credential hardening remain
+  outside this task.
 
 ## Subtasks
 
 - [x] `tasks/20260910-ios-embedded-runtime-poc/010-embedded-runtime-openai-proxy-and-file-tools.md`
-- [x] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
+- [ ] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/020-tavily-web-search.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`

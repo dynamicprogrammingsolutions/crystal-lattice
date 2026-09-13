@@ -652,3 +652,337 @@ an automatic snapshot, and survive process relaunch/backgrounding.
 - The unrelated user-owned SSH resolution change in
   `mobile/crystal-lattice-control-rn/package-lock.json` was preserved and not
   committed.
+
+## Post-completion follow-up
+
+The user reopened this subtask on September 13, 2026 after a real-device
+OpenAI Responses request exposed a package-resource path that worked from an
+editable source checkout but failed when imported from
+`crystal_lattice_app.zip`.
+
+### Follow-up requirements checklist
+
+- [ ] The existing unit and integration tests in each provider package
+  intended for the embedded ZIP run with that provider imported from the
+  generated ZIP rather than from an editable/source installation.
+- [ ] Root `package.json` provides discoverable commands for the important
+  embedded-provider bundle suites, automated real-API Detox matrix, manually
+  gated ChatGPT-action Detox path, and reviewer-proxy tests.
+- [ ] Release-simulator real-API Detox covers the generic OpenAI-compatible
+  provider through Ollama, OpenAI Responses with an API key, OpenAI Responses
+  with the existing ChatGPT login actions, OpenRouter, Anthropic, and the
+  deployed reviewer proxy.
+- [ ] The embedded ZIP contains and configures the existing OpenAI Responses
+  ChatGPT authentication/action plugins; no new login-specific UI is required.
+- [ ] The generic OpenAI-compatible provider remains endpoint-agnostic and is
+  not specialized for OpenAI or the reviewer deployment.
+- [ ] Enabling a provider after using the credential-free `local` agent does
+  not make existing local sessions unloadable or otherwise unusable.
+- [ ] `tools/openai-proxy` accepts a JSON configuration path from its CLI,
+  supports separate incoming and outgoing API keys through environment
+  variables, and preserves its existing general-purpose mode.
+- [ ] Reviewer-proxy, deployment, TLS, pricing, budget, model, authentication,
+  logging, test-matrix, and path values are configuration rather than
+  hard-coded behavior.
+- [ ] The reviewer proxy exposes only `gpt-5.6-luna`, rejects requests for
+  other models, and forwards successful requests with the configured upstream
+  OpenAI API key rather than the caller credential.
+- [ ] The reviewer proxy calculates standard-tier GPT-5.6 Luna cost from
+  returned input, cached-input, and output usage; ignores web-search charges;
+  persists accumulated cost; and rejects model/inference requests for 24 hours
+  after the configured USD 1 threshold is reached.
+- [ ] Ireland hosts the reviewer proxy on an explicitly approved TCP port over
+  self-signed HTTPS, with a trusted/pinned app path, Docker Compose lifecycle,
+  JSON configuration, protected environment file, certificate material, and
+  persistent limiter state.
+- [ ] App Review instructions can provide the HTTPS endpoint, allowed model,
+  and private caller API key, and an external Release-simulator test proves
+  that this reviewer path completes a real tool-using request.
+
+### Approved testing amendment
+
+Status: Approved
+
+- Build the iOS application ZIP before provider tests.
+- Run the existing tests from
+  `plugins/reference-openai-compatible-provider/tests`,
+  `plugins/openai_responses/tests`, `plugins/openrouter/tests`, and
+  `plugins/anthropic-compatible/tests` with their runtime package imports
+  forced to the generated `crystal_lattice_app.zip`.
+- Do not duplicate the provider suites or invent replacement behavior tests.
+  Test files and development-only helpers may remain in their package trees,
+  but provider runtime modules and packaged resources must resolve from the
+  ZIP. The runner must fail if import provenance falls back to a source or
+  editable installation.
+- Apply each package's existing marker policy. Existing non-API integration
+  tests and credential-gated hosted integration tests also run from the ZIP;
+  manual tests remain explicitly gated and skipped tests count as not run.
+- Add root scripts backed by a small orchestrator rather than long inline
+  commands:
+  - `test:ios:embedded-providers:bundle`
+  - `test:ios:embedded-providers:bundle:api`
+  - `test:ios:embedded-providers:detox:api`
+  - `test:ios:embedded-providers:detox:chatgpt`
+  - `test:reviewer-proxy`
+- The automated Release-simulator real-API matrix configures and sends a
+  minimal tool-using request through the generic Ollama path, OpenAI Responses
+  API-key path, OpenRouter, Anthropic, and the deployed reviewer endpoint.
+- The OpenAI Responses ChatGPT path is collected with the matrix but has a
+  separate manual-integration gate. It uses the existing authentication
+  actions and generic action UI, waits for the human login step, then verifies
+  a real Codex-like tool request and credential reuse after relaunch.
+- Provider acceptance requires a terminal assistant response, no error
+  card/event, the intended tool-family round trip, and session persistence.
+- The matrix begins with a credential-free local session, enables a provider,
+  reloads the embedded application, and verifies that the pre-existing local
+  session remains usable. This transition is intended to expose the currently
+  reported local-agent issue.
+
+### Execution plan
+
+Status: Approved
+
+Implement and deploy a narrowly scoped App Review proxy in the same follow-up
+change, then use it as the external-review row of the approved Detox matrix.
+The user approved execution on September 13, 2026 with the additional
+constraint that all operational values remain configurable.
+
+#### Proxy configuration and behavior
+
+- Extend `tools/openai-proxy` with an optional
+  `--config <reviewer-proxy.json>` mode while keeping the existing positional
+  CLI compatible.
+- Keep the proxy implementation generic: endpoint, listen host/port, base
+  path, environment-variable names, allowed models, service tiers, budget,
+  cooldown, pricing, long-context thresholds/multipliers, state path, logging,
+  and status behavior all come from configuration. Reviewer-specific values
+  belong only in the deployment JSON and environment file.
+- Keep secrets out of JSON. The configuration names two environment
+  variables:
+  - `OPENAI_UPSTREAM_API_KEY` for outgoing OpenAI requests;
+  - `REVIEWER_PROXY_API_KEY` for incoming bearer authentication.
+- Use a schema like:
+
+  ```json
+  {
+    "upstream": {
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_UPSTREAM_API_KEY"
+    },
+    "client_auth": {
+      "api_key_env": "REVIEWER_PROXY_API_KEY"
+    },
+    "models": {
+      "allowed": ["gpt-5.6-luna"]
+    },
+    "budget": {
+      "limit_usd": 1.0,
+      "cooldown_seconds": 86400,
+      "state_path": "/data/rate-limit.json",
+      "pricing_per_million": {
+        "input": 0.20,
+        "cached_input": 0.02,
+        "output": 1.20
+      },
+      "long_context": {
+        "input_token_threshold": 272000,
+        "input_multiplier": 2.0,
+        "cached_input_multiplier": 2.0,
+        "output_multiplier": 1.5
+      },
+      "ignored_charges": ["web_search"]
+    },
+    "logging": {
+      "headers": false,
+      "bodies": false
+    }
+  }
+  ```
+
+- Treat total input as including cached input and calculate:
+  `uncached_input = max(0, input_tokens - cached_tokens)`, then price uncached
+  input, cached input, and output separately. Support equivalent usage fields
+  from Responses and Chat Completions so the generic reviewer profile remains
+  protocol-compatible.
+- Restrict model listing to `gpt-5.6-luna` and reject any request body naming a
+  different model. Use standard/default service tier pricing and reject
+  explicitly requested pricing modes not represented by the configured rate
+  table.
+- Parse completed JSON and streaming SSE usage without delaying ordinary
+  streaming delivery. Atomically persist cost after a completed response.
+- Let the request that reaches/crosses the USD 1 limit finish, set
+  `blocked_until` to 24 hours after that completion, and return HTTP 429 with
+  `Retry-After` for subsequent model-listing and inference requests. Serialize
+  charged requests for this single-key reviewer deployment so concurrent
+  requests cannot bypass the ledger.
+- Keep health/status output free of secrets and private request content. It
+  may expose the configured model, blocked state, remaining cooldown, and
+  aggregate spend.
+
+The current official standard GPT-5.6 Luna prices, verified September 13,
+2026, are USD 0.20 per million input tokens, USD 0.02 per million cached input
+tokens, and USD 1.20 per million output tokens. Requests above 272,000 input
+tokens price the full request at 2x input and 1.5x output. Pricing remains
+configuration data so it can be updated without changing proxy code.
+
+#### Self-signed TLS and generic-provider trust
+
+- Recommend TCP port `3443` for the reviewer endpoint.
+- Make the TLS listen port, hostname, certificate paths, upstream proxy
+  address, and trust-bundle path configurable; `3443` is only the Ireland
+  deployment value.
+- Terminate TLS in a small reverse-proxy container in front of the Node proxy,
+  using a self-signed certificate whose SAN matches
+  `ireland-s1.dynamicprogrammingsolutions.com`.
+- Do not disable certificate verification. Add an optional custom-CA setting
+  to the generic OpenAI-compatible provider and stage the public reviewer CA
+  certificate as an ordinary app/runtime resource. Preconfigure only the
+  reviewer profile with that CA path; other OpenAI-compatible endpoints remain
+  configurable and use normal trust by default.
+- Certificate rotation requires updating the pinned public certificate in a
+  later app build. Private certificate keys stay only in the protected server
+  directory.
+
+#### Ireland deployment
+
+- Create `/home/irelandsrv/reviewer-openai-proxy/` containing:
+  - `docker-compose.yml`;
+  - `config/reviewer-proxy.json`;
+  - `.env` with mode `0600`;
+  - `certs/` with protected private key and public certificate;
+  - `data/` for the persisted rate-limit ledger.
+- Transfer the current root `.env` OpenAI key without printing it or embedding
+  it in commands, logs, images, configuration, or git history. Generate a
+  separate high-entropy incoming reviewer key and protect both values in the
+  remote `.env`.
+- Inspect the Ireland instance/security-group identity read-only, then propose
+  the exact AWS CLI ingress command for TCP `3443`. Because opening a public
+  ingress rule and starting remote containers are high-impact operations,
+  pause for the required explicit confirmation before running those exact
+  commands.
+- Open only the selected TCP port, bind the public TLS service there, keep the
+  inner Node port on the Compose network, and verify restart persistence and
+  Docker Compose start/stop commands.
+
+#### Runtime behavior and acceptance
+
+- Keep the OpenAI-compatible provider generic. Its automated local matrix row
+  continues to use Ollama; the reviewer row proves the same provider against
+  the configured HTTPS/OpenAI-backed endpoint.
+- Preserve loadability of sessions created with the credential-free `local`
+  agent when real profiles are enabled. Recommendation: retain the legacy
+  `local` agent internally while referenced sessions exist, but stop making it
+  the default or offering it for new sessions after a real provider is
+  available.
+- Add/configure the existing OpenAI Responses ChatGPT authentication plugins
+  and actions in the embedded ZIP. Use the generic action UI for login and
+  status; do not create a new login-specific settings flow.
+- Complete acceptance only after the Release simulator, using the external
+  Ireland endpoint and caller key, validates the reviewer profile and finishes
+  a real Claude-like tool request with persisted session/workspace results.
+
+### Implementation decisions and open questions
+
+- **Recommendation — port:** use public TCP `3443`. Approval of this Draft
+  selects that Ireland deployment value unless the user requests another one;
+  proxy and Compose code must not hard-code it.
+- **Recommendation — cooldown:** one persisted global ledger for the single
+  configured reviewer key; the threshold-crossing request completes and all
+  subsequent model/inference requests are blocked for 24 hours.
+- **Recommendation — TLS trust:** bundle/pin the public reviewer CA and retain
+  certificate verification. Do not use `verify=false`.
+- **Recommendation — local sessions:** preserve legacy local-session
+  loadability without continuing to advertise the smoke agent for new
+  sessions after a real provider is enabled.
+- **Deployment confirmation:** even after plan approval, present the exact AWS
+  ingress and remote Docker commands and obtain “yes, run exactly that” before
+  changing the server or security group.
+- **Approved constraint — configurability:** all operational and pricing
+  values are represented in JSON, environment, Compose variables, or test
+  inputs. Code may provide backward-compatible defaults but must not encode
+  the Ireland reviewer deployment as the only supported behavior.
+
+### Documentation
+
+- Update `tools/openai-proxy` configuration, authentication, model-limit,
+  budget, state, TLS, and Docker Compose operating documentation.
+- Update embedded-runtime testing docs with the root bundle/API/Detox commands,
+  ZIP import provenance, provider matrix, ChatGPT manual gate, and local-agent
+  transition.
+- Add an Ireland reviewer-proxy runbook covering secret transfer, certificate
+  rotation, security-group ingress, deployment, logs, budget reset/cooldown,
+  start/stop, and rollback.
+- Update the App Review task/instructions with only the externally usable URL,
+  `gpt-5.6-luna`, caller key handoff procedure, and minimal reviewer scenario;
+  never include the upstream OpenAI key.
+
+### Task checklist
+
+- [x] Obtain approval for the testing and reviewer-proxy follow-up, including
+  the all-values-configurable constraint.
+- [ ] Add bundle-import orchestration for the existing four provider test
+  suites and root `package.json` commands.
+- [ ] Fix provider/package behavior exposed by running the existing tests from
+  the ZIP, including packaged resource access.
+- [ ] Add/configure the existing ChatGPT authentication/action plugins in the
+  embedded runtime and add the manual Detox gate.
+- [ ] Add the automated real-API Detox matrix and local-session transition
+  scenario.
+- [ ] Add JSON-configured model/auth/cost/cooldown behavior to
+  `tools/openai-proxy` with focused proxy tests.
+- [ ] Add generic-provider custom-CA support and stage the reviewer public
+  certificate.
+- [ ] Add reviewer Docker Compose/configuration/runbook assets without
+  secrets.
+- [ ] Present and obtain exact-command confirmation for AWS ingress and remote
+  deployment.
+- [ ] Transfer secrets securely, deploy on Ireland, and verify TLS,
+  authentication, model filtering, ledger persistence, and restart behavior.
+- [ ] Pass the external reviewer Release-simulator matrix row and update
+  acceptance evidence.
+
+### Requirement verification
+
+- Provider ZIP suitability: the existing unit and integration suites for all
+  four bundled providers pass while import provenance points into
+  `crystal_lattice_app.zip`.
+- Root test discoverability: each important bundle, API, Detox, manual
+  ChatGPT, and proxy command is callable from root `package.json`.
+- Provider matrix: Release Detox completes terminal, persisted, tool-using
+  responses for Ollama-compatible, OpenAI Responses API-key, OpenRouter,
+  Anthropic, and deployed reviewer paths; the gated ChatGPT action path does
+  the same after manual login.
+- Local transition: a session created with `local` before enabling a profile
+  remains listable, loadable, and usable after settings save and application
+  reconstruction.
+- Proxy controls: caller authentication, upstream-key replacement, exact
+  model allowlist, both usage shapes, long-context pricing, persistent USD 1
+  threshold, 24-hour cooldown, restart recovery, and secret-free logging pass
+  proxy tests.
+- External review: a clean Release simulator reaches the public self-signed
+  HTTPS endpoint using the pinned CA and private caller key and completes the
+  documented reviewer scenario.
+
+### Additional implementation verification
+
+- Confirm the app ZIP contains the ChatGPT auth/action plugins and reviewer CA
+  but no private key or API credential.
+- Verify invalid caller keys and non-Luna model requests never reach OpenAI.
+- Verify the incoming caller key is removed before forwarding and the
+  configured upstream key is never returned or logged.
+- Verify streaming and non-streaming usage are charged once, failed requests
+  without completed usage are not fabricated, and limiter-state writes are
+  atomic.
+- Verify the blocked response survives container restart and automatically
+  expires after the configured 24-hour cooldown.
+- Verify only TCP `3443` is added for this service and the internal proxy port
+  is not publicly bound.
+- Verify repository, app logs, server logs, Compose output, and task evidence
+  contain no secret values.
+
+## Post-completion follow-up implementation notes
+
+- 2026-09-13: The user approved the testing and reviewer-proxy execution plan
+  and required every operational value to remain configurable. Local
+  implementation begins before the mandatory exact-command confirmation for
+  AWS ingress and Ireland deployment.
