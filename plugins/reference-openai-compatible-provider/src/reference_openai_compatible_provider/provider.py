@@ -732,6 +732,12 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             "model": {"type": "string", "required": True},
             "api_key": {"type": "string", "required": False},
             "timeout": {"type": "number", "default": 60},
+            "tool_choice": {
+                "type": "string",
+                "required": False,
+                "default": "auto",
+                "description": "Tool selection mode: auto, required, or none.",
+            },
             "debug_stream": {"type": "boolean", "default": False},
             "min_request_interval_seconds": {
                 "type": "number",

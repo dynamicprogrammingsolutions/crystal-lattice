@@ -17,6 +17,8 @@ import { MobileConnectionsSettingsHarness } from "./src/testing/MobileConnection
 import { MobileHomeHarness } from "./src/testing/MobileHomeHarness";
 import { MobileWebsiteVisualHarness } from "./src/testing/MobileWebsiteVisualHarness";
 import { MobileRichSessionUiHarness } from "./src/testing/MobileRichSessionUiHarness";
+import { EmbeddedPythonRuntimeDiagnosticsScreen } from "./src/embeddedRuntime/EmbeddedPythonRuntimeDiagnosticsScreen";
+import { EmbeddedPythonWebFetchDiagnosticsScreen } from "./src/embeddedRuntime/EmbeddedPythonWebFetchDiagnosticsScreen";
 import { name as appName } from "./app.json";
 
 const RootComponent = (props) => {
@@ -43,6 +45,8 @@ const RootComponent = (props) => {
     Component = MobileHomeHarness;
   } else if (props?.clcRichSessionUiHarness === "1") {
     Component = MobileRichSessionUiHarness;
+  } else if (props?.clcEmbeddedPythonRuntimeHarness === "1") {
+    Component = EmbeddedPythonRuntimeDiagnosticsScreen;
   }
   return React.createElement(Component, props);
 };
@@ -97,4 +101,12 @@ AppRegistry.registerComponent("MobileHomeHarness", () => MobileHomeHarness);
 AppRegistry.registerComponent(
   "MobileRichSessionUiHarness",
   () => MobileRichSessionUiHarness
+);
+AppRegistry.registerComponent(
+  "EmbeddedPythonRuntimeDiagnostics",
+  () => EmbeddedPythonRuntimeDiagnosticsScreen
+);
+AppRegistry.registerComponent(
+  "EmbeddedPythonWebFetchDiagnostics",
+  () => EmbeddedPythonWebFetchDiagnosticsScreen
 );

@@ -5,6 +5,7 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
 ## Features
 
 - 🔍 **Multiple Connection Methods:**
+  - On-device Python agent with an OpenAI-compatible proxy (iOS proof of concept)
   - Manual address entry (IP + port)
   - Automatic Bonjour/mDNS discovery
   - Bridge service connection for cross-network access
@@ -67,9 +68,9 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
    npm install
    ```
 
-3. **Install iOS Pods:**
+3. **Prepare the embedded Python runtime and install iOS Pods:**
    ```bash
-   cd ios && pod install && cd ..
+   npm run pod-install
    ```
 
 ## Running the App
@@ -93,6 +94,18 @@ npx react-native run-ios
 open ios/CrystalLatticeControlRN.xcworkspace
 ```
 Then click the Run button in Xcode.
+
+### On-device Python agent
+
+The iOS app includes a proof-of-concept embedded Python agent. Start an
+API-key-protected OpenAI-compatible proxy backed by Ollama, then choose
+**Connections → New connection → On-device Python Agent** and enter its URL,
+model, and API key.
+
+Simulator URLs can use `127.0.0.1`. A physical iPhone must use the Mac's LAN
+address. See
+[Embedded Python runtime](docs/development/embedded-python-runtime.md) for
+proxy, build, test, persistence, background, and security details.
 
 ### Running on Physical iOS Device
 

@@ -24,7 +24,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = Any
 
 from agent_core.tool_result_payloads import (
     TOOL_RESULT_FIELD,
@@ -186,6 +189,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "type": "string",
                 "required": False,
                 "description": "OpenAI API key (defaults to OPENAI_API_KEY env var).",
+            },
+            "provider_transport": {
+                "type": "string",
+                "required": False,
+                "default": "sdk",
+                "description": "HTTP client implementation: sdk or requests.",
             },
             "base_url": {
                 "type": "string",

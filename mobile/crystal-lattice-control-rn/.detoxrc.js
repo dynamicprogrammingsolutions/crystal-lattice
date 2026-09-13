@@ -27,7 +27,7 @@ module.exports = {
       binaryPath:
         "ios/build/Build/Products/Release-iphonesimulator/CrystalLattice.app",
       build:
-        "xcodebuild -workspace ios/CrystalLatticeControlRN.xcworkspace -scheme CrystalLatticeControlRN -configuration Release -sdk iphonesimulator -derivedDataPath ios/build",
+        "python3 scripts/prepare_ios_python_runtime.py && cd ios && pod install && cd .. && xcodebuild -workspace ios/CrystalLatticeControlRN.xcworkspace -scheme CrystalLatticeControlRN -configuration Release -sdk iphonesimulator -derivedDataPath ios/build",
     },
     "android.e2e": {
       type: "android.apk",

@@ -375,7 +375,11 @@ def test_uploaded_attachment_history_rebuilds_original_multipart_content() -> No
         }
     ]
 
-    config = {**_config(), "attachment_upload_mode": "upload_before_send"}
+    config = {
+        **_config(),
+        "attachment_upload_mode": "upload_before_send",
+        "image_attachment_mode": "upload",
+    }
     core = _build_upload_core()
 
     session = core.create_session()
@@ -473,7 +477,11 @@ def test_uploaded_attachment_history_slice_and_fork_keep_coherent_native_segment
         },
     ]
 
-    config = {**_config(), "attachment_upload_mode": "upload_before_send"}
+    config = {
+        **_config(),
+        "attachment_upload_mode": "upload_before_send",
+        "image_attachment_mode": "upload",
+    }
     core = _build_upload_core()
 
     session = core.create_session()
@@ -579,6 +587,7 @@ def test_session_asset_attachment_history_rebuilds_original_asset_ref(tmp_path) 
     config = {
         **_config(),
         "attachment_upload_mode": "upload_before_send",
+        "image_attachment_mode": "upload",
         "_session_asset_store": asset_store,
     }
     core = _build_upload_core()

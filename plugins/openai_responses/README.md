@@ -47,6 +47,19 @@ python -m pip install -e "plugins/openai_responses[dev]"
   is the simplest setup.
 - Do not commit real API keys into configs or docs.
 
+The provider uses the official OpenAI SDK by default. Fixed runtimes that
+cannot load the SDK's native dependency closure may set:
+
+```json
+{
+  "provider_transport": "requests"
+}
+```
+
+The requests transport supports API-key model discovery, ordinary and
+streaming Responses calls, and tool loops. It does not provide file uploads,
+ChatGPT authentication, or async native-compaction calls.
+
 The provider defaults to `OPENAI_API_KEY` automatically, so `api_key` can be
 omitted from config when the env var is present.
 
@@ -229,6 +242,7 @@ The bundle supports three auth modes:
 Relevant keys:
 
 - `auth_mode`
+- `provider_transport`
 - `chatgpt_credentials_path`
 - `chatgpt_base_url`
 - `chatgpt_account_id`

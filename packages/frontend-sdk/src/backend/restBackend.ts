@@ -42,12 +42,16 @@ function buildQuery(
 }
 
 export class RestAgentBackend implements AgentBackend {
-  readonly kind = 'rest' as const;
+  readonly kind: 'rest' | 'inProcess';
 
   private transport: Transport;
 
-  constructor(options: { transport: Transport }) {
+  constructor(options: {
+    transport: Transport;
+    kind?: 'rest' | 'inProcess';
+  }) {
     this.transport = options.transport;
+    this.kind = options.kind ?? 'rest';
   }
 
   private buildIdempotencyHeaders(idempotencyKey?: string): Record<string, string> {
