@@ -169,13 +169,38 @@ def test_local_installer_accepts_prebuilt_archive_without_rebuilding(
     assert calls[0][1][distribution.ARCHIVE_ENV] == str(archive)
 
 
+def test_local_installer_uses_native_powershell_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        local_installer,
+        "resolve_powershell",
+        lambda **_kwargs: r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+    )
+
+    assert local_installer.public_installer_command(
+        env={"PATH": r"C:\Windows\System32"},
+        windows=True,
+    ) == [
+        r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(SCRIPTS_DIR / "install.ps1"),
+    ]
+
+
 def test_application_owned_cli_scripts_are_package_local() -> None:
     moved_names = {
         "build_optimized_archive.py",
         "build_runtime_archive.py",
         "bump_version.py",
         "boot_smoke.py",
+        "download_server.py",
         "distribution_support.py",
+        "install.ps1",
         "install.sh",
         "install_dev.py",
         "install_current_archive.py",
@@ -183,6 +208,7 @@ def test_application_owned_cli_scripts_are_package_local() -> None:
         "run_distribution_smoke.py",
         "smoke_default_install.py",
         "smoke_optimized_archive.py",
+        "smoke_powershell_install.py",
         "smoke_runtime_archive.py",
         "smoke_source_install.py",
     }

@@ -96,9 +96,9 @@ existing owners without creating a second behavioral contract.
 ### Windows command-directory behavior
 
 **Approved decision:** follow the common no-admin Windows CLI installation
-pattern. Preserve the existing preference for a suitable writable directory
-already on PATH. When none exists, the PowerShell installer creates a
-per-user command directory under
+pattern. Reuse the suitable writable PATH directory of an existing
+bundled-Python Crystal Lattice command. When none exists, the PowerShell
+installer creates a per-user command directory under
 `%LOCALAPPDATA%\Programs\Crystal Lattice\bin`, adds it once to the persisted
 user PATH, and adds it to the current PowerShell process. It does not edit
 PowerShell profiles or the system PATH. A fresh `cmd.exe` or PowerShell process
@@ -424,13 +424,15 @@ support can be released before the approved current-content commit is pushed.
 - [x] Obtain approval for this draft plan and the Windows PATH refinement.
 - [x] Update CLI-distribution and website-content specifications and
       requirements.
-- [ ] Commit the specification-first change.
-- [ ] Add Linux ARM64 and Windows ARM64 release targets.
-- [ ] Extend the Bash installer and target detection.
-- [ ] Implement and focus-test the native PowerShell installer.
-- [ ] Extend publication, release validation, and public smoke scripts.
-- [ ] Add independent PowerShell and expanded native archive/install smokes.
-- [ ] Run local focused and fast verification.
+- [x] Commit the specification-first change.
+- [x] Add Linux ARM64 and Windows ARM64 release targets. Native acceptance
+      evidence remains under the compatibility gate.
+- [x] Extend the Bash installer and target detection.
+- [x] Implement and focus-test the native PowerShell installer.
+- [x] Extend publication, release validation, and public smoke scripts.
+      Authorized public verification remains later.
+- [x] Add independent PowerShell and expanded native archive/install smokes.
+- [x] Run local focused and fast verification.
 - [ ] Push only when authorized and obtain six-target native compatibility
       evidence.
 - [ ] Stop at the compatibility gate if any required target or direct user path
@@ -510,3 +512,19 @@ support can be released before the approved current-content commit is pushed.
   content target with `WEB-INSTALL-001` through `WEB-INSTALL-004`. Current
   public guides and landing copy remain unchanged until implementation and
   native evidence exist.
+- 2026-09-13: Committed the specification-first change as `286ea383`. Added
+  local target/release wiring for Linux ARM64 and Windows ARM64, native Python
+  architecture validation, a standalone PowerShell installer and smoke entry
+  point, dual-installer publication, and bounded post-publication CDN checks.
+  An initial disposable Linux PowerShell parser attempt was blocked because
+  the default Microsoft image ran through AMD64 QEMU and crashed before
+  parsing. An architecture-specific Microsoft ARM64 PowerShell image then
+  parsed the installer successfully; native Windows execution remains the
+  authoritative semantic check.
+- 2026-09-13: Local implementation verification passed: 68 focused
+  distribution/release tests; 426 application fast tests with one
+  Windows-only skip; 507 Core fast tests with one expected xfail; Ruff, Black,
+  shell syntax, JSON/workflow parsing, and Actions security. A fresh macOS
+  ARM64 archive built successfully, and both the extracted-archive and Bash
+  default-installer smokes passed independently against it with separate
+  dynamic plugin installation.

@@ -20,6 +20,7 @@ SCENARIO_SCRIPTS = {
     "source-install": SCRIPT_DIR / "smoke_source_install.py",
     "archive": SCRIPT_DIR / "smoke_runtime_archive.py",
     "default-install": SCRIPT_DIR / "smoke_default_install.py",
+    "powershell-install": SCRIPT_DIR / "smoke_powershell_install.py",
 }
 
 
@@ -31,10 +32,14 @@ def main() -> None:
     args = parser.parse_args()
 
     progress = StepLogger(
-        total_steps=2 if args.scenario in {"archive", "default-install"} else 1
+        total_steps=(
+            2
+            if args.scenario in {"archive", "default-install", "powershell-install"}
+            else 1
+        )
     )
     command = [sys.executable, str(SCENARIO_SCRIPTS[args.scenario])]
-    if args.scenario in {"archive", "default-install"}:
+    if args.scenario in {"archive", "default-install", "powershell-install"}:
         progress.step("Resolving the current-platform bundled-Python archive")
         archive = resolve_archive(progress=progress)
         progress.detail(f"archive: {archive}")
@@ -49,6 +54,7 @@ def scenario_label(scenario: str) -> str:
         "source-install": "source-installation smoke",
         "archive": "extracted-archive smoke",
         "default-install": "default-installer smoke",
+        "powershell-install": "PowerShell-installer smoke",
     }[scenario]
 
 

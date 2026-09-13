@@ -29,7 +29,7 @@ Options:
   --prefix PREFIX              Upload prefix, bypassing stack output lookup.
   --base-url URL               Download base URL for generated installer.
   --distribution-id ID         CloudFront distribution ID, bypassing stack output lookup.
-  --skip-installer             Do not upload install.sh.
+  --skip-installer             Do not upload install.sh or install.ps1.
   --dry-run                    Print AWS commands without mutating resources.
   --help, -h                   Show this help.
 USAGE

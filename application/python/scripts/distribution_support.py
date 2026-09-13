@@ -137,6 +137,16 @@ def resolve_bash(
     )
 
 
+def resolve_powershell(*, env: Mapping[str, str] | None = None) -> str:
+    environment = os.environ if env is None else env
+    path_value = environment.get("PATH", "")
+    for name in ("powershell.exe", "pwsh.exe", "pwsh"):
+        executable = shutil.which(name, path=path_value)
+        if executable is not None:
+            return executable
+    raise RuntimeError("Could not find Windows PowerShell or PowerShell on PATH")
+
+
 __all__ = [
     "APP_PYPROJECT",
     "ARCHIVE_ENV",
@@ -151,4 +161,5 @@ __all__ = [
     "read_project_version",
     "resolve_bash",
     "resolve_configured_archive",
+    "resolve_powershell",
 ]

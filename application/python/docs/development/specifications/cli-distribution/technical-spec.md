@@ -392,9 +392,9 @@ and through `cmd.exe`.
 
 ### PowerShell installer
 
-The PowerShell installer first reuses a suitable writable command directory
-already on PATH, using the same upgrade preference as the Bash installer.
-When none exists, it creates:
+The PowerShell installer first reuses the suitable writable PATH directory of
+an existing bundled-Python `crystal-lattice` command. When no such installation
+exists, it creates:
 
 ```text
 %LOCALAPPDATA%\Programs\Crystal Lattice\bin
