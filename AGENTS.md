@@ -4,7 +4,7 @@ This file is the starting point when you’re asked to change behavior, add a fe
 
 ---
 
-## 1. Project Overview
+## Project Overview
 
 The AI Agent Platform is a **modular, functional agent framework** for building conversational apps on top of arbitrary LLM providers.
 
@@ -29,7 +29,7 @@ Design principles:
 
 ---
 
-## 2. Architecture & Key Directories
+## Architecture & Key Directories
 
 **Core SDK – `core/python/agent_core`**
 - `core.py`: `AgentCore` – session/message ops, request/streaming pipeline, tool orchestration, native history.
@@ -168,9 +168,9 @@ validation, also read:
 
 ---
 
-## 3. Development Workflow
+## Development Workflow
 
-### Commit guidance
+**Commit guidance**
 
 Create a commit only when the user explicitly requests one in the current conversation. Use a short, clear message—usually two to six words—without type or scope prefixes unless a specific format is requested. Stage only files belonging to the requested work and leave unrelated changes unstaged.
 
@@ -255,7 +255,7 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 
 ---
 
-## 4. Where to Change What
+## Where to Change What
 
 **Core behavior (`agent_core`)**
 - Change `core/python/agent_core/core.py` when you need new capabilities that all apps share:
@@ -322,7 +322,7 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 
 ---
 
-## 6. Testing & Documentation Principles
+## Testing & Documentation Principles
 
 **When to add tests**
 - Any new public behavior or API surface.
@@ -383,3 +383,35 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
   - Update example code + tests, then regenerate `EXAMPLES.md`.
 
 Treat tests, type hints, and documentation updates as part of “done” for any substantive change.
+
+## Long-running work and waiting
+
+- Start safe, authorized commands expected to take longer than 10 minutes in
+  the background, and keep a process ID, log, or other status mechanism.
+- Continue independent in-scope work while background commands run. Use
+  waiting intervals only when completion blocks the remaining work.
+- Monitor at intervals of up to 10 minutes. Limit waiting-only work to two
+  hours or 12 wait calls.
+- Read the current time at the start of commands whose behavior depends on it.
+
+For example, start a long-running command and continue other work:
+
+```bash
+nohup <command> > /tmp/<task-name>.log 2>&1 < /dev/null &
+pid=$!
+```
+
+Check it later:
+
+```bash
+date -u
+kill -0 "$pid" && tail -n 50 /tmp/<task-name>.log
+```
+
+For a scheduled wait, calculate from the current time read by that command:
+
+```bash
+now=$(date -u +%s)
+(( now < target_epoch )) &&
+  sleep $(( target_epoch - now < 600 ? target_epoch - now : 600 ))
+```
