@@ -575,6 +575,10 @@ def test_release_workflow_builds_all_native_targets() -> None:
         assert f"runner: {runner}" in workflow
     windows_arm = workflow[workflow.index("- target: windows-arm64") :]
     assert "bash-installer: false" in windows_arm.split("- name: Check out", 1)[0]
+    assert 'python-request: "cpython-3.11-windows-aarch64-none"' in (
+        windows_arm.split("- name: Check out", 1)[0]
+    )
+    assert '"${{ matrix.python-request }}"' in workflow
 
 
 def test_release_workflow_verifies_public_downloads_after_publication() -> None:

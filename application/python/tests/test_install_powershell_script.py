@@ -12,7 +12,9 @@ def test_powershell_installer_is_native_and_supports_both_windows_architectures(
 
     assert '"windows-amd64"' in script
     assert '"windows-arm64"' in script
-    assert "Expand-Archive" in script
+    assert "System.Net.WebClient" in script
+    assert "System.IO.Compression.ZipFile" in script
+    assert "Expand-Archive" not in script
     assert "Scripts\\crystal-lattice.cmd" in script
     assert "bash" not in script.lower()
     assert "python -m" not in script.lower()

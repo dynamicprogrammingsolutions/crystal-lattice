@@ -528,3 +528,17 @@ support can be released before the approved current-content commit is pushed.
   ARM64 archive built successfully, and both the extracted-archive and Bash
   default-installer smokes passed independently against it with separate
   dynamic plugin installation.
+- 2026-09-13: Pushed `286ea383` and implementation commit `8fb21330` to
+  `origin/main`. Public CI run `34753326737` and static-site deployment run
+  `34753326667` passed. Native CLI run `34753338381` passed Linux AMD64,
+  Linux ARM64, macOS AMD64, and macOS ARM64 completely. Windows AMD64 passed
+  archive and Git Bash installer smokes but timed out in PowerShell extraction.
+  Windows ARM64 built an archive, but `uv python install 3.11` selected an
+  x86_64 managed runtime; the direct identity check correctly rejected the
+  mislabeled archive. Its PowerShell extraction also timed out.
+- 2026-09-13: Corrected the first native findings by explicitly requesting
+  `cpython-3.11-windows-aarch64-none` on the Windows ARM runner and replacing
+  slow PowerShell `Invoke-WebRequest`/`Expand-Archive` behavior with built-in
+  `System.Net.WebClient` download and `System.IO.Compression.ZipFile`
+  extraction. The corrected script passes the ARM64 PowerShell parser and the
+  68 focused distribution/release tests locally.

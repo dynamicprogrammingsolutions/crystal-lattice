@@ -222,7 +222,12 @@
             [Parameter(Mandatory = $true)][string]$Url,
             [Parameter(Mandatory = $true)][string]$Destination
         )
-        Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing
+        $client = New-Object System.Net.WebClient
+        try {
+            $client.DownloadFile($Url, $Destination)
+        } finally {
+            $client.Dispose()
+        }
     }
 
     function Install-RuntimeBundle {
@@ -232,8 +237,9 @@
             [Parameter(Mandatory = $true)][string]$CommandDirectory
         )
         $extractDirectory = Join-Path $Script:TemporaryDirectory "extract"
-        New-Item -ItemType Directory -Path $extractDirectory -Force | Out-Null
-        Expand-Archive -LiteralPath $Archive -DestinationPath $extractDirectory -Force
+        Remove-Item -LiteralPath $extractDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($Archive, $extractDirectory)
 
         $extractedBundle = Join-Path $extractDirectory $ArchiveStem
         if (-not (Test-Path -LiteralPath $extractedBundle -PathType Container)) {
