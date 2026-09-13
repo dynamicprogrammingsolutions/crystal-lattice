@@ -71,6 +71,7 @@ import {
   INITIAL_DESKTOP_WORKSPACE_STATE,
   desktopWorkspaceReducer,
   getActiveDesktopSessionTab,
+  getDesktopSessionTabKind,
   getDesktopWorkspaceTabs,
 } from './tabs/desktopWorkspaceState';
 import { DesktopGlobalDisplayLayer } from './ui/DesktopGlobalDisplayLayer';
@@ -147,7 +148,7 @@ function DesktopRootInner({
     useState<boolean>(
       initialSessionsFollowActiveTabEnabled !== undefined
         ? !!initialSessionsFollowActiveTabEnabled
-        : true,
+        : false,
     );
   const [markdownDisplayPreferences, setMarkdownDisplayPreferences] =
     useState<MarkdownDisplayPreferences>({
@@ -187,8 +188,10 @@ function DesktopRootInner({
     return () => subscription.remove();
   }, []);
   const {
+    hydrated: homeWorkspaceHydrated,
     watchlist,
     notes,
+    isWatched,
     addToWatchlist,
     removeFromWatchlist,
     moveWatchlistItem,
@@ -320,6 +323,11 @@ function DesktopRootInner({
   const promotePreview = useCallback((tabId?: string) => {
     dispatchWorkspace({ type: 'promotePreview', tabId });
   }, []);
+  const resolveSessionTabKind = useCallback(
+    (connectionId: string, sessionId: string) =>
+      getDesktopSessionTabKind(workspace, connectionId, sessionId),
+    [workspace],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -332,10 +340,6 @@ function DesktopRootInner({
           return;
         }
         dispatchWorkspace({ type: 'hydrate', state: parsed });
-        const restoredActive = getActiveDesktopSessionTab(parsed);
-        if (restoredActive) {
-          setFocusedConnectionId(restoredActive.connectionId);
-        }
       } finally {
         if (!cancelled) {
           setTabsHydrated(true);
@@ -389,6 +393,30 @@ function DesktopRootInner({
   );
 
   useEffect(() => {
+    if (
+      !sessionsFollowActiveTabEnabled ||
+      !connectionsHydrated ||
+      !tabsHydrated ||
+      !activeTab
+    ) {
+      return;
+    }
+    if (
+      sortedConnectionRecords.some(
+        record => record.id === activeTab.connectionId,
+      )
+    ) {
+      setFocusedConnectionId(activeTab.connectionId);
+    }
+  }, [
+    activeTab,
+    connectionsHydrated,
+    sessionsFollowActiveTabEnabled,
+    sortedConnectionRecords,
+    tabsHydrated,
+  ]);
+
+  useEffect(() => {
     if (!connectionsHydrated || !tabsHydrated || !activeTab) return;
     const attemptKey = `${activeTab.tabId}:${sessionReopenIntentVersion}`;
     if (lastSessionReopenAttemptRef.current === attemptKey) return;
@@ -397,7 +425,6 @@ function DesktopRootInner({
       candidate => candidate.id === activeTab.connectionId,
     );
     if (!record) return;
-    setFocusedConnectionId(record.id);
     const openState = openConnectionsById[record.id];
     if (openState?.status === 'open' || openState?.status === 'connecting') {
       return;
@@ -800,7 +827,6 @@ function DesktopRootInner({
   const openCollectionSession = useCallback(
     (item: HomeSessionItem, mode: SessionOpenMode) => {
       const presentation = item.summary.presentation;
-      setFocusedConnectionId(item.connectionId);
       openTab({
         connectionId: item.connectionId,
         sessionId: item.sessionId,
@@ -815,21 +841,31 @@ function DesktopRootInner({
     [openTab],
   );
 
+  const editSessionNote = useCallback(
+    (params: { sessionId: string; title: string }) => {
+      openSessionNoteWindow({
+        id: `session-note:${params.sessionId}`,
+        sessionId: params.sessionId,
+        title: params.title,
+        initialNote: notes[params.sessionId] ?? '',
+        onSave: note => setSessionNote(params.sessionId, note),
+        onRemove: () => removeSessionNote(params.sessionId),
+      });
+    },
+    [notes, removeSessionNote, setSessionNote],
+  );
+
   const editCollectionNote = useCallback(
     (item: HomeSessionItem) => {
-      openSessionNoteWindow({
-        id: `session-note:${item.sessionId}`,
+      editSessionNote({
         sessionId: item.sessionId,
         title:
           item.summary.presentation?.title ||
           item.summary.preview ||
           item.sessionId,
-        initialNote: notes[item.sessionId] ?? '',
-        onSave: note => setSessionNote(item.sessionId, note),
-        onRemove: () => removeSessionNote(item.sessionId),
       });
     },
-    [notes, removeSessionNote, setSessionNote],
+    [editSessionNote],
   );
 
   const openNewConnectionEditor = useCallback(() => {
@@ -976,17 +1012,23 @@ function DesktopRootInner({
                           : {}
                       }
                       onVisibleSessionIdsChange={handleVisibleSessionIdsChange}
+                      getSessionTabKind={resolveSessionTabKind}
                       sessionNotes={notes}
-                      onEditSessionNote={({ sessionId, title }) =>
-                        openSessionNoteWindow({
-                          id: `session-note:${sessionId}`,
-                          sessionId,
-                          title,
-                          initialNote: notes[sessionId] ?? '',
-                          onSave: note => setSessionNote(sessionId, note),
-                          onRemove: () => removeSessionNote(sessionId),
-                        })
+                      localActionsEnabled={homeWorkspaceHydrated}
+                      onEditSessionNote={editSessionNote}
+                      isSessionWatched={sessionId =>
+                        focusedConnectionId
+                          ? isWatched(focusedConnectionId, sessionId)
+                          : false
                       }
+                      onToggleSessionWatchlist={({ sessionId, watched }) => {
+                        if (!focusedConnectionId) return;
+                        if (watched) {
+                          removeFromWatchlist(focusedConnectionId, sessionId);
+                        } else {
+                          addToWatchlist(focusedConnectionId, sessionId);
+                        }
+                      }}
                     />
                   ) : (
                     <HistoryPanel
@@ -1003,6 +1045,7 @@ function DesktopRootInner({
                           : addToWatchlist(item.connectionId, item.sessionId)
                       }
                       onEditNote={editCollectionNote}
+                      getSessionTabKind={resolveSessionTabKind}
                     />
                   )}
                 </View>
@@ -1058,6 +1101,19 @@ function DesktopRootInner({
                             messagesCache={messagesCache}
                             messagesCacheHydrated={messagesCacheHydrated}
                             requestStatuses={requestStatuses}
+                            sessionNotes={notes}
+                            localActionsEnabled={homeWorkspaceHydrated}
+                            isSessionWatched={isWatched}
+                            onEditSessionNote={editSessionNote}
+                            onToggleSessionWatchlist={({
+                              connectionId,
+                              sessionId,
+                              watched,
+                            }) =>
+                              watched
+                                ? removeFromWatchlist(connectionId, sessionId)
+                                : addToWatchlist(connectionId, sessionId)
+                            }
                             onUpdateCache={updateMessagesCache}
                             onOpenSessionTab={openTab}
                             onPromotePreview={promotePreview}
@@ -1085,6 +1141,7 @@ function DesktopRootInner({
                             }
                             onEditNote={editCollectionNote}
                             onMoveWatchlistItem={moveWatchlistItem}
+                            getSessionTabKind={resolveSessionTabKind}
                           />
                         </View>
                       ) : !activeTab ? (

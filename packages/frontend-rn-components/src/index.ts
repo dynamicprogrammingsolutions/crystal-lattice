@@ -3,10 +3,10 @@ export type {
   ActionDefinition,
   ActionsMenuModel,
   ActionsMenuPinnedRenderParams,
-} from './actions/types';
+} from "./actions/types";
 
-export type { Theme } from './theme';
-export { ThemeProvider, useTheme } from './theme';
+export type { Theme } from "./theme";
+export { ThemeProvider, useTheme } from "./theme";
 
 export type {
   HomeSessionCollections,
@@ -15,7 +15,7 @@ export type {
   HomeSessionsCacheEntry,
   RecentSessionsWindow,
   WatchedSessionIdentity,
-} from './homeWorkspace';
+} from "./homeWorkspace";
 export {
   DEFAULT_RECENT_SESSIONS_WINDOW,
   MAX_SESSION_NOTE_LENGTH,
@@ -25,13 +25,13 @@ export {
   normalizeSessionNotes,
   normalizeWatchlist,
   watchedSessionKey,
-} from './homeWorkspace';
+} from "./homeWorkspace";
 
 export type {
   ReorderItemFrame,
   ReorderPreviewSlot,
   ReorderRenderSlot,
-} from './reorderGeometry';
+} from "./reorderGeometry";
 export {
   applyReorderKeyOrder,
   buildReorderPreview,
@@ -39,16 +39,16 @@ export {
   moveReorderValues,
   resolveReorderDropTarget,
   resolveReorderDropTranslation,
-} from './reorderGeometry';
+} from "./reorderGeometry";
 
-export type { SessionRequestStatusIndicatorProps } from './SessionRequestStatusIndicator';
-export { SessionRequestStatusIndicator } from './SessionRequestStatusIndicator';
-export type { SessionRequestStatusTone } from './sessionRequestStatus';
+export type { SessionRequestStatusIndicatorProps } from "./SessionRequestStatusIndicator";
+export { SessionRequestStatusIndicator } from "./SessionRequestStatusIndicator";
+export type { SessionRequestStatusTone } from "./sessionRequestStatus";
 export {
   SESSION_REQUEST_STATUS_LABELS,
   SESSION_REQUEST_STATUS_TONES,
   getSessionRequestStatusPresentation,
-} from './sessionRequestStatus';
+} from "./sessionRequestStatus";
 
 export type {
   MarkdownBaseFontSize,
@@ -56,7 +56,7 @@ export type {
   MarkdownDisplayPreferencesProviderProps,
   MarkdownHeaderSize,
   MarkdownTypography,
-} from './markdownDisplayPreferences';
+} from "./markdownDisplayPreferences";
 export {
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   DISPLAY_TYPOGRAPHY_PRESETS,
@@ -70,13 +70,20 @@ export {
   normalizeMarkdownDisplayPreferences,
   normalizeMarkdownHeaderSize,
   useMarkdownDisplayPreferences,
-} from './markdownDisplayPreferences';
+} from "./markdownDisplayPreferences";
 
 export type {
   SessionActionKey,
   SessionActionDefinition,
-} from './sessionActions';
-export { SESSION_ACTIONS, ALL_SESSION_ACTIONS } from './sessionActions';
+} from "./sessionActions";
+export { SESSION_ACTIONS, ALL_SESSION_ACTIONS } from "./sessionActions";
+export type { LocalSessionActionKey } from "./localSessionActions";
+export {
+  LOCAL_NOTE_SESSION_ACTION_KEY,
+  LOCAL_WATCHLIST_SESSION_ACTION_KEY,
+  buildLocalSessionActionDefinitions,
+  isLocalSessionActionKey,
+} from "./localSessionActions";
 
 export type {
   ApplicationActionDialogFieldRenderer,
@@ -87,43 +94,43 @@ export type {
   ApplicationActionFormHandle,
   ApplicationActionFormProps,
   DialogInputField,
-} from './ApplicationActionDialog';
-export { ApplicationActionDialog } from './ApplicationActionDialog';
-export { ApplicationActionDialogLayout } from './ApplicationActionDialog';
-export { ApplicationActionForm } from './ApplicationActionDialog';
-export type { ApplicationActionsMenuProps } from './actions/ApplicationActionsMenu';
-export { ApplicationActionsMenu } from './actions/ApplicationActionsMenu';
-export type { NotificationBannerProps } from './notifications/NotificationBanner';
-export { NotificationBanner } from './notifications/NotificationBanner';
+} from "./ApplicationActionDialog";
+export { ApplicationActionDialog } from "./ApplicationActionDialog";
+export { ApplicationActionDialogLayout } from "./ApplicationActionDialog";
+export { ApplicationActionForm } from "./ApplicationActionDialog";
+export type { ApplicationActionsMenuProps } from "./actions/ApplicationActionsMenu";
+export { ApplicationActionsMenu } from "./actions/ApplicationActionsMenu";
+export type { NotificationBannerProps } from "./notifications/NotificationBanner";
+export { NotificationBanner } from "./notifications/NotificationBanner";
 export type {
   NotificationBannerHostItem,
   NotificationBannerHostProps,
-} from './notifications/NotificationBannerHost';
-export { NotificationBannerHost } from './notifications/NotificationBannerHost';
-export type { SessionNotificationsHostProps } from './notifications/SessionNotificationsHost';
-export { SessionNotificationsHost } from './notifications/SessionNotificationsHost';
+} from "./notifications/NotificationBannerHost";
+export { NotificationBannerHost } from "./notifications/NotificationBannerHost";
+export type { SessionNotificationsHostProps } from "./notifications/SessionNotificationsHost";
+export { SessionNotificationsHost } from "./notifications/SessionNotificationsHost";
 
 export {
   buildActionsMenuModel,
   limitPinnedActionsForBar,
   normalizeActionDefinitions,
   togglePinnedKey,
-} from './actions/model';
+} from "./actions/model";
 
 export type {
   UseActionsMenuModelOptions,
   UseActionsMenuModelResult,
-} from './actions/useActionsMenuModel';
-export { useActionsMenuModel } from './actions/useActionsMenuModel';
+} from "./actions/useActionsMenuModel";
+export { useActionsMenuModel } from "./actions/useActionsMenuModel";
 
 export type {
   ActionsMenuContentProps,
   ActionsMenuRenderItemParams,
-} from './actions/ActionsMenuContent';
-export { ActionsMenuContent } from './actions/ActionsMenuContent';
+} from "./actions/ActionsMenuContent";
+export { ActionsMenuContent } from "./actions/ActionsMenuContent";
 
-export type { MenuSurfaceBaseProps } from './actions/MenuSurfaces';
-export { ModalMenuSurface, DropdownMenuSurface } from './actions/MenuSurfaces';
+export type { MenuSurfaceBaseProps } from "./actions/MenuSurfaces";
+export { ModalMenuSurface, DropdownMenuSurface } from "./actions/MenuSurfaces";
 export {
   actionsPopoverInvokeAction,
   actionsPopoverRequestClose,
@@ -138,48 +145,48 @@ export {
   type ActionsPopoverMenuData,
   type ActionsPopoverMenuHandlers,
   type ActionsPopoverMenuState,
-} from './actions/actionsPopoverCoordinator';
+} from "./actions/actionsPopoverCoordinator";
 
-export type { ActionsMenuProps } from './actions/ActionsMenu';
-export { ActionsMenu } from './actions/ActionsMenu';
+export type { ActionsMenuProps } from "./actions/ActionsMenu";
+export { ActionsMenu } from "./actions/ActionsMenu";
 
-export type { ActionsMenuPanelProps } from './actions/ActionsMenuPanel';
-export { ActionsMenuPanel } from './actions/ActionsMenuPanel';
+export type { ActionsMenuPanelProps } from "./actions/ActionsMenuPanel";
+export { ActionsMenuPanel } from "./actions/ActionsMenuPanel";
 
-export type { ActionsMenuBarProps } from './actions/ActionsMenuBar';
+export type { ActionsMenuBarProps } from "./actions/ActionsMenuBar";
 export {
   ACTIONS_MENU_BAR_ITEM_WIDTH,
   ActionsMenuBar,
-} from './actions/ActionsMenuBar';
+} from "./actions/ActionsMenuBar";
 
-export type { SessionActionsBarProps } from './actions/SessionActionsBar';
-export { SessionActionsBar } from './actions/SessionActionsBar';
+export type { SessionActionsBarProps } from "./actions/SessionActionsBar";
+export { SessionActionsBar } from "./actions/SessionActionsBar";
 export type {
   RichConfigDropdownControlProps,
   RichConfigDropdownPanelProps,
   RichConfigToggleControlProps,
-} from './actions/RichConfigDropdown';
+} from "./actions/RichConfigDropdown";
 export {
   RichConfigDropdownControl,
   RichConfigDropdownPanel,
   RichConfigToggleControl,
   truncatePinnedValue,
-} from './actions/RichConfigDropdown';
+} from "./actions/RichConfigDropdown";
 
 export type {
   SessionListActionsBarProps,
   SessionListRichActionControlProps,
   SessionListPluginActionDefinition,
   SessionListRichActionListProps,
-} from './actions/SessionListActionsBar';
+} from "./actions/SessionListActionsBar";
 export {
   SessionListActionsBar,
   SessionListRichActionControl,
   SessionListRichActionList,
-} from './actions/SessionListActionsBar';
-export { resolveSemanticToneColor } from './actions/semanticTone';
+} from "./actions/SessionListActionsBar";
+export { resolveSemanticToneColor } from "./actions/semanticTone";
 
-export { SessionPluginsList } from './SessionPluginsList';
+export { SessionPluginsList } from "./SessionPluginsList";
 
-export type { SessionListFiltersPanelProps } from './SessionListFiltersPanel';
-export { SessionListFiltersPanel } from './SessionListFiltersPanel';
+export type { SessionListFiltersPanelProps } from "./SessionListFiltersPanel";
+export { SessionListFiltersPanel } from "./SessionListFiltersPanel";

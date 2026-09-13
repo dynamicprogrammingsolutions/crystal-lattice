@@ -31,6 +31,10 @@ import {
   SessionListRichActionControl,
   SessionListRichActionList,
   SessionRequestStatusIndicator,
+  LOCAL_NOTE_SESSION_ACTION_KEY,
+  LOCAL_WATCHLIST_SESSION_ACTION_KEY,
+  buildLocalSessionActionDefinitions,
+  isLocalSessionActionKey,
   useTheme,
   type ActionDefinition,
   type ActionKey,
@@ -341,7 +345,9 @@ type ChatSessionActionKey =
   | 'messageLimit'
   | 'settings'
   | 'plugins'
-  | 'snapshots';
+  | 'snapshots'
+  | typeof LOCAL_NOTE_SESSION_ACTION_KEY
+  | typeof LOCAL_WATCHLIST_SESSION_ACTION_KEY;
 
 type ChatComposerActionKey = 'append' | 'appendAs' | 'resend' | 'cancel';
 
@@ -513,6 +519,11 @@ export interface ChatPaneProps {
   }) => void;
   requestStatus?: SessionRequestStatus | null;
   onBeforeSessionMutation?: () => void;
+  sessionNote?: string | null;
+  localActionsEnabled?: boolean;
+  sessionWatched?: boolean;
+  onEditSessionNote?: () => void;
+  onToggleSessionWatchlist?: () => void;
   styleVariant?: TabStripStyle;
 }
 
@@ -532,12 +543,29 @@ export const ChatPane = React.memo(function ChatPane({
   onUpdateCache,
   requestStatus = null,
   onBeforeSessionMutation,
+  sessionNote = null,
+  localActionsEnabled = true,
+  sessionWatched = false,
+  onEditSessionNote,
+  onToggleSessionWatchlist,
   styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(
     () => createStyles(theme, styleVariant),
     [theme, styleVariant],
+  );
+  const sessionBaseActions = useMemo(
+    () => [
+      ...BUILTIN_SESSION_ACTIONS,
+      ...buildLocalSessionActionDefinitions({
+        watched: sessionWatched,
+        hasNote: !!sessionNote,
+        includeNote: !!onEditSessionNote,
+        includeWatchlist: !!onToggleSessionWatchlist,
+      }),
+    ],
+    [onEditSessionNote, onToggleSessionWatchlist, sessionNote, sessionWatched],
   );
 
   const [messageViewModeByIndex, setMessageViewModeByIndex] = useState<
@@ -3394,6 +3422,17 @@ export const ChatPane = React.memo(function ChatPane({
   const handleSessionAction = useCallback(
     (key: ActionKey) => {
       const action = key as ChatSessionActionKey;
+      if (action === LOCAL_NOTE_SESSION_ACTION_KEY && onEditSessionNote) {
+        onEditSessionNote();
+        return;
+      }
+      if (
+        action === LOCAL_WATCHLIST_SESSION_ACTION_KEY &&
+        onToggleSessionWatchlist
+      ) {
+        onToggleSessionWatchlist();
+        return;
+      }
       if (action === 'reload') {
         handleReload().catch(() => {});
         return;
@@ -3524,6 +3563,8 @@ export const ChatPane = React.memo(function ChatPane({
       openAgentPickerForSwitch,
       openMessageLimitPopover,
       openRichSessionActionList,
+      onEditSessionNote,
+      onToggleSessionWatchlist,
       sessionId,
       sessionSummary,
     ],
@@ -4013,13 +4054,16 @@ export const ChatPane = React.memo(function ChatPane({
             renderIcon={({ name, size, color }) => (
               <Icon name={name} size={size} color={color} />
             )}
-            baseActions={BUILTIN_SESSION_ACTIONS}
+            baseActions={sessionBaseActions}
             extraActions={pluginSessionActionDefs}
             pinned={pinnedSessionActionKeys}
             onChangePinned={next => setPinnedSessionActionKeys(next)}
             onAction={handleSessionAction}
             renderPinnedAction={renderPinnedHeaderSessionAction}
             isActionDisabled={key => {
+              if (isLocalSessionActionKey(String(key))) {
+                return !localActionsEnabled;
+              }
               if (pluginActionRunning) {
                 return true;
               }

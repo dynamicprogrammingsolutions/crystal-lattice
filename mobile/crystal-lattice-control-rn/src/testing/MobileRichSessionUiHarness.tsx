@@ -1,26 +1,40 @@
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import React, { useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import type {
   AgentBackend,
   ExecuteActionResponse,
   SessionSummary,
-} from '@crystal-lattice/frontend-sdk';
+} from "@crystal-lattice/frontend-sdk";
 
-import { ApplicationPluginsProvider } from '../ApplicationPluginsContext';
-import { PinnedActionsProvider } from '../PinnedActionsContext';
-import SessionChatScreen from '../SessionChatScreen';
-import GlobalDisplayLayer from '../components/GlobalDisplayLayer';
-import { ThemeProvider, lightTheme } from '../theme';
+import { ApplicationPluginsProvider } from "../ApplicationPluginsContext";
+import { PinnedActionsProvider } from "../PinnedActionsContext";
+import {
+  HomeWorkspaceProvider,
+  useHomeWorkspace,
+} from "../HomeWorkspaceContext";
+import SessionChatScreen from "../SessionChatScreen";
+import GlobalDisplayLayer from "../components/GlobalDisplayLayer";
+import { ThemeProvider, lightTheme } from "../theme";
 
-const SESSION_ID = 'rich-session-ui';
-const CONNECTION_ID = 'rich-session-ui-followup-v2';
+const SESSION_ID = "rich-session-ui";
+const CONNECTION_ID = "rich-session-ui-followup-v2";
+
+function WatchlistStateMarker(): React.JSX.Element {
+  const { hydrated, isWatched } = useHomeWorkspace();
+  const watched = isWatched(CONNECTION_ID, SESSION_ID);
+  return (
+    <Text testID="rich-session-ui-watchlist-state">
+      {!hydrated ? "loading" : watched ? "watched" : "not-watched"}
+    </Text>
+  );
+}
 
 function actionResponse(actionId: string): ExecuteActionResponse {
   return {
-    status: 'ok',
-    plugin: 'rich_session_ui',
+    status: "ok",
+    plugin: "rich_session_ui",
     action_id: actionId,
     result: {
       mutations: {
@@ -44,15 +58,15 @@ function createHarnessBackend(options: {
   let summary: SessionSummary = {
     session_id: SESSION_ID,
     modified: 1,
-    preview: 'Rich UI harness',
+    preview: "Rich UI harness",
     metadata: {
       enabled: false,
-      status: 'todo',
+      status: "todo",
     },
   };
 
   return {
-    kind: 'inProcess',
+    kind: "inProcess",
     getCapabilities: () => ({
       featureCompletions: false,
       sessionUiSchema: true,
@@ -61,193 +75,193 @@ function createHarnessBackend(options: {
       applicationActions: true,
       applicationConfig: false,
     }),
-    listAgents: async () => ['anthropic'],
+    listAgents: async () => ["anthropic"],
     listSessions: async () => [summary],
     getSessionSummary: async () => summary,
-    getSessionAgent: async () => 'anthropic',
+    getSessionAgent: async () => "anthropic",
     switchSessionAgent: async () => {},
     listMessages: async () => ({
       messages: [],
-      cursorEventId: '0',
+      cursorEventId: "0",
       activeRequestId: options.activeRequestId,
     }),
-    getLatestEventId: async () => '0',
+    getLatestEventId: async () => "0",
     listEvents: async () => ({
       events: [],
-      latestEventId: '0',
+      latestEventId: "0",
       cursorExpired: false,
     }),
     getSessionUiSchema: async () => [
       {
-        ui_type: 'config',
-        plugin: 'anthropic',
-        type: 'dropdown',
-        key: 'model',
-        label: 'Model',
-        icon: 'cpu',
+        ui_type: "config",
+        plugin: "anthropic",
+        type: "dropdown",
+        key: "model",
+        label: "Model",
+        icon: "cpu",
         options: [
-          { value: 'claude-a', label: 'Claude A' },
-          { value: 'claude-b', label: 'Claude B' },
+          { value: "claude-a", label: "Claude A" },
+          { value: "claude-b", label: "Claude B" },
         ],
-        placeholder: 'Search models or enter a model ID',
+        placeholder: "Search models or enter a model ID",
         custom_value: {
           enabled: true,
-          pattern: '^[^\\s]+$',
+          pattern: "^[^\\s]+$",
           option_label: "Use '{value}' as a custom model ID",
         },
         rich_ui: {
-          kind: 'dropdown',
-          label: 'Model',
+          kind: "dropdown",
+          label: "Model",
           show_label: false,
           options: [
-            { value: 'claude-a', label: 'Claude A' },
-            { value: 'claude-b', label: 'Claude B' },
+            { value: "claude-a", label: "Claude A" },
+            { value: "claude-b", label: "Claude B" },
           ],
-          placeholder: 'Search models or enter a model ID',
+          placeholder: "Search models or enter a model ID",
           custom_value: {
             enabled: true,
-            pattern: '^[^\\s]+$',
+            pattern: "^[^\\s]+$",
             option_label: "Use '{value}' as a custom model ID",
           },
-          placements: ['composer'],
+          placements: ["composer"],
           default_pinned: true,
         },
       },
       {
-        ui_type: 'config',
-        plugin: 'anthropic',
-        type: 'select',
-        key: 'reasoning_effort',
-        label: 'Reasoning effort',
-        icon: 'sliders',
+        ui_type: "config",
+        plugin: "anthropic",
+        type: "select",
+        key: "reasoning_effort",
+        label: "Reasoning effort",
+        icon: "sliders",
         options: [
-          { value: 'medium', label: 'Medium' },
-          { value: 'high', label: 'High' },
+          { value: "medium", label: "Medium" },
+          { value: "high", label: "High" },
         ],
         rich_ui: {
-          kind: 'dropdown',
-          label: 'Reasoning effort',
+          kind: "dropdown",
+          label: "Reasoning effort",
           show_label: false,
           show_icon: false,
           options: [
-            { value: 'medium', label: 'Medium' },
-            { value: 'high', label: 'High' },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High" },
           ],
-          placements: ['composer'],
+          placements: ["composer"],
           default_pinned: true,
         },
       },
       {
-        ui_type: 'config',
-        plugin: 'claude_web_search_tool',
-        type: 'checkbox',
-        key: 'web_search_enabled',
-        label: 'Enable web search',
-        icon: 'globe',
+        ui_type: "config",
+        plugin: "claude_web_search_tool",
+        type: "checkbox",
+        key: "web_search_enabled",
+        label: "Enable web search",
+        icon: "globe",
         rich_ui: {
-          kind: 'toggle',
-          label: 'Web search',
+          kind: "toggle",
+          label: "Web search",
           show_label: false,
-          placements: ['composer'],
+          placements: ["composer"],
           default_pinned: true,
           options: [
             {
               value: false,
-              label: 'Off',
-              icon: 'globe',
-              tone: 'primary',
+              label: "Off",
+              icon: "globe",
+              tone: "primary",
             },
             {
               value: true,
-              label: 'On',
-              icon: 'globe',
-              tone: 'success',
+              label: "On",
+              icon: "globe",
+              tone: "success",
             },
           ],
         },
       },
       {
-        ui_type: 'composer_attachment',
-        plugin: 'rich_session_ui',
-        key: 'harness-file',
-        attachment_type: 'file',
-        display_placement: 'below',
-        label: 'Attach file',
-        icon: 'paperclip',
+        ui_type: "composer_attachment",
+        plugin: "rich_session_ui",
+        key: "harness-file",
+        attachment_type: "file",
+        display_placement: "below",
+        label: "Attach file",
+        icon: "paperclip",
       },
     ],
     getSessionApplicationUiSchema: async () => [
       {
-        ui_type: 'session_action',
-        plugin: 'rich_session_ui',
-        id: 'toggle_feature',
-        label: 'Toggle feature',
-        icon: 'zap',
-        action_id: 'toggle_feature',
-        dialog: { kind: 'none' },
+        ui_type: "session_action",
+        plugin: "rich_session_ui",
+        id: "toggle_feature",
+        label: "Toggle feature",
+        icon: "zap",
+        action_id: "toggle_feature",
+        dialog: { kind: "none" },
         rich_ui: {
-          kind: 'toggle',
-          value_path: 'metadata.enabled',
+          kind: "toggle",
+          value_path: "metadata.enabled",
           missing_value: false,
           active_value: true,
           default_pinned: true,
-          placements: ['session_header'],
+          placements: ["session_header"],
           appearance: {
-            active: { tone: 'success' },
-            inactive: { tone: 'muted' },
+            active: { tone: "success" },
+            inactive: { tone: "muted" },
           },
         },
       },
       {
-        ui_type: 'session_action',
-        plugin: 'rich_session_ui',
-        id: 'set_status',
-        label: 'Set status',
-        icon: 'circle',
-        action_id: 'set_status',
+        ui_type: "session_action",
+        plugin: "rich_session_ui",
+        id: "set_status",
+        label: "Set status",
+        icon: "circle",
+        action_id: "set_status",
         param_map: {
-          status: '$dialog.status',
+          status: "$dialog.status",
         },
         dialog: {
-          kind: 'form',
+          kind: "form",
           inputs: [
             {
-              name: 'status',
-              type: 'select',
+              name: "status",
+              type: "select",
               options: [
-                { value: 'todo', label: 'To do' },
-                { value: 'done', label: 'Done' },
+                { value: "todo", label: "To do" },
+                { value: "done", label: "Done" },
               ],
             },
           ],
         },
         rich_ui: {
-          kind: 'list',
-          value_path: 'metadata.status',
-          missing_value: 'todo',
-          input_name: 'status',
+          kind: "list",
+          value_path: "metadata.status",
+          missing_value: "todo",
+          input_name: "status",
           default_pinned: true,
-          placements: ['composer'],
+          placements: ["composer"],
           options: [
-            { value: 'todo', label: 'To do', tone: 'muted' },
-            { value: 'done', label: 'Done', tone: 'success' },
+            { value: "todo", label: "To do", tone: "muted" },
+            { value: "done", label: "Done", tone: "success" },
           ],
         },
       },
     ],
     listApplicationActions: async () => [
       {
-        plugin: 'rich_session_ui',
-        id: 'toggle_feature',
-        label: 'Toggle feature',
+        plugin: "rich_session_ui",
+        id: "toggle_feature",
+        label: "Toggle feature",
         inputs: {},
       },
       {
-        plugin: 'rich_session_ui',
-        id: 'set_status',
-        label: 'Set status',
+        plugin: "rich_session_ui",
+        id: "set_status",
+        label: "Set status",
         inputs: {
-          status: { type: 'string', required: true },
+          status: { type: "string", required: true },
         },
       },
     ],
@@ -256,7 +270,7 @@ function createHarnessBackend(options: {
       actionId: string;
       inputs: Record<string, unknown>;
     }) => {
-      if (params.actionId === 'toggle_feature') {
+      if (params.actionId === "toggle_feature") {
         const nextEnabled = summary.metadata?.enabled !== true;
         summary = {
           ...summary,
@@ -267,11 +281,11 @@ function createHarnessBackend(options: {
           },
         };
         options.onAction(`toggle_feature:${String(nextEnabled)}`);
-      } else if (params.actionId === 'set_status') {
+      } else if (params.actionId === "set_status") {
         const status =
-          typeof params.inputs.status === 'string'
+          typeof params.inputs.status === "string"
             ? params.inputs.status
-            : 'missing';
+            : "missing";
         summary = {
           ...summary,
           modified: summary.modified + 1,
@@ -291,23 +305,23 @@ function createHarnessBackend(options: {
     ) => {
       overrides = { ...overrides, ...values };
       options.onModelChange(
-        typeof overrides.model === 'string' ? overrides.model : 'claude-a'
+        typeof overrides.model === "string" ? overrides.model : "claude-a"
       );
     },
     deleteSessionOverride: async (_sessionId: string, key: string) => {
       const next = { ...overrides };
       delete next[key];
       overrides = next;
-      options.onModelChange('claude-a');
+      options.onModelChange("claude-a");
     },
     getSessionConfigSchema: async () => [
-      { key: 'model', type: 'string', default: 'claude-a' },
-      { key: 'reasoning_effort', type: 'string', default: 'medium' },
-      { key: 'web_search_enabled', type: 'boolean', default: false },
+      { key: "model", type: "string", default: "claude-a" },
+      { key: "reasoning_effort", type: "string", default: "medium" },
+      { key: "web_search_enabled", type: "boolean", default: false },
     ],
     getSessionBaseConfig: async () => ({
-      model: 'claude-a',
-      reasoning_effort: 'medium',
+      model: "claude-a",
+      reasoning_effort: "medium",
       web_search_enabled: false,
     }),
     listSessionSnapshots: async () => [],
@@ -321,8 +335,8 @@ export function MobileRichSessionUiHarness(props: {
   activeRequestId?: string | null;
 }): React.JSX.Element {
   const activeRequestId = props.activeRequestId ?? null;
-  const [model, setModel] = useState('claude-a');
-  const [lastAction, setLastAction] = useState('none');
+  const [model, setModel] = useState("claude-a");
+  const [lastAction, setLastAction] = useState("none");
   const backend = useMemo(
     () =>
       createHarnessBackend({
@@ -335,10 +349,10 @@ export function MobileRichSessionUiHarness(props: {
   const sessionSummary: SessionSummary = {
     session_id: SESSION_ID,
     modified: 1,
-    preview: 'Rich UI harness',
+    preview: "Rich UI harness",
     metadata: {
       enabled: false,
-      status: 'todo',
+      status: "todo",
     },
   };
 
@@ -354,42 +368,45 @@ export function MobileRichSessionUiHarness(props: {
             <Text testID="rich-session-ui-last-action">{lastAction}</Text>
           </View>
           <PinnedActionsProvider>
-            <ApplicationPluginsProvider
-              backend={backend}
-              connectionId={CONNECTION_ID}
-            >
-              <GlobalDisplayLayer
+            <HomeWorkspaceProvider>
+              <WatchlistStateMarker />
+              <ApplicationPluginsProvider
                 backend={backend}
                 connectionId={CONNECTION_ID}
               >
-                <View style={styles.screen}>
-                  <SessionChatScreen
-                    backend={backend}
-                    connectionId={CONNECTION_ID}
-                    isActive
-                    sessionId={SESSION_ID}
-                    sessionSummary={sessionSummary}
-                    cachedMessages={[]}
-                    lastLoadedAt={1}
-                    cachedEventsCursorId="0"
-                    cachedActiveRequestId={activeRequestId}
-                    onUpdateCache={() => {}}
-                    onUpdateSessionSummaries={() => {}}
-                    onBack={() => {}}
-                    onNavigateToSession={() => {}}
-                    initialComposeText=""
-                    initialScrollAnchor={null}
-                    initialRangeStartText="-50"
-                    initialRangeEndText=""
-                    onSaveComposeText={() => {}}
-                    onSaveScrollAnchor={() => {}}
-                    onSaveHistoryRange={() => {}}
-                    debugTimeline={[]}
-                    onAppendDebugTimelineEntry={() => {}}
-                  />
-                </View>
-              </GlobalDisplayLayer>
-            </ApplicationPluginsProvider>
+                <GlobalDisplayLayer
+                  backend={backend}
+                  connectionId={CONNECTION_ID}
+                >
+                  <View style={styles.screen}>
+                    <SessionChatScreen
+                      backend={backend}
+                      connectionId={CONNECTION_ID}
+                      isActive
+                      sessionId={SESSION_ID}
+                      sessionSummary={sessionSummary}
+                      cachedMessages={[]}
+                      lastLoadedAt={1}
+                      cachedEventsCursorId="0"
+                      cachedActiveRequestId={activeRequestId}
+                      onUpdateCache={() => {}}
+                      onUpdateSessionSummaries={() => {}}
+                      onBack={() => {}}
+                      onNavigateToSession={() => {}}
+                      initialComposeText=""
+                      initialScrollAnchor={null}
+                      initialRangeStartText="-50"
+                      initialRangeEndText=""
+                      onSaveComposeText={() => {}}
+                      onSaveScrollAnchor={() => {}}
+                      onSaveHistoryRange={() => {}}
+                      debugTimeline={[]}
+                      onAppendDebugTimelineEntry={() => {}}
+                    />
+                  </View>
+                </GlobalDisplayLayer>
+              </ApplicationPluginsProvider>
+            </HomeWorkspaceProvider>
           </PinnedActionsProvider>
         </SafeAreaView>
       </ThemeProvider>
@@ -405,8 +422,8 @@ const styles = StyleSheet.create({
   statusRow: {
     minHeight: 24,
     paddingHorizontal: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   screen: {
     flex: 1,

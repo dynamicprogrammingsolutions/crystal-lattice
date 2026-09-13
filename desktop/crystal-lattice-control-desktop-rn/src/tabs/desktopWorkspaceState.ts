@@ -18,6 +18,8 @@ export interface DesktopWorkspaceState {
   activeWorkspace: DesktopActiveWorkspace;
 }
 
+export type DesktopSessionTabKind = 'permanent' | 'preview';
+
 export const INITIAL_DESKTOP_WORKSPACE_STATE: DesktopWorkspaceState = {
   permanentTabs: [],
   previewTab: null,
@@ -270,4 +272,22 @@ export function getActiveDesktopSessionTab(
     getDesktopWorkspaceTabs(state).find(tab => tab.tabId === activeTabId) ??
     null
   );
+}
+
+export function getDesktopSessionTabKind(
+  state: DesktopWorkspaceState,
+  connectionId: string,
+  sessionId: string,
+): DesktopSessionTabKind | null {
+  if (
+    state.permanentTabs.some(
+      tab => tab.connectionId === connectionId && tab.sessionId === sessionId,
+    )
+  ) {
+    return 'permanent';
+  }
+  return state.previewTab?.connectionId === connectionId &&
+    state.previewTab.sessionId === sessionId
+    ? 'preview'
+    : null;
 }

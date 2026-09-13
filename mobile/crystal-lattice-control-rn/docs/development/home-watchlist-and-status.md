@@ -29,6 +29,16 @@ Notes deliberately share across connections when session IDs match. Removing
 a Watchlist entry or saved connection leaves notes intact. Only the explicit
 Remove Note action deletes note text.
 
+Sessions and Messages add shared static local action definitions to their
+existing pinnable Session actions. `localWatchlist` resolves against
+`HomeWorkspaceProvider` and changes only composite local membership. Its label
+and icon update between Add and Remove without requiring an open backend.
+Server session-pin actions remain separate plugin-owned commands.
+The local actions stay disabled until Home storage hydration completes.
+Pinned-action hydration also preserves an explicit user change made while an
+older storage read is in flight; plugin-declared defaults are merged only
+after the scoped record has loaded.
+
 `deriveHomeSessionCollections()` preserves stored Watchlist order and derives a
 separate modified-descending Recent Sessions timeline. The timeline applies
 the exact `24h`, `3d`, or `1w` cutoff. Watchlist membership does not filter the

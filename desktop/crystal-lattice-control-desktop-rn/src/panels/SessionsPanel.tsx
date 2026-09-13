@@ -32,8 +32,13 @@ import {
   SessionListRichActionControl,
   SessionListRichActionList,
   SessionListFiltersPanel,
+  LOCAL_NOTE_SESSION_ACTION_KEY,
+  LOCAL_WATCHLIST_SESSION_ACTION_KEY,
+  buildLocalSessionActionDefinitions,
+  isLocalSessionActionKey,
   useTheme,
   type ActionDefinition,
+  type SessionActionDefinition,
 } from '@crystal-lattice/frontend-rn-components';
 
 import type {
@@ -86,14 +91,15 @@ import { truncateByChars } from '../utils/text';
 import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
 import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
 import {
-  complementarySessionOpenMode,
   sessionOpenModeLabel,
   type SessionOpenMode,
 } from '../settings/desktopGlobalSettings';
 import {
+  resolveExplicitSessionOpenMode,
   resolveSessionItemClick,
   type SessionItemClickMemory,
 } from '../sessions/sessionItemInteraction';
+import type { DesktopSessionTabKind } from '../tabs/desktopWorkspaceState';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE =
   'clc_pinned_session_list_actions_v1';
@@ -168,7 +174,17 @@ export interface SessionsPanelProps {
     sessionIds: readonly string[];
   }) => void;
   sessionNotes?: Readonly<Record<string, string>>;
+  localActionsEnabled?: boolean;
   onEditSessionNote?: (params: { sessionId: string; title: string }) => void;
+  isSessionWatched?: (sessionId: string) => boolean;
+  onToggleSessionWatchlist?: (params: {
+    sessionId: string;
+    watched: boolean;
+  }) => void;
+  getSessionTabKind?: (
+    connectionId: string,
+    sessionId: string,
+  ) => DesktopSessionTabKind | null;
 
   onUpdateOpenTabsPresentation?: (params: {
     connectionId: string;
@@ -198,14 +214,18 @@ function SessionsPanelInner({
   activeTabId,
   activeTabConnectionId,
   activeTabSessionId,
-  followActiveTabEnabled = true,
+  followActiveTabEnabled = false,
   onUpdateCache,
   onOpenSessionTab,
   sessionDoubleClickAction = 'preview',
   requestStatuses = {},
   onVisibleSessionIdsChange,
   sessionNotes = {},
+  localActionsEnabled = true,
   onEditSessionNote,
+  isSessionWatched,
+  onToggleSessionWatchlist,
+  getSessionTabKind,
   onUpdateOpenTabsPresentation,
 }: SessionsPanelProps): React.JSX.Element {
   const theme = useTheme();
@@ -1207,8 +1227,18 @@ function SessionsPanelInner({
               80,
             );
             const meta = presentation.meta;
-            const explicitOpenMode = complementarySessionOpenMode(
+            const watched = isSessionWatched?.(session.session_id) ?? false;
+            const localSessionActions = buildLocalSessionActionDefinitions({
+              watched,
+              hasNote: !!sessionNotes[session.session_id],
+              includeNote: !!onEditSessionNote,
+              includeWatchlist: !!onToggleSessionWatchlist,
+            }) as SessionActionDefinition[];
+            const explicitOpenMode = resolveExplicitSessionOpenMode(
               sessionDoubleClickAction,
+              connectionId
+                ? getSessionTabKind?.(connectionId, session.session_id) ?? null
+                : null,
             );
             const headerLeadingAction = selectSessionListRichActionForPlacement(
               sessionListActions,
@@ -1336,30 +1366,6 @@ function SessionsPanelInner({
                   style={styles.rowRight}
                   testID={`desktop-session-actions-row-${session.session_id}`}
                 >
-                  {onEditSessionNote ? (
-                    <Pressable
-                      testID={`desktop-session-note-action-${session.session_id}`}
-                      accessibilityLabel={
-                        sessionNotes[session.session_id]
-                          ? 'Edit local note'
-                          : 'Add local note'
-                      }
-                      style={styles.localNoteButton}
-                      onPress={event => {
-                        (event as any)?.stopPropagation?.();
-                        onEditSessionNote({
-                          sessionId: session.session_id,
-                          title,
-                        });
-                      }}
-                    >
-                      <Icon
-                        name="edit-3"
-                        size={13}
-                        color={theme.textSecondary}
-                      />
-                    </Pressable>
-                  ) : null}
                   <Pressable
                     testID={`desktop-session-${explicitOpenMode}-${session.session_id}`}
                     style={[styles.openButton, styles.openButtonVisible]}
@@ -1374,7 +1380,8 @@ function SessionsPanelInner({
                     </Text>
                   </Pressable>
 
-                  {sessionListActions.length > 0 ? (
+                  {sessionListActions.length > 0 ||
+                  localSessionActions.length > 0 ? (
                     <View
                       style={[
                         styles.actionsContainer,
@@ -1399,15 +1406,36 @@ function SessionsPanelInner({
                         renderIcon={({ name, size, color }) => (
                           <Icon name={name} size={size} color={color} />
                         )}
-                        baseActions={[]}
+                        baseActions={localSessionActions}
                         pinned={pinnedSessionListActionKeys}
                         onChangePinned={next =>
                           setPinnedSessionListActionKeys(next)
                         }
-                        isActionDisabled={() =>
-                          !isOnline || pluginActionRunning
+                        isActionDisabled={key =>
+                          isLocalSessionActionKey(String(key))
+                            ? !localActionsEnabled
+                            : !isOnline || pluginActionRunning
                         }
-                        onBaseAction={() => {}}
+                        onBaseAction={key => {
+                          if (
+                            key === LOCAL_NOTE_SESSION_ACTION_KEY &&
+                            onEditSessionNote
+                          ) {
+                            onEditSessionNote({
+                              sessionId: session.session_id,
+                              title,
+                            });
+                          }
+                          if (
+                            key === LOCAL_WATCHLIST_SESSION_ACTION_KEY &&
+                            onToggleSessionWatchlist
+                          ) {
+                            onToggleSessionWatchlist({
+                              sessionId: session.session_id,
+                              watched,
+                            });
+                          }
+                        }}
                         onExecuteAction={(element, dialogValues) =>
                           executePluginAction(element, {
                             sessionId: session.session_id,
@@ -1640,13 +1668,6 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       alignItems: 'center',
       justifyContent: 'flex-end',
       gap: 4,
-    },
-    localNoteButton: {
-      width: 28,
-      height: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 8,
     },
     openButton: {
       borderWidth: separatorWidth,

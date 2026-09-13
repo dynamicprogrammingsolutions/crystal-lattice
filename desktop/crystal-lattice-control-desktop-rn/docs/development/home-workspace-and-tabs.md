@@ -48,6 +48,24 @@ first, leaving cached content available, then requests connection reopening.
 An open or connecting connection is reused. Repeated reopen work for the same
 selection intent is suppressed.
 
+Connection reopening and sidebar selection are separate effects. The native
+`Sessions follow active tab` preference defaults Off when no value has been
+stored. When enabled, active-tab changes also focus the owning connection and
+let the Sessions panel select its row; when disabled, cached/open Chat
+navigation leaves the independently selected sidebar connection unchanged.
+
+Explicit item actions consult `getDesktopSessionTabKind()`. A matching preview
+or permanent tab always exposes Open: permanent tabs activate in place, while
+the workspace reducer promotes a matching preview through its ordinary
+`openPermanent` transition.
+
+Mobile and desktop consume the same portable local Watchlist/note action
+definitions. Desktop Sessions and Chat route those definitions to
+`DesktopHomeWorkspaceProvider`; Local note opens the keyed note window, and
+Watchlist membership remains independent from server pin state. The actions
+remain disabled until the local Home records finish hydrating, so a startup
+read cannot overwrite an early mutation.
+
 ## Panels
 
 `DesktopShell` has three columns:

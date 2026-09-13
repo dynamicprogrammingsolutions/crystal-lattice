@@ -806,7 +806,7 @@ requirements are recorded in `060`.
 - [x] Chunk 1: preserve the three-pane desktop warm set across Home, eliminate
   status disappearance across focus changes, and correct vertical desktop
   Watchlist drag direction.
-- [ ] Chunk 2: separate connection reopen from sidebar following, correct
+- [x] Chunk 2: separate connection reopen from sidebar following, correct
   Preview/Open state, and add local Watchlist plus desktop note session
   actions.
 - [ ] Chunk 3: share the mobile/desktop Home card and timeline presentation,

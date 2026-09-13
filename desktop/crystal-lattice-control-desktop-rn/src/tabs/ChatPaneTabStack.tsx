@@ -74,6 +74,15 @@ export interface ChatPaneTabStackProps {
   requestStatuses?: Readonly<
     Record<string, Readonly<Record<string, SessionRequestStatus>>>
   >;
+  sessionNotes?: Readonly<Record<string, string>>;
+  localActionsEnabled?: boolean;
+  isSessionWatched?: (connectionId: string, sessionId: string) => boolean;
+  onEditSessionNote?: (params: { sessionId: string; title: string }) => void;
+  onToggleSessionWatchlist?: (params: {
+    connectionId: string;
+    sessionId: string;
+    watched: boolean;
+  }) => void;
   onPromotePreview?: (tabId: string) => void;
 }
 
@@ -94,6 +103,11 @@ type TabFrameProps = {
   onUpdateCache: ChatPaneTabStackProps['onUpdateCache'];
   onOpenSessionTab: ChatPaneTabStackProps['onOpenSessionTab'];
   requestStatus: SessionRequestStatus | null;
+  sessionNote: string | null;
+  localActionsEnabled: boolean;
+  sessionWatched: boolean;
+  onEditSessionNote?: () => void;
+  onToggleSessionWatchlist?: () => void;
   onPromotePreview?: ChatPaneTabStackProps['onPromotePreview'];
 };
 
@@ -116,6 +130,11 @@ const TabFrame = React.memo(function TabFrame(
     onUpdateCache,
     onOpenSessionTab,
     requestStatus,
+    sessionNote,
+    localActionsEnabled,
+    sessionWatched,
+    onEditSessionNote,
+    onToggleSessionWatchlist,
     onPromotePreview,
   } = props;
 
@@ -145,6 +164,11 @@ const TabFrame = React.memo(function TabFrame(
           onUpdateCache={onUpdateCache}
           onOpenSessionTab={onOpenSessionTab}
           requestStatus={requestStatus}
+          sessionNote={sessionNote}
+          localActionsEnabled={localActionsEnabled}
+          sessionWatched={sessionWatched}
+          onEditSessionNote={onEditSessionNote}
+          onToggleSessionWatchlist={onToggleSessionWatchlist}
           onBeforeSessionMutation={() => onPromotePreview?.(props.tabId)}
         />
       </ApplicationPluginsProvider>
@@ -178,6 +202,11 @@ export function ChatPaneTabStack(
     onUpdateCache,
     onOpenSessionTab,
     requestStatuses = {},
+    sessionNotes = {},
+    localActionsEnabled = true,
+    isSessionWatched,
+    onEditSessionNote,
+    onToggleSessionWatchlist,
     onPromotePreview,
   } = props;
 
@@ -227,6 +256,8 @@ export function ChatPaneTabStack(
           messagesCache[tab.connectionId]?.[tab.sessionId] ?? null;
         const isVisible = tab.tabId === activeTabId;
         const isActive = isVisible || warmSet.has(tab.tabId);
+        const watched =
+          isSessionWatched?.(tab.connectionId, tab.sessionId) ?? false;
 
         return (
           <TabFrame
@@ -248,6 +279,28 @@ export function ChatPaneTabStack(
             onOpenSessionTab={onOpenSessionTab}
             requestStatus={
               requestStatuses[tab.connectionId]?.[tab.sessionId] ?? null
+            }
+            sessionNote={sessionNotes[tab.sessionId] ?? null}
+            localActionsEnabled={localActionsEnabled}
+            sessionWatched={watched}
+            onEditSessionNote={
+              onEditSessionNote
+                ? () =>
+                    onEditSessionNote({
+                      sessionId: tab.sessionId,
+                      title: tab.title,
+                    })
+                : undefined
+            }
+            onToggleSessionWatchlist={
+              onToggleSessionWatchlist
+                ? () =>
+                    onToggleSessionWatchlist({
+                      connectionId: tab.connectionId,
+                      sessionId: tab.sessionId,
+                      watched,
+                    })
+                : undefined
             }
             onPromotePreview={onPromotePreview}
           />

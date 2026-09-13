@@ -5,8 +5,13 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { MobileRichSessionUiHarness } from "../src/testing/MobileRichSessionUiHarness";
+
+beforeEach(async () => {
+  await AsyncStorage.clear();
+});
 
 test("production chat renders and mutates portable rich config and session actions", async () => {
   render(<MobileRichSessionUiHarness />);

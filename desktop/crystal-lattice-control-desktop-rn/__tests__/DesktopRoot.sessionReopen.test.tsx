@@ -8,6 +8,13 @@ const mockConnection = {
   host: '127.0.0.1',
   port: 9000,
 };
+const mockOtherConnection = {
+  id: 'other',
+  name: 'Other',
+  kind: 'manual',
+  host: '127.0.0.2',
+  port: 9000,
+};
 const mockOpenConnection = jest.fn(async () => ({
   listSessions: jest.fn(async () => []),
 }));
@@ -39,7 +46,7 @@ jest.mock('../src/storage/asyncStorageKeyValueStore', () => {
 jest.mock('../src/connections/usePersistedConnections', () => ({
   usePersistedConnections: () => ({
     hydrated: true,
-    sortedConnectionRecords: [mockConnection],
+    sortedConnectionRecords: [mockOtherConnection, mockConnection],
     upsertConnection: jest.fn(),
     deleteConnection: jest.fn(),
     touchConnection: jest.fn(),
@@ -82,10 +89,17 @@ jest.mock('@crystal-lattice/frontend-sdk-react', () => ({
 }));
 
 jest.mock('../src/panels/ConnectionsPanel', () => ({
-  ConnectionsPanel: () => {
+  ConnectionsPanel: ({
+    focusedConnectionId,
+  }: {
+    focusedConnectionId: string | null;
+  }) => {
     const ReactModule = require('react');
     const { View } = require('react-native');
-    return ReactModule.createElement(View, { testID: 'connections-panel' });
+    return ReactModule.createElement(View, {
+      testID: 'connections-panel',
+      accessibilityLabel: `focused:${focusedConnectionId ?? 'none'}`,
+    });
   },
 }));
 jest.mock('../src/panels/SessionsPanel', () => ({
@@ -110,13 +124,27 @@ jest.mock('../src/home/DesktopHomeView', () => ({
   },
 }));
 jest.mock('../src/tabs/SessionTabs', () => ({
-  SessionTabs: ({ onSelectHome }: { onSelectHome: () => void }) => {
+  SessionTabs: ({
+    onSelectHome,
+    onSelectTab,
+  }: {
+    onSelectHome: () => void;
+    onSelectTab: (tabId: string) => void;
+  }) => {
     const ReactModule = require('react');
-    const { Pressable } = require('react-native');
-    return ReactModule.createElement(Pressable, {
-      testID: 'session-tabs',
-      onPress: onSelectHome,
-    });
+    const { Pressable, View } = require('react-native');
+    return ReactModule.createElement(
+      View,
+      { testID: 'session-tabs' },
+      ReactModule.createElement(Pressable, {
+        testID: 'select-home',
+        onPress: onSelectHome,
+      }),
+      ReactModule.createElement(Pressable, {
+        testID: 'select-preview',
+        onPress: () => onSelectTab('connection:preview'),
+      }),
+    );
   },
 }));
 jest.mock('../src/tabs/ChatPaneTabStack', () => ({
@@ -135,6 +163,10 @@ jest.mock('../src/ui/DesktopGlobalDisplayLayer', () => ({
 
 import { DesktopRoot } from '../src/DesktopRoot';
 
+beforeEach(() => {
+  mockOpenConnection.mockClear();
+});
+
 test('restores an active preview and attempts to reopen its connection at startup', async () => {
   const screen = render(<DesktopRoot />);
   await waitFor(() =>
@@ -145,9 +177,28 @@ test('restores an active preview and attempts to reopen its connection at startu
   expect(screen.getByTestId('chat-stack').props.accessibilityLabel).toBe(
     'visible',
   );
-  fireEvent.press(screen.getByTestId('session-tabs'));
+  expect(screen.getByTestId('connections-panel').props.accessibilityLabel).toBe(
+    'focused:other',
+  );
+  fireEvent.press(screen.getByTestId('select-preview'));
+  expect(screen.getByTestId('connections-panel').props.accessibilityLabel).toBe(
+    'focused:other',
+  );
+  fireEvent.press(screen.getByTestId('select-home'));
   expect(screen.getByTestId('home-view')).toBeTruthy();
   expect(screen.getByTestId('chat-stack').props.accessibilityLabel).toBe(
     'hidden',
+  );
+});
+
+test('focuses the owning connection when Sessions follow active tab is enabled', async () => {
+  const screen = render(<DesktopRoot initialSessionsFollowActiveTabEnabled />);
+  await waitFor(() =>
+    expect(mockOpenConnection).toHaveBeenCalledWith(mockConnection),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByTestId('connections-panel').props.accessibilityLabel,
+    ).toBe('focused:connection'),
   );
 });

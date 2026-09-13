@@ -8,6 +8,7 @@ import {
 import type { SessionRequestStatus } from '@crystal-lattice/frontend-sdk';
 
 import type { SessionOpenMode } from '../settings/desktopGlobalSettings';
+import type { DesktopSessionTabKind } from '../tabs/desktopWorkspaceState';
 import { DesktopSessionCollectionItem } from './DesktopSessionCollectionItem';
 import { DesktopWatchlistGrid } from './DesktopWatchlistGrid';
 
@@ -19,6 +20,7 @@ export function DesktopHomeView({
   onToggleWatch,
   onEditNote,
   onMoveWatchlistItem,
+  getSessionTabKind,
 }: {
   collections: HomeSessionCollections;
   statuses: Readonly<
@@ -35,6 +37,10 @@ export function DesktopHomeView({
   ) => void;
   onEditNote: (item: HomeSessionCollections['watchlist'][number]) => void;
   onMoveWatchlistItem: (fromIndex: number, toIndex: number) => void;
+  getSessionTabKind?: (
+    connectionId: string,
+    sessionId: string,
+  ) => DesktopSessionTabKind | null;
 }): React.JSX.Element {
   const theme = useTheme();
   const styles = createStyles(theme);
@@ -68,6 +74,7 @@ export function DesktopHomeView({
           onRemove={item => onToggleWatch(item, true)}
           onEditNote={onEditNote}
           onMove={onMoveWatchlistItem}
+          getSessionTabKind={getSessionTabKind}
         />
       )}
 
@@ -92,6 +99,7 @@ export function DesktopHomeView({
                 selected={selectedKey === item.key}
                 status={statuses[item.connectionId]?.[item.sessionId] ?? null}
                 doubleClickAction={doubleClickAction}
+                tabKind={getSessionTabKind?.(item.connectionId, item.sessionId)}
                 watched={watched}
                 onSelect={() => setSelectedKey(item.key)}
                 onOpen={mode => onOpenSession(item, mode)}

@@ -247,7 +247,7 @@ describe('SessionsPanel', () => {
     });
   });
 
-  it('keeps single click light, applies configured double click, and aligns the complementary button before actions', () => {
+  it('keeps single click light and shows Open for a session already in preview', () => {
     mockSessions = [
       {
         session_id: 'interaction',
@@ -261,6 +261,8 @@ describe('SessionsPanel', () => {
       },
     ];
     const onOpenSessionTab = jest.fn();
+    const onEditSessionNote = jest.fn();
+    const onToggleSessionWatchlist = jest.fn();
     const now = jest
       .spyOn(Date, 'now')
       .mockReturnValueOnce(100)
@@ -288,7 +290,10 @@ describe('SessionsPanel', () => {
           },
         }}
         sessionNotes={{ interaction: 'Local note' }}
-        onEditSessionNote={() => {}}
+        onEditSessionNote={onEditSessionNote}
+        isSessionWatched={() => false}
+        onToggleSessionWatchlist={onToggleSessionWatchlist}
+        getSessionTabKind={() => 'preview'}
       />,
     );
 
@@ -300,19 +305,40 @@ describe('SessionsPanel', () => {
       expect.objectContaining({ sessionId: 'interaction', mode: 'open' }),
     );
 
-    fireEvent.press(
-      rendered.getByTestId('desktop-session-preview-interaction'),
-    );
+    fireEvent.press(rendered.getByTestId('desktop-session-open-interaction'));
     expect(onOpenSessionTab).toHaveBeenLastCalledWith(
-      expect.objectContaining({ sessionId: 'interaction', mode: 'preview' }),
+      expect.objectContaining({ sessionId: 'interaction', mode: 'open' }),
     );
     expect(rendered.getByText('Completed')).toBeTruthy();
     expect(rendered.getByText('Local note')).toBeTruthy();
+    expect(
+      rendered.queryByTestId('desktop-session-note-action-interaction'),
+    ).toBeNull();
+
+    const noteAction = rendered.getByTestId(
+      'session-base-action-interaction-localNote',
+    );
+    expect(noteAction.props.accessibilityState.disabled).toBe(false);
+    noteAction.props.onPress();
+    expect(onEditSessionNote).toHaveBeenCalledWith({
+      sessionId: 'interaction',
+      title: 'Interaction session',
+    });
+
+    const watchlistAction = rendered.getByTestId(
+      'session-base-action-interaction-localWatchlist',
+    );
+    expect(watchlistAction.props.accessibilityState.disabled).toBe(false);
+    watchlistAction.props.onPress();
+    expect(onToggleSessionWatchlist).toHaveBeenCalledWith({
+      sessionId: 'interaction',
+      watched: false,
+    });
 
     const actionRow = rendered.getByTestId(
       'desktop-session-actions-row-interaction',
     );
-    const button = rendered.getByTestId('desktop-session-preview-interaction');
+    const button = rendered.getByTestId('desktop-session-open-interaction');
     expect(actionRow.props.style.alignItems).toBe('center');
     expect(actionRow.findAll(node => node === button).length).toBe(1);
     now.mockRestore();

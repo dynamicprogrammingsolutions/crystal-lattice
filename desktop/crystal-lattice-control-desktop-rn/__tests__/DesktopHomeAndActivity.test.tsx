@@ -87,4 +87,43 @@ describe('desktop Home and activity rail', () => {
     expect(screen.getAllByText('In progress').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Remember this').length).toBeGreaterThan(0);
   });
+
+  it('offers Open instead of Preview when the session already has a tab', () => {
+    const collections = deriveHomeSessionCollections({
+      connections: [connection],
+      sessionsCache: {
+        connection: { sessions: [summary] },
+      },
+      watchlist: [],
+      notes: {},
+      recentSessionsWindow: '3d',
+    });
+    const onOpenSession = jest.fn();
+    render(
+      <DesktopHomeView
+        collections={collections}
+        statuses={{}}
+        doubleClickAction="open"
+        getSessionTabKind={() => 'preview'}
+        onOpenSession={onOpenSession}
+        onToggleWatch={() => {}}
+        onEditNote={() => {}}
+        onMoveWatchlistItem={() => {}}
+      />,
+    );
+
+    expect(
+      screen.getByTestId('desktop-session-open-connection-session'),
+    ).toBeTruthy();
+    expect(
+      screen.queryByTestId('desktop-session-preview-connection-session'),
+    ).toBeNull();
+    fireEvent.press(
+      screen.getByTestId('desktop-session-open-connection-session'),
+    );
+    expect(onOpenSession).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session' }),
+      'open',
+    );
+  });
 });

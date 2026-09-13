@@ -408,6 +408,96 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     XCTAssertEqual(app.sheets.count, 0)
   }
 
+  func testLocalWatchlistAndNoteActionsAppearInSessionsAndChat() throws {
+    var app = launchHarness()
+    var harnessWindow = app.windows["SessionFiltersPopoverHarnessWindow"]
+    XCTAssertTrue(
+      harnessWindow.waitForExistence(timeout: 20),
+      app.debugDescription
+    )
+
+    var actionsButton = element(app, "session-actions-menu-pinned-done")
+    XCTAssertTrue(actionsButton.waitForExistence(timeout: 10))
+    actionsButton.click()
+    var actionsPopover = harnessWindow.popovers.firstMatch
+    XCTAssertTrue(actionsPopover.waitForExistence(timeout: 10))
+    var watchlistAction = element(
+      actionsPopover,
+      "actions-menu-action-localWatchlist"
+    )
+    XCTAssertTrue(watchlistAction.waitForExistence(timeout: 10))
+    waitForLabel(watchlistAction, "Add to Watchlist")
+    watchlistAction.click()
+    waitForLabel(
+      element(app, "session-filters-watchlist-marker"),
+      "Sessions Watchlist watched",
+      timeout: 10
+    )
+
+    actionsButton.click()
+    actionsPopover = harnessWindow.popovers.firstMatch
+    XCTAssertTrue(actionsPopover.waitForExistence(timeout: 10))
+    watchlistAction = element(
+      actionsPopover,
+      "actions-menu-action-localWatchlist"
+    )
+    waitForLabel(watchlistAction, "Remove from Watchlist")
+    let noteAction = element(actionsPopover, "actions-menu-action-localNote")
+    XCTAssertTrue(noteAction.waitForExistence(timeout: 10))
+    waitForLabel(noteAction, "Add local note")
+    noteAction.click()
+    waitForLabel(
+      element(app, "session-filters-note-marker"),
+      "Sessions local note edits 1",
+      timeout: 10
+    )
+    XCTAssertFalse(
+      element(app, "desktop-session-note-action-pinned-done").exists
+    )
+
+    app.terminate()
+    app = XCUIApplication()
+    app.launchEnvironment["CLC_ENABLE_RICH_SESSION_UI_HARNESS"] = "1"
+    app.launch()
+    harnessWindow = app.windows["DesktopRichSessionUiHarnessWindow"]
+    XCTAssertTrue(
+      harnessWindow.waitForExistence(timeout: 20),
+      app.debugDescription
+    )
+
+    actionsButton = element(app, "session-actions-menu")
+    XCTAssertTrue(actionsButton.waitForExistence(timeout: 10))
+    actionsButton.click()
+    actionsPopover = harnessWindow.popovers.firstMatch
+    XCTAssertTrue(actionsPopover.waitForExistence(timeout: 10))
+    watchlistAction = element(
+      actionsPopover,
+      "actions-menu-action-localWatchlist"
+    )
+    waitForLabel(watchlistAction, "Add to Watchlist")
+    watchlistAction.click()
+    waitForLabel(
+      element(app, "desktop-rich-session-ui-watchlist-marker"),
+      "Desktop Watchlist watched",
+      timeout: 10
+    )
+
+    actionsButton.click()
+    actionsPopover = harnessWindow.popovers.firstMatch
+    XCTAssertTrue(actionsPopover.waitForExistence(timeout: 10))
+    let chatNoteAction = element(
+      actionsPopover,
+      "actions-menu-action-localNote"
+    )
+    XCTAssertTrue(chatNoteAction.waitForExistence(timeout: 10))
+    chatNoteAction.click()
+    waitForLabel(
+      element(app, "desktop-rich-session-ui-note-marker"),
+      "Desktop local note edits 1",
+      timeout: 10
+    )
+  }
+
   func testSessionsHeaderActionsUseNativePopoverAndSettingsWindow() throws {
     let app = launchHarness()
     let harnessWindow = app.windows["SessionFiltersPopoverHarnessWindow"]

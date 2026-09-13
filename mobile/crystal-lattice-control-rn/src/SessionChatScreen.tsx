@@ -88,6 +88,9 @@ import {
   SessionListRichActionList,
   SessionNotificationsHost,
   SESSION_ACTIONS,
+  LOCAL_WATCHLIST_SESSION_ACTION_KEY,
+  buildLocalSessionActionDefinitions,
+  isLocalSessionActionKey,
   type ActionDefinition,
   type SessionActionDefinition,
   type SessionActionKey,
@@ -170,6 +173,7 @@ import {
   MOBILE_TRANSCRIPT_RANGE_PAGE_SIZE,
 } from "./transcriptRange";
 import { getMobileHeaderMaxPinnedActions } from "./responsiveHeaderActions";
+import { useHomeWorkspace } from "./HomeWorkspaceContext";
 
 interface SessionChatScreenProps {
   backend: AgentBackend | null;
@@ -848,6 +852,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
+  const {
+    hydrated: homeWorkspaceHydrated,
+    isWatched,
+    addToWatchlist,
+    removeFromWatchlist,
+  } = useHomeWorkspace();
+  const sessionWatched =
+    connectionId != null && isWatched(connectionId, sessionId);
   const { width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const maxHeaderPinnedActions = getMobileHeaderMaxPinnedActions(windowWidth);
@@ -930,6 +942,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   const {
+    loaded: sessionActionsLoaded,
     pinned: pinnedSessionActions,
     setPinned: setPinnedSessionActions,
     hasStoredPreference: hasStoredSessionActionPreference,
@@ -940,6 +953,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   const {
+    loaded: composerActionsLoaded,
     pinned: pinnedComposerActions,
     setPinned: setPinnedComposerActions,
     hasStoredPreference: hasStoredComposerActionPreference,
@@ -1784,6 +1798,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
   useEffect(() => {
     if (
+      !composerActionsLoaded ||
       hasStoredComposerActionPreference ||
       defaultPinnedComposerUiActionKeys.length === 0
     ) {
@@ -1797,6 +1812,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     ]);
   }, [
     defaultPinnedComposerUiActionKeys,
+    composerActionsLoaded,
     hasStoredComposerActionPreference,
     setPinnedComposerActions,
   ]);
@@ -1810,6 +1826,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
   useEffect(() => {
     if (
+      !sessionActionsLoaded ||
       hasStoredSessionActionPreference ||
       defaultPinnedHeaderSessionActionKeys.length === 0
     ) {
@@ -1823,6 +1840,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     ]);
   }, [
     defaultPinnedHeaderSessionActionKeys,
+    sessionActionsLoaded,
     hasStoredSessionActionPreference,
     setPinnedSessionActions,
   ]);
@@ -1966,8 +1984,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [currentSessionSummary, headerSessionActions, sessionId]
   );
   const sessionActionDefs = useMemo(
-    () => [...MOBILE_REQUEST_SESSION_ACTIONS, ...pluginSessionActionDefs],
-    [pluginSessionActionDefs]
+    () => [
+      ...MOBILE_REQUEST_SESSION_ACTIONS,
+      ...buildLocalSessionActionDefinitions({
+        watched: sessionWatched,
+        includeNote: false,
+      }),
+      ...pluginSessionActionDefs,
+    ],
+    [pluginSessionActionDefs, sessionWatched]
   );
 
   const pluginMessageActionDefs = useMemo(
@@ -3968,6 +3993,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   const handleSessionAction = async (action: SessionActionKey) => {
+    if (action === LOCAL_WATCHLIST_SESSION_ACTION_KEY && connectionId) {
+      if (sessionWatched) {
+        removeFromWatchlist(connectionId, sessionId);
+      } else {
+        addToWatchlist(connectionId, sessionId);
+      }
+      return;
+    }
     if (action === "resend") {
       await handleResend();
       return;
@@ -4841,14 +4874,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 onAction={handleSessionAction}
                 onOpenMenu={refreshSessionContextInBackground}
                 menuButtonTestID="session-actions-menu"
-                isActionDisabled={(action) =>
-                  pluginActionInProgress ||
-                  (action === "resend"
-                    ? isComposerActionDisabled("resend")
-                    : action === "cancel"
-                    ? isComposerActionDisabled("cancel")
-                    : resumeRecoveryInProgress && action === "reload")
-                }
+                isActionDisabled={(action) => {
+                  if (isLocalSessionActionKey(String(action))) {
+                    return !homeWorkspaceHydrated || connectionId == null;
+                  }
+                  return (
+                    pluginActionInProgress ||
+                    (action === "resend"
+                      ? isComposerActionDisabled("resend")
+                      : action === "cancel"
+                      ? isComposerActionDisabled("cancel")
+                      : resumeRecoveryInProgress && action === "reload")
+                  );
+                }}
                 extraActions={sessionActionDefs}
                 renderPinnedAction={renderPinnedHeaderSessionAction}
                 isActive={isActive}
