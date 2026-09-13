@@ -433,9 +433,9 @@ support can be released before the approved current-content commit is pushed.
       Authorized public verification remains later.
 - [x] Add independent PowerShell and expanded native archive/install smokes.
 - [x] Run local focused and fast verification.
-- [ ] Push only when authorized and obtain six-target native compatibility
+- [x] Push only when authorized and obtain six-target native compatibility
       evidence.
-- [ ] Stop at the compatibility gate if any required target or direct user path
+- [x] Stop at the compatibility gate if any required target or direct user path
       is not genuinely verified.
 - [ ] Run headed competitor/local Playwright review and obtain website
       direction approval.
@@ -563,3 +563,11 @@ support can be released before the approved current-content commit is pushed.
   the `admin:org` scope needed to inspect billing. The compatibility gate is
   blocked until billing is restored and run `34755560764` can be rerun against
   the same commit.
+- 2026-09-13: After the user corrected GitHub billing, Public CI rerun
+  `34755720793` passed. Fresh native run `34756416576` passed all six targets.
+  Windows ARM64 used native `cpython-3.11-windows-aarch64-none`, built static
+  ARM64 OpenSSL through vcpkg, installed MCP's cryptography dependency, passed
+  packaged-Python identity validation and direct archive boot, and passed the
+  native PowerShell installer with PowerShell/`cmd.exe` command discovery and
+  isolated plugin installation. The compatibility gate is complete; website
+  direction review is the next mandatory human checkpoint.
