@@ -31,6 +31,7 @@ const configuration: EmbeddedRuntimePublicConfiguration = {
       enabled: true,
       baseUrl: "http://127.0.0.1:3000/v1",
       model: "qwen3.5:0.8b",
+      tlsCaBundle: "",
       hasApiKey: true,
     },
     openai: {
@@ -41,6 +42,7 @@ const configuration: EmbeddedRuntimePublicConfiguration = {
       enabled: false,
       baseUrl: "https://api.openai.com/v1",
       model: "gpt-5.6-luna",
+      authMode: "api",
       hasApiKey: false,
     },
     openrouter: {
@@ -122,6 +124,7 @@ test("tests a candidate before saving and persists the selected default", async 
     screen.getByTestId("embedded-provider-openai-api-key"),
     "temporary-key"
   );
+  fireEvent.press(screen.getByTestId("embedded-provider-openai-auth-auto"));
   fireEvent.press(screen.getByTestId("embedded-provider-openai-default"));
   fireEvent.press(screen.getByTestId("embedded-provider-openai-test"));
 
@@ -134,6 +137,7 @@ test("tests a candidate before saving and persists the selected default", async 
           openai: expect.objectContaining({
             enabled: true,
             apiKey: "temporary-key",
+            authMode: "auto",
           }),
         }),
       })

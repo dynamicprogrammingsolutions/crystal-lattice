@@ -36,6 +36,8 @@ export interface EmbeddedProviderProfileUpdate {
   enabled?: boolean;
   baseUrl?: string;
   model?: string;
+  authMode?: "api" | "auto" | "chatgpt";
+  tlsCaBundle?: string;
   apiKey?: string;
   clearApiKey?: boolean;
 }
@@ -48,6 +50,8 @@ export interface EmbeddedProviderProfile {
   enabled: boolean;
   baseUrl: string;
   model: string;
+  authMode?: "api" | "auto" | "chatgpt";
+  tlsCaBundle?: string;
   hasApiKey: boolean;
 }
 

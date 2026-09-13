@@ -7,6 +7,8 @@ from pathlib import Path
 import sys
 import time
 
+import pytest
+
 
 RUNTIME_MODULE = (
     Path(__file__).resolve().parents[1]
@@ -61,6 +63,7 @@ REFERENCE_PROVIDER_PLUGIN = (
 APPLICATION_PLUGIN_SOURCES = tuple(
     Path(__file__).resolve().parents[3] / "plugins" / project / "src"
     for project in (
+        "chatgpt-auth-app",
         "generate-title-app",
         "session-actions-app",
         "session-archive-app",
@@ -362,6 +365,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(
     try:
         assert runtime.application.list_agents() == [
             "anthropic-claude",
+            "local",
             "openai-codex",
             "openrouter-claude",
             "reviewer-claude",
@@ -371,6 +375,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         assert {
             plugin["id"] for plugin in runtime.application.list_application_plugins()
         } == {
+            "chatgpt_auth",
             "generate_title",
             "session_actions",
             "session_archive",
@@ -405,6 +410,64 @@ def test_provider_import_smoke_uses_requests_transports(tmp_path: Path) -> None:
     }
 
 
+def test_local_session_remains_usable_after_provider_enable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_runtime_module()
+    root = tmp_path / "runtime"
+    smoke_runtime = module.MobileRuntime(str(root))
+    session_id = smoke_runtime.create_session(agent_id="local").session_id
+    smoke_runtime.application.close()
+
+    from reference_openai_compatible_provider.provider import (
+        OpenAICompatibleProvider,
+    )
+
+    monkeypatch.setattr(
+        OpenAICompatibleProvider,
+        "get_models",
+        lambda self, config: [],
+    )
+    configured_runtime = module.MobileRuntime(
+        str(root),
+        {
+            "version": 2,
+            "default_agent": "reviewer-claude",
+            "providers": {
+                "reviewer": {
+                    "enabled": True,
+                    "api_key": "reviewer-key",
+                    "base_url": "https://reviewer.test/v1",
+                    "model": "reviewer-model",
+                }
+            },
+        },
+    )
+    try:
+        assert "local" in configured_runtime.application.list_agents()
+        loaded = configured_runtime.application.load_session(session_id)
+        assert loaded is not None
+        updated = configured_runtime.append_message(
+            session_id,
+            {
+                "role": "user",
+                "content": "continue after provider enable",
+            },
+        )
+        assert updated.messages[-1].content == "continue after provider enable"
+        reloaded = configured_runtime.application.load_session(session_id)
+        assert reloaded is not None
+        assert reloaded[2].messages[-1].content == (
+            "continue after provider enable"
+        )
+        assert configured_runtime.create_session(agent_id="local").metadata[
+            "agent_id"
+        ] == "local"
+    finally:
+        configured_runtime.application.close()
+
+
 def test_application_plugins_actions_snapshots_and_settings_routes(
     tmp_path: Path,
 ) -> None:
@@ -418,6 +481,7 @@ def test_application_plugins_actions_snapshots_and_settings_routes(
             if isinstance(action, dict)
         }
         assert ("session_actions", "copy_session") in action_pairs
+        assert ("chatgpt_auth", "login_start") in action_pairs
         assert ("generate_title", "generate_title_for_session") in action_pairs
         assert ("session_title", "set_session_title") in action_pairs
         assert ("session_archive", "toggle_session_archived") in action_pairs

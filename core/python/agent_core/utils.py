@@ -395,8 +395,6 @@ def configure_logging(
             # Fall back to stdout on any file error
             log_stream = sys.stdout
 
-    print("Configuring logging")
-
     # Configure structlog (preserving defaults where possible)
     structlog.configure(
         processors=processors,

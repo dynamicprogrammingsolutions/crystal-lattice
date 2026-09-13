@@ -73,6 +73,12 @@ function updatesFromDrafts(
             profileId === forceEnabledProfile ? true : draft.enabled,
           baseUrl: draft.baseUrl.trim(),
           model: draft.model.trim(),
+          ...(profileId === "openai"
+            ? { authMode: draft.authMode ?? "api" }
+            : {}),
+          ...(profileId === "reviewer"
+            ? { tlsCaBundle: draft.tlsCaBundle?.trim() ?? "" }
+            : {}),
           ...(draft.apiKey ? { apiKey: draft.apiKey } : {}),
           ...(draft.clearApiKey ? { clearApiKey: true } : {}),
         },
@@ -284,6 +290,60 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                   autoCorrect={false}
                 />
 
+                {profileId === "openai" ? (
+                  <>
+                    <Text style={styles.label}>Authentication mode</Text>
+                    <View style={styles.choiceRow}>
+                      {(["api", "auto", "chatgpt"] as const).map(
+                        (authMode) => {
+                          const selected =
+                            (draft.authMode ?? "api") === authMode;
+                          return (
+                            <TouchableOpacity
+                              key={authMode}
+                              testID={`embedded-provider-openai-auth-${authMode}`}
+                              style={[
+                                styles.choiceButton,
+                                selected && styles.choiceButtonSelected,
+                              ]}
+                              onPress={() =>
+                                updateDraft(profileId, { authMode })
+                              }
+                            >
+                              <Text
+                                style={[
+                                  styles.choiceButtonText,
+                                  selected && styles.choiceButtonTextSelected,
+                                ]}
+                              >
+                                {authMode}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        }
+                      )}
+                    </View>
+                  </>
+                ) : null}
+
+                {profileId === "reviewer" ? (
+                  <>
+                    <Text style={styles.label}>TLS CA bundle path</Text>
+                    <TextInput
+                      testID="embedded-provider-reviewer-tls-ca-bundle"
+                      style={styles.input}
+                      value={draft.tlsCaBundle ?? ""}
+                      onChangeText={(tlsCaBundle) =>
+                        updateDraft(profileId, { tlsCaBundle })
+                      }
+                      placeholder="Optional custom CA certificate"
+                      placeholderTextColor={theme.textSecondary}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </>
+                ) : null}
+
                 <Text style={styles.label}>API key</Text>
                 <TextInput
                   testID={`embedded-provider-${profileId}-api-key`}
@@ -437,6 +497,29 @@ const createStyles = (theme: Theme) =>
       alignItems: "center",
       gap: 10,
       marginTop: 10,
+    },
+    choiceRow: {
+      flexDirection: "row",
+      gap: 8,
+    },
+    choiceButton: {
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+    },
+    choiceButtonSelected: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    choiceButtonText: {
+      color: theme.text,
+      fontWeight: "600",
+    },
+    choiceButtonTextSelected: {
+      color: theme.textOnPrimary,
     },
     secondaryButton: {
       borderRadius: 8,

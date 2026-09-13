@@ -33,6 +33,7 @@ final class CrystalLatticePythonRuntime: NSObject {
       "baseUrl": "http://127.0.0.1:3000/v1",
       "label": "OpenAI-compatible reviewer",
       "model": "qwen3.5:0.8b",
+      "tlsCaBundle": "",
       "toolFamily": "claude-like",
     ],
     "openai": [
@@ -40,6 +41,7 @@ final class CrystalLatticePythonRuntime: NSObject {
       "baseUrl": "https://api.openai.com/v1",
       "label": "OpenAI Responses",
       "model": "gpt-5.6-luna",
+      "authMode": "api",
       "toolFamily": "codex-like",
     ],
     "openrouter": [
@@ -363,11 +365,18 @@ final class CrystalLatticePythonRuntime: NSObject {
       guard let definition = providerDefinitions[profileId] else {
         continue
       }
-      providers[profileId] = [
+      var profile: [String: Any] = [
         "enabled": profileId == "reviewer",
         "baseUrl": definition["baseUrl"] ?? "",
         "model": definition["model"] ?? "",
       ]
+      if let authMode = definition["authMode"] {
+        profile["authMode"] = authMode
+      }
+      if let tlsCaBundle = definition["tlsCaBundle"] {
+        profile["tlsCaBundle"] = tlsCaBundle
+      }
+      providers[profileId] = profile
     }
     return [
       "version": 2,
@@ -393,7 +402,19 @@ final class CrystalLatticePythonRuntime: NSObject {
       let model =
         (rawProfile["model"] as? String)?
           .trimmingCharacters(in: .whitespacesAndNewlines)
-      providers[profileId] = [
+      let requestedAuthMode =
+        (rawProfile["authMode"] as? String)?
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+          .lowercased()
+      let authMode = ["api", "auto", "chatgpt"].contains(
+        requestedAuthMode ?? ""
+      )
+        ? requestedAuthMode!
+        : defaultProfile["authMode"] as? String ?? "api"
+      let tlsCaBundle =
+        (rawProfile["tlsCaBundle"] as? String)?
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+      var profile: [String: Any] = [
         "enabled": rawProfile["enabled"] as? Bool
           ?? defaultProfile["enabled"] as? Bool
           ?? false,
@@ -404,6 +425,15 @@ final class CrystalLatticePythonRuntime: NSObject {
           ? model!
           : defaultProfile["model"] as? String ?? "",
       ]
+      if profileId == "openai" {
+        profile["authMode"] = authMode
+      }
+      if profileId == "reviewer" {
+        profile["tlsCaBundle"] = tlsCaBundle
+          ?? defaultProfile["tlsCaBundle"] as? String
+          ?? ""
+      }
+      providers[profileId] = profile
     }
     let requestedDefault =
       rawSettings["defaultAgent"] as? String ?? "reviewer-claude"
@@ -494,6 +524,24 @@ final class CrystalLatticePythonRuntime: NSObject {
             throw RuntimeError.invalidConfiguration
           }
           profile["model"] = normalized
+        }
+        if profileId == "openai",
+          let authMode = rawProfile["authMode"] as? String
+        {
+          let normalized = authMode.trimmingCharacters(
+            in: .whitespacesAndNewlines
+          ).lowercased()
+          guard ["api", "auto", "chatgpt"].contains(normalized) else {
+            throw RuntimeError.invalidConfiguration
+          }
+          profile["authMode"] = normalized
+        }
+        if profileId == "reviewer",
+          let tlsCaBundle = rawProfile["tlsCaBundle"] as? String
+        {
+          profile["tlsCaBundle"] = tlsCaBundle.trimmingCharacters(
+            in: .whitespacesAndNewlines
+          )
         }
         providers[profileId] = profile
       }
@@ -634,12 +682,19 @@ final class CrystalLatticePythonRuntime: NSObject {
       } else {
         key = overrides[profileId] as? String ?? apiKey(profileId: profileId)
       }
-      providers[profileId] = [
+      var profile: [String: Any] = [
         "enabled": stored["enabled"] as? Bool ?? false,
         "base_url": stored["baseUrl"] as? String ?? "",
         "model": stored["model"] as? String ?? "",
         "api_key": key,
       ]
+      if profileId == "openai" {
+        profile["auth_mode"] = stored["authMode"] as? String ?? "api"
+      }
+      if profileId == "reviewer" {
+        profile["tls_ca_bundle"] = stored["tlsCaBundle"] as? String ?? ""
+      }
+      providers[profileId] = profile
     }
     return [
       "version": 2,
@@ -669,7 +724,7 @@ final class CrystalLatticePythonRuntime: NSObject {
     for profileId in providerOrder {
       let stored = storedProfiles[profileId] as? [String: Any] ?? [:]
       let definition = providerDefinitions[profileId] ?? [:]
-      providers[profileId] = [
+      var profile: [String: Any] = [
         "id": profileId,
         "label": definition["label"] ?? profileId,
         "agentId": definition["agentId"] ?? "",
@@ -679,6 +734,13 @@ final class CrystalLatticePythonRuntime: NSObject {
         "model": stored["model"] as? String ?? "",
         "hasApiKey": !apiKey(profileId: profileId).isEmpty,
       ]
+      if profileId == "openai" {
+        profile["authMode"] = stored["authMode"] as? String ?? "api"
+      }
+      if profileId == "reviewer" {
+        profile["tlsCaBundle"] = stored["tlsCaBundle"] as? String ?? ""
+      }
+      providers[profileId] = profile
     }
     let reviewer = providers["reviewer"] as? [String: Any] ?? [:]
     return [

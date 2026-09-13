@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 from urllib.error import HTTPError, URLError
@@ -31,8 +32,12 @@ def default_snapshot_path() -> Path:
 
 @lru_cache(maxsize=1)
 def load_manual_chatgpt_models(path: str | None = None) -> Dict[str, Any]:
-    manual_path = Path(path) if path else default_manual_models_path()
-    with manual_path.open("r", encoding="utf-8") as handle:
+    resource = (
+        Path(path)
+        if path
+        else resources.files(__package__).joinpath(_DEFAULT_MANUAL_MODELS_RELATIVE)
+    )
+    with resource.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     if not isinstance(payload, dict):
         raise RuntimeError("invalid manual ChatGPT models payload")
@@ -44,8 +49,12 @@ def load_manual_chatgpt_models(path: str | None = None) -> Dict[str, Any]:
 
 @lru_cache(maxsize=1)
 def load_codex_models_snapshot(path: str | None = None) -> Dict[str, Any]:
-    snapshot_path = Path(path) if path else default_snapshot_path()
-    with snapshot_path.open("r", encoding="utf-8") as handle:
+    resource = (
+        Path(path)
+        if path
+        else resources.files(__package__).joinpath(_DEFAULT_SNAPSHOT_RELATIVE)
+    )
+    with resource.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     if not isinstance(payload, dict):
         raise RuntimeError("invalid Codex models snapshot payload")

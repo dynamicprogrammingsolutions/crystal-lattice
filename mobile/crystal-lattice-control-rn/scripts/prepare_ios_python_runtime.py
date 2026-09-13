@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "10"
+RUNTIME_LAYOUT_VERSION = "11"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -44,6 +44,7 @@ PURE_DEPENDENCIES = (
     "urllib3==2.2.1",
 )
 APP_PLUGIN_PACKAGES = (
+    ("chatgpt-auth-app", "chatgpt_auth_app"),
     ("generate-title-app", "generate_title_app"),
     ("session-actions-app", "session_actions_app"),
     ("session-archive-app", "session_archive_app"),

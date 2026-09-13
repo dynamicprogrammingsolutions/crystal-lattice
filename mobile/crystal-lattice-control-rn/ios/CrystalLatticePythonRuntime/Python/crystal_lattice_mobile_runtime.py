@@ -57,11 +57,13 @@ PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
         "enabled": True,
         "base_url": "http://127.0.0.1:3000/v1",
         "model": "qwen3.5:0.8b",
+        "tls_ca_bundle": "",
     },
     "openai": {
         "enabled": False,
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-5.6-luna",
+        "auth_mode": "api",
     },
     "openrouter": {
         "enabled": False,
@@ -96,6 +98,7 @@ CODEX_TOOL_PLUGINS = [
     "embedded_codex_tools.apply_patch_tool.CodexLikeApplyPatchTool",
 ]
 APPLICATION_PLUGINS = [
+    "chatgpt_auth_app.ChatGPTAuthAppPlugin",
     "generate_title_app.GenerateTitleAppPlugin",
     "session_actions_app.SessionActionsAppPlugin",
     "session_archive_app.SessionArchiveAppPlugin",
@@ -129,6 +132,16 @@ def _normalized_profile(
             or defaults["base_url"]
         ).strip(),
         "model": str(source.get("model") or defaults["model"]).strip(),
+        "auth_mode": str(
+            source.get("auth_mode")
+            or defaults.get("auth_mode")
+            or "api"
+        ).strip().lower(),
+        "tls_ca_bundle": str(
+            source.get("tls_ca_bundle")
+            or defaults.get("tls_ca_bundle")
+            or ""
+        ).strip(),
         "api_key": str(source.get("api_key") or "").strip(),
     }
 
@@ -172,13 +185,16 @@ def _normalized_runtime_configuration(
 
 
 def _profile_is_ready(profile: dict[str, Any]) -> bool:
-    return (
-        profile.get("enabled") is True
-        and all(
-            isinstance(profile.get(key), str) and bool(profile[key])
-            for key in ("api_key", "base_url", "model")
-        )
-    )
+    if profile.get("enabled") is not True:
+        return False
+    if not all(
+        isinstance(profile.get(key), str) and bool(profile[key])
+        for key in ("base_url", "model")
+    ):
+        return False
+    if profile.get("auth_mode") in {"auto", "chatgpt"}:
+        return True
+    return isinstance(profile.get("api_key"), str) and bool(profile["api_key"])
 
 
 def _runtime_provider_mode(configuration: dict[str, Any]) -> str:
@@ -210,6 +226,13 @@ def _config_payload(
 ) -> dict[str, Any]:
     configuration = _normalized_runtime_configuration(runtime_configuration)
     profiles = configuration["providers"]
+    application_config = dict(APPLICATION_CONFIG)
+    if workspace_root is not None:
+        auth_root = workspace_root.parent / "config" / "auth"
+        application_config["chatgpt_auth"] = {
+            "credentials_path": str(auth_root / "chatgpt-auth.json"),
+            "rate_limits_path": str(auth_root / "chatgpt-rate-limits.json"),
+        }
     ready_profiles = [
         profile_id
         for profile_id in PROFILE_ORDER
@@ -234,7 +257,7 @@ def _config_payload(
                 *APPLICATION_PLUGINS,
             ],
             "agents": {"local": {"provider": "embedded"}},
-            "application": APPLICATION_CONFIG,
+            "application": application_config,
         }
     if workspace_root is None:
         raise ValueError("workspace_root is required for configured providers")
@@ -281,6 +304,10 @@ def _config_payload(
                 "openai_responses_plugins.openai_responses_usage_extension."
                 "OpenAIResponsesUsageExtension"
             ),
+            (
+                "openai_responses_plugins.openai_responses_chatgpt_auth_feature."
+                "OpenAIResponsesChatGPTAuthFeature"
+            ),
         ],
         "openrouter": [
             "openrouter_plugins.openrouter_provider.OpenRouterProvider",
@@ -304,9 +331,17 @@ def _config_payload(
             "anthropic_plugins.usage_extension.AnthropicUsageExtension",
         ],
     }
-    providers: dict[str, dict[str, Any]] = {}
-    agents: dict[str, dict[str, Any]] = {}
-    plugins: list[str] = list(APPLICATION_PLUGINS)
+    providers: dict[str, dict[str, Any]] = {
+        "embedded": {
+            "provider": "embedded_smoke_provider",
+            "model": "embedded-smoke",
+        }
+    }
+    agents: dict[str, dict[str, Any]] = {"local": {"provider": "embedded"}}
+    plugins: list[str] = [
+        "crystal_lattice_mobile_runtime.EmbeddedSmokeProvider",
+        *APPLICATION_PLUGINS,
+    ]
     for profile_id in ordered_profiles:
         profile = profiles[profile_id]
         provider_config: dict[str, Any] = {
@@ -319,13 +354,21 @@ def _config_payload(
         }
         if profile_id == "reviewer":
             provider_config["provider"] = "reference_openai_compatible"
+            if profile["tls_ca_bundle"]:
+                provider_config["tls_ca_bundle"] = profile["tls_ca_bundle"]
             tool_plugins = CLAUDE_TOOL_PLUGINS
         elif profile_id == "openai":
             provider_config.update(
                 {
                     "provider": "openai_responses",
                     "provider_transport": "requests",
-                    "auth_mode": "api",
+                    "auth_mode": profile["auth_mode"],
+                    "chatgpt_credentials_path": application_config[
+                        "chatgpt_auth"
+                    ]["credentials_path"],
+                    "chatgpt_rate_limits_path": application_config[
+                        "chatgpt_auth"
+                    ]["rate_limits_path"],
                     "reasoning_effort": "low",
                     "reasoning_summary": "concise",
                 }
@@ -367,7 +410,7 @@ def _config_payload(
         "providers": providers,
         "plugins": plugins,
         "agents": agents,
-        "application": APPLICATION_CONFIG,
+        "application": application_config,
     }
 
 
@@ -1397,6 +1440,8 @@ def _handle_request(
             "model": profile["model"],
             "timeout": 15,
         }
+        if profile.get("tls_ca_bundle"):
+            provider_config["tls_ca_bundle"] = profile["tls_ca_bundle"]
         if requested_profile_id == "reviewer":
             from reference_openai_compatible_provider.provider import (
                 OpenAICompatibleProvider,
@@ -1411,7 +1456,7 @@ def _handle_request(
             provider_config.update(
                 {
                     "provider_transport": "requests",
-                    "auth_mode": "api",
+                    "auth_mode": profile.get("auth_mode") or "api",
                 }
             )
             provider = OpenAIResponsesProvider()

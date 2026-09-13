@@ -928,11 +928,11 @@ configuration data so it can be updated without changing proxy code.
   embedded runtime and add the manual Detox gate.
 - [ ] Add the automated real-API Detox matrix and local-session transition
   scenario.
-- [ ] Add JSON-configured model/auth/cost/cooldown behavior to
+- [x] Add JSON-configured model/auth/cost/cooldown behavior to
   `tools/openai-proxy` with focused proxy tests.
 - [ ] Add generic-provider custom-CA support and stage the reviewer public
   certificate.
-- [ ] Add reviewer Docker Compose/configuration/runbook assets without
+- [x] Add reviewer Docker Compose/configuration/runbook assets without
   secrets.
 - [ ] Present and obtain exact-command confirmation for AWS ingress and remote
   deployment.
@@ -986,3 +986,28 @@ configuration data so it can be updated without changing proxy code.
   and required every operational value to remain configurable. Local
   implementation begins before the mandatory exact-command confirmation for
   AWS ingress and Ireland deployment.
+- 2026-09-13: Added JSON-configured proxy mode while retaining the positional
+  CLI. Configuration owns listener/routing, caller and upstream environment
+  names, model/service-tier allowlists, status codes, delay/logging, pricing,
+  long-context rules, budget, cooldown, state path, and request serialization.
+  Thirteen Node tests pass, including authentication, upstream-key
+  replacement, model filtering, both usage shapes, fragmented SSE usage,
+  long-context cost, atomic state, threshold blocking, and restart recovery.
+- 2026-09-13: Added generic Docker/Compose/TLS deployment assets for Ireland
+  with no secrets committed. Public port, hostname, internal port, certificate
+  paths, config path, data path, upstream, keys, model, prices, and limiter
+  behavior remain deployment configuration.
+- 2026-09-13: Replaced default Responses package-data filesystem access with
+  ZIP-compatible resource loading. Forty-four existing model/pricing tests and
+  the 428-test default Responses suite pass while the provider imports from
+  `crystal_lattice_app.zip`.
+- 2026-09-13: Added bundle-test orchestration and root commands, removed an
+  unsolicited core stdout logging line that broke an existing JSON CLI test,
+  and retained one unrelated failing attachment integration expectation that
+  also fails in ordinary source mode for later semantic resolution.
+- 2026-09-13: Bundled `chatgpt-auth-app`, configured its credential/rate-limit
+  paths with the OpenAI Responses auth feature, exposed configurable OpenAI
+  `auth_mode`, retained the `local` provider/agent after profile enable, and
+  added generic reviewer `tls_ca_bundle` plumbing. Six embedded runtime tests,
+  six fast ChatGPT action tests, focused settings tests, TypeScript, and
+  custom-CA model discovery pass.

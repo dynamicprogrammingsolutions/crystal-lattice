@@ -167,6 +167,19 @@ def _rate_limit_policy_from_config(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _tls_verify_from_config(config: dict[str, Any]) -> str | bool | None:
+    ca_bundle = config.get("tls_ca_bundle")
+    if isinstance(ca_bundle, str) and ca_bundle.strip():
+        return ca_bundle.strip()
+    verify = config.get("tls_verify")
+    return verify if isinstance(verify, bool) else None
+
+
+def _tls_request_kwargs(config: dict[str, Any]) -> dict[str, Any]:
+    verify = _tls_verify_from_config(config)
+    return {"verify": verify} if verify is not None else {}
+
+
 def _wait_for_request_slot(
     *,
     scope_key: str,
@@ -732,6 +745,17 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             "model": {"type": "string", "required": True},
             "api_key": {"type": "string", "required": False},
             "timeout": {"type": "number", "default": 60},
+            "tls_verify": {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": "Verify HTTPS certificates for provider requests.",
+            },
+            "tls_ca_bundle": {
+                "type": "string",
+                "required": False,
+                "description": "Optional CA bundle path used to verify HTTPS provider certificates.",
+            },
             "tool_choice": {
                 "type": "string",
                 "required": False,
@@ -780,7 +804,12 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
         try:
             resp = _request_with_rate_limit_retry(
-                request_fn=lambda: requests.get(url, headers=headers, timeout=timeout),
+                request_fn=lambda: requests.get(
+                    url,
+                    headers=headers,
+                    timeout=timeout,
+                    **_tls_request_kwargs(config),
+                ),
                 rate_limit_policy=rate_limit_policy,
                 action="get_models",
             )
@@ -910,6 +939,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             "payload": {"model": cfg.get("model")},
             "headers": headers,
             "timeout": float(cfg.get("timeout", 60)),
+            "tls_verify": _tls_verify_from_config(cfg),
         }
         request["messages"] = list(native_messages)
         return list(native_messages), {
@@ -959,6 +989,11 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                         json=payload,
                         timeout=float(request.get("timeout", 60)),
                         stream=True,
+                        **(
+                            {"verify": request["tls_verify"]}
+                            if request.get("tls_verify") is not None
+                            else {}
+                        ),
                     ),
                     rate_limit_policy=rate_limit_policy,
                     action="call_api",
@@ -1075,6 +1110,11 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                             json=payload,
                             timeout=float(request.get("timeout", 60)),
                             stream=True,
+                            **(
+                                {"verify": request["tls_verify"]}
+                                if request.get("tls_verify") is not None
+                                else {}
+                            ),
                         ),
                         rate_limit_policy=rate_limit_policy,
                         action="stream_api",
