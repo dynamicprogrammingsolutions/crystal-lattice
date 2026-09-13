@@ -10,6 +10,7 @@ jest.mock('../src/windows/desktopWindowManager', () => ({
       headerSize: 'small',
       recentSessionsWindow: '1w',
       sessionDoubleClickAction: 'open',
+      sessionsFollowActiveTabEnabled: true,
     })),
     setDesktopGlobalSetting: mockSetDesktopGlobalSetting,
     closeReactWindow: jest.fn(),
@@ -35,6 +36,7 @@ test('loads native global settings and writes double-click changes through nativ
       headerSize: 'small',
       recentSessionsWindow: '1w',
       sessionDoubleClickAction: 'open',
+      sessionsFollowActiveTabEnabled: true,
     },
     'sessionDoubleClickAction',
     'preview',
@@ -45,4 +47,17 @@ test('loads native global settings and writes double-click changes through nativ
     key: 'sessionDoubleClickAction',
     value: 'preview',
   });
+
+  const followDisabled = applyDesktopGlobalSettingChange(
+    next,
+    'sessionsFollowActiveTabEnabled',
+    false,
+    mockSetDesktopGlobalSetting,
+  );
+  expect(followDisabled.sessionsFollowActiveTabEnabled).toBe(false);
+  expect(mockSetDesktopGlobalSetting).toHaveBeenCalledWith({
+    key: 'sessionsFollowActiveTabEnabled',
+    value: false,
+  });
+  expect(screen.getByText('On')).toBeTruthy();
 });

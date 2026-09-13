@@ -9,25 +9,34 @@ import React, {
   type Dispatch,
   type ReactNode,
   type SetStateAction,
-} from 'react';
+} from "react";
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface PinnedEntry {
   loaded: boolean;
   pinned: string[];
   initialPinned: string[];
   migrateFromKeys: string[];
-  preferenceSource: 'loading' | 'default' | 'stored';
+  preferenceSource: "loading" | "default" | "stored";
 }
 
 interface PinnedActionsContextValue {
   entries: Record<string, PinnedEntry>;
-  registerKey: (storageKey: string, initialPinned: string[], migrateFromKeys: string[]) => void;
-  setPinnedForKey: (storageKey: string, update: SetStateAction<string[]>) => void;
+  registerKey: (
+    storageKey: string,
+    initialPinned: string[],
+    migrateFromKeys: string[]
+  ) => void;
+  setPinnedForKey: (
+    storageKey: string,
+    update: SetStateAction<string[]>
+  ) => void;
 }
 
-const PinnedActionsContext = createContext<PinnedActionsContextValue | undefined>(undefined);
+const PinnedActionsContext = createContext<
+  PinnedActionsContextValue | undefined
+>(undefined);
 
 function parseStringArray(raw: string | null): string[] | null {
   if (!raw) return null;
@@ -36,7 +45,7 @@ function parseStringArray(raw: string | null): string[] | null {
     if (!Array.isArray(parsed)) {
       return null;
     }
-    return parsed.filter((item: any) => typeof item === 'string');
+    return parsed.filter((item: any) => typeof item === "string");
   } catch {
     return null;
   }
@@ -46,14 +55,22 @@ function sanitizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value.filter((item) => typeof item === 'string');
+  return value.filter((item) => typeof item === "string");
 }
 
-function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+function arraysEqual(
+  left: readonly string[],
+  right: readonly string[]
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
-export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [entries, setEntries] = useState<Record<string, PinnedEntry>>({});
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
@@ -61,7 +78,11 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
   const loadingKeysRef = useRef<Set<string>>(new Set());
 
   const registerKey = useCallback(
-    (storageKey: string, initialPinned: string[], migrateFromKeys: string[]) => {
+    (
+      storageKey: string,
+      initialPinned: string[],
+      migrateFromKeys: string[]
+    ) => {
       const existing = entriesRef.current[storageKey];
       if (existing) {
         const nextInitialPinned = sanitizeStringArray(initialPinned);
@@ -81,7 +102,7 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
             [storageKey]: {
               ...current,
               initialPinned: nextInitialPinned,
-              ...(current.preferenceSource === 'default'
+              ...(current.preferenceSource === "default"
                 ? { pinned: nextInitialPinned }
                 : {}),
             },
@@ -96,7 +117,10 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
         }
 
         const migrateKeys = Array.isArray(migrateFromKeys)
-          ? migrateFromKeys.filter((key) => typeof key === 'string' && key.length > 0 && key !== storageKey)
+          ? migrateFromKeys.filter(
+              (key) =>
+                typeof key === "string" && key.length > 0 && key !== storageKey
+            )
           : [];
 
         return {
@@ -106,49 +130,56 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
             pinned: [],
             initialPinned: sanitizeStringArray(initialPinned),
             migrateFromKeys: migrateKeys,
-            preferenceSource: 'loading',
+            preferenceSource: "loading",
           },
         };
       });
     },
-    [],
+    []
   );
 
-  const setPinnedForKey = useCallback((storageKey: string, update: SetStateAction<string[]>) => {
-    setEntries((prev) => {
-      const existing =
-        prev[storageKey] ??
-        ({
-          loaded: true,
-          pinned: [],
-          initialPinned: [],
-          migrateFromKeys: [],
-          preferenceSource: 'stored',
-        } as PinnedEntry);
+  const setPinnedForKey = useCallback(
+    (storageKey: string, update: SetStateAction<string[]>) => {
+      setEntries((prev) => {
+        const existing =
+          prev[storageKey] ??
+          ({
+            loaded: true,
+            pinned: [],
+            initialPinned: [],
+            migrateFromKeys: [],
+            preferenceSource: "stored",
+          } as PinnedEntry);
 
-      const prevPinned = existing.pinned;
-      const nextPinned =
-        typeof update === 'function'
-          ? sanitizeStringArray((update as (value: string[]) => string[])(prevPinned))
-          : sanitizeStringArray(update);
+        const prevPinned = existing.pinned;
+        const nextPinned =
+          typeof update === "function"
+            ? sanitizeStringArray(
+                (update as (value: string[]) => string[])(prevPinned)
+              )
+            : sanitizeStringArray(update);
 
-      const nextEntries: Record<string, PinnedEntry> = {
-        ...prev,
-        [storageKey]: {
-          ...existing,
-          loaded: true,
-          pinned: nextPinned,
-          preferenceSource: 'stored',
-        },
-      };
+        const nextEntries: Record<string, PinnedEntry> = {
+          ...prev,
+          [storageKey]: {
+            ...existing,
+            loaded: true,
+            pinned: nextPinned,
+            preferenceSource: "stored",
+          },
+        };
 
-      AsyncStorage.setItem(storageKey, JSON.stringify(nextPinned)).catch(() => {
-        // Ignore persistence failures.
+        AsyncStorage.setItem(storageKey, JSON.stringify(nextPinned)).catch(
+          () => {
+            // Ignore persistence failures.
+          }
+        );
+
+        return nextEntries;
       });
-
-      return nextEntries;
-    });
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     Object.entries(entries).forEach(([storageKey, entry]) => {
@@ -164,14 +195,16 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
           if (parsed) {
             setEntries((prev) => {
               const current = prev[storageKey];
-              if (!current) return prev;
+              if (!current || current.preferenceSource === "stored") {
+                return prev;
+              }
               return {
                 ...prev,
                 [storageKey]: {
                   ...current,
                   loaded: true,
                   pinned: parsed,
-                  preferenceSource: 'stored',
+                  preferenceSource: "stored",
                 },
               };
             });
@@ -187,49 +220,54 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
 
             setEntries((prev) => {
               const current = prev[storageKey];
-              if (!current) return prev;
+              if (!current || current.preferenceSource === "stored") {
+                return prev;
+              }
               return {
                 ...prev,
                 [storageKey]: {
                   ...current,
                   loaded: true,
                   pinned: migrated,
-                  preferenceSource: 'stored',
+                  preferenceSource: "stored",
                 },
               };
             });
 
             try {
               await AsyncStorage.setItem(storageKey, JSON.stringify(migrated));
-            } catch {
-            }
+            } catch {}
             return;
           }
 
           setEntries((prev) => {
             const current = prev[storageKey];
-            if (!current) return prev;
+            if (!current || current.preferenceSource === "stored") {
+              return prev;
+            }
             return {
               ...prev,
               [storageKey]: {
                 ...current,
                 loaded: true,
                 pinned: current.initialPinned,
-                preferenceSource: 'default',
+                preferenceSource: "default",
               },
             };
           });
         } catch {
           setEntries((prev) => {
             const current = prev[storageKey];
-            if (!current) return prev;
+            if (!current || current.preferenceSource === "stored") {
+              return prev;
+            }
             return {
               ...prev,
               [storageKey]: {
                 ...current,
                 loaded: true,
                 pinned: current.initialPinned,
-                preferenceSource: 'default',
+                preferenceSource: "default",
               },
             };
           });
@@ -250,13 +288,19 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
     };
   }, [entries, registerKey, setPinnedForKey]);
 
-  return <PinnedActionsContext.Provider value={value}>{children}</PinnedActionsContext.Provider>;
+  return (
+    <PinnedActionsContext.Provider value={value}>
+      {children}
+    </PinnedActionsContext.Provider>
+  );
 };
 
 export function usePinnedActionsContext(): PinnedActionsContextValue {
   const ctx = useContext(PinnedActionsContext);
   if (!ctx) {
-    throw new Error('usePinnedActionsContext must be used within a PinnedActionsProvider');
+    throw new Error(
+      "usePinnedActionsContext must be used within a PinnedActionsProvider"
+    );
   }
   return ctx;
 }
@@ -266,7 +310,7 @@ export function usePersistentPinnedActionsFromContext<T extends string>(
   initialPinned: T[],
   options?: {
     migrateFromKeys?: string[];
-  },
+  }
 ): {
   loaded: boolean;
   pinned: T[];
@@ -279,14 +323,14 @@ export function usePersistentPinnedActionsFromContext<T extends string>(
     registerKey(
       storageKey,
       initialPinned as string[],
-      (options?.migrateFromKeys ?? []) as string[],
+      (options?.migrateFromKeys ?? []) as string[]
     );
   }, [initialPinned, options?.migrateFromKeys, registerKey, storageKey]);
 
   const entry = entries[storageKey];
-  const pinned = (entry ? (entry.pinned as T[]) : ([] as T[]));
+  const pinned = entry ? (entry.pinned as T[]) : ([] as T[]);
   const loaded = entry ? entry.loaded : false;
-  const hasStoredPreference = entry?.preferenceSource === 'stored';
+  const hasStoredPreference = entry?.preferenceSource === "stored";
 
   const setPinned: Dispatch<SetStateAction<T[]>> = (update) => {
     setPinnedForKey(storageKey, update as SetStateAction<string[]>);

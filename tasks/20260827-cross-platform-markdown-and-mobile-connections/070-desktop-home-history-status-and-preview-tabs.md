@@ -637,30 +637,30 @@ acceptable completion chunks and proceeds in the order below.
 
 #### Functional requirements
 
-- [ ] Selecting desktop Home preserves the existing bounded warm-pane
+- [x] Selecting desktop Home preserves the existing bounded warm-pane
   behavior: the three most recently active Chat panes remain mounted, while
   Home is visible and no Chat pane remains interactively active.
-- [ ] A server-reported in-progress request remains visible consistently on
+- [x] A server-reported in-progress request remains visible consistently on
   desktop Home, Sessions, the tab strip, and Chat when the user selects Home,
   another session, the owning connection, or another connection.
-- [ ] Desktop Watchlist pointer dragging follows screen direction vertically:
+- [x] Desktop Watchlist pointer dragging follows screen direction vertically:
   upward movement targets earlier rows and downward movement targets later
   rows.
-- [ ] Selecting, opening, or restoring a desktop session tab attempts to open
+- [x] Selecting, opening, or restoring a desktop session tab attempts to open
   its owning connection only when closed and does not select that connection
   in the sidebar by default.
-- [ ] The existing `Sessions follow active tab` preference controls whether
+- [x] The existing `Sessions follow active tab` preference controls whether
   tab activation also selects the owning connection and session in the
   sidebar. Its absent-value default is Off, while an explicitly persisted
   value is preserved.
-- [ ] A desktop session that already has a permanent or preview tab presents
+- [x] A desktop session that already has a permanent or preview tab presents
   `Open`, not `Preview`, as its explicit action. The action activates a
   permanent tab or promotes and activates the matching preview without
   creating a duplicate.
-- [ ] Mobile and desktop Sessions and Chat expose a local state-aware `Add to
+- [x] Mobile and desktop Sessions and Chat expose a local state-aware `Add to
   Watchlist` or `Remove from Watchlist` action through their established
   static session-action menus.
-- [ ] Desktop Local note is available through the established ellipsis
+- [x] Desktop Local note is available through the established ellipsis
   session-actions menu in both Sessions and Chat instead of a detached
   Sessions-row control.
 - [ ] Desktop and mobile Watchlist cards and Recent Sessions timeline rows use
@@ -684,20 +684,20 @@ acceptable completion chunks and proceeds in the order below.
 
 #### Non-functional requirements
 
-- [ ] `ChatPaneTabStack` remains mounted across Home/session workspace
+- [x] `ChatPaneTabStack` remains mounted across Home/session workspace
   selection and retains one stable MRU owner for the three-pane warm set.
-- [ ] Status polling registers only consumed or visible explicit IDs, respects
+- [x] Status polling registers only consumed or visible explicit IDs, respects
   endpoint batch bounds, merges results by queried ID, and does not erase an
   otherwise current running value because an unrelated batch changes or a
   transient read restarts.
-- [ ] Successful non-running or missing-session results remain authoritative,
+- [x] Successful non-running or missing-session results remain authoritative,
   and unavailable/unsupported authority cannot leave an unbounded stale
   in-progress result.
 - [ ] Shared React Native code owns only portable Home card/timeline
   presentation, session fallback selection, status polling, and reorder
   geometry. Platform storage, navigation, gestures, native menus, and desktop
   workspace lifecycle remain platform-owned.
-- [ ] Local Watchlist actions do not invoke or visually reuse server-side
+- [x] Local Watchlist actions do not invoke or visually reuse server-side
   session pin behavior and do not require an open backend.
 - [ ] Sidebar sizing has one tested policy for default/minimum/maximum values;
   tests resolve that policy or rendered geometry instead of duplicating
@@ -808,9 +808,9 @@ raw three-finger trackpad recognizer.
 
 ### Task checklist
 
-- [ ] Complete Chunk 1 workspace and status reliability, including native
+- [x] Complete Chunk 1 workspace and status reliability, including native
   vertical drag correction.
-- [ ] Complete Chunk 2 activation semantics and mobile/desktop local session
+- [x] Complete Chunk 2 activation semantics and mobile/desktop local session
   actions.
 - [ ] Complete Chunk 3 shared Home presentation and truncation.
 - [ ] Complete Chunk 4 desktop sidebar and middle-click ergonomics.
@@ -855,3 +855,137 @@ raw three-finger trackpad recognizer.
 - Run targeted lint/format checks, `git diff --check`, and package
   documentation preparation in every chunk; report existing baselines
   separately.
+
+### Chunk 1 implementation notes
+
+- `DesktopRoot` previously replaced `ChatPaneTabStack` with Home. The stack's
+  component-local MRU owner was therefore destroyed even though permanent and
+  preview tab records remained. The stack now stays mounted in a workspace
+  layer, receives no visible tab while Home is active, and is hidden from
+  pointer and accessibility interaction.
+- Selecting the focused connection previously registered every cached session
+  for status polling. This could exceed the server's 200-ID request bound and
+  made a read failure erase every remembered Running value for that
+  connection. `SessionsPanel` now reports its rendered window, while a pure
+  desktop scope selector unions only tabs, active Home/History entries, and
+  visible Sessions rows.
+- The host-neutral status hook now splits large ID sets into conservative
+  bounded batches. Successful batches replace only queried IDs; consumer and
+  reader identity churn preserves still-consumed results. Transient
+  unavailability retains a recently observed Running status through retry,
+  while successful replacement, missing IDs, terminal unsupported authority,
+  or the bounded staleness window removes it.
+- React Native macOS views already expose top-left-oriented pan translation.
+  The native adapter's unconditional Y negation inverted Watchlist movement.
+  Native payload conversion now checks the actual local and page view
+  orientation before normalizing Y.
+- While touching `SessionsPanel`, its unused destructured focus value and
+  unstable conditional session-array expression were removed so targeted
+  lint finishes without errors.
+
+### Chunk 1 completion notes
+
+- Home now preserves the existing three most-recently-active Chat panes and
+  does not make hidden panes pointer- or accessibility-interactive.
+- Request status remains connection/session scoped while focus and visible
+  consumers change, including status sets larger than one endpoint request.
+- Desktop Watchlist movement now follows the physical pointer in both vertical
+  directions without changing horizontal permanent-tab dragging.
+- Verification passed:
+  - SDK React: 6 files and 24 tests;
+  - desktop Jest: 34 suites and 148 tests;
+  - mobile Jest: 42 suites and 181 tests;
+  - mobile and SDK React TypeScript;
+  - real FastAPI/HTTP/frontend-backend request-status integration: 1 test;
+  - focused signed macOS `ConnectionsPanelUITests`: 5 tests and zero
+    failures, including upward/downward Watchlist drag plus Home/tab status
+    accessibility;
+  - targeted desktop lint with warnings only, Prettier, `git diff --check`,
+    and documentation preparation.
+- Desktop full TypeScript remains non-clean in the existing frontend SDK URL,
+  ChatPane declaration-order/optional-string, and Theme `shadow` baselines.
+  No Chunk 1 file adds a TypeScript error.
+- The complete mobile suite retained its existing asynchronous `act(...)`
+  warnings and exited successfully.
+
+### Chunk 2 implementation notes
+
+- Connection reopen and sidebar following are now separate desktop effects.
+  Restored and selected tabs still reopen a closed owning connection, while
+  connection/sidebar focus changes only when the existing native `Sessions
+  follow active tab` preference is enabled. The missing-value default is Off.
+- Global Settings reads and writes that same native preference and observes
+  the same notification as every main root. The existing View-menu checkbox
+  remains authoritative and synchronized; no second preference was added.
+- Desktop Home, History, and Sessions resolve each session's current preview
+  or permanent workspace membership. Existing tabs always expose Open;
+  opening a matching preview uses the existing permanent-open reducer path
+  and therefore promotes without duplicating the tab.
+- The shared React Native package now owns only portable local action
+  definitions and accessibility activation. Mobile and desktop handlers keep
+  Watchlist/note storage local to their applications and do not invoke
+  server-side session pin actions.
+- Mobile and desktop Sessions and Chat all expose state-aware Watchlist
+  membership through their existing pinnable Session actions. Desktop Local
+  note moved from its detached row icon into the same ellipsis action menu in
+  Sessions and Chat.
+- New local actions are disabled until their platform Home store hydrates.
+  Mobile pinned-action hydration also preserves a user change made while a
+  storage read is in flight, while plugin defaults wait for the scoped record
+  to load before merging.
+
+### Chunk 2 verification status
+
+- Implementation and non-macOS-native verification are complete:
+  - shared RN: 7 files and 53 tests;
+  - desktop Jest: 34 suites and 154 tests;
+  - mobile Jest: 42 suites and 182 tests;
+  - shared RN and mobile TypeScript;
+  - iOS Detox: complete Session-list and rich-session UI suites, 4 tests and
+    zero failures;
+  - Android Detox: focused production Sessions and Chat Watchlist scenarios,
+    2 tests and zero failures;
+  - final iOS and Android release/E2E builds;
+  - targeted desktop ESLint with warnings only, Prettier, `git diff --check`,
+    and documentation preparation.
+- Two unrelated Android session-list geometry attempts were blocked before
+  useful app interaction by emulator window-focus/ANR failures. The same
+  geometry scenario passed on iOS; both final Android scenarios owned by
+  Chunk 2 passed in isolated successful commands.
+- The macOS app and XCTest bundle compile, bundle, and sign successfully.
+  Two initial execution attempts failed before collection while the host
+  enabled Automation mode. Once Automation was available, XCTest exposed and
+  corrected two observation problems: `XCUIElement.isSelected` does not
+  represent an `NSMenuItem` checkmark reliably, and bare React Native macOS
+  `Text` test IDs may be pruned from the accessibility tree.
+- Desktop full TypeScript remains non-clean only in the existing frontend SDK
+  URL, ChatPane declaration-order/optional-string, and Theme `shadow`
+  baselines. No Chunk 2 change adds a TypeScript diagnostic.
+
+### Chunk 2 completion notes
+
+- Desktop tab restore and activation now reopen a closed owning connection
+  independently from sidebar focus. The synchronized native `Sessions follow
+  active tab` setting defaults Off when absent and opt-in following works from
+  the View menu and separate global Settings window.
+- Home, History, and Sessions expose Open for existing preview/permanent tabs;
+  an existing preview promotes through the normal reducer path without a
+  duplicate.
+- Mobile and desktop Sessions and Chat expose the shared, state-aware,
+  pinnable local Watchlist action. Desktop Sessions and Chat expose Local note
+  in the same ellipsis menu, with the former detached row icon removed.
+- Local actions remain independent from server pinning and backend
+  availability. Hydration guards prevent early local mutations from being
+  overwritten, and mobile pin persistence preserves concurrent user intent
+  while still applying loaded built-in/plugin defaults.
+- Final verification includes all component/type/build/Detox evidence above
+  plus two successful focused signed macOS XCTest commands:
+  - global Settings changes Follow active tab to On, the View-menu action
+    changes the same preference back to Off, and the open Settings window
+    updates;
+  - production Sessions and Chat menus perform Watchlist changes and Local
+    note callbacks, show state-aware labels, and prove the detached Sessions
+    note control is absent.
+- The final macOS result bundles are:
+  - `Test-CrystalLatticeControlDesktopRN-macOS-2026.09.12_00-48-22-+0200.xcresult`;
+  - `Test-CrystalLatticeControlDesktopRN-macOS-2026.09.12_00-50-35-+0200.xcresult`.

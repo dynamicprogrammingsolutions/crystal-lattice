@@ -17,7 +17,11 @@ function verticalPosition(attributes: any): number {
   return value;
 }
 
-function verticalBounds(attributes: any): { top: number; bottom: number; height: number } {
+function verticalBounds(attributes: any): {
+  top: number;
+  bottom: number;
+  height: number;
+} {
   const bounds = attributes?.frame || attributes?.elementBounds;
   const top = bounds?.y ?? bounds?.top;
   const height = bounds?.height;
@@ -46,7 +50,7 @@ function frameFrom(attributes: any): {
     typeof frame.height !== "number"
   ) {
     throw new Error(
-      `Element attributes do not contain a frame: ${JSON.stringify(attributes)}`,
+      `Element attributes do not contain a frame: ${JSON.stringify(attributes)}`
     );
   }
   return frame;
@@ -64,10 +68,11 @@ async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
 }
 
 async function launchHarness(
-  displayPreset: "default" | "largest" = "default",
+  displayPreset: "default" | "largest" = "default"
 ): Promise<void> {
   await device.launchApp({
     newInstance: true,
+    resetAppState: true,
     launchArgs: {
       clcSessionListHarness: "1",
       clcDisplayPreset: displayPreset,
@@ -77,6 +82,9 @@ async function launchHarness(
   await waitFor(element(by.id("session-list-harness-ready")))
     .toExist()
     .withTimeout(30000);
+  await waitFor(element(by.id("session-list-harness-watchlist-state")))
+    .toHaveText("not-watched")
+    .withTimeout(10000);
 }
 
 describe("mobile session-list contracts", () => {
@@ -84,13 +92,13 @@ describe("mobile session-list contracts", () => {
     await launchHarness();
 
     const defaultRow = verticalBounds(
-      await element(by.id("session-row-server-first")).getAttributes(),
+      await element(by.id("session-row-server-first")).getAttributes()
     );
     const screenTitleAttributes = await element(
-      by.id("sessions-screen-title"),
+      by.id("sessions-screen-title")
     ).getAttributes();
     const cardTitleAttributes = await element(
-      by.id("session-title-server-first"),
+      by.id("session-title-server-first")
     ).getAttributes();
     const screenTitleFrame =
       (screenTitleAttributes as any)?.frame ||
@@ -104,39 +112,41 @@ describe("mobile session-list contracts", () => {
       Math.abs(screenTitleFrame.x - cardTitleFrame.x) > 1
     ) {
       throw new Error(
-        `Expected Sessions title and card title left edges to align: ${JSON.stringify({
-          screenTitleFrame,
-          cardTitleFrame,
-        })}`,
+        `Expected Sessions title and card title left edges to align: ${JSON.stringify(
+          {
+            screenTitleFrame,
+            cardTitleFrame,
+          }
+        )}`
       );
     }
     const headerFrame = frameFrom(
-      await element(by.id("sessions-screen-header")).getAttributes(),
+      await element(by.id("sessions-screen-header")).getAttributes()
     );
     const overflowFrame = frameFrom(
-      await element(by.id("sessions-actions-menu")).getAttributes(),
+      await element(by.id("sessions-actions-menu")).getAttributes()
     );
     if (
       overflowFrame.x < headerFrame.x ||
-      overflowFrame.x + overflowFrame.width >
-        headerFrame.x + headerFrame.width
+      overflowFrame.x + overflowFrame.width > headerFrame.x + headerFrame.width
     ) {
       throw new Error(
-        `Expected the overflow trigger inside the Sessions header: ${JSON.stringify({
-          headerFrame,
-          overflowFrame,
-        })}`,
+        `Expected the overflow trigger inside the Sessions header: ${JSON.stringify(
+          {
+            headerFrame,
+            overflowFrame,
+          }
+        )}`
       );
     }
-    if (
-      screenTitleFrame.x + screenTitleFrame.width >
-      overflowFrame.x
-    ) {
+    if (screenTitleFrame.x + screenTitleFrame.width > overflowFrame.x) {
       throw new Error(
-        `Expected the shrinking connection title not to overlap the overflow trigger: ${JSON.stringify({
-          screenTitleFrame,
-          overflowFrame,
-        })}`,
+        `Expected the shrinking connection title not to overlap the overflow trigger: ${JSON.stringify(
+          {
+            screenTitleFrame,
+            overflowFrame,
+          }
+        )}`
       );
     }
 
@@ -152,43 +162,43 @@ describe("mobile session-list contracts", () => {
     const defaultFields = [];
     for (const fieldId of fieldIds) {
       defaultFields.push(
-        verticalBounds(await element(by.id(fieldId)).getAttributes()),
+        verticalBounds(await element(by.id(fieldId)).getAttributes())
       );
     }
     for (let index = 1; index < defaultFields.length; index += 1) {
       if (defaultFields[index - 1].bottom > defaultFields[index].top) {
         throw new Error(
-          `Expected ${fieldIds[index - 1]} above ${fieldIds[index]}: ${JSON.stringify(
-            defaultFields,
-          )}`,
+          `Expected ${fieldIds[index - 1]} above ${
+            fieldIds[index]
+          }: ${JSON.stringify(defaultFields)}`
         );
       }
     }
     await detoxExpect(
-      element(by.id("session-preview-server-second")),
+      element(by.id("session-preview-server-second"))
     ).toExist();
 
     await launchHarness("largest");
     const largestRow = verticalBounds(
-      await element(by.id("session-row-server-first")).getAttributes(),
+      await element(by.id("session-row-server-first")).getAttributes()
     );
     if (largestRow.height <= defaultRow.height) {
       throw new Error(
-        `Expected largest preset row to grow: ${largestRow.height} <= ${defaultRow.height}`,
+        `Expected largest preset row to grow: ${largestRow.height} <= ${defaultRow.height}`
       );
     }
     const largestFields = [];
     for (const fieldId of fieldIds) {
       largestFields.push(
-        verticalBounds(await element(by.id(fieldId)).getAttributes()),
+        verticalBounds(await element(by.id(fieldId)).getAttributes())
       );
     }
     for (let index = 1; index < largestFields.length; index += 1) {
       if (largestFields[index - 1].bottom > largestFields[index].top) {
         throw new Error(
-          `Expected ${fieldIds[index - 1]} above ${fieldIds[index]} at largest preset: ${JSON.stringify(
-            largestFields,
-          )}`,
+          `Expected ${fieldIds[index - 1]} above ${
+            fieldIds[index]
+          } at largest preset: ${JSON.stringify(largestFields)}`
         );
       }
     }
@@ -202,10 +212,10 @@ describe("mobile session-list contracts", () => {
       .withTimeout(30000);
 
     const firstAttributes = await element(
-      by.id("session-row-server-first"),
+      by.id("session-row-server-first")
     ).getAttributes();
     const secondAttributes = await element(
-      by.id("session-row-server-second"),
+      by.id("session-row-server-second")
     ).getAttributes();
     const firstY = verticalPosition(firstAttributes);
     const secondY = verticalPosition(secondAttributes);
@@ -216,21 +226,34 @@ describe("mobile session-list contracts", () => {
     }
 
     await element(by.id("session-actions-menu-server-first")).tap();
+    const watchlistAction = element(
+      by.id("actions-menu-action-localWatchlist")
+    );
+    await waitFor(watchlistAction).toBeVisible().withTimeout(30000);
+    await watchlistAction.tap();
+    await waitFor(element(by.id("session-list-harness-watchlist-state")))
+      .toHaveText("watched")
+      .withTimeout(10000);
+
+    await element(by.id("session-actions-menu-server-first")).tap();
+    await detoxExpect(
+      element(by.id("actions-menu-action-localWatchlist"))
+    ).toHaveLabel("Remove from Watchlist");
     await waitFor(element(by.id("actions-menu-action-set_session_status")))
       .toBeVisible()
       .withTimeout(30000);
     await element(by.id("actions-menu-action-set_session_status")).tap();
 
     await waitFor(
-      element(by.id("session-rich-list-server-first-set_session_status")),
+      element(by.id("session-rich-list-server-first-set_session_status"))
     )
       .toBeVisible()
       .withTimeout(30000);
     await detoxExpect(
-      element(by.id("application-action-dialog-primary")),
+      element(by.id("application-action-dialog-primary"))
     ).not.toExist();
     await element(
-      by.id("session-rich-list-server-first-set_session_status-option-todo"),
+      by.id("session-rich-list-server-first-set_session_status-option-todo")
     ).tap();
     await waitFor(element(by.id("session-list-harness-submission")))
       .toHaveText("server-first:set_session_status:todo")

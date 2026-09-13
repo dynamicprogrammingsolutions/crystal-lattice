@@ -2,12 +2,16 @@ import {
   complementarySessionOpenMode,
   normalizeDesktopGlobalSettings,
 } from '../src/settings/desktopGlobalSettings';
-import { resolveSessionItemClick } from '../src/sessions/sessionItemInteraction';
+import {
+  resolveExplicitSessionOpenMode,
+  resolveSessionItemClick,
+} from '../src/sessions/sessionItemInteraction';
 
 describe('desktop global session interaction settings', () => {
   it('defaults double-click to preview and exposes the complementary action', () => {
     const settings = normalizeDesktopGlobalSettings(null);
     expect(settings.sessionDoubleClickAction).toBe('preview');
+    expect(settings.sessionsFollowActiveTabEnabled).toBe(false);
     expect(
       complementarySessionOpenMode(settings.sessionDoubleClickAction),
     ).toBe('open');
@@ -37,5 +41,25 @@ describe('desktop global session interaction settings', () => {
         doubleClickAction: 'open',
       }).openMode,
     ).toBe('open');
+  });
+
+  it('uses Open for an existing preview or permanent tab', () => {
+    expect(resolveExplicitSessionOpenMode('open', null)).toBe('preview');
+    expect(resolveExplicitSessionOpenMode('preview', null)).toBe('open');
+    expect(resolveExplicitSessionOpenMode('preview', 'preview')).toBe('open');
+    expect(resolveExplicitSessionOpenMode('open', 'permanent')).toBe('open');
+  });
+
+  it('normalizes only an explicit true follow preference as enabled', () => {
+    expect(
+      normalizeDesktopGlobalSettings({
+        sessionsFollowActiveTabEnabled: true,
+      }).sessionsFollowActiveTabEnabled,
+    ).toBe(true);
+    expect(
+      normalizeDesktopGlobalSettings({
+        sessionsFollowActiveTabEnabled: 'true',
+      }).sessionsFollowActiveTabEnabled,
+    ).toBe(false);
   });
 });

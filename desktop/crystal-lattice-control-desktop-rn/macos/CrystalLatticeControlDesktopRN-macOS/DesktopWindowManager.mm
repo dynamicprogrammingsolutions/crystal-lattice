@@ -252,7 +252,7 @@ RCT_EXPORT_MODULE();
     @"moduleName" : @"GlobalSettingsWindow",
     @"title" : @"Settings",
     @"width" : @560,
-    @"height" : @360,
+    @"height" : @420,
     @"initialProps" : @{},
   }];
 }
@@ -754,11 +754,14 @@ RCT_REMAP_METHOD(getDesktopGlobalSettings,
       ![sessionDoubleClickAction isEqualToString:@"open"]) {
     sessionDoubleClickAction = @"preview";
   }
+  BOOL sessionsFollowActiveTabEnabled =
+      [defaults boolForKey:@"CrystalLattice.SessionsFollowActiveTabEnabled"];
   resolve(@{
     @"baseFontSize" : @(baseFontSize),
     @"headerSize" : headerSize,
     @"recentSessionsWindow" : recentSessionsWindow,
     @"sessionDoubleClickAction" : sessionDoubleClickAction,
+    @"sessionsFollowActiveTabEnabled" : @(sessionsFollowActiveTabEnabled),
   });
 }
 

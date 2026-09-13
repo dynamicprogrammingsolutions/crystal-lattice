@@ -9,6 +9,7 @@ import type { SessionRequestStatus } from '@crystal-lattice/frontend-sdk';
 
 import { DesktopSessionCollectionItem } from '../home/DesktopSessionCollectionItem';
 import type { SessionOpenMode } from '../settings/desktopGlobalSettings';
+import type { DesktopSessionTabKind } from '../tabs/desktopWorkspaceState';
 import { PanelHeader } from '../ui/PanelHeader';
 
 export function HistoryPanel({
@@ -18,6 +19,7 @@ export function HistoryPanel({
   onOpenSession,
   onToggleWatch,
   onEditNote,
+  getSessionTabKind,
 }: {
   collections: HomeSessionCollections;
   statuses: Readonly<
@@ -33,6 +35,10 @@ export function HistoryPanel({
     watched: boolean,
   ) => void;
   onEditNote: (item: HomeSessionCollections['recent'][number]) => void;
+  getSessionTabKind?: (
+    connectionId: string,
+    sessionId: string,
+  ) => DesktopSessionTabKind | null;
 }): React.JSX.Element {
   const theme = useTheme();
   const styles = createStyles(theme);
@@ -60,6 +66,7 @@ export function HistoryPanel({
                 selected={selectedKey === item.key}
                 status={statuses[item.connectionId]?.[item.sessionId] ?? null}
                 doubleClickAction={doubleClickAction}
+                tabKind={getSessionTabKind?.(item.connectionId, item.sessionId)}
                 watched={watched}
                 onSelect={() => setSelectedKey(item.key)}
                 onOpen={mode => onOpenSession(item, mode)}

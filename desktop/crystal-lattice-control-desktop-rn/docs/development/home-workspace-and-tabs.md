@@ -16,6 +16,11 @@ preview promotion, so `ChatPaneTabStack` retains its existing bounded warm-pane
 behavior, cached messages, drafts, and scroll state. A Chat mutation invokes
 the promotion command before execution.
 
+The Chat stack stays mounted when Home is selected. Home is rendered over the
+inactive stack, its pointer and accessibility interaction is disabled, and
+the same three-entry MRU warm set remains mounted for a later tab return.
+Home itself does not count toward or reset that bound.
+
 ## Home data
 
 `DesktopHomeWorkspaceProvider` persists:
@@ -43,6 +48,24 @@ first, leaving cached content available, then requests connection reopening.
 An open or connecting connection is reused. Repeated reopen work for the same
 selection intent is suppressed.
 
+Connection reopening and sidebar selection are separate effects. The native
+`Sessions follow active tab` preference defaults Off when no value has been
+stored. When enabled, active-tab changes also focus the owning connection and
+let the Sessions panel select its row; when disabled, cached/open Chat
+navigation leaves the independently selected sidebar connection unchanged.
+
+Explicit item actions consult `getDesktopSessionTabKind()`. A matching preview
+or permanent tab always exposes Open: permanent tabs activate in place, while
+the workspace reducer promotes a matching preview through its ordinary
+`openPermanent` transition.
+
+Mobile and desktop consume the same portable local Watchlist/note action
+definitions. Desktop Sessions and Chat route those definitions to
+`DesktopHomeWorkspaceProvider`; Local note opens the keyed note window, and
+Watchlist membership remains independent from server pin state. The actions
+remain disabled until the local Home records finish hydrating, so a startup
+read cannot overwrite an early mutation.
+
 ## Panels
 
 `DesktopShell` has three columns:
@@ -60,13 +83,16 @@ main window.
 The host-neutral polling hook is owned by
 `@crystal-lattice/frontend-sdk-react`. Desktop constructs one
 `DesktopConnectionSessionStatusReader` and one polling consumer above all
-surfaces. IDs from Home, History, Sessions, and tabs are deduplicated by
-connection.
+surfaces. IDs from active Home, visible History, the rendered Sessions window,
+and all tabs are deduplicated by connection. Focusing a connection does not
+register every cached session.
 
 Open records use their current backend. Closed manual records use one stateless
-HTTP request. Unsupported records remain quiet, and loss of authority removes
-stale running state. Connection Online/Offline and request status remain
-separate concepts.
+HTTP path. Large groups are split below the endpoint bound, and successful
+responses update only their queried IDs. A transient read failure retains a
+recent Running result through retry; authoritative non-running/missing data or
+bounded loss of authority removes it. Connection Online/Offline and request
+status remain separate concepts.
 
 ## Reordering
 
@@ -80,6 +106,9 @@ React Native macOS touch responders do not receive AppKit mouse-pan movement
 reliably. `MacDragView` is the desktop interaction adapter: an
 `NSPanGestureRecognizer` emits translation events to the React hosts, while
 the shared geometry and optimistic settlement remain platform-neutral.
+The adapter normalizes AppKit Y values according to the actual view
+orientation, so upward and downward pointer movement agree with React Native
+layout coordinates.
 
 Primary tests:
 
@@ -88,6 +117,7 @@ Primary tests:
 - `__tests__/DesktopHomeAndActivity.test.tsx`
 - `__tests__/SessionTabsMenu.test.tsx`
 - `__tests__/DesktopRoot.sessionReopen.test.tsx`
+- `__tests__/desktopStatusScope.test.ts`
 - `src/testing/DesktopWorkspaceHarness.tsx`
 - focused methods in `ConnectionsPanelUITests` and
   `MarkdownDisplayMenuUITests`

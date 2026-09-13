@@ -16,11 +16,14 @@ import {
 import type { SessionRequestStatus } from '@crystal-lattice/frontend-sdk';
 
 import {
-  complementarySessionOpenMode,
   sessionOpenModeLabel,
   type SessionOpenMode,
 } from '../settings/desktopGlobalSettings';
-import { useSessionItemPress } from '../sessions/sessionItemInteraction';
+import {
+  resolveExplicitSessionOpenMode,
+  useSessionItemPress,
+} from '../sessions/sessionItemInteraction';
+import type { DesktopSessionTabKind } from '../tabs/desktopWorkspaceState';
 
 export function DesktopSessionCollectionItem({
   item,
@@ -28,6 +31,7 @@ export function DesktopSessionCollectionItem({
   selected,
   status,
   doubleClickAction,
+  tabKind = null,
   watched,
   onSelect,
   onOpen,
@@ -42,6 +46,7 @@ export function DesktopSessionCollectionItem({
   selected: boolean;
   status: SessionRequestStatus | null;
   doubleClickAction: SessionOpenMode;
+  tabKind?: DesktopSessionTabKind | null;
   watched: boolean;
   onSelect: () => void;
   onOpen: (mode: SessionOpenMode) => void;
@@ -57,7 +62,10 @@ export function DesktopSessionCollectionItem({
   const title =
     presentation?.title || item.summary.preview || item.summary.session_id;
   const subtitle = presentation?.subtitle || item.connection.name;
-  const explicitMode = complementarySessionOpenMode(doubleClickAction);
+  const explicitMode = resolveExplicitSessionOpenMode(
+    doubleClickAction,
+    tabKind,
+  );
   const handlePress = useSessionItemPress({
     key: item.key,
     doubleClickAction,

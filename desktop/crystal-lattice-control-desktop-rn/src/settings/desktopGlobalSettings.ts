@@ -16,6 +16,7 @@ export interface DesktopGlobalSettings {
   headerSize: MarkdownHeaderSize;
   recentSessionsWindow: RecentSessionsWindow;
   sessionDoubleClickAction: SessionOpenMode;
+  sessionsFollowActiveTabEnabled: boolean;
 }
 
 export const DEFAULT_DESKTOP_GLOBAL_SETTINGS: DesktopGlobalSettings = {
@@ -23,6 +24,7 @@ export const DEFAULT_DESKTOP_GLOBAL_SETTINGS: DesktopGlobalSettings = {
   headerSize: DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.headerSize,
   recentSessionsWindow: DEFAULT_RECENT_SESSIONS_WINDOW,
   sessionDoubleClickAction: 'preview',
+  sessionsFollowActiveTabEnabled: false,
 };
 
 export function normalizeSessionOpenMode(value: unknown): SessionOpenMode {
@@ -55,5 +57,7 @@ export function normalizeDesktopGlobalSettings(
     sessionDoubleClickAction: normalizeSessionOpenMode(
       record.sessionDoubleClickAction,
     ),
+    sessionsFollowActiveTabEnabled:
+      record.sessionsFollowActiveTabEnabled === true,
   };
 }

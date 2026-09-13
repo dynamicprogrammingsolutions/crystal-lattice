@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import {
   ActivityIndicator,
@@ -25,8 +32,13 @@ import {
   SessionListRichActionControl,
   SessionListRichActionList,
   SessionListFiltersPanel,
+  LOCAL_NOTE_SESSION_ACTION_KEY,
+  LOCAL_WATCHLIST_SESSION_ACTION_KEY,
+  buildLocalSessionActionDefinitions,
+  isLocalSessionActionKey,
   useTheme,
   type ActionDefinition,
+  type SessionActionDefinition,
 } from '@crystal-lattice/frontend-rn-components';
 
 import type {
@@ -79,16 +91,18 @@ import { truncateByChars } from '../utils/text';
 import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
 import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
 import {
-  complementarySessionOpenMode,
   sessionOpenModeLabel,
   type SessionOpenMode,
 } from '../settings/desktopGlobalSettings';
 import {
+  resolveExplicitSessionOpenMode,
   resolveSessionItemClick,
   type SessionItemClickMemory,
 } from '../sessions/sessionItemInteraction';
+import type { DesktopSessionTabKind } from '../tabs/desktopWorkspaceState';
 
-const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
+const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE =
+  'clc_pinned_session_list_actions_v1';
 const PINNED_SESSIONS_HEADER_ACTIONS_STORAGE_KEY_BASE =
   'clc_pinned_sessions_header_actions_v1';
 const SESSIONS_STALE_MS = 30_000;
@@ -103,7 +117,10 @@ interface SessionsHeaderActionDefinition extends ActionDefinition {
   element?: ApplicationActionUiElement;
 }
 
-function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
+function createDisplayEntry(
+  display: ActionDisplayPayload,
+  context: RunActionContext,
+): ActionDisplayEntry {
   const key =
     typeof display.display_id === 'string' && display.display_id
       ? display.display_id
@@ -117,7 +134,9 @@ function upsertInlineDisplay(
 ): ActionDisplayEntry[] {
   const displayId = nextEntry.display.display_id;
   if (typeof displayId === 'string' && displayId) {
-    const existingIndex = current.findIndex((entry) => entry.display.display_id === displayId);
+    const existingIndex = current.findIndex(
+      entry => entry.display.display_id === displayId,
+    );
     if (existingIndex >= 0) {
       const updated = current.slice();
       updated[existingIndex] = nextEntry;
@@ -150,11 +169,22 @@ export interface SessionsPanelProps {
   }) => void;
   sessionDoubleClickAction?: SessionOpenMode;
   requestStatuses?: Readonly<Record<string, SessionRequestStatus>>;
-  sessionNotes?: Readonly<Record<string, string>>;
-  onEditSessionNote?: (params: {
-    sessionId: string;
-    title: string;
+  onVisibleSessionIdsChange?: (params: {
+    connectionId: string | null;
+    sessionIds: readonly string[];
   }) => void;
+  sessionNotes?: Readonly<Record<string, string>>;
+  localActionsEnabled?: boolean;
+  onEditSessionNote?: (params: { sessionId: string; title: string }) => void;
+  isSessionWatched?: (sessionId: string) => boolean;
+  onToggleSessionWatchlist?: (params: {
+    sessionId: string;
+    watched: boolean;
+  }) => void;
+  getSessionTabKind?: (
+    connectionId: string,
+    sessionId: string,
+  ) => DesktopSessionTabKind | null;
 
   onUpdateOpenTabsPresentation?: (params: {
     connectionId: string;
@@ -164,14 +194,16 @@ export interface SessionsPanelProps {
 
 export function SessionsPanel(props: SessionsPanelProps): React.JSX.Element {
   return (
-    <ApplicationPluginsProvider backend={props.backend} connectionId={props.connectionId}>
+    <ApplicationPluginsProvider
+      backend={props.backend}
+      connectionId={props.connectionId}
+    >
       <SessionsPanelInner {...props} />
     </ApplicationPluginsProvider>
   );
 }
 
 function SessionsPanelInner({
-  focusedConnectionId,
   focusedConnectionName,
   connectionBaseUrl,
   connectionId,
@@ -182,25 +214,28 @@ function SessionsPanelInner({
   activeTabId,
   activeTabConnectionId,
   activeTabSessionId,
-  followActiveTabEnabled = true,
+  followActiveTabEnabled = false,
   onUpdateCache,
   onOpenSessionTab,
   sessionDoubleClickAction = 'preview',
   requestStatuses = {},
+  onVisibleSessionIdsChange,
   sessionNotes = {},
+  localActionsEnabled = true,
   onEditSessionNote,
+  isSessionWatched,
+  onToggleSessionWatchlist,
+  getSessionTabKind,
   onUpdateOpenTabsPresentation,
 }: SessionsPanelProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const {
-    controller: sessionsController,
-    state: sessionsState,
-  } = useSessionsController({
-    backend,
-    initialSessions: cachedSessions,
-  });
+  const { controller: sessionsController, state: sessionsState } =
+    useSessionsController({
+      backend,
+      initialSessions: cachedSessions,
+    });
 
   const hydrateFromCache = useCallback(
     (
@@ -224,11 +259,20 @@ function SessionsPanelInner({
 
   const shouldPreferControllerSessions =
     sessionsSnapshot?.lastLoadedAt != null ||
-    (sessionsSnapshot?.sessions != null && sessionsSnapshot.sessions.length > 0);
+    (sessionsSnapshot?.sessions != null &&
+      sessionsSnapshot.sessions.length > 0);
 
-  const sessions = shouldPreferControllerSessions
-    ? sessionsSnapshot?.sessions ?? []
-    : cachedSessions;
+  const sessions = useMemo(
+    () =>
+      shouldPreferControllerSessions
+        ? sessionsSnapshot?.sessions ?? []
+        : cachedSessions,
+    [
+      cachedSessions,
+      sessionsSnapshot?.sessions,
+      shouldPreferControllerSessions,
+    ],
+  );
 
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
   const filterAnchorRef = useRef<any>(null);
@@ -278,18 +322,17 @@ function SessionsPanelInner({
 
     sessionsController
       .loadIfStale({ staleMs: SESSIONS_STALE_MS })
-      .then((list) => {
+      .then(list => {
         if (list) {
           onUpdateCache(connectionId, list);
         }
       })
-      .catch(() => {
-      });
+      .catch(() => {});
   }, [connectionId, isOnline, onUpdateCache, sessionsController]);
 
   useEffect(() => {
     if (!connectionId) return;
-    return desktopEventBus.subscribe('sessionsReloadRequested', (payload) => {
+    return desktopEventBus.subscribe('sessionsReloadRequested', payload => {
       if (payload.connectionId !== connectionId) {
         return;
       }
@@ -299,10 +342,7 @@ function SessionsPanelInner({
 
   useEffect(() => {
     if (!backend) return;
-    return subscribeSessionsListRefreshInvalidations(
-      backend,
-      refreshSessions,
-    );
+    return subscribeSessionsListRefreshInvalidations(backend, refreshSessions);
   }, [backend, refreshSessions]);
 
   const {
@@ -331,7 +371,9 @@ function SessionsPanelInner({
   });
   const filterPopoverId = useMemo(
     () =>
-      `session-filters:${connectionId ?? 'default'}:${effectiveFilterSchema.identity}`,
+      `session-filters:${connectionId ?? 'default'}:${
+        effectiveFilterSchema.identity
+      }`,
     [connectionId, effectiveFilterSchema.identity],
   );
   const closeSessionFiltersPopover = useCallback(() => {
@@ -366,11 +408,7 @@ function SessionsPanelInner({
       content: filterPopoverContent,
       onRequestClose: closeSessionFiltersPopover,
     });
-  }, [
-    closeSessionFiltersPopover,
-    filterPopoverContent,
-    filterPopoverId,
-  ]);
+  }, [closeSessionFiltersPopover, filterPopoverContent, filterPopoverId]);
 
   useEffect(
     () => () => {
@@ -409,7 +447,9 @@ function SessionsPanelInner({
   );
 
   const pinnedSessionListActionsStorageKey = useMemo(() => {
-    return `${PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE}:${connectionId ?? 'default'}`;
+    return `${PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE}:${
+      connectionId ?? 'default'
+    }`;
   }, [connectionId]);
   const defaultPinnedSessionListActionKeys = useMemo(
     () => getDefaultPinnedSessionListActionKeys(sessionListActions),
@@ -424,7 +464,9 @@ function SessionsPanelInner({
     key: pinnedSessionListActionsStorageKey,
     initialPinned: defaultPinnedSessionListActionKeys,
   });
-  const sessionsHeaderActionDefinitions = useMemo<SessionsHeaderActionDefinition[]>(
+  const sessionsHeaderActionDefinitions = useMemo<
+    SessionsHeaderActionDefinition[]
+  >(
     () => [
       {
         key: 'serverSettings',
@@ -444,7 +486,7 @@ function SessionsPanelInner({
         iconName: 'plus',
         kind: 'builtin',
       },
-      ...applicationActions.map((element) => ({
+      ...applicationActions.map(element => ({
         key: applicationActionKey(element.plugin, element.id),
         label: element.label,
         iconName: typeof element.icon === 'string' ? element.icon : 'zap',
@@ -459,32 +501,43 @@ function SessionsPanelInner({
     setPinned: setPinnedHeaderActionKeys,
   } = usePersistentPinnedActions<string>({
     store: asyncStorageKeyValueStore,
-    key: `${PINNED_SESSIONS_HEADER_ACTIONS_STORAGE_KEY_BASE}:${connectionId ?? 'default'}`,
+    key: `${PINNED_SESSIONS_HEADER_ACTIONS_STORAGE_KEY_BASE}:${
+      connectionId ?? 'default'
+    }`,
     initialPinned: ['serverSettings', 'refreshSessions', 'newSession'],
   });
 
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
-  const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
-  const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
+  const [inlineActionDisplays, setInlineActionDisplays] = useState<
+    ActionDisplayEntry[]
+  >([]);
+  const [activeDisplayActionId, setActiveDisplayActionId] = useState<
+    string | null
+  >(null);
 
-  const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
-    const nextEntry = createDisplayEntry(display, context);
-    if (backend) {
-      emitDisplayPresentation(
-        backend,
-        normalizeDisplayEnvelope({
-          id: nextEntry.key,
-          source: 'action_response',
-          ownershipScope: 'connection',
-          connectionId,
-          sessionId: context.sessionId,
-          display,
-        }),
+  const presentActionDisplay = useCallback(
+    (display: ActionDisplayPayload, context: RunActionContext) => {
+      const nextEntry = createDisplayEntry(display, context);
+      if (backend) {
+        emitDisplayPresentation(
+          backend,
+          normalizeDisplayEnvelope({
+            id: nextEntry.key,
+            source: 'action_response',
+            ownershipScope: 'connection',
+            connectionId,
+            sessionId: context.sessionId,
+            display,
+          }),
+        );
+        return;
+      }
+      setInlineActionDisplays(current =>
+        upsertInlineDisplay(current, nextEntry),
       );
-      return;
-    }
-    setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
-  }, [backend, connectionId]);
+    },
+    [backend, connectionId],
+  );
 
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
@@ -495,19 +548,23 @@ function SessionsPanelInner({
 
       setPluginActionRunning(true);
       try {
-        const { ok, effects, display, errorMessage } = await runApplicationAction({
-          backend,
-          element,
-          actionsById,
-          actionsByKey,
-          context,
-          effects: {
-            reloadSessionsListOnMutations: true,
-          },
-        });
+        const { ok, effects, display, errorMessage } =
+          await runApplicationAction({
+            backend,
+            element,
+            actionsById,
+            actionsByKey,
+            context,
+            effects: {
+              reloadSessionsListOnMutations: true,
+            },
+          });
 
         if (!ok) {
-          Alert.alert('Action error', errorMessage || 'Failed to execute action');
+          Alert.alert(
+            'Action error',
+            errorMessage || 'Failed to execute action',
+          );
           return;
         }
 
@@ -522,7 +579,7 @@ function SessionsPanelInner({
           }
         }
 
-        if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+        if (effects.some(effect => effect.type === 'reloadSessionsList')) {
           desktopEventBus.publish('sessionsReloadRequested', {
             connectionId,
             reason: `action:${element.id}`,
@@ -540,7 +597,14 @@ function SessionsPanelInner({
         setPluginActionRunning(false);
       }
     },
-    [actionsById, actionsByKey, backend, connectionId, onOpenSessionTab, presentActionDisplay],
+    [
+      actionsById,
+      actionsByKey,
+      backend,
+      connectionId,
+      onOpenSessionTab,
+      presentActionDisplay,
+    ],
   );
 
   const openRichListPopover = useCallback(
@@ -560,7 +624,7 @@ function SessionsPanelInner({
           session={session}
           testIDPrefix={`session-rich-list-${session.session_id}-${element.id}`}
           onRequestClose={close}
-          onExecuteAction={(dialogValues) =>
+          onExecuteAction={dialogValues =>
             executePluginAction(element, {
               sessionId: session.session_id,
               sessionSummary: session,
@@ -595,7 +659,10 @@ function SessionsPanelInner({
         try {
           await Linking.openURL(action.url);
         } catch (err: any) {
-          Alert.alert('Open link failed', err?.message || 'Unable to open the link.');
+          Alert.alert(
+            'Open link failed',
+            err?.message || 'Unable to open the link.',
+          );
         }
         return;
       }
@@ -606,8 +673,8 @@ function SessionsPanelInner({
       }
       if (action.kind === 'run_action') {
         if (action.preserve_display !== true) {
-          setInlineActionDisplays((current) =>
-            current.filter((item) => item.key !== entry.key),
+          setInlineActionDisplays(current =>
+            current.filter(item => item.key !== entry.key),
           );
         }
         setActiveDisplayActionId(action.id);
@@ -620,7 +687,9 @@ function SessionsPanelInner({
               label: action.label,
               action_id: action.action_id,
               action_owner: action.action_owner,
-              fixed_params: action.fixed_params as Record<string, any> | undefined,
+              fixed_params: action.fixed_params as
+                | Record<string, any>
+                | undefined,
               param_map: action.param_map,
               form: entry.display.form,
             },
@@ -681,11 +750,12 @@ function SessionsPanelInner({
     onSubmit: handleSubmitPluginDialog,
   });
 
-  const { controller: agentsController, state: agentsState } = useAgentsController({
-    backend,
-    cacheKey: connectionId ?? 'default',
-    enabled: false,
-  });
+  const { controller: agentsController, state: agentsState } =
+    useAgentsController({
+      backend,
+      cacheKey: connectionId ?? 'default',
+      enabled: false,
+    });
 
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
   const openAgentPickerWindow = useCallback(async () => {
@@ -717,8 +787,7 @@ function SessionsPanelInner({
     () => filterSessions(sessions),
     [filterSessions, sessions],
   );
-  const hasActiveFilters =
-    searchText !== '' || activeNonMainFilterCount > 0;
+  const hasActiveFilters = searchText !== '' || activeNonMainFilterCount > 0;
 
   useEffect(() => {
     setWindowStart(0);
@@ -731,9 +800,23 @@ function SessionsPanelInner({
   ]);
 
   // Show only visible window of filtered sessions
-  const visibleSessions = filteredSessions.slice(windowStart, windowEnd);
+  const visibleSessions = useMemo(
+    () => filteredSessions.slice(windowStart, windowEnd),
+    [filteredSessions, windowEnd, windowStart],
+  );
+  const visibleSessionIds = useMemo(
+    () => visibleSessions.map(session => session.session_id),
+    [visibleSessions],
+  );
   const hasMoreAtTop = windowStart > 0;
   const hasMoreAtBottom = windowEnd < filteredSessions.length;
+
+  useEffect(() => {
+    onVisibleSessionIdsChange?.({
+      connectionId,
+      sessionIds: visibleSessionIds,
+    });
+  }, [connectionId, onVisibleSessionIdsChange, visibleSessionIds]);
 
   const {
     selectedSessionId,
@@ -743,12 +826,15 @@ function SessionsPanelInner({
     rowLayoutsRef,
   } = useSessionsPanelTabAutoSelect({
     connectionId,
-    visibleSessionIds: visibleSessions.map((session) => session.session_id),
+    visibleSessionIds,
     activeTab: {
       tabId: typeof activeTabId === 'string' ? activeTabId : null,
       connectionId:
-        typeof activeTabConnectionId === 'string' ? activeTabConnectionId : null,
-      sessionId: typeof activeTabSessionId === 'string' ? activeTabSessionId : null,
+        typeof activeTabConnectionId === 'string'
+          ? activeTabConnectionId
+          : null,
+      sessionId:
+        typeof activeTabSessionId === 'string' ? activeTabSessionId : null,
     },
     enabled: followActiveTabEnabled,
   });
@@ -776,7 +862,10 @@ function SessionsPanelInner({
 
   // Load more at bottom - adds items at bottom, may remove from top to maintain max window
   const handleLoadMoreBottom = useCallback(async () => {
-    const newEnd = Math.min(windowEnd + LOAD_MORE_INCREMENT, filteredSessions.length);
+    const newEnd = Math.min(
+      windowEnd + LOAD_MORE_INCREMENT,
+      filteredSessions.length,
+    );
     const newStart = Math.max(0, newEnd - MAX_WINDOW_SIZE);
 
     // If we're removing items from top, calculate scroll adjustment to apply after render
@@ -784,7 +873,9 @@ function SessionsPanelInner({
     if (itemsRemovedFromTop > 0 && scrollViewRef.current) {
       // Find first row that will remain visible
       const firstKeptSessionId = filteredSessions[newStart]?.session_id;
-      const layout = firstKeptSessionId ? rowLayoutsRef.current[firstKeptSessionId] : null;
+      const layout = firstKeptSessionId
+        ? rowLayoutsRef.current[firstKeptSessionId]
+        : null;
 
       if (layout) {
         // This row is currently at `layout.y` pixels from the top of content
@@ -813,7 +904,10 @@ function SessionsPanelInner({
   // Load more at top - adds items at top, may remove from bottom to maintain max window
   const handleLoadMoreTop = useCallback(() => {
     const newStart = Math.max(0, windowStart - LOAD_MORE_INCREMENT);
-    const newEnd = Math.min(filteredSessions.length, newStart + MAX_WINDOW_SIZE);
+    const newEnd = Math.min(
+      filteredSessions.length,
+      newStart + MAX_WINDOW_SIZE,
+    );
     setWindowStart(newStart);
     setWindowEnd(newEnd);
   }, [windowStart, filteredSessions.length]);
@@ -832,7 +926,10 @@ function SessionsPanelInner({
       return;
     }
 
-    const presentations: Record<string, { title: string; subtitle: string | null }> = {};
+    const presentations: Record<
+      string,
+      { title: string; subtitle: string | null }
+    > = {};
     for (const session of nextSessions) {
       if (!session || typeof session !== 'object') {
         continue;
@@ -841,7 +938,10 @@ function SessionsPanelInner({
       if (typeof sessionId !== 'string' || !sessionId) {
         continue;
       }
-      const presentation = deriveSessionListPresentationFromGroups(session, fieldGroups);
+      const presentation = deriveSessionListPresentationFromGroups(
+        session,
+        fieldGroups,
+      );
       presentations[sessionId] = {
         title: presentation.title.slice(0, 64) || sessionId,
         subtitle: presentation.subtitle,
@@ -849,7 +949,12 @@ function SessionsPanelInner({
     }
 
     onUpdateOpenTabsPresentation({ connectionId, presentations });
-  }, [connectionId, fieldGroups, onUpdateOpenTabsPresentation, sessionsState?.sessions]);
+  }, [
+    connectionId,
+    fieldGroups,
+    onUpdateOpenTabsPresentation,
+    sessionsState?.sessions,
+  ]);
 
   const openSession = useCallback(
     (session: SessionSummary, mode: SessionOpenMode = 'open') => {
@@ -857,7 +962,10 @@ function SessionsPanelInner({
         return;
       }
 
-      const presentation = deriveSessionListPresentationFromGroups(session, fieldGroups);
+      const presentation = deriveSessionListPresentationFromGroups(
+        session,
+        fieldGroups,
+      );
       onOpenSessionTab({
         connectionId,
         sessionId: session.session_id,
@@ -886,13 +994,15 @@ function SessionsPanelInner({
 
   return (
     <View style={styles.root}>
-      {inlineActionDisplays.map((entry) => (
+      {inlineActionDisplays.map(entry => (
         <ActionResultInlineCard
           key={entry.key}
           display={entry.display}
           activeActionId={activeDisplayActionId}
           onDismiss={() =>
-            setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+            setInlineActionDisplays(current =>
+              current.filter(item => item.key !== entry.key),
+            )
           }
           onFollowupAction={(action, formValues) =>
             handleDisplayFollowupAction(entry, action, formValues)
@@ -917,14 +1027,14 @@ function SessionsPanelInner({
               <Icon name="star" size={size} color={color} />
             )}
             menuButtonTestID="sessions-actions-menu"
-            isActionDisabled={(key) =>
+            isActionDisabled={key =>
               !isOnline ||
               pluginActionRunning ||
               (key === 'refreshSessions' && sessionsLoading) ||
               (key === 'newSession' &&
                 (openingAgentPicker || (agentsState?.loading ?? false)))
             }
-            onAction={(key) => {
+            onAction={key => {
               if (key === 'serverSettings') {
                 if (!backend || !connectionId) return;
                 DesktopWindowManager?.openReactWindow({
@@ -950,7 +1060,7 @@ function SessionsPanelInner({
                 return;
               }
               const element = sessionsHeaderActionDefinitions.find(
-                (item) => item.key === key,
+                item => item.key === key,
               )?.element;
               if (!element) return;
               if ((element.dialog?.kind ?? 'none') === 'none') {
@@ -993,7 +1103,7 @@ function SessionsPanelInner({
                     ? { text: String(activeNonMainFilterCount) }
                     : undefined
                 }
-                style={(state) => {
+                style={state => {
                   const hovered = (state as any).hovered as boolean | undefined;
                   return [
                     styles.filterButton,
@@ -1024,7 +1134,6 @@ function SessionsPanelInner({
             </View>
           </>
         ) : null}
-
       </View>
 
       {sessionListFilterSchema.mainSearchConflict ? (
@@ -1032,7 +1141,8 @@ function SessionsPanelInner({
           testID="session-filter-schema-warning"
           style={styles.filterWarning}
         >
-          Multiple plugins declare the main session search. Using fallback search.
+          Multiple plugins declare the main session search. Using fallback
+          search.
         </Text>
       ) : null}
 
@@ -1061,9 +1171,12 @@ function SessionsPanelInner({
           showsVerticalScrollIndicator
         >
           {hasMoreAtTop && (
-            <View style={styles.loadMoreContainerTop} onLayout={handleTopButtonLayout}>
+            <View
+              style={styles.loadMoreContainerTop}
+              onLayout={handleTopButtonLayout}
+            >
               <Pressable
-                style={(state) => {
+                style={state => {
                   const hovered = (state as any).hovered as boolean | undefined;
                   return [
                     styles.loadMoreButton,
@@ -1085,21 +1198,26 @@ function SessionsPanelInner({
                 {sessions.length === 0
                   ? 'No sessions.'
                   : hasActiveFilters
-                    ? 'No sessions match the active search or filters.'
-                    : 'No sessions match the current filter defaults.'}
+                  ? 'No sessions match the active search or filters.'
+                  : 'No sessions match the current filter defaults.'}
               </Text>
               {!isOnline ? (
-                <Text style={styles.emptyMeta}>Open the connection to refresh.</Text>
+                <Text style={styles.emptyMeta}>
+                  Open the connection to refresh.
+                </Text>
               ) : null}
             </View>
           ) : null}
 
-          {visibleSessions.map((session) => {
+          {visibleSessions.map(session => {
             const hovered = hoveredSessionId === session.session_id;
             const selected = selectedSessionId === session.session_id;
             const showRowControls = hovered;
 
-            const presentation = deriveSessionListPresentationFromGroups(session, fieldGroups);
+            const presentation = deriveSessionListPresentationFromGroups(
+              session,
+              fieldGroups,
+            );
             const title = truncateByChars(
               presentation.title || session.preview || session.session_id,
               80,
@@ -1109,23 +1227,36 @@ function SessionsPanelInner({
               80,
             );
             const meta = presentation.meta;
-            const explicitOpenMode =
-              complementarySessionOpenMode(sessionDoubleClickAction);
+            const watched = isSessionWatched?.(session.session_id) ?? false;
+            const localSessionActions = buildLocalSessionActionDefinitions({
+              watched,
+              hasNote: !!sessionNotes[session.session_id],
+              includeNote: !!onEditSessionNote,
+              includeWatchlist: !!onToggleSessionWatchlist,
+            }) as SessionActionDefinition[];
+            const explicitOpenMode = resolveExplicitSessionOpenMode(
+              sessionDoubleClickAction,
+              connectionId
+                ? getSessionTabKind?.(connectionId, session.session_id) ?? null
+                : null,
+            );
             const headerLeadingAction = selectSessionListRichActionForPlacement(
               sessionListActions,
               'header_leading',
             );
-            const headerTrailingAction = selectSessionListRichActionForPlacement(
-              sessionListActions,
-              'header_trailing',
-            );
+            const headerTrailingAction =
+              selectSessionListRichActionForPlacement(
+                sessionListActions,
+                'header_trailing',
+              );
             return (
               <Pressable
                 key={session.session_id}
                 testID={`session-row-${session.session_id}`}
-                style={(state) => {
+                style={state => {
                   const pressedOrHovered =
-                    ((state as any).hovered as boolean | undefined) || state.pressed;
+                    ((state as any).hovered as boolean | undefined) ||
+                    state.pressed;
                   return [
                     styles.row,
                     selected && styles.rowSelected,
@@ -1136,7 +1267,9 @@ function SessionsPanelInner({
                 onPress={() => handleRowPress(session)}
                 onHoverIn={() => setHoveredSessionId(session.session_id)}
                 onHoverOut={() =>
-                  setHoveredSessionId((prev) => (prev === session.session_id ? null : prev))
+                  setHoveredSessionId(prev =>
+                    prev === session.session_id ? null : prev,
+                  )
                 }
               >
                 <View style={styles.rowMain}>
@@ -1154,7 +1287,7 @@ function SessionsPanelInner({
                             dialogValues,
                           })
                         }
-                        onPresentRichList={(element) =>
+                        onPresentRichList={element =>
                           openRichListPopover(element, session)
                         }
                         renderIcon={({ name, size, color }) => (
@@ -1182,7 +1315,7 @@ function SessionsPanelInner({
                             dialogValues,
                           })
                         }
-                        onPresentRichList={(element) =>
+                        onPresentRichList={element =>
                           openRichListPopover(element, session)
                         }
                         renderIcon={({ name, size, color }) => (
@@ -1233,38 +1366,11 @@ function SessionsPanelInner({
                   style={styles.rowRight}
                   testID={`desktop-session-actions-row-${session.session_id}`}
                 >
-                  {onEditSessionNote ? (
-                    <Pressable
-                      testID={`desktop-session-note-action-${session.session_id}`}
-                      accessibilityLabel={
-                        sessionNotes[session.session_id]
-                          ? 'Edit local note'
-                          : 'Add local note'
-                      }
-                      style={styles.localNoteButton}
-                      onPress={(event) => {
-                        (event as any)?.stopPropagation?.();
-                        onEditSessionNote({
-                          sessionId: session.session_id,
-                          title,
-                        });
-                      }}
-                    >
-                      <Icon
-                        name="edit-3"
-                        size={13}
-                        color={theme.textSecondary}
-                      />
-                    </Pressable>
-                  ) : null}
                   <Pressable
                     testID={`desktop-session-${explicitOpenMode}-${session.session_id}`}
-                    style={[
-                      styles.openButton,
-                      styles.openButtonVisible,
-                    ]}
+                    style={[styles.openButton, styles.openButtonVisible]}
                     pointerEvents="auto"
-                    onPress={(event) => {
+                    onPress={event => {
                       (event as any)?.stopPropagation?.();
                       openSession(session, explicitOpenMode);
                     }}
@@ -1274,16 +1380,21 @@ function SessionsPanelInner({
                     </Text>
                   </Pressable>
 
-                  {sessionListActions.length > 0 ? (
+                  {sessionListActions.length > 0 ||
+                  localSessionActions.length > 0 ? (
                     <View
                       style={[
                         styles.actionsContainer,
-                        showRowControls || pinnedSessionListActionKeys.length > 0
+                        showRowControls ||
+                        pinnedSessionListActionKeys.length > 0
                           ? null
                           : styles.actionsContainerHidden,
                       ]}
                       pointerEvents={
-                        showRowControls || pinnedSessionListActionKeys.length > 0 ? 'auto' : 'none'
+                        showRowControls ||
+                        pinnedSessionListActionKeys.length > 0
+                          ? 'auto'
+                          : 'none'
                       }
                     >
                       <SessionListActionsBar
@@ -1295,11 +1406,36 @@ function SessionsPanelInner({
                         renderIcon={({ name, size, color }) => (
                           <Icon name={name} size={size} color={color} />
                         )}
-                        baseActions={[]}
+                        baseActions={localSessionActions}
                         pinned={pinnedSessionListActionKeys}
-                        onChangePinned={(next) => setPinnedSessionListActionKeys(next)}
-                        isActionDisabled={() => !isOnline || pluginActionRunning}
-                        onBaseAction={() => {}}
+                        onChangePinned={next =>
+                          setPinnedSessionListActionKeys(next)
+                        }
+                        isActionDisabled={key =>
+                          isLocalSessionActionKey(String(key))
+                            ? !localActionsEnabled
+                            : !isOnline || pluginActionRunning
+                        }
+                        onBaseAction={key => {
+                          if (
+                            key === LOCAL_NOTE_SESSION_ACTION_KEY &&
+                            onEditSessionNote
+                          ) {
+                            onEditSessionNote({
+                              sessionId: session.session_id,
+                              title,
+                            });
+                          }
+                          if (
+                            key === LOCAL_WATCHLIST_SESSION_ACTION_KEY &&
+                            onToggleSessionWatchlist
+                          ) {
+                            onToggleSessionWatchlist({
+                              sessionId: session.session_id,
+                              watched,
+                            });
+                          }
+                        }}
                         onExecuteAction={(element, dialogValues) =>
                           executePluginAction(element, {
                             sessionId: session.session_id,
@@ -1307,10 +1443,10 @@ function SessionsPanelInner({
                             dialogValues,
                           })
                         }
-                        onFallbackAction={(element) =>
+                        onFallbackAction={element =>
                           openPluginDialogForElement(element, session)
                         }
-                        onPresentRichList={(element) =>
+                        onPresentRichList={element =>
                           openRichListPopover(element, session)
                         }
                       />
@@ -1324,7 +1460,7 @@ function SessionsPanelInner({
           {hasMoreAtBottom && (
             <View style={styles.loadMoreContainer}>
               <Pressable
-                style={(state) => {
+                style={state => {
                   const hovered = (state as any).hovered as boolean | undefined;
                   return [
                     styles.loadMoreButton,
@@ -1348,7 +1484,7 @@ function SessionsPanelInner({
           dialog={(activePluginDialogElement as any)?.dialog}
           titleFallback={activePluginDialogElement?.label}
           prefillContext={{ session: activePluginDialogContext }}
-          onSubmit={(values) => handleSubmitPluginDialog(values)}
+          onSubmit={values => handleSubmitPluginDialog(values)}
           onCancel={handleCancelPluginDialog}
         />
       )}
@@ -1532,13 +1668,6 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       alignItems: 'center',
       justifyContent: 'flex-end',
       gap: 4,
-    },
-    localNoteButton: {
-      width: 28,
-      height: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 8,
     },
     openButton: {
       borderWidth: separatorWidth,

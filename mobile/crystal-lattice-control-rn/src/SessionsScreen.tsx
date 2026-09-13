@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,9 +18,9 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
-} from 'react-native';
-import Clipboard from '@react-native-clipboard/clipboard';
-import Icon from 'react-native-vector-icons/Feather';
+} from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
+import Icon from "react-native-vector-icons/Feather";
 import {
   applicationActionKey,
   deriveSessionListPresentationFromGroups,
@@ -32,7 +38,7 @@ import {
   type RunActionContext,
   type SessionListActionElement,
   type SessionRequestStatus,
-} from '@crystal-lattice/frontend-sdk';
+} from "@crystal-lattice/frontend-sdk";
 import {
   ActionsMenuBar,
   ApplicationActionDialog,
@@ -42,39 +48,46 @@ import {
   SessionListFiltersPanel,
   ACTIONS_MENU_BAR_ITEM_WIDTH,
   ALL_SESSION_ACTIONS,
+  LOCAL_NOTE_SESSION_ACTION_KEY,
+  LOCAL_WATCHLIST_SESSION_ACTION_KEY,
+  buildLocalSessionActionDefinitions,
+  isLocalSessionActionKey,
   type SessionActionKey,
   type SessionActionDefinition,
   type ActionDefinition,
-} from '@crystal-lattice/frontend-rn-components';
+} from "@crystal-lattice/frontend-rn-components";
 import {
   useAgentsController,
   useHydrateControllerFromCache,
   useSessionListFilters,
   useSessionsController,
-} from '@crystal-lattice/frontend-sdk-react';
-import { useTheme, type Theme } from './theme';
-import SessionSettingsModal from './components/SessionSettingsModal';
-import ServerSettingsModal from './components/ServerSettingsModal';
-import SessionPluginsModal from './components/SessionPluginsModal';
+} from "@crystal-lattice/frontend-sdk-react";
+import { useTheme, type Theme } from "./theme";
+import SessionSettingsModal from "./components/SessionSettingsModal";
+import ServerSettingsModal from "./components/ServerSettingsModal";
+import SessionPluginsModal from "./components/SessionPluginsModal";
 import {
   type ActionDisplayFollowupAction,
   type ActionUiElement,
   type ActionDisplayPayload,
   type SessionSummary,
-} from './api';
-import { useApplicationPlugins, useApplicationPluginsContext } from './ApplicationPluginsContext';
-import { usePersistentPinnedActions } from './usePersistentPinnedActions';
-import { usePluginActionDialog } from './usePluginActionDialog';
-import { handleGeneratedFileFollowupAction } from './utils/generatedFileActions';
-import AgentSwitchModal from './components/AgentSwitchModal';
-import ActionResultModal from './components/ActionResultModal';
-import ActionResultInlineCard from './components/ActionResultInlineCard';
-import { MobileDisplayHost } from './components/GlobalDisplayLayer';
-import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
-import { getMobileHeaderMaxPinnedActions } from './responsiveHeaderActions';
-import { useHomeWorkspace } from './HomeWorkspaceContext';
-import SessionNoteModal from './components/SessionNoteModal';
-import SessionRequestStatusBadge from './components/SessionRequestStatusBadge';
+} from "./api";
+import {
+  useApplicationPlugins,
+  useApplicationPluginsContext,
+} from "./ApplicationPluginsContext";
+import { usePersistentPinnedActions } from "./usePersistentPinnedActions";
+import { usePluginActionDialog } from "./usePluginActionDialog";
+import { handleGeneratedFileFollowupAction } from "./utils/generatedFileActions";
+import AgentSwitchModal from "./components/AgentSwitchModal";
+import ActionResultModal from "./components/ActionResultModal";
+import ActionResultInlineCard from "./components/ActionResultInlineCard";
+import { MobileDisplayHost } from "./components/GlobalDisplayLayer";
+import { useMobileApplicationActionDialogFieldRenderers } from "./components/applicationActionDialogRenderers";
+import { getMobileHeaderMaxPinnedActions } from "./responsiveHeaderActions";
+import { useHomeWorkspace } from "./HomeWorkspaceContext";
+import SessionNoteModal from "./components/SessionNoteModal";
+import SessionRequestStatusBadge from "./components/SessionRequestStatusBadge";
 
 interface SessionsScreenProps {
   backend: AgentBackend | null;
@@ -89,26 +102,24 @@ interface SessionsScreenProps {
   newSessionRequestToken?: number;
 }
 
-const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
-const STORAGE_KEY_SESSIONS_HEADER_ACTIONS = 'clc_pinned_sessions_header_actions_v1';
+const STORAGE_KEY_SESSION_LIST_ACTIONS = "clc_pinned_session_list_actions_v1";
+const STORAGE_KEY_SESSIONS_HEADER_ACTIONS =
+  "clc_pinned_sessions_header_actions_v1";
 
-const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
+const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = [
+  "agentSwitch",
+  "settings",
+];
 
 const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = [
-  'agentSwitch',
-  'settings',
-  'plugins',
-  'localNote',
+  "agentSwitch",
+  "settings",
+  "plugins",
+  "localNote",
+  "localWatchlist",
 ];
-const SESSION_LIST_BASE_ACTIONS: SessionActionDefinition[] = [
-  ...ALL_SESSION_ACTIONS,
-  {
-    key: 'localNote',
-    label: 'Local note',
-    iconName: 'edit-3',
-    defaultPinned: false,
-  },
-];
+const SESSION_LIST_BASE_ACTIONS: SessionActionDefinition[] =
+  ALL_SESSION_ACTIONS;
 
 type ActionDisplayEntry = {
   key: string;
@@ -117,13 +128,16 @@ type ActionDisplayEntry = {
 };
 
 interface SessionsHeaderActionDefinition extends ActionDefinition {
-  kind: 'builtin' | 'plugin';
+  kind: "builtin" | "plugin";
   element?: ApplicationActionUiElement;
 }
 
-function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
+function createDisplayEntry(
+  display: ActionDisplayPayload,
+  context: RunActionContext
+): ActionDisplayEntry {
   const key =
-    typeof display.display_id === 'string' && display.display_id
+    typeof display.display_id === "string" && display.display_id
       ? display.display_id
       : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   return { key, display, context };
@@ -131,11 +145,13 @@ function createDisplayEntry(display: ActionDisplayPayload, context: RunActionCon
 
 function upsertInlineDisplay(
   current: ActionDisplayEntry[],
-  nextEntry: ActionDisplayEntry,
+  nextEntry: ActionDisplayEntry
 ): ActionDisplayEntry[] {
   const displayId = nextEntry.display.display_id;
-  if (typeof displayId === 'string' && displayId) {
-    const existingIndex = current.findIndex((entry) => entry.display.display_id === displayId);
+  if (typeof displayId === "string" && displayId) {
+    const existingIndex = current.findIndex(
+      (entry) => entry.display.display_id === displayId
+    );
     if (existingIndex >= 0) {
       const updated = current.slice();
       updated[existingIndex] = nextEntry;
@@ -148,7 +164,7 @@ function upsertInlineDisplay(
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   backend,
   connectionId,
-  connectionName = 'Sessions',
+  connectionName = "Sessions",
   cachedSessions,
   lastLoadedAt,
   isActive,
@@ -161,44 +177,64 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const { width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const maxHeaderPinnedActions = getMobileHeaderMaxPinnedActions(windowWidth);
-  const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
-  const { notes, setSessionNote, removeSessionNote } = useHomeWorkspace();
+  const actionDialogFieldRenderers =
+    useMobileApplicationActionDialogFieldRenderers();
+  const {
+    hydrated: homeWorkspaceHydrated,
+    notes,
+    isWatched,
+    addToWatchlist,
+    removeFromWatchlist,
+    setSessionNote,
+    removeSessionNote,
+  } = useHomeWorkspace();
 
-  const { controller: sessionsController, state: sessionsState } = useSessionsController({
-    backend,
-    initialSessions: cachedSessions ?? [],
-  });
+  const { controller: sessionsController, state: sessionsState } =
+    useSessionsController({
+      backend,
+      initialSessions: cachedSessions ?? [],
+    });
   const sessions = sessionsState?.sessions ?? cachedSessions ?? [];
   const sessionsLoading = sessionsState?.loading ?? false;
 
   const hydrateSessionsCache = useCallback(
     (
       controller: NonNullable<typeof sessionsController>,
-      cache: { sessions: SessionSummary[]; lastLoadedAt: number | null },
+      cache: { sessions: SessionSummary[]; lastLoadedAt: number | null }
     ) => {
       controller.hydrateFromCache(cache);
     },
-    [],
+    []
   );
 
   useHydrateControllerFromCache({
     controller: sessionsController,
-    cache: cachedSessions != null ? { sessions: cachedSessions, lastLoadedAt } : null,
+    cache:
+      cachedSessions != null
+        ? { sessions: cachedSessions, lastLoadedAt }
+        : null,
     hydrate: hydrateSessionsCache,
   });
 
   const [actionLoading, setActionLoading] = useState(false);
   const loading = sessionsLoading || actionLoading;
-  const error = sessionsState?.error ?? (!backend ? 'No active connection' : null);
+  const error =
+    sessionsState?.error ?? (!backend ? "No active connection" : null);
   const [agentPickerVisible, setAgentPickerVisible] = useState(false);
-  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
-  const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
-  const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
-  const { controller: agentsController, state: agentsState } = useAgentsController({
-    backend,
-    cacheKey: connectionId ?? 'default',
-    enabled: !!(backend && isActive),
-  });
+  const [actionResultDisplay, setActionResultDisplay] =
+    useState<ActionDisplayEntry | null>(null);
+  const [inlineActionDisplays, setInlineActionDisplays] = useState<
+    ActionDisplayEntry[]
+  >([]);
+  const [activeDisplayActionId, setActiveDisplayActionId] = useState<
+    string | null
+  >(null);
+  const { controller: agentsController, state: agentsState } =
+    useAgentsController({
+      backend,
+      cacheKey: connectionId ?? "default",
+      enabled: !!(backend && isActive),
+    });
   const availableAgents = agentsState?.agents ?? [];
   const agentsLoading = agentsState?.loading ?? false;
   const [agentSwitchInProgress, setAgentSwitchInProgress] = useState(false);
@@ -226,19 +262,19 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     connectionId,
     schema: sessionListFilterSchema,
   });
-  const {
-    error: applicationPluginsError,
-    refresh: refreshApplicationPlugins,
-  } = useApplicationPluginsContext();
-  const applicationPluginsErrorRef = useRef<string | null>(applicationPluginsError);
+  const { error: applicationPluginsError, refresh: refreshApplicationPlugins } =
+    useApplicationPluginsContext();
+  const applicationPluginsErrorRef = useRef<string | null>(
+    applicationPluginsError
+  );
 
   useEffect(() => {
     applicationPluginsErrorRef.current = applicationPluginsError;
   }, [applicationPluginsError]);
 
   const scopedSessionListActionsStorageKey = useMemo(
-    () => `${STORAGE_KEY_SESSION_LIST_ACTIONS}:${connectionId ?? 'default'}`,
-    [connectionId],
+    () => `${STORAGE_KEY_SESSION_LIST_ACTIONS}:${connectionId ?? "default"}`,
+    [connectionId]
   );
 
   const defaultPinnedSessionActions = useMemo(
@@ -246,19 +282,25 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       ...DEFAULT_PINNED_SESSION_LIST_ACTIONS,
       ...getDefaultPinnedSessionListActionKeys(sessionListActions),
     ],
-    [sessionListActions],
+    [sessionListActions]
   );
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
     usePersistentPinnedActions<string>(
       scopedSessionListActionsStorageKey,
       defaultPinnedSessionActions,
-      { migrateFromKeys: [STORAGE_KEY_SESSION_LIST_ACTIONS] },
+      { migrateFromKeys: [STORAGE_KEY_SESSION_LIST_ACTIONS] }
     );
   const [agentSwitchVisible, setAgentSwitchVisible] = useState(false);
-  const [agentSwitchSessionId, setAgentSwitchSessionId] = useState<string | null>(null);
-  const [agentSwitchCurrentId, setAgentSwitchCurrentId] = useState<string | null>(null);
+  const [agentSwitchSessionId, setAgentSwitchSessionId] = useState<
+    string | null
+  >(null);
+  const [agentSwitchCurrentId, setAgentSwitchCurrentId] = useState<
+    string | null
+  >(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [settingsSessionId, setSettingsSessionId] = useState<string | null>(null);
+  const [settingsSessionId, setSettingsSessionId] = useState<string | null>(
+    null
+  );
   const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
   const [activeApplicationAction, setActiveApplicationAction] =
     useState<ApplicationActionUiElement | null>(null);
@@ -278,7 +320,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         setActiveRichList({ element, session });
       }, 0);
     },
-    [],
+    []
   );
 
   const closeNonPluginOverlays = useCallback(() => {
@@ -292,59 +334,60 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     setNoteSessionId(null);
   }, []);
 
-  const sessionsHeaderActionDefinitions = useMemo<SessionsHeaderActionDefinition[]>(
+  const sessionsHeaderActionDefinitions = useMemo<
+    SessionsHeaderActionDefinition[]
+  >(
     () => [
       {
-        key: 'serverSettings',
-        label: 'Server settings',
-        iconName: 'settings',
-        kind: 'builtin',
+        key: "serverSettings",
+        label: "Server settings",
+        iconName: "settings",
+        kind: "builtin",
       },
       {
-        key: 'refreshSessions',
-        label: 'Refresh sessions',
-        iconName: 'refresh-cw',
-        kind: 'builtin',
+        key: "refreshSessions",
+        label: "Refresh sessions",
+        iconName: "refresh-cw",
+        kind: "builtin",
       },
       {
-        key: 'newSession',
-        label: 'New session',
-        iconName: 'plus',
-        kind: 'builtin',
+        key: "newSession",
+        label: "New session",
+        iconName: "plus",
+        kind: "builtin",
       },
       ...applicationActions.map((element) => ({
         key: applicationActionKey(element.plugin, element.id),
         label: element.label,
-        iconName: typeof element.icon === 'string' ? element.icon : 'zap',
-        kind: 'plugin' as const,
+        iconName: typeof element.icon === "string" ? element.icon : "zap",
+        kind: "plugin" as const,
         element,
       })),
     ],
-    [applicationActions],
+    [applicationActions]
   );
   const scopedHeaderActionsStorageKey = useMemo(
-    () => `${STORAGE_KEY_SESSIONS_HEADER_ACTIONS}:${connectionId ?? 'default'}`,
-    [connectionId],
+    () => `${STORAGE_KEY_SESSIONS_HEADER_ACTIONS}:${connectionId ?? "default"}`,
+    [connectionId]
   );
-  const {
-    pinned: pinnedHeaderActions,
-    setPinned: setPinnedHeaderActions,
-  } = usePersistentPinnedActions<string>(
-    scopedHeaderActionsStorageKey,
-    ['serverSettings', 'refreshSessions', 'newSession'],
-  );
+  const { pinned: pinnedHeaderActions, setPinned: setPinnedHeaderActions } =
+    usePersistentPinnedActions<string>(scopedHeaderActionsStorageKey, [
+      "serverSettings",
+      "refreshSessions",
+      "newSession",
+    ]);
 
   const navigateToSession = useCallback(
     (sessionId: string) => {
       closeNonPluginOverlays();
       onSelectSession(sessionId);
     },
-    [closeNonPluginOverlays, onSelectSession],
+    [closeNonPluginOverlays, onSelectSession]
   );
 
-	  const loadSessions = useCallback(async () => {
+  const loadSessions = useCallback(async () => {
     if (!sessionsController) {
-      Alert.alert('Error', 'No active connection');
+      Alert.alert("Error", "No active connection");
       return false;
     }
     try {
@@ -355,47 +398,52 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       onUpdateCache(list);
       return true;
     } catch (err: any) {
-      console.log('Failed to load sessions', err);
-      const message = err?.message || 'Failed to load sessions';
-      Alert.alert('Error', message);
+      console.log("Failed to load sessions", err);
+      const message = err?.message || "Failed to load sessions";
+      Alert.alert("Error", message);
       return false;
     }
-	  }, [sessionsController, onUpdateCache, refreshApplicationPlugins]);
+  }, [sessionsController, onUpdateCache, refreshApplicationPlugins]);
 
   useEffect(() => {
     if (!backend) return;
     return subscribeSessionsListRefreshInvalidations(backend, loadSessions);
   }, [backend, loadSessions]);
 
-  const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
-    const nextEntry = createDisplayEntry(display, context);
-    const presentation = display.presentation ?? 'modal';
-    if (presentation === 'banner' && backend) {
-      emitDisplayPresentation(
-        backend,
-        normalizeDisplayEnvelope({
-          id: nextEntry.key,
-          source: 'action_response',
-          ownershipScope: 'connection',
-          connectionId,
-          sessionId: context.sessionId,
-          display,
-        }),
-      );
-      return;
-    }
-    if (presentation === 'inline') {
-      setActionResultDisplay(null);
-      setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
-      return;
-    }
-    setActionResultDisplay(nextEntry);
-  }, [backend, connectionId]);
+  const presentActionDisplay = useCallback(
+    (display: ActionDisplayPayload, context: RunActionContext) => {
+      const nextEntry = createDisplayEntry(display, context);
+      const presentation = display.presentation ?? "modal";
+      if (presentation === "banner" && backend) {
+        emitDisplayPresentation(
+          backend,
+          normalizeDisplayEnvelope({
+            id: nextEntry.key,
+            source: "action_response",
+            ownershipScope: "connection",
+            connectionId,
+            sessionId: context.sessionId,
+            display,
+          })
+        );
+        return;
+      }
+      if (presentation === "inline") {
+        setActionResultDisplay(null);
+        setInlineActionDisplays((current) =>
+          upsertInlineDisplay(current, nextEntry)
+        );
+        return;
+      }
+      setActionResultDisplay(nextEntry);
+    },
+    [backend, connectionId]
+  );
 
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
       if (!backend) {
-        Alert.alert('Error', 'No active connection');
+        Alert.alert("Error", "No active connection");
         return;
       }
 
@@ -405,35 +453,39 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           ...context,
           connectionId: connectionId ?? undefined,
         };
-        const { ok, effects, display, errorMessage } = await runApplicationAction({
-          backend,
-          element,
-          actionsById,
-          actionsByKey,
-          context: actionContext,
-          effects: { reloadSessionsListOnMutations: true },
-        });
+        const { ok, effects, display, errorMessage } =
+          await runApplicationAction({
+            backend,
+            element,
+            actionsById,
+            actionsByKey,
+            context: actionContext,
+            effects: { reloadSessionsListOnMutations: true },
+          });
         if (!ok) {
-          Alert.alert('Action error', errorMessage || 'Failed to execute action');
+          Alert.alert(
+            "Action error",
+            errorMessage || "Failed to execute action"
+          );
           return;
         }
 
         for (const effect of effects) {
-          if (effect.type === 'navigateToSession') {
+          if (effect.type === "navigateToSession") {
             navigateToSession(effect.sessionId);
             return;
           }
         }
-        if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+        if (effects.some((effect) => effect.type === "reloadSessionsList")) {
           await loadSessions();
         }
         const normalizedDisplay = normalizeActionDisplayForSurface({
           display,
           surface:
-            element.ui_type === 'application_action'
-              ? 'application_action'
-              : 'session_list_action',
-          host: 'mobile',
+            element.ui_type === "application_action"
+              ? "application_action"
+              : "session_list_action",
+          host: "mobile",
         });
         if (normalizedDisplay) {
           presentActionDisplay(normalizedDisplay, actionContext);
@@ -450,86 +502,99 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       loadSessions,
       navigateToSession,
       presentActionDisplay,
-    ],
+    ]
   );
 
   const handleDisplayFollowupAction = useCallback(
     async (
       entry: ActionDisplayEntry,
       action: ActionDisplayFollowupAction,
-      formValues?: Record<string, any>,
+      formValues?: Record<string, any>
     ) => {
-      if (action.kind === 'open_url') {
+      if (action.kind === "open_url") {
         try {
           await Linking.openURL(action.url);
         } catch (err: any) {
-          Alert.alert('Open link failed', err?.message || 'Unable to open the link.');
+          Alert.alert(
+            "Open link failed",
+            err?.message || "Unable to open the link."
+          );
         }
         return;
       }
-      if (action.kind === 'copy_text') {
+      if (action.kind === "copy_text") {
         Clipboard.setString(action.text);
-        Alert.alert('Copied', 'Copied to clipboard.');
+        Alert.alert("Copied", "Copied to clipboard.");
         return;
       }
-      if (action.kind === 'download_attachment_asset') {
+      if (action.kind === "download_attachment_asset") {
         if (!backend) {
-          Alert.alert('No connection', 'Connect to a server to download the generated file.');
+          Alert.alert(
+            "No connection",
+            "Connect to a server to download the generated file."
+          );
           return;
         }
         try {
           await handleGeneratedFileFollowupAction({ backend, action });
         } catch (err: any) {
           Alert.alert(
-            'File action failed',
-            err?.message || 'Unable to open the generated file.',
+            "File action failed",
+            err?.message || "Unable to open the generated file."
           );
         }
         return;
       }
-      if (action.kind === 'run_action') {
-        if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
-          setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
+      if (action.kind === "run_action") {
+        if (
+          (entry.display.presentation ?? "modal") !== "inline" &&
+          action.preserve_display !== true
+        ) {
+          setActionResultDisplay((current) =>
+            current?.key === entry.key ? null : current
+          );
         }
         setActiveDisplayActionId(action.id);
         try {
           await executePluginAction(
             {
-              ui_type: 'action_result_followup',
+              ui_type: "action_result_followup",
               plugin: action.plugin,
               id: action.id,
               label: action.label,
               action_id: action.action_id,
               action_owner: action.action_owner,
-              fixed_params: action.fixed_params as Record<string, any> | undefined,
+              fixed_params: action.fixed_params as
+                | Record<string, any>
+                | undefined,
               param_map: action.param_map,
               form: entry.display.form,
             },
             {
               ...entry.context,
               formValues,
-            },
+            }
           );
         } finally {
           setActiveDisplayActionId(null);
         }
       }
     },
-    [backend, executePluginAction],
+    [backend, executePluginAction]
   );
 
-	  const {
-	    activeElement: activePluginDialogElement,
-      context: activePluginDialogContext,
-	    openForElement: openPluginDialogForElement,
-	    handleSubmit: handleSubmitPluginDialog,
-	    handleCancel: handleCancelPluginDialog,
-	  } = usePluginActionDialog<SessionSummary>(
-	    useCallback(
+  const {
+    activeElement: activePluginDialogElement,
+    context: activePluginDialogContext,
+    openForElement: openPluginDialogForElement,
+    handleSubmit: handleSubmitPluginDialog,
+    handleCancel: handleCancelPluginDialog,
+  } = usePluginActionDialog<SessionSummary>(
+    useCallback(
       async (
         element: ActionUiElement,
         session: SessionSummary,
-        dialogValues: Record<string, any> | undefined,
+        dialogValues: Record<string, any> | undefined
       ) => {
         await executePluginAction(element, {
           sessionId: session.session_id,
@@ -538,9 +603,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           dialogValues,
         });
       },
-	      [connectionId, executePluginAction],
-	    ),
-	  );
+      [connectionId, executePluginAction]
+    )
+  );
 
   const closeAllOverlays = useCallback(() => {
     closeNonPluginOverlays();
@@ -584,27 +649,29 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const createSessionWithAgent = async (agentId: string | null) => {
     setAgentPickerVisible(false); // Fix: If we don't close the picker first, the SessionsScreen become unresponsive.
     if (!sessionsController || !backend) {
-      Alert.alert('Error', 'No active connection');
+      Alert.alert("Error", "No active connection");
       return;
     }
-    let chosenAgent = agentId && agentId.trim() ? agentId.trim() : '';
+    let chosenAgent = agentId && agentId.trim() ? agentId.trim() : "";
     if (!chosenAgent) {
-	      const fallback = pickDefaultAgentId(availableAgents);
-	      if (fallback) {
-	        chosenAgent = fallback;
-	      } else {
-        Alert.alert('Error', 'No agents are available from the server.');
+      const fallback = pickDefaultAgentId(availableAgents);
+      if (fallback) {
+        chosenAgent = fallback;
+      } else {
+        Alert.alert("Error", "No agents are available from the server.");
         return;
       }
     }
     setActionLoading(true);
     try {
-      const result = await sessionsController.createSession({ agentId: chosenAgent });
+      const result = await sessionsController.createSession({
+        agentId: chosenAgent,
+      });
       navigateToSession(result.sessionId);
     } catch (err: any) {
-      console.log('Failed to create session', err);
-      const message = err?.message || 'Failed to create session';
-      Alert.alert('Error', message);
+      console.log("Failed to create session", err);
+      const message = err?.message || "Failed to create session";
+      Alert.alert("Error", message);
     } finally {
       setActionLoading(false);
     }
@@ -616,11 +683,11 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       return;
     }
     try {
-	      await agentsController?.ensureLoaded();
+      await agentsController?.ensureLoaded();
     } catch (err: any) {
-      console.log('Failed to load agents for new session', err);
-      const message = err?.message || 'Failed to load agents';
-      Alert.alert('Error', message);
+      console.log("Failed to load agents for new session", err);
+      const message = err?.message || "Failed to load agents";
+      Alert.alert("Error", message);
     }
   };
 
@@ -638,50 +705,66 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
   const handleBuiltinSessionAction = useCallback(
     async (action: SessionActionKey, s: SessionSummary) => {
-
-      if (action === 'localNote') {
+      if (action === LOCAL_NOTE_SESSION_ACTION_KEY) {
         setNoteSessionId(s.session_id);
         return;
       }
 
-      if (action === 'settings') {
+      if (action === LOCAL_WATCHLIST_SESSION_ACTION_KEY && connectionId) {
+        if (isWatched(connectionId, s.session_id)) {
+          removeFromWatchlist(connectionId, s.session_id);
+        } else {
+          addToWatchlist(connectionId, s.session_id);
+        }
+        return;
+      }
+
+      if (action === "settings") {
         setSettingsSessionId(s.session_id);
         setSettingsVisible(true);
         return;
       }
 
-      if (action === 'plugins') {
+      if (action === "plugins") {
         setPluginsSessionId(s.session_id);
         setPluginsVisible(true);
         return;
       }
 
-      if (action === 'snapshots') {
+      if (action === "snapshots") {
         navigateToSession(s.session_id);
         return;
       }
 
-      if (action === 'agentSwitch') {
+      if (action === "agentSwitch") {
         if (!backend) {
-	          Alert.alert('Error', 'No active connection');
+          Alert.alert("Error", "No active connection");
           return;
         }
         setAgentSwitchSessionId(s.session_id);
         setAgentSwitchVisible(true);
         try {
           if (availableAgents.length === 0) {
-	            await agentsController?.ensureLoaded();
+            await agentsController?.ensureLoaded();
           }
           const current = await backend.getSessionAgent(s.session_id);
           setAgentSwitchCurrentId(current);
         } catch (err: any) {
-          console.log('Failed to load agents for switch', err);
-          const message = err?.message || 'Failed to load agents';
-          Alert.alert('Error', message);
+          console.log("Failed to load agents for switch", err);
+          const message = err?.message || "Failed to load agents";
+          Alert.alert("Error", message);
         }
       }
     },
-	    [backend, availableAgents.length, agentsController],
+    [
+      addToWatchlist,
+      agentsController,
+      availableAgents.length,
+      backend,
+      connectionId,
+      isWatched,
+      removeFromWatchlist,
+    ]
   );
 
   const handleConfirmAgentSwitch = async (agentId: string) => {
@@ -691,63 +774,72 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       return;
     }
     if (!backend) {
-      Alert.alert('No connection', 'Connect to a server to switch agent.');
+      Alert.alert("No connection", "Connect to a server to switch agent.");
       return;
     }
     try {
-	      setAgentSwitchInProgress(true);
+      setAgentSwitchInProgress(true);
       await backend.switchSessionAgent(sid, agentId);
       setAgentSwitchVisible(false);
       setAgentSwitchCurrentId(agentId);
     } catch (err: any) {
-      console.log('Failed to switch agent', err);
-      const message = err?.message || 'Failed to switch agent';
-      Alert.alert('Error', message);
+      console.log("Failed to switch agent", err);
+      const message = err?.message || "Failed to switch agent";
+      Alert.alert("Error", message);
     } finally {
-	      setAgentSwitchInProgress(false);
+      setAgentSwitchInProgress(false);
     }
   };
 
   const sessionListFieldGroups = useMemo(
     () => groupSessionListFields(sessionListFields || []),
-    [sessionListFields],
+    [sessionListFields]
   );
 
   const filteredSessions = useMemo(
     () => filterSessions(sessions),
-    [filterSessions, sessions],
+    [filterSessions, sessions]
   );
-  const hasActiveFilters =
-    searchText !== '' || activeNonMainFilterCount > 0;
+  const hasActiveFilters = searchText !== "" || activeNonMainFilterCount > 0;
 
   const renderSessionItem = (s: SessionSummary) => {
     const modifiedDate = new Date(s.modified * 1000);
     const modifiedLabel = modifiedDate.toLocaleString();
 
-	    const presentation = deriveSessionListPresentationFromGroups(s, sessionListFieldGroups);
-	    const title = presentation.title;
-	    const subtitle = presentation.subtitle;
-	    const metaText = presentation.meta;
+    const presentation = deriveSessionListPresentationFromGroups(
+      s,
+      sessionListFieldGroups
+    );
+    const title = presentation.title;
+    const subtitle = presentation.subtitle;
+    const metaText = presentation.meta;
 
     const actions = sessionListActions ?? [];
+    const watched =
+      connectionId != null && isWatched(connectionId, s.session_id);
+    const localSessionActions = buildLocalSessionActionDefinitions({
+      watched,
+      hasNote: !!notes[s.session_id],
+    });
     const headerLeadingAction = selectSessionListRichActionForPlacement(
       actions,
-      'header_leading',
+      "header_leading"
     );
     const headerTrailingAction = selectSessionListRichActionForPlacement(
       actions,
-      'header_trailing',
+      "header_trailing"
     );
 
     const hasAnyActions =
-      BUILTIN_SESSION_LIST_ACTIONS.length > 0 || (actions && actions.length > 0);
+      BUILTIN_SESSION_LIST_ACTIONS.length > 0 ||
+      (actions && actions.length > 0);
 
     return (
       <TouchableOpacity
         key={s.session_id}
         style={styles.sessionItem}
         testID={`session-row-${s.session_id}`}
-	      onPress={() => navigateToSession(s.session_id)}
+        onPress={() => navigateToSession(s.session_id)}
       >
         <View style={styles.sessionHeaderRow}>
           {headerLeadingAction ? (
@@ -803,10 +895,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             </View>
           ) : null}
         </View>
-        <Text
-          style={styles.sessionId}
-          testID={`session-id-${s.session_id}`}
-        >
+        <Text style={styles.sessionId} testID={`session-id-${s.session_id}`}>
           {s.session_id}
         </Text>
         {subtitle ? (
@@ -848,7 +937,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             <SessionListActionsBar
               session={s}
               pluginActions={actions}
-              baseActions={SESSION_LIST_BASE_ACTIONS}
+              baseActions={[
+                ...SESSION_LIST_BASE_ACTIONS,
+                ...localSessionActions,
+              ]}
               renderIcon={({ name, size, color }) => (
                 <Icon name={name} size={size} color={color} />
               )}
@@ -856,7 +948,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
                 <Icon name="star" size={size} color={color} />
               )}
               renderCloseIcon={({ size, color, renderIcon }) =>
-                renderIcon ? renderIcon({ name: 'x', size, color }) : null
+                renderIcon ? renderIcon({ name: "x", size, color }) : null
               }
               pinned={pinnedSessionActions}
               onChangePinned={setPinnedSessionActions}
@@ -865,7 +957,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               menuButtonTestID={`session-actions-menu-${s.session_id}`}
               modalContentStyle={styles.sessionActionsModalContent}
               isActionDisabled={(key) =>
-                key !== 'localNote' && (!backend || actionLoading)
+                isLocalSessionActionKey(String(key))
+                  ? !homeWorkspaceHydrated
+                  : !backend || actionLoading
               }
               onBaseAction={(key) =>
                 handleBuiltinSessionAction(key as SessionActionKey, s)
@@ -877,7 +971,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
                   dialogValues,
                 })
               }
-              onFallbackAction={(element) => openPluginDialogForElement(element, s)}
+              onFallbackAction={(element) =>
+                openPluginDialogForElement(element, s)
+              }
               onPresentRichList={(element) => presentRichList(element, s)}
             />
           </View>
@@ -895,7 +991,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           ellipsizeMode="tail"
           testID="sessions-screen-title"
         >
-          {connectionName || 'Sessions'}
+          {connectionName || "Sessions"}
         </Text>
         <View style={styles.headerButtons}>
           <ActionsMenuBar<SessionsHeaderActionDefinition>
@@ -915,27 +1011,27 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             isActionDisabled={(key) =>
               !backend ||
               actionLoading ||
-              (key === 'refreshSessions' && loading) ||
-              (key === 'newSession' && agentsLoading)
+              (key === "refreshSessions" && loading) ||
+              (key === "newSession" && agentsLoading)
             }
             onAction={(key) => {
-              if (key === 'serverSettings') {
+              if (key === "serverSettings") {
                 setServerSettingsVisible(true);
                 return;
               }
-              if (key === 'refreshSessions') {
+              if (key === "refreshSessions") {
                 void loadSessions();
                 return;
               }
-              if (key === 'newSession') {
+              if (key === "newSession") {
                 void handleNewSession();
                 return;
               }
               const element = sessionsHeaderActionDefinitions.find(
-                (item) => item.key === key,
+                (item) => item.key === key
               )?.element;
               if (!element) return;
-              if ((element.dialog?.kind ?? 'none') === 'none') {
+              if ((element.dialog?.kind ?? "none") === "none") {
                 void executePluginAction(element, {
                   connectionId: connectionId ?? undefined,
                 });
@@ -947,7 +1043,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         </View>
       </View>
 
-      <View style={styles.filterControlsRow} testID="sessions-search-filter-row">
+      <View
+        style={styles.filterControlsRow}
+        testID="sessions-search-filter-row"
+      >
         <TextInput
           testID="session-main-search"
           accessibilityLabel={mainSearch.label}
@@ -965,9 +1064,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             accessibilityLabel="Open session filters"
             style={[
               styles.filterButton,
-              activeNonMainFilterCount > 0
-                ? styles.filterButtonActive
-                : null,
+              activeNonMainFilterCount > 0 ? styles.filterButtonActive : null,
             ]}
             onPress={() => setFiltersVisible(true)}
           >
@@ -1002,7 +1099,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           testID="session-filter-schema-warning"
           style={styles.filterWarning}
         >
-          Multiple plugins declare the main session search. Using fallback search.
+          Multiple plugins declare the main session search. Using fallback
+          search.
         </Text>
       ) : null}
 
@@ -1013,17 +1111,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         </View>
       )}
 
-      {error && !loading && (
-        <Text style={styles.errorText}>{error}</Text>
-      )}
+      {error && !loading && <Text style={styles.errorText}>{error}</Text>}
 
       {!loading && filteredSessions.length === 0 && !error && (
         <Text style={styles.emptyText}>
           {sessions.length === 0
-            ? 'No sessions found. Create one to get started.'
+            ? "No sessions found. Create one to get started."
             : hasActiveFilters
-              ? 'No sessions match the active search or filters.'
-              : 'No sessions match the current filter defaults.'}
+            ? "No sessions match the active search or filters."
+            : "No sessions match the current filter defaults."}
         </Text>
       )}
 
@@ -1087,69 +1183,77 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         </View>
       </Modal>
 
-	  {agentPickerVisible && (
-	    <Modal
-	      visible={agentPickerVisible}
-	      transparent
-	      animationType="fade"
-	      onRequestClose={() => setAgentPickerVisible(false)}
-	    >
-	      <View style={styles.modalOverlay}>
-	        <View style={styles.modalContent}>
-	          <Text style={styles.modalTitle}>New session</Text>
-	          {agentsLoading && (
-	            <View style={styles.loadingContainer}>
-	              <ActivityIndicator size="small" color={theme.primary} />
-	              <Text style={styles.loadingText}>Loading agents...</Text>
-	            </View>
-	          )}
-	          {!agentsLoading && availableAgents.length === 0 && (
-	            <>
-	              <Text style={styles.modalSubtitle}>
-	                No agents are available from the server.
-	              </Text>
-	              <View style={styles.modalButtonsRow}>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                  onPress={() => setAgentPickerVisible(false)}
-	                >
-	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	                </TouchableOpacity>
-	              </View>
-	            </>
-	          )}
-	          {!agentsLoading && availableAgents.length > 0 && (
-	            <>
-	              <Text style={styles.modalSubtitle}>
-	                Choose an agent to start a new session.
-	              </Text>
-	              <ScrollView style={styles.agentList}>
-	                {availableAgents.map((agentId) => (
-	                  <TouchableOpacity
-	                    key={agentId}
-	                    style={styles.agentItem}
-	                    onPress={() => {
-	                      createSessionWithAgent(agentId);
-	                    }}
-	                  >
-	                    <Text style={styles.agentItemText}>{agentId}</Text>
-	                  </TouchableOpacity>
-	                ))}
-	              </ScrollView>
-	              <View style={styles.modalButtonsRow}>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                  onPress={() => setAgentPickerVisible(false)}
-	                >
-	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	                </TouchableOpacity>
-	              </View>
-	            </>
-	          )}
-	        </View>
-	      </View>
-	    </Modal>
-	  )}
+      {agentPickerVisible && (
+        <Modal
+          visible={agentPickerVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setAgentPickerVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>New session</Text>
+              {agentsLoading && (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={theme.primary} />
+                  <Text style={styles.loadingText}>Loading agents...</Text>
+                </View>
+              )}
+              {!agentsLoading && availableAgents.length === 0 && (
+                <>
+                  <Text style={styles.modalSubtitle}>
+                    No agents are available from the server.
+                  </Text>
+                  <View style={styles.modalButtonsRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.button,
+                        styles.secondaryButton,
+                        styles.modalButton,
+                      ]}
+                      onPress={() => setAgentPickerVisible(false)}
+                    >
+                      <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+              {!agentsLoading && availableAgents.length > 0 && (
+                <>
+                  <Text style={styles.modalSubtitle}>
+                    Choose an agent to start a new session.
+                  </Text>
+                  <ScrollView style={styles.agentList}>
+                    {availableAgents.map((agentId) => (
+                      <TouchableOpacity
+                        key={agentId}
+                        style={styles.agentItem}
+                        onPress={() => {
+                          createSessionWithAgent(agentId);
+                        }}
+                      >
+                        <Text style={styles.agentItemText}>{agentId}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  <View style={styles.modalButtonsRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.button,
+                        styles.secondaryButton,
+                        styles.modalButton,
+                      ]}
+                      onPress={() => setAgentPickerVisible(false)}
+                    >
+                      <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
 
       <ApplicationActionDialog
         visible={activeApplicationAction !== null}
@@ -1187,7 +1291,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           display={entry.display}
           activeActionId={activeDisplayActionId}
           onDismiss={() =>
-            setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+            setInlineActionDisplays((current) =>
+              current.filter((item) => item.key !== entry.key)
+            )
           }
           onFollowupAction={(action, formValues) =>
             handleDisplayFollowupAction(entry, action, formValues)
@@ -1212,7 +1318,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       {settingsSessionId && (
         <SessionSettingsModal
           backend={backend}
-          cacheKey={connectionId ?? 'default'}
+          cacheKey={connectionId ?? "default"}
           sessionId={settingsSessionId}
           visible={settingsVisible}
           onRequestClose={() => setSettingsVisible(false)}
@@ -1234,7 +1340,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
       <ServerSettingsModal
         backend={backend}
-        cacheKey={connectionId ?? 'default'}
+        cacheKey={connectionId ?? "default"}
         visible={serverSettingsVisible}
         onRequestClose={() => setServerSettingsVisible(false)}
       />
@@ -1250,7 +1356,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
       <AgentSwitchModal
         visible={agentSwitchVisible}
-	        loading={agentsLoading || agentSwitchInProgress}
+        loading={agentsLoading || agentSwitchInProgress}
         agents={availableAgents}
         selectedAgentId={agentSwitchCurrentId}
         currentAgentId={agentSwitchCurrentId}
@@ -1268,9 +1374,9 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.background,
     },
     headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       marginBottom: 12,
     },
     screenTitle: {
@@ -1280,12 +1386,12 @@ const createStyles = (theme: Theme) =>
       marginLeft: 13,
       marginRight: 8,
       fontSize: 16,
-      fontWeight: '700',
+      fontWeight: "700",
       color: theme.text,
     },
     headerButtons: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       flexShrink: 1,
       minWidth: ACTIONS_MENU_BAR_ITEM_WIDTH,
     },
@@ -1298,8 +1404,8 @@ const createStyles = (theme: Theme) =>
     iconHeaderButton: {
       width: 40,
       height: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius: 8,
       marginLeft: 8,
     },
@@ -1312,12 +1418,12 @@ const createStyles = (theme: Theme) =>
     buttonText: {
       color: theme.textOnPrimary,
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: "600",
     },
     buttonTextSecondary: {
       color: theme.text,
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: "600",
     },
     input: {
       flex: 1,
@@ -1331,8 +1437,8 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
     },
     filterControlsRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 8,
       marginBottom: 12,
     },
@@ -1343,20 +1449,20 @@ const createStyles = (theme: Theme) =>
       borderColor: theme.border,
       borderRadius: 8,
       backgroundColor: theme.surface,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
     },
     filterButtonActive: {
       borderColor: theme.primary,
       backgroundColor: theme.primaryMuted,
     },
     filterCount: {
-      position: 'absolute',
+      position: "absolute",
       right: 3,
       top: 1,
       color: theme.primary,
       fontSize: 10,
-      fontWeight: '800',
+      fontWeight: "800",
     },
     filterWarning: {
       color: theme.danger,
@@ -1364,8 +1470,8 @@ const createStyles = (theme: Theme) =>
       marginBottom: 8,
     },
     loadingContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       marginBottom: 8,
     },
     loadingText: {
@@ -1380,7 +1486,7 @@ const createStyles = (theme: Theme) =>
     emptyText: {
       fontSize: 14,
       color: theme.textSecondary,
-      fontStyle: 'italic',
+      fontStyle: "italic",
       marginBottom: 8,
     },
     list: {
@@ -1395,9 +1501,9 @@ const createStyles = (theme: Theme) =>
       borderColor: theme.border,
     },
     sessionHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
     },
     sessionHeaderTextColumn: {
       flex: 1,
@@ -1412,7 +1518,7 @@ const createStyles = (theme: Theme) =>
     sessionTitle: {
       fontSize: theme.typography.fontSize.large,
       lineHeight: theme.typography.lineHeight.large,
-      fontWeight: '600',
+      fontWeight: "600",
       marginBottom: 2,
       color: theme.text,
     },
@@ -1425,8 +1531,8 @@ const createStyles = (theme: Theme) =>
     pinIconButton: {
       width: 44,
       height: 44,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       marginLeft: 4,
     },
     sessionId: {
@@ -1451,15 +1557,15 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
       fontSize: theme.typography.fontSize.secondary,
       lineHeight: theme.typography.lineHeight.secondary,
-      fontStyle: 'italic',
+      fontStyle: "italic",
     },
     sessionActionsRow: {
-      flexDirection: 'row',
+      flexDirection: "row",
       marginTop: 8,
     },
     sessionActionsModalContent: {
-      width: '90%',
-      maxHeight: '80%',
+      width: "90%",
+      maxHeight: "80%",
     },
     sessionActionButton: {
       paddingHorizontal: 10,
@@ -1468,32 +1574,32 @@ const createStyles = (theme: Theme) =>
     modalOverlay: {
       flex: 1,
       backgroundColor: theme.modalBackdrop,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: "center",
+      alignItems: "center",
     },
     modalContent: {
-      width: '80%',
+      width: "80%",
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 16,
     },
     filtersModalContent: {
-      width: '90%',
-      maxHeight: '80%',
+      width: "90%",
+      maxHeight: "80%",
       backgroundColor: theme.surface,
       borderRadius: 12,
     },
     richListModalContent: {
-      width: '82%',
-      height: '55%',
-      maxHeight: '70%',
+      width: "82%",
+      height: "55%",
+      maxHeight: "70%",
       backgroundColor: theme.surface,
       borderRadius: 12,
-      overflow: 'hidden',
+      overflow: "hidden",
     },
     modalTitle: {
       fontSize: 18,
-      fontWeight: '600',
+      fontWeight: "600",
       marginBottom: 4,
       color: theme.text,
     },
@@ -1503,13 +1609,13 @@ const createStyles = (theme: Theme) =>
       marginBottom: 12,
     },
     modalButtonsRow: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
+      flexDirection: "row",
+      justifyContent: "flex-end",
       marginTop: 8,
     },
     modalButton: {
       minWidth: 90,
-      alignItems: 'center',
+      alignItems: "center",
       marginLeft: 8,
     },
     agentList: {
