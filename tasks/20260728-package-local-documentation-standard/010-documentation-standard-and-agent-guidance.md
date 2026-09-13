@@ -175,6 +175,22 @@ baseline evidence. They are not the target of the current plan.
   after defining the proportional specification file set. The one-off rerun
   instructions remain in the user handoff rather than persistent evaluation
   documentation.
+- September 10, 2026: A first self-contained review bundle included 31 files
+  and 33,609 words. Reviewer feedback found it too long and found that its
+  questions mixed objective agent-verifiable checks with human editorial
+  judgment. A second nine-file, 7,906-word bundle separated completed link,
+  index, placement, duplication, target/current, generated-output, and
+  terminology checks from questions about clarity, coherence, proportionality,
+  scannability, recurring AGENTS context, terminology, and tone. Both bundles
+  were sent to the configured Kindle address.
+- September 10, 2026: The focused review still measured a 575-word recurring
+  AGENTS section and 6,401 words across the seven authored guidance/index
+  pages. The subsequent human review rejected that structure as repetitive,
+  scattered, terminology-heavy, and difficult to navigate, leading to the
+  approved September 11 two-page rewrite. The uncommitted human-review guide
+  for that superseded structure is preserved at
+  `archive/documentation-standard-human-review-20260910.md` rather than kept as
+  active maintainer guidance.
 - September 5, 2026: The user explicitly requested that documentation rules
   remain default agent guidance rather than prevent a different user-directed
   commit order. Added the concise exception to the generic standard, Crystal
@@ -228,6 +244,11 @@ baseline evidence. They are not the target of the current plan.
   passed Test 27, leaving persistent concerns in Tests 6, 13, and 18 and mixed
   routing evidence in Test 27. Full interpretation is recorded in
   `agent-behavior-verification/20260912-guidance-rewrite-results.md`.
+- September 13, 2026: Reconciled the documentation-review edits left
+  uncommitted in the original worktree before the isolated rewrite began.
+  Preserved the September 10 review history in this task and `archive/`, while
+  treating grammar-only edits to retired pages, the old bundle manifest, and
+  the stale active human-review route as superseded by the committed rewrite.
 
 ## Prior execution plan
 
