@@ -624,3 +624,77 @@ overlay first; a subsequent effect then resets its translation.
 Verification passed with the focused Home and measured-offset regressions, the
 complete mobile Jest suite (40 suites, 162 tests), mobile TypeScript, and
 `git diff --check`.
+
+### Cross-platform Home parity and session-action follow-up
+
+Status: Approved
+
+This mobile-owned follow-up is coordinated by the approved execution plan in
+`tasks/20260827-cross-platform-markdown-and-mobile-connections/070-desktop-home-history-status-and-preview-tabs.md`.
+It reopens only the mobile Home and local-session-action behavior listed
+below. Each coordinated completion chunk owns its mobile verification and
+documentation.
+
+#### Functional requirements
+
+- [x] Mobile Sessions and Messages expose a local, state-aware `Add to
+  Watchlist` or `Remove from Watchlist` session action. The action changes only
+  device-local Watchlist membership and remains distinct from server-side
+  session pinning.
+- [ ] Mobile Watchlist cards and Recent Sessions timeline rows show the same
+  information hierarchy as their desktop equivalents: title, optional
+  subtitle, session ID, connection name, relative time, request status, note,
+  and relevant local actions.
+- [ ] A message preview is rendered exactly once as the fallback when both
+  title and subtitle are absent.
+- [ ] Long connection names and session IDs truncate without displacing the
+  relative time or local actions; connection-name and time truncation are
+  independent.
+- [ ] Timeline rail dots are neutral gray. Request-status indicators retain
+  their semantic state colors.
+
+#### Non-functional requirements
+
+- [ ] Mobile and desktop consume shared React Native Watchlist-card, timeline,
+  and fallback-presentation primitives while retaining platform-owned touch
+  drag, pointer drag, navigation, double-click, and native-menu behavior.
+- [x] The local Watchlist action uses the existing static session-action
+  extension points and pinnable action infrastructure; it does not require a
+  backend, application plugin, or transport mutation.
+- [ ] Shared/component tests derive expected presentation from the canonical
+  session presentation helper and active theme rather than duplicating
+  mutable layout or typography values.
+- [ ] Mobile Jest and focused iOS/Android Detox scenarios verify Sessions and
+  Messages Watchlist actions, long-name timestamp visibility, field fallback,
+  and the shared card/timeline structure.
+
+#### Follow-up task checklist
+
+- [x] Complete the mobile portion of coordinated Chunk 2: local Watchlist
+  actions in Sessions and Messages.
+- [ ] Complete the mobile portion of coordinated Chunk 3: shared Home
+  presentation, field fallback, truncation, and neutral timeline dots.
+- [ ] Update current mobile Home/session-navigation documentation.
+- [ ] Record mobile component, type, iOS, and Android evidence with the owning
+  completion chunk.
+
+#### Chunk 2 mobile completion notes
+
+- Sessions and Messages now add the same state-aware local Watchlist
+  definition to their existing pinnable Session actions. The action is
+  available without a backend after local hydration and remains separate from
+  plugin/server pin state.
+- Shared action rows now expose explicit accessibility activation. Local
+  actions remain disabled during Home hydration, and pinned-action state
+  preserves a user update that races an older storage read without losing
+  built-in or plugin defaults.
+- Verification passed with the complete mobile Jest suite (42 suites, 182
+  tests), mobile TypeScript, final iOS and Android builds, the complete iOS
+  Session-list and rich-session Detox suites (4 tests), and focused Android
+  Sessions and Messages Detox scenarios (2 tests). Two retries of an
+  unrelated Android geometry scenario were blocked by emulator
+  window-focus/ANR failures before useful interaction; its iOS counterpart
+  passed.
+- Current mobile Home and development documentation describes the new
+  Session-action entry points and hydration ownership. Chunk 3 presentation
+  documentation and native evidence remain open.

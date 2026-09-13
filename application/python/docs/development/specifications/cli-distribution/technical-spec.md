@@ -51,11 +51,12 @@ archive build before starting the consumer test. This variable is distinct
 from the existing `CRYSTAL_LATTICE_BUNDLE_ARCHIVE` input used by optimized
 PyInstaller tests.
 
-The default build uses a normal isolated Nox environment. Build dependencies
+The default build uses a temporary isolated host build venv. Build dependencies
 are installed only there, never into the repository environment running the
 orchestrator or a test. Unless `CRYSTAL_PYTHON_RUNTIME` supplies an explicit
-runtime directory, Nox provisions an `uv`-managed Python 3.11 runtime under its
-temporary directory and passes that runtime to the package builder.
+runtime directory, the build wrapper provisions an `uv`-managed Python 3.11
+runtime under its temporary directory and passes that runtime to the package
+builder.
 Portability validation remains part of the extracted-archive smoke; an
 accidental dependency on the developer's active Python environment is not
 acceptable test setup.
@@ -324,7 +325,7 @@ and through `cmd.exe`.
 
 ## Root npm commands and native release verification
 
-The root commands are:
+The root distribution-smoke commands are:
 
 ```text
 npm run test:cli:source-install
@@ -361,6 +362,111 @@ by sharing archive construction and low-level helpers, but not by replacing
 one direct smoke with another, skipping either plugin installation, sharing
 mutable state, or adding orchestration whose complexity outweighs the saved
 time.
+
+The root local build and install commands use the same action-first,
+CLI-scoped convention:
+
+```text
+npm run build:cli:archive
+npm run build:cli:optimized
+npm run install:cli:archive
+npm run install:cli:dev
+```
+
+`build:cli:archive` creates the bundled-Python runtime archive.
+`build:cli:optimized` creates the separate config-specific PyInstaller
+archive. `install:cli:archive` builds and installs the current bundled-Python
+archive through the public installer. `install:cli:dev` installs the editable
+development command.
+
+When `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` names a matching existing
+archive, `install:cli:archive` installs it through the public installer without
+rebuilding. Without that override, it retains the build-then-install workflow.
+
+The earlier unscoped `build:bundle`, `build:optimized`,
+`install:prod:local`, and `install:dev:local` names are removed after tracked
+consumers migrate. Compatibility aliases are retained only when a maintained
+external automation consumer is identified.
+
+## Maintainer script ownership
+
+Application-only CLI maintainer entry points live under:
+
+```text
+application/python/scripts/
+```
+
+This directory owns:
+
+- isolated managed-runtime and optimized-build wrappers;
+- local archive and editable-development installers;
+- the public standalone `install.sh`;
+- CLI version maintenance;
+- distribution-smoke dispatch and scenario entry points;
+- focused boot, archive-selection, and progress helpers used by those
+  entry points.
+
+Package-local filenames omit a redundant `crystal_lattice` prefix when the
+remaining nouns are unambiguous. Names retain concrete distinctions such as
+`runtime_archive`, `optimized_archive`, `source_install`, and
+`default_install`.
+
+The repository root retains the cross-runtime packaging primitive cluster:
+
+```text
+scripts/build_cloud_runtime_plugin_bundle.py
+scripts/build_crystal_lattice_binary.py
+scripts/build_crystal_lattice_python_runtime_package.py
+scripts/build_plugin_packaging_support.py
+scripts/prepare_cloud_runtime_build_context.py
+```
+
+Cloud-orchestrator source bundles consume this cluster, and runtime-package
+construction copies selected files into the shipped archive's root `scripts/`
+directory. This explicit cross-package and shipped-runtime contract is
+different from application maintainer entry-point ownership.
+
+When the runtime-package builder stages `application/python`, it excludes the
+package-local maintainer `scripts/` directory and generated application
+`cache/` directories. It then explicitly stages only the root packaging
+scripts required by the shipped runtime. Python package builds likewise do not
+include the maintainer script directory as importable package code.
+
+## Progress output for long operations
+
+Potentially long application-owned Python entry points use a shared progress
+helper with the visible convention established by `release:cli`:
+
+```text
+[1/5] Creating clean Python environment
+[2/5] Installing Core and the CLI
+      $ python -m pip install ...
+```
+
+The helper:
+
+- prints and flushes a numbered step before each long phase;
+- prints six-space-indented detail lines;
+- shows the command before executing a human-readable child process;
+- normally lets that child inherit stdout and stderr so output is visible
+  immediately without an unread or delayed pipe;
+- captures output only for short machine-readable values the caller must
+  parse.
+
+The boot helper continues directing server output to a file so dynamic plugin
+installation cannot fill an unread pipe. Before waiting, the scenario prints
+that server-log path. While readiness remains pending, it emits bounded
+periodic status details without dumping the growing log. Early exit and
+timeout errors continue including a bounded log tail.
+
+The public `install.sh` is downloaded and executed as one standalone file, so
+it cannot source a repository-only logging library. It carries the equivalent
+small numbered-step and detail functions inline and streams download,
+extraction, validation, and command-installation output normally.
+
+Progress output never prints the complete child environment or credential
+values. Existing process-tree termination, timeout, and port-closure behavior
+is unchanged.
 
 ## Simplification and ownership
 

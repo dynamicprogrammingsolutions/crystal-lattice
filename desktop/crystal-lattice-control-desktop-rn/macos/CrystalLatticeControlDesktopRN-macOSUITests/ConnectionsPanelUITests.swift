@@ -220,6 +220,14 @@ final class ConnectionsPanelUITests: XCTestCase {
         .waitForExistence(timeout: 10),
       app.debugDescription
     )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tab-request-status-harness-connection:one"
+      )
+        .waitForExistence(timeout: 10),
+      app.debugDescription
+    )
     preview.coordinate(
       withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
     ).doubleClick()
@@ -242,6 +250,13 @@ final class ConnectionsPanelUITests: XCTestCase {
       ).waitForExistence(timeout: 10),
       app.debugDescription
     )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-session-status-harness-connection-one"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
 
     let firstWatched = workspaceElement(
       app,
@@ -260,7 +275,8 @@ final class ConnectionsPanelUITests: XCTestCase {
       )
     )
     _ = waitForWorkspaceState { state in
-      (state["watchlistOrder"] as? [String]) == ["two", "one"]
+      (state["watchlistOrder"] as? [String])
+        == ["two", "one", "three", "four"]
     }
 
     clickCenter(workspaceElement(app, "desktop-activity-history"))
@@ -299,6 +315,60 @@ final class ConnectionsPanelUITests: XCTestCase {
 
     _ = waitForWorkspaceState { state in
       (state["permanentOrder"] as? [String]) == ["two", "one"]
+    }
+  }
+
+  func testWatchlistVerticalDragFollowsPointerDirection() throws {
+    let app = launchWorkspaceHarness()
+    _ = waitForWorkspaceState { state in
+      (state["watchlistOrder"] as? [String])
+        == ["one", "two", "three", "four"]
+    }
+    clickCenter(workspaceElement(app, "desktop-home-tab"))
+
+    let first = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-one"
+    )
+    let third = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-three"
+    )
+    XCTAssertTrue(first.waitForExistence(timeout: 20), app.debugDescription)
+    XCTAssertTrue(third.waitForExistence(timeout: 10), app.debugDescription)
+
+    first.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    ).press(
+      forDuration: 0.2,
+      thenDragTo: third.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)
+      )
+    )
+    _ = waitForWorkspaceState { state in
+      (state["watchlistOrder"] as? [String])
+        == ["two", "three", "one", "four"]
+    }
+
+    let movedFirst = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-one"
+    )
+    let topLeft = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-two"
+    )
+    movedFirst.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    ).press(
+      forDuration: 0.2,
+      thenDragTo: topLeft.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)
+      )
+    )
+    _ = waitForWorkspaceState { state in
+      (state["watchlistOrder"] as? [String])
+        == ["one", "two", "three", "four"]
     }
   }
 }

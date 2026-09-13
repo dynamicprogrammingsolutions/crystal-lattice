@@ -168,5 +168,46 @@ final class MarkdownDisplayMenuUITests: XCTestCase {
         .waitForExistence(timeout: 5),
       app.debugDescription
     )
+
+    let followSelect =
+      app.popUpButtons["global-settings-follow-active-tab"]
+    XCTAssertTrue(
+      followSelect.waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    followSelect.click()
+    let onOption = app.menuItems["On"]
+    XCTAssertTrue(onOption.waitForExistence(timeout: 5), app.debugDescription)
+    onOption.click()
+    let onValue = NSPredicate(format: "value == %@", "On")
+    let onExpectation = XCTNSPredicateExpectation(
+      predicate: onValue,
+      object: followSelect
+    )
+    XCTAssertEqual(
+      XCTWaiter.wait(for: [onExpectation], timeout: 10),
+      .completed
+    )
+
+    let view = app.menuBars.menuBarItems["View"]
+    view.click()
+    let followMenu = app.menuItems[
+      "Follow Active Tab in Sessions List"
+    ]
+    XCTAssertTrue(
+      followMenu.waitForExistence(timeout: 5),
+      app.debugDescription
+    )
+    followMenu.click()
+
+    let offValue = NSPredicate(format: "value == %@", "Off")
+    let offExpectation = XCTNSPredicateExpectation(
+      predicate: offValue,
+      object: followSelect
+    )
+    XCTAssertEqual(
+      XCTWaiter.wait(for: [offExpectation], timeout: 10),
+      .completed
+    )
   }
 }

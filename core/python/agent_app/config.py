@@ -510,12 +510,35 @@ def _overlay_with_merge_directive(
     *,
     replace_existing: bool = False,
 ) -> Dict[str, Any]:
+    """Copy ``mapping`` and set its root merge directive to ``directive``.
+
+    With ``replace_existing`` any directive already present on ``mapping`` is
+    removed first, so the caller fully owns the resulting root policy.
+    """
     overlay = {key: _copy_jsonish(value) for key, value in mapping.items()}
     if replace_existing:
         overlay.pop(MERGE_KEY, None)
     if directive is not None:
         overlay[MERGE_KEY] = _copy_jsonish(directive)
     return overlay
+
+
+def _strip_consumed_merge_directives(
+    target: MutableMapping[str, Any], ref: Mapping[str, Any]
+) -> None:
+    """Remove a consumed mixin's merge directives from a merged mapping.
+
+    After a referenced mixin carrying ``$merge`` directives has been merged,
+    its directives must not persist into the referrer's configuration. Every
+    ``$merge`` position the mixin defines is removed from the merged result at
+    the same path. Overlay directives win during merging, so those keys
+    provably originate from the referenced mixin.
+    """
+    for key, value in ref.items():
+        if key == MERGE_KEY:
+            target.pop(MERGE_KEY, None)
+        elif isinstance(value, Mapping) and isinstance(target.get(key), Mapping):
+            _strip_consumed_merge_directives(target[key], value)
 
 
 def resolve_config_mixins(
@@ -526,6 +549,12 @@ def resolve_config_mixins(
     The returned config preserves the original top-level structure, but
     provider and agent entries are expanded so downstream code sees the
     effective configuration without mixin control keys.
+
+    A referenced mixin's own root ``$merge`` governs how that mixin merges
+    into its referrer; references without their own directive use the
+    referrer's root policy. Mixin-carried directives are consumed by that
+    merge action and do not persist into the referrer's resolved
+    configuration.
     """
 
     config = dict(raw_config)
@@ -649,11 +678,15 @@ def resolve_config_mixins(
                     }
                 )
                 continue
+            resolved_ref = _resolve_named_mixin(mixin_id, depth + 1)
+            # A mixin's own root $merge governs its merge into the referrer;
+            # directive-less references use the referencing node's policy.
+            ref_directive = resolved_ref.get(MERGE_KEY)
             merged = _merge_mappings(
                 merged,
                 _overlay_with_merge_directive(
-                    _resolve_named_mixin(mixin_id, depth + 1),
-                    directive,
+                    resolved_ref,
+                    ref_directive if ref_directive is not None else directive,
                     replace_existing=True,
                 ),
                 default_merge,
@@ -662,6 +695,12 @@ def resolve_config_mixins(
                 max_depth=max_depth,
                 preserve_directives=True,
             )
+            if ref_directive is not None:
+                # Consume the mixin-carried directive: it must not persist
+                # into the referrer's resolved configuration or govern any
+                # later merge action.
+                merged.pop(MERGE_KEY, None)
+                _strip_consumed_merge_directives(merged, resolved_ref)
 
         preserve_mode = path.startswith("providers.") or path.startswith("agents.")
         local_overlay = _strip_mixin_control_keys(

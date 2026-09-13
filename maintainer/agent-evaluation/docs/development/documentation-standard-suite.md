@@ -6,7 +6,8 @@ tasks.
 
 Seeds are guidance-neutral. Branches select an explicit guidance source:
 
-- `baseline`: files from pinned revision `3a62b6fc`;
+- `develop`: the previous guidance from pinned revision `f81f3632`;
+- `baseline`: the older historical calibration from `3a62b6fc`;
 - `candidate`: files from the current repository working tree;
 - another name plus `AGENT_EVAL_GUIDANCE_DIR`: files from an explicit directory.
 
@@ -31,7 +32,7 @@ role, position, and injection-strategy version are retained in evidence.
 
 For new guidance-clarity cases:
 
-1. Run the unchanged task against `baseline`.
+1. Run the unchanged task against `develop`.
 2. Confirm that a representative run exhibits the targeted undesirable
    behavior.
 3. Run the same seed, prompt, fixture, assertions, and model profile against
@@ -42,34 +43,54 @@ For new guidance-clarity cases:
 A baseline that already passes can provide robustness evidence, but cannot show
 that candidate wording fixed a regression.
 
-Test 20 uses a routing-only variation: root AGENTS guidance is injected while
-the routed standard pages remain ordinary workspace files. Ordered tool
-evidence then shows whether those pages were read in full before the first
-mutation.
+Test 27 uses a routing-only variation: root AGENTS guidance is injected while
+the two current guidance pages remain ordinary workspace files. Legacy Test 20
+retains the former four-page route for direct comparison only.
 
-## Run GLM-5.2
+## Run GLM-5.3 Flash
 
-Routine baseline:
+The GLM profile targets `glm-5.3-flash:cloud` for every seed and branch.
+Confirm that the local Ollama service can resolve that exact identifier before
+starting a real-model matrix.
+
+Previous guidance with the legacy 21-test suite:
 
 ```bash
 AGENT_EVAL_RUN_REAL=1 \
 AGENT_EVAL_PROFILE=glm \
-AGENT_EVAL_GUIDANCE_VARIANT=baseline \
-pytest maintainer/agent-evaluation/suites/documentation_standard \
-  -m "agent_eval and routine" -q
+AGENT_EVAL_GUIDANCE_VARIANT=develop \
+pytest maintainer/agent-evaluation/suites/documentation_standard/test_consumers.py \
+  -m "agent_eval" -q
 ```
 
-Routine candidate:
+Current guidance with the same legacy suite:
 
 ```bash
 AGENT_EVAL_RUN_REAL=1 \
 AGENT_EVAL_PROFILE=glm \
 AGENT_EVAL_GUIDANCE_VARIANT=candidate \
-pytest maintainer/agent-evaluation/suites/documentation_standard \
-  -m "agent_eval and routine" -q
+pytest maintainer/agent-evaluation/suites/documentation_standard/test_consumers.py \
+  -m "agent_eval" -q
 ```
 
-Replace `routine` with `extended`, or use `agent_eval`, for broader runs.
+Tests 01, 15, 17, 20, and 21 are intentionally included in that comparison
+even though their README-only restriction, ban on every early user-doc draft,
+full package profile, old route, or literal terminology assertion is obsolete.
+
+Current guidance with the revised suite:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_PROFILE=glm \
+AGENT_EVAL_GUIDANCE_VARIANT=candidate \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_consumers.py \
+  maintainer/agent-evaluation/suites/documentation_standard/test_revised_consumers.py \
+  -m "agent_eval and not obsolete" -q
+```
+
+Use `AGENT_EVAL_GUIDANCE_VARIANT=develop` with the same revised command for
+baseline-first evidence on Tests 22–29.
 
 ## Run GPT-5.6-luna
 
@@ -79,7 +100,7 @@ Hosted runs require the explicit hosted gate:
 AGENT_EVAL_RUN_REAL=1 \
 AGENT_EVAL_ALLOW_HOSTED=1 \
 AGENT_EVAL_PROFILE=gpt \
-AGENT_EVAL_GUIDANCE_VARIANT=baseline \
+AGENT_EVAL_GUIDANCE_VARIANT=develop \
 pytest maintainer/agent-evaluation/suites/documentation_standard \
   -m "agent_eval and routine" -q
 ```
@@ -88,9 +109,10 @@ Use `AGENT_EVAL_GUIDANCE_VARIANT=candidate` for the paired candidate run.
 
 The current suite collects:
 
-- 13 routine consumers;
+- 21 legacy consumers for direct comparison;
+- 18 revised routine branches;
 - 8 extended consumers;
-- 21 total behavioral consumers over 9 reusable guidance-neutral seeds.
+- 26 revised branches over 11 guidance-neutral seeds.
 
 ## Run a custom wording variant
 

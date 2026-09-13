@@ -71,7 +71,7 @@ if [ -z "$BASE_URL" ]; then
 fi
 
 generate_installer() {
-  python - "$BASE_URL" "$REPO_ROOT/scripts/install.sh" <<'PY'
+  python - "$BASE_URL" "$REPO_ROOT/application/python/scripts/install.sh" <<'PY'
 from pathlib import Path
 import re
 import sys

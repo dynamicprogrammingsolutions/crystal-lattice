@@ -4,7 +4,7 @@ This file is the starting point when you’re asked to change behavior, add a fe
 
 ---
 
-## 1. Project Overview
+## Project Overview
 
 The AI Agent Platform is a **modular, functional agent framework** for building conversational apps on top of arbitrary LLM providers.
 
@@ -29,7 +29,7 @@ Design principles:
 
 ---
 
-## 2. Architecture & Key Directories
+## Architecture & Key Directories
 
 **Core SDK – `core/python/agent_core`**
 - `core.py`: `AgentCore` – session/message ops, request/streaming pipeline, tool orchestration, native history.
@@ -107,9 +107,10 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 **Docs & scripts**
 - Root: `ARCHITECTURE.md`, `TYPES_AND_PROTOCOLS.md`, `EXAMPLES.md`.
 - Development hub: `docs/development/index.md`.
-- Reusable standards: `docs/development/standards/index.md`.
-- Crystal Lattice repository policy: `docs/development/repository/index.md`.
-- Standards-maintenance specifications: `maintainer/specifications/`.
+- Documentation and specification guide: `docs/development/documentation.md`.
+- Crystal Lattice documentation conventions:
+  `docs/development/crystal-lattice-documentation.md`.
+- Guidance-maintenance specifications: `maintainer/specifications/`.
 - API docs: `docs/api/core-sdk.md`, `docs/reference/agent_core/*`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
 - General plugin overview: `plugins/docs/overview.md`.
@@ -117,74 +118,42 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 
 ## Documentation ownership and workflow
 
-Documentation is authored next to the package or subsystem that owns it.
+Start package work by reading its `README.md`, nearest `AGENTS.md`, and
+`docs/index.md` when present. Use the smallest documentation structure that
+helps the reader; README-only, one-page, and larger documentation or
+specification layouts are all valid.
 
-- Start package work by reading its `README.md`, nearest `AGENTS.md`, and
-  `docs/index.md` when present.
-- Keep README files concise: purpose, installation, first use/build/test, and
-  pointers to detailed documentation.
-- Put package-user documentation under `<package>/docs/`.
-- Put current package internals, contributor guidance, architecture, testing,
-  and specifications under `<package>/docs/development/`.
-- Keep root `docs/` for reusable standards, Crystal Lattice repository policy,
-  genuinely cross-package contracts, architecture, and site entry points. Do
-  not use it as the default location for package documentation.
-- Treat authored package/root files as sources of truth.
-  `docs_site/prepared/` and `docs_site/dist/` are generated and must not be
-  edited directly.
-- Specifications describe intended targets and may temporarily differ from
-  implementation. Requirements track live implementation, verification,
-  documentation, and evidence. Task files track approval and execution.
-- Public user documentation and implementation/maintainer documentation
-  describe current committed behavior. User docs state delivered behavior
-  directly without task/specification phase names, requirement IDs, progress
-  labels, or internal target links. Never mention an internal phase in user
-  docs, even to label delivered or unimplemented work. Rewrite delivered
-  capabilities in product terms and omit phase labels entirely. Commit new
-  claims with the code that makes them true, unless the user explicitly asks
-  for a different commit order.
-- Preserve document, audience, and source-of-truth boundaries. Information
-  available from tasks,
-  specifications, requirements, commits, AGENTS files, or maintainer workflows
-  does not automatically belong in another document; include only information
-  available and appropriate to that document's audience, translating current
-  user-relevant facts into its vocabulary.
-- Treat the destination audience as a write boundary. If a request would expose
-  internal or unavailable context in an output document, leave that document
-  unchanged, report the conflict before editing, and offer an
-  audience-compatible translation or location; never invent a link.
-- Use concrete nouns in documentation and guidance. Do not use “artifact” as an
-  umbrella label for documentation, code, specifications, requirements, tasks,
-  or tests. Reserve it for established technical terms such as build, release,
-  test, evaluation, or provider-native artifacts and literal paths or APIs.
-- A blocked compliant workflow does not broaden authority. Do not bypass
-  source-of-truth, generated-output, ownership, validation, or scope boundaries
-  to produce an apparent completion. Complete safe in-scope work, report the
-  blocker and remaining action, and ask before a boundary-changing workaround.
-- Create a substantial package specification only when its scope and value
-  justify it and the active approved task authorizes it, or after presenting
-  the owning package or shared scope, behavior scope, and overlap and obtaining
-  user approval. A direct creation request does not replace that proposal and
-  confirmation.
-- Use stable requirement IDs for important acceptance behavior and record
-  concrete implementation, verification, documentation, task, and delivery
-  evidence. Do not duplicate execution plans in specifications.
-- Do not invent a documentation baseline by reconstructing large unfamiliar
-  areas. Document facts verified during the current work and record larger
-  gaps for later migration.
+Put package-user documentation under `<package>/docs/` and current internals,
+architecture, testing, and specifications under
+`<package>/docs/development/`. Keep root `docs/` for project-wide guidance,
+cross-package architecture and behavior, and site entry points.
 
-Before creating, moving, materially restructuring, or deciding the audience,
-placement, or required file set of documentation or specifications, read these
-indexes and the directly relevant pages they route to in full:
+Specifications describe intended targets. Requirements track necessary
+outcomes and their implementation, verification, and documentation state.
+Tasks track approval and execution. Published user and developer documentation
+describe available behavior in language appropriate to their readers.
+Target-only user text may be drafted on a development branch with a visible
+`Not implemented` marker, but is not published as current guidance by default.
 
-- `docs/development/repository/index.md`
-- `docs/development/standards/index.md`
+Change generated documentation through its maintained source or generator;
+never edit `docs_site/prepared/` or `docs_site/dist/` directly. If a required
+generation or validation step is blocked, preserve the source and validation
+boundaries and report the remaining action.
 
-A local factual correction to an existing page does not require unrelated
-standards reading when its audience, placement, and maintained source are clear.
+Document verified facts discovered during the current work. Do not reconstruct
+large unfamiliar areas merely to fill an illustrated directory structure.
 
-When changing the standards, task guidance, publication rules, or their
-validation—not merely applying them—also read in full:
+Before creating, moving, or materially restructuring documentation or
+specifications, read:
+
+- `docs/development/documentation.md`
+- `docs/development/crystal-lattice-documentation.md`
+
+A local factual correction does not require unrelated structure guidance when
+the page, reader, and maintained source are clear.
+
+When changing this guidance, task guidance, publication rules, or their
+validation, also read:
 
 - `maintainer/specifications/documentation-and-specification-standard/index.md`
 - `maintainer/specifications/documentation-and-specification-standard/requirements.md`
@@ -199,7 +168,13 @@ validation—not merely applying them—also read in full:
 
 ---
 
-## 3. Development Workflow
+## Development Workflow
+
+**Commit guidance**
+
+Create a commit only when the user explicitly requests one in the current conversation. Use a short, clear message—usually two to six words—without type or scope prefixes unless a specific format is requested. Stage only files belonging to the requested work and leave unrelated changes unstaged.
+
+Examples: `Improve error handling`, `Add cache validation`, `Update deployment notes`.
 
 **Setup (Python 3.10+)**
 - Core SDK + core-packaged plugins:
@@ -280,7 +255,7 @@ validation—not merely applying them—also read in full:
 
 ---
 
-## 4. Where to Change What
+## Where to Change What
 
 **Core behavior (`agent_core`)**
 - Change `core/python/agent_core/core.py` when you need new capabilities that all apps share:
@@ -347,7 +322,7 @@ validation—not merely applying them—also read in full:
 
 ---
 
-## 6. Testing & Documentation Principles
+## Testing & Documentation Principles
 
 **When to add tests**
 - Any new public behavior or API surface.
@@ -408,3 +383,35 @@ validation—not merely applying them—also read in full:
   - Update example code + tests, then regenerate `EXAMPLES.md`.
 
 Treat tests, type hints, and documentation updates as part of “done” for any substantive change.
+
+## Long-running work and waiting
+
+- Start safe, authorized commands expected to take longer than 10 minutes in
+  the background, and keep a process ID, log, or other status mechanism.
+- Continue independent in-scope work while background commands run. Use
+  waiting intervals only when completion blocks the remaining work.
+- Monitor at intervals of up to 10 minutes. Limit waiting-only work to two
+  hours or 12 wait calls.
+- Read the current time at the start of commands whose behavior depends on it.
+
+For example, start a long-running command and continue other work:
+
+```bash
+nohup <command> > /tmp/<task-name>.log 2>&1 < /dev/null &
+pid=$!
+```
+
+Check it later:
+
+```bash
+date -u
+kill -0 "$pid" && tail -n 50 /tmp/<task-name>.log
+```
+
+For a scheduled wait, calculate from the current time read by that command:
+
+```bash
+now=$(date -u +%s)
+(( now < target_epoch )) &&
+  sleep $(( target_epoch - now < 600 ? target_epoch - now : 600 ))
+```

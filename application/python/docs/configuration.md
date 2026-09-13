@@ -87,6 +87,53 @@ key for that provider or tool. See
 [configuration placeholders](configuration-placeholders.md#env-files) for
 the complete lookup order and precedence.
 
+## Session-list loading
+
+The current local session-list implementation persists complete derived
+summaries so a new runtime does not reopen every unchanged session file.
+Session files are still authoritative; deleting the derived cache only causes
+summaries to be rebuilt.
+
+The service enumerates session filenames and attributes first. It then resolves
+new or changed sessions from newest to oldest. Full resolution waits for up to
+10 seconds by default. If files remain unresolved, the response still contains
+every discovered session: complete summaries appear first and unresolved
+sessions use empty preview and metadata values with the standard fallback
+title. Resolution continues inside the server for later list requests.
+
+This behavior can be tuned through the current implementation's own
+application section:
+
+```json
+{
+  "application": {
+    "cached_background_session_list": {
+      "foreground_timeout_seconds": 10.0,
+      "worker_count": 1,
+      "persistent_cache_enabled": true,
+      "local_cache_directory": "~/.crystal/cache/session-list"
+    }
+  }
+}
+```
+
+- `foreground_timeout_seconds` is a non-negative finite number. `0` returns
+  cached and metadata-only summaries without waiting for content resolution.
+- `worker_count` is an integer from 1 through 8.
+- `persistent_cache_enabled` disables cross-runtime reuse when set to `false`;
+  background resolution remains active.
+- `local_cache_directory` overrides the directory for private derived summary
+  databases.
+
+These settings belong to the current local implementation. Other
+session-list-service implementations may ignore them or use different
+settings.
+
+By default, the cache is under `~/.crystal/cache/session-list`. When session
+files are inside an on-demand cloud folder, keep
+`local_cache_directory` outside that folder so the derived summaries remain
+locally available.
+
 ## Diagnostics
 
 Configuration errors are available programmatically:

@@ -313,6 +313,8 @@ export function DesktopRichSessionUiHarness(props: {
   const composeText = props.composeText ?? '';
   const [model, setModel] = useState('claude-a');
   const [lastAction, setLastAction] = useState('none');
+  const [watched, setWatched] = useState(false);
+  const [noteEditCount, setNoteEditCount] = useState(0);
   const [summary, setSummary] = useState<SessionSummary>({
     session_id: SESSION_ID,
     modified: 1,
@@ -360,6 +362,26 @@ export function DesktopRichSessionUiHarness(props: {
             >
               {lastAction}
             </Text>
+            <Text testID="desktop-rich-session-ui-watchlist-state">
+              {watched ? 'watched' : 'not-watched'}
+            </Text>
+            <View
+              accessible
+              testID="desktop-rich-session-ui-watchlist-marker"
+              accessibilityLabel={`Desktop Watchlist ${
+                watched ? 'watched' : 'not watched'
+              }`}
+              style={styles.accessibilityMarker}
+            />
+            <Text testID="desktop-rich-session-ui-note-state">
+              {noteEditCount}
+            </Text>
+            <View
+              accessible
+              testID="desktop-rich-session-ui-note-marker"
+              accessibilityLabel={`Desktop local note edits ${noteEditCount}`}
+              style={styles.accessibilityMarker}
+            />
           </View>
           <ChatPane
             isVisible
@@ -382,6 +404,10 @@ export function DesktopRichSessionUiHarness(props: {
               composeText,
               scrollAnchor: null,
             }}
+            sessionWatched={watched}
+            sessionNote={noteEditCount > 0 ? 'Harness note' : null}
+            onToggleSessionWatchlist={() => setWatched(current => !current)}
+            onEditSessionNote={() => setNoteEditCount(current => current + 1)}
             onUpdateCache={() => {}}
           />
         </View>

@@ -9,6 +9,8 @@ connections.
 Add a session to the Watchlist with its bookmark control. The Watchlist is
 stored on the current device and is independent from server-side session
 pinning.
+You can also add or remove the current session through Session actions on the
+Sessions and Messages tabs.
 
 Watched sessions appear as reorderable two-column tiles. Drag a tile by its
 move handle to change the order. The tile follows the drag while an empty

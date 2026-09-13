@@ -49,10 +49,10 @@ WRAPPED_SCRIPTS = {
     "install:core",
     "install:app",
     "install:plugins",
-    "install:dev:local",
-    "install:prod:local",
-    "build:bundle",
-    "build:optimized",
+    "install:cli:dev",
+    "install:cli:archive",
+    "build:cli:archive",
+    "build:cli:optimized",
     "release:cli",
     "release:cli:plan",
     "release:cli:gate",
@@ -226,36 +226,42 @@ def test_cli_distribution_scripts_use_the_isolated_runner():
 
     assert (
         scripts["test:cli:source-install"] == "python scripts/repo_run.py python "
-        "scripts/run_cli_distribution_test.py source-install"
+        "application/python/scripts/run_distribution_smoke.py source-install"
     )
     assert (
         scripts["test:cli:archive"] == "python scripts/repo_run.py python "
-        "scripts/run_cli_distribution_test.py archive"
+        "application/python/scripts/run_distribution_smoke.py archive"
     )
     assert (
         scripts["test:cli:default-install"] == "python scripts/repo_run.py python "
-        "scripts/run_cli_distribution_test.py default-install"
+        "application/python/scripts/run_distribution_smoke.py default-install"
     )
 
 
-def test_build_and_install_scripts_do_not_use_nox():
+def test_cli_build_and_install_scripts_are_scoped_and_do_not_use_nox():
     scripts = _load_scripts()
 
-    assert scripts["build:bundle"] == (
+    assert scripts["build:cli:archive"] == (
         "python scripts/repo_run.py python "
-        "scripts/build_crystal_lattice_python_runtime_archive.py"
+        "application/python/scripts/build_runtime_archive.py"
     )
-    assert scripts["build:optimized"] == (
+    assert scripts["build:cli:optimized"] == (
         "python scripts/repo_run.py python "
-        "scripts/build_crystal_lattice_optimized_archive.py"
+        "application/python/scripts/build_optimized_archive.py"
     )
-    assert scripts["install:prod:local"] == (
+    assert scripts["install:cli:archive"] == (
         "python scripts/repo_run.py python "
-        "scripts/install_current_crystal_lattice_archive.py"
+        "application/python/scripts/install_current_archive.py"
     )
-    assert scripts["install:dev:local"] == (
-        "python scripts/repo_run.py python scripts/install_crystal_lattice_cli_dev.py"
+    assert scripts["install:cli:dev"] == (
+        "python scripts/repo_run.py python application/python/scripts/install_dev.py"
     )
+    assert {
+        "build:bundle",
+        "build:optimized",
+        "install:prod:local",
+        "install:dev:local",
+    }.isdisjoint(scripts)
     assert all("nox" not in command for command in scripts.values())
 
 
@@ -325,7 +331,7 @@ def test_environment_independent_scripts_stay_unwrapped():
     assert scripts["docs:examples"] == "python scripts/generate_examples_md.py"
     assert (
         scripts["release:cli:version:bump-patch"]
-        == "python scripts/bump_cli_version.py"
+        == "python application/python/scripts/bump_version.py"
     )
     assert scripts["roadmap:release:generate"] == "python roadmaps/generate.py release"
     assert (

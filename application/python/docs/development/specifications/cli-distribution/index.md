@@ -13,6 +13,8 @@ It covers:
   workflows;
 - credential-free startup and `.env`-based credential configuration;
 - local root npm entry points;
+- application-owned maintainer script placement;
+- structured progress for long local build, install, and smoke operations;
 - native release verification through the same npm entry points;
 - immediate terminal command discovery after default installation;
 - separation from config-specific optimized PyInstaller bundles.
@@ -41,6 +43,11 @@ maintainer entry points but do not own the behavior.
   API contract.
 - Run the direct archive and default-installer smokes on every native release
   target through the same root npm commands available to developers.
+- Keep application-only build, install, release, and smoke entry points with
+  the application package while retaining genuinely cross-runtime packaging
+  primitives at the repository root.
+- Give long-running maintainer and installer commands immediate numbered
+  progress, visible child-process output, and explicit boot-wait status.
 - Prefer simpler build, installation, and verification ownership; runtime
   reduction is accepted only when it preserves independent user-path coverage
   and does not introduce disproportionate orchestration.
@@ -56,6 +63,8 @@ maintainer entry points but do not own the behavior.
 - Modifying shell profile files merely to make the command discoverable.
 - Treating an explicit `BIN_DIR` override as a guarantee that the selected
   directory is already on PATH.
+- Moving the cloud-orchestrator/runtime packaging primitive cluster merely to
+  eliminate every CLI-related filename from the root `scripts/` directory.
 
 ## Scenario names and historical terminology
 

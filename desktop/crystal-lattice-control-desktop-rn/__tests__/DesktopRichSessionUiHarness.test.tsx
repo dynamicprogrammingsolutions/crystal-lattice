@@ -39,6 +39,30 @@ afterEach(() => {
   setLastActionsPopoverAnchorTag(null);
 });
 
+test('desktop Chat exposes Watchlist and local note in Session actions', async () => {
+  render(
+    <TestErrorBoundary>
+      <DesktopRichSessionUiHarness />
+    </TestErrorBoundary>,
+  );
+
+  fireEvent.press(await screen.findByTestId('action-menu-item-localWatchlist'));
+  await waitFor(() =>
+    expect(
+      screen.getByTestId('desktop-rich-session-ui-watchlist-state').props
+        .children,
+    ).toBe('watched'),
+  );
+
+  expect(await screen.findByText('Remove from Watchlist')).toBeTruthy();
+  fireEvent.press(screen.getByTestId('action-menu-item-localNote'));
+  await waitFor(() =>
+    expect(
+      screen.getByTestId('desktop-rich-session-ui-note-state').props.children,
+    ).toBe(1),
+  );
+});
+
 test('desktop ChatPane opens the native-popover content for rich settings and actions', async () => {
   render(
     <TestErrorBoundary>

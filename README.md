@@ -340,6 +340,11 @@ npm run install:all
 npm run test:core:unit
 ```
 
+Application-owned CLI build, install, release-maintenance, and distribution
+smoke entry points live under `application/python/scripts/`. Root `scripts/`
+retains repository-wide utilities and the cross-runtime packaging primitives
+used by shipped archives and cloud-orchestrator builds.
+
 Install the plugin-suite packages into the same `.venv` when working on the
 kimi-tools, claude-tools, web-fetch-shared, tool-compat-shared, or
 openai_responses plugins:
@@ -528,8 +533,8 @@ python docs_site/scripts/prepare_mkdocs_site.py
 Key docs:
 
 - [Development documentation](docs/development/index.md)
-- [Reusable development standards](docs/development/standards/index.md)
-- [Crystal Lattice repository policy](docs/development/repository/index.md)
+- [Documentation and specification guide](docs/development/documentation.md)
+- [Crystal Lattice documentation conventions](docs/development/crystal-lattice-documentation.md)
 - [docs/api/core-sdk.md](docs/api/core-sdk.md)
 - [plugins/docs/index.md](plugins/docs/index.md)
 - [plugins/docs/overview.md](plugins/docs/overview.md) - general plugin-system overview

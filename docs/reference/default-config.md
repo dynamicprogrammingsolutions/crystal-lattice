@@ -8,10 +8,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
   "mixins": {
     "provider_defaults": {
       "timeout": 300,
-      "allowed_paths": [
-        ".",
-        ".."
-      ],
+      "allowed_paths": [".", ".."],
       "max_file_size": 5242880,
       "max_output_chars": 10000,
       "working_directory": ".",
@@ -173,9 +170,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
-          "CODEX_SKILLS_SECTION": {
-            "text": ""
-          },
+            "CODEX_SKILLS_SECTION": {
+              "text": ""
+            },
           "CODEX_ENVIRONMENT_CONTEXT": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
@@ -404,7 +401,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "claude_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
         "variables": {
           "INTRODUCTION": {
@@ -420,6 +417,16 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "TOOL_USAGE": {
             "files": [
               "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage.md"
+            ]
+          },
+          "TOOL_USAGE_PERMISSIVE_CD": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd.md"
+            ]
+          },
+          "TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd-no-persistence.md"
             ]
           },
           "TONE_AND_STYLE": {
@@ -452,21 +459,126 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           }
         }
       }
+    },
+    "claude_bash_upstream_parity": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": false,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_bash_permissive": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_bash_permissive_visible": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": true,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_bash_permissive_no_persistence": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
+      "bash_cwd_persistence": false,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_anthropic_model_variants": {
+      "$variants": [
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:haiku|sonnet|opus)-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "anthropic_reasoning_mode": "manual",
+          "anthropic_reasoning_budget_tokens": 1024
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:sonnet|opus)-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "beta_headers": ["interleaved-thinking-2025-05-14"]
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-opus-4-5(?:$|-\\d{8}$)"
+            }
+          },
+          "anthropic_reasoning_effort": "high"
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:(?:sonnet|opus)-4-6|sonnet-5|opus-4-(?:7|8)|opus-5|(?:fable|mythos)-5|mythos-preview)$"
+            }
+          },
+          "betas": ["context-management-2025-06-27"],
+          "anthropic_reasoning_mode": "adaptive",
+          "anthropic_reasoning_effort": "high",
+          "anthropic_reasoning_display": "summarized",
+          "request_options": {
+            "context_management": {
+              "edits": [
+                {
+                  "type": "clear_thinking_20251015",
+                  "keep": "all"
+                }
+              ]
+            }
+          }
+        }
+      ]
     }
   },
   "providers": {
     "openrouter": {
-      "mixin_refs": [
-        "provider_defaults"
-      ],
+      "mixin_refs": ["provider_defaults"],
       "provider": "openrouter",
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1"
     },
+    "anthropic": {
+      "mixin_refs": ["provider_defaults"],
+      "provider": "anthropic",
+      "auth_mode": "api",
+      "api_key": "${env:ANTHROPIC_API_KEY}",
+      "base_url": "https://api.anthropic.com",
+      "capabilities": {
+        "anthropic_reasoning_controls": true,
+        "prompt_caching": true
+      }
+    },
     "openrouter_image_generation": {
-      "mixin_refs": [
-        "provider_defaults"
-      ],
+      "mixin_refs": ["provider_defaults"],
       "provider": "openrouter_image_generation",
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1",
@@ -475,18 +587,12 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "aspect_ratio": "1:1"
     },
     "openai": {
-      "mixin_refs": [
-        "provider_defaults"
-      ],
+      "mixin_refs": ["provider_defaults"],
       "provider": "openai_responses",
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
       "auth_mode": "auto",
-      "allowed_paths": [
-        ".",
-        "..",
-        "${env:CONFIG_DIR}"
-      ],
+      "allowed_paths": [".", "..", "${env:CONFIG_DIR}"],
       "enable_flex_processing": true,
       "enable_fast_mode": false,
       "reasoning_summary": "detailed",
@@ -497,34 +603,24 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "show_openai_auth_mode": true
     },
     "ollama": {
-      "mixin_refs": [
-        "provider_defaults"
-      ],
+      "mixin_refs": ["provider_defaults"],
       "provider": "reference_openai_compatible",
       "base_url": "http://localhost:11434/v1",
       "model": "qwen3:0.6b",
       "reasoning_field": "reasoning"
     },
     "fireworks": {
-      "mixin_refs": [
-        "provider_defaults"
-      ],
+      "mixin_refs": ["provider_defaults"],
       "provider": "reference_openai_compatible",
       "base_url": "https://api.fireworks.ai/inference/v1",
       "api_key": "${env:FIREWORKS_API_KEY}",
       "model": "fireworks/gpt-oss-20b",
       "min_request_interval_seconds": 1,
-      "rate_limit_retry_delays_seconds": [
-        1,
-        2,
-        4
-      ],
+      "rate_limit_retry_delays_seconds": [1, 2, 4],
       "reasoning_field": "reasoning_content"
     },
     "zai": {
-      "mixin_refs": [
-        "provider_defaults"
-      ],
+      "mixin_refs": ["provider_defaults"],
       "provider": "reference_openai_compatible",
       "base_url": "https://api.z.ai/api/paas/v4",
       "endpoint_options": {
@@ -533,22 +629,15 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       },
       "api_key": "${env:ZAI_API_KEY}",
       "model": "glm-4.5-air",
-      "retry_on_timeout": [
-        0,
-        5,
-        30
-      ],
+      "retry_on_timeout": [0, 5, 30],
       "retry_on_status": {
-        "500": [
-          0,
-          5,
-          30
-        ]
+        "500": [0, 5, 30]
       }
     }
   },
   "plugins": [
     "path:${env:BUILTIN_PLUGINS}/openrouter",
+    "path:${env:BUILTIN_PLUGINS}/anthropic-compatible",
     "plugins.tool_gating_feature.ToolGatingFeature",
     "path:${env:BUILTIN_PLUGINS}/feature-request-options",
     "path:${env:BUILTIN_PLUGINS}/feature-system-message",
@@ -592,6 +681,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "env_file": "${env:CONFIG_DIR}/.env",
       "editable_env_keys": [
         "OPENROUTER_API_KEY",
+        "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
         "FIREWORKS_API_KEY",
         "ZAI_API_KEY"
@@ -599,6 +689,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "provider_env_keys": {
         "openrouter": "OPENROUTER_API_KEY",
         "openrouter_image_generation": "OPENROUTER_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
         "fireworks": "FIREWORKS_API_KEY",
         "zai": "ZAI_API_KEY"
@@ -666,9 +757,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/cloud_setup_script",
           "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
           "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
-          "compatible_sync_down_profiles": [
-            "working-tree-patch"
-          ]
+          "compatible_sync_down_profiles": ["working-tree-patch"]
         },
         "working-tree-current-state-branch": {
           "label": "Working tree current state with branch export",
@@ -677,9 +766,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state-branch/cloud_setup_script",
           "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
           "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
-          "compatible_sync_down_profiles": [
-            "branch-import"
-          ]
+          "compatible_sync_down_profiles": ["branch-import"]
         },
         "clean-head": {
           "label": "Clean committed HEAD",
@@ -688,9 +775,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/cloud_setup_script",
           "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
           "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
-          "compatible_sync_down_profiles": [
-            "branch-import"
-          ]
+          "compatible_sync_down_profiles": ["branch-import"]
         }
       },
       "sync_down_profiles": {
@@ -699,19 +784,14 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_export_script",
           "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_mark_synced_script",
           "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/local_apply_script",
-          "compatible_transfer_up_profiles": [
-            "working-tree-current-state"
-          ]
+          "compatible_transfer_up_profiles": ["working-tree-current-state"]
         },
         "branch-import": {
           "label": "Import committed cloud branch with optional safety snapshots",
           "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_export_script",
           "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_mark_synced_script",
           "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/local_apply_script",
-          "compatible_transfer_up_profiles": [
-            "working-tree-current-state-branch",
-            "clean-head"
-          ]
+          "compatible_transfer_up_profiles": ["working-tree-current-state-branch", "clean-head"]
         }
       },
       "managed_ssh": {
@@ -755,29 +835,17 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
   },
   "agents": {
     "cloud-script-author": {
-      "mixin_refs": [
-        "codex_developer_message",
-        "codex_mcp_defaults",
-        "cloud_script_author_codex_message"
-      ],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "cloud_script_author_codex_message"],
       "provider": "openai",
       "model": "gpt-5.4-mini",
-      "allowed_paths": [
-        ".",
-        "..",
-        "${env:BUILTIN_PLUGINS}/cloud-agent-app",
-        "${env:CONFIG_DIR}/cloud-agent/profiles"
-      ],
+      "allowed_paths": [".", "..", "${env:BUILTIN_PLUGINS}/cloud-agent-app", "${env:CONFIG_DIR}/cloud-agent/profiles"],
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],
       "shell_tool_mode": "auto"
     },
     "codex-openrouter": {
-      "mixin_refs": [
-        "codex_developer_message",
-        "codex_mcp_defaults"
-      ],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openrouter",
       "model": "openai/gpt-5.4-mini",
       "plugins": [
@@ -786,10 +854,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "shell_tool_mode": "auto"
     },
     "codex-openai": {
-      "mixin_refs": [
-        "codex_developer_message",
-        "codex_mcp_defaults"
-      ],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5.4-mini",
       "plugins": [
@@ -798,10 +863,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "shell_tool_mode": "auto"
     },
     "codex-openai-api": {
-      "mixin_refs": [
-        "codex_developer_message",
-        "codex_mcp_defaults"
-      ],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5.4",
       "plugins": [
@@ -813,10 +875,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "strip_leading_system_or_developer_message": false
     },
     "gpt-5-openrouter": {
-      "mixin_refs": [
-        "codex_developer_message",
-        "codex_mcp_defaults"
-      ],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openrouter",
       "model": "openai/gpt-5",
       "plugins": [
@@ -824,15 +883,10 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ],
       "shell_tool_mode": "shell",
       "intercept_apply_patch": true,
-      "disabled_plugins": [
-        "apply_patch"
-      ]
+      "disabled_plugins": ["apply_patch"]
     },
     "gpt-5-openai": {
-      "mixin_refs": [
-        "codex_developer_message",
-        "codex_mcp_defaults"
-      ],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5",
       "plugins": [
@@ -840,44 +894,32 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ],
       "shell_tool_mode": "shell",
       "intercept_apply_patch": true,
-      "disabled_plugins": [
-        "apply_patch"
-      ]
+      "disabled_plugins": ["apply_patch"]
     },
     "qwen": {
-      "mixin_refs": [
-        "qwen_system_message"
-      ],
+      "mixin_refs": ["qwen_system_message"],
       "provider": "openrouter",
       "model": "qwen/qwen3.5-flash-02-23",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/qwen-tools"
       ],
-      "disabled_plugins": [
-        "apply_patch"
-      ]
+      "disabled_plugins": ["apply_patch"]
     },
     "gemini": {
-      "mixin_refs": [
-        "gemini_system_message"
-      ],
+      "mixin_refs": ["gemini_system_message"],
       "provider": "openrouter",
       "model": "google/gemini-2.5-flash-lite",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
-      "disabled_plugins": [
-        "apply_patch"
-      ],
+      "disabled_plugins": ["apply_patch"],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
       "web_search_provider": "gemini_api"
     },
     "grok": {
-      "mixin_refs": [
-        "grok_system_message"
-      ],
+      "mixin_refs": ["grok_system_message"],
       "provider": "openrouter",
       "model": "x-ai/grok-4.1-fast",
       "plugins": [
@@ -891,17 +933,13 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ]
     },
     "kimi": {
-      "mixin_refs": [
-        "kimi_system_message"
-      ],
+      "mixin_refs": ["kimi_system_message"],
       "provider": "openrouter",
       "model": "moonshotai/kimi-k2.5",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/kimi-tools"
       ],
-      "disabled_plugins": [
-        "apply_patch"
-      ],
+      "disabled_plugins": ["apply_patch"],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
@@ -911,11 +949,8 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "type": "kimi"
       }
     },
-    "claude": {
-      "mixin_refs": [
-        "claude_system_message",
-        "claude_mcp_defaults"
-      ],
+    "claude-openrouter": {
+      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
       "plugins": [
@@ -924,9 +959,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "reasoning_max_tokens": 16000,
       "request_options": {
         "provider": {
-          "order": [
-            "anthropic"
-          ],
+          "order": ["anthropic"],
           "allow_fallbacks": false
         }
       },
@@ -935,28 +968,39 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "web_search_enabled": true,
       "web_search_provider": "gemini_api"
     },
-    "glm": {
+    "claude-anthropic": {
       "mixin_refs": [
-        "gemini_system_message"
+        "claude_system_message",
+        "claude_bash_permissive",
+        "claude_mcp_defaults",
+        "claude_anthropic_model_variants"
       ],
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
+    },
+    "glm": {
+      "mixin_refs": ["gemini_system_message"],
       "provider": "openrouter",
       "model": "z-ai/glm-5.2",
       "reasoning_effort": "max",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
-      "disabled_plugins": [
-        "apply_patch"
-      ],
+      "disabled_plugins": ["apply_patch"],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
       "web_search_provider": "gemini_api",
       "request_options": {
         "provider": {
-          "order": [
-            "z-ai"
-          ],
+          "order": ["z-ai"],
           "allow_fallbacks": false
         }
       }
@@ -966,10 +1010,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "model": "qwen3:0.6b"
     },
     "glm-ollama": {
-      "mixin_refs": [
-        "claude_system_message",
-        "claude_mcp_defaults"
-      ],
+      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "ollama",
       "model": "glm-5.2:cloud",
       "plugins": [
@@ -979,17 +1020,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "reasoning_effort": "max"
       },
       "request_options_ui": {
-        "reasoning_effort": [
-          "high",
-          "max"
-        ]
+        "reasoning_effort": ["high", "max"]
       }
     },
     "deepseek-ollama": {
-      "mixin_refs": [
-        "claude_system_message",
-        "claude_mcp_defaults"
-      ],
+      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "ollama",
       "model": "deepseek-v4-pro:cloud",
       "plugins": [
@@ -999,16 +1034,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "reasoning_effort": "max"
       },
       "request_options_ui": {
-        "reasoning_effort": [
-          "high",
-          "max"
-        ]
+        "reasoning_effort": ["high", "max"]
       }
     },
     "kimi-ollama": {
-      "mixin_refs": [
-        "kimi_system_message"
-      ],
+      "mixin_refs": ["kimi_system_message"],
       "provider": "ollama",
       "model": "kimi-k2.6:cloud",
       "plugins": [
@@ -1018,10 +1048,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "reasoning_effort": "max"
       },
       "request_options_ui": {
-        "reasoning_effort": [
-          "high",
-          "max"
-        ]
+        "reasoning_effort": ["high", "max"]
       },
       "compaction": {
         "enabled": true,
@@ -1035,11 +1062,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "reasoning_history": "preserved"
       },
       "request_options_ui": {
-        "reasoning_history": [
-          "disabled",
-          "interleaved",
-          "preserved"
-        ]
+        "reasoning_history": ["disabled", "interleaved", "preserved"]
       }
     },
     "zai": {
@@ -1061,5 +1084,4 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "provider": "openrouter_image_generation"
     }
   }
-}
-```
+}```

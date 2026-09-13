@@ -6,7 +6,10 @@ backend connection.
 It also owns one explicit-ID request-status polling consumer for Home, History,
 Sessions, tabs, and the active Chat pane. Status reads reuse open backends or
 use supported stateless closed-connection HTTP reads; polling never opens or
-focuses a connection.
+focuses a connection. The Sessions panel reports its rendered window instead
+of registering every cached session. Large groups use bounded batches, and
+per-ID reconciliation keeps an active request visible when another consumer or
+connection focus changes.
 
 Connection-level notifications and application/session-list action responses
 from open connections render in one normal-flow message/detail-area rail with

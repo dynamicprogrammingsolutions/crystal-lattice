@@ -451,7 +451,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 {
   id raw = [[NSUserDefaults standardUserDefaults] objectForKey:kSessionsFollowActiveTabDefaultsKey];
   if (raw == nil) {
-    return YES;
+    return NO;
   }
   return [[NSUserDefaults standardUserDefaults] boolForKey:kSessionsFollowActiveTabDefaultsKey];
 }
@@ -655,6 +655,23 @@ static BOOL LaunchArgumentPresent(NSString *argument)
                       object:nil
                     userInfo:@{
                       CLCSessionDoubleClickActionUserInfoKey : saved
+                    }];
+    return;
+  }
+
+  if ([key isEqualToString:@"sessionsFollowActiveTabEnabled"] &&
+      [value respondsToSelector:@selector(boolValue)]) {
+    BOOL enabled = [value boolValue];
+    [self saveSessionsFollowActiveTabEnabledPreference:enabled];
+    if (self.sessionsFollowActiveTabMenuItem != nil) {
+      self.sessionsFollowActiveTabMenuItem.state =
+          enabled ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:CLCSessionsFollowActiveTabDidChangeNotification
+                      object:nil
+                    userInfo:@{
+                      CLCSessionsFollowActiveTabEnabledUserInfoKey : @(enabled)
                     }];
   }
 }

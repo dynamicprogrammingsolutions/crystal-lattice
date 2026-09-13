@@ -19,3 +19,7 @@ current macOS runtime does not provide a reliable implementation. Direct action
 modal responses use `ActionDisplayWindow`, opened through the generic
 `DesktopWindowManager.openReactWindow()` path. Its body is bounded and
 scrollable for lengthy content.
+
+Global Settings and the View-menu `Follow Active Tab in Sessions List` item
+read and write the same native preference. Notifications update every open
+main root and the Settings root; the missing-value default is Off.

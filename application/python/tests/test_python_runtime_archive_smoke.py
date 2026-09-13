@@ -4,11 +4,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS_DIR = ROOT / "scripts"
+SCRIPTS_DIR = ROOT / "application" / "python" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-import smoke_test_crystal_lattice_python_runtime_archive as runtime_smoke
+import smoke_runtime_archive as runtime_smoke  # type: ignore[import-not-found]  # noqa: E402
 
 
 def test_macos_library_reference_classifier_allows_relative_and_system_paths() -> None:

@@ -31,19 +31,25 @@ const DOUBLE_CLICK_OPTIONS = [
   { value: 'open', label: 'Open permanent tab' },
 ];
 
+const FOLLOW_ACTIVE_TAB_OPTIONS = [
+  { value: 'off', label: 'Off' },
+  { value: 'on', label: 'On' },
+];
+
 type DesktopGlobalSettingKey =
   | 'baseFontSize'
   | 'headerSize'
   | 'recentSessionsWindow'
-  | 'sessionDoubleClickAction';
+  | 'sessionDoubleClickAction'
+  | 'sessionsFollowActiveTabEnabled';
 
 export function applyDesktopGlobalSettingChange(
   current: DesktopGlobalSettings,
   key: DesktopGlobalSettingKey,
-  value: string | number,
+  value: string | number | boolean,
   write: (params: {
     key: DesktopGlobalSettingKey;
-    value: string | number;
+    value: string | number | boolean;
   }) => void,
 ): DesktopGlobalSettings {
   write({ key, value });
@@ -123,6 +129,17 @@ function GlobalSettingsWindowInner(): React.JSX.Element {
           );
         },
       ),
+      desktopWindowEvents.addListener(
+        'sessionsFollowActiveTabChanged',
+        (payload: any) => {
+          setSettings(current =>
+            normalizeDesktopGlobalSettings({
+              ...current,
+              sessionsFollowActiveTabEnabled: payload?.enabled === true,
+            }),
+          );
+        },
+      ),
     ];
     return () => {
       cancelled = true;
@@ -131,7 +148,7 @@ function GlobalSettingsWindowInner(): React.JSX.Element {
   }, []);
 
   const update = useCallback(
-    (key: DesktopGlobalSettingKey, value: string | number) => {
+    (key: DesktopGlobalSettingKey, value: string | number | boolean) => {
       setSettings(current =>
         applyDesktopGlobalSettingChange(current, key, value, params =>
           DesktopWindowManager?.setDesktopGlobalSetting?.(params),
@@ -204,6 +221,19 @@ function GlobalSettingsWindowInner(): React.JSX.Element {
             options={DOUBLE_CLICK_OPTIONS}
             selectedValue={settings.sessionDoubleClickAction}
             onValueChange={value => update('sessionDoubleClickAction', value)}
+          />
+        </SettingRow>
+        <SettingRow label="Follow active tab in Sessions">
+          <MacSelect
+            testID="global-settings-follow-active-tab"
+            style={styles.select}
+            options={FOLLOW_ACTIVE_TAB_OPTIONS}
+            selectedValue={
+              settings.sessionsFollowActiveTabEnabled ? 'on' : 'off'
+            }
+            onValueChange={value =>
+              update('sessionsFollowActiveTabEnabled', value === 'on')
+            }
           />
         </SettingRow>
       </View>

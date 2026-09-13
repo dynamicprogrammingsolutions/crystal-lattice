@@ -189,6 +189,7 @@ exploratory.
 
 - [x] `tasks/20260825-crystal-lattice-product-positioning-and-website/010-website-documentation-and-content-specification-foundation.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md`
+- [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/021-headless-agent-runs-and-optimized-history-api.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
 - [ ] `tasks/20260825-crystal-lattice-product-positioning-and-website/040-research-foundation.md`

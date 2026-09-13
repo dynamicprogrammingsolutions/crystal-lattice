@@ -19,6 +19,26 @@ from .openai_responses_codex_models import (
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"
+_PERSISTED_USAGE_ROOT_KEYS = frozenset(
+    {
+        "input_tokens",
+        "input_tokens_details",
+        "output_tokens",
+        "output_tokens_details",
+        "completion_tokens_details",
+        "total_tokens",
+    }
+)
+_PERSISTED_USAGE_DETAIL_KEYS = {
+    "input_tokens_details": frozenset(
+        {
+            "cached_tokens",
+            "cache_write_tokens",
+        }
+    ),
+    "output_tokens_details": frozenset({"reasoning_tokens"}),
+    "completion_tokens_details": frozenset({"reasoning_tokens"}),
+}
 _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_turn_input_tokens_cumulative",
     "usage_turn_input_tokens_cumulative_formatted",
@@ -63,6 +83,50 @@ _USAGE_MESSAGE_FOOTER_FIELDS = (
     "turn_cached",
     "turn_output",
 )
+
+
+def unsupported_usage_root_keys(usage: Dict[str, Any]) -> Tuple[str, ...]:
+    """Return OpenAI usage root keys outside the persisted local contract."""
+
+    return tuple(key for key in usage if key not in _PERSISTED_USAGE_ROOT_KEYS)
+
+
+def unsupported_usage_paths(usage: Dict[str, Any]) -> Tuple[str, ...]:
+    """Return OpenAI usage paths outside the persisted local contract."""
+
+    unsupported = list(unsupported_usage_root_keys(usage))
+    for root_key, supported_detail_keys in _PERSISTED_USAGE_DETAIL_KEYS.items():
+        details = usage.get(root_key)
+        if not isinstance(details, dict):
+            continue
+        unsupported.extend(
+            f"{root_key}.{detail_key}"
+            for detail_key in details
+            if detail_key not in supported_detail_keys
+        )
+    return tuple(unsupported)
+
+
+def project_usage_for_persistence(usage: Dict[str, Any]) -> Dict[str, Any]:
+    """Project raw OpenAI usage onto the supported persisted field paths."""
+
+    if not unsupported_usage_paths(usage):
+        return usage
+
+    projected: Dict[str, Any] = {}
+    for key, value in usage.items():
+        if key not in _PERSISTED_USAGE_ROOT_KEYS:
+            continue
+        supported_detail_keys = _PERSISTED_USAGE_DETAIL_KEYS.get(key)
+        if supported_detail_keys is None or not isinstance(value, dict):
+            projected[key] = value
+            continue
+        projected[key] = {
+            detail_key: detail_value
+            for detail_key, detail_value in value.items()
+            if detail_key in supported_detail_keys
+        }
+    return projected
 
 
 class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
@@ -384,9 +448,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
             metadata_raw = message.get("metadata")
             metadata = dict(metadata_raw) if isinstance(metadata_raw, dict) else {}
+            metadata, metadata_changed = self._sanitize_core_message_metadata(metadata)
             native_indices = metadata.get("native_indices")
             if not isinstance(native_indices, list):
-                out.append(message)
+                out.append(
+                    {**message, "metadata": metadata} if metadata_changed else message
+                )
                 continue
 
             extra_md: Dict[str, Any] = {}
@@ -404,7 +471,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     extra_md = candidate
 
             if not extra_md:
-                out.append(message)
+                out.append(
+                    {**message, "metadata": metadata} if metadata_changed else message
+                )
                 continue
 
             merged = dict(metadata)
@@ -415,6 +484,56 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             out.append({**message, "metadata": merged})
 
         return out
+
+    @staticmethod
+    def _sanitize_core_message_metadata(
+        metadata: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], bool]:
+        updated = metadata
+        changed = False
+
+        usage = metadata.get("usage")
+        if isinstance(usage, dict):
+            sanitized_usage = project_usage_for_persistence(usage)
+            if sanitized_usage is not usage:
+                updated = {**updated, "usage": sanitized_usage}
+                changed = True
+
+        phase_messages = metadata.get("phase_messages")
+        if isinstance(phase_messages, list):
+            sanitized_phases: List[Any] = []
+            phases_changed = False
+            for phase_message in phase_messages:
+                if not isinstance(phase_message, dict):
+                    sanitized_phases.append(phase_message)
+                    continue
+                phase_metadata = phase_message.get("metadata")
+                if not isinstance(phase_metadata, dict):
+                    sanitized_phases.append(phase_message)
+                    continue
+                phase_usage = phase_metadata.get("usage")
+                if not isinstance(phase_usage, dict):
+                    sanitized_phases.append(phase_message)
+                    continue
+                sanitized_phase_usage = project_usage_for_persistence(phase_usage)
+                if sanitized_phase_usage is phase_usage:
+                    sanitized_phases.append(phase_message)
+                    continue
+                sanitized_phases.append(
+                    {
+                        **phase_message,
+                        "metadata": {
+                            **phase_metadata,
+                            "usage": sanitized_phase_usage,
+                        },
+                    }
+                )
+                phases_changed = True
+            if phases_changed:
+                updated = {**updated, "phase_messages": sanitized_phases}
+                changed = True
+
+        return updated, changed
 
     @staticmethod
     def _usage_reasoning_tokens(usage: Dict[str, Any]) -> int:
@@ -549,7 +668,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         out: Dict[str, Any] = {}
         usage = cls._public_usage_from_internal(internal)
         if isinstance(usage, dict) and usage:
-            out["usage"] = usage
+            out["usage"] = project_usage_for_persistence(usage)
 
         has_tool_calls = internal.get("has_tool_calls")
         if isinstance(has_tool_calls, bool):
@@ -984,7 +1103,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         )
 
         extra_md: Dict[str, Any] = {
-            "usage": usage,
+            "usage": project_usage_for_persistence(usage),
             "has_tool_calls": has_tool_calls,
             "turn": {
                 "id": current_turn_id,
