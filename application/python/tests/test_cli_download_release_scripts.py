@@ -579,6 +579,11 @@ def test_release_workflow_builds_all_native_targets() -> None:
         windows_arm.split("- name: Check out", 1)[0]
     )
     assert '"${{ matrix.python-request }}"' in workflow
+    assert "name: Prepare Windows ARM64 OpenSSL" in workflow
+    assert "matrix.target == 'windows-arm64'" in workflow
+    assert "openssl:$triplet" in workflow
+    assert '"VCPKG_ROOT=$($env:VCPKG_INSTALLATION_ROOT)"' in workflow
+    assert '"OPENSSL_STATIC=1"' in workflow
 
 
 def test_release_workflow_verifies_public_downloads_after_publication() -> None:

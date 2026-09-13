@@ -147,6 +147,28 @@ jobs:
           fi
           echo "CRYSTAL_PYTHON_RUNTIME=$runtime_root" >> "$GITHUB_ENV"
 
+      - name: Prepare Windows ARM64 OpenSSL
+        if: ${{ matrix.target == 'windows-arm64' }}
+        shell: pwsh
+        run: |
+          $triplet = "arm64-windows-static-md"
+          $vcpkg = Join-Path $env:VCPKG_INSTALLATION_ROOT "vcpkg.exe"
+          if (-not (Test-Path -LiteralPath $vcpkg -PathType Leaf)) {
+            throw "vcpkg.exe was not found at $vcpkg"
+          }
+          & $vcpkg install "openssl:$triplet"
+          if ($LASTEXITCODE -ne 0) {
+            throw "vcpkg failed to install openssl:$triplet"
+          }
+          $opensslRoot = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\$triplet"
+          @(
+            "VCPKG_ROOT=$($env:VCPKG_INSTALLATION_ROOT)"
+            "VCPKG_DEFAULT_TRIPLET=$triplet"
+            "VCPKGRS_TRIPLET=$triplet"
+            "OPENSSL_DIR=$opensslRoot"
+            "OPENSSL_STATIC=1"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Build bundled-Python runtime archive
         run: |
           python scripts/build_crystal_lattice_python_runtime_package.py \

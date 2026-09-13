@@ -542,3 +542,16 @@ support can be released before the approved current-content commit is pushed.
   `System.Net.WebClient` download and `System.IO.Compression.ZipFile`
   extraction. The corrected script passes the ARM64 PowerShell parser and the
   68 focused distribution/release tests locally.
+- 2026-09-13: Corrective commit `a25d571c` passed Public CI run `34754431883`.
+  Native run `34754441590` passed every path on Linux AMD64/ARM64, macOS
+  AMD64/ARM64, and Windows AMD64, including the new native PowerShell
+  installer. Windows ARM64 provisioned the correct
+  `cpython-3.11-windows-aarch64-none` runtime but failed while pip built
+  `cryptography`, an intentional dependency of MCP OAuth, because the Rust
+  build could not locate ARM64 OpenSSL.
+- 2026-09-13: Added a Windows-ARM-only workflow step using the hosted runner's
+  existing vcpkg installation to install `openssl:arm64-windows-static-md` and
+  expose the standard vcpkg, Rust, and OpenSSL discovery variables. This keeps
+  current MCP OAuth support instead of downgrading MCP, omitting a default
+  plugin, or accepting an emulated archive. Focused workflow/release tests and
+  Actions security validation pass locally.
