@@ -20,7 +20,12 @@
     "allowed_service_tiers": [
       "auto",
       "default"
-    ]
+    ],
+    "request_overrides": {
+      "chat_completions": {
+        "reasoning_effort": "none"
+      }
+    }
   },
   "budget": {
     "enabled": true,

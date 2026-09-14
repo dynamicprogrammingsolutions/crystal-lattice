@@ -691,11 +691,11 @@ editable source checkout but failed when imported from
   returned input, cached-input, and output usage; ignores web-search charges;
   persists accumulated cost; and rejects model/inference requests for 24 hours
   after the configured USD 1 threshold is reached.
-- [ ] Ireland hosts the reviewer proxy on an explicitly approved TCP port over
+- [x] Ireland hosts the reviewer proxy on an explicitly approved TCP port over
   self-signed HTTPS, with a trusted/pinned app path, Docker Compose lifecycle,
   JSON configuration, protected environment file, certificate material, and
   persistent limiter state.
-- [ ] App Review instructions can provide the HTTPS endpoint, allowed model,
+- [x] App Review instructions can provide the HTTPS endpoint, allowed model,
   and private caller API key, and an external Release-simulator test proves
   that this reviewer path completes a real tool-using request.
 
@@ -934,11 +934,11 @@ configuration data so it can be updated without changing proxy code.
   certificate.
 - [x] Add reviewer Docker Compose/configuration/runbook assets without
   secrets.
-- [ ] Present and obtain exact-command confirmation for AWS ingress and remote
+- [x] Present and obtain exact-command confirmation for AWS ingress and remote
   deployment.
-- [ ] Transfer secrets securely, deploy on Ireland, and verify TLS,
+- [x] Transfer secrets securely, deploy on Ireland, and verify TLS,
   authentication, model filtering, ledger persistence, and restart behavior.
-- [ ] Pass the external reviewer Release-simulator matrix row and update
+- [x] Pass the external reviewer Release-simulator matrix row and update
   acceptance evidence.
 
 ### Requirement verification
@@ -1068,3 +1068,28 @@ configuration data so it can be updated without changing proxy code.
   Fireworks/Z.ai because the user selected Ollama as the current generic
   OpenAI-compatible acceptance path. A first broad attempt found three
   unrelated Z.ai model/reasoning result failures before that scope correction.
+- 2026-09-14: After exact-command confirmation, deployed the reviewer proxy to
+  `/home/irelandsrv/reviewer-openai-proxy` on instance
+  `i-0d675c4913029c747`. Docker Compose runs an internal Node service and nginx
+  TLS terminator; `.env` and `server.key` are mode `0600`, limiter state has a
+  UID-specific ACL, and security group `sg-0527d7da1885d3c09` has one public
+  IPv4 TCP `3443` rule for this service.
+- 2026-09-14: External checks verified the bundled CA, invalid-key rejection,
+  exact model filtering, upstream-key replacement, and positive persisted
+  usage cost below the USD 1 limit. Container recreation preserved the
+  ledger.
+- 2026-09-14: The first external reviewer run reached OpenAI but exposed that
+  `gpt-5.6-luna` requires `reasoning_effort=none` when Chat Completions uses
+  function tools. Added configurable endpoint-specific request overrides,
+  redeployed, and passed the complete reviewer Release-simulator row in
+  84.6 seconds with real tools and persisted-session relaunch.
+- 2026-09-14: The broad OpenAI Responses hosted package run imported the
+  provider from the ZIP but remains incomplete: 28 passed, two skipped, one
+  xfailed, and 36 failed. Most failures follow an existing test-time
+  source-plugin installation that mixes OpenAI SDK class identities; model
+  listing, attachment-context, and checkpoint expectations also fail. The
+  focused production Release-simulator OpenAI Responses row remains green.
+- 2026-09-14: A long pytest traceback rendered the upstream API-key fixture
+  value. The local log was removed and future bundle runs use short
+  tracebacks, but the upstream OpenAI key must be rotated and the server
+  `.env` updated before treating that credential as private.

@@ -84,6 +84,7 @@ def pytest_command(suite: ProviderSuite, marker: str) -> list[str]:
         "--",
         str(suite.tests),
         "-q",
+        "--tb=short",
         "-m",
         marker,
     ]

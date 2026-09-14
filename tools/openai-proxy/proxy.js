@@ -48,6 +48,7 @@ const UPSTREAM_API_KEY = configuration.upstreamApiKey;
 const RESPONSE_DELAY_MS = configuration.delayMs;
 const ALLOWED_MODELS = new Set(configuration.allowedModels);
 const ALLOWED_SERVICE_TIERS = new Set(configuration.allowedServiceTiers);
+const REQUEST_OVERRIDES = configuration.requestOverrides;
 const budgetLedger = new BudgetLedger(configuration.budget);
 
 // Global long-text registry persisted across all requests.
@@ -224,6 +225,15 @@ function budgetControlledPath(pathname) {
   return pathname === "/models" || modelRequestPath(pathname);
 }
 
+function applyRequestOverrides(pathname, body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return body;
+  }
+  const endpoint = pathname.replace(/^\/+/, "").replaceAll("/", "_");
+  const overrides = REQUEST_OVERRIDES[endpoint];
+  return overrides ? { ...body, ...overrides } : body;
+}
+
 function validateRequestConfiguration(req, res) {
   if (modelRequestPath(req.path) && ALLOWED_MODELS.size > 0) {
     const model = req.body?.model;
@@ -320,6 +330,7 @@ async function proxyHandler(req, res) {
       });
       return;
     }
+    req.body = applyRequestOverrides(req.path, req.body);
     if (!validateRequestConfiguration(req, res)) {
       return;
     }

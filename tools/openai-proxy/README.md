@@ -84,6 +84,11 @@ codes, delay, logging, budget, cooldown, pricing, long-context rules, request
 serialization, and persistent state. Existing positional commands remain
 supported.
 
+`models.request_overrides` applies configurable endpoint-specific top-level
+request values. Endpoint keys replace `/` with `_`; for example,
+`chat_completions` can set `{"reasoning_effort": "none"}` without changing
+`/responses`.
+
 Budget mode reads Responses or Chat Completions usage from JSON and streaming
 SSE completions, prices ordinary input, cached input, and output separately,
 and atomically persists the ledger. The threshold-crossing request completes;

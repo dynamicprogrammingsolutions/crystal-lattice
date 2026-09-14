@@ -128,6 +128,17 @@ function normalizeBudget(raw, configDirectory) {
   };
 }
 
+function normalizeRequestOverrides(raw) {
+  if (raw === undefined || raw === null) return {};
+  const configured = objectValue(raw, "models.request_overrides");
+  return Object.fromEntries(
+    Object.entries(configured).map(([endpoint, value]) => [
+      stringValue(endpoint, "models.request_overrides endpoint"),
+      { ...objectValue(value, `models.request_overrides.${endpoint}`) },
+    ]),
+  );
+}
+
 function normalizeConfiguredProxy(raw, configPath, env) {
   const config = objectValue(raw, "configuration");
   const listen = objectValue(config.listen ?? {}, "listen");
@@ -198,6 +209,7 @@ function normalizeConfiguredProxy(raw, configPath, env) {
     ),
     allowedModels,
     allowedServiceTiers,
+    requestOverrides: normalizeRequestOverrides(models.request_overrides),
     budget: normalizeBudget(config.budget, configDirectory),
     blockedStatus: numberValue(
       responses.blocked_status ?? 429,
@@ -239,6 +251,7 @@ function legacyProxyConfiguration(parsedArgs, env) {
     upstreamApiKey: null,
     allowedModels: [],
     allowedServiceTiers: [],
+    requestOverrides: {},
     budget: null,
     blockedStatus: 429,
     unauthorizedStatus: 401,

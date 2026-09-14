@@ -166,7 +166,7 @@ async function request(
 
 async function runProxyCase({ hideHeaders }) {
   let receivedHeaders = null;
-  const target = http.createServer((req, res) => {
+  const target = http.createServer(async (req, res) => {
     receivedHeaders = req.headers;
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ ok: true }));
@@ -378,8 +378,9 @@ async function jsonRequest(
 
 test("configured proxy filters models, replaces auth, charges usage, and restores cooldown", async () => {
   let receivedAuthorization = null;
+  let receivedCompletionBody = null;
   let targetRequests = 0;
-  const target = http.createServer((req, res) => {
+  const target = http.createServer(async (req, res) => {
     targetRequests += 1;
     receivedAuthorization = req.headers.authorization;
     res.setHeader("content-type", "application/json");
@@ -394,6 +395,11 @@ test("configured proxy filters models, replaces auth, charges usage, and restore
         }),
       );
       return;
+    }
+    if (req.url === "/v1/chat/completions") {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      receivedCompletionBody = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     }
     res.end(
       JSON.stringify({
@@ -425,6 +431,9 @@ test("configured proxy filters models, replaces auth, charges usage, and restore
       models: {
         allowed: ["gpt-luna"],
         allowed_service_tiers: ["standard"],
+        request_overrides: {
+          chat_completions: { reasoning_effort: "none" },
+        },
       },
       budget: {
         limit_usd: 0.000001,
@@ -500,6 +509,7 @@ test("configured proxy filters models, replaces auth, charges usage, and restore
       },
     );
     assert.equal(completion.status, 200);
+    assert.equal(receivedCompletionBody.reasoning_effort, "none");
     assert.equal(receivedAuthorization, "Bearer upstream-secret");
     assert.equal(targetRequests, 2);
 
