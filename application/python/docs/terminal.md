@@ -28,6 +28,11 @@ Use `/help` for the complete registered slash-command and keyboard-shortcut
 catalog. The catalog is generated from the command registry, so plugin and
 terminal command descriptions remain aligned with completion.
 
+For noninteractive scripts, use the standalone `agents`, `run`, and `history`
+commands instead of `--no-tty`. They return direct final results, support
+persisted follow-ups, and keep machine output separate from progress. See
+[Local headless agent runs](headless-agent-runs.md).
+
 Use `/help config` to inspect application-level terminal settings and
 plugin-contributed session settings. It shows schema defaults and current
 application values; it does not imply that runtime-only command state is

@@ -6,6 +6,8 @@ run:
 - a FastAPI HTTP API for sessions, messages, requests, plugins, config, and
   application actions
 - a `prompt_toolkit` terminal client with slash commands and keyboard shortcuts
+- local Python and one-shot CLI APIs for configured agent tasks, follow-ups,
+  bounded progress, and compact history
 - both together, sharing the same session store and in-memory event stream
 - optional Bonjour/mDNS advertisement for LAN discovery
 - optional bridge registration for paired mobile access across networks
@@ -18,6 +20,7 @@ Documentation:
 - [Package documentation](docs/index.md)
 - [Quickstart](docs/quickstart.md)
 - [Terminal guide](docs/terminal.md)
+- [Local headless agent runs](docs/headless-agent-runs.md)
 - [Application configuration](docs/configuration.md)
 - [Configuration mixins](docs/configuration-mixins.md)
 - [Configuration variants](docs/configuration-variants.md)
@@ -78,24 +81,9 @@ Bash-compatible shell creates both the shell command and
 `crystal-lattice.cmd` in the selected PATH directory, so the installed command
 can also be found by native Windows command lookup.
 
-### Python Install
-
-For users with Python 3.10+ available:
-
-```bash
-pipx install crystal-lattice-cli
-crystal-lattice --help
-```
-
-You can also install into an active virtualenv:
-
-```bash
-pip install crystal-lattice-cli
-```
-
 ### Source Install
 
-From the repository root:
+For development from the repository root:
 
 ```bash
 python -m pip install -e "core/python[dev]"
@@ -176,6 +164,21 @@ real-provider tests and does not overwrite already-exported environment
 variables.
 
 ## Running Crystal Lattice
+
+### One-shot agent tasks
+
+Run a configured agent without starting the server or interactive terminal:
+
+```bash
+crystal-lattice agents
+crystal-lattice run --agent codex-openai --prompt-file task.md
+```
+
+Use `--format json` for machine-safe results and reuse the returned
+`session_id` with `crystal-lattice run --session ...` for a follow-up. Python
+callers can use `open_runtime()` from `agent_terminal_app`. See
+[Local headless agent runs](docs/headless-agent-runs.md) for progress,
+parallelism, compact history, cancellation, and output contracts.
 
 ### Quick Start
 

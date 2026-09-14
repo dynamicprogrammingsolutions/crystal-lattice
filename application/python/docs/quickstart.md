@@ -5,14 +5,21 @@ and verifies a concrete response without requiring provider credentials.
 
 ## Install
 
-With Python 3.10 or newer:
+Install the supported bundled-Python command:
 
 ```bash
-pipx install crystal-lattice-cli
-crystal-lattice --help
+curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
 ```
 
-For a source checkout, run from the repository root:
+Review the installer before running it when required by your environment:
+
+```bash
+curl -fsSLO https://download.crystallattice.dev/crystal-lattice-cli/install.sh
+less install.sh
+bash install.sh
+```
+
+For source development, run from the repository root:
 
 ```bash
 python -m pip install -e "core/python[dev]"

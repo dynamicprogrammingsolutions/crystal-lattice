@@ -79,7 +79,8 @@ session persistence + public events + cleanup
 
 ## Application request APIs
 
-`AgentApplication` exposes four coordinated request operations.
+`AgentApplication` exposes coordinated request operations for background and
+synchronous adapters.
 
 ### Start from existing history
 
@@ -128,12 +129,42 @@ result = app.run_session_request(
     overrides={},
     stream=True,
     on_checkpoint=handle_live_session,
+    on_event=observe_public_event,
+    timeout=600,
 )
 ```
 
 This uses the same admission, preparation, event publication, and cleanup
 logic but runs in the calling thread. Terminal compatibility APIs use this
 form when they need a final result tuple.
+
+### Atomically append and run synchronously
+
+```python
+result = app.run_session_request_with_message(
+    session_id,
+    role="user",
+    content="Inspect the current implementation.",
+    overrides={},
+    stream=True,
+    on_event=observe_public_event,
+    timeout=600,
+)
+```
+
+This uses the same preparation path as atomic background append-and-start, but
+executes in the caller's thread and returns the final result directly.
+Admission happens before append, so a same-session conflict does not add the
+message.
+
+The optional event observer receives stored public events in request order.
+Internal session checkpoints remain private. If the observer raises, the
+coordinator requests cancellation, drains request cleanup, and re-raises the
+observer exception.
+
+A positive finite timeout requests cooperative cancellation through the
+request ID. It does not abandon an unowned worker; a non-cooperative blocking
+provider or tool may finish its current operation before execution returns.
 
 ### Inspect the active request
 
@@ -196,8 +227,22 @@ SessionRequestResult(
     request_id=request_id,
     final_session=serialized_session_or_none,
     final_messages=[...],
+    status="succeeded",  # failed, cancelled, or interrupted
+    error=None,          # bounded SessionRequestError when applicable
 )
 ```
+
+Status is derived from the public request events consumed by the coordinator.
+Cancellation outranks failure when cancellation is observed, an explicit
+fatal error outranks an intermediate final tool-call response, a final
+assistant response is success, and a request ending without any of those facts
+is interrupted.
+
+The application-package `LocalAgentRuntime` converts this compatibility result
+to `AgentRunResult`, which intentionally omits `final_session` and adds
+deterministic final assistant text. Its bounded `RunProgress` records are
+normalized from the observer path. See the
+[local headless agent runs guide](../headless-agent-runs.md).
 
 ## Admission and preparation
 
@@ -288,6 +333,9 @@ final result directly.
 
 If the session already has an active request, the synchronous form raises
 `SessionRequestAlreadyRunningError`.
+
+The message-bearing synchronous form follows the same rule and guarantees
+that the rejected message was not appended.
 
 ## Low-level request lifecycle
 
@@ -380,6 +428,9 @@ store.
 All other request events are published through
 `AgentApplication.publish_event(...)`.
 
+When a synchronous request has an observer, the stored public event is passed
+to it after publication. Observer delivery does not replace the event store.
+
 Checkpoint persistence records a serializable `checkpoint` marker in the
 event store. The per-session cursor points to the latest persistence boundary.
 
@@ -428,6 +479,24 @@ During a pending reload:
 
 `AgentApplication.close()` closes its coordinator before other runtime
 resources.
+
+## Compact history projection
+
+`agent_app.history_projection` owns a deterministic derived history view.
+`AgentApplication.get_compact_session_history(...)` loads canonical persisted
+state and delegates to that projector;
+`AgentApplication.get_session_message(...)` serializes one explicitly selected
+canonical message in full.
+
+Projection applies canonical Python-style range bounds before role filtering,
+retains the newest bounded selected rows, allocates content budget from newest
+to oldest, and returns rows in chronological order with their original
+indices. Tool rows prefer safe `metadata.display.single_line` text. Native
+history, multipart bodies, and unrestricted metadata are not projected.
+
+The projection is not persisted, does not advance a cursor, and is not another
+history authority. The local Python runtime and one-shot CLI share it;
+interactive terminal rendering remains an adapter.
 
 Coordinator close:
 

@@ -209,3 +209,230 @@ def test_http_send_reports_session_busy_for_non_request_operation(
     assert exc_info.value.detail["operation"]["owner_id"] == "test_compaction"
     lease.release()
     app.close()
+
+
+def test_synchronous_message_run_is_atomic_and_returns_success(
+    tmp_path: Path,
+) -> None:
+    app = AgentApplication(
+        _echo_config_path(),
+        tmp_path / "sessions",
+        application_notification_store=InMemoryApplicationNotificationStore(),
+    )
+    _core, _base_config, session = app.create_session("default")
+    observed: list[dict[str, Any]] = []
+
+    result = app.run_session_request_with_message(
+        session.session_id,
+        role="user",
+        content="coordinated task",
+        stream=False,
+        on_event=observed.append,
+    )
+
+    stored = app.load_session_record(session.session_id)
+    assert stored is not None
+    assert [message.role for message in stored.messages] == ["user", "assistant"]
+    assert stored.messages[0].content == "coordinated task"
+    assert result.status == "succeeded"
+    assert result.error is None
+    assert result.final_messages[-1]["role"] == "assistant"
+    assert [event["type"] for event in observed] == [
+        "request_started",
+        "final",
+        "request_completed",
+    ]
+    app.close()
+
+
+def test_synchronous_result_classifies_and_redacts_request_error(
+    tmp_path: Path,
+) -> None:
+    app = AgentApplication(
+        _echo_config_path(),
+        tmp_path / "sessions",
+        application_notification_store=InMemoryApplicationNotificationStore(),
+    )
+    _core, _base_config, session = app.create_session("default")
+
+    def _failing_send(*_args: Any, request_id: str, **_kwargs: Any):
+        yield {
+            "type": "request_started",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+        yield {
+            "type": "error",
+            "session_id": session.session_id,
+            "request_id": request_id,
+            "detail": "provider failed token=do-not-return Bearer also-secret",
+        }
+        yield {
+            "type": "request_completed",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+
+    app.send_request = _failing_send  # type: ignore[assignment]
+    result = app.run_session_request_with_message(
+        session.session_id,
+        role="user",
+        content="fail safely",
+        stream=False,
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.category == "request_failed"
+    assert "do-not-return" not in result.error.message
+    assert "also-secret" not in result.error.message
+    assert result.error.message.count("[redacted]") == 2
+    stored = app.load_session_record(session.session_id)
+    assert stored is not None
+    assert [message.content for message in stored.messages] == ["fail safely"]
+    app.close()
+
+
+def test_synchronous_result_classifies_missing_final_as_interrupted(
+    tmp_path: Path,
+) -> None:
+    app = AgentApplication(
+        _echo_config_path(),
+        tmp_path / "sessions",
+        application_notification_store=InMemoryApplicationNotificationStore(),
+    )
+    _core, _base_config, session = app.create_session("default")
+
+    def _interrupted_send(*_args: Any, request_id: str, **_kwargs: Any):
+        yield {
+            "type": "request_started",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+        yield {
+            "type": "request_completed",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+
+    app.send_request = _interrupted_send  # type: ignore[assignment]
+    result = app.run_session_request_with_message(
+        session.session_id,
+        role="user",
+        content="interrupted",
+        stream=False,
+    )
+
+    assert result.status == "interrupted"
+    assert result.error is None
+    assert result.final_messages == []
+    app.close()
+
+
+def test_synchronous_timeout_uses_request_cancellation_result(
+    tmp_path: Path,
+) -> None:
+    app = AgentApplication(
+        _echo_config_path(),
+        tmp_path / "sessions",
+        application_notification_store=InMemoryApplicationNotificationStore(),
+    )
+    _core, _base_config, session = app.create_session("default")
+
+    def _slow_send(*_args: Any, request_id: str, **_kwargs: Any):
+        yield {
+            "type": "request_started",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+        time.sleep(0.05)
+        yield {
+            "type": "request_cancelled",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+        yield {
+            "type": "request_completed",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+
+    app.send_request = _slow_send  # type: ignore[assignment]
+    result = app.run_session_request_with_message(
+        session.session_id,
+        role="user",
+        content="time out",
+        stream=False,
+        timeout=0.01,
+    )
+
+    assert result.status == "cancelled"
+    assert result.error is not None
+    assert result.error.category == "timeout"
+    assert app.get_active_session_request_id(session.session_id) is None
+    app.close()
+
+
+def test_synchronous_observer_failure_cancels_and_cleans_up(
+    tmp_path: Path,
+) -> None:
+    app = AgentApplication(
+        _echo_config_path(),
+        tmp_path / "sessions",
+        application_notification_store=InMemoryApplicationNotificationStore(),
+    )
+    _core, _base_config, session = app.create_session("default")
+
+    def _cancellable_send(*_args: Any, request_id: str, **_kwargs: Any):
+        yield {
+            "type": "request_started",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+        yield {
+            "type": "request_cancelled",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+        yield {
+            "type": "request_completed",
+            "session_id": session.session_id,
+            "request_id": request_id,
+        }
+
+    def _raise_from_observer(_event: dict[str, Any]) -> None:
+        raise RuntimeError("observer failed")
+
+    app.send_request = _cancellable_send  # type: ignore[assignment]
+    with pytest.raises(RuntimeError, match="observer failed"):
+        app.run_session_request_with_message(
+            session.session_id,
+            role="user",
+            content="observer task",
+            stream=False,
+            on_event=_raise_from_observer,
+        )
+
+    assert app.get_active_session_request_id(session.session_id) is None
+    stored = app.load_session_record(session.session_id)
+    assert stored is not None
+    assert [message.content for message in stored.messages] == ["observer task"]
+    app.close()
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan"), True])
+def test_synchronous_run_rejects_invalid_timeout(
+    tmp_path: Path,
+    timeout: Any,
+) -> None:
+    app = AgentApplication(
+        _echo_config_path(),
+        tmp_path / "sessions",
+        application_notification_store=InMemoryApplicationNotificationStore(),
+    )
+    _core, _base_config, session = app.create_session("default")
+
+    with pytest.raises(ValueError, match="finite positive"):
+        app.run_session_request(session.session_id, timeout=timeout)
+
+    app.close()

@@ -7,6 +7,9 @@ terminal interface, HTTP API, local discovery, and bridge connectivity.
 
 - [Quickstart](quickstart.md): install the command, start the local server, and
   verify its HTTP endpoint.
+- [Local headless agent runs](headless-agent-runs.md): call configured agents
+  from Python or one-shot CLI commands, observe progress, continue sessions,
+  and load compact history.
 - [Terminal guide](terminal.md): use slash commands, indexed message headers,
   progress indicators, compact tool results, message history, and terminal
   configuration.

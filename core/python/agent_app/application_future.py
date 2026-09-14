@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import (
     Any,
     Callable,
+    Collection,
     Dict,
     Iterator,
     List,
@@ -48,6 +49,11 @@ from .config import (
     validate_resolved_config_variants,
 )
 from .events import EventStore, InMemoryEventStore
+from .history_projection import (
+    CompactHistory,
+    get_canonical_message,
+    project_session_history,
+)
 from .session_assets import FilesystemSessionAssetStore
 from .session_listing import SessionListFilterEvaluator, SessionListService
 from .session_request_status import SessionRequestStatusService
@@ -2682,6 +2688,8 @@ class AgentApplication:
         *,
         stream: bool = True,
         on_checkpoint: Callable[[Session], None] | None = None,
+        on_event: Callable[[Dict[str, Any]], None] | None = None,
+        timeout: float | None = None,
     ) -> SessionRequestResult:
         """Run a coordinated request synchronously."""
 
@@ -2690,6 +2698,39 @@ class AgentApplication:
             overrides,
             stream=stream,
             on_checkpoint=on_checkpoint,
+            on_event=on_event,
+            timeout=timeout,
+        )
+
+    def run_session_request_with_message(
+        self,
+        session_id: str,
+        *,
+        role: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        multipart_content: Optional[List[Dict[str, Any]]] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+        stream: bool = True,
+        on_checkpoint: Callable[[Session], None] | None = None,
+        on_event: Callable[[Dict[str, Any]], None] | None = None,
+        timeout: float | None = None,
+    ) -> SessionRequestResult:
+        """Atomically append one message and run a coordinated request."""
+
+        return self._session_request_coordinator.run(
+            session_id,
+            overrides,
+            stream=stream,
+            on_checkpoint=on_checkpoint,
+            on_event=on_event,
+            message={
+                "role": role,
+                "content": content,
+                "metadata": metadata,
+                "multipart_content": multipart_content,
+            },
+            timeout=timeout,
         )
 
     def get_active_session_request_id(self, session_id: str) -> str | None:
@@ -3666,6 +3707,44 @@ class AgentApplication:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
         return self._session_store.load(session_id)
+
+    def get_compact_session_history(
+        self,
+        session_id: str,
+        *,
+        start: int | None = None,
+        end: int | None = None,
+        roles: Collection[str] | None = None,
+        max_messages: int = 100,
+        max_content_chars: int = 500,
+        max_total_content_chars: int = 20_000,
+    ) -> CompactHistory:
+        """Return a bounded deterministic projection of one stored session."""
+
+        session = self.load_session_record(session_id)
+        if session is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        return project_session_history(
+            session,
+            start=start,
+            end=end,
+            roles=roles,
+            max_messages=max_messages,
+            max_content_chars=max_content_chars,
+            max_total_content_chars=max_total_content_chars,
+        )
+
+    def get_session_message(
+        self,
+        session_id: str,
+        index: int,
+    ) -> Dict[str, Any]:
+        """Return one explicitly selected canonical message with its index."""
+
+        session = self.load_session_record(session_id)
+        if session is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        return get_canonical_message(session, index)
 
     def get_selected_session_snapshot(self, session_id: str) -> str | None:
         if not isinstance(session_id, str) or not session_id:

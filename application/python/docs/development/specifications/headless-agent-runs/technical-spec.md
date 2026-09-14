@@ -1,0 +1,480 @@
+# Local headless agent runs technical specification
+
+This is a target specification. Current package-user and implementation
+documentation describes the behavior only after the corresponding
+requirements are implemented and verified.
+
+## Ownership
+
+`core/python/agent_app` owns:
+
+- atomic synchronous message admission and request execution;
+- raw public event observation during coordinated execution;
+- request outcome classification;
+- compact history projection and canonical full-message lookup.
+
+`application/python/agent_terminal_app` owns:
+
+- local configuration and runtime construction;
+- the public convenience types and methods;
+- bounded progress normalization;
+- command parsing and rendering;
+- stdout/stderr separation;
+- signal, timeout, and process exit behavior.
+
+The convenience runtime delegates to `AgentApplication`. It does not maintain
+another session store, active-request map, event store, request worker, or
+cancellation authority.
+
+## Public Python surface
+
+The application package exports these public concepts:
+
+```python
+from agent_terminal_app import (
+    AgentRunResult,
+    CompactHistory,
+    CompactMessage,
+    LocalAgentRuntime,
+    RunProgress,
+    open_runtime,
+)
+```
+
+Exact annotations may use package type aliases, but these names and behavioral
+roles are the target contract.
+
+### Opening a runtime
+
+`open_runtime(...)` is a context manager returning `LocalAgentRuntime`.
+
+Supported inputs include:
+
+```python
+open_runtime(
+    *,
+    config_path: str | Path | None = None,
+    session_root: str | Path | None = None,
+)
+```
+
+When no config path is supplied, resolution searches:
+
+1. `<working-directory>/.crystal/config.json`;
+2. `~/.crystal/config.json`.
+
+For the Python API, absence of both files is an error with an actionable
+message. A library call does not silently create user files. The CLI may retain
+its existing default-config creation behavior before it opens the same
+resolved runtime.
+
+An explicit missing Python `config_path` is an error. The CLI's existing
+explicit-config creation behavior remains compatible unless command-specific
+validation identifies a user-safety conflict.
+
+The runtime uses the same dotenv collection and precedence as the application
+command:
+
+1. existing process environment;
+2. `.env` beside the active config;
+3. `<working-directory>/.crystal/.env`;
+4. `~/.crystal/.env`;
+5. standard working-directory parent discovery.
+
+The runtime resolves application layout environment values, session storage,
+filesystem snapshot selection, and a usable application notification store.
+It owns every store it constructs and closes in reverse dependency order.
+
+The runtime does not construct:
+
+- `AgentApplicationOwner`;
+- HTTP/FastAPI;
+- Bonjour or bridge clients;
+- project profile state;
+- managed live reload.
+
+### Agent discovery
+
+```python
+runtime.list_agents() -> tuple[str, ...]
+```
+
+The result contains configured agent IDs in deterministic application order.
+It does not inspect provider credentials or make an API request.
+
+### Running a task
+
+```python
+runtime.run(
+    prompt: str,
+    *,
+    agent_id: str | None = None,
+    session_id: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
+    multipart_content: Sequence[Mapping[str, Any]] | None = None,
+    overrides: Mapping[str, Any] | None = None,
+    stream: bool = True,
+    timeout: float | None = None,
+    on_progress: Callable[[RunProgress], None] | None = None,
+) -> AgentRunResult
+```
+
+Rules:
+
+- `prompt` must be a string. Empty input is rejected by the convenience API.
+- Exactly one of `agent_id` and `session_id` is required.
+- `agent_id` creates and persists a new session before request admission.
+- `session_id` loads an existing writable session and derives its configured
+  agent. It does not silently switch agents.
+- The user message is admitted, appended, and run through one coordinated
+  operation.
+- A same-session admission conflict does not append the message.
+- Request overrides remain request-scoped and follow existing merge
+  precedence.
+- The method blocks until success, failure, cancellation, interruption, or a
+  non-cooperative timeout cleanup boundary.
+
+The lower application API adds:
+
+```python
+AgentApplication.run_session_request_with_message(...)
+```
+
+It is implemented by allowing `SessionRequestCoordinator.run(...)` to prepare
+an optional message before `_execute(...)`. It must not call a standalone
+append method followed by `run_session_request(...)`.
+
+## Outcome contract
+
+The coordinated result gains:
+
+```python
+status: Literal["succeeded", "failed", "cancelled", "interrupted"]
+error: RunError | None
+```
+
+Existing `SessionRequestResult` fields remain available for compatibility.
+The public convenience layer converts it to:
+
+```python
+@dataclass(frozen=True)
+class AgentRunResult:
+    status: Literal["succeeded", "failed", "cancelled", "interrupted"]
+    session_id: str
+    request_id: str
+    agent_id: str
+    output_text: str
+    final_messages: tuple[Mapping[str, Any], ...]
+    error: RunError | None
+```
+
+`AgentRunResult` never embeds `final_session`.
+
+`output_text` concatenates non-empty final assistant-message content in event
+order, separated by one newline. Other final messages remain available in
+`final_messages` and do not enter text output implicitly.
+
+Outcome classification is deterministic:
+
+- `cancelled` when the request emitted cancellation;
+- `failed` when it emitted a fatal error;
+- `succeeded` when it reached a final assistant response without later fatal
+  error or cancellation;
+- `interrupted` when execution ended without any of those terminal facts.
+
+An observed cancellation event outranks failure. Otherwise an explicit fatal
+error outranks an earlier intermediate final event.
+
+`RunError` contains a stable category and bounded user-safe message. It does
+not include a traceback, provider-native response, headers, configuration,
+environment, or complete event. Raw details remain in configured logs and
+existing low-level events according to their current contract.
+
+## Progress contract
+
+`RunProgress` is immutable and bounded:
+
+```python
+@dataclass(frozen=True)
+class RunProgress:
+    kind: Literal[
+        "request_started",
+        "assistant_started",
+        "assistant_progress",
+        "tool_started",
+        "tool_progress",
+        "tool_completed",
+        "request_failed",
+        "request_cancelled",
+        "request_completed",
+    ]
+    session_id: str
+    request_id: str
+    message: str
+    tool_name: str | None = None
+    tool_call_id: str | None = None
+```
+
+Progress normalization consumes the public events observed by the coordinator.
+It does not require polling the event store. Internal session checkpoints are
+not exposed.
+
+The normalizer:
+
+- collapses whitespace in human text;
+- enforces a fixed maximum progress-message length;
+- prefers safe tool `metadata.display.single_line` content;
+- omits complete tool results and tool arguments;
+- omits provider-native and multipart data;
+- may suppress token-level partial events that provide no useful bounded
+  progress;
+- preserves event order for records it emits.
+
+The same normalization drives CLI stderr progress.
+
+The callback runs synchronously on the request thread and must return promptly.
+If it raises, the runtime requests cancellation, completes bounded cleanup,
+and re-raises the callback exception. Callback failure is not converted into a
+model failure result.
+
+The existing event store and raw events remain unchanged.
+
+## Cancellation and timeout
+
+`AgentApplication.cancel_request(request_id)` remains the cancellation
+authority.
+
+For a finite positive timeout, coordinated synchronous execution arranges a
+timer after request ID allocation. At expiry it cancels that request. The
+timer is always disarmed during cleanup.
+
+Cancellation is cooperative. A provider or tool that does not observe
+cancellation may finish its current blocking operation. The Python call and
+CLI wait for the coordinator to leave the session in its existing persisted
+checkpoint state; they do not abandon an unowned worker.
+
+The public result reports `cancelled`. The CLI maps a timeout-triggered
+cancellation to timeout exit behavior while an interactive interrupt maps to
+interrupt exit behavior.
+
+## Concurrency
+
+One `LocalAgentRuntime` may execute distinct sessions from ordinary Python
+threads. The application coordinator remains the single-flight authority per
+session.
+
+The runtime introduces no executor and returns no durable async handle.
+Callers use `concurrent.futures` when needed.
+
+Direct CLI processes may run distinct sessions concurrently. Cross-process
+same-session mutual exclusion is not guaranteed. Documentation warns against
+using direct commands as simultaneous writers to one session.
+
+## Compact history
+
+Compact history is a deterministic derived view of a persisted `Session`.
+
+### Python methods
+
+```python
+runtime.history(
+    session_id: str,
+    *,
+    start: int | None = None,
+    end: int | None = None,
+    roles: Collection[str] | None = None,
+    max_messages: int = 100,
+    max_content_chars: int = 500,
+    max_total_content_chars: int = 20_000,
+) -> CompactHistory
+
+runtime.get_message(session_id: str, index: int) -> Mapping[str, Any]
+```
+
+Bounds use Python slice semantics, including negative values. The projector:
+
+1. resolves the canonical range;
+2. applies role filtering;
+3. retains the newest `max_messages` selected rows;
+4. allocates the total content budget from newest to oldest;
+5. returns retained rows in canonical chronological order.
+
+This preserves the most recent conversation while making omission
+deterministic.
+
+### Result schema
+
+```python
+@dataclass(frozen=True)
+class CompactMessage:
+    index: int
+    role: str
+    content: str
+    content_length: int
+    content_truncated: bool
+    content_omitted: bool
+    tool_name: str | None = None
+    tool_call_id: str | None = None
+    tool_status: str | None = None
+
+
+@dataclass(frozen=True)
+class CompactHistory:
+    session_id: str
+    messages: tuple[CompactMessage, ...]
+    selected_message_count: int
+    omitted_message_count: int
+    content_characters: int
+    max_messages: int
+    max_content_chars: int
+    max_total_content_chars: int
+```
+
+For tool messages, display content is selected in this order:
+
+1. non-empty `metadata.display.single_line`;
+2. supported text display fallback;
+3. normalized canonical content.
+
+All selected content is whitespace-normalized and bounded. Tool-call
+arguments, unrestricted metadata, complete native messages, and multipart
+content are excluded.
+
+For non-tool messages, compact content is the normalized canonical `content`.
+Metadata is excluded except for explicitly normalized role-specific scalar
+identifiers.
+
+`get_message(...)` returns a newly serialized canonical message for one
+explicit index, including its full supported fields. Negative indices follow
+Python indexing. An invalid index raises a public range error.
+
+Projection never mutates the `Session`, persists a projection, or updates a
+cursor.
+
+## CLI contract
+
+The existing top-level parser retains global runtime flags before its command
+name. Built-in commands reserve `agents`, `run`, and `history`.
+
+### `agents`
+
+```text
+crystal-lattice [global options] agents [--format text|json]
+```
+
+Text prints one agent ID per line. JSON prints:
+
+```json
+{"agents": ["agent-a", "agent-b"]}
+```
+
+### `run`
+
+```text
+crystal-lattice [global options] run
+  (--agent ID | --session ID)
+  (--prompt TEXT | --prompt-file PATH | --stdin)
+  [--format text|json]
+  [--timeout SECONDS]
+  [--no-progress]
+```
+
+Prompt-source and session-selector groups are mutually exclusive and required.
+Prompt files and stdin are decoded as UTF-8. Empty prompts and invalid finite
+timeouts are usage errors.
+
+Default progress is bounded human text on stderr. `--no-progress` suppresses
+normal progress but not errors.
+
+Text stdout contains only `AgentRunResult.output_text`, followed by one final
+newline when non-empty. JSON stdout contains one compact result object and one
+final newline.
+
+Application logs, startup summaries, direct initialization prints, plugin
+diagnostics, and progress are routed away from stdout during these one-shot
+commands. JSON is parsed in subprocess acceptance tests.
+
+### `history`
+
+Compact form:
+
+```text
+crystal-lattice [global options] history
+  --session ID
+  [--start INDEX]
+  [--end INDEX]
+  [--role ROLE ...]
+  [--format text|json]
+```
+
+Full-message form:
+
+```text
+crystal-lattice [global options] history
+  --session ID
+  --index INDEX
+  [--format text|json]
+```
+
+`--index` cannot be combined with range or role selection. Text compact output
+uses canonical indices and bounded one-line content. Full text clearly labels
+the selected index and may contain long or sensitive canonical content because
+the user explicitly requested it. JSON mirrors the Python compact/full
+schemas.
+
+### Exit behavior
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Successful command or successful agent run |
+| `1` | Agent/application failure or interrupted run |
+| `2` | Argument, configuration, agent, session, or input error |
+| `124` | Timeout-triggered cancellation |
+| `130` | User interrupt |
+
+Failure diagnostics go to stderr. JSON stdout remains either one complete
+result document or empty when execution fails before a run result exists.
+
+## Compatibility
+
+- Existing `AgentApplication.run_session_request(...)` call sites retain their
+  behavior.
+- Existing background request start objects and event routes remain unchanged.
+- New fields on `SessionRequestResult` have compatible defaults where direct
+  fixture construction requires them.
+- Existing terminal progress and `/list short` remain supported.
+- The compact projector may share pure display-selection helpers with terminal
+  rendering, but terminal rendering does not become the data authority.
+- HTTP and frontend contracts do not change.
+
+## External-project access planning gate
+
+Requirement `HLR-060` is part of this capability but is intentionally not
+designed in this first technical plan.
+
+After `HLR-001` through `HLR-052` have direct Python and CLI acceptance
+evidence, a separate plan must inspect and decide:
+
+- source-install and bundled-runtime executable paths;
+- the supported Python import and interpreter command;
+- authored versus packaged documentation locations;
+- additional runtime/configuration variables alongside values such as
+  `BUILTIN_PLUGINS`;
+- optional system-message section schema and enablement analogous to task
+  guidance;
+- path portability, quoting, security, and stale-path behavior;
+- source, installed-package, and bundled-distribution verification.
+
+No variable or system-message implementation begins before that plan is
+approved.
+
+## Verification boundaries
+
+- Unit tests own coordinator classification, progress normalization, history
+  projection, and argument validation.
+- Package-user tests own runtime construction, initial runs, follow-ups,
+  concurrency, and cleanup.
+- Real subprocess tests own CLI I/O, progress, signals, timeout, exit codes,
+  and parseable JSON.
+- Existing application tests own terminal and background-request compatibility.
+- Hosted providers are not required for acceptance.

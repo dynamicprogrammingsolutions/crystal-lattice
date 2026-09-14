@@ -10,10 +10,14 @@ import subprocess
 import sys
 import threading
 import uuid
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, Optional
 
 from .runtime_layout import RuntimeLayout, load_runtime_layout
+from .runtime_environment import (
+    collect_additional_dotenv_values as _collect_additional_dotenv_values,
+)
 from .project_profile import ProjectProfile, ProjectProfileManager
 from .bonjour import get_local_ip
 
@@ -23,6 +27,7 @@ def _configure_logging(
     *,
     log_level: Optional[str] = None,
     disable_structlog_colors: bool,
+    structlog_output_stream: Any | None = None,
 ) -> None:
     """Configure logging for the terminal application.
 
@@ -87,7 +92,11 @@ def _configure_logging(
         from agent_core.utils import configure_logging as configure_structlog
 
         structlog_colors = None if not disable_structlog_colors else False
-        configure_structlog(colors=structlog_colors, log_file_path=log_file)
+        configure_structlog(
+            colors=structlog_colors,
+            log_file_path=log_file,
+            output_stream=structlog_output_stream,
+        )
     except Exception:
         # Defensive: never let logging configuration prevent startup.
         pass
@@ -339,75 +348,6 @@ def _ensure_crystal_gitignore(crystal_dir: Path) -> None:
         pass
 
 
-def _collect_additional_dotenv_values(config_path: Path) -> dict[str, str]:
-    """Collect .env values related to the resolved config path.
-
-    The search order is:
-      1. ``<config_dir>/.env`` where ``config_dir`` is ``config_path.parent``
-      2. ``./.crystal/.env`` (project-local overrides)
-      3. ``~/.crystal/.env`` (user-level overrides)
-      4. Standard ``.env`` discovered from the current directory/parents
-    Existing process environment values win over dotenv files, and earlier
-    dotenv files win over later files. Values are returned for config
-    placeholder resolution only; this helper does not mutate ``os.environ``.
-    """
-
-    try:
-        from dotenv import dotenv_values, find_dotenv  # type: ignore[import-not-found]
-    except Exception:
-        return {}
-
-    collected: dict[str, str] = {}
-
-    def collect_file(path: Path) -> None:
-        try:
-            values = dotenv_values(str(path))
-        except Exception:
-            return
-        for key, value in values.items():
-            if not isinstance(key, str) or not key:
-                continue
-            if not isinstance(value, str):
-                continue
-            if key in os.environ or key in collected:
-                continue
-            collected[key] = value
-
-    # 1) .env next to the actual config file.
-    try:
-        config_dir = config_path.expanduser().resolve().parent
-    except Exception:
-        config_dir = config_path.parent
-    config_env = config_dir / ".env"
-    if config_env.is_file():
-        collect_file(config_env)
-
-    # 2) Local project .crystal/.env.
-    try:
-        local_crystal = Path(".crystal").resolve()
-        local_env = local_crystal / ".env"
-        if local_env.is_file():
-            collect_file(local_env)
-    except Exception:
-        pass
-
-    # 3) User-level ~/.crystal/.env.
-    user_crystal = Path.home() / ".crystal"
-    user_env = user_crystal / ".env"
-    if user_env.is_file():
-        collect_file(user_env)
-
-    # 4) Finally, standard .env search from CWD/parents.
-    try:
-        standard_env = find_dotenv(usecwd=True)
-    except Exception:
-        standard_env = ""
-    if standard_env:
-        collect_file(Path(standard_env))
-
-    return collected
-
-
 def _parse_bool_env(value: Optional[str]) -> bool:
     if value is None:
         return False
@@ -625,9 +565,8 @@ def _parse_contributed_command(
         prog=f"crystal-lattice {command['name']}",
         description=str(command.get("description") or command["name"]),
     )
-    action_inputs = (
-        action_def.get("inputs") if isinstance(action_def.get("inputs"), dict) else {}
-    )
+    raw_action_inputs = action_def.get("inputs")
+    action_inputs = raw_action_inputs if isinstance(raw_action_inputs, dict) else {}
     raw_args = command.get("args")
     args_spec = raw_args if isinstance(raw_args, list) else []
     for entry in args_spec:
@@ -641,9 +580,8 @@ def _parse_contributed_command(
             isinstance(flag, str) and flag for flag in flags
         ):
             continue
-        action_input = (
-            action_inputs.get(name) if isinstance(action_inputs.get(name), dict) else {}
-        )
+        raw_action_input = action_inputs.get(name)
+        action_input = raw_action_input if isinstance(raw_action_input, dict) else {}
         expected_type = str(entry.get("type") or action_input.get("type") or "string")
         required = bool(action_input.get("required", False))
         default = action_input.get("default")
@@ -764,6 +702,349 @@ def _run_builtin_bundle_command(
         subprocess.run(command, cwd=str(bundle_script.parents[1]), env=env, check=True)
     except subprocess.CalledProcessError as exc:
         raise SystemExit(exc.returncode) from exc
+
+
+def _resolve_config_and_session_paths(
+    args: argparse.Namespace,
+    runtime_layout: RuntimeLayout,
+    parser: argparse.ArgumentParser,
+) -> tuple[Path, Path]:
+    default_local_config = runtime_layout.user_path("local_config")
+    default_home_config = runtime_layout.user_path("home_config")
+    default_config = runtime_layout.user_path("default_config")
+    default_session_root = runtime_layout.user_path("default_sessions_dir")
+
+    if args.config_local:
+        config_path = default_local_config
+        if not config_path.is_file():
+            try:
+                config_path = _ensure_default_config(config_path, runtime_layout)
+            except Exception as exc:  # pragma: no cover - defensive
+                parser.error(f"Could not create default config at {config_path}: {exc}")
+    elif args.config is not None:
+        config_path = Path(args.config).expanduser()
+        if not config_path.is_file():
+            try:
+                config_path = _ensure_default_config(config_path, runtime_layout)
+            except Exception as exc:  # pragma: no cover - defensive
+                parser.error(f"Could not create default config at {config_path}: {exc}")
+    else:
+        if default_local_config.is_file():
+            config_path = default_local_config
+        elif default_home_config.is_file():
+            config_path = default_home_config
+        else:
+            try:
+                config_path = _ensure_default_config(default_config, runtime_layout)
+            except Exception as exc:  # pragma: no cover - defensive
+                parser.error(
+                    f"Could not create default config at {default_config}: {exc}"
+                )
+
+    session_root = (
+        Path(args.sessions_dir).expanduser()
+        if args.sessions_dir is not None
+        else default_session_root
+    )
+
+    try:
+        session_root.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        parser.error(f"Could not create sessions directory {session_root}: {exc}")
+
+    crystal_from_config = (
+        config_path.parent if config_path.parent.name == ".crystal" else None
+    )
+    crystal_from_sessions = (
+        session_root
+        if session_root.name == ".crystal"
+        else session_root.parent if session_root.parent.name == ".crystal" else None
+    )
+    for crystal_dir in (crystal_from_config, crystal_from_sessions):
+        if crystal_dir is not None:
+            _ensure_crystal_gitignore(crystal_dir)
+
+    return config_path.resolve(), session_root.resolve()
+
+
+_LOCAL_HEADLESS_COMMANDS = frozenset({"agents", "run", "history"})
+
+
+def _command_parser(name: str, description: str) -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        prog=f"crystal-lattice {name}",
+        description=description,
+    )
+
+
+def _render_progress_to_stderr(progress: Any) -> None:
+    suffix = ""
+    if progress.kind == "request_started":
+        suffix = f" (session={progress.session_id}, request={progress.request_id})"
+    print(f"[{progress.kind}] {progress.message}{suffix}", file=sys.stderr)
+
+
+def _run_agents_command(
+    command_args: list[str],
+    *,
+    config_path: Path,
+    session_root: Path,
+    runtime_layout: RuntimeLayout,
+    env_overrides: dict[str, str],
+) -> None:
+    command_parser = _command_parser("agents", "List configured agents")
+    command_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+    )
+    parsed = command_parser.parse_args(command_args)
+
+    from .local_runtime import open_runtime
+
+    try:
+        with redirect_stdout(sys.stderr):
+            with open_runtime(
+                config_path=config_path,
+                session_root=session_root,
+                runtime_layout=runtime_layout,
+                env_overrides=env_overrides,
+            ) as runtime:
+                agents = runtime.list_agents()
+    except (FileNotFoundError, KeyError, RuntimeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+
+    if parsed.format == "json":
+        print(json.dumps({"agents": list(agents)}, ensure_ascii=False))
+        return
+    for agent_id in agents:
+        print(agent_id)
+
+
+def _read_run_prompt(
+    parsed: argparse.Namespace,
+    command_parser: argparse.ArgumentParser,
+) -> str:
+    if parsed.prompt is not None:
+        prompt = parsed.prompt
+    elif parsed.prompt_file is not None:
+        try:
+            prompt = Path(parsed.prompt_file).expanduser().read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            command_parser.error(f"could not read prompt file: {exc}")
+    else:
+        try:
+            prompt = sys.stdin.read()
+        except (OSError, UnicodeError) as exc:
+            command_parser.error(f"could not read prompt from stdin: {exc}")
+    if not isinstance(prompt, str) or not prompt.strip():
+        command_parser.error("prompt must not be empty")
+    return prompt
+
+
+def _run_agent_command(
+    command_args: list[str],
+    *,
+    config_path: Path,
+    session_root: Path,
+    runtime_layout: RuntimeLayout,
+    env_overrides: dict[str, str],
+) -> None:
+    command_parser = _command_parser(
+        "run",
+        "Run a configured agent task or continue a persisted session",
+    )
+    target = command_parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--agent")
+    target.add_argument("--session")
+    prompt_source = command_parser.add_mutually_exclusive_group(required=True)
+    prompt_source.add_argument("--prompt")
+    prompt_source.add_argument("--prompt-file")
+    prompt_source.add_argument("--stdin", action="store_true")
+    command_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+    )
+    command_parser.add_argument("--timeout", type=float, default=None)
+    command_parser.add_argument("--no-progress", action="store_true")
+    parsed = command_parser.parse_args(command_args)
+    prompt = _read_run_prompt(parsed, command_parser)
+
+    from .local_runtime import open_runtime
+
+    try:
+        with redirect_stdout(sys.stderr):
+            with open_runtime(
+                config_path=config_path,
+                session_root=session_root,
+                runtime_layout=runtime_layout,
+                env_overrides=env_overrides,
+            ) as runtime:
+                result = runtime.run(
+                    prompt,
+                    agent_id=parsed.agent,
+                    session_id=parsed.session,
+                    timeout=parsed.timeout,
+                    on_progress=(
+                        None if parsed.no_progress else _render_progress_to_stderr
+                    ),
+                )
+    except KeyboardInterrupt as exc:
+        print("Agent request interrupted", file=sys.stderr)
+        raise SystemExit(130) from exc
+    except (FileNotFoundError, KeyError, RuntimeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+
+    if parsed.format == "json":
+        print(json.dumps(result.to_dict(), ensure_ascii=False))
+    else:
+        if result.output_text:
+            print(result.output_text)
+        print(
+            f"[session] {result.session_id} (request={result.request_id})",
+            file=sys.stderr,
+        )
+
+    if result.status == "succeeded":
+        return
+    if result.error is not None:
+        print(result.error.message, file=sys.stderr)
+        if result.error.category == "timeout":
+            raise SystemExit(124)
+    raise SystemExit(1)
+
+
+def _render_compact_history_text(history: Any) -> None:
+    for message in history.messages:
+        flags: list[str] = []
+        if message.content_truncated:
+            flags.append("truncated")
+        if message.content_omitted:
+            flags.append("content omitted")
+        suffix = f" [{' | '.join(flags)}]" if flags else ""
+        print(f"[{message.index}] {message.role}: {message.content}{suffix}")
+    if history.omitted_message_count:
+        print(
+            f"[history] {history.omitted_message_count} earlier selected "
+            "message(s) omitted",
+            file=sys.stderr,
+        )
+
+
+def _run_history_command(
+    command_args: list[str],
+    *,
+    config_path: Path,
+    session_root: Path,
+    runtime_layout: RuntimeLayout,
+    env_overrides: dict[str, str],
+) -> None:
+    command_parser = _command_parser(
+        "history",
+        "Inspect compact session history or one canonical message",
+    )
+    command_parser.add_argument("--session", required=True)
+    command_parser.add_argument("--index", type=int)
+    command_parser.add_argument("--start", type=int)
+    command_parser.add_argument("--end", type=int)
+    command_parser.add_argument(
+        "--role",
+        action="append",
+        choices=["system", "user", "assistant", "tool"],
+    )
+    command_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+    )
+    parsed = command_parser.parse_args(command_args)
+    if parsed.index is not None and (
+        parsed.start is not None or parsed.end is not None or parsed.role is not None
+    ):
+        command_parser.error("--index cannot be combined with range or role options")
+
+    from .local_runtime import open_runtime
+
+    try:
+        with redirect_stdout(sys.stderr):
+            with open_runtime(
+                config_path=config_path,
+                session_root=session_root,
+                runtime_layout=runtime_layout,
+                env_overrides=env_overrides,
+            ) as runtime:
+                if parsed.index is not None:
+                    full_message = runtime.get_message(
+                        parsed.session,
+                        parsed.index,
+                    )
+                    history = None
+                else:
+                    full_message = None
+                    history = runtime.history(
+                        parsed.session,
+                        start=parsed.start,
+                        end=parsed.end,
+                        roles=parsed.role,
+                    )
+    except (FileNotFoundError, IndexError, KeyError, RuntimeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+
+    if full_message is not None:
+        if parsed.format == "json":
+            print(json.dumps(full_message, ensure_ascii=False))
+        else:
+            print(json.dumps(full_message, ensure_ascii=False, indent=2))
+        return
+
+    assert history is not None
+    if parsed.format == "json":
+        print(json.dumps(history.to_dict(), ensure_ascii=False))
+    else:
+        _render_compact_history_text(history)
+
+
+def _run_local_headless_command(
+    command: str,
+    command_args: list[str],
+    *,
+    config_path: Path,
+    session_root: Path,
+    runtime_layout: RuntimeLayout,
+    env_overrides: dict[str, str],
+) -> None:
+    if command == "agents":
+        _run_agents_command(
+            command_args,
+            config_path=config_path,
+            session_root=session_root,
+            runtime_layout=runtime_layout,
+            env_overrides=env_overrides,
+        )
+        return
+    if command == "run":
+        _run_agent_command(
+            command_args,
+            config_path=config_path,
+            session_root=session_root,
+            runtime_layout=runtime_layout,
+            env_overrides=env_overrides,
+        )
+        return
+    if command == "history":
+        _run_history_command(
+            command_args,
+            config_path=config_path,
+            session_root=session_root,
+            runtime_layout=runtime_layout,
+            env_overrides=env_overrides,
+        )
+        return
+    raise ValueError(f"Unknown local headless command: {command}")
 
 
 def main() -> None:  # pragma: no cover - manual execution only
@@ -991,7 +1272,10 @@ def main() -> None:  # pragma: no cover - manual execution only
     parser.add_argument(
         "command",
         nargs="?",
-        help=argparse.SUPPRESS,
+        help=(
+            "standalone command such as agents, run, history, bundle, "
+            "or a configured application-plugin command"
+        ),
     )
     parser.add_argument(
         "command_args",
@@ -1008,6 +1292,39 @@ def main() -> None:  # pragma: no cover - manual execution only
 
     if args.runtime_layout_json:
         print(json.dumps(runtime_layout.to_resolved_dict(), indent=2, sort_keys=True))
+        return
+
+    if args.command in _LOCAL_HEADLESS_COMMANDS:
+        if args.console or args.server:
+            parser.error(
+                f"{args.command} is a standalone command and cannot be combined "
+                "with --console or --server"
+            )
+        config_path, session_root = _resolve_config_and_session_paths(
+            args,
+            runtime_layout,
+            parser,
+        )
+        log_file = _resolve_log_file(args)
+        _configure_logging(
+            log_file,
+            log_level=args.log_level,
+            disable_structlog_colors=False,
+            structlog_output_stream=sys.stderr,
+        )
+        env_overrides = runtime_layout.env_overrides()
+        if args.cloud_orchestrator_url:
+            env_overrides["CLOUD_ORCHESTRATOR_URL"] = args.cloud_orchestrator_url
+        if args.cloud_orchestrator_token:
+            env_overrides["CLOUD_ORCHESTRATOR_TOKEN"] = args.cloud_orchestrator_token
+        _run_local_headless_command(
+            args.command,
+            list(args.command_args or []),
+            config_path=config_path,
+            session_root=session_root,
+            runtime_layout=runtime_layout,
+            env_overrides=env_overrides,
+        )
         return
 
     run_server = args.server or not args.console
@@ -1072,63 +1389,11 @@ def main() -> None:  # pragma: no cover - manual execution only
         env_overrides["CLOUD_ORCHESTRATOR_URL"] = args.cloud_orchestrator_url
     if args.cloud_orchestrator_token:
         env_overrides["CLOUD_ORCHESTRATOR_TOKEN"] = args.cloud_orchestrator_token
-    default_local_config = runtime_layout.user_path("local_config")
-    default_home_config = runtime_layout.user_path("home_config")
-    default_config = runtime_layout.user_path("default_config")
-    default_session_root = runtime_layout.user_path("default_sessions_dir")
-
-    if args.config_local:
-        config_path = default_local_config
-        if not config_path.is_file():
-            try:
-                config_path = _ensure_default_config(config_path, runtime_layout)
-            except Exception as exc:  # pragma: no cover - defensive
-                parser.error(f"Could not create default config at {config_path}: {exc}")
-    elif args.config is not None:
-        config_path = Path(args.config).expanduser()
-        if not config_path.is_file():
-            try:
-                config_path = _ensure_default_config(config_path, runtime_layout)
-            except Exception as exc:  # pragma: no cover - defensive
-                parser.error(f"Could not create default config at {config_path}: {exc}")
-    else:
-        local_config = default_local_config
-        home_config = default_home_config
-        if local_config.is_file():
-            config_path = local_config
-        elif home_config.is_file():
-            config_path = home_config
-        else:
-            try:
-                config_path = _ensure_default_config(default_config, runtime_layout)
-            except Exception as exc:  # pragma: no cover - defensive
-                parser.error(
-                    f"Could not create default config at {default_config}: {exc}"
-                )
-
-    session_root = (
-        Path(args.sessions_dir).expanduser()
-        if args.sessions_dir is not None
-        else default_session_root
+    config_path, session_root = _resolve_config_and_session_paths(
+        args,
+        runtime_layout,
+        parser,
     )
-
-    try:
-        session_root.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:
-        parser.error(f"Could not create sessions directory {session_root}: {exc}")
-
-    # Ensure a .gitignore for any .crystal directory we control.
-    crystal_from_config = (
-        config_path.parent if config_path.parent.name == ".crystal" else None
-    )
-    crystal_from_sessions = (
-        session_root
-        if session_root.name == ".crystal"
-        else session_root.parent if session_root.parent.name == ".crystal" else None
-    )
-    for crystal_dir in (crystal_from_config, crystal_from_sessions):
-        if crystal_dir is not None:
-            _ensure_crystal_gitignore(crystal_dir)
 
     config_env = _collect_additional_dotenv_values(config_path)
     resolved_runtime_config, _config_errors, _resolution_env = load_resolved_config(

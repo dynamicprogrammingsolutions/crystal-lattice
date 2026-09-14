@@ -22,13 +22,21 @@ from .application_owner import (
 from .request_execution import (
     SessionOperationBusyError,
     SessionRequestAlreadyRunningError,
+    SessionRequestError,
     SessionRequestResult,
+    SessionRequestResultStatus,
     SessionRequestStart,
 )
 from .session_request_status import (
     SessionRequestStatus,
     SessionRequestStatusService,
     SessionRequestStatusSnapshot,
+)
+from .history_projection import (
+    CompactHistory,
+    CompactMessage,
+    get_canonical_message,
+    project_session_history,
 )
 from .operations import (
     ApplicationOperationBusyError,
@@ -60,13 +68,17 @@ __all__ = [
     "AgentApplicationOwner",
     "ApplicationReloadPendingError",
     "InMemoryApplicationNotificationStore",
+    "CompactHistory",
+    "CompactMessage",
     "ManagedProcess",
     "ManagedProcessAlreadyExistsError",
     "ManagedProcessRegistry",
     "ManagedProcessRegistryClosedError",
     "SessionRequestAlreadyRunningError",
     "SessionOperationBusyError",
+    "SessionRequestError",
     "SessionRequestResult",
+    "SessionRequestResultStatus",
     "SessionRequestStart",
     "SessionRequestStatus",
     "SessionRequestStatusService",
@@ -74,5 +86,7 @@ __all__ = [
     "SQLiteApplicationNotificationStore",
     "get_managed_process_registry",
     "get_application_operation_service",
+    "get_canonical_message",
+    "project_session_history",
     "session_operation_exclusivity_key",
 ]
