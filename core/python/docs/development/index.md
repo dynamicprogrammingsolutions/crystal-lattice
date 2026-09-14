@@ -2,6 +2,7 @@
 
 - [Application owner](application-owner.md)
 - [Configuration composition implementation](configuration-composition.md)
+- [Structured logging](logging.md)
 - [Notification implementation](notification-implementation.md)
 - [Application configuration composition specification](specifications/application-configuration-composition/index.md)
 

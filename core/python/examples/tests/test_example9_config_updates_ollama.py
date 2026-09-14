@@ -1,5 +1,5 @@
 """
-Integration test for PROJECT_PLAN Example 5 (config updates + web search feature) against local Ollama.
+Integration test for Example 9 (configuration updates and web-search feature) against local Ollama.
 Skips gracefully if Ollama is unavailable or model cannot be pulled.
 Also verifies that the web search feature prints when enabled.
 """
@@ -51,12 +51,12 @@ def ensure_model():
 
 
 @pytest.mark.ollama
-def test_project_plan_example5_config_updates_runs(ensure_model, capsys):
+def test_example9_config_updates_runs(ensure_model, capsys):
     os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
     os.environ.setdefault("OLLAMA_MODEL", MODEL)
 
     mod = __import__(
-        "examples.example9_project_plan_config_updates", fromlist=["run_example"]
+        "examples.example9_config_updates_ollama", fromlist=["run_example"]
     )
     assert hasattr(mod, "run_example")
     mod.run_example()

@@ -1,11 +1,12 @@
 # Examples
 
-Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short-lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.
-Note: Some examples/tests require external services (for example, OpenRouter) and will be skipped unless the required environment variables are configured (for example, OPENROUTER_API_KEY).
+This catalog is generated from the runnable examples under `core/python/examples`.
 
-## PROJECT_PLAN Example 10: FastAPI App + Console Client (Ollama)
+Plugin instances are short-lived and operate on explicit state objects. Providers, extensions, and features share provider state during a request; tools keep separate state.
 
-PROJECT_PLAN Example 10: FastAPI App + Console Client (Ollama)
+Some examples and tests require a local service or hosted provider. Run them only with their integration marker and prerequisites enabled; a skipped gated test is not evidence that the integration ran.
+
+## Example 10: FastAPI app and console client with Ollama.
 
 This example shows how to wrap ``agent_core.AgentCore`` in a small
 HTTP JSON application and pair it with a tiny console client.
@@ -32,18 +33,18 @@ Environment variables (optional):
 Usage (API server):
 - Run directly with the example script:
 
-    $ python core/python/examples/example10_project_plan_app.py
+    $ python core/python/examples/example10_fastapi_console_ollama.py
 
   This will start a FastAPI app on http://127.0.0.1:8000.
 
 - Or run with uvicorn explicitly:
 
-    $ uvicorn examples.example10_project_plan_app:app --reload
+    $ uvicorn examples.example10_fastapi_console_ollama:app --reload
 
 Usage (console client):
 - Run in a terminal:
 
-    $ python core/python/examples/example10_project_plan_app.py --console
+    $ python core/python/examples/example10_fastapi_console_ollama.py --console
 
   This mode does not require the HTTP server; it calls the same
   helper functions that the FastAPI routes use.
@@ -63,19 +64,17 @@ Usage (run_example)
 
 Intended usage:
 
-    uvicorn examples.example10_project_plan_app:app --reload
+    uvicorn examples.example10_fastapi_console_ollama:app --reload
 """
 
 return app
 ```
 
-- Code: `core/python/examples/example10_project_plan_app.py`
-- Test: `core/python/examples/tests/test_example10_project_plan_app.py`
-- Run: `pytest -q core/python/examples/tests/test_example10_project_plan_app.py`
+- [Code](../examples/example10_fastapi_console_ollama.py)
+- [Test](../examples/tests/test_example10_fastapi_console_ollama.py)
+- Run: `pytest -q core/python/examples/tests/test_example10_fastapi_console_ollama.py`
 
 ## Example 11: OpenAI-compatible provider with tool-calling (FileReaderTool) on Ollama.
-
-Example 11: OpenAI-compatible provider with tool-calling (FileReaderTool) on Ollama.
 
 Requires:
 - `ollama` running locally (default http://localhost:11434)
@@ -169,13 +168,11 @@ finally:
         pass
 ```
 
-- Code: `core/python/examples/example11_openai_tools_file_reader.py`
-- Test: `core/python/examples/tests/test_example11_openai_tools_file_reader.py`
+- [Code](../examples/example11_openai_tools_file_reader.py)
+- [Test](../examples/tests/test_example11_openai_tools_file_reader.py)
 - Run: `pytest -q core/python/examples/tests/test_example11_openai_tools_file_reader.py`
 
-## PROJECT_PLAN Example 12: OpenRouter + tools application layer.
-
-PROJECT_PLAN Example 12: OpenRouter + tools application layer.
+## Example 12: OpenRouter tools application.
 
 This example shows how to build a small application around
 ``agent_core.AgentCore`` using the OpenRouter provider with tools and
@@ -244,13 +241,11 @@ Intended usage::
 return app
 ```
 
-- Code: `core/python/examples/example12_openrouter_tools_app.py`
-- Test: `core/python/examples/tests/test_example12_openrouter_tools_app.py`
+- [Code](../examples/example12_openrouter_tools_app.py)
+- [Test](../examples/tests/test_example12_openrouter_tools_app.py)
 - Run: `pytest -q core/python/examples/tests/test_example12_openrouter_tools_app.py`
 
-## PROJECT_PLAN Example 13: Application-layer OpenRouter + tools app.
-
-PROJECT_PLAN Example 13: Application-layer OpenRouter + tools app.
+## Example 13: Application-layer OpenRouter tools app.
 
 This example mirrors Example 12 (OpenRouter + tools coding puzzle) but
 is built on top of the higher-level :class:`agent_app.AgentApplication`
@@ -316,19 +311,18 @@ Intended usage::
 return app
 ```
 
-- Code: `core/python/examples/example13_openrouter_tools_app_layer.py`
-- Test: `core/python/examples/tests/test_example13_openrouter_tools_app_layer.py`
+- [Code](../examples/example13_openrouter_tools_app_layer.py)
+- [Test](../examples/tests/test_example13_openrouter_tools_app_layer.py)
 - Run: `pytest -q core/python/examples/tests/test_example13_openrouter_tools_app_layer.py`
 
-## EchoProvider example (class-based provider plugin) derived from PLUGIN_EXAMPLES.md.
+## Example 1: Character-streaming echo provider.
 
-EchoProvider example (class-based provider plugin) derived from PLUGIN_EXAMPLES.md.
 Streams characters of "Echo: <last user message>" as native chunks, and finalizes the full message.
 
 Plugin code
 
 ```python
-from typing import Any, Dict, List, Iterator, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 from agent_core.types import ProviderPlugin
 
 class EchoProvider(ProviderPlugin):
@@ -338,7 +332,12 @@ class EchoProvider(ProviderPlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {"model": {"type": "string", "default": "echo-1"}}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [{"type": "text", "key": "model", "label": "Model"}]
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -350,8 +349,8 @@ class EchoProvider(ProviderPlugin):
     def initialize_request(
         self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        return {**state, "accumulated": ""}
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        return list(native_messages), {**state, "accumulated": ""}
 
     def from_native_messages(
         self,
@@ -392,7 +391,8 @@ class EchoProvider(ProviderPlugin):
             if native_chunk.get("content")
             else []
         )
-        return partial, [], [], new_state
+        # Keep provider-native history unchanged during streaming.
+        return partial, [], list(native_messages), new_state
 
     def finalize(
         self,
@@ -401,9 +401,9 @@ class EchoProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         content = state.get("accumulated", "")
         if not content:
-            return [], [], state
-        final = [{"role": "assistant", "content": content, "metadata": {}}]
-        return final, [], state
+            return [], list(native_messages), state
+        final = {"role": "assistant", "content": content, "metadata": {}}
+        return [final], [*native_messages, final], {**state, "accumulated": ""}
 
     def call_api(
         self,
@@ -417,21 +417,16 @@ class EchoProvider(ProviderPlugin):
             {"content": ""},
         )
         content = f"Echo: {last_user.get('content', '')}"
-        return (
-            [{"role": "assistant", "content": content, "metadata": {}}],
-            [],
-            [],
-            state,
-        )
+        final = {"role": "assistant", "content": content, "metadata": {}}
+        return [], [final], [*native_messages, final], state
 ```
 
-- Code: `core/python/examples/example1_echo_provider.py`
-- Test: `core/python/examples/tests/test_example1_echo_provider.py`
+- [Code](../examples/example1_echo_provider.py)
+- [Test](../examples/tests/test_example1_echo_provider.py)
 - Run: `pytest -q core/python/examples/tests/test_example1_echo_provider.py`
 
-## PrefixExtension example (class-based provider extension) derived from PLUGIN_EXAMPLES.md.
+## Example 2: Prefix provider extension.
 
-PrefixExtension example (class-based provider extension) derived from PLUGIN_EXAMPLES.md.
 Adds a prefix to final assistant messages and counts processed chunks in metadata.
 
 Plugin code
@@ -450,7 +445,12 @@ class PrefixExtension(ProviderExtensionPlugin):
             "prefix": {"type": "string", "default": "[EXT]"},
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [
             {"type": "checkbox", "key": "enabled", "label": "Enable Extension"},
             {"type": "text", "key": "prefix", "label": "Prefix"},
@@ -521,20 +521,18 @@ class PrefixExtension(ProviderExtensionPlugin):
         return finals, native_messages, state
 ```
 
-- Code: `core/python/examples/example2_prefix_extension.py`
-- Test: `core/python/examples/tests/test_example2_prefix_extension.py`
+- [Code](../examples/example2_prefix_extension.py)
+- [Test](../examples/tests/test_example2_prefix_extension.py)
 - Run: `pytest -q core/python/examples/tests/test_example2_prefix_extension.py`
 
-## WebSearchFeature example (class-based feature plugin) derived from PLUGIN_EXAMPLES.md.
+## Example 3: Configurable web-search feature.
 
-WebSearchFeature example (class-based feature plugin) derived from PLUGIN_EXAMPLES.md.
 This feature marks finals with metadata when web_search_enabled is True and prints a notice.
 
 Plugin code
 
 ```python
-from typing import Any, Dict, List, Tuple
-from agent_core.types import FeaturePlugin
+from typing import Any, Dict, List, Optional, Tuple
 
 class WebSearchFeature:
     name: str = "web_search"
@@ -546,7 +544,12 @@ class WebSearchFeature:
             "max_results": {"type": "integer", "default": 5},
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [
             {
                 "type": "checkbox",
@@ -584,19 +587,17 @@ class WebSearchFeature:
         return finals, native_messages, state
 ```
 
-- Code: `core/python/examples/example3_web_search_feature.py`
-- Test: `core/python/examples/tests/test_example3_web_search_feature.py`
+- [Code](../examples/example3_web_search_feature.py)
+- [Test](../examples/tests/test_example3_web_search_feature.py)
 - Run: `pytest -q core/python/examples/tests/test_example3_web_search_feature.py`
 
-## FileReaderTool example (class-based tool plugin) derived from PLUGIN_EXAMPLES.md.
-
-FileReaderTool example (class-based tool plugin) derived from PLUGIN_EXAMPLES.md.
+## Example 4: Sandboxed file-reader tool.
 
 Plugin code
 
 ```python
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from agent_core.types import ToolPlugin
 
 class FileReaderTool(ToolPlugin):
@@ -618,7 +619,12 @@ class FileReaderTool(ToolPlugin):
             },
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [
             {
                 "type": "text",
@@ -687,13 +693,12 @@ class FileReaderTool(ToolPlugin):
         )
 ```
 
-- Code: `core/python/examples/example4_file_reader_tool.py`
-- Test: `core/python/examples/tests/test_example4_file_reader_tool.py`
+- [Code](../examples/example4_file_reader_tool.py)
+- [Test](../examples/tests/test_example4_file_reader_tool.py)
 - Run: `pytest -q core/python/examples/tests/test_example4_file_reader_tool.py`
 
-## PROJECT_PLAN Example 1: Basic Low-Level API Usage (Python)
+## Example 5: Basic low-level API usage with Ollama.
 
-PROJECT_PLAN Example 1: Basic Low-Level API Usage (Python)
 Configured to call a local Ollama OpenAI-compatible endpoint.
 
 Environment variables (optional):
@@ -749,13 +754,12 @@ session, messages = core.send_request(session, config)
 print(messages[-1]["content"])  # expect some text
 ```
 
-- Code: `core/python/examples/example5_project_plan_basic.py`
-- Test: `core/python/examples/tests/test_example5_project_plan_basic.py`
-- Run: `pytest -q core/python/examples/tests/test_example5_project_plan_basic.py`
+- [Code](../examples/example5_basic_ollama.py)
+- [Test](../examples/tests/test_example5_basic_ollama.py)
+- Run: `pytest -q core/python/examples/tests/test_example5_basic_ollama.py`
 
-## PROJECT_PLAN Example 2: Streaming with Low-Level API
+## Example 6: Streaming with the low-level API and Ollama.
 
-PROJECT_PLAN Example 2: Streaming with Low-Level API
 Configured to call a local Ollama OpenAI-compatible endpoint.
 
 Environment variables (optional):
@@ -793,13 +797,12 @@ for chunk in core.send_request_stream(session, config):
         print("\n[Done]")
 ```
 
-- Code: `core/python/examples/example6_project_plan_streaming.py`
-- Test: `core/python/examples/tests/test_example6_project_plan_streaming.py`
-- Run: `pytest -q core/python/examples/tests/test_example6_project_plan_streaming.py`
+- [Code](../examples/example6_streaming_ollama.py)
+- [Test](../examples/tests/test_example6_streaming_ollama.py)
+- Run: `pytest -q core/python/examples/tests/test_example6_streaming_ollama.py`
 
-## PROJECT_PLAN Example 3: Tool Calls Loop (Ollama)
+## Example 7: Tool-call loop with Ollama.
 
-PROJECT_PLAN Example 3: Tool Calls Loop (Ollama)
 Preserves original messages and uses FileReaderTool.
 
 Usage (run_example)
@@ -861,13 +864,12 @@ for i in range(max_iterations):
         )
 ```
 
-- Code: `core/python/examples/example7_project_plan_tool_calls.py`
-- Test: `core/python/examples/tests/test_example7_project_plan_tool_calls.py`
-- Run: `pytest -q core/python/examples/tests/test_example7_project_plan_tool_calls.py`
+- [Code](../examples/example7_tool_calls_ollama.py)
+- [Test](../examples/tests/test_example7_tool_calls_ollama.py)
+- Run: `pytest -q core/python/examples/tests/test_example7_tool_calls_ollama.py`
 
-## PROJECT_PLAN Example 4: Message History Manipulation (Ollama)
+## Example 8: Message history manipulation with Ollama.
 
-PROJECT_PLAN Example 4: Message History Manipulation (Ollama)
 Preserves original message sequence and edits.
 
 Usage (run_example)
@@ -922,13 +924,12 @@ session = Session(
 session = core.add_message(session, "user", "New conversation")
 ```
 
-- Code: `core/python/examples/example8_project_plan_messages.py`
-- Test: `core/python/examples/tests/test_example8_project_plan_messages.py`
-- Run: `pytest -q core/python/examples/tests/test_example8_project_plan_messages.py`
+- [Code](../examples/example8_message_history_ollama.py)
+- [Test](../examples/tests/test_example8_message_history_ollama.py)
+- Run: `pytest -q core/python/examples/tests/test_example8_message_history_ollama.py`
 
-## PROJECT_PLAN Example 5: Config Updates + Web Search Feature (Ollama)
+## Example 9: Configuration updates and a web-search feature with Ollama.
 
-PROJECT_PLAN Example 5: Config Updates + Web Search Feature (Ollama)
 Preserves original prompts and prints when search is enabled.
 
 Usage (run_example)
@@ -981,6 +982,6 @@ print(messages[-1]["content"])
 print(messages[-1]["metadata"])
 ```
 
-- Code: `core/python/examples/example9_project_plan_config_updates.py`
-- Test: `core/python/examples/tests/test_example9_project_plan_config_updates.py`
-- Run: `pytest -q core/python/examples/tests/test_example9_project_plan_config_updates.py`
+- [Code](../examples/example9_config_updates_ollama.py)
+- [Test](../examples/tests/test_example9_config_updates_ollama.py)
+- Run: `pytest -q core/python/examples/tests/test_example9_config_updates_ollama.py`

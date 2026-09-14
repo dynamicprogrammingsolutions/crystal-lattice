@@ -35,7 +35,7 @@ Related documentation:
 - [Runtime owner integration](runtime-owner-integration.md)
 - [HTTP endpoint parity](../../agent_terminal_app/server_endpoints_parity.md)
 - [Application README](../../README.md)
-- [Event API](../../../../docs/api/events.md)
+- [Event API](../../../../core/python/docs/events.md)
 - [Runtime reload specification](../../../../docs/development/specifications/application-runtime-reload/index.md)
 
 ## Ownership map
@@ -388,7 +388,7 @@ from the checkpoint at that cursor. This keeps the message snapshot, cursor,
 and request state aligned.
 
 For event shapes and polling semantics, see the
-[Event API](../../../../docs/api/events.md).
+[Event API](../../../../core/python/docs/events.md).
 
 ## Cancellation timing
 

@@ -215,9 +215,10 @@ class InMemoryEventStore(EventStore):
     def get_event_by_id(self, event_id: str) -> Optional[Dict[str, Any]]:
         """Return the stored event with the given ``event_id``, if any.
 
-        Event ids are assigned monotonically increasing integer-like strings,
-        but this helper performs a simple linear search over the in-memory
-        list so callers do not need to depend on that representation.
+        Generated IDs contain the store instance and an increasing local
+        counter. Callers should treat them as opaque cursors; this helper
+        performs a linear search over the in-memory list without requiring
+        callers to parse the representation.
         """
 
         if not isinstance(event_id, str) or not event_id:

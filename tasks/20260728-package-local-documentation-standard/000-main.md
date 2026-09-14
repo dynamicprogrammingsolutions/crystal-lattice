@@ -597,8 +597,9 @@ It does not generally watch package-local README or `docs/` paths such as
   sits at the repository root.
 - `ARCHITECTURE.md` is cross-package architecture and is a likely root
   `docs/development/` page after bounded verification.
-- `TYPES_AND_PROTOCOLS.md` contains both public contracts and development
-  detail and may need relocation before any later split.
+- `TYPES_AND_PROTOCOLS.md` mixed a useful public mental model with stale Python
+  signatures. Subtask 030 replaces that overview, improves maintained
+  docstrings, and archives the superseded root page.
 - `application/python/agent_terminal_app/server_endpoints_parity.md` is written
   as an active `NEW`/`EXISTING` plan and requires current-state classification.
 - `docs/reference/tool-host-protocol.md` describes a cross-package Python/Node
@@ -644,10 +645,11 @@ It does not generally watch package-local README or `docs/` paths such as
 │       ├── core-sdk.md
 │       ├── events.md
 │       ├── examples.md
+│       ├── types-and-protocols.md
 │       ├── development/
 │       │   ├── index.md
 │       │   ├── architecture.md
-│       │   ├── types-and-protocols.md
+│       │   ├── logging.md
 │       │   └── specifications/
 │       └── reference/
 │
@@ -734,7 +736,7 @@ It does not generally watch package-local README or `docs/` paths such as
 | Current page | Likely destination | Required decision |
 |---|---|---|
 | `ARCHITECTURE.md` | `docs/development/architecture.md` | Cross-package ownership is clear, but major paths and architecture claims need a bounded spot-check. |
-| `TYPES_AND_PROTOCOLS.md` | `core/python/docs/development/types-and-protocols.md` | Large document with both public contract and implementation material; may need a later split. |
+| `TYPES_AND_PROTOCOLS.md` | Current overview at `core/python/docs/types-and-protocols.md`; exact facts in maintained docstrings; superseded source under `archive/root-docs/` | Preserve the useful code-free mental model, use generated reference for exact Python members, and do not retain stale signatures as current guidance. |
 | `application/python/agent_terminal_app/server_endpoints_parity.md` | `application/python/docs/development/specifications/http-api-parity/` or archive | Its `NEW`/`EXISTING` statuses may no longer reflect current endpoints. |
 | `docs/reference/tool-host-protocol.md` | Root cross-package reference or `packages/tool-host-node/docs/protocol.md` | The protocol is shared by Python and Node; establish explicit ownership before moving it. |
 | `docs/reference/agent_core/**` | `core/python/docs/reference/` or generated-only output | Normalize separate source directives and generated snapshots. |
@@ -755,7 +757,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
 - [x] `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
+- [x] `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
 - [x] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
@@ -860,7 +862,7 @@ Required new or updated documentation includes:
 - [ ] 010: Establish documentation/specification standard and agent guidance.
 - [ ] 015: Create the programmatic agent-evaluation library and documentation-standard consumers.
 - [ ] 020: Extend package docs-site assembly and add focused tests.
-- [ ] 030: Migrate and lightly verify Core Python documentation.
+- [x] 030: Migrate and lightly verify Core Python documentation.
 - [ ] 040: Migrate and lightly verify application and shared plugin documentation.
 - [ ] 050: Triage cross-package architecture, protocol, parity-plan, and generated reference documentation.
 - [ ] 060: Update navigation, compatibility paths, repository links, and build triggers.

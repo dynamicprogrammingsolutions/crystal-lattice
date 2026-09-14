@@ -20,49 +20,49 @@ and archive the superseded root page with bounded verification.
 
 ## Requirements checklist
 
-- [ ] `core/python` has the README, package guidance, documentation index,
+- [x] `core/python` has the README, package guidance, documentation index,
   quickstart, user documentation, and development-documentation routes
   required by the approved public-package profile.
-- [ ] `core/python/README.md` is a concise package entry point rather than a
+- [x] `core/python/README.md` is a concise package entry point rather than a
   competing SDK guide, while useful package-owned guidance removed from it
   remains reachable in the Core documentation tree.
-- [ ] `docs/api/events.md` is relocated to `core/python/docs/events.md` or a
+- [x] `docs/api/events.md` is relocated to `core/python/docs/events.md` or a
   more appropriate approved Core Python path.
-- [ ] The event page accurately distinguishes application-owned event
+- [x] The event page accurately distinguishes application-owned event
   contracts from terminal-owned event additions, HTTP/bridge transports, and
   frontend/mobile/desktop consumers.
-- [ ] Event names, common and optional fields, and public/internal distinctions
+- [x] Event names, common and optional fields, and public/internal distinctions
   documented by the moved page agree with current producers, public transport,
   frontend types, or focused tests.
-- [ ] `docs/api/core-sdk.md` is relocated to `core/python/docs/core-sdk.md`
+- [x] `docs/api/core-sdk.md` is relocated to `core/python/docs/core-sdk.md`
   without a comprehensive rewrite or an unsupported claim of exhaustive API
   coverage.
-- [ ] Core SDK imports, named public methods, data fields, and examples touched
+- [x] Core SDK imports, named public methods, data fields, and examples touched
   by the move are verified against current code or focused existing tests.
-- [ ] `EXAMPLES.md` is moved to `core/python/docs/examples.md`, and
+- [x] `EXAMPLES.md` is moved to `core/python/docs/examples.md`, and
   `scripts/generate_examples_md.py` writes deterministically to that canonical
   location.
-- [ ] Relevant existing example tests are run before or with regeneration;
+- [x] Relevant existing example tests are run before or with regeneration;
   integration-gated examples not deliberately enabled are reported as not run.
-- [ ] A current `core/python/docs/types-and-protocols.md` preserves the useful
+- [x] A current `core/python/docs/types-and-protocols.md` preserves the useful
   overview function of `TYPES_AND_PROTOCOLS.md`, so readers can understand the
   important types, plugin families, state ownership, request/streaming flow,
   tool/action relationships, and native-history model without reading source
   code.
-- [ ] Useful exact-reference information missing from maintained Core
+- [x] Useful exact-reference information missing from maintained Core
   docstrings is added there, and the live `agent_core.types` MkDocstrings
   directive produces readable reference documentation from those docstrings.
-- [ ] Every substantive section of `TYPES_AND_PROTOCOLS.md` has a recorded
+- [x] Every substantive section of `TYPES_AND_PROTOCOLS.md` has a recorded
   disposition to the new overview, maintained docstrings/generated reference,
   an existing authoritative guide, or intentional removal as stale duplicate
   content.
-- [ ] After useful content and current links are accounted for,
+- [x] After useful content and current links are accounted for,
   `TYPES_AND_PROTOCOLS.md` is moved to
   `archive/root-docs/TYPES_AND_PROTOCOLS.md` and is no longer presented by
   current documentation as an authoritative source.
-- [ ] Known inbound source links are updated, and old/new public route mappings
+- [x] Known inbound source links are updated, and old/new public route mappings
   are recorded for subtask 060 compatibility work.
-- [ ] No broad rewrite of the 1,000+ line Core SDK guide or generated examples
+- [x] No broad rewrite of the 1,000+ line Core SDK guide or generated examples
   is performed solely for migration, and no runtime behavior or public API is
   changed.
 
@@ -488,22 +488,22 @@ old-route redirects owned by subtask 060.
 
 ### Task checklist
 
-- [ ] Preserve the task worktree baseline and recheck concurrent/shared files.
-- [ ] Record 030 as a dependency of 050 before reference normalization begins.
-- [ ] Create Core package AGENTS, docs index, and tested quickstart.
-- [ ] Reduce the Core README and preserve logging guidance in development docs.
-- [ ] Move and boundedly correct the Core SDK guide.
-- [ ] Move, reorganize, and verify the event documentation.
-- [ ] Run relevant example tests before changing generated output.
-- [ ] Move examples output, update the generator/source labels, and regenerate.
-- [ ] Create the current types/protocols conceptual overview.
-- [ ] Improve exact-reference docstrings without changing runtime behavior.
-- [ ] Record the complete legacy types/protocols disposition.
-- [ ] Verify live MkDocstrings rendering and hand reference ownership to 050.
-- [ ] Archive the superseded root types/protocols page.
-- [ ] Update current source links and record public route mappings for 060.
-- [ ] Run focused tests, preparation, build, output inspection, and diff checks.
-- [ ] Update task, parent, and requirement evidence without overwriting
+- [x] Preserve the task worktree baseline and recheck concurrent/shared files.
+- [x] Record 030 as a dependency of 050 before reference normalization begins.
+- [x] Create Core package AGENTS, docs index, and tested quickstart.
+- [x] Reduce the Core README and preserve logging guidance in development docs.
+- [x] Move and boundedly correct the Core SDK guide.
+- [x] Move, reorganize, and verify the event documentation.
+- [x] Run relevant example tests before changing generated output.
+- [x] Move examples output, update the generator/source labels, and regenerate.
+- [x] Create the current types/protocols conceptual overview.
+- [x] Improve exact-reference docstrings without changing runtime behavior.
+- [x] Record the complete legacy types/protocols disposition.
+- [x] Verify live MkDocstrings rendering and hand reference ownership to 050.
+- [x] Archive the superseded root types/protocols page.
+- [x] Update current source links and record public route mappings for 060.
+- [x] Run focused tests, preparation, build, output inspection, and diff checks.
+- [x] Update task, parent, and requirement evidence without overwriting
   concurrent work.
 
 ### Requirement verification
@@ -558,3 +558,189 @@ old-route redirects owned by subtask 060.
 - Run `git diff --check`.
 - Confirm generated `docs_site/prepared/` and `docs_site/dist/` remain ignored
   and no committed reference snapshot changed.
+
+## Implementation Notes
+
+- Implementation began from approved-plan commit `dc0e73f1` on
+  `task/20260728-core-python-documentation-migration`, based on `main` commit
+  `7becd53729b180a5a9532a3944f25fe9950b2886`.
+- The dedicated worktree was clean after the plan commit. The separate `main`
+  worktree contained only an unrelated untracked
+  `application/python/agent_terminal_app/cache/` directory at the baseline
+  recheck; no file from that directory is in scope.
+- Subtask 065's committed work is included in the branch baseline. Its task and
+  `CONTRIBUTING.md` remain outside this subtask.
+- Subtask 050 now declares this subtask as a dependency so its
+  generated-reference work consumes the maintained docstrings produced here.
+- Baseline examples passed before generator changes: `5 passed, 8 deselected`
+  with the integration gate explicitly excluded.
+- The exact documentation quickstart executed successfully and produced
+  `SYS= | USER=Hello from the echo provider!`; its returned session contained
+  the user and assistant messages.
+- The Core SDK source moved to `core/python/docs/core-sdk.md`. Its 19 dedicated
+  method headings all resolve to methods on the current `AgentCore`; focused
+  Core/type/quickstart verification passed with `42 passed`.
+- The event source moved to `core/python/docs/events.md` and now distinguishes
+  application contracts, internal session checkpoints, terminal lifecycle
+  additions, HTTP exposure, bridge transport, and frontend consumers.
+  Application event/store/notification verification passed with `56 passed`;
+  selected HTTP event, cursor, compaction, lifecycle, and snapshot verification
+  passed with `17 passed, 44 deselected`.
+- Six example/test pairs whose filenames exposed the old `project_plan` label
+  were renamed mechanically. Their imports and embedded launch commands were
+  updated, and the full default example collection still produced
+  `5 passed, 8 deselected`.
+- `scripts/generate_examples_md.py` now writes
+  `core/python/docs/examples.md`. Two consecutive post-change runs produced
+  SHA-256
+  `6c465e63b5a6602743fc2dd2c9c38a3d4c582acd1c684073db3d0ba5497f8244`.
+- The new `core/python/docs/types-and-protocols.md` provides the compact mental
+  model formerly supplied by the root page. Maintained type and Core
+  docstrings now describe the actual frozen/nested-value boundary, message
+  fields, `MessageRole`, tool descriptors, model descriptor dictionaries,
+  plugin state, cancellation, and Core-owned caches/I/O.
+- Live MkDocstrings output was inspected for `MessageRole`, `Message`,
+  `PartialMessage`, `Session`, `ToolDescriptor`, `ProviderPlugin`,
+  `ProviderExtensionPlugin`, `FeaturePlugin`, and `ToolPlugin`. Malformed
+  provider examples, duplicate prose, nonexistent `stream_request`, and
+  misleading all-methods-pure claims were removed from maintained sources.
+- The superseded root page moved to
+  `archive/root-docs/TYPES_AND_PROTOCOLS.md`. Current root, package,
+  application, MkDocs, and LLM links now route to package-local Core sources.
+
+### Legacy types/protocols disposition
+
+| Legacy section | Disposition |
+|---|---|
+| Core data types | Current fields and semantics are in the new overview and maintained `agent_core.types` docstrings. The old `ModelDescriptor` pseudo-type was replaced by the actual `get_models` dictionary contract; no API was invented. |
+| State model | Shared provider/extension/feature state, independent tool state, short-lived instances, and application-owned durability are summarized in the new overview and detailed in shared plugin guides. |
+| Plugin type detection | The current structural classification is summarized in the overview and retained in the moved Core SDK guide and `AgentCore.discover_and_register` reference. |
+| Base plugin properties and UI | Actual protocol identity/config/UI hooks remain in `BasePlugin` docstrings. Current UI shapes and compatibility are owned by `plugins/docs/ui-elements.md`; unsupported legacy `description`/`author`/`repository` requirements were not reproduced. |
+| Provider protocol | Exact current members come from `ProviderPlugin` docstrings; lifecycle, streaming, and native-history recipes remain in `plugins/docs/provider-plugins.md`. Stale signature listings were discarded. |
+| Provider-extension protocol | Exact current members come from docstrings; hot/cold-path responsibilities and recipes remain in `plugins/docs/provider-extensions.md`. |
+| Feature protocol | Exact current members come from docstrings; cold-path behavior, actions, templates, completions, context, and UI guidance remain in `plugins/docs/feature-plugins.md` and `plugins/docs/actions.md`. |
+| Tool protocol | Exact current members come from docstrings; preparation, schema/call/result interop, execution, streaming, context, and testing remain in `plugins/docs/tool-plugins.md` and `plugins/docs/tool-interop.md`. |
+| Core SDK interface | Selected workflows and methods are in the moved Core SDK guide; exhaustive signatures remain generated from `agent_core.core`. |
+| Tool interop model | A compact relationship is retained in the new overview, with the full current contract in `plugins/docs/tool-interop.md`. |
+| Stream event format | Replaced by the verified application event page, including application/terminal/transport ownership and current indexing/checkpoint fields. |
+| Configuration format | Application-managed request configuration and UI contribution concepts are summarized in the overview; current formats are owned by application configuration and shared config-schema/UI guides. |
+| Session actions and layered context | Summarized in the overview and owned in detail by `plugins/docs/actions.md` plus protocol docstrings. |
+| Basic and streaming flows | Replaced by concise current flow diagrams and linked to `plugins/docs/plugin-execution-order.md`. |
+| Session metadata retention | Retained as the provider-native-history explanation in the overview and linked to the provider guide. |
+| Plugin examples | Replaced by the canonical generated examples catalog and focused plugin-author guides. |
+
+## Completion Notes
+
+### Outcome
+
+- Core Python now has a concise README, package `AGENTS.md`, public docs index,
+  credential-free quickstart, selected Core SDK guide, ownership-organized
+  event contract, generated examples catalog, types/protocols overview, and
+  structured-logging development guide.
+- `docs/index.md`, root README/AGENTS, application request-execution guidance,
+  MkDocs navigation, and LLM sections now route to the package-local Core
+  sources.
+- `TYPES_AND_PROTOCOLS.md` was mined section by section. Useful conceptual
+  material now lives in the Core overview or owning focused guides, exact
+  Python facts live in maintained docstrings, and the unchanged historical
+  source is archived at `archive/root-docs/TYPES_AND_PROTOCOLS.md`.
+- The examples generator writes only
+  `core/python/docs/examples.md`. Internal plan terminology was removed from
+  public headings and paths, and six example/test pairs were renamed
+  mechanically.
+- Type and Core docstrings now generate readable current reference for the
+  important values and plugin protocols. No committed generated reference
+  snapshot was edited.
+- No runtime behavior or public API was changed.
+
+### Requirement evidence
+
+- Package entry points: production preparation selects
+  `core/python/docs/index.md` for `packages/core-python`; the prepared tree
+  contains every planned Core page and excludes `AGENTS.md`.
+- Quickstart: the exact fenced example executes against the package-local echo
+  provider, prints `SYS= | USER=Hello from the echo provider!`, and returns a
+  two-message session.
+- Core SDK: all 19 dedicated method headings resolve to current `AgentCore`
+  methods; the full default Core test suite passed.
+- Events: application producer/store/notification and selected terminal HTTP
+  event/cursor/compaction/lifecycle/snapshot suites passed.
+- Examples: default tests passed before and after migration, all 13 tests
+  collected, and two final generator runs produced the same SHA-256
+  `6c465e63b5a6602743fc2dd2c9c38a3d4c582acd1c684073db3d0ba5497f8244`.
+- Types/protocols: generated HTML contains `MessageRole`, `Message`,
+  `PartialMessage`, `Session`, `ToolDescriptor`, `ProviderPlugin`,
+  `ProviderExtensionPlugin`, `FeaturePlugin`, and `ToolPlugin` with the
+  corrected source descriptions.
+- Legacy retirement: the archived file SHA-256
+  `b4941aed355ea602498e9fdf5b5776869744be384b43c888ea2dcd8f72ec3928`
+  matches the former root file exactly; no current source links to it.
+- Publication: package preparation and normal MkDocs build pass, all canonical
+  built routes exist, and Core guides appear in generated LLM output.
+
+### Verification performed
+
+- `pytest core/python/tests -q -m 'not integration'`:
+  `508 passed, 1 xfailed, 26 deselected`.
+- `pytest core/python/examples/tests -q -m 'not integration'` before and after
+  migration: `5 passed, 8 deselected` each time.
+- Focused Core/type/quickstart tests: `42 passed`.
+- Focused application streaming, event store, application notification, and
+  session notification tests: `56 passed`.
+- Selected terminal HTTP event, cursor, compaction, message lifecycle, fork,
+  send-message, and snapshot tests: `17 passed, 44 deselected`.
+- `python -m pytest docs_site/tests/test_prepare_mkdocs_site.py -q`:
+  `15 passed`.
+- `python docs_site/scripts/prepare_mkdocs_site.py`: passed.
+- Normal `mkdocs build`: passed.
+- Focused Ruff checks for changed Core, event-store, example, generator, and
+  documentation-test sources: passed.
+- `ruff check application/python/agent_terminal_app/server.py --ignore F811`:
+  passed. Running that whole file without the baseline exclusion reports its
+  two pre-existing duplicate route-function definitions.
+- Current Markdown target validation, stale-source/provenance searches,
+  generated-tree ignore checks, output inspection, and `git diff --check`:
+  passed.
+
+### Findings and plan adjustments
+
+- The previous package README contained useful logging details, so those were
+  retained in a dedicated development page while the README was shortened.
+- Merely changing example headings would have left internal `project_plan`
+  language in public file paths. Six example/test pairs and their internal
+  imports/launch commands were therefore renamed without changing behavior or
+  catalog order.
+- Existing Core and event-store docstrings repeated two inaccuracies exposed
+  during documentation verification: universal Core purity and integer-like
+  event IDs. These nearby maintained reference sources were corrected along
+  with `agent_core.types`.
+- The final MkDocs build reports six pre-existing broken-link warnings from
+  unchanged shared plugin pages. This subtask introduced no unresolved build
+  warning and removed the Core docstring parsing/cross-reference warnings seen
+  during implementation.
+- The full server module has two pre-existing Ruff `F811` findings for
+  duplicate route-function names. The only server change here corrects the
+  `GET /events` parameter documentation; lint passes when those baseline
+  findings are excluded.
+
+### Downstream work
+
+- Eight integration-gated examples were not run: five local Ollama examples
+  and three hosted/provider examples. They were collected but deliberately
+  excluded by `-m 'not integration'`.
+- Subtask 050 now depends on 030 and owns package-local generated-reference
+  directives, committed snapshot policy, and final reference normalization.
+- Subtask 060 owns compatibility for `/api/core-sdk/` and `/api/events/`, final
+  navigation curation, exhaustive inbound-link review, and documentation build
+  triggers. The canonical destinations and new examples/types routes are
+  recorded in this task.
+- Subtask 070 owns final cross-task build, audience-journey, warning-baseline,
+  and migration-inventory verification.
+- No human-only acceptance requirement is assigned to this subtask.
+
+## Post-completion follow-up
+
+- Correction to the integration-gated example breakdown above: the eight
+  examples not run comprise six local Ollama examples and two hosted
+  OpenRouter examples. The total and verification classification are
+  unchanged.

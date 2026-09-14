@@ -1,5 +1,5 @@
 """
-Integration test for PROJECT_PLAN Example 4 (message history manipulation) against local Ollama.
+Integration test for Example 8 (message history manipulation) against local Ollama.
 Skips gracefully if Ollama is unavailable or model cannot be pulled.
 """
 
@@ -50,12 +50,12 @@ def ensure_model():
 
 
 @pytest.mark.ollama
-def test_project_plan_example4_messages_runs(ensure_model):
+def test_example8_messages_runs(ensure_model):
     os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
     os.environ.setdefault("OLLAMA_MODEL", MODEL)
 
     mod = __import__(
-        "examples.example8_project_plan_messages", fromlist=["run_example"]
+        "examples.example8_message_history_ollama", fromlist=["run_example"]
     )
     assert hasattr(mod, "run_example")
     mod.run_example()

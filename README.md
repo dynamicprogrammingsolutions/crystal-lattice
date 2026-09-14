@@ -379,9 +379,11 @@ Contributor references:
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [Application and terminal feature development](application/python/docs/development/terminal-and-http-features.md)
-- [docs/api/core-sdk.md](docs/api/core-sdk.md)
-- [TYPES_AND_PROTOCOLS.md](TYPES_AND_PROTOCOLS.md)
-- [EXAMPLES.md](EXAMPLES.md)
+- [Core Python documentation](core/python/docs/index.md)
+- [Core SDK guide](core/python/docs/core-sdk.md)
+- [Core types and plugin protocols](core/python/docs/types-and-protocols.md)
+- [Application events](core/python/docs/events.md)
+- [Tested Core examples](core/python/docs/examples.md)
 
 ## Architecture Overview
 
@@ -507,7 +509,7 @@ print(replies[-1]["content"])
 ## Examples And Recipes
 
 Examples live under `core/python/examples` and are catalogued in
-[EXAMPLES.md](EXAMPLES.md). Highlights include echo providers, provider
+[the generated examples guide](core/python/docs/examples.md). Highlights include echo providers, provider
 extensions, feature plugins, file tools, streaming, app-layer flows, and
 OpenRouter/Ollama examples.
 
@@ -532,7 +534,9 @@ Key docs:
 - [Development documentation](docs/development/index.md)
 - [Reusable development standards](docs/development/standards/index.md)
 - [Crystal Lattice repository policy](docs/development/repository/index.md)
-- [docs/api/core-sdk.md](docs/api/core-sdk.md)
+- [Core Python documentation](core/python/docs/index.md)
+- [Core SDK guide](core/python/docs/core-sdk.md)
+- [Application events](core/python/docs/events.md)
 - [plugins/docs/index.md](plugins/docs/index.md)
 - [plugins/docs/overview.md](plugins/docs/overview.md) - general plugin-system overview
 - [docs/reference/agent_core](docs/reference/agent_core)

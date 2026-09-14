@@ -1,5 +1,5 @@
 """
-Tests for PROJECT_PLAN Example 10 FastAPI/JSON application.
+Tests for Example 10's FastAPI/JSON application.
 
 These tests exercise the minimal application built around
 ``agent_core.AgentCore`` and the OpenAI-compatible provider. For
@@ -24,7 +24,7 @@ if CORE_PY not in sys.path:
 def _import_example_module():
     """Import the example10 module."""
 
-    return __import__("examples.example10_project_plan_app", fromlist=["app"])
+    return __import__("examples.example10_fastapi_console_ollama", fromlist=["app"])
 
 
 def test_example10_application_flow_direct_calls_with_echo_provider():
