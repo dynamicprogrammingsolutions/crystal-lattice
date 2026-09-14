@@ -104,19 +104,16 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - Used mainly for tests, compatibility, and a small set of package-local/core features.
   - Do not place new plugins here without explicit user consent.
 
-**Docs & scripts**
+**Documentation & scripts**
 - Root: `ARCHITECTURE.md`, `TYPES_AND_PROTOCOLS.md`, `EXAMPLES.md`.
-- Development hub: `docs/development/index.md`.
-- Documentation and specification guide: `docs/development/documentation.md`.
-- Crystal Lattice documentation conventions:
-  `docs/development/crystal-lattice-documentation.md`.
+- Development documentation and conventions: `docs/development/index.md`.
 - Guidance-maintenance specifications: `maintainer/specifications/`.
 - API docs: `docs/api/core-sdk.md`, `docs/reference/agent_core/*`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
 - General plugin overview: `plugins/docs/overview.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
 
-## Documentation ownership and workflow
+## Documentation ownership and routing
 
 Start package work by reading its `README.md`, nearest `AGENTS.md`, and
 `docs/index.md` when present. Use the smallest documentation structure that
@@ -135,16 +132,23 @@ describe available behavior in language appropriate to their readers.
 Target-only user text may be drafted on a development branch with a visible
 `Not implemented` marker, but is not published as current guidance by default.
 
+When behavior changes, update only the affected maintained sources: user
+documentation for supported use, developer documentation for current internals
+and operations, and specifications plus requirements when the intended target
+changes.
+
 Change generated documentation through its maintained source or generator;
 never edit `docs_site/prepared/` or `docs_site/dist/` directly. If a required
 generation or validation step is blocked, preserve the source and validation
-boundaries and report the remaining action.
+boundaries and report the remaining action. Publication and site-generation
+commands are maintained in the Crystal Lattice conventions.
 
 Document verified facts discovered during the current work. Do not reconstruct
-large unfamiliar areas merely to fill an illustrated directory structure.
+large unfamiliar areas merely to fill an illustrated directory structure, and
+do not normalize existing variations unless the current work makes that useful.
 
 Before creating, moving, or materially restructuring documentation or
-specifications, read:
+specifications, read both files in full:
 
 - `docs/development/documentation.md`
 - `docs/development/crystal-lattice-documentation.md`
@@ -245,14 +249,6 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - `black core/python/agent_core core/python/tests core/python/examples core/python/plugins`
 - `pyright`
 
-**Docs**
-- `python -m pip install -r docs_site/requirements.txt`
-- `python docs_site/scripts/prepare_mkdocs_site.py`
-- `(cd docs_site && mkdocs serve -a 127.0.0.1:8001)` / `(cd docs_site && mkdocs build)`
-- Use `python docs_site/scripts/build_mkdocs_site.py` only when the task also
-  intends to refresh committed generated reference snapshots.
-- After changing examples: run the relevant example tests selectively, then `python scripts/generate_examples_md.py`
-
 ---
 
 ## Where to Change What
@@ -292,7 +288,7 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 
 ---
 
-## 5. Plugin Development (Summary)
+## Plugin Development (Summary)
 
 - Plugins are plain classes with instance methods, using explicit `state: dict`.
 - Instances are short-lived per request; avoid persistent mutable attributes.
@@ -322,7 +318,7 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 
 ---
 
-## Testing & Documentation Principles
+## Testing Principles
 
 **When to add tests**
 - Any new public behavior or API surface.
@@ -330,7 +326,9 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - Any change in `agent_core`, `agent_app`, `agent_terminal_app`, built-in plugin projects, or core-packaged plugins visible to users.
 
 **What to test**
-- Prefer **unit tests** first (pure functions, protocol implementations, small helpers).
+- Use the least expensive test that proves the requirement without bypassing
+  the important boundary. Unit and component tests suit pure functions,
+  protocol implementations, local state, and rendering behavior.
 - Use **integration tests** for multi-layer flows or provider-backed behavior; mark them with `integration`.
 - Add `api` for hosted real-provider tests that require credentials and may incur cost.
 - Add `slow_integration` for broad, high-latency, or expensive integration suites that should be run selectively.
@@ -365,24 +363,8 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - First-party built-in plugin projects live under repo-root `plugins/`, and their tests live alongside them.
 - Do not add new plugin projects under `core/python/plugins` without explicit user consent.
 
-**When to update docs**
-- Changing public behavior:
-  - Update the owning package's current user docs and any affected
-    cross-package user guidance.
-- Changing implementation, architecture, testing, or maintenance behavior:
-  - Update the owning package's `docs/development/` pages.
-- Changing an intended target:
-  - Update its specification first and update requirements as implementation,
-    verification, and documentation progress.
-- During the initial documentation migration, current legacy pages such as
-  `TYPES_AND_PROTOCOLS.md`, `docs/api/core-sdk.md`,
-  `docs/reference/agent_core/*` and
-  `application/python/README.md` remain valid until their owning subtasks move
-  them.
-- Changing examples or adding new ones:
-  - Update example code + tests, then regenerate `EXAMPLES.md`.
-
-Treat tests, type hints, and documentation updates as part of “done” for any substantive change.
+Treat applicable tests, type hints, and documentation updates as part of
+“done” for substantive changes.
 
 ## Long-running work and waiting
 

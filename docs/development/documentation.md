@@ -149,6 +149,13 @@ decisions that future work must understand, such as:
 - coordination across independently maintained components;
 - a material choice likely to be revisited.
 
+Before creating a substantial new specification, check whether an active
+approved task already authorizes it. If not, present why the specification is
+useful, its proposed owning component or shared scope, behavior boundary,
+smallest useful file set, and overlap with existing specifications, then obtain
+approval before creating files. Existing task authorization is sufficient; do
+not ask twice.
+
 A straightforward local fix may need only its task, code, tests, and affected
 documentation. Do not create a specification merely because the file layout
 shows one.

@@ -21,21 +21,21 @@ pages owned by the concurrent Test-22 workstream.
 
 ## Requirements checklist
 
-- [ ] Root `AGENTS.md` has one clearly identifiable documentation policy and
+- [x] Root `AGENTS.md` has one clearly identifiable documentation policy and
   routing section of approximately 200–300 words.
-- [ ] The repository map uses one concise development-documentation entry
+- [x] The repository map uses one concise development-documentation entry
   instead of repeating both detailed guidance paths.
-- [ ] Documentation-site commands are owned by the Crystal Lattice conventions
+- [x] Documentation-site commands are owned by the Crystal Lattice conventions
   and are not repeated as a second command catalog in root guidance.
-- [ ] The testing section no longer presents itself as a second documentation
+- [x] The testing section no longer presents itself as a second documentation
   policy and uses the same risk/boundary principle as the documentation guide.
-- [ ] Documentation-change triggers are concise and route to the maintained
+- [x] Documentation-change triggers are concise and route to the maintained
   guide rather than repeating file-role rules.
-- [ ] Temporary first-wave migration exceptions are removed from permanent
+- [x] Temporary first-wave migration exceptions are removed from permanent
   root instructions.
-- [ ] Structural documentation work explicitly tells agents to read both
+- [x] Structural documentation work explicitly tells agents to read both
   routed guidance pages in full.
-- [ ] Existing commit authorization, package architecture, plugin, testing
+- [x] Existing commit authorization, package architecture, plugin, testing
   realism, and unrelated development guidance remain unchanged.
 - [ ] Deterministic checks detect reintroduction of multiple documentation
   policy sections, temporary migration inventories, or duplicated site command
@@ -92,6 +92,22 @@ full.”
 The concurrent Test-22 work may change the documentation guide. This task does
 not edit those pages. Final routing verification is repeated after branch
 reconciliation so the evaluated guidance hash matches the integrated result.
+
+## Implementation Notes
+
+- September 14, 2026: Pinned the pre-change source at
+  `cdeb50a7df92820e487c466b030ea8f5f6dcb993`; root `AGENTS.md` SHA-256 was
+  `eb43c17f863671842b73580299ab4b5badf34a2381ab5b05e5b42085cae41d6c`.
+- Consolidated the four documentation-related blocks into one 290-word policy
+  and routing section plus one short repository-map entry.
+- Removed the duplicated site command catalog and temporary migration
+  inventory, required both guidance pages to be read in full for structural
+  work, and aligned testing language with the maintained risk/boundary rule.
+- Removed the lone residual numbered section heading so the root outline uses
+  one consistent heading convention.
+- Source-level diff inspection found no changes to commit authorization,
+  package ownership, plugin behavior, task handling, or unrelated testing
+  realism. Deterministic and real-model verification remain pending.
 
 ## Execution plan
 
@@ -174,9 +190,9 @@ No public package documentation changes are planned.
 
 ### Task checklist
 
-- [ ] Pin the immediate pre-change guidance source.
-- [ ] Consolidate the root documentation blocks.
-- [ ] Align root testing terminology with risk-based selection.
+- [x] Pin the immediate pre-change guidance source.
+- [x] Consolidate the root documentation blocks.
+- [x] Align root testing terminology with risk-based selection.
 - [ ] Add deterministic root-structure checks.
 - [ ] Run paired repeated Test 27 comparisons.
 - [ ] Reconcile the concurrent documentation-guidance branch.

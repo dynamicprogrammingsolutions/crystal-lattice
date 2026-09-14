@@ -20,10 +20,10 @@ overlap and obtains approval before creating it.
 
 ## Requirements checklist
 
-- [ ] The project-independent guide requires approval before creating a
+- [x] The project-independent guide requires approval before creating a
   substantial new specification unless the active approved task already
   authorizes that specification.
-- [ ] The approval request states why a durable specification is useful, which
+- [x] The approval request states why a durable specification is useful, which
   component or shared scope owns it, the intended behavior boundary, the
   smallest useful file set, and overlap with existing specifications.
 - [ ] A direct user request to create a substantial specification without an
@@ -31,11 +31,11 @@ overlap and obtains approval before creating it.
   approval.
 - [ ] An approved task that already authorizes the specification proceeds
   without duplicate approval.
-- [ ] Small local fixes and updates to an existing specification do not acquire
+- [x] Small local fixes and updates to an existing specification do not acquire
   a new approval ceremony.
 - [ ] Explicit approved file-layout choices remain effective and are not
   overridden by a default tree.
-- [ ] The rule does not add lifecycle status fields to every specification;
+- [x] The rule does not add lifecycle status fields to every specification;
   approval remains task-owned by default.
 - [ ] Test 6 passes without regressing Tests 9 and 26 in this branch.
 - [ ] Tests 10 and 11 plus the integrated requirement-restraint sentinel are
@@ -72,6 +72,21 @@ Test 9 covers an approved task that already authorizes a substantial
 specification. Test 26 covers an explicit safe file-layout override. Tests 10
 and 11 distinguish existing-specification updates and local fixes that should
 not require new durable structure.
+
+## Implementation Notes
+
+- September 14, 2026: Pinned the pre-change project-independent guide at
+  `cdeb50a7df92820e487c466b030ea8f5f6dcb993`, SHA-256
+  `d138cedf351581603b976d916a0de2e90b024df36379b8c02ec6441321f96feb`.
+- Added one paragraph under “When a specification helps.” It requires a
+  concrete proposal and approval only when an active approved task does not
+  already authorize a substantial new specification.
+- The paragraph names usefulness, owning component or shared scope, behavior
+  boundary, smallest useful file set, and overlap. It does not add a
+  specification status field or duplicate the rule in root/local guidance.
+- The project-independent guide is now 2,055 words. Behavioral verification
+  remains pending; Tests 10 and 11 and the Test-22 sentinel remain deferred
+  until branch reconciliation.
 
 ## Execution plan
 
@@ -147,9 +162,9 @@ documentation change is planned.
 
 ### Task checklist
 
-- [ ] Pin the immediate pre-change guidance.
+- [x] Pin the immediate pre-change guidance.
 - [ ] Confirm Test 6's causal failure.
-- [ ] Add the concise approval paragraph.
+- [x] Add the concise approval paragraph.
 - [ ] Run paired Test 6.
 - [ ] Run Tests 9 and 26.
 - [ ] Reconcile the concurrent guidance branch.
