@@ -47,7 +47,7 @@ documentation.
 - [x] The landing page links directly to package-owned installation
       documentation covering the overview, macOS/Linux, Windows, and manual
       methods.
-- [ ] Current user documentation remains concise at package entry points and
+- [x] Current user documentation remains concise at package entry points and
       routes detailed installation behavior through focused pages that are
       published and discoverable in the documentation site.
 - [x] The website direction receives explicit approval after headed-Playwright
@@ -59,7 +59,7 @@ documentation.
       rendered outline before current guides are written.
 - [x] The completed documentation is reviewed in the prepared site with a
       headed browser at desktop and mobile widths.
-- [ ] Public pages claim a platform or installation method only after its
+- [x] Public pages claim a platform or installation method only after its
       implementation and native acceptance evidence exist; production
       publication is sequenced so the website never intentionally advertises
       an unavailable installer.
@@ -447,11 +447,11 @@ support can be released before the approved current-content commit is pushed.
 - [x] Run final local, browser, documentation, and native matrix verification.
 - [x] Obtain explicit confirmation before release publication.
 - [x] Publish and verify a new CLI version when authorized.
-- [ ] Land/deploy current website and documentation claims only after the
+- [x] Land/deploy current website and documentation claims only after the
       public installers and archives are available.
-- [ ] Verify public landing, docs, installers, and archive routes when
+- [x] Verify public landing, docs, installers, and archive routes when
       deployment is authorized.
-- [ ] Update requirement evidence and append completion notes.
+- [x] Update requirement evidence and append completion notes.
 
 ### Requirement verification
 
@@ -635,3 +635,54 @@ support can be released before the approved current-content commit is pushed.
   installed it through the public Bash installer, and passed help/runtime
   verification. Website and documentation claims are now eligible for
   deployment.
+- 2026-09-14: Pushed website/documentation commits `d334cf64` and `c8e869ac`
+  only after the public release smoke passed. Deploy Static Sites run
+  `34882015054` and Public CI run `34882015258` passed. Live verification
+  confirmed the production landing selector, all four installation routes,
+  both installer bodies, `latest.txt` at `v0.1.5`, all six archive endpoints,
+  package navigation/search/theme behavior, and headed desktop/mobile
+  rendering. The temporary release worktree and local holding branch were
+  removed; the assigned workspace returned to `main`.
+
+## Completion Notes
+
+Crystal Lattice CLI `v0.1.5` is released for macOS Intel and Apple silicon,
+Linux x64 and ARM64, and Windows x64 and ARM64. The release includes native
+PowerShell installation on Windows, the existing Bash paths where supported,
+direct archive use, command discovery, credential-free startup, and isolated
+dynamic plugin installation.
+
+The product website now presents macOS/Linux, Windows, and manual installation
+choices from one maintained content source. The chooser is responsive,
+keyboard accessible, copyable, theme-compatible, and edge-to-edge on narrow
+mobile screens. Package-owned documentation provides an installation overview,
+platform guides, and exact manual archive/launcher instructions.
+
+Primary delivery evidence:
+
+- release commit `92f629fb` and tag `crystal-lattice-cli-v0.1.5`;
+- tagged release workflow `34878990045`;
+- production download smoke on 2026-09-14;
+- website/documentation commits `d334cf64` and `c8e869ac`;
+- deployment run `34882015054`;
+- post-content Public CI run `34882015258`;
+- live production landing-to-documentation smoke and headed captures.
+
+Verification included complete Core and application fast suites, focused
+distribution/documentation/version tests, all six native release targets,
+landing content/analytics/browser tests, documentation preparation/build/tests,
+and local plus public cross-site smoke tests.
+
+The user waived the two remaining documentation approval stops after the
+website refinement while retaining rendered and headed self-review. No
+package-manager installation channel or duplicate installer implementation was
+introduced.
+
+Two unrelated maintenance findings remain outside this task:
+
+- the aggregate landing visual-asset check reports the pre-existing stale
+  `mobile-workbench` runtime fixture, while every maintained website image
+  derivative and browser scenario passes;
+- GitHub Actions reports that pinned `actions/checkout` and
+  `actions/setup-python` revisions target deprecated Node.js 20 and are
+  currently forced onto Node.js 24.
