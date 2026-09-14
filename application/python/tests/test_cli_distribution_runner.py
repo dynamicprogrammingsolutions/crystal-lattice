@@ -8,6 +8,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS_DIR = ROOT / "application" / "python" / "scripts"
+POWERSHELL_SMOKE = SCRIPTS_DIR / "smoke_powershell_install.py"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -232,3 +233,12 @@ def test_application_owned_cli_scripts_are_package_local() -> None:
         "smoke_test_crystal_lattice_source_install.py",
     }
     assert not any((ROOT / "scripts" / name).exists() for name in legacy_root_names)
+
+
+def test_powershell_smoke_executes_the_public_alias_command_shape() -> None:
+    script = POWERSHELL_SMOKE.read_text(encoding="utf-8")
+
+    assert '"irm "' in script
+    assert '"| iex; "' in script
+    assert '"Invoke-RestMethod -Uri "' not in script
+    assert '"| Invoke-Expression; "' not in script

@@ -97,9 +97,9 @@ def smoke_test_powershell_install(archive: Path) -> None:
                         "Bypass",
                         "-Command",
                         (
-                            "Invoke-RestMethod -Uri "
+                            "irm "
                             '"$env:CRYSTAL_LATTICE_DOWNLOAD_BASE_URL/install.ps1" '
-                            "| Invoke-Expression; "
+                            "| iex; "
                             "$command = (Get-Command crystal-lattice.cmd "
                             "-CommandType Application -ErrorAction Stop).Source; "
                             "& $command --runtime-layout-json *> $null; "
