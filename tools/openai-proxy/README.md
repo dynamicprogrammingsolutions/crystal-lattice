@@ -68,6 +68,28 @@ The health endpoint reports the selected target and path:
 curl http://127.0.0.1:3000/health
 ```
 
+## JSON-configured mode
+
+Configured mode keeps operational values in JSON and secrets in named
+environment variables:
+
+```bash
+node tools/openai-proxy/proxy.js \
+  --config tools/openai-proxy/deploy/ireland/config/reviewer-proxy.json
+```
+
+JSON can configure the listener, upstream and base path, incoming and outgoing
+API-key environment names, allowed models and service tiers, response status
+codes, delay, logging, budget, cooldown, pricing, long-context rules, request
+serialization, and persistent state. Existing positional commands remain
+supported.
+
+Budget mode reads Responses or Chat Completions usage from JSON and streaming
+SSE completions, prices ordinary input, cached input, and output separately,
+and atomically persists the ledger. The threshold-crossing request completes;
+later controlled requests receive `429` plus `Retry-After` until the configured
+cooldown expires.
+
 ## API-Key-Protected Ollama Proxy
 
 The embedded iOS runtime proof of concept uses the proxy as a small
@@ -101,9 +123,10 @@ Use `--delay-ms N` to add a bounded delay before forwarding a request when
 testing mobile background behavior. The delay is test support; it does not
 replace or modify model output.
 
-This remains a development/reviewer proxy, not a complete public-service
-security layer. Public deployment still needs TLS, rate limiting, service
-monitoring, bounded credentials, and a defined logging/retention policy.
+The Ireland Compose example supplies self-signed TLS termination, model
+filtering, separate caller/upstream credentials, cost limiting, and body/header
+logging controls. Operators remain responsible for monitoring, credential
+rotation, and retention.
 
 ## Inspect a Request
 

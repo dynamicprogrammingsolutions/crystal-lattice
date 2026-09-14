@@ -115,23 +115,17 @@ test("tests a candidate before saving and persists the selected default", async 
     expect(screen.getByTestId("embedded-provider-openai")).toBeTruthy()
   );
 
-  fireEvent(
-    screen.getByTestId("embedded-provider-openai-enabled"),
-    "valueChange",
-    true
-  );
   fireEvent.changeText(
     screen.getByTestId("embedded-provider-openai-api-key"),
     "temporary-key"
   );
   fireEvent.press(screen.getByTestId("embedded-provider-openai-auth-auto"));
-  fireEvent.press(screen.getByTestId("embedded-provider-openai-default"));
   fireEvent.press(screen.getByTestId("embedded-provider-openai-test"));
 
   await waitFor(() =>
     expect(validateEmbeddedPythonRuntimeConfiguration).toHaveBeenCalledWith(
       expect.objectContaining({
-        defaultAgent: "openai-codex",
+        defaultAgent: "reviewer-claude",
         profileId: "openai",
         providers: expect.objectContaining({
           openai: expect.objectContaining({
@@ -147,6 +141,9 @@ test("tests a candidate before saving and persists the selected default", async 
   expect(
     screen.getByTestId("embedded-provider-openai-validation").props.children
   ).toBe("Connected to gpt-5.6-luna");
+  expect(
+    screen.getByTestId("embedded-provider-openai-enabled").props.value
+  ).toBe(true);
 
   fireEvent.press(screen.getByTestId("embedded-runtime-settings-save"));
   await waitFor(() =>

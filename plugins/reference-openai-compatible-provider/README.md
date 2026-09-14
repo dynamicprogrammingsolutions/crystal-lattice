@@ -79,6 +79,11 @@ These keys are read by `reference_openai_compatible_provider.provider.OpenAIComp
 - `api_key` (string, optional): bearer token for hosted OpenAI-compatible APIs
 - `timeout` (number, optional): request timeout in seconds
   - default: `60`
+- `tls_verify` (boolean, optional): enable normal HTTPS certificate
+  verification
+  - default: `true`
+- `tls_ca_bundle` (string, optional): custom CA bundle path for model discovery
+  and completion requests; when set, it takes precedence over `tls_verify`
 - `tool_choice` (string, optional): OpenAI-compatible tool selection mode when
   tools are present
   - values commonly supported by compatible endpoints: `auto`, `required`,

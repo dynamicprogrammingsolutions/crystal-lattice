@@ -15,6 +15,10 @@ const EMPTY_STATE: AgentsControllerState = {
 
 const CACHE: Map<string, string[] | null | undefined> = new Map();
 
+export function invalidateAgentsCache(cacheKey: string): void {
+  CACHE.delete(cacheKey);
+}
+
 export class AgentsController extends SimpleSubscribable<AgentsControllerState> {
   private backend: AgentBackend | null;
   private cacheKey: string;
@@ -31,7 +35,7 @@ export class AgentsController extends SimpleSubscribable<AgentsControllerState> 
   }
 
   invalidate(): void {
-    CACHE.delete(this.cacheKey);
+    invalidateAgentsCache(this.cacheKey);
     this.setSnapshot(EMPTY_STATE);
   }
 

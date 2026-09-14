@@ -1,7 +1,9 @@
 services:
   proxy:
     build:
-      context: ../..
+      context: ${REVIEWER_PROXY_BUILD_CONTEXT:-../..}
+      args:
+        NODE_IMAGE: ${REVIEWER_PROXY_NODE_IMAGE:-node:22-alpine}
     restart: unless-stopped
     env_file:
       - .env
@@ -15,7 +17,7 @@ services:
       - ${PROXY_INTERNAL_PORT:-3000}
 
   tls:
-    image: nginx:1.27-alpine
+    image: ${REVIEWER_PROXY_TLS_IMAGE:-nginx:1.27-alpine}
     restart: unless-stopped
     depends_on:
       - proxy

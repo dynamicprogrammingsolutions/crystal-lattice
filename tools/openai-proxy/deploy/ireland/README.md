@@ -18,6 +18,7 @@ Generate the configured self-signed certificate:
 
 ```bash
 REVIEWER_PROXY_SERVER_NAME=ireland-s1.dynamicprogrammingsolutions.com \
+REVIEWER_PROXY_CERT_SAN=DNS:ireland-s1.dynamicprogrammingsolutions.com,DNS:localhost,IP:127.0.0.1 \
   ./generate-self-signed-cert.sh
 ```
 

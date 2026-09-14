@@ -44,6 +44,8 @@
     "detox:test:embedded-python-ollama:ios": "detox test -c ios.sim.release e2e/embeddedPythonRuntimeOllama.e2e.test.ts --cleanup",
     "detox:test:embedded-python-setup:ios": "detox test -c ios.sim.release e2e/embeddedPythonRuntimeSetup.e2e.test.ts --cleanup",
     "detox:test:embedded-python-background:ios": "detox test -c ios.sim.release e2e/embeddedPythonRuntimeBackground.e2e.test.ts --cleanup",
+    "detox:test:embedded-provider-matrix:ios": "detox test -c ios.sim.release e2e/embeddedProviderRealApiMatrix.e2e.test.ts --cleanup",
+    "detox:test:embedded-chatgpt-login:ios": "detox test -c ios.sim.release e2e/embeddedChatGPTLogin.e2e.test.ts --cleanup",
     "detox:test:notification-ui-effects:ios": "detox test -c ios.sim.release e2e/notificationUiEffects.e2e.test.ts --cleanup",
     "detox:test:notification-ui-effects:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/notificationUiEffects.e2e.test.ts --cleanup",
     "detox:test:website-visual:ios": "detox test -c ios.sim.release e2e/websiteVisualCapture.e2e.test.ts --cleanup",

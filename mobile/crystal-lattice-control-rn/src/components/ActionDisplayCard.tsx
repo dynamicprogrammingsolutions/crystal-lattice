@@ -122,6 +122,7 @@ const ActionDisplayCard: React.FC<ActionDisplayCardProps> = ({
             return (
               <TouchableOpacity
                 key={action.id}
+                testID={`action-display-action-${action.id}`}
                 style={[styles.actionButton, loading && styles.actionButtonDisabled]}
                 onPress={() => handleActionPress(action)}
                 disabled={loading}

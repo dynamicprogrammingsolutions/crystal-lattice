@@ -34,6 +34,8 @@
     "test:ios:embedded-providers:bundle": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_bundle_tests.py default",
     "test:ios:embedded-providers:bundle:api": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_bundle_tests.py api",
     "test:ios:embedded-providers:bundle:manual": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_bundle_tests.py manual",
+    "test:ios:embedded-providers:detox:api": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_detox_matrix.py",
+    "test:ios:embedded-providers:detox:chatgpt": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_chatgpt_detox.py",
     "test:reviewer-proxy": "npm --prefix tools/openai-proxy test",
     "lint": "python scripts/repo_run.py ruff check core/python/agent_core core/python/tests core/python/examples core/python/plugins",
     "lint:fix": "python scripts/repo_run.py ruff check --fix core/python/agent_core core/python/tests core/python/examples core/python/plugins",

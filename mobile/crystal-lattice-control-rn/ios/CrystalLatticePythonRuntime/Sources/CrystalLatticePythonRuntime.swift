@@ -374,7 +374,9 @@ final class CrystalLatticePythonRuntime: NSObject {
         profile["authMode"] = authMode
       }
       if let tlsCaBundle = definition["tlsCaBundle"] {
-        profile["tlsCaBundle"] = tlsCaBundle
+        profile["tlsCaBundle"] = tlsCaBundle.isEmpty
+          ? reviewerCABundlePath()
+          : tlsCaBundle
       }
       providers[profileId] = profile
     }
@@ -383,6 +385,23 @@ final class CrystalLatticePythonRuntime: NSObject {
       "defaultAgent": "reviewer-claude",
       "providers": providers,
     ]
+  }
+
+  private static func reviewerCABundlePath() -> String {
+    guard
+      let resourcesURL = Bundle.main.url(
+        forResource: "CrystalLatticePythonRuntimeResources",
+        withExtension: "bundle"
+      ),
+      let resources = Bundle(url: resourcesURL),
+      let caURL = resources.url(
+        forResource: "reviewer-proxy-ca",
+        withExtension: "pem"
+      )
+    else {
+      return ""
+    }
+    return caURL.path
   }
 
   private static func normalizedProviderSettings(

@@ -166,6 +166,8 @@ const EmbeddedRuntimeSettingsModal: React.FC<
         profileId,
         providers: updatesFromDrafts(drafts, profileId),
       });
+      updateDraft(profileId, { enabled: true });
+      setDefaultAgent(drafts[profileId].agentId);
       setValidation((current) => ({
         ...current,
         [profileId]: {

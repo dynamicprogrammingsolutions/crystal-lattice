@@ -81,6 +81,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }) {
       moduleName = "MobileRichSessionUiHarness"
     } else if arguments.contains(where: {
+      $0 == "-clcEmbeddedProviderMatrixHarness" ||
+        $0 == "clcEmbeddedProviderMatrixHarness"
+    }) {
+      moduleName = "EmbeddedProviderMatrixDiagnostics"
+    } else if arguments.contains(where: {
       $0 == "-clcEmbeddedPythonWebFetchHarness" ||
         $0 == "clcEmbeddedPythonWebFetchHarness"
     }) {

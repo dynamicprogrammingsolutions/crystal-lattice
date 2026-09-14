@@ -5056,9 +5056,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         />
 
         {activeError && (
-          <View style={styles.errorContainer}>
+          <View testID="session-chat-error" style={styles.errorContainer}>
             <Text style={styles.errorTitle}>Error</Text>
-            <Text style={styles.errorText}>{activeError.detail}</Text>
+            <Text testID="session-chat-error-detail" style={styles.errorText}>
+              {activeError.detail}
+            </Text>
           </View>
         )}
 

@@ -169,7 +169,11 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <View testID={`message-bubble-${index}`} style={styles.row}>
+    <View
+      testID={`message-bubble-${index}`}
+      accessibilityLabel={`User message ${index}`}
+      style={styles.row}
+    >
       <View style={[styles.bubble, styles.userBubble]}>
         <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] User`}</Text>
         <MessageAttachmentsPreview
@@ -288,7 +292,11 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <View testID={`message-bubble-${index}`} style={styles.row}>
+    <View
+      testID={`message-bubble-${index}`}
+      accessibilityLabel={`System message ${index}`}
+      style={styles.row}
+    >
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] System`}</Text>
@@ -405,7 +413,11 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   }, [footerElements, message]);
 
   return (
-    <View testID={`message-bubble-${index}`} style={styles.row}>
+    <View
+      testID={`message-bubble-${index}`}
+      accessibilityLabel={`Tool message ${index}`}
+      style={styles.row}
+    >
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>
@@ -605,7 +617,11 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <View testID={`message-bubble-${index}`} style={styles.row}>
+    <View
+      testID={`message-bubble-${index}`}
+      accessibilityLabel={`Assistant message ${index}`}
+      style={styles.row}
+    >
       <View style={[styles.bubble, styles.otherBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>

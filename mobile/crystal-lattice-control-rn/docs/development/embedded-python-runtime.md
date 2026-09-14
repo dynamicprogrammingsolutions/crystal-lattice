@@ -21,6 +21,10 @@ If no profile is complete, the local connection still opens with the
 credential-free smoke agent so existing session summaries and runtime
 diagnostics remain accessible.
 
+The `local` agent remains registered after real profiles are enabled so
+sessions created before configuration remain loadable. A successfully tested
+real profile becomes the default for subsequent sessions.
+
 Provider URLs, models, enabled flags, and the default agent are stored in a
 versioned iOS preference document. Each provider API key is stored as a
 separate iOS Keychain generic-password item. JavaScript receives only
@@ -43,6 +47,14 @@ and the Release simulator smoke constructs both provider clients.
 OpenRouter and the reviewer provider use their existing `requests`
 implementations. Provider API requests send user messages, provider history,
 and relevant tool inputs/results to the selected external service.
+
+OpenAI Responses supports `api`, `auto`, and `chatgpt` authentication modes.
+The bundle includes `chatgpt-auth-app` and the Responses ChatGPT auth feature.
+Login uses ordinary application/session actions and the generic action UI.
+
+The reviewer profile accepts a custom CA bundle. The App Review build includes
+the public Ireland reviewer certificate and retains TLS verification; private
+certificate keys and API credentials are not bundled.
 
 At runtime, mutable data lives under:
 
@@ -241,16 +253,31 @@ pytest plugins/embedded-codex-tools/tests/test_luna_real_api.py \
   -m 'integration and api and openai' -q
 ```
 
+Run existing provider suites from the exact iOS ZIP and run the Release
+simulator API matrix:
+
+```bash
+npm run test:ios:embedded-providers:bundle
+npm run test:ios:embedded-providers:bundle:api
+npm run test:ios:embedded-providers:detox:api
+```
+
+The ChatGPT action flow is collected but manually gated:
+
+```bash
+CRYSTAL_RUN_CHATGPT_LOGIN_E2E=1 \
+  npm run test:ios:embedded-providers:detox:chatgpt
+```
+
 ## Current limits
 
 - iOS only.
 - Fixed provider and tool-family profiles rather than arbitrary plugin
   installation or runtime-defined agents.
 - Profiles without complete enabled settings are omitted from the live agent
-  list.
-- API-key authentication only; ChatGPT authorization is not included.
+  list; `auto`/`chatgpt` OpenAI profiles may use saved ChatGPT credentials.
 - Ollama runs behind an external proxy; no model runs inside the app.
 - No Tavily search, restricted Python executor, email integration, dynamic
   plugin installation, or arbitrary user-selected workspace.
-- The proxy still needs deployment-level TLS, rate limiting, monitoring, and
-  credential rotation before use as a public reviewer service.
+- The reviewer proxy still requires deployed monitoring and credential/
+  certificate rotation procedures.

@@ -24,6 +24,7 @@ class ProviderSuite:
     project: str
     module: str
     integration_marker: str
+    hosted_api: bool = True
 
     @property
     def tests(self) -> Path:
@@ -35,6 +36,7 @@ SUITES = (
         "reference-openai-compatible-provider",
         "reference_openai_compatible_provider",
         "integration and not api and not slow_integration",
+        False,
     ),
     ProviderSuite(
         "openai_responses",
@@ -63,6 +65,7 @@ def parse_args() -> argparse.Namespace:
         default="default",
     )
     parser.add_argument("--provider", action="append", default=[])
+    parser.add_argument("--skip-install", action="store_true")
     return parser.parse_args()
 
 
@@ -103,10 +106,23 @@ def main() -> int:
         raise SystemExit("No embedded provider suites matched --provider")
 
     for suite in selected:
+        if not args.skip_install:
+            run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "-e",
+                    f"{REPO_ROOT / 'plugins' / suite.project}[dev]",
+                ]
+            )
         if args.mode == "default":
             run(pytest_command(suite, "not integration"))
             run(pytest_command(suite, suite.integration_marker))
         elif args.mode == "api":
+            if not suite.hosted_api:
+                continue
             run(
                 pytest_command(
                     suite,

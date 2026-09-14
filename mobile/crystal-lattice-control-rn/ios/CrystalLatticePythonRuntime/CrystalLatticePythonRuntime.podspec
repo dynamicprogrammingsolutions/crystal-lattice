@@ -15,7 +15,8 @@ Pod::Spec.new do |spec|
   spec.vendored_frameworks = 'Vendor/Python.xcframework'
   spec.resource_bundles = {
     'CrystalLatticePythonRuntimeResources' => [
-      'Resources/crystal_lattice_app.zip'
+      'Resources/crystal_lattice_app.zip',
+      'Resources/reviewer-proxy-ca.pem'
     ]
   }
 

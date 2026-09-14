@@ -145,7 +145,7 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
             return state
 
         plugin_id = config.get("web_search_plugin_id") or "web"
-        engine = config.get("web_search_engine", None)
+        engine = config.get("web_search_engine") or "native"
         return {
             **state,
             "openrouter_websearch": {

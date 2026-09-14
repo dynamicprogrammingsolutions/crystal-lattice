@@ -132,6 +132,7 @@ export { SimpleSubscribable } from "./util/subscribable";
 export type { AgentsControllerState } from "./agents/agentsController";
 export {
   AgentsController,
+  invalidateAgentsCache,
   pickDefaultAgentId,
 } from "./agents/agentsController";
 

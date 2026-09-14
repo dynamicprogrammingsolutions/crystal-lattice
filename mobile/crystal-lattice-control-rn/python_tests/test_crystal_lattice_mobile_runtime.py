@@ -342,6 +342,11 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         assert runtime_config["agents"][agent_id]["plugins"] == (
             module.CLAUDE_TOOL_PLUGINS
         )
+    assert (
+        "openai_responses_plugins.openai_responses_chatgpt_auth_feature."
+        "OpenAIResponsesChatGPTAuthFeature"
+        in runtime_config["plugins"]
+    )
 
     from anthropic_plugins.provider import AnthropicProvider
     from openai_responses_plugins.openai_responses_provider import (
@@ -390,6 +395,42 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         }
     finally:
         runtime.application.close()
+
+
+def test_chatgpt_profile_and_reviewer_ca_are_configurable(tmp_path: Path) -> None:
+    module = load_runtime_module()
+    runtime_config = module._config_payload(
+        {
+            "version": 2,
+            "default_agent": "openai-codex",
+            "providers": {
+                "reviewer": {
+                    "enabled": True,
+                    "api_key": "review-key",
+                    "base_url": "https://reviewer.test/v1",
+                    "model": "reviewer-model",
+                    "tls_ca_bundle": "/runtime/reviewer-ca.pem",
+                },
+                "openai": {
+                    "enabled": True,
+                    "api_key": "",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-5.6-luna",
+                    "auth_mode": "chatgpt",
+                },
+            },
+        },
+        tmp_path / "runtime" / "workspace",
+    )
+
+    assert runtime_config["providers"]["reviewer"]["tls_ca_bundle"] == (
+        "/runtime/reviewer-ca.pem"
+    )
+    assert runtime_config["providers"]["openai"]["auth_mode"] == "chatgpt"
+    assert "openai-codex" in runtime_config["agents"]
+    assert runtime_config["application"]["chatgpt_auth"]["credentials_path"].endswith(
+        "/config/auth/chatgpt-auth.json"
+    )
 
 
 def test_provider_import_smoke_uses_requests_transports(tmp_path: Path) -> None:

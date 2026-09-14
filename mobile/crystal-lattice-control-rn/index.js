@@ -19,6 +19,7 @@ import { MobileWebsiteVisualHarness } from "./src/testing/MobileWebsiteVisualHar
 import { MobileRichSessionUiHarness } from "./src/testing/MobileRichSessionUiHarness";
 import { EmbeddedPythonRuntimeDiagnosticsScreen } from "./src/embeddedRuntime/EmbeddedPythonRuntimeDiagnosticsScreen";
 import { EmbeddedPythonWebFetchDiagnosticsScreen } from "./src/embeddedRuntime/EmbeddedPythonWebFetchDiagnosticsScreen";
+import { EmbeddedProviderMatrixDiagnosticsScreen } from "./src/embeddedRuntime/EmbeddedProviderMatrixDiagnosticsScreen";
 import { name as appName } from "./app.json";
 
 const RootComponent = (props) => {
@@ -109,4 +110,8 @@ AppRegistry.registerComponent(
 AppRegistry.registerComponent(
   "EmbeddedPythonWebFetchDiagnostics",
   () => EmbeddedPythonWebFetchDiagnosticsScreen
+);
+AppRegistry.registerComponent(
+  "EmbeddedProviderMatrixDiagnostics",
+  () => EmbeddedProviderMatrixDiagnosticsScreen
 );

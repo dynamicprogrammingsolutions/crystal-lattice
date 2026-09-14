@@ -22,6 +22,7 @@ import {
   CloudTransport,
   FetchTransport,
   createBridgeConnectionTransport,
+  invalidateAgentsCache,
   parseCloudConnectionLink,
   type KeyValueStore,
   loadConnections,
@@ -1833,12 +1834,15 @@ function App(): React.JSX.Element {
                             record.id === EMBEDDED_CONNECTION_ID &&
                             record.kind === 'embedded',
                         );
-                        upsertConnection(
-                          embeddedConnectionRecord(
-                            configuration,
-                            prior?.lastUsedAt ?? Date.now(),
-                          ),
+                        const updatedRecord = embeddedConnectionRecord(
+                          configuration,
+                          prior?.lastUsedAt ?? Date.now(),
                         );
+                        upsertConnection(updatedRecord);
+                        invalidateAgentsCache(EMBEDDED_CONNECTION_ID);
+                        if (selectedConnectionId === EMBEDDED_CONNECTION_ID) {
+                          void handleSelectSavedConnection(updatedRecord);
+                        }
                       }}
                     />
                   );

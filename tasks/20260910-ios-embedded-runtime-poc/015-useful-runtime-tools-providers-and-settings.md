@@ -665,29 +665,29 @@ editable source checkout but failed when imported from
 - [ ] The existing unit and integration tests in each provider package
   intended for the embedded ZIP run with that provider imported from the
   generated ZIP rather than from an editable/source installation.
-- [ ] Root `package.json` provides discoverable commands for the important
+- [x] Root `package.json` provides discoverable commands for the important
   embedded-provider bundle suites, automated real-API Detox matrix, manually
   gated ChatGPT-action Detox path, and reviewer-proxy tests.
 - [ ] Release-simulator real-API Detox covers the generic OpenAI-compatible
   provider through Ollama, OpenAI Responses with an API key, OpenAI Responses
   with the existing ChatGPT login actions, OpenRouter, Anthropic, and the
   deployed reviewer proxy.
-- [ ] The embedded ZIP contains and configures the existing OpenAI Responses
+- [x] The embedded ZIP contains and configures the existing OpenAI Responses
   ChatGPT authentication/action plugins; no new login-specific UI is required.
-- [ ] The generic OpenAI-compatible provider remains endpoint-agnostic and is
+- [x] The generic OpenAI-compatible provider remains endpoint-agnostic and is
   not specialized for OpenAI or the reviewer deployment.
-- [ ] Enabling a provider after using the credential-free `local` agent does
+- [x] Enabling a provider after using the credential-free `local` agent does
   not make existing local sessions unloadable or otherwise unusable.
-- [ ] `tools/openai-proxy` accepts a JSON configuration path from its CLI,
+- [x] `tools/openai-proxy` accepts a JSON configuration path from its CLI,
   supports separate incoming and outgoing API keys through environment
   variables, and preserves its existing general-purpose mode.
-- [ ] Reviewer-proxy, deployment, TLS, pricing, budget, model, authentication,
+- [x] Reviewer-proxy, deployment, TLS, pricing, budget, model, authentication,
   logging, test-matrix, and path values are configuration rather than
   hard-coded behavior.
-- [ ] The reviewer proxy exposes only `gpt-5.6-luna`, rejects requests for
+- [x] The reviewer proxy exposes only `gpt-5.6-luna`, rejects requests for
   other models, and forwards successful requests with the configured upstream
   OpenAI API key rather than the caller credential.
-- [ ] The reviewer proxy calculates standard-tier GPT-5.6 Luna cost from
+- [x] The reviewer proxy calculates standard-tier GPT-5.6 Luna cost from
   returned input, cached-input, and output usage; ignores web-search charges;
   persists accumulated cost; and rejects model/inference requests for 24 hours
   after the configured USD 1 threshold is reached.
@@ -920,17 +920,17 @@ configuration data so it can be updated without changing proxy code.
 
 - [x] Obtain approval for the testing and reviewer-proxy follow-up, including
   the all-values-configurable constraint.
-- [ ] Add bundle-import orchestration for the existing four provider test
+- [x] Add bundle-import orchestration for the existing four provider test
   suites and root `package.json` commands.
-- [ ] Fix provider/package behavior exposed by running the existing tests from
+- [x] Fix provider/package behavior exposed by running the existing tests from
   the ZIP, including packaged resource access.
-- [ ] Add/configure the existing ChatGPT authentication/action plugins in the
+- [x] Add/configure the existing ChatGPT authentication/action plugins in the
   embedded runtime and add the manual Detox gate.
-- [ ] Add the automated real-API Detox matrix and local-session transition
+- [x] Add the automated real-API Detox matrix and local-session transition
   scenario.
 - [x] Add JSON-configured model/auth/cost/cooldown behavior to
   `tools/openai-proxy` with focused proxy tests.
-- [ ] Add generic-provider custom-CA support and stage the reviewer public
+- [x] Add generic-provider custom-CA support and stage the reviewer public
   certificate.
 - [x] Add reviewer Docker Compose/configuration/runbook assets without
   secrets.
@@ -1011,3 +1011,60 @@ configuration data so it can be updated without changing proxy code.
   added generic reviewer `tls_ca_bundle` plumbing. Six embedded runtime tests,
   six fast ChatGPT action tests, focused settings tests, TypeScript, and
   custom-CA model discovery pass.
+- 2026-09-14: The complete existing-provider bundle gate passed with imports
+  from `crystal_lattice_app.zip`: reference 103 default plus 12 non-API
+  integration tests (2 intentional skips), OpenAI Responses 428 plus 13,
+  OpenRouter 135 plus 2, and Anthropic 63 plus 11. Existing stale OpenRouter,
+  reference request-mocking, Responses append-boundary, and core stdout
+  expectations were corrected rather than excluded.
+- 2026-09-14: Release-simulator Detox passed the persisted-config API-key
+  matrix for OpenAI Responses, OpenRouter, and Anthropic. Each row entered
+  settings through the production modal, validated/saved the profile,
+  preserved a pre-existing local session, ran a real tool request through the
+  embedded ZIP, and reloaded the persisted provider session in a diagnostic
+  launch. The critical OpenAI Responses row passed in 76 seconds and covers
+  the original ZIP package-resource failure.
+- 2026-09-14: The matrix exposed and fixed two product defects: successful
+  candidate validation did not mark the profile enabled/default for Save, and
+  the frontend SDK agent cache survived embedded backend reconstruction.
+  Successful Test now enables/selects the profile, and settings save
+  invalidates agents and reconnects the active in-process backend.
+- 2026-09-14: The local-session transition row passed in the Release simulator.
+  The existing 0.8B Ollama tool diagnostic remains model-variable; the generic
+  provider itself remains endpoint-agnostic and its existing dedicated
+  scenario remains in the root runner.
+- 2026-09-14: Added the default-collected manual ChatGPT Detox gate using the
+  existing `chatgpt-auth-app` login/status actions and generic action display.
+  With the gate disabled it is reported as skipped/not run; enabling it first
+  configures OpenAI `auth_mode=auto`, pauses for the human device-code step,
+  then runs the persisted-config Codex-like diagnostic.
+- 2026-09-14: Generated a self-signed reviewer certificate valid through
+  September 13, 2027 with Ireland, localhost, and loopback SANs. The private
+  key remains mode `0600` in the ignored deployment directory; only the public
+  certificate is staged in the iOS resource bundle.
+- 2026-09-14: Local Docker Compose verification passed through self-signed
+  HTTPS using the bundled CA. A real upstream probe exposed only
+  `gpt-5.6-luna`, completed a Chat Completions request, received usage, and
+  recorded positive cost without logging secrets or bodies. Production npm
+  audit is clean after dependency updates.
+- 2026-09-14: Read-only Ireland/AWS inspection identified instance
+  `i-0d675c4913029c747`, region `eu-west-1`, security group
+  `sg-0527d7da1885d3c09`, and confirmed TCP `3443` is unused. No remote or AWS
+  state was changed.
+- 2026-09-14: Final local regression verification passed with 184 mobile Jest
+  tests, 343 frontend SDK tests, 13 proxy tests, seven embedded runtime tests,
+  TypeScript, changed-file Ruff, docs preparation, and the current Release
+  simulator build.
+- 2026-09-14: The production dependency audit for the public proxy initially
+  found six fixable advisories. Lockfile-safe updates removed all reported
+  production vulnerabilities, and proxy tests plus the local Compose/TLS
+  health check passed afterward.
+- 2026-09-14: The automated Release-simulator matrix is green for OpenAI
+  Responses API-key, OpenRouter, and Anthropic, including real tool calls and
+  persisted diagnostic relaunch. The local transition row is green; the
+  generic provider keeps the pre-existing dedicated Ollama tool scenario,
+  whose 0.8B model output remains variable between runs.
+- 2026-09-14: The hosted bundle API command intentionally excludes
+  Fireworks/Z.ai because the user selected Ollama as the current generic
+  OpenAI-compatible acceptance path. A first broad attempt found three
+  unrelated Z.ai model/reasoning result failures before that scope correction.

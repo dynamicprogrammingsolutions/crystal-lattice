@@ -61,8 +61,9 @@ As of September 10, 2026:
   persistence host. The primary model may remain remote.
 - Normal users should first configure an API key or a supported
   ChatGPT-backed authorization path.
-- App Review may receive a private Crystal Lattice login for a public
-  OpenAI-compatible proxy backed by a small tool-capable Ollama model.
+- App Review may receive a private caller key for a public OpenAI-compatible
+  proxy backed by `gpt-5.6-luna`, restricted to that model and protected by a
+  configurable persisted cost budget/cooldown.
 - The on-device model is a fallback, not the first-run primary model.
 - No deterministic model is part of the product or reviewer path.
 - The initial capability is deliberately small and general: one fixed agent,
@@ -191,6 +192,32 @@ the proof of concept requires proxy API-key enforcement.
   integrations only through later direction-setting work.
 
 These ideas do not expand the initial proof-of-concept specification.
+
+## Reviewer service follow-up
+
+The reopened
+`tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
+owns the reviewer service implementation and deployment.
+
+The planned App Review instructions are:
+
+1. Open **On-device Provider Settings** from Home.
+2. In **OpenAI-compatible reviewer**, enter the private caller key supplied in
+   App Review notes.
+3. Set the endpoint to
+   `https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1` and the model
+   to `gpt-5.6-luna`.
+4. Test and save the profile, open **On-device Python agents**, and create a
+   `reviewer-claude` session.
+5. Ask the agent to create a workspace file with `Write`, read it with `Read`,
+   and report the result.
+6. Confirm that tool calls/results are visible and the session/workspace
+   survives navigation or relaunch.
+
+The distributed app contains only the public reviewer CA certificate. The
+upstream OpenAI key remains on the server, the private caller key is delivered
+only through App Review notes, and reviewer-proxy request/response body logging
+is disabled.
 
 ## Delivered embedded-runtime foundation
 

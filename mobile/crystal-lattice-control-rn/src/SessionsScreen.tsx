@@ -1227,10 +1227,22 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
                     {availableAgents.map((agentId) => (
                       <TouchableOpacity
                         key={agentId}
-                        style={styles.agentItem}
-                        onPress={() => {
-                          createSessionWithAgent(agentId);
+                        testID={`new-session-agent-${agentId}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Create session with ${agentId}`}
+                        accessibilityActions={[
+                          {
+                            name: "activate",
+                            label: `Create session with ${agentId}`,
+                          },
+                        ]}
+                        onAccessibilityAction={(event) => {
+                          if (event.nativeEvent.actionName === "activate") {
+                            void createSessionWithAgent(agentId);
+                          }
                         }}
+                        style={styles.agentItem}
+                        onPress={() => void createSessionWithAgent(agentId)}
                       >
                         <Text style={styles.agentItemText}>{agentId}</Text>
                       </TouchableOpacity>
