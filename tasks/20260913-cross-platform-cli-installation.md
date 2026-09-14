@@ -7,10 +7,10 @@ documentation.
 
 ## Requirements checklist
 
-- [ ] Released bundled-Python archives support and are natively verified on
+- [x] Released bundled-Python archives support and are natively verified on
       macOS AMD64, macOS ARM64, Linux AMD64, Linux ARM64, Windows AMD64, and
       Windows ARM64.
-- [ ] The shell installer supports macOS and Linux on both released
+- [x] The shell installer supports macOS and Linux on both released
       architectures and preserves the existing Git Bash/MSYS2/Cygwin path on
       Windows AMD64; Windows ARM64 shell support is included when the native
       runner's Bash environment can exercise it honestly.
@@ -21,7 +21,7 @@ documentation.
       by name from PowerShell and `cmd.exe`; invoking the PowerShell installer
       updates its current PowerShell session when it adds a command directory,
       while newly opened native terminals observe the persisted user setting.
-- [ ] Users can manually download the correct archive for every released
+- [x] Users can manually download the correct archive for every released
       target and follow documented extraction, direct-launch, and optional
       command-installation instructions.
 - [x] Bash installation, PowerShell installation, and direct archive use are
@@ -35,7 +35,7 @@ documentation.
 - [x] Root npm commands expose the direct developer acceptance paths, and
       native release Actions invoke those commands or their one direct
       scenario owner rather than maintaining alternate CI-only behavior.
-- [ ] Release publication includes both installers and all six archives, and
+- [x] Release publication includes both installers and all six archives, and
       bounded post-publication checks verify the public installer/version
       endpoints after CDN propagation.
 - [x] The landing page presents distinct macOS/Linux, Windows PowerShell, and
@@ -446,7 +446,7 @@ support can be released before the approved current-content commit is pushed.
 - [x] Implement and headed-review the completed documentation.
 - [x] Run final local, browser, documentation, and native matrix verification.
 - [x] Obtain explicit confirmation before release publication.
-- [ ] Publish and verify a new CLI version when authorized.
+- [x] Publish and verify a new CLI version when authorized.
 - [ ] Land/deploy current website and documentation claims only after the
       public installers and archives are available.
 - [ ] Verify public landing, docs, installers, and archive routes when
@@ -626,3 +626,12 @@ support can be released before the approved current-content commit is pushed.
   deployment sequence. Preserve the content changes locally while the release
   commit/tag publishes first, then push current public claims only after the
   six archives and both installers are verified through the download domain.
+- 2026-09-14: Published `crystal-lattice-cli-v0.1.5` from release commit
+  `92f629fb`. Tagged workflow `34878990045` passed tests, built and smoke-tested
+  all six native archives, published the GitHub Release, and published both
+  installers plus `latest.txt` and the six archives to the production download
+  domain. The separate production smoke verified both installer bodies, all
+  six immutable URLs, downloaded the macOS ARM64 archive through CloudFront,
+  installed it through the public Bash installer, and passed help/runtime
+  verification. Website and documentation claims are now eligible for
+  deployment.
