@@ -649,10 +649,10 @@ acceptable completion chunks and proceeds in the order below.
 - [x] Selecting, opening, or restoring a desktop session tab attempts to open
   its owning connection only when closed and does not select that connection
   in the sidebar by default.
-- [x] The existing `Sessions follow active tab` preference controls whether
-  tab activation also selects the owning connection and session in the
-  sidebar. Its absent-value default is Off, while an explicitly persisted
-  value is preserved.
+- [x] `Follow Active Tab in Sessions List` and `Switch Connection with Active
+  Tab` independently control Sessions-row following and sidebar connection
+  switching. Their absent-value defaults are On and Off respectively, while
+  an explicitly persisted Follow value is preserved.
 - [x] A desktop session that already has a permanent or preview tab presents
   `Open`, not `Preview`, as its explicit action. The action activates a
   permanent tab or promotes and activates the matching preview without
@@ -989,3 +989,126 @@ raw three-finger trackpad recognizer.
 - The final macOS result bundles are:
   - `Test-CrystalLatticeControlDesktopRN-macOS-2026.09.12_00-48-22-+0200.xcresult`;
   - `Test-CrystalLatticeControlDesktopRN-macOS-2026.09.12_00-50-35-+0200.xcresult`.
+
+### Chunk 2 post-completion correction: independent tab following
+
+Status: Approved
+
+#### Correction requirements
+
+- [x] `Follow Active Tab in Sessions List` defaults On when its preference is
+  absent and continues to preserve an explicitly stored value.
+- [x] A separate `Switch Connection with Active Tab` preference defaults Off
+  and is synchronized between the View menu, global Settings window, existing
+  main windows, and subsequently opened main windows.
+- [x] Selecting or restoring a session tab continues to reopen its owning
+  connection when closed, independently of both navigation preferences.
+- [x] With Follow On and Switch Connection Off, Sessions follows tabs that
+  belong to the currently focused connection without changing connection.
+- [x] With Follow Off and Switch Connection On, tab activation changes the
+  focused connection without selecting the tab's session.
+- [x] With both preferences On, tab activation changes the focused connection
+  and follows the tab's session; with both Off it does neither.
+- [x] When a tab or workspace change cannot be followed, Sessions clears a
+  selection made automatically for the previous tab but preserves a manual
+  selection while the focused connection remains unchanged.
+
+#### Execution plan
+
+Keep connection reopening as its existing independent effect. Split sidebar
+connection switching into a second root-owned preference and leave
+`SessionsPanel` responsible only for row following. Replace the panel hook's
+plain selected-session value with provenance-aware state so tab-driven and
+manual selections have explicit transition rules. Cancel a pending automatic
+selection when the user selects a row, and clear only stale automatic state
+when Home or a non-followable tab becomes active.
+
+Mirror the established native preference path for the new switch:
+`NSUserDefaults`, View-menu checkbox, notification, native event, initial
+window props, and the separate global Settings window. Preserve the old Follow
+key as the Follow preference, change only its missing-value default to On, and
+start the new switch preference Off.
+
+##### Implementation decisions and open questions
+
+- **Decision:** the preference pair is ordered as Follow/Switch Connection.
+- **Decision:** defaults are On/Off.
+- **Decision:** the old persisted Follow value retains its literal Follow
+  meaning; the former implicit connection switch is not migrated to the new
+  preference.
+- **Decision:** this correction supersedes the earlier decision that one
+  preference owns both behaviors.
+- **Decision:** automatic selection is cleared whenever the new active
+  workspace cannot justify it, including Home; manual selection is retained
+  while the same connection remains focused.
+- No material question remains open.
+
+##### Documentation
+
+- Update desktop Home/session-navigation user guidance and desktop workspace
+  and native-window development guidance with the independent setting matrix
+  and selection-provenance ownership.
+
+##### Task checklist
+
+- [x] Add and synchronize the independent Switch Connection preference and
+  change the missing Follow default to On.
+- [x] Implement and test provenance-aware Sessions selection transitions.
+- [x] Cover the root behavior matrix, startup restore, and closed-connection
+  reopening.
+- [x] Update current documentation and append correction completion evidence.
+
+##### Requirement verification
+
+- Pure hook/reducer tests cover manual and automatic selection, same- and
+  cross-connection tabs, Home, delayed row visibility, and all relevant
+  preference outcomes.
+- Root component tests cover the four Follow/Switch combinations and prove
+  connection reopen remains independent during startup restore.
+- Settings component and signed macOS XCTest verify both preferences remain
+  synchronized between global Settings and the View menu.
+
+##### Additional implementation verification
+
+- Run complete desktop Jest, targeted TypeScript/lint/format checks,
+  `git diff --check`, documentation preparation, and the focused signed macOS
+  settings XCTest.
+
+#### Correction implementation notes
+
+- `DesktopRoot` now owns two independent booleans. Only Switch Connection can
+  write `focusedConnectionId` in response to an active tab; only Follow is
+  passed to `SessionsPanel`. The existing closed-connection reopen effect does
+  not read either preference.
+- The Sessions panel hook now uses a reducer with `manual` and `activeTab`
+  selection sources plus a keyed pending follow intent. A manual click cancels
+  delayed automatic work. Tab, Home, preference, and connection transitions
+  clear an automatic selection only when it is no longer justified; changing
+  the focused connection resets either source because the list identity
+  changes.
+- The new native preference follows the existing
+  AppDelegate/`NSUserDefaults`/notification/event path. Both navigation
+  preferences are initialized for the first and later main windows and are
+  independently editable from View and global Settings.
+
+#### Correction completion notes
+
+- The delivered defaults are Follow On and Switch Connection Off. An existing
+  stored Follow boolean keeps its literal value; there is no migration that
+  silently enables the new connection-switch preference.
+- Root and reducer tests cover all four preference combinations,
+  same-/cross-connection following, Home, manual/automatic provenance,
+  delayed selection cancellation, connection changes, startup restoration,
+  and connection reopening.
+- Verification passed:
+  - desktop Jest: 35 suites and 162 tests;
+  - focused signed macOS Settings XCTest: 1 test and zero failures, including
+    bidirectional synchronization of both global Settings controls with their
+    View-menu items;
+  - targeted ESLint with zero errors and two existing `no-void` warnings;
+  - targeted Prettier, `git diff --check`, and documentation preparation.
+- Desktop TypeScript remains non-clean only in the existing frontend SDK URL,
+  ChatPane declaration-order/optional-string, and Theme `shadow` baselines.
+  No correction file adds a TypeScript diagnostic.
+- The successful native result bundle is
+  `Test-CrystalLatticeControlDesktopRN-macOS-2026.09.14_07-59-13-+0200.xcresult`.

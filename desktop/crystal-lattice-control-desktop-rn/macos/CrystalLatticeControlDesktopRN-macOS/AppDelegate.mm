@@ -14,6 +14,8 @@ static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
 
 static NSString *const kSessionsFollowActiveTabDefaultsKey =
     @"CrystalLattice.SessionsFollowActiveTabEnabled";
+static NSString *const kSwitchConnectionWithActiveTabDefaultsKey =
+    @"CrystalLattice.SwitchConnectionWithActiveTabEnabled";
 static NSString *const kMarkdownBaseFontSizeDefaultsKey =
     @"CrystalLattice.MarkdownBaseFontSize";
 static NSString *const kMarkdownHeaderSizeDefaultsKey =
@@ -54,6 +56,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 @property(nonatomic, strong) NSMenuItem *roundedPillsMenuItem;
 
 @property(nonatomic, strong) NSMenuItem *sessionsFollowActiveTabMenuItem;
+@property(nonatomic, strong) NSMenuItem *switchConnectionWithActiveTabMenuItem;
 @property(nonatomic, strong) NSArray<NSMenuItem *> *markdownBaseFontSizeMenuItems;
 @property(nonatomic, strong) NSArray<NSMenuItem *> *markdownHeaderSizeMenuItems;
 @property(nonatomic, strong) NSMenuItem *clearStoredSessionCachesMenuItem;
@@ -136,6 +139,8 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   }
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
+  BOOL switchConnectionEnabled =
+      [self loadSwitchConnectionWithActiveTabEnabledPreference];
   NSInteger markdownBaseFontSize = [self loadMarkdownBaseFontSizePreference];
   NSString *markdownHeaderSize = [self loadMarkdownHeaderSizePreference];
   NSString *recentSessionsWindow = [self loadRecentSessionsWindowPreference];
@@ -144,6 +149,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   self.initialProps = @{
     @"initialTabStripStyle" : tabStripStyle,
     @"initialSessionsFollowActiveTabEnabled" : @(followEnabled),
+    @"initialSwitchConnectionWithActiveTabEnabled" : @(switchConnectionEnabled),
     @"initialMarkdownBaseFontSize" : @(markdownBaseFontSize),
     @"initialMarkdownHeaderSize" : markdownHeaderSize,
     @"initialRecentSessionsWindow" : recentSessionsWindow,
@@ -182,6 +188,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   [self installMarkdownDisplayMenusWithBaseFontSize:markdownBaseFontSize
                                          headerSize:markdownHeaderSize];
   [self installSessionsFollowActiveTabMenuWithEnabled:followEnabled];
+  [self installSwitchConnectionWithActiveTabMenuWithEnabled:switchConnectionEnabled];
   [self installGlobalSettingsMenu];
   [self installClearStoredSessionCachesMenu];
   [self installDevelopMenu];
@@ -261,6 +268,8 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   // Always read the latest preference so new windows match the current setting.
   props[@"initialTabStripStyle"] = [self loadTabStripStylePreference];
   props[@"initialSessionsFollowActiveTabEnabled"] = @([self loadSessionsFollowActiveTabEnabledPreference]);
+  props[@"initialSwitchConnectionWithActiveTabEnabled"] =
+      @([self loadSwitchConnectionWithActiveTabEnabledPreference]);
   props[@"initialMarkdownBaseFontSize"] = @([self loadMarkdownBaseFontSizePreference]);
   props[@"initialMarkdownHeaderSize"] = [self loadMarkdownHeaderSizePreference];
   props[@"initialRecentSessionsWindow"] =
@@ -451,9 +460,25 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 {
   id raw = [[NSUserDefaults standardUserDefaults] objectForKey:kSessionsFollowActiveTabDefaultsKey];
   if (raw == nil) {
-    return NO;
+    return YES;
   }
   return [[NSUserDefaults standardUserDefaults] boolForKey:kSessionsFollowActiveTabDefaultsKey];
+}
+
+- (BOOL)loadSwitchConnectionWithActiveTabEnabledPreference
+{
+  id raw =
+      [[NSUserDefaults standardUserDefaults] objectForKey:kSwitchConnectionWithActiveTabDefaultsKey];
+  if (raw == nil) {
+    return NO;
+  }
+  return [[NSUserDefaults standardUserDefaults] boolForKey:kSwitchConnectionWithActiveTabDefaultsKey];
+}
+
+- (void)saveSwitchConnectionWithActiveTabEnabledPreference:(BOOL)enabled
+{
+  [[NSUserDefaults standardUserDefaults] setBool:enabled
+                                         forKey:kSwitchConnectionWithActiveTabDefaultsKey];
 }
 
 - (void)saveSessionsFollowActiveTabEnabledPreference:(BOOL)enabled
@@ -672,6 +697,23 @@ static BOOL LaunchArgumentPresent(NSString *argument)
                       object:nil
                     userInfo:@{
                       CLCSessionsFollowActiveTabEnabledUserInfoKey : @(enabled)
+                    }];
+    return;
+  }
+
+  if ([key isEqualToString:@"switchConnectionWithActiveTabEnabled"] &&
+      [value respondsToSelector:@selector(boolValue)]) {
+    BOOL enabled = [value boolValue];
+    [self saveSwitchConnectionWithActiveTabEnabledPreference:enabled];
+    if (self.switchConnectionWithActiveTabMenuItem != nil) {
+      self.switchConnectionWithActiveTabMenuItem.state =
+          enabled ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:CLCSwitchConnectionWithActiveTabDidChangeNotification
+                      object:nil
+                    userInfo:@{
+                      CLCSwitchConnectionWithActiveTabEnabledUserInfoKey : @(enabled)
                     }];
   }
 }
@@ -1130,6 +1172,61 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   [[NSNotificationCenter defaultCenter] postNotificationName:CLCSessionsFollowActiveTabDidChangeNotification
                                                       object:nil
                                                     userInfo:@{ CLCSessionsFollowActiveTabEnabledUserInfoKey : @(next) }];
+}
+
+- (void)installSwitchConnectionWithActiveTabMenuWithEnabled:(BOOL)enabled
+{
+  NSMenu *mainMenu = [NSApp mainMenu];
+  if (mainMenu == nil) {
+    return;
+  }
+
+  NSMenuItem *viewMenuItem = [mainMenu itemWithTitle:@"View"];
+  if (viewMenuItem == nil || viewMenuItem.submenu == nil) {
+    return;
+  }
+
+  NSMenu *viewMenu = viewMenuItem.submenu;
+
+  if (self.switchConnectionWithActiveTabMenuItem == nil) {
+    self.switchConnectionWithActiveTabMenuItem =
+        [[NSMenuItem alloc] initWithTitle:@"Switch Connection with Active Tab"
+                                   action:@selector(toggleSwitchConnectionWithActiveTab:)
+                            keyEquivalent:@""];
+    self.switchConnectionWithActiveTabMenuItem.target = self;
+  }
+
+  self.switchConnectionWithActiveTabMenuItem.state =
+      enabled ? NSControlStateValueOn : NSControlStateValueOff;
+
+  NSInteger insertionIndex = viewMenu.numberOfItems;
+  NSInteger followIndex =
+      [viewMenu indexOfItem:self.sessionsFollowActiveTabMenuItem];
+  if (followIndex >= 0) {
+    insertionIndex = followIndex + 1;
+  }
+
+  if (![viewMenu.itemArray containsObject:self.switchConnectionWithActiveTabMenuItem]) {
+    [viewMenu insertItem:self.switchConnectionWithActiveTabMenuItem
+                 atIndex:insertionIndex];
+  }
+}
+
+- (void)toggleSwitchConnectionWithActiveTab:(__unused id)sender
+{
+  BOOL current = [self loadSwitchConnectionWithActiveTabEnabledPreference];
+  BOOL next = !current;
+  [self saveSwitchConnectionWithActiveTabEnabledPreference:next];
+  if (self.switchConnectionWithActiveTabMenuItem != nil) {
+    self.switchConnectionWithActiveTabMenuItem.state =
+        next ? NSControlStateValueOn : NSControlStateValueOff;
+  }
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:CLCSwitchConnectionWithActiveTabDidChangeNotification
+                    object:nil
+                  userInfo:@{
+                    CLCSwitchConnectionWithActiveTabEnabledUserInfoKey : @(next)
+                  }];
 }
 
 - (void)saveTabStripStylePreference:(NSString *)style

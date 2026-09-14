@@ -59,8 +59,18 @@ Opening Home does not close session tabs or discard the three most recently
 active Chat panes kept ready by the desktop workspace.
 
 Reopening a tab does not change the connection selected in the sidebar by
-default. Enable Follow Active Tab in Sessions List when you want tab selection
-to move the sidebar to the tab's connection and session.
+default. Two independent View and Settings choices control sidebar behavior:
+
+- Follow Active Tab in Sessions List defaults On. It selects and reveals the
+  active tab's session when that session belongs to the connection already
+  shown in the sidebar.
+- Switch Connection with Active Tab defaults Off. It changes the sidebar to
+  the active tab's connection.
+
+Enable both choices to follow a tab across connections. Disable Follow while
+leaving Switch Connection enabled to change connections without selecting the
+tab's session. A manual Sessions selection remains selected when a tab cannot
+be followed; a selection made automatically for the previous tab is cleared.
 
 ## Request status
 
@@ -80,6 +90,6 @@ support stateless status reads.
 
 Choose `Settings…` from the application menu or press Command-comma. Settings
 opens in a separate window and controls font size, Markdown Headers, Recent
-Sessions timeframe, the session double-click action, and whether Sessions
-follows the active tab. The same follow choice remains available in the View
-menu.
+Sessions timeframe, the session double-click action, whether Sessions follows
+the active tab, and whether tab changes switch the sidebar connection. Both
+navigation choices are also available in the View menu.

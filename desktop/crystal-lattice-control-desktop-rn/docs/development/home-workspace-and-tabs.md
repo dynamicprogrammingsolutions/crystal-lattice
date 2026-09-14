@@ -48,11 +48,19 @@ first, leaving cached content available, then requests connection reopening.
 An open or connecting connection is reused. Repeated reopen work for the same
 selection intent is suppressed.
 
-Connection reopening and sidebar selection are separate effects. The native
-`Sessions follow active tab` preference defaults Off when no value has been
-stored. When enabled, active-tab changes also focus the owning connection and
-let the Sessions panel select its row; when disabled, cached/open Chat
-navigation leaves the independently selected sidebar connection unchanged.
+Connection reopening, sidebar connection switching, and Sessions-row
+following are separate effects. Reopen remains unconditional for a closed
+owning connection. The native `Follow Active Tab in Sessions List` preference
+defaults On when absent and is passed only to `SessionsPanel`. The native
+`Switch Connection with Active Tab` preference defaults Off and is the only
+tab-driven owner of `focusedConnectionId`.
+
+`useSessionsPanelTabAutoSelect` tracks selection provenance. A manual row
+selection cancels pending tab selection and survives a tab that cannot be
+followed while the same connection remains focused. An automatic selection is
+cleared when Home or a tab on another focused connection becomes active.
+Changing the focused connection clears either source because the rendered
+session-list identity changed.
 
 Explicit item actions consult `getDesktopSessionTabKind()`. A matching preview
 or permanent tab always exposes Open: permanent tabs activate in place, while
