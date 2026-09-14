@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
@@ -91,6 +93,27 @@ def _tool_command_observed(run, needle: str) -> bool:
 
 def _raw_session_text(run) -> str:
     return json.dumps(_raw_session(run)).lower()
+
+
+def _has_case_transform_example(text: str) -> bool:
+    for match in re.finditer(r"""["']([a-z][a-z0-9 _-]{1,30})["']""", text):
+        value = match.group(1)
+        if value.upper() in text:
+            return True
+    return False
+
+
+def _external_worktree_roots(run) -> tuple[str, ...]:
+    if run.workspace is None:
+        return ()
+    workspace = str(Path(run.workspace).resolve())
+    roots = set(
+        re.findall(
+            r"/Users/[^/]+/Dev/Mine/ai-agent-platform-worktrees/[^/\\\" ]+",
+            json.dumps(_raw_session(run)),
+        )
+    )
+    return tuple(sorted(root for root in roots if not workspace.startswith(f"{root}/")))
 
 
 def _raw_evidence(run) -> list[dict[str, object]]:
@@ -1598,7 +1621,8 @@ def test_18_shared_plugin_authoring_boundary(
         fixture_id="js-single-file-tool",
     )
     paths = set(run.changed_paths)
-    readme = file_text(run, "plugins/js-single-file-tool/README.md").lower()
+    readme_original = file_text(run, "plugins/js-single-file-tool/README.md")
+    readme = readme_original.lower()
     canonical_path = "plugins/docs/node-tool-plugins.md"
     shared_paths = matching_paths(run, "plugins/docs")
     focused_paths = tuple(
@@ -1621,6 +1645,39 @@ def test_18_shared_plugin_authoring_boundary(
     )
     canonical = file_text(run, canonical_path).lower()
     shared_index = file_text(run, "plugins/docs/index.md").lower()
+    response = require_run_value(run).response.lower()
+    rendered = "\n".join((readme, shared))
+    unsupported_loader_claims = (
+        "plugin id defaults to the file stem",
+        "id defaults to the file stem",
+        "plugin_policy.base_dir",
+        "node:./plugins/js-single-file-tool/uppertool.ts",
+        "generated cached package",
+        "tiny cached package",
+        "esbuild in devdependencies",
+        "esbuild` in `devdependencies",
+    )
+    external_roots = _external_worktree_roots(run)
+    external_checkout_language = (
+        "sibling worktree",
+        "reference checkout",
+        "editable checkout",
+        "parent worktree",
+    )
+    node_unavailable_claim = bool(
+        re.search(
+            r"(?:node(?:\.js)?|node runtime|node executable).{0,80}"
+            r"(?:not available|unavailable|isn't available|aren't available)",
+            response,
+            re.DOTALL,
+        )
+    )
+    allowed_paths = {
+        "plugins/js-single-file-tool/README.md",
+        "plugins/docs/index.md",
+        canonical_path,
+        *focused_paths,
+    }
     findings = basic_run_findings(run) + (
         AssertionFinding(
             "package and shared owners both updated",
@@ -1632,11 +1689,7 @@ def test_18_shared_plugin_authoring_boundary(
             "plugin example is complete",
             "uppertool" in readme
             and _contains_any(readme, ("node:", "node_tool", '"file"'))
-            and "hello" in readme
-            and "HELLO" in file_text(
-                run,
-                "plugins/js-single-file-tool/README.md",
-            )
+            and _has_case_transform_example(readme_original)
             and _contains_any(readme, ("verify", "expected", "confirm")),
             readme,
         ),
@@ -1656,6 +1709,28 @@ def test_18_shared_plugin_authoring_boundary(
             shared,
         ),
         AssertionFinding(
+            "claims remain supported by the bounded fixture",
+            not any(term in rendered for term in unsupported_loader_claims),
+            "\n".join(
+                term for term in unsupported_loader_claims if term in rendered
+            )
+            or "no unsupported loader claim detected",
+        ),
+        AssertionFinding(
+            "fixture boundary retained",
+            not external_roots
+            and not any(term in response for term in external_checkout_language),
+            (
+                f"external_roots={external_roots!r}; "
+                f"response={run.value.response}"
+            ),
+        ),
+        AssertionFinding(
+            "environment limitations are accurate",
+            not (shutil.which("node") is not None and node_unavailable_claim),
+            run.value.response,
+        ),
+        AssertionFinding(
             "shared page remains indexed",
             "node-tool-plugins.md" in shared_index
             and all(path.rsplit("/", 1)[-1] in shared_index for path in focused_paths)
@@ -1665,11 +1740,7 @@ def test_18_shared_plugin_authoring_boundary(
         AssertionFinding(
             "scope remains documentation-only",
             len(focused_paths) <= 1
-            and all(
-                path.startswith("plugins/docs/")
-                or path == "plugins/js-single-file-tool/README.md"
-                for path in paths
-            ),
+            and paths <= allowed_paths,
             repr(run.changed_paths),
         ),
     )

@@ -33,7 +33,9 @@ maintainers a route to implementation and specification information.
 3. Maintainer-only specifications are not read.
 4. Changes remain package-local and documentation-only.
 5. User and developer entry points are usable.
-6. Target-only replay behavior is not presented as available.
+6. Target-only replay behavior is not presented as available; a translated
+   current limitation is allowed.
+7. User documentation does not link directly to internal specification pages.
 
 ## Semantic assessment
 

@@ -37,12 +37,12 @@ pages owned by the concurrent Test-22 workstream.
   routed guidance pages in full.
 - [x] Existing commit authorization, package architecture, plugin, testing
   realism, and unrelated development guidance remain unchanged.
-- [ ] Deterministic checks detect reintroduction of multiple documentation
+- [x] Deterministic checks detect reintroduction of multiple documentation
   policy sections, temporary migration inventories, or duplicated site command
   catalogs.
-- [ ] Test 27 compares the exact pre-change and candidate root guidance with
+- [x] Test 27 compares the exact pre-change and candidate root guidance with
   unchanged prompt, fixture, assertions, model, and reasoning effort.
-- [ ] Mixed or failing real-model evidence remains visible and is not converted
+- [x] Mixed or failing real-model evidence remains visible and is not converted
   into a passing claim by weakening the routing assertion.
 
 ## Scope
@@ -98,7 +98,7 @@ reconciliation so the evaluated guidance hash matches the integrated result.
 - September 14, 2026: Pinned the pre-change source at
   `cdeb50a7df92820e487c466b030ea8f5f6dcb993`; root `AGENTS.md` SHA-256 was
   `eb43c17f863671842b73580299ab4b5badf34a2381ab5b05e5b42085cae41d6c`.
-- Consolidated the four documentation-related blocks into one 290-word policy
+- Consolidated the four documentation-related blocks into one 289-word policy
   and routing section plus one short repository-map entry.
 - Removed the duplicated site command catalog and temporary migration
   inventory, required both guidance pages to be read in full for structural
@@ -108,6 +108,21 @@ reconciliation so the evaluated guidance hash matches the integrated result.
 - Source-level diff inspection found no changes to commit authorization,
   package ownership, plugin behavior, task handling, or unrelated testing
   realism. Deterministic and real-model verification remain pending.
+- Deterministic suite support now checks the 3,000–3,600-word combined review
+  budget, one root policy section, the full-read route, and removed duplicate
+  blocks; 31 focused tests pass.
+- Test 27 used immediate pre-change guidance SHA-256 `18251b85...` and
+  candidate `d428bd65...`. Both baseline runs and both candidate runs read the
+  two pages completely before mutation. One baseline failed only because user
+  documentation linked an internal specification; the other baseline and both
+  candidates passed.
+- The detailed model and assertion review is recorded in
+  `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/20260914-guidance-followup-results.md`.
+- Final local verification completed: 68 agent-evaluation tests and 15
+  documentation-site preparation tests passed; Ruff, Python compilation,
+  documentation preparation, MkDocs build, task structure, and `git diff
+  --check` passed. MkDocs retained existing navigation, link, Material, and
+  Griffe warnings unrelated to this change.
 
 ## Execution plan
 
@@ -193,12 +208,12 @@ No public package documentation changes are planned.
 - [x] Pin the immediate pre-change guidance source.
 - [x] Consolidate the root documentation blocks.
 - [x] Align root testing terminology with risk-based selection.
-- [ ] Add deterministic root-structure checks.
-- [ ] Run paired repeated Test 27 comparisons.
+- [x] Add deterministic root-structure checks.
+- [x] Run paired repeated Test 27 comparisons.
 - [ ] Reconcile the concurrent documentation-guidance branch.
 - [ ] Rerun the final integrated Test 27.
-- [ ] Run focused deterministic, site, build, and diff verification.
-- [ ] Update requirement and task evidence.
+- [x] Run focused deterministic, site, build, and diff verification.
+- [x] Update requirement and task evidence.
 - [ ] Obtain human review of the recurring root guidance.
 
 ### Requirement verification

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ from types import SimpleNamespace
 from suites.documentation_standard.support import (
     BASELINE_GUIDANCE_REVISION,
     CURRENT_GUIDANCE_PATHS,
+    FOLLOWUP_BASELINE_GUIDANCE_REVISION,
     LEGACY_GUIDANCE_PATHS,
     ORIGINAL_DEVELOP_GUIDANCE_REVISION,
     PROFILES,
@@ -24,6 +26,7 @@ from suites.documentation_standard.support import (
     completed_tool_call_ids,
     extract_blockquote,
     fixture_revision,
+    followup_baseline_guidance_source,
     original_develop_guidance_source,
     _commit_fixture,
     _project_config_for_profile,
@@ -31,6 +34,10 @@ from suites.documentation_standard.support import (
     GUIDANCE_CONFIG_KEY,
     GUIDANCE_FEATURE_PLUGIN,
     PLUGIN_RUNTIME_CONSTRAINTS,
+)
+from suites.documentation_standard.test_consumers import (
+    _external_worktree_roots,
+    _has_case_transform_example,
 )
 from suites.documentation_standard.guidance_feature import (
     DocumentationStandardGuidanceFeature,
@@ -73,19 +80,45 @@ def test_original_develop_guidance_is_pinned_and_distinct() -> None:
     assert source.sha256() != candidate_guidance_sha256()
 
 
+def test_followup_baseline_guidance_is_pinned_and_distinct() -> None:
+    source = followup_baseline_guidance_source()
+
+    assert source.name == "followup-baseline"
+    assert source.revision == FOLLOWUP_BASELINE_GUIDANCE_REVISION
+    assert source.paths == CURRENT_GUIDANCE_PATHS
+    assert len(source.sha256()) == 64
+    assert source.sha256() != candidate_guidance_sha256()
+    agents = source.read_bytes("AGENTS.md").decode("utf-8")
+    assert "## Documentation ownership and workflow" in agents
+    assert "read both files in full" not in agents
+
+
 def test_current_documentation_guidance_shape_is_concise() -> None:
     guide = REPOSITORY_ROOT / "docs/development/documentation.md"
     local = REPOSITORY_ROOT / "docs/development/crystal-lattice-documentation.md"
     index = REPOSITORY_ROOT / "docs/development/index.md"
     agents = REPOSITORY_ROOT.joinpath("AGENTS.md").read_text()
-    start = agents.index("## Documentation ownership and workflow")
+    start = agents.index("## Documentation ownership and routing")
     end = agents.index("**Auxiliary directories**", start)
     agent_section = agents[start:end]
 
-    assert 1600 <= len(guide.read_text().split()) <= 2000
-    assert 900 <= len(local.read_text().split()) <= 1200
-    assert len(index.read_text().split()) < 150
-    assert 200 <= len(agent_section.split()) <= 300
+    guide_words = len(guide.read_text().split())
+    local_words = len(local.read_text().split())
+    index_words = len(index.read_text().split())
+    agent_words = len(agent_section.split())
+
+    assert 1600 <= guide_words <= 2200
+    assert 900 <= local_words <= 1200
+    assert index_words < 150
+    assert 200 <= agent_words <= 300
+    assert 3000 <= guide_words + local_words + index_words + agent_words <= 3600
+
+    assert agents.count("## Documentation ownership and routing") == 1
+    assert "read both files in full" in agent_section
+    assert "## Testing & Documentation Principles" not in agents
+    assert "**When to update docs**" not in agents
+    assert "During the initial documentation migration" not in agents
+    assert "(cd docs_site && mkdocs build)" not in agents
 
     project_independent = guide.read_text().lower()
     for project_term in (
@@ -108,6 +141,75 @@ def test_current_documentation_guidance_shape_is_concise() -> None:
         text = path.read_text()
         assert len(text.split()) < 80
         assert "does not define separate rules" in text
+
+
+def test_current_guidance_contains_substantial_specification_approval_boundary() -> None:
+    guide = re.sub(
+        r"\s+",
+        " ",
+        (
+            REPOSITORY_ROOT
+            / "docs/development/documentation.md"
+        ).read_text(encoding="utf-8").lower(),
+    )
+
+    assert "before creating a substantial new specification" in guide
+    assert "active approved task already authorizes it" in guide
+    assert "smallest useful file set" in guide
+    assert "overlap with existing specifications" in guide
+    assert "obtain approval before creating files" in guide
+    assert "do not ask twice" in guide
+
+
+def test_case_transform_example_accepts_equivalent_values() -> None:
+    assert _has_case_transform_example(
+        'Call with {"value": "hi"} and expect {"result": "HI"}.'
+    )
+    assert not _has_case_transform_example(
+        'Call with {"value": "hi"} and inspect the result.'
+    )
+
+
+def test_external_worktree_detection_ignores_current_workspace(
+    tmp_path: Path,
+) -> None:
+    workspace = (
+        Path("/Users/test/Dev/Mine/ai-agent-platform-worktrees/current")
+        / "tmp/run/workspace"
+    )
+    artifact_dir = tmp_path / "run"
+    session = artifact_dir / "raw/environment/crystal-lattice-session.json"
+    session.parent.mkdir(parents=True)
+    session.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "metadata": {
+                            "tool_calls": [
+                                {
+                                    "function": {
+                                        "arguments": (
+                                            '{"workdir": '
+                                            '"/Users/test/Dev/Mine/'
+                                            'ai-agent-platform-worktrees/other"}'
+                                        )
+                                    }
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    run = SimpleNamespace(workspace=workspace, artifact_dir=artifact_dir)
+
+    assert _external_worktree_roots(run) == (
+        "/Users/test/Dev/Mine/ai-agent-platform-worktrees/other",
+    )
 
 
 def test_explicit_guidance_source_participates_in_workspace_fingerprint(

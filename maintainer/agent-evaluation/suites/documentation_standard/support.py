@@ -32,6 +32,9 @@ SPEC_ROOT = (
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
 BASELINE_GUIDANCE_REVISION = "3a62b6fc"
 ORIGINAL_DEVELOP_GUIDANCE_REVISION = "f81f36326b58268297ba59c1cacbcda604257c27"
+FOLLOWUP_BASELINE_GUIDANCE_REVISION = (
+    "cdeb50a7df92820e487c466b030ea8f5f6dcb993"
+)
 GUIDANCE_INJECTION_VERSION = "v6"
 PROFILE_CONFIG_VERSION = "v8"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
@@ -727,6 +730,14 @@ def original_develop_guidance_source() -> GuidanceSource:
     )
 
 
+def followup_baseline_guidance_source() -> GuidanceSource:
+    return GuidanceSource(
+        name="followup-baseline",
+        revision=FOLLOWUP_BASELINE_GUIDANCE_REVISION,
+        paths=CURRENT_GUIDANCE_PATHS,
+    )
+
+
 def selected_guidance_source() -> GuidanceSource:
     name = os.getenv("AGENT_EVAL_GUIDANCE_VARIANT", "candidate").strip()
     if name == "candidate":
@@ -735,6 +746,8 @@ def selected_guidance_source() -> GuidanceSource:
         return baseline_guidance_source()
     if name == "develop":
         return original_develop_guidance_source()
+    if name == "followup-baseline":
+        return followup_baseline_guidance_source()
     raw_root = os.getenv("AGENT_EVAL_GUIDANCE_DIR")
     if not raw_root:
         raise ValueError(

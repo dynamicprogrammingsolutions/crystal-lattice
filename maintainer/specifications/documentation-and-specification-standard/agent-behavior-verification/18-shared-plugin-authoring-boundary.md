@@ -105,16 +105,20 @@ substantial enough to justify a separate page. No other mutation is allowed.
 
 ## Mechanical assertions
 
-1. The plugin README documents `UpperTool`, a concrete input/output example,
-   supported loading/configuration, and verification.
+1. The plugin README documents `UpperTool`, a consistent concrete
+   lowercase-to-uppercase example, supported loading/configuration, and
+   verification.
 2. The canonical shared Node-tool guide, optionally together with one focused
    indexed page, contains reusable export/loading and validation guidance.
 3. The shared guide does not claim that all Node tools uppercase input or
    require `UpperTool`.
-4. Every changed shared guide remains reachable from `plugins/docs/index.md`,
+4. Claims that require unavailable loader/runtime source are removed or left
+   explicitly unresolved rather than verified through another checkout.
+5. Every changed shared guide remains reachable from `plugins/docs/index.md`,
    and a focused page is also linked from the canonical Node-tool guide.
-5. No root docs, specifications, generated output, source, or unrelated plugin
-   files change.
+6. No sibling/parent worktree is used as evidence.
+7. No root docs, specifications, generated output, source, unrelated plugin
+   file, or unrelated existing shared guide changes.
 
 ## Semantic assessment
 

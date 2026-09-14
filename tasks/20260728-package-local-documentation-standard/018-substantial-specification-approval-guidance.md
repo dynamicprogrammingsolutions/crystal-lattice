@@ -29,11 +29,11 @@ overlap and obtains approval before creating it.
 - [ ] A direct user request to create a substantial specification without an
   approved task produces a concrete proposal and no repository mutation before
   approval.
-- [ ] An approved task that already authorizes the specification proceeds
+- [x] An approved task that already authorizes the specification proceeds
   without duplicate approval.
 - [x] Small local fixes and updates to an existing specification do not acquire
   a new approval ceremony.
-- [ ] Explicit approved file-layout choices remain effective and are not
+- [x] Explicit approved file-layout choices remain effective and are not
   overridden by a default tree.
 - [x] The rule does not add lifecycle status fields to every specification;
   approval remains task-owned by default.
@@ -87,6 +87,20 @@ not require new durable structure.
 - The project-independent guide is now 2,055 words. Behavioral verification
   remains pending; Tests 10 and 11 and the Test-22 sentinel remain deferred
   until branch reconciliation.
+- Test 6 used immediate pre-change guidance SHA-256 `18251b85...` and candidate
+  `d428bd65...`. The baseline and both candidate samples created files without
+  requesting approval. The paragraph does not yet distinguish a direct
+  creation request from explicit approval of the proposed scope and file set.
+- Tests 9 and 26 were paired. Test 9 passed under both guidance versions. Test
+  26's baseline omitted the `decisions.md` index link; the candidate passed.
+- Tests 10 and 11 and the Test-22 sentinel remain intentionally unresolved
+  until concurrent guidance reconciliation.
+- Detailed behavior review and recommended wording are recorded in
+  `agent-behavior-verification/20260914-guidance-followup-results.md`.
+- Final local verification completed: 68 agent-evaluation tests and 15
+  documentation-site preparation tests passed; Ruff, Python compilation,
+  documentation preparation, MkDocs build, task structure, and `git diff
+  --check` passed. Existing MkDocs warnings remain unrelated.
 
 ## Execution plan
 
@@ -163,15 +177,15 @@ documentation change is planned.
 ### Task checklist
 
 - [x] Pin the immediate pre-change guidance.
-- [ ] Confirm Test 6's causal failure.
+- [x] Confirm Test 6's causal failure.
 - [x] Add the concise approval paragraph.
-- [ ] Run paired Test 6.
-- [ ] Run Tests 9 and 26.
+- [x] Run paired Test 6.
+- [x] Run Tests 9 and 26.
 - [ ] Reconcile the concurrent guidance branch.
 - [ ] Run Tests 10 and 11 after reconciliation.
 - [ ] Run the integrated requirement-restraint sentinel after reconciliation.
-- [ ] Run deterministic and documentation-build verification.
-- [ ] Update requirement/task evidence.
+- [x] Run deterministic and documentation-build verification.
+- [x] Update requirement/task evidence.
 - [ ] Obtain human review of the final wording and behavior.
 
 ### Requirement verification

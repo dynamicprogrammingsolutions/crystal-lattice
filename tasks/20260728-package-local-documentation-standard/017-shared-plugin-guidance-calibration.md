@@ -20,25 +20,25 @@ before changing either the public guidance or the acceptance contract.
 
 ## Requirements checklist
 
-- [ ] Test 18's previous-guidance pass and both candidate failures are
+- [x] Test 18's previous-guidance pass and both candidate failures are
   reproduced or restored with exact model, guidance, prompt, fixture, and tool
   provenance.
-- [ ] The investigation identifies where the candidate runs spend additional
+- [x] The investigation identifies where the candidate runs spend additional
   tool calls and why they fail to produce a complete final response.
-- [ ] Unsupported plugin-loading, compilation, configuration, or verification
+- [x] Unsupported plugin-loading, compilation, configuration, or verification
   claims are traced to their source in the seed, fixture, inherited guidance,
   or model inference.
-- [ ] Diagnostic runs distinguish a hard 30-call stop from a scenario that
+- [x] Diagnostic runs distinguish a hard 30-call stop from a scenario that
   would complete correctly with additional calls; a larger budget is not used
   as acceptance evidence by itself.
-- [ ] Any proposed scenario split preserves both package-example quality and
+- [x] Any proposed scenario split preserves both package-example quality and
   shared plugin-authoring ownership rather than making the test trivially
   local.
-- [ ] Deterministic assertions distinguish incomplete execution, unsupported
+- [x] Deterministic assertions distinguish incomplete execution, unsupported
   claims, broken indexing, and excessive file creation.
-- [ ] Public guidance changes are proposed only after paired evidence isolates
+- [x] Public guidance changes are proposed only after paired evidence isolates
   a missing or misleading rule.
-- [ ] Model-specific variance and framework/tool defects are reported without
+- [x] Model-specific variance and framework/tool defects are reported without
   being relabeled as documentation-guidance failures.
 
 ## Scope
@@ -78,6 +78,31 @@ alone is not a sufficient explanation. The scenario combines source
 verification, package documentation, shared documentation, index updates, and
 commands. It may be too broad for one diagnostic branch, but splitting it
 without preserving a cross-owner check would weaken the intended behavior.
+
+## Implementation Notes
+
+- September 14, 2026: Restored the September 12 sessions and ran one fresh old
+  guidance sample, two immediate-pre-change samples, four normal candidate
+  samples, and one 45-call diagnostic with `glm-5.3-flash:cloud`.
+- The 45-call diagnostic used only 11 branch calls. Tool budget was not causal.
+- The array shell allowed models to inspect mutable sibling worktrees despite
+  the configured evaluation workspace. `read_file` rejected the same external
+  paths. `ShellArrayTool` currently resolves workdir without enforcing
+  `allowed_paths`.
+- The fixture removes runtime sources that inherited plugin documentation tells
+  agents to consult. This contradictory pressure caused both cautious
+  fixture-only outputs and invalid external verification.
+- Calibrated assertions now accept any consistent uppercase example, reject
+  known unsupported fixture claims and observed external-worktree evidence,
+  check Node availability claims, and enforce the documented mutation
+  allowlist.
+- Current normal candidate outcomes after calibration are one pass and three
+  failures; the diagnostic candidate passes. Both immediate-pre-change samples
+  fail. These results are not a valid guidance-regression comparison.
+- Created Draft subtask 019 for shell/evaluation confinement, fixture-owned
+  verification, and focused package/shared/cross-owner scenarios.
+- Full findings and exact guidance hashes are recorded in
+  `agent-behavior-verification/20260914-guidance-followup-results.md`.
 
 ## Execution plan
 
@@ -163,16 +188,16 @@ causal evidence.
 
 ### Task checklist
 
-- [ ] Restore and compare the three decisive runs.
-- [ ] Produce a tool-call and mutation timeline.
-- [ ] Classify unsupported claims and stop causes.
-- [ ] Run a normal-budget diagnostic repeat.
-- [ ] Run a higher-budget diagnostic without treating it as acceptance.
-- [ ] Decide whether a second-model sentinel is justified and authorized.
-- [ ] Propose scenario calibration only if evidence requires it.
-- [ ] Propose public guidance wording only if causally justified.
-- [ ] Run deterministic verification.
-- [ ] Record final evidence and human-review questions.
+- [x] Restore and compare the three decisive runs.
+- [x] Produce a tool-call and mutation timeline.
+- [x] Classify unsupported claims and stop causes.
+- [x] Run a normal-budget diagnostic repeat.
+- [x] Run a higher-budget diagnostic without treating it as acceptance.
+- [x] Decide whether a second-model sentinel is justified and authorized.
+- [x] Propose scenario calibration only if evidence requires it.
+- [x] Propose public guidance wording only if causally justified.
+- [x] Run deterministic verification.
+- [x] Record final evidence and human-review questions.
 
 ### Requirement verification
 
@@ -191,3 +216,20 @@ causal evidence.
 - Compare repeated candidate tool-call categories and malformed-call counts.
 - Verify generated pages contain no unsupported claims before accepting a
   scenario pass.
+
+## Completion Notes
+
+Completed September 14, 2026.
+
+The investigation found no isolated public-guidance defect. Test 18 combined an
+incomplete fixture, contradictory inherited instructions, unrestricted shell
+access to mutable sibling worktrees, a broad authoring task, and assertions
+that accepted unsupported claims while rejecting an equivalent example.
+
+The assertions were calibrated without changing the prompt or model outputs,
+and all sessions were reviewed through concise text transcripts. The
+normal-budget candidate remains variable, but its pass/fail state now better
+matches observed behavior. The substantial product/evaluation repair is
+deferred to Draft subtask 019 and requires separate approval.
+
+No public guidance was changed by this subtask. No hosted model was run.

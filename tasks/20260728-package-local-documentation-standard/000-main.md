@@ -751,8 +751,9 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/016-root-agents-documentation-consolidation.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/017-shared-plugin-guidance-calibration.md`
+- [x] `tasks/20260728-package-local-documentation-standard/017-shared-plugin-guidance-calibration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/018-substantial-specification-approval-guidance.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/019-evaluation-workspace-confinement-and-test18-redesign.md`
 - [x] `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
 - [x] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
@@ -866,8 +867,9 @@ Required new or updated documentation includes:
 - [ ] 010: Establish documentation/specification standard and agent guidance.
 - [ ] 015: Create the programmatic agent-evaluation library and documentation-standard consumers.
 - [ ] 016: Consolidate root AGENTS documentation guidance and verify routing.
-- [ ] 017: Calibrate shared-plugin guidance Test 18.
+- [x] 017: Calibrate shared-plugin guidance Test 18.
 - [ ] 018: Restore substantial-specification approval guidance after branch reconciliation.
+- [ ] 019: Constrain evaluation workspaces and redesign shared-plugin Test 18.
 - [ ] 020: Extend package docs-site assembly and add focused tests.
 - [ ] 030: Migrate and lightly verify Core Python documentation.
 - [ ] 040: Migrate and lightly verify application and shared plugin documentation.

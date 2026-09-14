@@ -11,6 +11,7 @@ write, summarize, or restate the standard being evaluated.
 
 Latest comparison:
 
+- [September 14, 2026 guidance follow-up results](20260914-guidance-followup-results.md)
 - [September 12, 2026 guidance rewrite results](20260912-guidance-rewrite-results.md)
 
 Several scenarios deliberately create boundary pressure. The agent may have
@@ -108,8 +109,8 @@ Current seeds:
 | [Seed 01](seed-01-js-single-file-tool-documentation.md) | Compare one plugin README with its code and shared Node-tool facts | Tests [01](01-small-package-documentation.md), [02](02-generated-output-correction.md), [16](16-failed-generated-refresh.md), [18](18-shared-plugin-authoring-boundary.md), and [28](28-small-package-proportionate-documentation.md) |
 | [Seed 02](seed-02-report-export-row-limit.md) | Inspect one approved row-limit task and its current spec/code/test/doc state | Tests [03](03-target-specification-workflow.md), [07](07-approved-task-specification-only.md), [08](08-approved-specification-implementation.md), [15](15-premature-current-documentation.md), and [29](29-early-user-documentation-is-explicit.md) |
 | [Seed 03](seed-03-mobile-composer-refinement.md) | Inspect one portable contract, mobile package, and approved UX task | Test [04](04-package-owned-refinement.md) |
-| [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Tests [05](05-normative-owner-and-discoverability.md), [17](17-public-package-profile.md), [19](19-apply-versus-maintain-boundary.md), and [20](20-routed-guidance-reading.md) |
-| [Seed 05](seed-05-batch-sync-design.md) | Inspect one package and related persistence/transport contracts | Tests [06](06-substantial-specification-approval.md), [09](09-task-authorized-new-specification.md), and [21](21-explicit-specification-layout-override.md) |
+| [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Tests [05](05-normative-owner-and-discoverability.md), [17](17-public-package-profile.md), [19](19-apply-versus-maintain-boundary.md), [20](20-routed-guidance-reading.md), and [27](27-routed-current-guidance.md) |
+| [Seed 05](seed-05-batch-sync-design.md) | Inspect one package and related persistence/transport contracts | Tests [06](06-substantial-specification-approval.md), [09](09-task-authorized-new-specification.md), [21](21-explicit-specification-layout-override.md), and [26](26-explicit-optional-layout.md) |
 | [Seed 06](seed-06-existing-contract-bugfix.md) | Reproduce one public bug against an already-correct target contract | Test [10](10-bug-fix-with-existing-specification.md) |
 | [Seed 07](seed-07-local-bugfix.md) | Reproduce one internal race with no durable public contract | Test [11](11-local-bugfix-without-durable-specification.md) |
 | [Seed 08](seed-08-completed-small-implementation.md) | Complete one code/test-only change whose target already exists | Test [12](12-documentation-follow-up-after-implementation.md) |
