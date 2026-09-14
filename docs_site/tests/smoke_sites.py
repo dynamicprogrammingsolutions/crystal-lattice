@@ -76,6 +76,27 @@ def main() -> None:
         )
 
         require_success(landing_page, landing_url)
+        installation_link = landing_page.get_by_role(
+            "link",
+            name="Installation guide",
+            exact=True,
+        ).first
+        expected_installation_url = urljoin(
+            docs_url,
+            "packages/application-python/installation/",
+        )
+        if installation_link.get_attribute("href") != expected_installation_url:
+            raise AssertionError(
+                "landing installation link is "
+                f"{installation_link.get_attribute('href')!r}, "
+                f"expected {expected_installation_url!r}"
+            )
+        installation_response = context.request.get(expected_installation_url)
+        if not installation_response.ok:
+            raise AssertionError(
+                "installation documentation failed: "
+                f"{installation_response.status} {expected_installation_url}"
+            )
         docs_link = landing_page.locator("header a:visible", has_text="Docs")
         if docs_link.count() != 1:
             raise AssertionError("landing page must expose one visible Docs link")

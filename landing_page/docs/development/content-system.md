@@ -49,6 +49,13 @@ pre-rendered HTML
 components. Section definitions may prepare source content before rendering,
 including loading and transforming referenced Markdown.
 
+The product-page hero owns its installation choices as one `install` object in
+the page content. That object defines the default method, tab labels, exact
+commands, platform support text, manual-download action, and documentation
+routes. `InstallationChooser.astro` renders the accessible selector, while the
+later first-success guide links back to it instead of maintaining another
+installer command.
+
 ## Current Section Types
 
 The current registry includes general product sections, richer proof and

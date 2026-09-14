@@ -831,6 +831,20 @@ def _write_bump_repo(tmp_path: Path, version: str = "9.8.7") -> Path:
         f"v1{version}-unrelated.tar.gz\n",
         encoding="utf-8",
     )
+    installation_docs = repo / "application" / "python" / "docs"
+    installation_docs.mkdir(parents=True)
+    (installation_docs / "installation-macos-linux.md").write_text(
+        f"VERSION={version} bash\n",
+        encoding="utf-8",
+    )
+    (installation_docs / "installation-windows.md").write_text(
+        f'$env:VERSION = "{version}"\n',
+        encoding="utf-8",
+    )
+    (installation_docs / "installation-manual.md").write_text(
+        f"runtime-v{version}-linux-amd64\n",
+        encoding="utf-8",
+    )
     deploy_readme = repo / "deploy" / "aws-cli-downloads" / "README.md"
     deploy_readme.parent.mkdir(parents=True, exist_ok=True)
     deploy_readme.write_text(
@@ -874,6 +888,21 @@ def test_bump_script_updates_pyproject_and_doc_references(tmp_path: Path) -> Non
     # Digit-guarded neighbors stay untouched.
     assert "crystal-lattice-python-runtime-v9.8.70-linux-amd64.tar.gz" in app_readme
     assert "v19.8.7-unrelated.tar.gz" in app_readme
+
+    macos_linux = (
+        repo / "application" / "python" / "docs" / "installation-macos-linux.md"
+    ).read_text(encoding="utf-8")
+    assert "VERSION=9.8.8 bash" in macos_linux
+
+    windows = (
+        repo / "application" / "python" / "docs" / "installation-windows.md"
+    ).read_text(encoding="utf-8")
+    assert '$env:VERSION = "9.8.8"' in windows
+
+    manual = (
+        repo / "application" / "python" / "docs" / "installation-manual.md"
+    ).read_text(encoding="utf-8")
+    assert "runtime-v9.8.8-linux-amd64" in manual
 
     deploy_readme = (repo / "deploy" / "aws-cli-downloads" / "README.md").read_text(
         encoding="utf-8"

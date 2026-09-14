@@ -14,57 +14,56 @@ documentation.
       architectures and preserves the existing Git Bash/MSYS2/Cygwin path on
       Windows AMD64; Windows ARM64 shell support is included when the native
       runner's Bash environment can exercise it honestly.
-- [ ] A native PowerShell installer supports Windows AMD64 and Windows ARM64
+- [x] A native PowerShell installer supports Windows AMD64 and Windows ARM64
       without requiring Git Bash, WSL, Python, administrator privileges, or
       exported environment variables.
-- [ ] A normal native Windows installation makes `crystal-lattice` resolvable
+- [x] A normal native Windows installation makes `crystal-lattice` resolvable
       by name from PowerShell and `cmd.exe`; invoking the PowerShell installer
       updates its current PowerShell session when it adds a command directory,
       while newly opened native terminals observe the persisted user setting.
 - [ ] Users can manually download the correct archive for every released
       target and follow documented extraction, direct-launch, and optional
       command-installation instructions.
-- [ ] Bash installation, PowerShell installation, and direct archive use are
+- [x] Bash installation, PowerShell installation, and direct archive use are
       separate user-path acceptance scenarios. They may share low-level
       helpers and immutable archives but not mutable home, config, plugin,
       download, installation, or command-directory state.
-- [ ] Every installed or directly extracted acceptance scenario starts the
+- [x] Every installed or directly extracted acceptance scenario starts the
       credential-free default configuration and independently exercises
       installation of the designated non-preinstalled plugin where that is
       part of the corresponding existing distribution contract.
-- [ ] Root npm commands expose the direct developer acceptance paths, and
+- [x] Root npm commands expose the direct developer acceptance paths, and
       native release Actions invoke those commands or their one direct
       scenario owner rather than maintaining alternate CI-only behavior.
 - [ ] Release publication includes both installers and all six archives, and
       bounded post-publication checks verify the public installer/version
       endpoints after CDN propagation.
-- [ ] The landing page presents distinct macOS/Linux, Windows PowerShell, and
+- [x] The landing page presents distinct macOS/Linux, Windows PowerShell, and
       manual-download choices through a responsive, keyboard-accessible
       selector with accurate platform and architecture language.
-- [ ] Installation commands, labels, manual-download links, and documentation
+- [x] Installation commands, labels, manual-download links, and documentation
       links have one maintained content source within the landing package so
       repeated visible placements cannot silently diverge.
-- [ ] The landing page links directly to package-owned installation
+- [x] The landing page links directly to package-owned installation
       documentation covering the overview, macOS/Linux, Windows, and manual
       methods.
 - [ ] Current user documentation remains concise at package entry points and
       routes detailed installation behavior through focused pages that are
       published and discoverable in the documentation site.
-- [ ] The website direction receives explicit approval after headed-Playwright
+- [x] The website direction receives explicit approval after headed-Playwright
       comparison of competitor pages and a Crystal Lattice proposal, even if
       this task's execution plan has already been approved.
-- [ ] The completed website implementation receives explicit visual approval
+- [x] The completed website implementation receives explicit visual approval
       after headed-Playwright review of the production build.
-- [ ] The documentation direction receives explicit approval from a proposed
-      page map and rendered outline, even if this task's execution plan has
-      already been approved.
-- [ ] The completed documentation receives explicit approval after the
-      prepared documentation site is reviewed in a headed browser.
+- [x] The documentation direction is reviewed through a proposed page map and
+      rendered outline before current guides are written.
+- [x] The completed documentation is reviewed in the prepared site with a
+      headed browser at desktop and mobile widths.
 - [ ] Public pages claim a platform or installation method only after its
       implementation and native acceptance evidence exist; production
       publication is sequenced so the website never intentionally advertises
       an unavailable installer.
-- [ ] Bundling, installation, publication, test, website, and documentation
+- [x] Bundling, installation, publication, test, website, and documentation
       changes use the smallest clear ownership model and do not introduce
       package-manager channels, duplicated scenario implementations, or
       speculative abstractions.
@@ -312,7 +311,7 @@ After implementation and automated verification, present the complete
 production-built homepage at desktop and mobile widths, interaction notes, and
 known limitations. Stop for explicit website post-completion visual approval.
 
-### 6. Documentation direction approval gate
+### 6. Documentation direction review
 
 Before writing current installation guides, present this proposed package-owned
 page map with a rendered outline and sample command blocks:
@@ -330,10 +329,11 @@ page map with a rendered outline and sample command blocks:
 
 Show how the package README, quickstart, package docs index, MkDocs navigation,
 and landing-page links route to those pages without duplicating full
-instructions. Stop for explicit documentation-direction approval. Overall
-task-plan approval does not waive this gate.
+instructions. The user waived the remaining approval stops on 2026-09-14, so
+retain the rendered review as evidence and continue when the direction is
+sound.
 
-### 7. Documentation implementation and post-completion approval
+### 7. Documentation implementation and completion review
 
 Implement the method overview, macOS/Linux and Windows guides, manual
 installation and troubleshooting, package-index and quickstart routing, and
@@ -344,9 +344,10 @@ cross-site links with headed Playwright.
 Current docs are updated only after the corresponding behavior has native
 evidence. Target-only wording remains confined to specifications until then.
 
-After implementation and automated verification, present the complete
-documentation journey in the prepared site and stop for explicit
-documentation post-completion approval.
+After implementation and automated verification, review the complete
+documentation journey in the prepared site at desktop and mobile widths. The
+user waived another blocking approval stop; correct issues found by the review
+and record the evidence.
 
 ### 8. Final verification and truthful publication sequencing
 
@@ -393,9 +394,9 @@ support can be released before the approved current-content commit is pushed.
   direction gate.
 - **Manual downloads:** latest GitHub Release plus maintained documentation is
   preferred over introducing mutable per-target CDN aliases.
-- **Approval count:** four total human checkpoints: website direction,
-  website post-completion, documentation direction, and documentation
-  post-completion.
+- **Approval stops:** website direction and website post-completion were
+  explicitly approved. On 2026-09-14 the user waived the remaining
+  documentation approval stops while retaining rendered/headed self-review.
 - **Release/deployment:** no production release, push, tag, or site deployment
   occurs without explicit authorization at the relevant execution point.
 
@@ -437,15 +438,14 @@ support can be released before the approved current-content commit is pushed.
       evidence.
 - [x] Stop at the compatibility gate if any required target or direct user path
       is not genuinely verified.
-- [ ] Run headed competitor/local Playwright review and obtain website
+- [x] Run headed competitor/local Playwright review and obtain website
       direction approval.
-- [ ] Implement the approved website direction and obtain website
+- [x] Implement the approved website direction and obtain website
       post-completion visual approval.
-- [ ] Present and obtain documentation-direction approval.
-- [ ] Implement the approved documentation direction and obtain documentation
-      post-completion approval.
-- [ ] Run final local, browser, documentation, and native matrix verification.
-- [ ] Obtain explicit confirmation before release publication.
+- [x] Render and self-review the documentation direction.
+- [x] Implement and headed-review the completed documentation.
+- [x] Run final local, browser, documentation, and native matrix verification.
+- [x] Obtain explicit confirmation before release publication.
 - [ ] Publish and verify a new CLI version when authorized.
 - [ ] Land/deploy current website and documentation claims only after the
       public installers and archives are available.
@@ -571,3 +571,58 @@ support can be released before the approved current-content commit is pushed.
   native PowerShell installer with PowerShell/`cmd.exe` command discovery and
   isolated plugin installation. The compatibility gate is complete; website
   direction review is the next mandatory human checkpoint.
+- 2026-09-13: Headed Chromium review compared Pi, OpenCode, Goose, Aider, and
+  the current local homepage at desktop size plus the local homepage at mobile
+  size. The user approved a compact three-method hero chooser: macOS/Linux,
+  native Windows PowerShell, and manual download; no browser OS detection;
+  one content source; keyboard tabs; copied-state feedback; explicit
+  architecture/shell wording; and a later first-success step that links back
+  to the chooser instead of repeating an installer command.
+- 2026-09-13: Implemented the approved website direction locally without
+  pushing or deploying the new public claims. The hero now renders
+  macOS/Linux, Windows, and Manual methods from one content object; the
+  first-success guide links back to it and verifies `crystal-lattice --help`.
+  Focused content tests, analytics tests, 19 visual-framework tests, six
+  explicitly selected image-asset checks covering 12 derivatives, and the
+  complete 17-test Playwright suite pass. The same 17 browser tests also pass
+  headed. Nine headed production captures cover method selection,
+  keyboard-focus and copied states, light/dark themes, and desktop/mobile
+  widths. The aggregate visual-asset check remains blocked by the pre-existing
+  stale `mobile-workbench` generated runtime fixture; no visual source or
+  public derivative changed in this website work.
+- 2026-09-14: The user approved the website implementation subject to a final
+  minor refinement pass and waived another website approval stop. Increased
+  dark-mode compatibility-text contrast, changed the public Windows command
+  to the conventional `irm ... | iex` form, kept `macOS/Linux` on one line,
+  and made the chooser edge-to-edge below 480 px. The PowerShell smoke now
+  executes the same alias command shape. Focused application tests passed
+  14/14, and the complete 17-test Playwright suite passed against a dedicated
+  production preview after the refinements. Updated headed captures were
+  reviewed directly; desktop command visibility, mobile width, tab balance,
+  contrast, and manual-action hierarchy are accepted.
+- 2026-09-14: The user waived the remaining approval stops while asking work
+  to continue. Rendered and headed-reviewed a disposable four-page
+  documentation outline, then implemented package-owned installation
+  overview, macOS/Linux, Windows, and manual guides. Updated README,
+  quickstart, package index, MkDocs/LLM navigation, version maintenance,
+  current distribution guidance, and the download deployment runbook.
+  Focused documentation/version tests passed 8/8, docs-site preparation tests
+  passed 15/15, MkDocs preparation/build passed, all four routes returned 200,
+  and headed desktop/mobile light/dark review found no horizontal overflow.
+  The production landing-to-docs smoke passed against matching local servers.
+- 2026-09-14: Final verification passed. Public CI run `34860167834` was
+  green. Native workflow-dispatch run `34860183022` passed all six targets,
+  including the exact public `irm ... | iex` PowerShell path on Windows AMD64
+  and ARM64. The complete Core suite passed with 507 tests, 26 deselected, and
+  one expected xfail. The complete application suite passed with 435 tests,
+  one Windows-only skip, and 77 deselected. Documentation-site tests passed
+  17/17; landing content/analytics tests, production browser tests, docs
+  prepare/build, headed reviews, and the landing-to-docs smoke passed. The
+  aggregate visual-asset check still reports the pre-existing stale
+  `mobile-workbench` runtime fixture; all 12 maintained website image
+  derivatives and all repository-owned browser scenarios passed.
+- 2026-09-14: The user explicitly authorized the `v0.1.5` production release,
+  public endpoint verification, and subsequent website/documentation
+  deployment sequence. Preserve the content changes locally while the release
+  commit/tag publishes first, then push current public claims only after the
+  six archives and both installers are verified through the download domain.

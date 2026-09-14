@@ -28,8 +28,50 @@ sections:
         icon: github
         target: "_blank"
     install:
-      prompt: "$"
-      command: "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
+      ariaLabel: "Install Crystal Lattice"
+      defaultMethod: "macos-linux"
+      methods:
+        - id: "macos-linux"
+          tabLabel: "macOS/Linux"
+          panelLabel: "Terminal"
+          kind: "command"
+          prompt: "$"
+          command: "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
+          support: "macOS Intel or Apple silicon · Linux x64 or ARM64"
+          documentation:
+            label: "Installation guide"
+            href: "$docsUrl/packages/application-python/installation/"
+        - id: "windows"
+          tabLabel: "Windows"
+          panelLabel: "Windows PowerShell"
+          kind: "command"
+          prompt: "PS>"
+          command: "irm https://download.crystallattice.dev/crystal-lattice-cli/install.ps1 | iex"
+          support: "Windows x64 or ARM64 · No admin rights, Python, Git Bash, or WSL needed"
+          documentation:
+            label: "Installation guide"
+            href: "$docsUrl/packages/application-python/installation/"
+        - id: "manual"
+          tabLabel: "Manual"
+          panelLabel: "Manual download"
+          kind: "manual"
+          description: >-
+            Download an immutable release archive to inspect it, launch it
+            directly, or install the command yourself.
+          platforms:
+            - "macOS Intel"
+            - "macOS Apple silicon"
+            - "Linux x64"
+            - "Linux ARM64"
+            - "Windows x64"
+            - "Windows ARM64"
+          download:
+            label: "Open latest downloads"
+            href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/releases/latest"
+            target: "_blank"
+          documentation:
+            label: "Manual installation guide"
+            href: "$docsUrl/packages/application-python/installation/"
 
   - type: providers
     id: harness-strip
@@ -59,8 +101,12 @@ sections:
       title: "Run the local workspace"
       steps:
         - label: "Install the CLI"
+          text: "Choose the installation method for your platform above, then verify that the command is available."
+          link:
+            label: "Choose an installation method"
+            href: "#install"
           code: |
-            curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
+            $ crystal-lattice --help
         - label: "Start Crystal Lattice with local discovery"
           code: |
             mkdir -p ~/crystal-lattice-demo
