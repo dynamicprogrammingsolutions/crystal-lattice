@@ -253,12 +253,23 @@ pytest plugins/embedded-codex-tools/tests/test_luna_real_api.py \
   -m 'integration and api and openai' -q
 ```
 
-Run existing provider suites from the exact iOS ZIP and run the Release
-simulator API matrix:
+After building the iOS ZIP, run the selected direct provider integrations from
+that immutable artifact:
 
 ```bash
 npm run test:ios:embedded-providers:bundle
 npm run test:ios:embedded-providers:bundle:api
+```
+
+These commands select positively marked OpenAI Responses and OpenRouter
+provider tests only. They exclude unit, `AgentApplication`, plugin-install,
+and non-embedded-extension tests. Each provider gets a disposable dev-only
+dependency overlay; provider, `agent_core`, and `requests` imports must remain
+inside the prebuilt ZIP, and the archive hash must not change.
+
+Run the Release simulator API matrix separately:
+
+```bash
 npm run test:ios:embedded-providers:detox:api
 ```
 
