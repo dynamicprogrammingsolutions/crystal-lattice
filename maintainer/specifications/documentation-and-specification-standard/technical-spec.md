@@ -91,6 +91,8 @@ The guide uses this order:
    - unresolved public, persisted, compatibility, security, privacy, or
      user-visible behavior remains a question unless the decision is
      authorized;
+   - an approval-gated recommendation remains outside requirements and
+     implementation until approved;
    - progress notes in specifications are allowed when they clarify a
      meaningful current/target difference and remain shorter than the
      requirements they reference.
@@ -99,11 +101,12 @@ The guide uses this order:
      failure without mocking away the behavior;
    - distinguish unit/component, integration, end-to-end, hosted, and manual
      evidence by what each proves;
-   - use representative boundaries and regressions, avoid tests for unresolved
-     behavior, and avoid duplicate or combinatorial coverage without a
-     risk-based reason;
-   - record an unavailable decisive test as a gap rather than substituting a
-     weaker test and claiming verification;
+   - treat a mock that supplies or bypasses the claimed behavior as
+     non-decisive evidence;
+   - cite existing coverage only when it proves preserved behavior; otherwise
+     plan focused evidence or record the gap;
+   - avoid tests for unresolved behavior and duplicate coverage without a
+     distinct risk-based reason;
    - distinguish requirement acceptance from additional lower-level
      implementation robustness checks;
    - report decision-relevant verification before routine quality checks.
@@ -189,6 +192,10 @@ direct reference that supports the status. Shared task, pull-request, or commit
 references are recorded once below the table instead of repeated in every row.
 Longer evidence notes are keyed by requirement ID only when one concise cell is
 insufficient.
+
+Unresolved material behavior remains a question. A recommendation may explain
+tradeoffs, but it is not a completion obligation and does not authorize an
+implementation choice.
 
 ## Testing strategy and verification reporting
 

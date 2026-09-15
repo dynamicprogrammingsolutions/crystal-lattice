@@ -290,6 +290,6 @@ def current_task_guidance_source() -> GuidanceSource:
 
 def candidate_task_guidance_source() -> GuidanceSource:
     return GuidanceSource(
-        name="candidate-task-guidance-v2",
+        name="candidate-task-guidance-v3",
         paths=CURRENT_TASK_GUIDANCE_PATHS,
     )

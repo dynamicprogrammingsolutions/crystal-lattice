@@ -205,6 +205,8 @@ Ask before resolving unspecified public, persisted, compatibility, security,
 privacy, or user-visible behavior unless that decision is authorized.
 Do not invent fallback or error behavior for unspecified inputs.
 Easy-to-reverse code does not make a public contract a local choice.
+A recommendation may explain the tradeoff, but it stays outside requirements
+and implementation until approved.
 
 More analysis may discover more relevant considerations; it does not enlarge
 the approved completion state.
@@ -224,48 +226,42 @@ references once below the table; longer ID-keyed notes are exceptional.
 
 ## Plan testing around risks and boundaries
 
-For each requirement or coherent requirement group, identify the failure that
-must be detected and the lowest-cost boundary that can detect it reliably.
-
-> Use the least expensive test that proves the requirement without mocking
-> away the important boundary.
+Use the least expensive test that proves the requirement without mocking away
+the important boundary.
 
 | Test level | Use it for |
 |---|---|
-| Unit or component | Behavior proved within one calculation, component, or state transition. |
-| Integration | Contracts and failures that require real components, storage, transports, or adapters. |
-| End-to-end, hosted, or native | Critical paths or environments lower layers cannot represent. |
-| Manual | Perception, exploration, product judgment, or impractical automation. |
+| Unit or component | Local calculations, transformations, state transitions, and rendering behavior proved without another real component. |
+| Integration | Contracts and failures that appear only when real components, storage, transports, processes, or adapters interact. |
+| End-to-end, hosted, or native | Critical deployed paths or environments lower layers cannot represent faithfully. |
+| Manual | Perception, exploration, product judgment, or a real environment for which reliable automation is impractical. |
 
-A cheap test is not evidence when its mocks supply or bypass the claimed
-behavior. Use the real boundary when the requirement appears only there. If it
-is unavailable, record the gap instead of claiming verification through a
-weaker test.
+Choose the layer from the failure that must be detected, not from a desire to
+use every test type. Add integration coverage when an important requirement
+crosses a real boundary. A mock that supplies or bypasses the claimed behavior
+is not decisive evidence.
 
-Select representative accepted and rejected boundaries and regressions. Cite
-existing coverage only when it actually proves the preserved behavior. Do not
-multiply equivalent cases or test unresolved behavior.
+Cite existing coverage only when it actually proves preserved behavior.
+Otherwise plan focused evidence or record the gap. Do not test unresolved
+behavior.
 
 Assert exact values, structures, ordering, markup, calls, or source identity
 only when they are approved contract details. Otherwise test the observable
 outcome and its minimum stable properties.
 
-Requirement verification maps approved outcomes to decisive evidence.
-Additional implementation verification covers lower-level checks only for a
-distinct material risk. Routine quality checks are supporting evidence.
-
-Record important exclusions and remaining verification. Manual verification
-is complete only when a human performs or confirms it; a generated checklist
-remains a plan.
-
-Missing test infrastructure alone does not make automatable behavior manual.
-Plan the smallest harness or record why it is not proportionate.
+Avoid repeating the same assertion at every layer without a distinct
+risk-based reason. Record important exclusions and remaining verification.
 
 Create `testing-strategy.md` only when important crossings, expensive or manual
-checks, or durable exclusions need more explanation.
+checks, credible alternative approaches, or durable exclusions need more
+explanation.
 
 After implementation, report the few tests or observations that directly
-prove the requested outcome and state what remains unverified.
+prove the requested outcome and state what remains unverified. Routine
+formatting, lint, compilation, and broad test counts are supporting checks.
+
+Manual verification is complete only when a human performs or confirms it; a
+generated checklist remains a plan.
 
 ## Place, link, and generate documentation
 

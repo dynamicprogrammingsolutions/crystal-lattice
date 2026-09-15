@@ -195,10 +195,10 @@ producer provenance, prompt, target, mutation paths, and structural findings.
 For the paired working-tree candidate, use the same commands with:
 
 ```bash
-AGENT_EVAL_TASK_GUIDANCE_VARIANT=candidate-v2
+AGENT_EVAL_TASK_GUIDANCE_VARIANT=candidate-v3
 ```
 
-Candidate runs write `records/requirement-task-candidate.json` and use a
+Candidate runs write `records/requirement-task-candidate-v3.json` and use a
 separate dataset/cache identity. The current baseline guidance is pinned to
 commit `73a2f4bf`; candidate guidance is read from the working tree.
 
@@ -228,14 +228,20 @@ pytest \
   -m "agent_eval and requirement_semantic" -q
 ```
 
-For candidate-v2 task files, use:
+For candidate-v3 task files, use:
 
 ```bash
 AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_SEMANTIC_DATASET=task-candidate-v2 \
+AGENT_EVAL_SEMANTIC_DATASET=task-candidate-v3 \
 pytest \
   maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_semantic_evaluator.py \
   -m "agent_eval and requirement_semantic" -q
+```
+
+For a focused project batch, add a comma-separated subset such as:
+
+```bash
+AGENT_EVAL_SEMANTIC_CANDIDATES=glm-low,glm-max,gpt-high,gpt-max
 ```
 
 Freeze the accepted comparison inputs after all producer and semantic records
@@ -244,10 +250,11 @@ exist:
 ```bash
 PYTHONPATH=maintainer/agent-evaluation/src:maintainer/agent-evaluation:core/python:application/python \
 python -m suites.documentation_standard.freeze_requirement_quality_candidate_results \
-  --variant v2
+  --variant v3
 ```
 
-Use `--variant v1` only to reproduce the preserved first-candidate files.
+Use `--variant v1` or `--variant v2` only to reproduce preserved earlier
+candidate files.
 
 The task-current command is expected to fail quality assertions when a
 candidate omits required evidence, adds unsupported behavior, fragments

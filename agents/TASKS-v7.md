@@ -45,7 +45,7 @@ Creating a task file does not itself authorize execution.
 ### Questions and decisions
 
 - Ask before resolving a requirement question or changing the requirements checklist. After the answer, update the affected requirements and reconsider any existing plan.
-- In a retained plan, collect material decisions and questions immediately before documentation and give unresolved decisions a recommendation and tradeoffs. Resolve local, reversible implementation choices. Public APIs, persisted data, compatibility, security, privacy, and user-visible behavior are material; ask unless the user or approved task authorized that decision. Do not invent fallback or error behavior for unspecified inputs merely to complete the plan.
+- In a retained plan, collect material decisions and questions immediately before documentation and explain relevant tradeoffs. Give a recommendation only when useful, and keep it outside requirements and implementation until approved. Resolve local, reversible implementation choices. Public APIs, persisted data, compatibility, security, privacy, and user-visible behavior are material; ask unless the user or approved task authorized that decision. Do not invent fallback or error behavior for unspecified inputs merely to complete the plan.
 
 ### Single task (no subtasks): placement + naming
 
@@ -91,7 +91,7 @@ Use `## Execution plan`, followed immediately by `Status: Draft` or `Status: App
 
 End every plan with these H3 sections exactly once and in this order: `### Implementation decisions and open questions`, `### Documentation`, `### Task checklist`, `### Requirement verification`, then optional `### Additional implementation verification`. Do not use these headings earlier in the plan. Execution tasks use checkboxes.
 
-Requirement verification maps each requirement or coherent group to the smallest reliable evidence at the user-relevant or public boundary containing every approved condition. A mock is insufficient when it supplies or bypasses that behavior. Use representative accepted and rejected boundaries and regressions. Cite existing coverage only when it actually proves preserved behavior; otherwise plan focused evidence or record the gap. Do not test unresolved or unapproved behavior. Additional implementation verification covers only distinct material risks. Routine quality checks are supporting evidence.
+Requirement verification maps each requirement or coherent group to the smallest reliable evidence at the user-relevant or public boundary containing every approved condition. A mock that supplies or bypasses the claimed behavior is not decisive evidence. Cite existing coverage only when it actually proves preserved behavior; otherwise plan focused evidence or record the gap. Do not test unresolved or unapproved behavior. Additional implementation verification covers only distinct material risks. Routine quality checks are supporting evidence.
 
 Do not add implementation or completion notes during planning. Add `## Implementation Notes` only after execution starts and immutable `## Completion Notes` only after completion.
 

@@ -5,7 +5,12 @@ from collections.abc import Iterator
 
 import pytest
 
-from .requirement_quality import SCENARIOS, RequirementQualityScenario, load_target
+from .requirement_quality import (
+    PRODUCER_CASES,
+    SCENARIOS,
+    RequirementQualityScenario,
+    load_target,
+)
 from .requirement_quality_evaluator import (
     EVALUATOR_PROMPT_VERSION,
     build_evaluator_prompt,
@@ -16,6 +21,7 @@ from .requirement_quality_evaluator import (
     load_accepted_dataset,
     load_candidate_task_dataset,
     load_candidate_v2_task_dataset,
+    load_candidate_v3_task_dataset,
     load_task_dataset,
     parse_evaluator_response_with_repairs,
     task_quality_findings,
@@ -35,7 +41,9 @@ from .support import (
 pytestmark = [pytest.mark.agent_eval, pytest.mark.requirement_semantic]
 
 
-def _selected_dataset() -> tuple[dict, bool]:
+def _selected_dataset(
+    scenario: RequirementQualityScenario,
+) -> tuple[dict, bool]:
     name = os.getenv(
         "AGENT_EVAL_SEMANTIC_DATASET",
         "accepted",
@@ -48,9 +56,38 @@ def _selected_dataset() -> tuple[dict, bool]:
         return load_candidate_task_dataset(), True
     if name == "task-candidate-v2":
         return load_candidate_v2_task_dataset(), True
+    if name == "task-candidate-v3":
+        requested = tuple(
+            item.strip()
+            for item in os.getenv(
+                "AGENT_EVAL_SEMANTIC_CANDIDATES",
+                "",
+            ).split(",")
+            if item.strip()
+        )
+        valid_ids = {
+            f"{profile}-{effort}": (profile, effort)
+            for profile, effort in PRODUCER_CASES
+        }
+        unknown = set(requested).difference(valid_ids)
+        if unknown:
+            raise ValueError(
+                "unknown AGENT_EVAL_SEMANTIC_CANDIDATES: "
+                f"{sorted(unknown)!r}"
+            )
+        producer_cases = tuple(
+            valid_ids[candidate_id] for candidate_id in requested
+        ) or PRODUCER_CASES
+        return (
+            load_candidate_v3_task_dataset(
+                scenario_ids=(scenario.scenario_id,),
+                producer_cases=producer_cases,
+            ),
+            True,
+        )
     raise ValueError(
         "AGENT_EVAL_SEMANTIC_DATASET must be accepted, task-current, "
-        "task-candidate, or task-candidate-v2"
+        "task-candidate, task-candidate-v2, or task-candidate-v3"
     )
 
 
@@ -69,13 +106,13 @@ def semantic_evaluator_harness() -> Iterator[DocumentationEvaluationHarness]:
     "DOCGUIDE-006",
     "DOCVAL-010",
     "DOCVAL-011",
-        "DOCVAL-012",
+    "DOCVAL-012",
 )
 def test_requirement_quality_semantic_evaluator(
     semantic_evaluator_harness: DocumentationEvaluationHarness,
     scenario: RequirementQualityScenario,
 ) -> None:
-    dataset, assess_testing = _selected_dataset()
+    dataset, assess_testing = _selected_dataset(scenario)
     candidates = dataset_records_for_scenario(dataset, scenario)
     target = load_target(scenario)
     prompt = build_evaluator_prompt(

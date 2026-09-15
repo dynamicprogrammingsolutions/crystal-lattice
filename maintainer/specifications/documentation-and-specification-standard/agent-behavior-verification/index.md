@@ -15,6 +15,7 @@ Latest comparison:
 - [September 14, 2026 diverse-project requirement baseline](20260914-requirement-quality-baseline-results.md)
 - [September 15, 2026 requirement, task-guidance, and testing-plan comparison](20260915-requirement-task-testing-comparison.md)
 - [September 15, 2026 requirement/testing candidate results](20260915-requirement-testing-candidate-results.md)
+- [September 15, 2026 requirement/testing v3 results](20260915-requirement-testing-v3-results.md)
 
 Requirement-quality calibration:
 

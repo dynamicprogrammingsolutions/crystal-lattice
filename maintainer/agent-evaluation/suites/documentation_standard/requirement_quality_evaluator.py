@@ -6,7 +6,11 @@ import re
 from pathlib import Path
 from typing import Any, Iterable
 
-from .requirement_quality import PRODUCER_CASES, RequirementQualityScenario
+from .requirement_quality import (
+    PRODUCER_CASES,
+    SCENARIOS,
+    RequirementQualityScenario,
+)
 from .support import AssertionFinding, REPOSITORY_ROOT
 
 
@@ -20,7 +24,7 @@ ACCEPTED_ANCHORS_PATH = (
 DEFAULT_ARTIFACT_ROOT = (
     REPOSITORY_ROOT / "tmp" / "agent-evaluation" / "documentation-standard"
 )
-EVALUATOR_PROMPT_VERSION = "v2"
+EVALUATOR_PROMPT_VERSION = "v3"
 
 REQUIREMENT_CLASSIFICATIONS = {
     "traceable_target_outcome",
@@ -109,19 +113,35 @@ def load_candidate_v2_task_dataset(
     )
 
 
+def load_candidate_v3_task_dataset(
+    artifact_root: Path = DEFAULT_ARTIFACT_ROOT,
+    *,
+    scenario_ids: tuple[str, ...] | None = None,
+    producer_cases: tuple[tuple[str, str], ...] = PRODUCER_CASES,
+) -> dict[str, Any]:
+    return _load_task_dataset(
+        artifact_root=artifact_root,
+        dataset_id="candidate-task-guidance-v3-20260915",
+        test_prefix="requirement-task-candidate-v3",
+        scenario_ids=scenario_ids,
+        producer_cases=producer_cases,
+    )
+
+
 def _load_task_dataset(
     *,
     artifact_root: Path,
     dataset_id: str,
     test_prefix: str,
+    scenario_ids: tuple[str, ...] | None = None,
+    producer_cases: tuple[tuple[str, str], ...] = PRODUCER_CASES,
 ) -> dict[str, Any]:
     records: list[dict[str, Any]] = []
-    for scenario_id in (
-        "33-eleventy-archive-pagination",
-        "34-fastapi-notes-pagination",
-        "35-flask-vue-book-filter",
-    ):
-        for profile, effort in PRODUCER_CASES:
+    selected_scenarios = scenario_ids or tuple(
+        scenario.scenario_id for scenario in SCENARIOS
+    )
+    for scenario_id in selected_scenarios:
+        for profile, effort in producer_cases:
             pattern = (
                 f"*{test_prefix}-{scenario_id}-{effort}-*/"
                 f"records/{test_prefix}.json"
@@ -247,12 +267,18 @@ def dataset_records_for_scenario(
     ]
     expected = [f"{profile}-{effort}" for profile, effort in PRODUCER_CASES]
     by_id = {record["candidate_id"]: record for record in values}
-    if set(by_id) != set(expected):
+    unknown = set(by_id).difference(expected)
+    if not by_id or unknown:
         raise ValueError(
-            f"dataset candidates for {scenario.scenario_id} do not match "
-            f"the producer matrix: expected={expected!r}, got={sorted(by_id)!r}"
+            f"dataset candidates for {scenario.scenario_id} are empty or "
+            f"outside the producer matrix: unknown={sorted(unknown)!r}, "
+            f"got={sorted(by_id)!r}"
         )
-    return [by_id[candidate_id] for candidate_id in expected]
+    return [
+        by_id[candidate_id]
+        for candidate_id in expected
+        if candidate_id in by_id
+    ]
 
 
 def dataset_sha256(dataset: dict[str, Any]) -> str:
@@ -408,6 +434,11 @@ Apply these distinctions:
   behavior unspecified and does not explicitly grant design latitude, every
   concrete selected behavior is an unresolved design choice even if it seems
   natural or necessary to implement something.
+- A question or recommendation that explicitly remains outside requirements
+  and implementation pending approval is not an added obligation and does not
+  increase expansion severity. Classify it only if the candidate makes the
+  proposed behavior part of the completion contract or selects it in the
+  implementation plan before approval.
 - Unsupported public behavior adds an observable contract not requested or
   approved.
 - An implementation constraint mandates technology, architecture, algorithm,
@@ -528,14 +559,14 @@ def parse_evaluator_response_with_repairs(
         except json.JSONDecodeError as error:
             position = error.pos
             missing_candidate_close = (
-                position >= 2
+                2 <= position < len(value)
                 and value[position] == "{"
                 and value[position - 1] == ","
                 and value[position - 2] == "}"
                 and value.startswith('{"candidate_id"', position)
             )
             missing_final_candidate_close = (
-                position >= 1
+                1 <= position < len(value)
                 and value[position] == "]"
                 and value[position - 1] == "}"
                 and value[position:] == "]}"
@@ -554,8 +585,23 @@ def parse_evaluator_response_with_repairs(
                     f"character {position}"
                 )
                 continue
-            if not missing_candidate_close:
-                raise
+            previous = position - 1
+            while previous >= 0 and value[previous].isspace():
+                previous -= 1
+            trailing_comma = (
+                position < len(value)
+                and value[position] in "}]"
+                and previous >= 0
+                and value[previous] == ","
+            )
+            if trailing_comma:
+                value = value[:previous] + value[previous + 1 :]
+                repairs.append(
+                    "removed trailing comma before closing delimiter near "
+                    f"character {position}"
+                )
+                continue
+            raise
     else:
         raise json.JSONDecodeError(
             "too many evaluator response repairs",

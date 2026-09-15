@@ -800,10 +800,11 @@ maintainer guidance and evaluation infrastructure.
   workspace.
 - [x] Refine only failed wording and rerun the smallest affected slice.
 - [x] Present the requirement/testing candidate comparison for human review.
-- [ ] Apply the approved selective v3 requirement/testing ablation.
-- [ ] Run and semantically assess the known-sensitive v3 cells.
-- [ ] Run the full 21-cell v3 matrix only if the focused comparison improves.
-- [ ] Present the v3 comparison for final guidance acceptance.
+- [x] Apply the approved selective v3 requirement/testing ablation.
+- [x] Run and semantically assess the known-sensitive v3 cells.
+- [x] Run the full 21-cell v3 producer matrix after the focused comparison
+  improved.
+- [x] Present the v3 comparison for final guidance acceptance.
 - [ ] Specify three single-task scenarios.
 - [ ] Specify three task-directory scenarios.
 - [ ] Implement guidance-bearing planning branches.
@@ -891,3 +892,29 @@ maintainer guidance and evaluation infrastructure.
   task-creation structure, retain and refine the complete-coverage requirement
   direction, treat approval-gated recommendations as expansion only when they
   become normative, and run the shorter testing ablation before decomposition.
+- September 15, 2026: Committed the approved current/v1/v2 checkpoint as
+  `5dda344e`, then applied candidate v3. V3 retains all v2 task-structure rules,
+  makes approval-gated recommendations non-normative, removes recurring
+  accepted/rejected-boundary and missing-harness instructions, and keeps only
+  mock-bypass and actual-existing-coverage testing refinements. The combined
+  documentation/TASKS guidance hash is
+  `5c81cf48b78b999d8754276ab6d8805ffb8b1fed48559ed6d465993eaf9c846e`.
+- September 15, 2026: All ten sensitive v3 producers passed task-only
+  structure and mutation checks. Against those same cells, v3 improved over v2
+  from 1 to 3 complete testing plans, 3 to 5 appropriate primary layers, and
+  one poor layer to none. Important crossings remained 8/10. Requirement
+  expansion was 2 none, 5 low, and 3 medium; all ten requirement sets were
+  complete. This satisfies the approved improvement gate for running the
+  remaining eleven producer cells without changing guidance.
+- September 15, 2026: The remaining eleven v3 producers also passed, completing
+  a 21/21 structurally valid task-only matrix. Every record uses guidance-source
+  hash `e774becd184a8154dacd50bfc82c05132b444937c3cb687a4b9ae599ba720bef`
+  and leaves exactly one task-file mutation.
+- September 15, 2026: Full v3 semantic evaluation reports 21/21 complete
+  requirement sets with 7 none, 10 low, and 4 medium expansion assessments.
+  Testing improves to 13 complete and 8 partial plans, with 16 appropriate and
+  5 mixed primary layers, 19/21 important crossings, no poor layers, and
+  21/21 focused or mixed-but-bounded verification. Frozen records and the
+  final acceptance recommendation are in
+  `agent-behavior-verification/20260915-requirement-testing-v3-results.md`.
+  Final human acceptance remains pending; decomposition work has not started.

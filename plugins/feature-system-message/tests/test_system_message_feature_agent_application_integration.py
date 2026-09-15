@@ -709,6 +709,6 @@ def test_portable_default_tasks_toggle_includes_tasks_section_when_enabled(
         )
         assert "remove incidental changes before handoff" in system_text
         assert (
-            "A mock is insufficient when it supplies or bypasses that behavior"
-            in system_text
-        )
+            "A mock that supplies or bypasses the claimed behavior is not "
+            "decisive evidence"
+        ) in system_text

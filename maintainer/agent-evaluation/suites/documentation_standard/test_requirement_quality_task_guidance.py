@@ -41,14 +41,14 @@ def _selected_task_dataset():
             "requirement-task-current",
             current_task_guidance_source(),
         )
-    if name == "candidate-v2":
+    if name == "candidate-v3":
         return (
-            "candidate-task-guidance-v2-20260915",
-            "requirement-task-candidate-v2",
+            "candidate-task-guidance-v3-20260915",
+            "requirement-task-candidate-v3",
             candidate_task_guidance_source(),
         )
     raise ValueError(
-        "AGENT_EVAL_TASK_GUIDANCE_VARIANT must be current or candidate-v2"
+        "AGENT_EVAL_TASK_GUIDANCE_VARIANT must be current or candidate-v3"
     )
 
 
@@ -173,7 +173,7 @@ def _task_structure_findings(files: dict[str, str]) -> tuple[AssertionFinding, .
     "DOCGUIDE-006",
     "DOCVAL-010",
     "DOCVAL-011",
-        "DOCVAL-012",
+    "DOCVAL-012",
 )
 def test_requirement_quality_with_current_task_guidance(
     requirement_task_harness: DocumentationEvaluationHarness,

@@ -155,13 +155,14 @@ must remain durable before implementation, it stays with the specification.
   language.
 - Keep requirements limited to necessary, traceable approved outcomes and
   constraints; group variants proportionately and surface unspecified public
-  behavior as a question instead of silently selecting it.
+  behavior as a question instead of silently selecting it. Recommendations
+  remain outside the completion contract until approved.
 - Keep primary evidence concise and directly related to requirement
   validation.
 - Give agents practical guidance for choosing the lowest-cost reliable test
-  boundary, identifying important crossings, recording an unavailable
-  decisive test as a gap, avoiding brittle implementation/source assertions
-  outside the required contract, and recording tests intentionally omitted.
+  boundary, identifying important crossings, avoiding brittle
+  implementation/source assertions outside the required contract, and
+  distinguishing decisive evidence from supporting checks.
 - Make completion reports emphasize decisive acceptance evidence rather than
   routine quality-check counts.
 - Preserve scope, ownership, source-of-truth, validation, and publication
@@ -236,7 +237,9 @@ Only user-approved outcomes and constraints become requirements.
 When implementation requires a choice about a public API, persisted data,
 compatibility, security, privacy, or user-visible behavior, the agent records a
 question unless that class of decision is already authorized. Easy-to-reverse
-code does not make the public contract a local implementation choice.
+code does not make the public contract a local implementation choice. A
+recommendation may explain the tradeoff but does not become a requirement or
+implementation decision until approved.
 
 Requirement-quality evaluation uses several small tasks from different project
 types. The implementing agent maps generated requirements to the approved
@@ -254,11 +257,10 @@ easy to compare. If behavior crosses plugin, backend, transport, and frontend
 boundaries, at least one test reaches the important real crossing rather than
 replacing it with mocks.
 
-If the important boundary is unavailable, the plan records the missing
-evidence rather than substituting a weaker mocked test and claiming the
-requirement is verified. Representative boundaries and regressions are
-preferred over exhaustive operation-by-state combinations, and unresolved
-behavior is not turned into a test target.
+Existing coverage is evidence only when it proves the required behavior. When
+it does not, the plan identifies focused evidence or records the gap.
+Representative checks are preferred over exhaustive operation-by-state
+combinations, and unresolved behavior is not turned into a test target.
 
 ### Early user-documentation draft
 

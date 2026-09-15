@@ -132,6 +132,7 @@ def test_candidate_task_guidance_contains_the_approved_replacements() -> None:
     )
 
     assert candidate.paths == current.paths
+    assert candidate.name == "candidate-task-guidance-v3"
     assert candidate.sha256() != current.sha256()
     assert "minimum approved outcomes and constraints" in text
     assert (
@@ -139,7 +140,13 @@ def test_candidate_task_guidance_contains_the_approved_replacements() -> None:
         in text
     )
     assert "Do not invent fallback or error behavior" in text
-    assert "A mock is insufficient when it supplies or bypasses that behavior" in text
+    assert (
+        "A mock that supplies or bypasses the claimed behavior is not "
+        "decisive evidence"
+    ) in text
+    assert "keep it outside requirements and implementation until approved" in text
+    assert "representative accepted and rejected boundaries" not in text
+    assert "Missing test infrastructure alone" not in text
     assert "do not install dependencies or create scratch implementations" in text
     assert "remove incidental changes before handoff" in text
     assert "testing strategy" not in scenario_task_file_prompt(SCENARIOS[0]).lower()
@@ -212,6 +219,8 @@ def test_semantic_evaluator_prompt_and_schema_round_trip() -> None:
     parsed = parse_evaluator_response(json.dumps(result))
 
     assert "Requirement count is not a verdict" in prompt
+    assert "outside requirements" in prompt
+    assert "not an added obligation" in prompt
     assert set(REQUIREMENT_CLASSIFICATIONS)
     assert set(SIGNALS)
     validate_evaluator_result(
@@ -222,6 +231,20 @@ def test_semantic_evaluator_prompt_and_schema_round_trip() -> None:
         candidate_ids=[candidate["candidate_id"]],
         assess_testing=False,
     )
+
+    subset = {
+        **dataset,
+        "records": [
+            record
+            for record in dataset["records"]
+            if record["scenario_id"] == scenario.scenario_id
+            and record["candidate_id"] in {"glm-max", "gpt-medium"}
+        ],
+    }
+    assert [
+        record["candidate_id"]
+        for record in dataset_records_for_scenario(subset, scenario)
+    ] == ["glm-max", "gpt-medium"]
 
     repair_fixture = {
         "assessments": [
@@ -264,6 +287,23 @@ def test_semantic_evaluator_prompt_and_schema_round_trip() -> None:
     assert repaired_final == final_fixture
     assert len(final_repairs) == 1
 
+    trailing_comma_fixture = {
+        "schema_version": 1,
+        "values": [{"name": "one"}],
+    }
+    trailing_comma_text = json.dumps(
+        trailing_comma_fixture,
+        indent=2,
+    ).replace(
+        '"one"\n    }',
+        '"one",\n    }',
+    )
+    repaired_trailing, trailing_repairs = (
+        parse_evaluator_response_with_repairs(trailing_comma_text)
+    )
+    assert repaired_trailing == trailing_comma_fixture
+    assert len(trailing_repairs) == 1
+
 
 def test_frozen_task_and_semantic_datasets_are_complete() -> None:
     task_dataset = json.loads(TASK_DATASET_OUTPUT.read_text(encoding="utf-8"))
@@ -301,23 +341,33 @@ def test_frozen_candidate_datasets_are_complete() -> None:
     variants = (
         (
             "candidate-task-guidance-20260915",
+            "v2",
             fixture_root
             / "candidate_task_guidance_requirement_quality_dataset.json",
             fixture_root / "requirement_quality_candidate_semantic_results.json",
         ),
         (
             "candidate-task-guidance-v2-20260915",
+            "v2",
             fixture_root
             / "candidate_v2_task_guidance_requirement_quality_dataset.json",
             fixture_root
             / "requirement_quality_candidate_v2_semantic_results.json",
+        ),
+        (
+            "candidate-task-guidance-v3-20260915",
+            "v3",
+            fixture_root
+            / "candidate_v3_task_guidance_requirement_quality_dataset.json",
+            fixture_root
+            / "requirement_quality_candidate_v3_semantic_results.json",
         ),
     )
     expected_candidates = {
         f"{profile}-{effort}" for profile, effort in PRODUCER_CASES
     }
 
-    for dataset_id, task_path, semantic_path in variants:
+    for dataset_id, prompt_version, task_path, semantic_path in variants:
         task_dataset = json.loads(task_path.read_text(encoding="utf-8"))
         semantic_dataset = json.loads(
             semantic_path.read_text(encoding="utf-8")
@@ -328,6 +378,10 @@ def test_frozen_candidate_datasets_are_complete() -> None:
             PRODUCER_CASES
         )
         assert len(semantic_dataset["results"]) == len(SCENARIOS)
+        assert {
+            result["evaluator"]["prompt_version"]
+            for result in semantic_dataset["results"]
+        } == {prompt_version}
         for scenario in SCENARIOS:
             assert {
                 record["candidate_id"]

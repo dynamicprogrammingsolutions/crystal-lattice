@@ -12,6 +12,7 @@ from .requirement_quality_evaluator import (
     EVALUATOR_PROMPT_VERSION,
     load_candidate_task_dataset,
     load_candidate_v2_task_dataset,
+    load_candidate_v3_task_dataset,
 )
 
 
@@ -19,6 +20,7 @@ FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures"
 VARIANTS = {
     "v1": {
         "dataset_id": "candidate-task-guidance-20260915",
+        "prompt_version": "v2",
         "loader": load_candidate_task_dataset,
         "task_output": (
             FIXTURE_ROOT
@@ -30,6 +32,7 @@ VARIANTS = {
     },
     "v2": {
         "dataset_id": "candidate-task-guidance-v2-20260915",
+        "prompt_version": "v2",
         "loader": load_candidate_v2_task_dataset,
         "task_output": (
             FIXTURE_ROOT
@@ -40,6 +43,19 @@ VARIANTS = {
             / "requirement_quality_candidate_v2_semantic_results.json"
         ),
     },
+    "v3": {
+        "dataset_id": "candidate-task-guidance-v3-20260915",
+        "prompt_version": EVALUATOR_PROMPT_VERSION,
+        "loader": load_candidate_v3_task_dataset,
+        "task_output": (
+            FIXTURE_ROOT
+            / "candidate_v3_task_guidance_requirement_quality_dataset.json"
+        ),
+        "semantic_output": (
+            FIXTURE_ROOT
+            / "requirement_quality_candidate_v3_semantic_results.json"
+        ),
+    },
 }
 
 
@@ -47,6 +63,7 @@ def _semantic_record_path(
     artifact_root: Path,
     scenario_id: str,
     dataset_id: str,
+    prompt_version: str,
 ) -> Path:
     pattern = (
         f"*requirement-semantic-{dataset_id}-{scenario_id}-*/"
@@ -61,7 +78,7 @@ def _semantic_record_path(
             value.get("dataset_id") == dataset_id
             and value.get("scenario_id") == scenario_id
             and isinstance(evaluator, dict)
-            and evaluator.get("prompt_version") == EVALUATOR_PROMPT_VERSION
+            and evaluator.get("prompt_version") == prompt_version
         ):
             matching.append(path)
     if not matching:
@@ -91,12 +108,14 @@ def freeze_candidate_semantic_results(
     variant: str,
 ) -> dict[str, Any]:
     dataset_id = str(VARIANTS[variant]["dataset_id"])
+    prompt_version = str(VARIANTS[variant]["prompt_version"])
     results: list[dict[str, Any]] = []
     for scenario in SCENARIOS:
         source = _semantic_record_path(
             artifact_root,
             scenario.scenario_id,
             dataset_id,
+            prompt_version,
         )
         raw = source.read_bytes()
         results.append(
