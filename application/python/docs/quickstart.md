@@ -5,18 +5,16 @@ and verifies a concrete response without requiring provider credentials.
 
 ## Install
 
-Install the supported bundled-Python command:
+Choose the supported method for your platform:
 
-```bash
-curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
-```
+- [macOS or Linux](installation-macos-linux.md)
+- [Windows PowerShell](installation-windows.md)
+- [Manual archive installation](installation-manual.md)
 
-Review the installer before running it when required by your environment:
+Then verify:
 
-```bash
-curl -fsSLO https://download.crystallattice.dev/crystal-lattice-cli/install.sh
-less install.sh
-bash install.sh
+```console
+crystal-lattice --help
 ```
 
 For source development, run from the repository root:

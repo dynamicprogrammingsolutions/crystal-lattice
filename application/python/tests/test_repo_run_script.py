@@ -22,6 +22,7 @@ WRAPPED_SCRIPTS = {
     "test:cli:source-install",
     "test:cli:archive",
     "test:cli:default-install",
+    "test:cli:powershell-install",
     "test:core:integration",
     "test:application:integration",
     "test:ollama",
@@ -235,6 +236,10 @@ def test_cli_distribution_scripts_use_the_isolated_runner():
     assert (
         scripts["test:cli:default-install"] == "python scripts/repo_run.py python "
         "application/python/scripts/run_distribution_smoke.py default-install"
+    )
+    assert (
+        scripts["test:cli:powershell-install"] == "python scripts/repo_run.py python "
+        "application/python/scripts/run_distribution_smoke.py powershell-install"
     )
 
 

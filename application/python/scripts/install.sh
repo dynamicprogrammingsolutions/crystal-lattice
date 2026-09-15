@@ -57,12 +57,14 @@ detect_target() {
     Linux)
       case "$arch" in
         x86_64 | amd64) printf 'linux-amd64\n' ;;
+        arm64 | aarch64) printf 'linux-arm64\n' ;;
         *) fail "unsupported Linux architecture: $arch" ;;
       esac
       ;;
     MINGW* | MSYS* | CYGWIN*)
       case "$arch" in
         x86_64 | amd64) printf 'windows-amd64\n' ;;
+        arm64 | aarch64) printf 'windows-arm64\n' ;;
         *) fail "unsupported Windows architecture for Git Bash installer: $arch" ;;
       esac
       ;;

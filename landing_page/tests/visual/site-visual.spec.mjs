@@ -17,6 +17,7 @@ const scenarios = [
     route: "/",
     viewport: { width: 1440, height: 1000 },
     sections: [
+      ["hero", "#hero"],
       ["local-connectivity", "#computer-to-phone"],
       ["bridge", "#bridge"],
       ["provider-features", "#native-provider-features"],
@@ -28,6 +29,7 @@ const scenarios = [
     route: "/",
     viewport: { width: 390, height: 844 },
     sections: [
+      ["hero", "#hero"],
       ["local-connectivity", "#computer-to-phone"],
       ["bridge", "#bridge"],
       ["provider-features", "#native-provider-features"],

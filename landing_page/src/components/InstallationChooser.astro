@@ -1,0 +1,229 @@
+---
+import InstallationCommandPanel from "./InstallationCommandPanel.astro";
+import type { InstallationChooserContent } from "../content/pageTypes";
+
+interface Props {
+  install: InstallationChooserContent;
+}
+
+const { install } = Astro.props;
+const methods = Array.isArray(install.methods) ? install.methods : [];
+const defaultMethod =
+  methods.find((method) => method.id === install.defaultMethod) ?? methods[0];
+const arrowIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+---
+
+<div
+  id="install"
+  class="installation-chooser w-full scroll-mt-24 overflow-hidden rounded-xl border border-line bg-raised text-left shadow-[0_18px_50px_rgba(0,0,0,0.16)] max-[480px]:w-screen max-[480px]:rounded-none max-[480px]:border-x-0"
+  data-installation-chooser
+>
+  <div class="border-b border-line bg-code p-1.5">
+    <div
+      class="grid grid-cols-3 gap-1"
+      role="tablist"
+      aria-label={install.ariaLabel}
+    >
+      {methods.map((method) => {
+        const selected = method.id === defaultMethod?.id;
+        return (
+          <button
+            type="button"
+            id={`install-tab-${method.id}`}
+            class="installation-tab min-w-0 cursor-pointer whitespace-nowrap rounded-lg border-0 px-3 py-2.5 text-center text-[0.8125rem] font-semibold leading-tight text-fg-4 transition-colors"
+            role="tab"
+            aria-selected={selected ? "true" : "false"}
+            aria-controls={`install-panel-${method.id}`}
+            tabindex={selected ? "0" : "-1"}
+            data-install-tab
+          >
+            {method.tabLabel}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+
+  {methods.map((method) => {
+    const selected = method.id === defaultMethod?.id;
+    return (
+      <section
+        id={`install-panel-${method.id}`}
+        class="installation-panel"
+        role="tabpanel"
+        aria-labelledby={`install-tab-${method.id}`}
+        tabindex="0"
+        hidden={!selected}
+        data-install-panel
+      >
+        {method.kind === "command" ? (
+          <InstallationCommandPanel method={method} arrowIcon={arrowIcon} />
+        ) : (
+          <div class="flex min-h-[174px] flex-col justify-between gap-5 px-5 py-5 sm:px-6">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">
+                {method.panelLabel}
+              </p>
+              <p class="mt-2 max-w-[650px] text-sm leading-relaxed text-fg-4">
+                {method.description}
+              </p>
+              <ul class="mt-4 flex flex-wrap gap-2" aria-label="Available release archives">
+                {method.platforms.map((platform) => (
+                  <li class="rounded-md border border-line bg-code px-2.5 py-1 font-mono text-[0.6875rem] text-fg-3">
+                    {platform}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <a
+                href={method.download.href}
+                target={method.download.target}
+                rel={method.download.target ? "noopener" : undefined}
+                class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover hover:text-white"
+              >
+                {method.download.label}
+                <Fragment set:html={arrowIcon} />
+              </a>
+              <a
+                href={method.documentation.href}
+                target={method.documentation.target}
+                rel={method.documentation.target ? "noopener" : undefined}
+                class="inline-flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm font-semibold text-fg-3 transition-colors hover:border-line-strong hover:text-fg"
+              >
+                {method.documentation.label}
+              </a>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  })}
+</div>
+
+<script>
+  const copyIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+  const checkIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+  async function writeClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.append(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+  }
+
+  function initializeInstallationChooser(root: HTMLElement) {
+    if (root.dataset.installationChooserReady === "true") return;
+    root.dataset.installationChooserReady = "true";
+
+    const tabs = Array.from(
+      root.querySelectorAll<HTMLButtonElement>("[data-install-tab]"),
+    );
+    const panels = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-install-panel]"),
+    );
+
+    function selectTab(tab: HTMLButtonElement, focus = true) {
+      for (const candidate of tabs) {
+        const selected = candidate === tab;
+        candidate.setAttribute("aria-selected", selected ? "true" : "false");
+        candidate.tabIndex = selected ? 0 : -1;
+      }
+      for (const panel of panels) {
+        panel.hidden = panel.id !== tab.getAttribute("aria-controls");
+      }
+      if (focus) tab.focus();
+    }
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => selectTab(tab, false));
+      tab.addEventListener("keydown", (event) => {
+        let nextIndex: number | null = null;
+        if (event.key === "ArrowRight") {
+          nextIndex = (index + 1) % tabs.length;
+        } else if (event.key === "ArrowLeft") {
+          nextIndex = (index - 1 + tabs.length) % tabs.length;
+        } else if (event.key === "Home") {
+          nextIndex = 0;
+        } else if (event.key === "End") {
+          nextIndex = tabs.length - 1;
+        }
+        if (nextIndex === null) return;
+        event.preventDefault();
+        selectTab(tabs[nextIndex]);
+      });
+    });
+
+    root
+      .querySelectorAll<HTMLButtonElement>("[data-install-copy]")
+      .forEach((button) => {
+        button.addEventListener("click", async () => {
+          const sourceId = button.getAttribute("aria-controls");
+          const source = sourceId ? document.getElementById(sourceId) : null;
+          const command = source?.textContent?.trim();
+          if (!command) return;
+
+          await writeClipboard(command);
+          const originalLabel = button.dataset.copyLabel ?? "Copy install command";
+          const copiedLabel = button.dataset.copiedLabel ?? "Copied install command";
+          const status = button.parentElement?.querySelector<HTMLElement>(
+            "[data-copy-status]",
+          );
+          button.innerHTML = checkIcon;
+          button.setAttribute("aria-label", copiedLabel);
+          button.dataset.copied = "true";
+          if (status) status.textContent = copiedLabel;
+          window.setTimeout(() => {
+            button.innerHTML = copyIcon;
+            button.setAttribute("aria-label", originalLabel);
+            button.dataset.copied = "false";
+            if (status) status.textContent = "";
+          }, 1400);
+        });
+      });
+  }
+
+  function initializeInstallationChoosers() {
+    document
+      .querySelectorAll<HTMLElement>("[data-installation-chooser]")
+      .forEach(initializeInstallationChooser);
+  }
+
+  initializeInstallationChoosers();
+  document.addEventListener("astro:page-load", initializeInstallationChoosers);
+</script>
+
+<style>
+  .installation-tab:hover {
+    color: var(--text-2);
+    background: color-mix(in srgb, var(--bg-surface) 58%, transparent);
+  }
+
+  .installation-tab[aria-selected="true"] {
+    color: var(--text);
+    background: var(--bg-surface);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .installation-tab:focus-visible,
+  .installation-panel:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  @media (max-width: 360px) {
+    .installation-tab {
+      padding-inline: 0.35rem;
+      font-size: 0.72rem;
+    }
+  }
+</style>

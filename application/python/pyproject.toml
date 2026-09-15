@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crystal-lattice-cli"
-version = "0.1.1"
+version = "0.1.5"
 description = "Crystal Lattice command-line and HTTP frontend for agent-core"
 readme = "README.md"
 requires-python = ">=3.10"

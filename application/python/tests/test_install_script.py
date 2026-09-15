@@ -172,6 +172,23 @@ def test_install_script_installs_linux_tarball_to_isolated_paths(
     )
 
 
+def test_install_script_installs_linux_arm64_tarball(tmp_path: Path) -> None:
+    stem = "crystal-lattice-python-runtime-v9.8.7-linux-arm64"
+    archive = _make_posix_archive(tmp_path, stem)
+
+    result, requested_url, install_root, bin_dir = _run_installer(
+        tmp_path,
+        archive=archive,
+        uname_s="Linux",
+        uname_m="aarch64",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert requested_url.read_text(encoding="utf-8").strip().endswith(f"/{stem}.tar.gz")
+    assert (install_root / stem / "bin" / "crystal-lattice").is_file()
+    assert (bin_dir / "crystal-lattice").is_file()
+
+
 def test_install_script_installs_windows_zip_from_git_bash(tmp_path: Path) -> None:
     stem = "crystal-lattice-python-runtime-v9.8.7-windows-amd64"
     archive = _make_windows_archive(tmp_path, stem)
@@ -195,6 +212,26 @@ def test_install_script_installs_windows_zip_from_git_bash(tmp_path: Path) -> No
     windows_shim = bin_dir / "crystal-lattice.cmd"
     assert windows_shim.is_file()
     assert "call " in windows_shim.read_text(encoding="utf-8")
+
+
+def test_install_script_installs_windows_arm64_zip_from_git_bash(
+    tmp_path: Path,
+) -> None:
+    stem = "crystal-lattice-python-runtime-v9.8.7-windows-arm64"
+    archive = _make_windows_archive(tmp_path, stem)
+
+    result, requested_url, install_root, bin_dir = _run_installer(
+        tmp_path,
+        archive=archive,
+        uname_s="MINGW64_NT-10.0",
+        uname_m="aarch64",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert requested_url.read_text(encoding="utf-8").strip().endswith(f"/{stem}.zip")
+    assert (install_root / stem / "Scripts" / "crystal-lattice.cmd").is_file()
+    assert (bin_dir / "crystal-lattice").is_file()
+    assert (bin_dir / "crystal-lattice.cmd").is_file()
 
 
 def test_install_script_selects_existing_user_bin_from_path(tmp_path: Path) -> None:
@@ -383,7 +420,7 @@ def test_install_script_rejects_unsupported_windows_architecture(
         tmp_path,
         archive=archive,
         uname_s="MINGW64_NT-10.0",
-        uname_m="aarch64",
+        uname_m="riscv64",
     )
 
     assert result.returncode != 0

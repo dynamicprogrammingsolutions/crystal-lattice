@@ -11,6 +11,12 @@ extra:
   crystal_lattice:
     site_url: !ENV [PUBLIC_CRYSTAL_LATTICE_SITE_URL, "https://crystallattice.dev"]
     docs_url: !ENV [PUBLIC_CRYSTAL_LATTICE_DOCS_URL, "https://docs.crystallattice.dev"]
+    analytics:
+      script_url: !ENV [PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL, ""]
+      website_id: !ENV [PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID, ""]
+
+hooks:
+  - hooks/analytics.py
 
 theme:
   name: material
@@ -81,6 +87,10 @@ plugins:
           - development/specifications/bridge-connectivity/technical-spec.md: Bridge-connectivity technical contract.
           - development/specifications/bridge-connectivity/protocol.md: Bridge-connectivity wire protocol.
         Guides:
+          - packages/application-python/installation.md: Choose a Crystal Lattice CLI installation method.
+          - packages/application-python/installation-macos-linux.md: Install the CLI on macOS or Linux.
+          - packages/application-python/installation-windows.md: Install the CLI with native Windows PowerShell.
+          - packages/application-python/installation-manual.md: Download, extract, and run a release archive manually.
           - plugin-development/overview.md: General plugin authoring and packaging guide.
           - packages/application-python/configuration.md: Application plugin configuration and examples.
         Current Plugin Docs:
@@ -124,6 +134,11 @@ plugins:
 nav:
   - Overview: index.md
   - Guides:
+    - Installation:
+      - Choose a method: packages/application-python/installation.md
+      - macOS and Linux: packages/application-python/installation-macos-linux.md
+      - Windows: packages/application-python/installation-windows.md
+      - Manual: packages/application-python/installation-manual.md
     - Application Configuration: packages/application-python/configuration.md
     - Plugin System Overview: plugin-development/overview.md
   - Packages:
@@ -134,6 +149,7 @@ nav:
         - Development: packages/core-python/development/index.md
       - Terminal and HTTP Application:
         - Terminal and HTTP Application: packages/application-python/index.md
+        - Quickstart: packages/application-python/quickstart.md
         - Development: packages/application-python/development/index.md
     - Frontend SDKs and components:
       - Frontend SDK:

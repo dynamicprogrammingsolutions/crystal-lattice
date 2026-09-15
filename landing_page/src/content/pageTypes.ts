@@ -19,6 +19,40 @@ export type LinkAction = {
   target?: string;
 };
 
+export type InstallationLink = {
+  label: string;
+  href: string;
+  target?: string;
+};
+
+export type InstallationCommandMethod = {
+  id: string;
+  tabLabel: string;
+  panelLabel: string;
+  kind: "command";
+  prompt: string;
+  command: string;
+  support: string;
+  documentation: InstallationLink;
+};
+
+export type InstallationManualMethod = {
+  id: string;
+  tabLabel: string;
+  panelLabel: string;
+  kind: "manual";
+  description: string;
+  platforms: string[];
+  download: InstallationLink;
+  documentation: InstallationLink;
+};
+
+export type InstallationChooserContent = {
+  ariaLabel: string;
+  defaultMethod: string;
+  methods: Array<InstallationCommandMethod | InstallationManualMethod>;
+};
+
 export type CodeSnippet = {
   language?: string;
   value: string;
@@ -41,11 +75,7 @@ export type HeroSection = SectionBase<"hero"> & {
   titleHtml: string;
   subtitle: string;
   actions?: LinkAction[];
-  install: {
-    prompt: string;
-    command: string;
-    altHtml: string;
-  };
+  install: InstallationChooserContent;
 };
 
 export type ProvidersSection = SectionBase<"providers"> & {
@@ -85,6 +115,10 @@ export type ActionGuideSection = SectionBase<"actionGuide"> & {
     steps?: Array<{
       label: string;
       text?: string;
+      link?: {
+        label: string;
+        href: string;
+      };
       code?: string;
     }>;
   };

@@ -14,6 +14,7 @@
     "test:cli:source-install": "python scripts/repo_run.py python application/python/scripts/run_distribution_smoke.py source-install",
     "test:cli:archive": "python scripts/repo_run.py python application/python/scripts/run_distribution_smoke.py archive",
     "test:cli:default-install": "python scripts/repo_run.py python application/python/scripts/run_distribution_smoke.py default-install",
+    "test:cli:powershell-install": "python scripts/repo_run.py python application/python/scripts/run_distribution_smoke.py powershell-install",
     "test:core:integration": "python scripts/repo_run.py pytest core/python/tests -m \"integration and not api and not slow_integration\" -q",
     "test:application:integration": "python scripts/repo_run.py pytest application/python/tests -m \"integration and not api and not slow_integration and not docker\" -q",
     "test:ollama": "python scripts/repo_run.py pytest core/python/tests -m \"ollama and not api\" -q",

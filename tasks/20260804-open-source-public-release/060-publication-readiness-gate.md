@@ -5,13 +5,16 @@ visibility.
 
 ## Requirements checklist
 
-- [ ] Mandatory subtasks `010` through `050` are complete with evidence.
-- [ ] A clean clone passes the agreed minimum build/test/documentation checks.
-- [ ] The root presentation, license, support, security, and issue paths are coherent.
-- [ ] No unresolved critical legal, security, privacy, cost, or newcomer-understanding blocker remains.
-- [ ] Existing GitHub Actions logs/artifacts have been reviewed for public exposure.
-- [ ] The owner explicitly approves the candidate commit and publication timing.
-- [ ] A rollback and collaborator communication plan exists for any required history rewrite or publication problem.
+- [x] Mandatory subtasks `010` through `050` are complete with evidence.
+- [x] A clean clone passes the agreed minimum build/test/documentation checks.
+- [x] The root presentation, license, support, security, and issue paths are coherent.
+- [x] No unresolved critical legal, security, privacy, cost, or newcomer-understanding blocker remains.
+- [x] Existing GitHub Actions logs/artifacts have been reviewed for public exposure.
+- [x] The owner explicitly approves repository publication and immediate task
+  `070` execution, subject to its final remote-ref delta review and visibility
+  confirmation.
+- [x] A rollback and collaborator communication plan exists for publication
+  problems without rewriting Git history.
 
 Parent Task: tasks/20260804-open-source-public-release/000-main.md
 Depends On: tasks/20260804-open-source-public-release/010-sensitive-data-and-history-release-gate.md
@@ -95,7 +98,7 @@ major comprehension risk.
   frontend, and landing/docs jobs but failed Python unit tests. The hosted
   failed-step log was unavailable through the CLI and the failure must be
   reproduced or superseded on the candidate.
-- Recent static-site runs have included build failures. The exact candidate
+- Recent static-site runs have included build failures. The tested baseline
   must pass the static-site build locally before task `070` permits the
   expected deployment-triggering `main` push.
 - The current Actions artifact inventory is empty.
@@ -105,7 +108,7 @@ major comprehension risk.
 ## Execution plan
 Status: Approved
 
-### Phase 1: Clear pre-candidate blockers and freeze inputs
+### Phase 1: Clear blockers and record the readiness baseline
 
 Wait for every active workflow run to finish. Record its conclusion and inspect
 new logs, artifacts, draft/published releases, deployments, or external
@@ -136,10 +139,11 @@ main-only commits as an explicit candidate inventory. Stop for owner direction
 if any commit is experimental, private, unfinished, or not intended for the
 initial public repository.
 
-Freeze the selected source SHAs. Any later source-branch movement invalidates
-the candidate and requires reconstruction.
+Record the selected source SHAs as an evidence baseline. Development may
+continue. Task `070` must inventory and scan later branch, tag, and
+pull-request-ref changes and rerun checks affected by those deltas.
 
-### Phase 2: Construct the exact publication candidate
+### Phase 2: Construct and test a combined readiness baseline
 
 Create a dedicated clean worktree and temporary branch from the latest intended
 `origin/main`, for example:
@@ -166,12 +170,13 @@ Record:
 
 - source `main` SHA;
 - source `develop` SHA;
-- merge/candidate SHA;
+- merge/readiness-baseline SHA;
 - merge conflict list and resolution evidence;
 - candidate tree status.
 
-The exact merge commit becomes the only candidate evaluated by the remaining
-phases.
+The merge commit is the tested readiness baseline for the remaining phases. It
+does not require the eventual public `main` tip or other remote refs to stop
+moving.
 
 ### Phase 3: Revalidate predecessor evidence and sensitive-data boundaries
 
@@ -183,8 +188,8 @@ Build a concise evidence matrix for tasks `010` through `050`:
 - any accepted historical finding;
 - whether later commits could invalidate that evidence.
 
-Create an isolated clone of the candidate using `--no-local`, check out the
-exact candidate SHA, and provide no repository `.env`, signing identity,
+Create an isolated clone of the readiness baseline using `--no-local`, check
+out the recorded baseline SHA, and provide no repository `.env`, signing identity,
 provider credentials, cloud credentials, or local runtime state.
 
 Repeat publication-sensitive checks:
@@ -204,7 +209,7 @@ credential revocation/rotation, and return to the owning task.
 
 ### Phase 4: Run the complete minimum public-CI boundary
 
-Run the exact candidate from the isolated clone using the same boundaries as
+Run the tested readiness baseline from the isolated clone using the same boundaries as
 the four `Public CI` checks:
 
 1. Repository checks
@@ -242,8 +247,8 @@ publication blockers unless the candidate changes their behavior or the public
 quickstart depends on them. Reproduce and classify any such failure rather than
 weakening tests.
 
-Any mandatory candidate check failure is `NO-GO`; fix it in its owning task,
-rebuild the merge commit, and rerun all candidate checks.
+Any mandatory baseline check failure is `NO-GO`; fix it in its owning task,
+rebuild the baseline as needed, and rerun all affected checks.
 
 ### Phase 5: Perform the anonymous-developer presentation review
 
@@ -300,7 +305,8 @@ Record the exact task `070` settings delta:
 - dependency/security features;
 - repository description, homepage, and topics.
 
-Model expected effects of advancing `main` to the candidate:
+Model expected effects of integrating the baseline changes into current
+`main`:
 
 - expected: Public CI and static-site workflow;
 - forbidden without separate action: TestFlight run, CLI release, release tag,
@@ -335,7 +341,8 @@ rewrite permission.
 Prepare the short initial collaborator message with:
 
 - exact publication timing;
-- approved candidate SHA;
+- readiness-baseline SHA and the actual remote-ref snapshot used at
+  publication;
 - early-development expectations;
 - issue/support/security routes;
 - request not to announce broadly until task `080` completes.
@@ -353,7 +360,7 @@ Write a compact evidence table and one decision:
 
 For a proposed `GO`, present:
 
-- exact candidate SHA;
+- readiness-baseline SHA and actual current `main` SHA;
 - source branch SHAs;
 - verification commands/results;
 - accepted historical findings;
@@ -362,21 +369,25 @@ For a proposed `GO`, present:
 - rollback/communication procedure;
 - proposed publication date and time.
 
-Pause for explicit owner approval of both the candidate SHA and publication
-timing. The task cannot complete and task `070` cannot begin before that
-confirmation.
+Pause for explicit owner approval of repository publication and its timing.
+The tested baseline is evidence for that decision rather than a permanently
+fixed public tip.
 
-After approval, freeze merges and direct pushes. Any commit, ref movement,
-workflow/configuration change, or newly discovered hosted output invalidates
-the `GO` until the affected gate checks are rerun.
+After approval, development may continue. Task `070` must compare all current
+remote branches, tags, and pull-request refs with the baseline inventory,
+review newly reachable commits, and rerun checks affected by each delta before
+visibility changes.
 
 ### Implementation decisions and open questions
 
 - Recommended candidate composition: latest intended `origin/main` plus every
   reviewed committed change on local `develop`, merged in a dedicated clean
   worktree.
-- Publication approval is tied to the exact merge commit, not merely a branch
-  name.
+- The merge commit is a tested readiness baseline, not the required public tip.
+- Publication scope is every branch, tag, pull-request ref, and reachable
+  commit present on GitHub when visibility changes, plus future refs pushed
+  after publication.
+- Local-only refs remain local until pushed.
 - Worktree-local changes are excluded.
 - The candidate is not pushed and remote `main` is not changed by task `060`.
 - Task `060` reports or routes substantive blockers; it does not relax security
@@ -388,8 +399,8 @@ the `GO` until the affected gate checks are rerun.
 - The first public release need not be a tagged software release.
 - Optional cleanup remains optional unless evidence reclassifies its risk.
 - No history rewrite is authorized.
-- Owner approval of the exact SHA and timing is intentionally deferred to the
-  final gate step.
+- Owner approval is for repository publication and timing after the final
+  remote-ref delta review.
 
 ### Documentation
 
@@ -403,18 +414,19 @@ the `GO` until the affected gate checks are rerun.
 
 ### Task checklist
 
-- [ ] Wait for active workflows and resolve/route current mandatory failures.
-- [ ] Freeze and approve source branch/commit inventory.
-- [ ] Construct the clean publication candidate merge commit.
-- [ ] Confirm predecessor completion and later-change validity.
-- [ ] Repeat sensitive-data and history scans against publication refs.
-- [ ] Run all four minimum Public CI boundaries in an isolated clone.
-- [ ] Review public-facing repository, support, security, privacy, and issue paths.
-- [ ] Review Actions logs/artifacts/releases/deployments since task `010`.
-- [ ] Prepare the exact task `070` settings and expected-workflow handoff.
-- [ ] Record rollback and collaborator communication procedures.
-- [ ] Present candidate SHA, evidence, decision, and timing for owner approval.
-- [ ] Declare final `GO` or `NO-GO`.
+- [x] Wait for active workflows and resolve/route current mandatory failures.
+- [x] Record and review the source branch/commit baseline.
+- [x] Construct the clean combined readiness-baseline commit.
+- [x] Confirm predecessor completion and later-change validity.
+- [x] Repeat sensitive-data and history scans against publication refs.
+- [x] Run all four minimum Public CI boundaries in an isolated clone.
+- [x] Review public-facing repository, support, security, privacy, and issue paths.
+- [x] Review Actions logs/artifacts/releases/deployments since task `010`.
+- [x] Prepare the task `070` settings and expected-workflow handoff.
+- [x] Record rollback and collaborator communication procedures.
+- [x] Present the baseline, evidence, continuous-delta policy, and timing for
+  owner approval.
+- [x] Declare final `GO`.
 
 ### Requirement verification
 
@@ -427,18 +439,19 @@ the `GO` until the affected gate checks are rerun.
 - Critical-risk gate: repeat history/current-tree scans, legal/license review,
   workflow cost/trigger review, and blocker classification.
 - Hosted exposure: run/log/artifact/release/deployment inventory and scans.
-- Owner approval: explicit confirmation of exact candidate SHA and publication
-  date/time.
+- Owner approval: explicit confirmation of repository publication and
+  immediate task `070` execution after the final remote-ref delta review.
 - Rollback/communication: written controlled-transition procedure suitable for
   task `070`.
-- Only a recorded owner-approved `GO` authorizes task `070`.
+- The recorded owner-approved `GO` authorizes task `070`; task `070` still owns
+  the final visibility confirmation.
 
 ### Additional implementation verification
 
 - Source worktrees remain unchanged except for this task record.
 - No uncommitted source-worktree file enters the candidate.
-- Candidate merge parents match the recorded source SHAs.
-- Candidate worktree and clean clone are clean at verification time.
+- Readiness-baseline merge parents match the recorded source SHAs.
+- Readiness-baseline worktree and clean clone are clean at verification time.
 - No workflow is active at final decision time.
 - GitHub settings and workflow inventory are refreshed immediately before
   owner approval.
@@ -447,7 +460,7 @@ the `GO` until the affected gate checks are rerun.
 
 ## Implementation Notes
 
-### August 23, 2026: execution started and paused before source freeze
+### August 23, 2026: execution started and paused before source selection
 
 The owner approved this plan and instructed execution to stop wherever ongoing
 work on `main` prevents a step from completing safely.
@@ -482,8 +495,8 @@ Read-only Phase 1 checks established:
   specification, test, CSV, and generated Markdown changes. All worktree-local
   changes remain outside the candidate scope.
 
-Execution is paused before fetching/freezing source SHAs or constructing the
-candidate because the owner reports that work on `main` is still in progress.
+Execution is paused before fetching/recording source SHAs or constructing the
+baseline because the owner reports that work on `main` is still in progress.
 The current clean local `main` worktree and unchanged remote SHA do not override
 that explicit coordination state.
 
@@ -491,11 +504,11 @@ Resume condition:
 
 - the owner confirms that the current `main` work is finished;
 - all intended `main` commits are committed and, if they are meant to be part
-  of the publication candidate, available in the selected source ref;
+  of the readiness baseline, available in the selected source ref;
 - no workflow is active or queued.
 
 On resume, refresh all branch, run, release, artifact, deployment, pull-request,
-and settings inventories before selecting source SHAs. No candidate branch,
+and settings inventories before selecting source SHAs. No baseline branch,
 worktree, merge, push, release, visibility change, setting change, or roadmap
 update was made during this partial execution.
 
@@ -560,7 +573,7 @@ Interim gate result: `NO-GO`.
 
 Execution stopped before:
 
-- freezing publication source SHAs;
+- recording publication source SHAs;
 - creating a candidate branch or worktree;
 - merging `main` and `develop`;
 - running candidate scans or clean-clone validation;
@@ -604,5 +617,25 @@ Hosted verification:
   publication was triggered by either correction push.
 
 The interim `NO-GO` for this blocker is cleared. The gate may now refresh and
-freeze source SHAs, construct the publication candidate, and continue the
+record source SHAs, construct the readiness baseline, and continue the
 remaining checks.
+
+## Completion Notes
+
+### September 7, 2026: readiness gate approved
+
+The tested readiness baseline is
+`9406f5e31afdb7e744747452566431c5187748c0`, built from the recorded August 24
+`main` and `develop` inputs and including the critical dependency remediation
+and final gate handoff. Its clean-clone tests, history/current-tree secret
+scans, hosted-output review, public-presentation review, and live-route checks
+passed as recorded on the local readiness branch.
+
+Development continued after that baseline. The owner approved repository
+publication and immediate execution of task `070` on September 7, 2026.
+Task `070` must therefore integrate or supersede the applicable baseline
+changes on current `main`, scan every changed remote ref and newly reachable
+commit, validate the actual current `main`, and obtain or perform the final
+visibility confirmation only after those delta checks pass.
+
+Final gate result: `GO` for the baseline-plus-delta publication procedure.

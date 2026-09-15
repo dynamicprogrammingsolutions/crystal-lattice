@@ -68,7 +68,7 @@ jobs:
     name: Build ${{ matrix.target }}
     needs: test
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -77,22 +77,44 @@ jobs:
             runner: ubuntu-latest
             platform: linux
             arch: amd64
+            python-request: "3.11"
             archive-glob: "*.tar.gz"
+            bash-installer: true
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            python-request: "3.11"
+            archive-glob: "*.tar.gz"
+            bash-installer: true
           - target: darwin-amd64
             runner: macos-15-intel
             platform: darwin
             arch: amd64
+            python-request: "3.11"
             archive-glob: "*.tar.gz"
+            bash-installer: true
           - target: darwin-arm64
             runner: macos-15
             platform: darwin
             arch: arm64
+            python-request: "3.11"
             archive-glob: "*.tar.gz"
+            bash-installer: true
           - target: windows-amd64
             runner: windows-latest
             platform: windows
             arch: amd64
+            python-request: "3.11"
             archive-glob: "*.zip"
+            bash-installer: true
+          - target: windows-arm64
+            runner: windows-11-arm
+            platform: windows
+            arch: arm64
+            python-request: "cpython-3.11-windows-aarch64-none"
+            archive-glob: "*.zip"
+            bash-installer: false
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -117,13 +139,35 @@ jobs:
           uv python install \
             --install-dir "$RUNNER_TEMP/uv-python" \
             --python-preference only-managed \
-            3.11
+            "${{ matrix.python-request }}"
           runtime_root="$(find "$RUNNER_TEMP/uv-python" -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
           if [ -z "$runtime_root" ]; then
             echo "Could not locate uv-managed Python runtime" >&2
             exit 1
           fi
           echo "CRYSTAL_PYTHON_RUNTIME=$runtime_root" >> "$GITHUB_ENV"
+
+      - name: Prepare Windows ARM64 OpenSSL
+        if: ${{ matrix.target == 'windows-arm64' }}
+        shell: pwsh
+        run: |
+          $triplet = "arm64-windows-static-md"
+          $vcpkg = Join-Path $env:VCPKG_INSTALLATION_ROOT "vcpkg.exe"
+          if (-not (Test-Path -LiteralPath $vcpkg -PathType Leaf)) {
+            throw "vcpkg.exe was not found at $vcpkg"
+          }
+          & $vcpkg install "openssl:$triplet"
+          if ($LASTEXITCODE -ne 0) {
+            throw "vcpkg failed to install openssl:$triplet"
+          }
+          $opensslRoot = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\$triplet"
+          @(
+            "VCPKG_ROOT=$($env:VCPKG_INSTALLATION_ROOT)"
+            "VCPKG_DEFAULT_TRIPLET=$triplet"
+            "VCPKGRS_TRIPLET=$triplet"
+            "OPENSSL_DIR=$opensslRoot"
+            "OPENSSL_STATIC=1"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build bundled-Python runtime archive
         run: |
@@ -160,10 +204,16 @@ jobs:
         run: npm run test:cli:archive
 
       - name: Smoke-test default installer
-        if: ${{ always() && steps.locate_archive.outcome == 'success' }}
+        if: ${{ always() && steps.locate_archive.outcome == 'success' && matrix.bash-installer }}
         env:
           CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
         run: npm run test:cli:default-install
+
+      - name: Smoke-test PowerShell installer
+        if: ${{ always() && steps.locate_archive.outcome == 'success' && matrix.platform == 'windows' }}
+        env:
+          CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
+        run: npm run test:cli:powershell-install
 
       - name: Upload release archive
         if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
@@ -202,7 +252,9 @@ jobs:
             "crystal-lattice-python-runtime-v${version}-darwin-amd64.tar.gz"
             "crystal-lattice-python-runtime-v${version}-darwin-arm64.tar.gz"
             "crystal-lattice-python-runtime-v${version}-linux-amd64.tar.gz"
+            "crystal-lattice-python-runtime-v${version}-linux-arm64.tar.gz"
             "crystal-lattice-python-runtime-v${version}-windows-amd64.zip"
+            "crystal-lattice-python-runtime-v${version}-windows-arm64.zip"
           )
 
           mapfile -t local_assets < <(
@@ -325,3 +377,29 @@ jobs:
             --prefix "$CLI_DOWNLOADS_PREFIX" \
             --base-url "$CLI_DOWNLOADS_BASE_URL" \
             --distribution-id "$CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID"
+
+      - name: Verify published downloads
+        env:
+          CLI_DOWNLOADS_BASE_URL: ${{ vars.CLI_DOWNLOADS_BASE_URL }}
+        run: |
+          : "${CLI_DOWNLOADS_BASE_URL:?CLI_DOWNLOADS_BASE_URL repository variable is required}"
+          version="${GITHUB_REF_NAME#crystal-lattice-cli-v}"
+          ready=0
+          for attempt in $(seq 1 20); do
+            echo "Checking CDN publication (attempt ${attempt}/20)"
+            if bash deploy/aws-cli-downloads/smoke.sh \
+              --base-url "$CLI_DOWNLOADS_BASE_URL" \
+              --version "$version" \
+              --skip-install; then
+              ready=1
+              break
+            fi
+            sleep 15
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "Published CLI files did not become consistent before timeout" >&2
+            exit 1
+          fi
+          bash deploy/aws-cli-downloads/smoke.sh \
+            --base-url "$CLI_DOWNLOADS_BASE_URL" \
+            --version "$version"

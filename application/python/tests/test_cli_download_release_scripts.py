@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 RELEASE_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "release.sh"
 PROMOTE_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "promote-github-release.sh"
+PUBLISH_ASSETS_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "publish-assets.sh"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release-crystal-lattice-cli.yml"
 PUBLIC_CI_WORKFLOW = ROOT / ".github" / "workflows" / "public-ci.yml"
 OIDC_TEMPLATE = ROOT / "deploy" / "aws-cli-downloads" / "github-oidc-role.yaml"
@@ -16,7 +17,9 @@ CONFIGURE_GITHUB_SCRIPT = (
     ROOT / "deploy" / "aws-cli-downloads" / "configure-github-actions-vars.sh"
 )
 UPLOAD_INSTALLER_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "upload-installer.sh"
+COMMON_SCRIPT = ROOT / "deploy" / "aws-cli-downloads" / "lib" / "common.sh"
 BUMP_SCRIPT = ROOT / "application" / "python" / "scripts" / "bump_version.py"
+POWERSHELL_INSTALLER = ROOT / "application" / "python" / "scripts" / "install.ps1"
 PACKAGE_JSON = ROOT / "package.json"
 RELEASE_SHA = "a" * 40
 
@@ -544,21 +547,200 @@ def test_release_workflow_uses_single_writer_artifact_handoff() -> None:
     )
 
 
-def test_release_workflow_runs_both_distribution_smokes_through_npm() -> None:
+def test_release_workflow_runs_distribution_smokes_through_npm() -> None:
     workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
     assert "id: locate_archive" in workflow
     assert workflow.count("npm run test:cli:archive") == 1
     assert workflow.count("npm run test:cli:default-install") == 1
+    assert workflow.count("npm run test:cli:powershell-install") == 1
     assert "always() && steps.locate_archive.outcome == 'success'" in workflow
     assert "smoke_runtime_archive.py" not in workflow
+    assert "matrix.platform == 'windows'" in workflow
+    assert "matrix.bash-installer" in workflow
+
+
+def test_release_workflow_builds_all_native_targets() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    for target, runner in (
+        ("linux-amd64", "ubuntu-latest"),
+        ("linux-arm64", "ubuntu-24.04-arm"),
+        ("darwin-amd64", "macos-15-intel"),
+        ("darwin-arm64", "macos-15"),
+        ("windows-amd64", "windows-latest"),
+        ("windows-arm64", "windows-11-arm"),
+    ):
+        assert f"- target: {target}" in workflow
+        assert f"runner: {runner}" in workflow
+    windows_arm = workflow[workflow.index("- target: windows-arm64") :]
+    assert "bash-installer: false" in windows_arm.split("- name: Check out", 1)[0]
+    assert 'python-request: "cpython-3.11-windows-aarch64-none"' in (
+        windows_arm.split("- name: Check out", 1)[0]
+    )
+    assert '"${{ matrix.python-request }}"' in workflow
+    assert "name: Prepare Windows ARM64 OpenSSL" in workflow
+    assert "matrix.target == 'windows-arm64'" in workflow
+    assert "openssl:$triplet" in workflow
+    assert '"VCPKG_ROOT=$($env:VCPKG_INSTALLATION_ROOT)"' in workflow
+    assert '"OPENSSL_STATIC=1"' in workflow
+
+
+def test_release_workflow_verifies_public_downloads_after_publication() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "name: Verify published downloads" in workflow
+    assert "Checking CDN publication (attempt ${attempt}/20)" in workflow
+    assert workflow.count("deploy/aws-cli-downloads/smoke.sh") == 2
+    assert "--skip-install" in workflow
+    assert workflow.index("name: Publish downloads") < workflow.index(
+        "name: Verify published downloads"
+    )
 
 
 def test_installer_upload_uses_package_owned_public_installer() -> None:
     upload_script = UPLOAD_INSTALLER_SCRIPT.read_text(encoding="utf-8")
 
     assert '$REPO_ROOT/application/python/scripts/install.sh"' in upload_script
+    assert '$REPO_ROOT/application/python/scripts/install.ps1"' in upload_script
     assert '$REPO_ROOT/scripts/install.sh"' not in upload_script
+    assert "install.ps1" in upload_script
+
+
+def test_installer_generation_rewrites_both_public_base_urls() -> None:
+    base_url = "https://downloads.example.test/crystal-lattice-cli"
+    bash_result = subprocess.run(
+        [
+            "bash",
+            str(UPLOAD_INSTALLER_SCRIPT),
+            "--base-url",
+            base_url,
+            "--print",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    powershell_result = subprocess.run(
+        [
+            "bash",
+            str(UPLOAD_INSTALLER_SCRIPT),
+            "--base-url",
+            base_url,
+            "--print-powershell",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert bash_result.returncode == 0, bash_result.stderr
+    assert powershell_result.returncode == 0, powershell_result.stderr
+    assert f'DEFAULT_DOWNLOAD_BASE_URL="{base_url}"' in bash_result.stdout
+    assert f'$DefaultDownloadBaseUrl = "{base_url}"' in powershell_result.stdout
+    assert POWERSHELL_INSTALLER.read_text(encoding="utf-8") != powershell_result.stdout
+
+
+def test_installer_upload_dry_run_includes_both_installers() -> None:
+    base_url = "https://downloads.example.test/crystal-lattice-cli"
+    result = subprocess.run(
+        [
+            "bash",
+            str(UPLOAD_INSTALLER_SCRIPT),
+            "--region",
+            "us-east-1",
+            "--bucket",
+            "example-bucket",
+            "--prefix",
+            "crystal-lattice-cli",
+            "--base-url",
+            base_url,
+            "--distribution-id",
+            "EXAMPLE",
+            "--dry-run",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "s3 cp" in result.stdout
+    assert "install.sh" in result.stdout
+    assert "install.ps1" in result.stdout
+    assert "cloudfront create-invalidation" in result.stdout
+
+
+def test_release_archive_list_contains_all_six_native_targets() -> None:
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            f'source "{COMMON_SCRIPT}"; archive_names_for_version 9.8.7',
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        "crystal-lattice-python-runtime-v9.8.7-darwin-amd64.tar.gz",
+        "crystal-lattice-python-runtime-v9.8.7-darwin-arm64.tar.gz",
+        "crystal-lattice-python-runtime-v9.8.7-linux-amd64.tar.gz",
+        "crystal-lattice-python-runtime-v9.8.7-linux-arm64.tar.gz",
+        "crystal-lattice-python-runtime-v9.8.7-windows-amd64.zip",
+        "crystal-lattice-python-runtime-v9.8.7-windows-arm64.zip",
+    ]
+
+
+def test_publish_assets_dry_run_requires_and_uploads_all_six_archives(
+    tmp_path: Path,
+) -> None:
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    archive_names = [
+        "crystal-lattice-python-runtime-v9.8.7-darwin-amd64.tar.gz",
+        "crystal-lattice-python-runtime-v9.8.7-darwin-arm64.tar.gz",
+        "crystal-lattice-python-runtime-v9.8.7-linux-amd64.tar.gz",
+        "crystal-lattice-python-runtime-v9.8.7-linux-arm64.tar.gz",
+        "crystal-lattice-python-runtime-v9.8.7-windows-amd64.zip",
+        "crystal-lattice-python-runtime-v9.8.7-windows-arm64.zip",
+    ]
+    for name in archive_names:
+        (assets / name).touch()
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(PUBLISH_ASSETS_SCRIPT),
+            "--assets-dir",
+            str(assets),
+            "--version",
+            "9.8.7",
+            "--region",
+            "us-east-1",
+            "--bucket",
+            "example-bucket",
+            "--prefix",
+            "crystal-lattice-cli",
+            "--base-url",
+            "https://downloads.example.test/crystal-lattice-cli",
+            "--distribution-id",
+            "EXAMPLE",
+            "--dry-run",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    for name in archive_names:
+        assert name in result.stdout
+    assert "install.sh" in result.stdout
+    assert "install.ps1" in result.stdout
 
 
 def test_release_script_install_line_avoids_plugin_packages(tmp_path: Path) -> None:
@@ -649,6 +831,20 @@ def _write_bump_repo(tmp_path: Path, version: str = "9.8.7") -> Path:
         f"v1{version}-unrelated.tar.gz\n",
         encoding="utf-8",
     )
+    installation_docs = repo / "application" / "python" / "docs"
+    installation_docs.mkdir(parents=True)
+    (installation_docs / "installation-macos-linux.md").write_text(
+        f"VERSION={version} bash\n",
+        encoding="utf-8",
+    )
+    (installation_docs / "installation-windows.md").write_text(
+        f'$env:VERSION = "{version}"\n',
+        encoding="utf-8",
+    )
+    (installation_docs / "installation-manual.md").write_text(
+        f"runtime-v{version}-linux-amd64\n",
+        encoding="utf-8",
+    )
     deploy_readme = repo / "deploy" / "aws-cli-downloads" / "README.md"
     deploy_readme.parent.mkdir(parents=True, exist_ok=True)
     deploy_readme.write_text(
@@ -692,6 +888,21 @@ def test_bump_script_updates_pyproject_and_doc_references(tmp_path: Path) -> Non
     # Digit-guarded neighbors stay untouched.
     assert "crystal-lattice-python-runtime-v9.8.70-linux-amd64.tar.gz" in app_readme
     assert "v19.8.7-unrelated.tar.gz" in app_readme
+
+    macos_linux = (
+        repo / "application" / "python" / "docs" / "installation-macos-linux.md"
+    ).read_text(encoding="utf-8")
+    assert "VERSION=9.8.8 bash" in macos_linux
+
+    windows = (
+        repo / "application" / "python" / "docs" / "installation-windows.md"
+    ).read_text(encoding="utf-8")
+    assert '$env:VERSION = "9.8.8"' in windows
+
+    manual = (
+        repo / "application" / "python" / "docs" / "installation-manual.md"
+    ).read_text(encoding="utf-8")
+    assert "runtime-v9.8.8-linux-amd64" in manual
 
     deploy_readme = (repo / "deploy" / "aws-cli-downloads" / "README.md").read_text(
         encoding="utf-8"

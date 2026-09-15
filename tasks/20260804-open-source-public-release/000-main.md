@@ -117,7 +117,11 @@ cloud cost, or a major obstacle to understanding the repository.
     plans and planning trees; removed scratch poems; moved shared test
     environment support under `test/`; and verified links, docs, test
     bootstraps, and preserved directories.
-- [ ] `tasks/20260804-open-source-public-release/060-publication-readiness-gate.md`
+- [x] `tasks/20260804-open-source-public-release/060-publication-readiness-gate.md`
+  - COMPLETED on 2026-09-07: approved the tested readiness baseline and
+    baseline-plus-delta publication procedure after clean-clone validation,
+    sensitive-data scans, hosted-output review, and owner authorization to
+    begin task `070`.
 - [ ] `tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md`
 - [ ] `tasks/20260804-open-source-public-release/080-post-publication-validation-and-early-adopter-intake.md`
 

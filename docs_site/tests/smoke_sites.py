@@ -76,6 +76,27 @@ def main() -> None:
         )
 
         require_success(landing_page, landing_url)
+        installation_link = landing_page.get_by_role(
+            "link",
+            name="Installation guide",
+            exact=True,
+        ).first
+        expected_installation_url = urljoin(
+            docs_url,
+            "packages/application-python/installation/",
+        )
+        if installation_link.get_attribute("href") != expected_installation_url:
+            raise AssertionError(
+                "landing installation link is "
+                f"{installation_link.get_attribute('href')!r}, "
+                f"expected {expected_installation_url!r}"
+            )
+        installation_response = context.request.get(expected_installation_url)
+        if not installation_response.ok:
+            raise AssertionError(
+                "installation documentation failed: "
+                f"{installation_response.status} {expected_installation_url}"
+            )
         docs_link = landing_page.locator("header a:visible", has_text="Docs")
         if docs_link.count() != 1:
             raise AssertionError("landing page must expose one visible Docs link")
@@ -112,6 +133,24 @@ def main() -> None:
             name="Crystal Lattice Docs",
             exact=True,
         ).wait_for()
+        privacy_link = docs_page.get_by_role(
+            "link",
+            name="Privacy Policy",
+            exact=True,
+        )
+        if privacy_link.count() != 1:
+            raise AssertionError("docs footer must expose one Privacy Policy link")
+        expected_privacy_url = urljoin(landing_url, "privacy")
+        if privacy_link.get_attribute("href") != expected_privacy_url:
+            raise AssertionError(
+                "docs Privacy Policy link is "
+                f"{privacy_link.get_attribute('href')!r}, expected {expected_privacy_url!r}"
+            )
+        privacy_response = context.request.get(expected_privacy_url)
+        if not privacy_response.ok:
+            raise AssertionError(
+                f"Privacy Policy failed: {privacy_response.status} {expected_privacy_url}"
+            )
         if docs_page.get_by_role(
             "link",
             name="Package documentation",

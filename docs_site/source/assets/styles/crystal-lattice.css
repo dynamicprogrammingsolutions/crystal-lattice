@@ -322,3 +322,15 @@
     right: 0;
   }
 }
+
+.cl-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.cl-footer-links a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}

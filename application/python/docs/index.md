@@ -5,6 +5,14 @@ terminal interface, HTTP API, local discovery, and bridge connectivity.
 
 ## Start here
 
+- [Installation](installation.md): choose macOS/Linux, native Windows
+  PowerShell, or manual archive installation.
+- [Install on macOS or Linux](installation-macos-linux.md): Bash installer,
+  PATH selection, updates, removal, and troubleshooting.
+- [Install on Windows](installation-windows.md): native PowerShell, user PATH,
+  Command Prompt, Git Bash, updates, and troubleshooting.
+- [Manual installation](installation-manual.md): choose, extract, run, and
+  optionally place a release archive on PATH.
 - [Quickstart](quickstart.md): install the command, start the local server, and
   verify its HTTP endpoint.
 - [Local headless agent runs](headless-agent-runs.md): call configured agents
