@@ -115,8 +115,6 @@ def run_archive_smoke(archive: Path) -> None:
 
 
 def run_inside_runtime(*, default_config_dir: Path, workspace: Path) -> None:
-    from agent_terminal_app.local_runtime import open_runtime
-
     workspace.mkdir(parents=True)
     config_dir = workspace.parent / f"{workspace.name} Crystal config"
     sessions = workspace.parent / f"{workspace.name} Shared sessions"
@@ -132,6 +130,8 @@ def run_inside_runtime(*, default_config_dir: Path, workspace: Path) -> None:
         raise RuntimeError(f"{SECRET_NAME} is required inside packaged runtime")
 
     with contextlib.redirect_stdout(sys.stderr):
+        from agent_terminal_app.local_runtime import open_runtime
+
         with open_runtime(config_path=config_path, session_root=sessions) as runtime:
             removed = os.environ.pop(SECRET_NAME, None)
             if removed != secret or SECRET_NAME in os.environ:

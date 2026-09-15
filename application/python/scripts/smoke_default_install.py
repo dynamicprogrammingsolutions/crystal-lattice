@@ -114,9 +114,12 @@ def smoke_test_default_install(archive: Path) -> None:
             destination_dir=temp_dir / "config",
             additional_plugin_name=DYNAMIC_PLUGIN_PROBE,
         )
+        installed_command = [str(bin_dir / COMMAND_NAME)]
+        if os.name == "nt":
+            installed_command.insert(0, bash)
         progress.step("Booting the installed command and installing the probe plugin")
         assert_config_boot(
-            [COMMAND_NAME],
+            installed_command,
             config_path=config_path,
             workspace=temp_dir / "workspace",
             home_dir=home_dir,
@@ -128,7 +131,7 @@ def smoke_test_default_install(archive: Path) -> None:
         )
         progress.step("Verifying installed CLI and Python SDK headless access")
         assert_headless_access(
-            [COMMAND_NAME],
+            installed_command,
             python=python_path(installed_bundle),
             config_path=config_path,
             workspace=temp_dir / "headless access workspace",

@@ -170,7 +170,9 @@ Each source/archive/installer smoke also runs a credential-free deterministic
 headless probe. It sends one task through the actual `crystal-lattice run`
 entry point and another through that runtime's packaged interpreter and
 `open_runtime`, then verifies the full compiled access section and isolated
-persisted sessions.
+persisted sessions. Installer scenarios first prove command-name discovery,
+then invoke the exact installed Bash or `.cmd` launcher for the headless probe
+so a same-named command later on PATH cannot supply false evidence.
 
 `test:cli:agent-access` is the separately gated real-provider scenario. It
 runs once per native target against the extracted archive, uses production

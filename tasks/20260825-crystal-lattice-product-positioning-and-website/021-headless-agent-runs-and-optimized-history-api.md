@@ -1092,10 +1092,19 @@ GitHub Actions workflow.
   whitespace checks. Repository-wide Pyright and existing desktop
   lint/typecheck remain red on unrelated baseline findings; scoped changed
   Python and TypeScript files pass.
-- Native Linux, macOS AMD64, and Windows deterministic evidence and all-target
-  real-provider evidence remain pending until the branch workflow runs.
-  GitHub currently exposes no `OPENROUTER_API_KEY` repository, organization, or
-  `cli-release` environment secret; the local key has not been uploaded.
+- Windows deterministic rerun evidence and all-target real-provider evidence
+  remain pending. GitHub currently exposes no `OPENROUTER_API_KEY` repository,
+  organization, or `cli-release` environment secret; the local key has not
+  been uploaded.
+- Native run
+  [34977742639](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34977742639)
+  passed Linux and macOS on both architectures. Both Windows architectures
+  completed their SDK requests but rejected stdout because one info log
+  preceded the JSON. The same logs also exposed that Python lookup of a bare
+  installer command skipped the intended extensionless/`.cmd` launcher and
+  found the repository venv executable. Imports now occur inside stdout
+  redirection, and installer headless probes invoke the exact installed
+  launcher after the independent by-name checks.
 
 ### Draft execution plan
 

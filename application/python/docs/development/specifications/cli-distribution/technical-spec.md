@@ -256,6 +256,11 @@ PowerShell installation each run a credential-free deterministic probe that:
   spaces;
 - asserts the expected persisted sessions and results.
 
+Installer scenarios retain their independent by-name command-discovery
+checks. The headless probe then invokes the exact installed extensionless Bash
+launcher or Windows `.cmd` launcher so Python executable lookup cannot fall
+through to a same-named console executable elsewhere on PATH.
+
 The real provider scenario runs once per native target against the extracted
 archive rather than once per installer transformation. Release tags require
 the scenario; workflow dispatch may opt in. See the
