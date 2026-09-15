@@ -64,6 +64,16 @@ The application supplies:
 - `CONFIG_DIR`: absolute directory containing the active config file;
 - `WORKING_DIR`: absolute current working directory;
 - `BUILTIN_PLUGINS`: built-in plugin bundle directory for the install layout.
+- `CRYSTAL_LATTICE_SYSTEM_MESSAGES`: runtime-owned system-message resources.
+- `CRYSTAL_LATTICE_CLI_ARGV_JSON`: authoritative CLI argument vector for the
+  active config and session root.
+- `CRYSTAL_LATTICE_CONFIG`: absolute active config path.
+- `CRYSTAL_LATTICE_SESSIONS`: absolute active session root.
+- `CRYSTAL_LATTICE_PYTHON`: general runtime Python interpreter when available.
+- `CRYSTAL_LATTICE_PYTHON_API_MODULE`: supported Python import module when
+  available.
+- `CRYSTAL_LATTICE_DOCS`: local application docs when packaged.
+- `CRYSTAL_LATTICE_DOCS_URL`: stable public application docs URL.
 
 Example:
 

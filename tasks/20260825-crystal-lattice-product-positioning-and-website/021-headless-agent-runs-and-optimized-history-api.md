@@ -58,7 +58,7 @@ loading long tool results.
       follow-ups, long tool output, failure, cancellation, timeout, concurrent
       distinct sessions, same-session rejection, clean JSON output, and
       compatibility with existing terminal and request APIs.
-- [ ] Configured agents can optionally receive a system-message section that
+- [x] Configured agents can optionally receive a system-message section that
       accurately tells them how a project running outside Crystal Lattice can
       invoke the Crystal Lattice command, import the supported Python API, use
       the applicable Python interpreter, and find installed documentation.
@@ -66,7 +66,7 @@ loading long tool results.
       including any additions needed alongside variables such as
       `BUILTIN_PLUGINS`, and the section is independently enabled or disabled
       in the same manner as task guidance.
-- [ ] An explicitly gated real Ollama API test using
+- [x] An explicitly gated real Ollama API test using
       `glm-5.3-flash:cloud` starts an outer configured agent with the access
       guidance enabled, gives it a deliberately non-procedural request to use
       a subagent, and proves that it invokes Crystal Lattice with the same
@@ -514,10 +514,10 @@ follow-on implementation remains required for this task.
 - [x] Add real subprocess tests for initial runs, follow-ups, history,
       long-tool-output bounds, failures, cancellation, and two concurrent
       distinct sessions.
-- [ ] After the direct Python API, compact-history, and CLI acceptance tests
+- [x] After the direct Python API, compact-history, and CLI acceptance tests
       pass, investigate and present a separate Draft plan for external-project
       CLI/API/interpreter/documentation variables and opt-in system guidance.
-- [ ] After separate approval, implement and verify the external-project
+- [x] After separate approval, implement and verify the external-project
       access variables, optional system-message section, packaging behavior,
       and current documentation.
 - [x] Run existing request-coordinator, terminal, config/dotenv, compact-tool,
@@ -526,7 +526,7 @@ follow-on implementation remains required for this task.
       examples and update package indexes.
 - [x] Update specification requirements with implementation, verification,
       documentation, and delivery evidence.
-- [ ] Update this task throughout execution and add immutable completion notes
+- [x] Update this task throughout execution and add immutable completion notes
       only after all required evidence is available.
 
 ### Requirement verification
@@ -637,6 +637,14 @@ follow-on implementation remains required for this task.
   distribution paths, and added `HLR-061`: a gated real Ollama
   `glm-5.3-flash:cloud` same-config delegation test that requires evidence of
   an actual separately persisted worker session.
+- 2026-09-14: Implemented runtime-owned access variables, exact same-config and
+  same-session-root CLI argv, source/bundled interpreter and docs discovery,
+  truthful optimized-bundle fallback, the independently disabled default
+  system-message section for all maintained vendor profiles, existing-config
+  adoption guidance, and distribution staging. The gated real
+  `glm-5.3-flash:cloud` test passed in 87.75 seconds: the sparse outer prompt
+  caused a CLI tool call and a separately persisted completed
+  `subagent-worker` session containing the project marker.
 
 ## External-project access follow-on plan
 
@@ -695,7 +703,9 @@ delegation test.
     interpreter can import it;
   - `CRYSTAL_LATTICE_DOCS`: absolute local application-docs directory when it
     exists;
-  - `CRYSTAL_LATTICE_DOCS_URL`: stable public application documentation URL.
+  - `CRYSTAL_LATTICE_DOCS_URL`: stable public application documentation URL;
+  - `CRYSTAL_LATTICE_SYSTEM_MESSAGES`: runtime-owned system-message resources
+    used by existing configs to adopt the helper without copying source.
   These values are runtime-owned overrides like `BUILTIN_PLUGINS`; inherited
   process values do not replace a known current runtime identity.
 - **Command representation:** JSON argv is recommended over one shell command
@@ -774,27 +784,27 @@ delegation test.
 
 ### Task checklist
 
-- [ ] Extend the approved technical specification for `HLR-060` before code
+- [x] Extend the approved technical specification for `HLR-060` before code
       changes.
-- [ ] Define and test runtime-access derivation for source,
-      Python-install/bundled-Python, and optimized frozen layouts.
-- [ ] Add application-docs layout/staging where a local path is supported.
-- [ ] Add the shared opt-in access-section renderer and UI-schema helper.
-- [ ] Add the variable and placeholder to every maintained default vendor
+- [x] Define and test runtime-access derivation for source,
+      bundled-Python, and optimized frozen layouts.
+- [x] Add application-docs layout/staging where a local path is supported.
+- [x] Add the shared opt-in access-section renderer and UI-schema helper.
+- [x] Add the variable and placeholder to every maintained default vendor
       system-message configuration without changing the default compiled
       prompt.
-- [ ] Add deterministic default-config tests for disabled/enabled section
+- [x] Add deterministic default-config tests for disabled/enabled section
       behavior across configured vendor agents.
-- [ ] Add source, bundled-Python builder, and optimized-layout tests for
+- [x] Add source, bundled-Python builder, and optimized-layout tests for
       executable, interpreter, API, docs, quoting, and unavailable-capability
       behavior.
-- [ ] Add and explicitly run the gated real Ollama
+- [x] Add and explicitly run the gated real Ollama
       `glm-5.3-flash:cloud` same-config delegation acceptance test.
-- [ ] Update current user, system-message configuration, runtime, and
+- [x] Update current user, system-message configuration, runtime, and
       distribution documentation.
-- [ ] Run focused system-message, runtime-layout, package-builder, direct
+- [x] Run focused system-message, runtime-layout, package-builder, direct
       Python/CLI, Core, application, and documentation checks.
-- [ ] Complete `HLR-060`, the remaining parent requirement, task evidence, and
+- [x] Complete `HLR-060`, the remaining parent requirement, task evidence, and
       immutable completion notes.
 
 ### Requirement verification
@@ -845,3 +855,59 @@ delegation test.
   the known unrelated strict-build warnings if they remain.
 - Run `git diff --check` and inspect that no existing user config, credential,
   generated docs output, HTTP/frontend code, or website content changed.
+
+## Completion Notes
+
+- **Outcome:** Delivered a supported context-managed local Python runtime,
+  atomic synchronous initial/follow-up runs, bounded progress, structured
+  outcomes, compact/full history, and one-shot `agents`, `run`, and `history`
+  commands. Added an independently disabled Crystal Lattice access section
+  that gives configured agents exact same-config/same-session-root CLI
+  guidance plus applicable interpreter, Python API, local docs, and public
+  docs information.
+- **Canonical history and compatibility:** Compact results and history remain
+  derived views. Existing persisted messages, event APIs, HTTP behavior,
+  interactive terminal behavior, and same-session coordinator authority remain
+  unchanged. HTTP, TypeScript, mobile, desktop, and persistent-subagent
+  contracts were not expanded.
+- **Distribution behavior:** Source and bundled-Python layouts expose an
+  import-capable interpreter and local docs. Optimized frozen layouts expose
+  their CLI and staged docs without falsely claiming a general Python
+  interpreter. Existing configs are not rewritten and can adopt the
+  runtime-owned helper explicitly. Unsupported pip/pipx installation claims
+  were removed from the touched application guidance.
+- **Real API evidence:** With
+  `RUN_CRYSTAL_LATTICE_OLLAMA_SUBAGENT_E2E=1`, the
+  `glm-5.3-flash:cloud` test passed in 87.75 seconds. Given only “Ask a
+  subagent for the project marker and report its answer,” the outer agent used
+  the advertised CLI, selected the same config and session root, created a
+  separate `subagent-worker` session, obtained the marker in that worker's
+  completed response, and reported it in the outer response. Assertions also
+  verified the persisted CLI tool invocation; a textual delegation claim
+  without the worker session cannot pass.
+- **Automated verification:** Direct Python/coordinator/history acceptance
+  passed; the real CLI subprocess suite passed with 10 tests; access,
+  runtime-layout, and package-builder coverage passed; feature-system-message
+  unit coverage passed with 34 tests; Core passed with 541 tests and one
+  expected failure; and the final application suite exited `0` with 446
+  passing tests, one skip, and 92 intentionally deselected tests.
+- **Static and documentation verification:** Focused Pyright completed with no
+  errors or warnings, changed-file Ruff passed, JSON and diff checks passed,
+  documentation preparation passed, and a normal MkDocs build passed.
+- **Known unrelated verification limits:** Strict MkDocs still aborts on ten
+  repository-existing warnings involving unrelated plugin links, Core
+  docstring indentation, and generated-reference cross-references. A broad
+  feature-system-message package run also has seven pre-existing integration
+  incompatibilities: two tests use unsaved direct sessions against current
+  reconciliation, and five construct raw default agents/providers without
+  their required mixins. The owning feature unit suite and the new
+  application-owned compiled-message integration both pass; these failures
+  were not weakened or changed.
+- **Plan changes:** The user approved narrowing mandatory delivery away from
+  HTTP/frontend work, then added and separately approved external-project
+  access guidance and the real Ollama delegation requirement. Pip/pipx was
+  removed as an unsupported product distribution assumption.
+- **Deferred outside scope:** Durable detached jobs, restart-retained request
+  results, HTTP compact-history/result resources, TypeScript/frontend lazy
+  history, and model-facing persistent-subagent semantics remain separately
+  scoped future work.

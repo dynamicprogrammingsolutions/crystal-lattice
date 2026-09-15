@@ -23,6 +23,7 @@ archives use a different layout, builder, and test suite.
 
 - a Python runtime;
 - Core and application source-shaped trees;
+- application documentation used by local runtime guidance;
 - built-in plugin sources;
 - runtime and preinstalled-plugin manifests;
 - Unix and Windows launchers;

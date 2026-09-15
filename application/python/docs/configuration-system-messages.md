@@ -90,3 +90,38 @@ selected by mixins and variants.
 
 - [Bundled default configuration](../agent_terminal_app/default_config/config.json)
 - [feature-system-message](../../../plugins/feature-system-message/README.md)
+
+## Optional Crystal Lattice access guidance
+
+The bundled default config defines a `CRYSTAL_LATTICE_ACCESS` variable at the
+end of each maintained vendor template. It uses a variable-level runtime
+helper and condition, following the same pattern as optional task guidance:
+
+```json
+{
+  "system_message": {
+    "template": "{{BASE}}\n\n{{CRYSTAL_LATTICE_ACCESS}}",
+    "variables": {
+      "CRYSTAL_LATTICE_ACCESS": {
+        "code": "${env:CRYSTAL_LATTICE_SYSTEM_MESSAGES}/helpers/crystal_lattice_access.py",
+        "runtime_code": "${env:CRYSTAL_LATTICE_SYSTEM_MESSAGES}/helpers/crystal_lattice_access.py",
+        "condition": {
+          "inline_code": "include_crystal_lattice_access()"
+        }
+      }
+    }
+  }
+}
+```
+
+The helper contributes an `include_crystal_lattice_access` checkbox, defaulting
+to false. When enabled, it renders only the named runtime-owned CLI, config,
+session, interpreter/API, and documentation values. It does not enumerate the
+environment or expose credentials.
+
+The CLI invocation includes the active `--config` and `--sessions-dir`, which
+is important when the agent is working in another project's directory.
+
+See [Local headless agent runs](headless-agent-runs.md#let-a-configured-agent-delegate-from-another-project)
+for the rendered behavior, runtime-layout differences, and existing-config
+adoption.

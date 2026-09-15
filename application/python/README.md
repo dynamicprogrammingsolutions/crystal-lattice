@@ -353,6 +353,10 @@ Important layout behavior:
 - `CONFIG_DIR` always resolves to the directory of the active config file.
 - `BUILTIN_PLUGINS` comes from the runtime layout and points at bundled plugin
   sources in binary installs.
+- `CRYSTAL_LATTICE_CLI_ARGV_JSON`, `CRYSTAL_LATTICE_CONFIG`, and
+  `CRYSTAL_LATTICE_SESSIONS` identify the same runtime for optional delegated
+  local runs; interpreter, API, local-docs, and public-docs values are exposed
+  only when applicable to the current layout.
 - Config files, sessions, auth state, and plugin install caches are user-owned
   state and stay outside the bundle.
 

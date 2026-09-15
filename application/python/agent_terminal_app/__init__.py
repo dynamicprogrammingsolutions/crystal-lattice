@@ -17,6 +17,23 @@ applications.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from agent_app import CompactHistory, CompactMessage
+
+    from .local_runtime import (
+        AgentRunResult,
+        LocalAgentRuntime,
+        RunError,
+        RunProgress,
+        RunProgressKind,
+        RunStatus,
+        open_runtime,
+    )
+    from .server import app, run_api
+    from .terminal import run_terminal
+
 __all__ = [
     "AgentRunResult",
     "CompactHistory",

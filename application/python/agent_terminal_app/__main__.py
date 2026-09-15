@@ -1317,6 +1317,11 @@ def main() -> None:  # pragma: no cover - manual execution only
             env_overrides["CLOUD_ORCHESTRATOR_URL"] = args.cloud_orchestrator_url
         if args.cloud_orchestrator_token:
             env_overrides["CLOUD_ORCHESTRATOR_TOKEN"] = args.cloud_orchestrator_token
+        env_overrides = runtime_layout.application_env_overrides(
+            config_path=config_path,
+            session_root=session_root,
+            env_overrides=env_overrides,
+        )
         _run_local_headless_command(
             args.command,
             list(args.command_args or []),
@@ -1393,6 +1398,11 @@ def main() -> None:  # pragma: no cover - manual execution only
         args,
         runtime_layout,
         parser,
+    )
+    env_overrides = runtime_layout.application_env_overrides(
+        config_path=config_path,
+        session_root=session_root,
+        env_overrides=env_overrides,
     )
 
     config_env = _collect_additional_dotenv_values(config_path)

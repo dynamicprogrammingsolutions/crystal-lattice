@@ -368,6 +368,85 @@ The direct commands do not provide cross-process same-session locking. Do not
 use separate CLI processes as simultaneous writers to one session. Use a
 distinct session for each parallel assignment.
 
+## Let a configured agent delegate from another project
+
+Newly generated default configurations include an optional system-message
+section that tells an agent how to use this exact Crystal Lattice runtime from
+the current project, even when that project was not launched by Crystal
+Lattice.
+
+Enable it for one session:
+
+```text
+/set include_crystal_lattice_access true
+```
+
+Mobile and desktop session settings expose the same **Include Crystal Lattice
+Access Guidance** checkbox through the normal configuration schema. The
+setting defaults to off and is independent from **Include TASKS Guidance**.
+
+When enabled, the agent receives:
+
+- an authoritative CLI argument vector rendered as a correctly quoted command;
+- the active `--config` and `--sessions-dir`, so delegated calls cannot select
+  an unrelated project config or session store;
+- examples for agent discovery, initial runs, completed-session follow-ups,
+  and compact history;
+- the applicable Python interpreter and
+  `from agent_terminal_app import open_runtime` when a general Python runtime
+  is available;
+- local application documentation when included in the runtime and the public
+  documentation URL.
+
+Source checkouts and bundled-Python distributions expose the Python API.
+Optimized frozen executables expose their CLI and documentation but correctly
+state that the executable is not a general Python interpreter.
+
+The guidance describes ordinary synchronous persisted sessions. It does not
+turn them into parent-linked persistent subagents and does not add mid-run
+input, detached lifetime, or restart recovery.
+
+### Adopt the section in an existing config
+
+Crystal Lattice does not rewrite an existing user or project config. Add the
+placeholder at the end of the applicable `system_message.template`:
+
+```text
+{{CRYSTAL_LATTICE_ACCESS}}
+```
+
+Then add this variable to that system message's `variables`:
+
+```json
+{
+  "CRYSTAL_LATTICE_ACCESS": {
+    "code": "${env:CRYSTAL_LATTICE_SYSTEM_MESSAGES}/helpers/crystal_lattice_access.py",
+    "runtime_code": "${env:CRYSTAL_LATTICE_SYSTEM_MESSAGES}/helpers/crystal_lattice_access.py",
+    "condition": {
+      "inline_code": "include_crystal_lattice_access()"
+    }
+  }
+}
+```
+
+The runtime owns `CRYSTAL_LATTICE_SYSTEM_MESSAGES` in the same way it owns
+`BUILTIN_PLUGINS`. The helper contributes the session checkbox as well as the
+rendered section.
+
+The other runtime-owned values are:
+
+- `CRYSTAL_LATTICE_CLI_ARGV_JSON`;
+- `CRYSTAL_LATTICE_CONFIG`;
+- `CRYSTAL_LATTICE_SESSIONS`;
+- `CRYSTAL_LATTICE_PYTHON` when available;
+- `CRYSTAL_LATTICE_PYTHON_API_MODULE` when available;
+- `CRYSTAL_LATTICE_DOCS` when local docs are available;
+- `CRYSTAL_LATTICE_DOCS_URL`.
+
+These values describe runtime locations only. They do not expose provider
+credentials, auth state, plugin-cache contents, or arbitrary environment
+variables.
+
 ## Cancellation, timeout, and exit codes
 
 Set a positive finite timeout:

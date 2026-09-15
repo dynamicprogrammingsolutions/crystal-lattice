@@ -447,26 +447,141 @@ result document or empty when execution fails before a run result exists.
   rendering, but terminal rendering does not become the data authority.
 - HTTP and frontend contracts do not change.
 
-## External-project access planning gate
+## External-project access
 
-Requirement `HLR-060` is part of this capability but is intentionally not
-designed in this first technical plan.
+The direct Python and CLI requirements were verified before this contract was
+selected. Requirements `HLR-060` and `HLR-061` define the follow-on capability.
 
-After `HLR-001` through `HLR-052` have direct Python and CLI acceptance
-evidence, a separate plan must inspect and decide:
+### Runtime access values
 
-- source-install and bundled-runtime executable paths;
-- the supported Python import and interpreter command;
-- authored versus packaged documentation locations;
-- additional runtime/configuration variables alongside values such as
-  `BUILTIN_PLUGINS`;
-- optional system-message section schema and enablement analogous to task
-  guidance;
-- path portability, quoting, security, and stale-path behavior;
-- source, installed-package, and bundled-distribution verification.
+The application derives these runtime-owned values after resolving the active
+config and session root:
 
-No variable or system-message implementation begins before that plan is
-approved.
+| Variable | Value |
+|---|---|
+| `CRYSTAL_LATTICE_CLI_ARGV_JSON` | JSON string array containing the authoritative CLI prefix, active `--config`, and active `--sessions-dir` |
+| `CRYSTAL_LATTICE_CONFIG` | Absolute active config path |
+| `CRYSTAL_LATTICE_SESSIONS` | Absolute active session root |
+| `CRYSTAL_LATTICE_PYTHON` | Absolute general Python interpreter when available |
+| `CRYSTAL_LATTICE_PYTHON_API_MODULE` | `agent_terminal_app` when that interpreter can import the supported API |
+| `CRYSTAL_LATTICE_DOCS` | Absolute local application-documentation directory when available |
+| `CRYSTAL_LATTICE_DOCS_URL` | `https://docs.crystallattice.dev/packages/application-python/headless-agent-runs/` |
+| `CRYSTAL_LATTICE_SYSTEM_MESSAGES` | Absolute runtime-owned system-message resource directory, including the reusable access helper |
+
+These values are explicit `env_overrides` installed by the application's
+runtime environment overlay, like `BUILTIN_PLUGINS`. A known runtime identity
+outranks inherited values with the same names. They contain no provider
+credentials or auth/cache paths.
+
+The canonical CLI value is JSON argv rather than a prequoted shell command.
+System-message rendering parses the JSON array and uses `shlex.join` on POSIX
+or `subprocess.list2cmdline` on Windows. Consumers that execute directly should
+prefer an argv API and append the desired `agents`, `run`, or `history`
+arguments.
+
+Including the config and session root is mandatory. A child command inherits
+the external project's current directory for tool behavior while continuing
+to use the exact Crystal Lattice configuration and session store advertised by
+the parent runtime.
+
+### Runtime layouts
+
+Source checkouts use:
+
+```text
+[sys.executable, "-m", "agent_terminal_app",
+ "--config", <active-config>,
+ "--sessions-dir", <active-session-root>]
+```
+
+The source interpreter is advertised for Python API use. Local docs resolve to
+`application/python/docs` when present.
+
+Bundled-Python archives use their manifest-selected packaged interpreter with
+the same module/config/session arguments. They advertise the staged
+`application/python/docs` directory. Both executable and docs paths remain
+relative to the relocated runtime manifest before being resolved to absolute
+values.
+
+Optimized PyInstaller layouts use the frozen executable followed by the
+config/session arguments. They may advertise staged local docs and the public
+URL, but omit `CRYSTAL_LATTICE_PYTHON` and
+`CRYSTAL_LATTICE_PYTHON_API_MODULE`: the frozen executable is not a general
+Python interpreter or import host.
+
+Pip and pipx installation are not supported product layouts and do not define
+fallback behavior in this contract.
+
+### Opt-in system-message section
+
+Maintained default Codex, Qwen, Gemini, Grok, Kimi, and Claude templates expose
+one `CRYSTAL_LATTICE_ACCESS` variable at the end of the template. Its
+variable-level runtime helper contributes:
+
+```text
+include_crystal_lattice_access: bool = false
+```
+
+and one config checkbox labeled **Include Crystal Lattice Access Guidance**.
+It is independent from `include_tasks`.
+
+When disabled, the variable renders empty and does not change the prior
+compiled prompt after surrounding trailing whitespace is stripped.
+
+When enabled, the bounded section:
+
+- identifies the authoritative CLI command;
+- shows agent discovery, initial run, follow-up, and compact-history forms;
+- identifies the general interpreter and `agent_terminal_app` import when
+  available;
+- identifies local docs when present and always supplies the public docs URL;
+- says that these commands create ordinary persisted synchronous sessions;
+- does not claim persistent subagent, parent-child, mid-run input, or detached
+  lifetime semantics.
+
+The helper reads only the named runtime access variables. It does not enumerate
+the environment or include provider configuration values.
+
+New generated default configs contain the disabled section. Existing user and
+project configs are not rewritten; current documentation provides an explicit
+adoption example.
+
+### Real Ollama delegation acceptance
+
+An opt-in integration test marked `integration`, `api`, and `ollama` uses
+`glm-5.3-flash:cloud` through the local Ollama OpenAI-compatible endpoint.
+
+The test:
+
+1. requires an explicit environment gate;
+2. creates an external temporary project with a non-guessable marker;
+3. creates one isolated config and session root containing an outer
+   orchestrator and separate worker agent;
+4. enables `include_crystal_lattice_access` only for the outer request;
+5. gives the outer model a sparse prompt that requests a subagent result but
+   names no command, flags, agent ID, file, or procedure;
+6. requires the outer model to invoke the advertised Crystal Lattice CLI;
+7. verifies a new worker session in the same session root, with a completed
+   response containing the marker;
+8. verifies the outer tool/session history records delegation and its final
+   response reports the worker result.
+
+A textual statement that delegation occurred does not pass without the
+separate persisted worker session. The worker's access section remains
+disabled to prevent recursive delegation.
+
+Unavailable Ollama service or cloud authentication is reported as a skipped or
+blocked gated test, not converted to a deterministic fake. The test is excluded
+from default credential-free suites.
+
+Run it explicitly from the repository root:
+
+```bash
+RUN_CRYSTAL_LATTICE_OLLAMA_SUBAGENT_E2E=1 \
+PYTHONPATH="$PWD/core/python:$PWD/application/python" \
+pytest application/python/tests/test_crystal_lattice_access_ollama_api.py \
+  -m "integration and api and ollama" -q
+```
 
 ## Verification boundaries
 
@@ -477,4 +592,5 @@ approved.
 - Real subprocess tests own CLI I/O, progress, signals, timeout, exit codes,
   and parseable JSON.
 - Existing application tests own terminal and background-request compatibility.
-- Hosted providers are not required for acceptance.
+- The explicitly gated Ollama `glm-5.3-flash:cloud` test owns real
+  same-config delegation acceptance; no other hosted provider is required.

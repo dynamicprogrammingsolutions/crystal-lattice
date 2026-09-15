@@ -12,6 +12,8 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import build_crystal_lattice_python_runtime_package as runtime_builder  # type: ignore[import-not-found]  # noqa: E402
+import build_crystal_lattice_binary as binary_builder  # type: ignore[import-not-found]  # noqa: E402
+from agent_terminal_app.runtime_layout import load_runtime_layout  # noqa: E402
 
 
 def test_python_runtime_package_stages_launcher_layout_and_bundle_script(
@@ -36,6 +38,7 @@ def test_python_runtime_package_stages_launcher_layout_and_bundle_script(
     layout = json.loads(layout_path.read_text(encoding="utf-8"))
 
     assert layout["layout"] == "python-runtime"
+    assert layout["bundle_paths"]["application_docs"] == "../docs"
     assert layout["bundle_paths"]["builtin_plugins"] == "../../../plugins"
     assert layout["bundle_paths"]["bundle_script"] == (
         "../../../scripts/build_crystal_lattice_binary.py"
@@ -56,6 +59,9 @@ def test_python_runtime_package_stages_launcher_layout_and_bundle_script(
     assert not (package_dir / "application" / "python" / "scripts").exists()
     assert (package_dir / "plugins" / "message-export-actions").is_dir()
     assert (package_dir / "preinstalled-plugins.json").is_file()
+    assert (
+        package_dir / "application" / "python" / "docs" / "headless-agent-runs.md"
+    ).is_file()
 
     output = subprocess.check_output(
         [str(launcher), "--runtime-layout-json"],
@@ -70,6 +76,31 @@ def test_python_runtime_package_stages_launcher_layout_and_bundle_script(
     )
     assert resolved["env_overrides"]["CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST"] == str(
         package_dir / "preinstalled-plugins.json"
+    )
+
+    runtime_layout = load_runtime_layout(layout_path)
+    access = runtime_layout.application_env_overrides(
+        config_path=tmp_path / "config.json",
+        session_root=tmp_path / "sessions",
+    )
+    cli_argv = json.loads(access["CRYSTAL_LATTICE_CLI_ARGV_JSON"])
+    assert cli_argv[:3] == [
+        str(runtime_builder.package_python(package_dir)),
+        "-m",
+        "agent_terminal_app",
+    ]
+    assert cli_argv[-4:] == [
+        "--config",
+        str((tmp_path / "config.json").resolve()),
+        "--sessions-dir",
+        str((tmp_path / "sessions").resolve()),
+    ]
+    assert access["CRYSTAL_LATTICE_PYTHON"] == str(
+        runtime_builder.package_python(package_dir)
+    )
+    assert access["CRYSTAL_LATTICE_PYTHON_API_MODULE"] == "agent_terminal_app"
+    assert access["CRYSTAL_LATTICE_DOCS"] == str(
+        package_dir / "application" / "python" / "docs"
     )
 
 
@@ -343,12 +374,55 @@ def test_windows_launcher_uses_actual_packaged_python_path(tmp_path: Path) -> No
 
     layout = json.loads((manifest_dir / "runtime_layout.json").read_text())
     assert layout["bundle_paths"]["python_executable"] == "../../../python/python.exe"
+    assert layout["bundle_paths"]["application_docs"] == "../docs"
 
     launcher = (package_dir / "Scripts" / "crystal-lattice.cmd").read_text(
         encoding="utf-8"
     )
     assert "set CRYSTAL_PLUGIN_PYTHON=%ROOT%python\\python.exe" in launcher
     assert '"%ROOT%python\\python.exe" -m agent_terminal_app %*' in launcher
+
+
+def test_optimized_layout_stages_docs_without_advertising_python_api(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    asset_root = tmp_path / "assets"
+    monkeypatch.setattr(binary_builder, "ASSET_STAGE_DIR", asset_root)
+    monkeypatch.setattr(
+        binary_builder,
+        "stage_bundled_plugins",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        binary_builder,
+        "prepare_cloud_runtime_build_context",
+        lambda *_args, **_kwargs: None,
+    )
+
+    binary_builder.prepare_staged_assets(set(), set())
+
+    manifest = asset_root / "agent_terminal_app" / "runtime_layout.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    assert data["layout"] == "bundled"
+    assert data["bundle_paths"]["application_docs"] == "docs"
+    assert (
+        asset_root / "agent_terminal_app" / "docs" / "headless-agent-runs.md"
+    ).is_file()
+
+    layout = load_runtime_layout(manifest)
+    access = layout.application_env_overrides(
+        config_path=tmp_path / "config.json",
+        session_root=tmp_path / "sessions",
+    )
+    assert json.loads(access["CRYSTAL_LATTICE_CLI_ARGV_JSON"])[0] == str(
+        Path(sys.executable).resolve()
+    )
+    assert "CRYSTAL_LATTICE_PYTHON" not in access
+    assert "CRYSTAL_LATTICE_PYTHON_API_MODULE" not in access
+    assert access["CRYSTAL_LATTICE_DOCS"] == str(
+        asset_root / "agent_terminal_app" / "docs"
+    )
 
 
 def test_windows_long_path_manifest_preserves_existing_manifest(tmp_path: Path) -> None:

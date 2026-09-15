@@ -105,6 +105,14 @@ def test_open_runtime_runs_and_follows_up_with_bounded_progress(
         session_root=tmp_path / "sessions",
     ) as runtime:
         assert runtime.list_agents() == ("alpha", "beta")
+        resolved_env = runtime.application.get_resolved_env()
+        cli_argv = json.loads(resolved_env["CRYSTAL_LATTICE_CLI_ARGV_JSON"])
+        assert cli_argv[-4:] == [
+            "--config",
+            str(config.resolve()),
+            "--sessions-dir",
+            str((tmp_path / "sessions").resolve()),
+        ]
         first = runtime.run(
             "first task",
             agent_id="alpha",

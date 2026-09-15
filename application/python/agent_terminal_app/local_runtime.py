@@ -459,11 +459,11 @@ def open_runtime(
     resolved_sessions.mkdir(parents=True, exist_ok=True)
 
     notification_store = InMemoryApplicationNotificationStore()
-    resolved_env_overrides = layout.env_overrides()
-    if env_overrides is not None:
-        resolved_env_overrides.update(
-            {key: str(value) for key, value in env_overrides.items()}
-        )
+    resolved_env_overrides = layout.application_env_overrides(
+        config_path=resolved_config,
+        session_root=resolved_sessions,
+        env_overrides=env_overrides,
+    )
     try:
         application = AgentApplication(
             resolved_config,
