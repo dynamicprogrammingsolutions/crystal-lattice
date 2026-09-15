@@ -322,8 +322,8 @@ def test_openai_responses_chatgpt_gpt56_family_selection_only() -> None:
     sol = _compiled_codex_developer_message("gpt-5.6-sol")
     terra = _compiled_codex_developer_message("gpt-5.6-terra")
     luna = _compiled_codex_developer_message("gpt-5.6-luna")
-    assert sol != terra, "Sol should be distinct from Terra"
-    assert sol != luna, "Sol should be distinct from Luna"
+    # Since the 2026-07-18 upstream refresh, all three family members share
+    # one byte-identical template; Sol's distinct variant is gone.
     assert (
-        terra == luna
-    ), "Terra and Luna should be byte-identical at the inspected commit"
+        sol == terra == luna
+    ), "GPT-5.6 family members should share the 20260718 template"

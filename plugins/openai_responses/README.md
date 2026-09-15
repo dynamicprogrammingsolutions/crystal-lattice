@@ -452,19 +452,22 @@ selects the ChatGPT endpoint.
 
 ### Fast mode
 
-Fast mode applies `service_tier: "priority"` to Responses calls for both
+Fast mode applies the fast processing tier to Responses calls for both
 API-key and ChatGPT auth modes. The control is:
 
-- `enable_fast_mode`: enable `service_tier: "priority"` for Responses calls
+- `enable_fast_mode`: enable the fast processing tier for Responses calls
+  (wire value `service_tier: "fast"` for API auth; the ChatGPT backend only
+  accepts the legacy `service_tier: "priority"` name, so that value is sent
+  for ChatGPT auth)
   (applies to both API-key and ChatGPT auth modes)
 
-The usage footer renders `tier: priority` when OpenAI reports that tier, and
-cost estimation uses priority-tier pricing when the checked-in or manual
+The usage footer renders `tier: fast` when OpenAI reports that tier, and
+cost estimation uses fast-tier pricing when the checked-in or manual
 pricing data defines it. The footer also renders `mode: pro` when the
 response reports `reasoning.mode: "pro"` (Pro reasoning mode, see below).
 
 Pro reasoning mode (`reasoning_mode: "pro"`) is a nested reasoning control and
-is independent of Fast mode's `service_tier: "priority"`. Both can be enabled
+is independent of Fast mode's service tier. Both can be enabled
 at the same time on GPT-5.6 models with API auth; they touch different parts of
 the outbound payload and neither overwrites the other. Pro mode is API-only
 (see "Pro mode billing" below for the auth-mode gating).
@@ -498,6 +501,7 @@ These require `plugins.request_options_feature.RequestOptionsFeature` to be
 loaded.
 
 - `reasoning_effort`: model-specific effort value. Current UI options are:
+  - GPT-6-Astra: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
   - GPT-5.6 Sol and Terra: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
   - GPT-5.6 Luna: `low`, `medium`, `high`, `xhigh`, `max` (no `ultra`)
   - GPT-5.2 and GPT-5.4 models: `none`, `low`, `medium`, `high`, `xhigh`
@@ -507,11 +511,11 @@ loaded.
   - unknown models: fallback UI shows `none`, `minimal`, `low`, `medium`,
     `high`, `xhigh` (no `max` or `ultra`)
 - `reasoning_summary`: one of `auto`, `concise`, `detailed`
-- `reasoning_mode`: optional string enum `["pro"]`, GPT-5.6 family only
-  (Sol, Terra, Luna, and the bare `gpt-5.6` alias). API-only: hidden when
-  `auth_mode` is `chatgpt`.
+- `reasoning_mode`: optional string enum `["pro"]`, GPT-6-Astra and the
+  GPT-5.6 family (Sol, Terra, Luna, and the bare `gpt-5.6` alias). API-only:
+  hidden when `auth_mode` is `chatgpt`.
 - `reasoning_context`: optional string enum `["auto", "current_turn",
-  "all_turns"]`, GPT-5.6 family only.
+  "all_turns"]`, GPT-6-Astra and the GPT-5.6 family only.
 - `show_reasoning_context_footer`: set to `false` to keep reasoning-context
   behavior and metadata while hiding its assistant-message footer.
 

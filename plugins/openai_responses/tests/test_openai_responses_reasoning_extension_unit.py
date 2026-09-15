@@ -377,6 +377,41 @@ def test_get_ui_elements_gpt_5_6_sol_options() -> None:
     ]
 
 
+def test_get_ui_elements_gpt_6_astra_options() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-6-astra"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-6-astra"}],
+    )
+
+    assert _effort_options(elements) == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra",
+    ]
+
+
+def test_get_ui_elements_gpt_6_astra_offers_pro_mode_and_context() -> None:
+    """gpt-6-astra shares the GPT-5.6 effort set, so Pro reasoning mode and
+    reasoning context are offered for it as well."""
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-6-astra"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-6-astra"}],
+    )
+
+    keys = [element.get("key") for element in elements]
+    assert "reasoning_mode" in keys
+    assert "reasoning_context" in keys
+
+
 def test_get_ui_elements_gpt_5_6_terra_options() -> None:
     ext = OpenAIResponsesReasoningExtension()
 
@@ -552,6 +587,21 @@ def test_initialize_request_injects_ultra_for_bare_gpt_5_6_alias() -> None:
     config = {
         **_base_state()["config"],
         "model": "gpt-5.6",
+        "reasoning_effort": "ultra",
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    request_options = new_state["config"]["request_options"]
+    assert request_options["reasoning"] == {"effort": "ultra"}
+
+
+def test_initialize_request_injects_ultra_for_gpt_6_astra() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-6-astra",
         "reasoning_effort": "ultra",
     }
 
@@ -1142,7 +1192,7 @@ def test_initialize_request_pro_mode_and_fast_mode_coexist() -> None:
     _, state = request_options_feature.initialize_request([], state)
 
     payload = state["request"]["payload"]
-    assert payload["service_tier"] == "priority"
+    assert payload["service_tier"] == "fast"
     assert isinstance(payload.get("reasoning"), dict)
     assert payload["reasoning"]["mode"] == "pro"
     assert payload["reasoning"]["effort"] == "medium"
@@ -1178,7 +1228,8 @@ def test_initialize_request_pro_mode_dropped_for_chatgpt_while_fast_mode_applies
     _, state = request_options_feature.initialize_request([], state)
 
     payload = state["request"]["payload"]
-    # Fast mode still applies for ChatGPT auth.
+    # Fast mode still applies for ChatGPT auth; the ChatGPT backend only
+    # accepts the legacy ``priority`` tier name.
     assert payload["service_tier"] == "priority"
     # Pro mode is dropped for ChatGPT auth; effort and summary are preserved.
     assert isinstance(payload.get("reasoning"), dict)

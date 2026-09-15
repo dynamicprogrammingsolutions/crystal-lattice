@@ -322,10 +322,13 @@ def test_streaming_usage_surfaces_flex_tier_and_uses_tier_pricing(
 
 def test_streaming_usage_uses_manual_model_pricing_when_snapshot_is_missing_model(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ext = OpenAIResponsesUsageExtension()
 
-    # Use an empty snapshot so the manual ChatGPT fallback is exercised.
+    # Use an empty snapshot and a synthetic manual fallback so the manual
+    # pricing path is exercised without depending on the checked-in manual
+    # models file (which no longer publishes any model).
     empty_snapshot_path = tmp_path / "empty_pricing.json"
     empty_snapshot_path.write_text(
         json.dumps(
@@ -337,6 +340,20 @@ def test_streaming_usage_uses_manual_model_pricing_when_snapshot_is_missing_mode
             }
         ),
         encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "openai_responses_plugins.openai_responses_usage_extension"
+        "._load_manual_chatgpt_model_pricing_shared",
+        lambda path=None: {
+            "gpt-5.5": {
+                "model": "gpt-5.5",
+                "pricing": {
+                    "input_per_1m": 5.0,
+                    "cached_input_per_1m": 0.5,
+                    "output_per_1m": 30.0,
+                },
+            },
+        },
     )
 
     usage = {
@@ -371,12 +388,15 @@ def test_streaming_usage_uses_manual_model_pricing_when_snapshot_is_missing_mode
     assert md.get("usage_total_cost_formatted") == "$0.007100"
 
 
-def test_streaming_usage_uses_manual_priority_tier_pricing_when_snapshot_is_missing_model(
+def test_streaming_usage_uses_manual_fast_tier_pricing_when_snapshot_is_missing_model(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ext = OpenAIResponsesUsageExtension()
 
-    # Use an empty snapshot so the manual ChatGPT fallback is exercised.
+    # Use an empty snapshot and a synthetic manual fallback so the manual
+    # fast-tier pricing path is exercised without depending on the checked-in
+    # manual models file.
     empty_snapshot_path = tmp_path / "empty_pricing.json"
     empty_snapshot_path.write_text(
         json.dumps(
@@ -389,6 +409,27 @@ def test_streaming_usage_uses_manual_priority_tier_pricing_when_snapshot_is_miss
         ),
         encoding="utf-8",
     )
+    monkeypatch.setattr(
+        "openai_responses_plugins.openai_responses_usage_extension"
+        "._load_manual_chatgpt_model_pricing_shared",
+        lambda path=None: {
+            "gpt-5.5": {
+                "model": "gpt-5.5",
+                "pricing": {
+                    "input_per_1m": 5.0,
+                    "cached_input_per_1m": 0.5,
+                    "output_per_1m": 30.0,
+                },
+                "service_tiers": {
+                    "fast": {
+                        "input_per_1m": 5.0,
+                        "cached_input_per_1m": 0.5,
+                        "output_per_1m": 30.0,
+                    }
+                },
+            },
+        },
+    )
 
     usage = {
         "input_tokens": 1000,
@@ -398,14 +439,14 @@ def test_streaming_usage_uses_manual_priority_tier_pricing_when_snapshot_is_miss
     final_messages: List[Dict[str, Any]] = [
         _assistant_output_item(
             "hi",
-            response_id="resp_manual_priority",
-            extra_metadata={"_openai_responses_service_tier": "priority"},
+            response_id="resp_manual_fast",
+            extra_metadata={"_openai_responses_service_tier": "fast"},
         )
     ]
     native_messages: List[Dict[str, Any]] = list(final_messages)
     native_chunk = {
         "type": "response.completed",
-        "response": {"id": "resp_manual_priority", "usage": usage},
+        "response": {"id": "resp_manual_fast", "usage": usage},
     }
 
     _partials, finals, _new_native, _state = ext.process_chunk(
@@ -422,7 +463,7 @@ def test_streaming_usage_uses_manual_priority_tier_pricing_when_snapshot_is_miss
     )
 
     md = finals[0].get("_metadata") or {}
-    assert md.get("usage_service_tier") == "priority"
+    assert md.get("usage_service_tier") == "fast"
     assert md.get("usage_total_cost") == pytest.approx(0.0071, rel=1e-9)
     assert md.get("usage_total_cost_formatted") == "$0.007100"
 
@@ -929,6 +970,9 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
     assert elements[4]["condition"] == {
         "any": [
             {"path": "metadata.usage_service_tier", "eq": "flex"},
+            {"path": "metadata.usage_service_tier", "eq": "fast"},
+            # ``priority`` is the obsolete tier name; some backends may
+            # still report it.
             {"path": "metadata.usage_service_tier", "eq": "priority"},
         ]
     }

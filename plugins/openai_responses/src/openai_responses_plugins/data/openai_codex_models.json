@@ -1,25 +1,15 @@
 {
-  "fetched_at": "2026-07-17T20:51:17+00:00",
+  "fetched_at": "2026-09-14T14:49:08+00:00",
   "models": {
     "codex-auto-review": {
       "description": "Automatic approval review model for Codex.",
       "id": "codex-auto-review",
       "name": "Codex Auto Review"
     },
-    "gpt-5.2": {
-      "description": "Optimized for professional work and long-running agents.",
-      "id": "gpt-5.2",
-      "name": "GPT-5.2"
-    },
     "gpt-5.4": {
       "description": "Strong model for everyday coding.",
       "id": "gpt-5.4",
       "name": "GPT-5.4"
-    },
-    "gpt-5.4-mini": {
-      "description": "Small, fast, and cost-efficient model for simpler coding tasks.",
-      "id": "gpt-5.4-mini",
-      "name": "GPT-5.4-Mini"
     },
     "gpt-5.5": {
       "description": "Frontier model for complex coding, research, and real-world work.",
@@ -40,9 +30,24 @@
       "description": "Balanced agentic coding model for everyday work.",
       "id": "gpt-5.6-terra",
       "name": "GPT-5.6-Terra"
+    },
+    "gpt-6-astra": {
+      "description": "Our most capable model for complex, demanding work.",
+      "id": "gpt-6-astra",
+      "name": "GPT-6-Astra"
+    },
+    "gpt-daybreak-blue-latest": {
+      "description": "Latest frontier agentic coding model for broad defensive cybersecurity work.",
+      "id": "gpt-daybreak-blue-latest",
+      "name": "Daybreak Blue"
+    },
+    "gpt-daybreak-red-latest": {
+      "description": "Cyber-permissive variant of our latest frontier agentic coding model for advanced, authorized cybersecurity research.",
+      "id": "gpt-daybreak-red-latest",
+      "name": "Daybreak Red"
     }
   },
   "source_base_url": "https://raw.githubusercontent.com/openai/codex",
-  "source_commit": "50b82133850d940627cf307d77e280619bfafe25",
+  "source_commit": "e9633d7a0226eac91c7a791dc4f92cf8f25df2ae",
   "version": 1
 }

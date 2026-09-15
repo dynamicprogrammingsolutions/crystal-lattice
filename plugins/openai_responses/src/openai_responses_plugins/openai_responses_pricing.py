@@ -78,7 +78,13 @@ def normalize_model_name(model: str) -> str:
 def normalize_service_tier(service_tier: str | None) -> str:
     if not isinstance(service_tier, str):
         return ""
-    return service_tier.strip().lower()
+    value = service_tier.strip().lower()
+    # ``priority`` is the obsolete name for the ``fast`` processing tier,
+    # kept upstream only for compatibility. Normalize it so lookups and
+    # snapshot merges use the current name.
+    if value == "priority":
+        return "fast"
+    return value
 
 
 def normalize_pricing_table_model_name(model: str) -> str:
@@ -171,8 +177,12 @@ def _pricing_block(
     entry: Dict[str, Any], service_tier: str | None = None
 ) -> Optional[Dict[str, Optional[float]]]:
     normalized_tier = normalize_service_tier(service_tier)
-    service_tiers = entry.get("service_tiers") if isinstance(entry, dict) else None
-    if isinstance(service_tiers, dict) and normalized_tier:
+    service_tiers = (
+        _normalized_tier_mapping(entry.get("service_tiers"))
+        if isinstance(entry, dict)
+        else {}
+    )
+    if service_tiers and normalized_tier:
         tier_pricing = _pricing_block_from_mapping(service_tiers.get(normalized_tier))
         if tier_pricing is not None:
             return tier_pricing
@@ -194,7 +204,7 @@ def _pricing_block(
     if isinstance(pricing, dict):
         return _pricing_block_from_mapping(pricing)
 
-    if isinstance(service_tiers, dict):
+    if service_tiers:
         return _pricing_block_from_mapping(service_tiers.get("standard"))
     return None
 
@@ -354,36 +364,42 @@ def extract_visible_text_token_tier_pricing_from_page_html(
     return model_entries
 
 
+def _normalized_tier_mapping(tiers: Any) -> Dict[str, Any]:
+    """Return tier blocks keyed by the current tier name.
+
+    The obsolete ``priority`` key is renamed to ``fast`` so that incoming
+    page prices replace stale snapshot prices under the same tier instead
+    of leaving a stale ``priority`` block behind.
+    """
+    if not isinstance(tiers, dict):
+        return {}
+    normalized: Dict[str, Any] = {}
+    for tier, block in tiers.items():
+        key = normalize_service_tier(tier) if isinstance(tier, str) else tier
+        normalized[key] = block
+    return normalized
+
+
 def merge_pricing_entry(
-    existing: Dict[str, Any] | None, incoming: Dict[str, Any]
+    existing: Dict[str, Any] | None, incoming: Dict[str, Any] | None
 ) -> Dict[str, Any]:
     existing_entry = existing if isinstance(existing, dict) else {}
     incoming_entry = incoming if isinstance(incoming, dict) else {}
 
     merged: Dict[str, Any] = {**existing_entry, **incoming_entry}
 
-    existing_tiers = (
-        existing_entry.get("service_tiers")
-        if isinstance(existing_entry, dict)
-        else None
-    )
-    incoming_tiers = (
-        incoming_entry.get("service_tiers")
-        if isinstance(incoming_entry, dict)
-        else None
-    )
     merged_tiers: Dict[str, Any] = {}
-    if isinstance(existing_tiers, dict):
-        merged_tiers.update(existing_tiers)
-    if isinstance(incoming_tiers, dict):
-        merged_tiers.update(incoming_tiers)
+    merged_tiers.update(_normalized_tier_mapping(existing_entry.get("service_tiers")))
+    merged_tiers.update(_normalized_tier_mapping(incoming_entry.get("service_tiers")))
     if merged_tiers:
         merged["service_tiers"] = merged_tiers
 
-    if not isinstance(merged.get("pricing"), dict):
-        standard_pricing = _pricing_block_from_mapping(merged_tiers.get("standard"))
-        if standard_pricing is not None:
-            merged["pricing"] = standard_pricing
+    # The top-level ``pricing`` block is the denormalized standard-tier
+    # block. Rebuild it whenever a merged standard tier exists so price
+    # changes are reflected, not only first-time entries.
+    standard_pricing = _pricing_block_from_mapping(merged_tiers.get("standard"))
+    if standard_pricing is not None:
+        merged["pricing"] = standard_pricing
 
     return merged
 

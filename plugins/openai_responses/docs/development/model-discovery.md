@@ -34,8 +34,11 @@ Refresh the checked-in Codex snapshot with:
 python plugins/openai_responses/benchmark/refresh_openai_responses_models.py
 ```
 
-The current snapshot source commit is recorded in the README. It includes the
-explicit GPT-5.6 family IDs (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`).
+The current snapshot source commit is recorded in the snapshot itself. It
+includes `gpt-6-astra`, the explicit GPT-5.6 family IDs (`gpt-5.6-sol`,
+`gpt-5.6-terra`, `gpt-5.6-luna`), and the hidden daybreak models
+(`gpt-daybreak-blue-latest`, `gpt-daybreak-red-latest`); the retired
+`gpt-5.2` and `gpt-5.4-mini` entries are no longer listed.
 
 ### Last-resort fallback
 

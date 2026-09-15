@@ -51,32 +51,46 @@ def refresh_snapshot(urls: Sequence[str], output_path: Path) -> Path:
                 source_url=source_url,
             )
             for model, entry in parsed_entries.items():
-                model_entries[model] = merge_pricing_entry(model_entries.get(model), entry)
+                model_entries[model] = merge_pricing_entry(
+                    model_entries.get(model), entry
+                )
         except (HTTPError, URLError, TimeoutError, ValueError, RuntimeError) as exc:
-            raise RuntimeError(f"failed to refresh pricing from {source_url}: {exc}") from exc
+            raise RuntimeError(
+                f"failed to refresh pricing from {source_url}: {exc}"
+            ) from exc
 
     existing_entries = []
     if output_path.exists():
         existing_payload = json.loads(output_path.read_text(encoding="utf-8"))
         existing_models = existing_payload.get("models")
         if isinstance(existing_models, dict):
-            existing_entries = [entry for entry in existing_models.values() if isinstance(entry, dict)]
+            existing_entries = [
+                entry for entry in existing_models.values() if isinstance(entry, dict)
+            ]
 
     merged_entries_by_model: dict[str, dict] = {}
     for entry in existing_entries:
         model = entry.get("model")
         if isinstance(model, str) and model:
-            merged_entries_by_model[model] = entry
+            # Route retained entries through merge_pricing_entry (with an
+            # empty incoming entry) so tier keys are normalized (obsolete
+            # ``priority`` renamed to ``fast``) even for models the pricing
+            # page no longer lists.
+            merged_entries_by_model[model] = merge_pricing_entry(entry, {})
 
     for model, entry in model_entries.items():
-        merged_entries_by_model[model] = merge_pricing_entry(merged_entries_by_model.get(model), entry)
+        merged_entries_by_model[model] = merge_pricing_entry(
+            merged_entries_by_model.get(model), entry
+        )
 
     payload = build_snapshot_payload(
         fetched_at=fetched_at,
         model_entries=merged_entries_by_model.values(),
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return output_path
 
 

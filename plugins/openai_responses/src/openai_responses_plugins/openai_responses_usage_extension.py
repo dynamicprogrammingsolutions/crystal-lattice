@@ -301,6 +301,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                             {"path": "metadata.usage_service_tier", "eq": "flex"},
                             {
                                 "path": "metadata.usage_service_tier",
+                                "eq": "fast",
+                            },
+                            # ``priority`` is the obsolete tier name; some
+                            # backends may still report it.
+                            {
+                                "path": "metadata.usage_service_tier",
                                 "eq": "priority",
                             },
                         ]
