@@ -208,6 +208,14 @@ def test_python_tooling_scripts_run_through_repo_run():
     )
 
 
+def test_ios_embedded_provider_bundle_build_targets_mobile_prepare():
+    scripts = _load_scripts()
+
+    assert scripts["build:ios:embedded-providers:bundle"] == (
+        "npm --prefix mobile/crystal-lattice-control-rn run ios:prepare-python"
+    )
+
+
 def test_server_scripts_run_installed_commands_without_repo_run():
     scripts = _load_scripts()
 

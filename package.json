@@ -31,6 +31,7 @@
     "test:plugins:claude": "python scripts/repo_run.py pytest plugins/claude-tools/tests -q",
     "test:plugins:web-fetch-shared": "python scripts/repo_run.py pytest plugins/web-fetch-shared/tests -q",
     "test:plugins:tool-compat-shared": "python scripts/repo_run.py pytest plugins/tool-compat-shared/tests -q",
+    "build:ios:embedded-providers:bundle": "npm --prefix mobile/crystal-lattice-control-rn run ios:prepare-python",
     "test:ios:embedded-providers:bundle": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_bundle_tests.py default",
     "test:ios:embedded-providers:bundle:api": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_bundle_tests.py api",
     "test:ios:embedded-providers:detox:api": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_detox_matrix.py",

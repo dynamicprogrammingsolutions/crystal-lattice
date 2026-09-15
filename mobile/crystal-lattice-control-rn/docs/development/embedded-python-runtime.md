@@ -257,15 +257,18 @@ After building the iOS ZIP, run the selected direct provider integrations from
 that immutable artifact:
 
 ```bash
+npm run build:ios:embedded-providers:bundle
 npm run test:ios:embedded-providers:bundle
 npm run test:ios:embedded-providers:bundle:api
 ```
 
-These commands select positively marked OpenAI Responses and OpenRouter
-provider tests only. They exclude unit, `AgentApplication`, plugin-install,
-and non-embedded-extension tests. Each provider gets a disposable dev-only
-dependency overlay; provider, `agent_core`, and `requests` imports must remain
-inside the prebuilt ZIP, and the archive hash must not change.
+The build entry delegates to the mobile package's `ios:prepare-python`
+command. The test entries select positively marked OpenAI Responses and
+OpenRouter provider tests only and never rebuild the artifact. They exclude
+unit, `AgentApplication`, plugin-install, and non-embedded-extension tests.
+Each provider gets a disposable dev-only dependency overlay; provider,
+`agent_core`, and `requests` imports must remain inside the prebuilt ZIP, and
+the archive hash must not change.
 
 Run the Release simulator API matrix separately:
 

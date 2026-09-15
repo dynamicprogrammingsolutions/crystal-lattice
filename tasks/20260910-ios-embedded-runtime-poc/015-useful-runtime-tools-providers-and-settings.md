@@ -1325,3 +1325,7 @@ ordinary package CI and against the prebuilt ZIP in this lane.
   `e7ab499d18b8798fc825e4a38f7aacb376be12a28546fc4c1933737a6789764e`.
   Ordinary source suites also passed: OpenAI Responses 428 tests, OpenRouter
   135 tests, and the selected hosted source slices six plus nine tests.
+- 2026-09-15: Added root
+  `build:ios:embedded-providers:bundle` as the discoverable artifact-build
+  entry. It delegates to the mobile `ios:prepare-python` command, while both
+  root bundle test entries continue to require and preserve the prebuilt ZIP.
