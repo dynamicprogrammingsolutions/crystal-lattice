@@ -66,6 +66,10 @@ Requirements:
   requirement restraint across supported reasoning efforts, testing balance,
   and focused verification reporting while preserving static and human
   verification as distinct evidence.
+- [ ] Requirement-quality calibration uses three diverse small projects, seven
+  producer model/effort profiles, direct semantic interpretation, and a concise
+  human-reviewed baseline with optional detailed evidence before requirement
+  guidance changes.
 - [ ] Root `CONTRIBUTING.md` provides an easy-to-follow, risk-scaled
   AI-assisted development workflow centered on what humans initiate, review,
   question, decide, verify, accept, and authorize.
@@ -135,7 +139,7 @@ task and the subtasks:
 |---|---|
 | Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
 | First documentation-guidance implementation and preserved behavior evidence | `DOCGEN-001`–`DOCGEN-010`, `DOCREP-001`–`DOCREP-007` |
-| Approved documentation-guide redesign | `DOCGUIDE-001`–`DOCGUIDE-006`, `DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010` |
+| Approved documentation-guide redesign | `DOCGUIDE-001`–`DOCGUIDE-006`, `DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010`–`DOCVAL-011` |
 | Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-018` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
@@ -538,6 +542,7 @@ task's requirements or rationale.
 | DOC-DEC-033 | A requirement contains only an approved necessary outcome or constraint. Useful discoveries remain supporting details, questions, recommendations, or follow-ups until their scope is approved. | Approved September 11, 2026 | Prevents higher reasoning effort from silently expanding completion obligations while preserving useful analysis. | Repeated tasks lose important acceptance behavior because the rule is too restrictive. |
 | DOC-DEC-034 | Add practical testing guidance and an optional `testing-strategy.md` triggered by meaningful risk, layer crossings, expensive/manual verification, credible tradeoffs, or important exclusions. | Approved September 11, 2026 | Guides agents toward decisive coverage without maximizing test count or freezing incidental implementation details. | Package-specific testing standards provide a clearer source or the file is consistently unused. |
 | DOC-DEC-035 | Behavioral guidance tests evaluate underlying decisions with held-out vocabulary and supported reasoning-effort variants; literal token assertions are secondary backstops rather than primary evidence. | Approved September 11, 2026 | Demonstrates abstract rule understanding instead of success caused by repeating the exact prohibited term in guidance. | Semantic evaluation proves too unstable without a narrower deterministic contract. |
+| DOC-DEC-036 | Evaluate requirement quality through three diverse small-project semantic targets and seven producer model/effort profiles. Interpret the baseline directly and present a concise human review before changing guidance; preserve original Test 22 as preliminary robustness evidence and retain same-family scenarios only when they add diagnostic value. | Revised and approved September 14, 2026 | Separates natural model behavior from literal assertions while exercising website, public REST API/performance, and full-stack requirement shapes. | The baseline shows that fewer project types or a deterministic/model-driven assertion preserves the same diagnostic value. |
 
 ## Open requirement questions
 
@@ -756,6 +761,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
@@ -792,14 +798,20 @@ The work is organized standards-first:
 6. Subtask 065 creates the concise contributor workflow after the terminology
    and document roles from 010 are established. It can proceed in parallel with
    most migration work.
-7. Subtask 068 aligns and synchronizes `TASKS-v7` after the documentation
+7. Subtask 067 establishes three diverse small-project requirement targets, a
+   seven-profile baseline, direct semantic interpretation, and concise human
+   review. It can proceed in parallel with task-guidance source alignment and
+   must complete before overlapping requirement-minimality guidance is
+   changed.
+8. Subtask 068 aligns and synchronizes `TASKS-v7` after the documentation
    standard and contributor workflow are defined. It may adopt the committed
    agent-evaluation framework while 015 continues non-blocking refinements, and
    it owns moving the existing task-guidance evaluator.
-8. Subtask 069 uses the migrated evaluator to verify minimum sufficient
+9. Subtask 069 uses the migrated evaluator to verify minimum sufficient
    requirements and coherent single-task/subtask decomposition. Guidance
-   changes are baseline-first and preserve exact model/reasoning profiles.
-9. Subtask 070 performs final verification after migration, contributor
+   changes are baseline-first, preserve exact model/reasoning profiles, and
+   consume the requirement-quality findings from 067.
+10. Subtask 070 performs final verification after migration, contributor
    workflow, and task-guidance alignment are complete.
 
 Existing content should be moved with minimal editorial changes. Verification
@@ -862,6 +874,7 @@ Required new or updated documentation includes:
 - [ ] 060: Update navigation, compatibility paths, repository links, and build triggers.
 - [ ] 065: Create the human-led AI-assisted contributor workflow, integrated
   prompt examples, and instruction-inspection guidance.
+- [ ] 067: Establish the human-approved requirement-quality model/effort baseline and semantic review.
 - [ ] 068: Align specifications/tasks guidance and synchronize canonical/bundled `TASKS-v7`.
 - [ ] 069: Verify and refine task-guidance scope discipline and subtask decomposition.
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.
@@ -875,6 +888,7 @@ Required new or updated documentation includes:
 | Specification and requirement conventions | The documentation guide and Crystal Lattice addendum define target specifications, live requirements, concise primary evidence, task-owned approval, early documentation behavior, package refinements, and optional file use. |
 | Agent-evaluation framework | Deterministic package tests verify the minimal program/environment/run API, complete environment substitution, Crystal Lattice lower-layer customization, continuation, caching, workspace isolation, canonical/raw artifacts, and failure preservation without required evaluation-specific abstractions. |
 | Documentation-standard behavioral evidence | Gated pytest consumers map every `DOCGEN-*` and `DOCREP-*` requirement to a neutral-seed continuation and preserve exact artifacts for separate human review. |
+| Requirement-quality calibration | Public website, public REST API/performance, and full-stack targets run across seven producer profiles; the interpreted baseline identifies requirement omissions and expansion and remains easy for a human to review. |
 | AI-assisted contributor workflow | Root `CONTRIBUTING.md` presents matching approved human-led seven-step quick and detailed workflows; plans every initial change and follow-up; clearly separates human ownership, AI implementation/review, human verification, and delivery authorization; and places concise prompts at their workflow stages. |
 | Prompt/developer-message boundary | Contributor guidance explains how humans verify that standing project/task guidance reached the model, what belongs in those instructions versus task prompts, and how to inspect effective instructions without repeating generic repository rules. |
 | Human review of AI-produced work | Contributor guidance helps humans review specification/task decisions, unit/integration/end-to-end/manual evidence, and mandatory current user-documentation updates for consumer-affecting changes without assigning mechanical bookkeeping. |

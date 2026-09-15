@@ -412,11 +412,34 @@ vocabulary and varied examples. Deterministic token checks may remain narrow
 backstops, but the primary assessment asks whether the produced page serves its
 reader and whether headings name their actual contents.
 
-Requirement-restraint scenarios run the same task across supported low,
-medium, and high reasoning-effort settings. Higher effort may identify more
-risks and improvements, but does not silently promote them into completion
-requirements. Useful discoveries remain visible as questions,
-recommendations, supporting details, or follow-ups.
+Requirement-quality calibration uses three different small-project tasks and
+seven producer profiles: GLM at low/high/max and GPT through ChatGPT login at
+medium/high/xhigh/max. The primary scenarios cover a public static website, a
+public REST API with a performance concern, and a full-stack web application.
+Producing agents receive an evaluation-only requirement-minimal guidance
+snapshot and no task guidance. The original Test 22 remains preliminary
+evidence for translating already-classified scope; same-family package/API
+scenarios remain optional controls.
+
+Each scenario has an evaluator-only semantic target covering necessary
+outcomes, compatibility constraints, acceptable grouping, supporting details,
+and optional adjacent work. Scenario documentation establishes the actual
+project purpose, users, architecture, current behavior, pinned source
+revision, and relevant source subset.
+
+Generated requirements are assessed semantically rather than through exact
+keywords, row counts, headings, or file shapes. The implementing agent maps
+every output to its target with producer model and effort visible, identifies
+omissions and expansion trends, and prepares aggregate findings plus one
+concise row per run. The human reviews that interpreted baseline and opens full
+generated files or raw evidence only when needed.
+
+Higher producer effort may identify more risks and improvements, but does not
+silently promote them into completion requirements. Useful discoveries remain
+visible as questions, recommendations, supporting details, or follow-ups. No
+semantic-judge automation, repeated sampling, candidate matrix, or guidance
+wording change begins before the interpreted baseline is reviewed and a
+follow-up is approved.
 
 Testing-strategy scenarios use paired pressures:
 

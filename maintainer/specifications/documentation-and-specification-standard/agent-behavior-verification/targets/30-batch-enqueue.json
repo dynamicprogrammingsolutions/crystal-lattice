@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "scenario_id": "30-batch-enqueue",
+  "title": "Batch enqueue",
+  "task_summary": "Add a bounded batch operation to the existing in-memory queue without breaking single-item callers.",
+  "required_outcomes": [
+    {
+      "id": "BATCH-1",
+      "outcome": "The queue provides one operation that accepts a group of items, with 100 as the default maximum batch size.",
+      "why_required": "The requested capability and default limit must be visible in the target."
+    },
+    {
+      "id": "BATCH-2",
+      "outcome": "A valid batch appends every supplied item in the supplied order after existing queue contents.",
+      "why_required": "This defines the successful observable behavior."
+    },
+    {
+      "id": "BATCH-3",
+      "outcome": "An empty batch is rejected before the queue changes.",
+      "why_required": "The request makes empty-batch rejection and no partial mutation necessary."
+    },
+    {
+      "id": "BATCH-4",
+      "outcome": "A batch larger than the effective maximum is rejected before the queue changes.",
+      "why_required": "The size bound must be enforced without partially appending the batch."
+    },
+    {
+      "id": "BATCH-5",
+      "outcome": "Existing single-item enqueue behavior remains compatible.",
+      "why_required": "The request explicitly protects current callers."
+    }
+  ],
+  "compatibility_constraints": [
+    "Existing queue contents remain before newly appended batch items.",
+    "Existing callers of the single-item operation require no change."
+  ],
+  "acceptable_grouping": [
+    "BATCH-1 and BATCH-2 may be one requirement.",
+    "BATCH-3 and BATCH-4 may be one validation requirement when both no-mutation cases remain clear.",
+    "Compatibility may be stated with successful behavior or separately."
+  ],
+  "supporting_details": [
+    "A specification may name the batch operation, but the target does not require one exact method name.",
+    "A specification may discuss materializing an iterable or validating first, but those are implementation choices."
+  ],
+  "optional_adjacent_work": [
+    "Persistence",
+    "Asynchronous enqueue",
+    "Deduplication or idempotency",
+    "Encryption",
+    "Telemetry or dashboards",
+    "Thread-safety changes"
+  ],
+  "not_prescribed": [
+    "Exact exception class or message",
+    "Exact internal validation sequence",
+    "Exact specification file split",
+    "Tests or documentation work as separate product requirements"
+  ],
+  "open_questions": []
+}

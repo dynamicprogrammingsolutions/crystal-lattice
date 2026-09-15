@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "dataset_id": "initial-minimal-guidance-20260914",
+  "description": "Structured anchors derived from the user-accepted September 14, 2026 semantic interpretation. They calibrate the evaluator without prescribing requirement wording or count.",
+  "scenarios": {
+    "33-eleventy-archive-pagination": {
+      "allowed_coverage": {
+        "glm-low": ["complete"],
+        "glm-high": ["complete"],
+        "glm-max": ["complete"],
+        "gpt-medium": ["complete"],
+        "gpt-high": ["complete"],
+        "gpt-xhigh": ["complete"],
+        "gpt-max": ["complete"]
+      },
+      "allowed_expansion_severity": {
+        "glm-low": ["low", "medium"],
+        "glm-high": ["medium"],
+        "glm-max": ["medium"],
+        "gpt-medium": ["high"],
+        "gpt-high": ["medium", "high"],
+        "gpt-xhigh": ["high"],
+        "gpt-max": ["high"]
+      },
+      "required_signals": {
+        "glm-low": ["exact_accessibility_mechanism"],
+        "glm-high": ["compatibility_fragmentation"],
+        "glm-max": [
+          "compatibility_fragmentation",
+          "exact_accessibility_mechanism"
+        ],
+        "gpt-medium": [
+          "compatibility_fragmentation",
+          "exact_accessibility_mechanism",
+          "unapproved_empty_state"
+        ],
+        "gpt-high": [
+          "compatibility_fragmentation",
+          "task_scope_as_requirement"
+        ],
+        "gpt-xhigh": [
+          "compatibility_fragmentation",
+          "exact_accessibility_mechanism",
+          "task_scope_as_requirement",
+          "unapproved_empty_state"
+        ],
+        "gpt-max": [
+          "compatibility_fragmentation",
+          "exact_accessibility_mechanism",
+          "unapproved_empty_state"
+        ]
+      }
+    },
+    "34-fastapi-notes-pagination": {
+      "allowed_coverage": {
+        "glm-low": ["complete"],
+        "glm-high": ["complete"],
+        "glm-max": ["complete"],
+        "gpt-medium": ["complete"],
+        "gpt-high": ["complete"],
+        "gpt-xhigh": ["complete"],
+        "gpt-max": ["complete"]
+      },
+      "allowed_expansion_severity": {
+        "glm-low": ["none", "low"],
+        "glm-high": ["low", "medium"],
+        "glm-max": ["medium"],
+        "gpt-medium": ["medium"],
+        "gpt-high": ["medium"],
+        "gpt-xhigh": ["medium", "high"],
+        "gpt-max": ["high"]
+      },
+      "required_signals": {
+        "glm-low": [],
+        "glm-high": ["missing_parameter_default_choice"],
+        "glm-max": ["missing_parameter_default_choice"],
+        "gpt-medium": ["missing_parameter_default_choice"],
+        "gpt-high": ["missing_parameter_default_choice"],
+        "gpt-xhigh": [
+          "documentation_as_requirement",
+          "missing_parameter_default_choice",
+          "verification_as_requirement"
+        ],
+        "gpt-max": [
+          "database_query_strategy",
+          "missing_parameter_default_choice"
+        ]
+      }
+    },
+    "35-flask-vue-book-filter": {
+      "allowed_coverage": {
+        "glm-low": ["complete", "partial"],
+        "glm-high": ["complete"],
+        "glm-max": ["complete"],
+        "gpt-medium": ["complete"],
+        "gpt-high": ["complete"],
+        "gpt-xhigh": ["complete"],
+        "gpt-max": ["complete"]
+      },
+      "allowed_expansion_severity": {
+        "glm-low": ["low"],
+        "glm-high": ["low", "medium"],
+        "glm-max": ["medium"],
+        "gpt-medium": ["medium", "high"],
+        "gpt-high": ["medium", "high"],
+        "gpt-xhigh": ["medium", "high"],
+        "gpt-max": ["medium", "high"]
+      },
+      "required_signals": {
+        "glm-low": [],
+        "glm-high": ["filter_variant_fragmentation"],
+        "glm-max": ["unknown_filter_value_behavior"],
+        "gpt-medium": [
+          "operation_fragmentation",
+          "unknown_filter_value_behavior"
+        ],
+        "gpt-high": ["operation_fragmentation"],
+        "gpt-xhigh": [
+          "internal_parsing_mechanism"
+        ],
+        "gpt-max": [
+          "documentation_as_requirement",
+          "verification_as_requirement"
+        ]
+      },
+      "required_any_signals": {
+        "gpt-xhigh": [
+          [
+            "documentation_as_requirement",
+            "task_scope_as_requirement"
+          ],
+          [
+            "testing_as_requirement",
+            "verification_as_requirement",
+            "internal_parsing_mechanism"
+          ]
+        ],
+        "gpt-max": [
+          [
+            "documentation_as_requirement",
+            "task_scope_as_requirement"
+          ],
+          [
+            "testing_as_requirement",
+            "verification_as_requirement"
+          ]
+        ]
+      }
+    }
+  }
+}

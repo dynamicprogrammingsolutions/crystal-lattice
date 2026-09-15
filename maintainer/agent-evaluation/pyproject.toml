@@ -41,6 +41,9 @@ markers = [
   "routine: frequent high-signal behavioral guidance checks",
   "extended: lower-frequency workflow and reverse-ownership checks",
   "obsolete: legacy consumer retained only for direct pre/post guidance comparison",
+  "requirement_baseline: diverse-project requirement-quality producer baseline",
+  "requirement_task_current: current-guidance task-file producer baseline",
+  "requirement_semantic: structured semantic requirement and testing-plan evaluator",
   "requirements(*ids): requirement identifiers covered by an acceptance test",
 ]
 

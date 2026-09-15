@@ -12,6 +12,26 @@ write, summarize, or restate the standard being evaluated.
 Latest comparison:
 
 - [September 12, 2026 guidance rewrite results](20260912-guidance-rewrite-results.md)
+- [September 14, 2026 diverse-project requirement baseline](20260914-requirement-quality-baseline-results.md)
+- [September 15, 2026 requirement, task-guidance, and testing-plan comparison](20260915-requirement-task-testing-comparison.md)
+
+Requirement-quality calibration:
+
+Primary diverse-project baseline:
+
+- [Test 33: Eleventy archive pagination](33-eleventy-archive-pagination.md)
+- [Test 34: FastAPI notes pagination](34-fastapi-notes-pagination.md)
+- [Test 35: Flask/Vue book filtering](35-flask-vue-book-filter.md)
+
+Optional same-family controls:
+
+- [Test 30: batch enqueue](30-batch-enqueue-requirement-quality.md)
+- [Test 31: per-request timeout](31-request-timeout-requirement-quality.md)
+- [Test 32: report output file](32-report-output-requirement-quality.md)
+
+The primary targets are under `targets/` and were approved by the user on
+September 14, 2026. Tests 30–32 remain outside the primary 21-run matrix and
+are retained only until their diagnostic value can be compared.
 
 Several scenarios deliberately create boundary pressure. The agent may have
 internal context unavailable to the destination audience, receive a request

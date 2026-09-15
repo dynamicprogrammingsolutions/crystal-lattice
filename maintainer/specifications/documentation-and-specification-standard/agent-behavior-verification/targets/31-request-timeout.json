@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "scenario_id": "31-request-timeout",
+  "title": "Per-request timeout",
+  "task_summary": "Allow one request to override the client's configured timeout without changing later requests or existing callers.",
+  "required_outcomes": [
+    {
+      "id": "TIMEOUT-1",
+      "outcome": "The fetch operation accepts an optional per-call timeout override.",
+      "why_required": "This is the requested public capability."
+    },
+    {
+      "id": "TIMEOUT-2",
+      "outcome": "A supplied positive timeout is used for that transport call.",
+      "why_required": "The target must define the override's successful effect."
+    },
+    {
+      "id": "TIMEOUT-3",
+      "outcome": "When the override is omitted, fetch continues to use the client's configured default timeout.",
+      "why_required": "The omitted-option path must remain compatible."
+    },
+    {
+      "id": "TIMEOUT-4",
+      "outcome": "A non-positive override is rejected before the transport is called.",
+      "why_required": "The request explicitly defines validation and its side-effect boundary."
+    },
+    {
+      "id": "TIMEOUT-5",
+      "outcome": "Using an override does not change the client's default timeout or affect later calls, and existing fetch callers remain compatible.",
+      "why_required": "The override is per-call rather than a client reconfiguration."
+    }
+  ],
+  "compatibility_constraints": [
+    "Existing fetch calls without an override keep their current behavior.",
+    "The stored client timeout is unchanged after successful or rejected override calls."
+  ],
+  "acceptable_grouping": [
+    "TIMEOUT-1 and TIMEOUT-2 may be combined.",
+    "TIMEOUT-3 and the existing-caller part of TIMEOUT-5 may be combined.",
+    "The no-leak part of TIMEOUT-5 may appear with positive override behavior."
+  ],
+  "supporting_details": [
+    "The target may describe an optional parameter without prescribing its exact syntax beyond the existing language conventions.",
+    "The target may state that validation occurs before transport dispatch."
+  ],
+  "optional_adjacent_work": [
+    "Retry or backoff policy",
+    "Cancellation",
+    "A global timeout configuration system",
+    "Telemetry",
+    "Per-endpoint stored defaults",
+    "Transport replacement"
+  ],
+  "not_prescribed": [
+    "Exact exception class or text",
+    "A particular clock or timer implementation",
+    "Exact internal method decomposition",
+    "Tests or documentation work as separate product requirements"
+  ],
+  "open_questions": []
+}

@@ -45,6 +45,9 @@ These users need to:
   evidence;
 - evaluate whether concise guidance produces useful agent behavior across
   different models and reasoning efforts.
+- establish semantic targets across different project types, interpret
+  requirement-quality evidence across models and efforts, and give humans a
+  short assessment with optional access to the complete generated work.
 
 ## Target experience
 
@@ -178,6 +181,8 @@ must remain durable before implementation, it stays with the specification.
   words repeated by the guidance.
 - Exercise requirement restraint and testing choices across supported
   reasoning-effort settings.
+- Compare requirement quality across several small tasks and model/effort
+  profiles before using one passing scenario as complete guidance evidence.
 
 ## Non-goals
 
@@ -225,6 +230,12 @@ While planning a requested feature, an agent identifies worthwhile telemetry,
 hardening, and future configuration. It records them as risks, recommendations,
 or follow-ups instead of silently adding them to the required completion state.
 Only user-approved outcomes and constraints become requirements.
+
+Requirement-quality evaluation uses several small tasks from different project
+types. The implementing agent maps generated requirements to the approved
+semantic targets and identifies omissions, unsupported additions, duplication,
+and effort-related expansion. A human reviews the concise interpreted baseline;
+complete outputs remain available when a finding needs investigation.
 
 ### Balanced testing strategy
 

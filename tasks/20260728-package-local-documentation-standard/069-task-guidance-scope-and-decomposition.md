@@ -3,10 +3,15 @@ Parent Task: tasks/20260728-package-local-documentation-standard/000-main.md
 Depends On:
 
 - `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
+- `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`
 
 Related Existing Task:
 
 - `tasks/20260721-task-guidance-evaluation-workflow.md`
+
+Related Requirement-Quality Baseline:
+
+- `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`
 
 Related Specifications:
 

@@ -114,6 +114,122 @@ The current suite collects:
 - 8 extended consumers;
 - 26 revised branches over 11 guidance-neutral seeds.
 
+## Run the diverse requirement-quality baseline
+
+Subtask 067 uses three fresh, seedless project fixtures and a dedicated
+requirement-minimal guidance variant. It does not use the ordinary
+baseline/candidate selector and does not inject `TASKS-v7`.
+
+Run nine GLM cases:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_PROFILE=glm \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_baseline.py \
+  -m "agent_eval and requirement_baseline" -q
+```
+
+Run twelve GPT cases through the saved ChatGPT login:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_ALLOW_HOSTED=1 \
+AGENT_EVAL_PROFILE=gpt \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_baseline.py \
+  -m "agent_eval and requirement_baseline" -q
+```
+
+The two commands together produce exactly 21 model runs. Non-selected profile
+cases are collected and skipped by each command. Deterministic findings cover
+completion, specification/requirements presence, mutation scope, and exact
+model/effort provenance; they do not judge requirement quality.
+
+Each successful run writes `records/requirement-baseline.json` with the
+project, approved target, generated files, response, producer profile, and
+integrity findings. Interpret these records directly before designing an
+automated semantic judge or changing guidance.
+
+The September 14 accepted records are frozen for evaluator calibration:
+
+```bash
+PYTHONPATH=maintainer/agent-evaluation/src:maintainer/agent-evaluation:core/python:application/python \
+python -m suites.documentation_standard.freeze_requirement_quality_baseline
+```
+
+## Run the current task-guidance requirement matrix
+
+This matrix reuses the three projects, hidden requirement targets, and seven
+producer profiles. The prompt asks only for one task file with a Draft
+execution plan. It does not request a testing strategy; requirement
+verification is elicited by the exact maintained `agents/TASKS-v7.md` guidance.
+
+Run nine GLM cases:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_PROFILE=glm \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_task_guidance.py \
+  -m "agent_eval and requirement_task_current" -q
+```
+
+Run twelve GPT cases through the saved ChatGPT login:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_ALLOW_HOSTED=1 \
+AGENT_EVAL_PROFILE=gpt \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_task_guidance.py \
+  -m "agent_eval and requirement_task_current" -q
+```
+
+Each run writes `records/requirement-task-current.json` with the task file,
+exact current documentation/task guidance and effective message hash,
+producer provenance, prompt, target, mutation paths, and structural findings.
+
+## Run the semantic requirement and testing evaluator
+
+The evaluator uses `glm-5.3-flash:cloud` at max effort and assesses all seven
+producer outputs for one project in one call.
+
+First verify the evaluator against the user-accepted baseline anchors:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_SEMANTIC_DATASET=accepted \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_semantic_evaluator.py \
+  -m "agent_eval and requirement_semantic" -q
+```
+
+Then evaluate requirement and testing-plan quality from the same task-file
+outputs:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_SEMANTIC_DATASET=task-current \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_semantic_evaluator.py \
+  -m "agent_eval and requirement_semantic" -q
+```
+
+The task-current command is expected to fail quality assertions when a
+candidate omits required evidence, adds unsupported behavior, fragments
+requirements materially, couples tests to implementation, or misses an
+important crossing. A failed assertion does not discard the structured
+semantic record.
+
+After the producer and evaluator records are complete, freeze the current
+dataset and both semantic comparisons:
+
+```bash
+PYTHONPATH=maintainer/agent-evaluation/src:maintainer/agent-evaluation:core/python:application/python \
+python -m suites.documentation_standard.freeze_requirement_quality_current_results
+```
+
 ## Run a custom wording variant
 
 The directory must contain every guidance path listed by the suite:

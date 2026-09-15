@@ -48,6 +48,13 @@ FIXTURE_REVISIONS = {
     "sync-engine": "v3",
     "requirement-scope": "v1",
     "testing-strategy": "v1",
+    "requirement-quality-batch": "v1",
+    "requirement-quality-timeout": "v1",
+    "requirement-quality-output": "v1",
+    "requirement-quality-eleventy": "v1",
+    "requirement-quality-fastapi": "v1",
+    "requirement-quality-flask-vue": "v1",
+    "requirement-quality-judge": "v1",
 }
 SYNTHETIC_SRC_CONFTEST = """import sys
 from pathlib import Path
@@ -109,6 +116,8 @@ class ModelProfile:
             overrides["request_options"] = {
                 "reasoning_effort": reasoning_effort or "high"
             }
+        elif reasoning_effort is not None:
+            overrides["reasoning_effort"] = reasoning_effort
         if self.auth_mode is not None:
             overrides["auth_mode"] = self.auth_mode
         return overrides
@@ -458,6 +467,89 @@ class DocumentationEvaluationHarness:
                 f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
                 f"{strategy_version}"
             ),
+        )
+        self._runs[key] = run
+        return run
+
+    def fresh_scenario(
+        self,
+        *,
+        test_id: str,
+        spec_file: str,
+        fixture_id: str,
+        reasoning_effort: str,
+        cache_variant: str,
+        prompt_heading: str = "## Exact user prompt",
+    ) -> Run[TurnValue]:
+        key = (
+            f"fresh:{test_id}:{reasoning_effort}:{cache_variant}:"
+            f"{prompt_heading}"
+        )
+        if key in self._runs:
+            return self._runs[key]
+        prompt = extract_blockquote(SPEC_ROOT / spec_file, prompt_heading)
+        workspace = ScenarioWorkspaceFactory(
+            fixture_id=fixture_id,
+            candidate_guidance=True,
+            guidance=self.guidance,
+        )
+        cache_key = (
+            f"documentation-standard:{self.profile.name}:{test_id}:"
+            f"{self.guidance.name}:{self.guidance.sha256()}:"
+            f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
+            f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}:"
+            f"{reasoning_effort}:{cache_variant}"
+        )
+        run = self.evaluation.run(
+            test_id,
+            lambda context: self._turn(
+                context,
+                prompt,
+                guidance=self.guidance,
+                inject_guidance=True,
+                reasoning_effort=reasoning_effort,
+            ),
+            workspace=workspace,
+            cache_key=cache_key,
+        )
+        self._runs[key] = run
+        return run
+
+    def fresh_prompt(
+        self,
+        *,
+        test_id: str,
+        prompt: str,
+        reasoning_effort: str,
+        cache_variant: str,
+        fixture_id: str = "requirement-quality-judge",
+    ) -> Run[TurnValue]:
+        key = (
+            f"fresh-prompt:{test_id}:{reasoning_effort}:{cache_variant}:"
+            f"{_sha256_text(prompt)}"
+        )
+        if key in self._runs:
+            return self._runs[key]
+        workspace = ScenarioWorkspaceFactory(
+            fixture_id=fixture_id,
+            candidate_guidance=False,
+        )
+        cache_key = (
+            f"documentation-standard:{self.profile.name}:{test_id}:"
+            f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
+            f"{PROFILE_CONFIG_VERSION}:{reasoning_effort}:{cache_variant}"
+        )
+        run = self.evaluation.run(
+            test_id,
+            lambda context: self._turn(
+                context,
+                prompt,
+                guidance=None,
+                inject_guidance=False,
+                reasoning_effort=reasoning_effort,
+            ),
+            workspace=workspace,
+            cache_key=cache_key,
         )
         self._runs[key] = run
         return run
@@ -1100,6 +1192,20 @@ def apply_fixture(workspace: Path, fixture_id: str, branch_variant: str) -> None
         _fixture_requirement_scope(workspace, branch_variant)
     elif fixture_id == "testing-strategy":
         _fixture_testing_strategy(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-batch":
+        _fixture_requirement_quality_batch(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-timeout":
+        _fixture_requirement_quality_timeout(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-output":
+        _fixture_requirement_quality_output(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-eleventy":
+        _fixture_requirement_quality_eleventy(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-fastapi":
+        _fixture_requirement_quality_fastapi(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-flask-vue":
+        _fixture_requirement_quality_flask_vue(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-judge":
+        _fixture_requirement_quality_judge(workspace, branch_variant)
     else:
         raise KeyError(f"unknown fixture: {fixture_id}")
 
@@ -1718,6 +1824,434 @@ adapter. Do not implement the change or edit test code.
     elif branch_variant != "base":
         raise KeyError(f"unknown testing-strategy variant: {branch_variant}")
     _write_synthetic_fixture(workspace, files)
+
+
+def _fixture_requirement_quality_batch(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-batch variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/offline-queue/README.md": """# offline-queue
+
+`Queue.enqueue(item)` appends one item to the local in-memory queue.
+""",
+            "packages/offline-queue/src/queue.py": """class Queue:
+    def __init__(self):
+        self.items = []
+
+    def enqueue(self, item):
+        self.items.append(item)
+""",
+            "packages/offline-queue/docs/development/index.md": """# Offline queue development
+
+No batch-enqueue specification exists.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_timeout(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-timeout variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/request-client/README.md": """# request-client
+
+Create `Client(transport, timeout=30)` and call `fetch(url)`. The configured
+timeout is used for every request.
+""",
+            "packages/request-client/src/client.py": """class Client:
+    def __init__(self, transport, timeout=30):
+        self.transport = transport
+        self.timeout = timeout
+
+    def fetch(self, url):
+        return self.transport(url, timeout=self.timeout)
+""",
+            "packages/request-client/docs/development/index.md": """# Request client development
+
+No per-request timeout specification exists.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_output(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-output variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/report-cli/README.md": """# report-cli
+
+Run `report-cli` to print the JSON report to standard output.
+""",
+            "packages/report-cli/src/report_cli.py": """import json
+
+
+def render_report(rows):
+    return json.dumps({"rows": rows}, indent=2, sort_keys=True)
+
+
+def main(rows):
+    print(render_report(rows))
+    return 0
+""",
+            "packages/report-cli/docs/development/index.md": """# Report CLI development
+
+No output-file specification exists.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_eleventy(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-eleventy variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "UPSTREAM.md": """# Upstream source
+
+This compact evaluation fixture is adapted from Eleventy Base Blog.
+
+- Repository: https://github.com/11ty/eleventy-base-blog
+- Revision: 26b26106d7fbb30b7b40d9ef52589d10ddbcb462
+- License: MIT
+""",
+            "README.md": """# Eleventy Base Blog
+
+A performance-focused static blog starter. Production output is pre-rendered
+and uses no client-side JavaScript.
+
+The generated site includes a home page, complete blog archive, tag pages,
+feed, sitemap, and previous/next links between individual posts.
+""",
+            "package.json": """{
+  "name": "eleventy-base-blog",
+  "version": "9.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "npx @11ty/eleventy",
+    "benchmark": "cross-env DEBUG=Eleventy:Benchmark* npx @11ty/eleventy"
+  }
+}
+""",
+            "_includes/postslist.njk": """<ol reversed class="postlist">
+{%- for post in postslist | reverse %}
+  <li>
+    <a href="{{ post.url }}">{{ post.data.title }}</a>
+    <time datetime="{{ post.date | htmlDateString }}">{{ post.date | readableDate }}</time>
+  </li>
+{%- endfor %}
+</ol>
+""",
+            "content/blog.njk": """---js
+const eleventyNavigation = {
+  key: "Archive",
+  order: 2
+};
+---
+<h1>Archive</h1>
+
+{% set postslist = collections.posts %}
+{% include "postslist.njk" %}
+""",
+            "content/index.njk": """---js
+const numberOfLatestPostsToShow = 3;
+---
+{% set postslist = collections.posts | head(-1 * numberOfLatestPostsToShow) %}
+{% include "postslist.njk" %}
+""",
+            "content/tag-pages.njk": """---js
+const pagination = {
+  data: "collections",
+  size: 1,
+  alias: "tag",
+  filter: ["all", "posts"],
+};
+---
+<h1>Tagged “{{ tag }}”</h1>
+{% set postslist = collections[tag] %}
+{% include "postslist.njk" %}
+""",
+            "content/sitemap.xml.njk": """---
+permalink: /sitemap.xml
+layout: false
+---
+<urlset>
+{%- for page in collections.all %}
+  <url><loc>{{ page.url | htmlBaseUrl(metadata.url) }}</loc></url>
+{%- endfor %}
+</urlset>
+""",
+            "_includes/layouts/post.njk": """<h1>{{ title }}</h1>
+{{ content | safe }}
+
+{% set previousPost = collections.posts | getPreviousCollectionItem %}
+{% set nextPost = collections.posts | getNextCollectionItem %}
+""",
+            "eleventy.config.js": """export default async function(eleventyConfig) {
+  eleventyConfig.addPlugin(feedPlugin, {
+    outputPath: "/feed/feed.xml",
+    collection: { name: "posts", limit: 10 },
+  });
+}
+""",
+            "docs/development/index.md": """# Development
+
+The project has no archive-pagination specification.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_fastapi(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-fastapi variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "UPSTREAM.md": """# Upstream source
+
+This compact evaluation fixture is adapted from FastAPI CRUD Async.
+
+- Repository: https://github.com/testdrivenio/fastapi-crud-async
+- Revision: 4fa7ae952ece61e228135285de1b6a5ff65a1dc8
+- License: MIT
+""",
+            "README.md": """# FastAPI CRUD Async
+
+An asynchronous public notes REST API with create, list, read, update, and
+delete routes. `GET /notes/` currently returns every note as a plain JSON
+array.
+""",
+            "src/app/api/models.py": """from pydantic import BaseModel, Field
+
+
+class NoteSchema(BaseModel):
+    title: str = Field(..., min_length=3, max_length=50)
+    description: str = Field(..., min_length=3, max_length=50)
+
+
+class NoteDB(NoteSchema):
+    id: int
+""",
+            "src/app/api/crud.py": """from app.db import database, notes
+
+
+async def get_all():
+    query = notes.select()
+    return await database.fetch_all(query=query)
+""",
+            "src/app/api/notes.py": """from typing import List
+
+from fastapi import APIRouter, HTTPException, Path
+
+from app.api import crud
+from app.api.models import NoteDB, NoteSchema
+
+router = APIRouter()
+
+
+@router.get("/", response_model=List[NoteDB])
+async def read_all_notes():
+    return await crud.get_all()
+
+
+@router.get("/{id}/", response_model=NoteDB)
+async def read_note(id: int = Path(..., gt=0)):
+    note = await crud.get(id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return note
+
+
+@router.post("/", response_model=NoteDB, status_code=201)
+async def create_note(payload: NoteSchema):
+    note_id = await crud.post(payload)
+    return {"id": note_id, **payload.model_dump()}
+
+
+@router.put("/{id}/", response_model=NoteDB)
+async def update_note(payload: NoteSchema, id: int = Path(..., gt=0)):
+    return await crud.put(id, payload)
+
+
+@router.delete("/{id}/", response_model=NoteDB)
+async def delete_note(id: int = Path(..., gt=0)):
+    return await crud.delete(id)
+""",
+            "src/tests/test_notes.py": """def test_read_all_notes(test_app, monkeypatch):
+    test_data = [
+        {"title": "first", "description": "one", "id": 1},
+        {"title": "second", "description": "two", "id": 2},
+    ]
+
+    async def mock_get_all():
+        return test_data
+
+    monkeypatch.setattr(crud, "get_all", mock_get_all)
+    response = test_app.get("/notes/")
+    assert response.status_code == 200
+    assert response.json() == test_data
+""",
+            "docs/development/index.md": """# Development
+
+The project has no notes-pagination specification.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_flask_vue(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-flask-vue variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "UPSTREAM.md": """# Upstream source
+
+This compact evaluation fixture is adapted from Flask-Vue CRUD.
+
+- Repository: https://github.com/testdrivenio/flask-vue-crud
+- Revision: be91da59a10d07384537c2f76f4505eb344d1682
+- License: MIT
+""",
+            "README.md": """# Flask-Vue CRUD
+
+A user-facing Vue single-page Books application backed by a Flask JSON API.
+The table displays title, author, and read status. The client reloads all
+books after add, update, and delete operations.
+""",
+            "server/app.py": """from flask import Flask, jsonify, request
+
+
+app = Flask(__name__)
+BOOKS = [
+    {"id": "1", "title": "On the Road", "author": "Jack Kerouac", "read": True},
+    {"id": "2", "title": "Green Eggs and Ham", "author": "Dr. Seuss", "read": False},
+]
+
+
+@app.route("/books", methods=["GET", "POST"])
+def all_books():
+    response = {"status": "success"}
+    if request.method == "POST":
+        BOOKS.append(request.get_json())
+        response["message"] = "Book added!"
+    else:
+        response["books"] = BOOKS
+    return jsonify(response)
+
+
+@app.route("/books/<book_id>", methods=["PUT", "DELETE"])
+def single_book(book_id):
+    return jsonify({"status": "success"})
+""",
+            "client/src/components/Books.vue": """<template>
+  <main>
+    <h1>Books</h1>
+    <table>
+      <tr v-for="book in books" :key="book.id">
+        <td>{{ book.title }}</td>
+        <td>{{ book.author }}</td>
+        <td>{{ book.read ? "Yes" : "No" }}</td>
+      </tr>
+    </table>
+  </main>
+</template>
+
+<script>
+import axios from "axios";
+
+export default {
+  data() {
+    return {
+      books: [],
+    };
+  },
+  methods: {
+    getBooks() {
+      axios.get("http://localhost:5001/books").then((res) => {
+        this.books = res.data.books;
+      });
+    },
+    addBook(payload) {
+      axios.post("http://localhost:5001/books", payload).then(this.getBooks);
+    },
+    updateBook(payload, id) {
+      axios.put(`http://localhost:5001/books/${id}`, payload).then(this.getBooks);
+    },
+    removeBook(id) {
+      axios.delete(`http://localhost:5001/books/${id}`).then(this.getBooks);
+    },
+  },
+  created() {
+    this.getBooks();
+  },
+};
+</script>
+""",
+            "docs/development/index.md": """# Development
+
+The project has no book-filter specification.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_judge(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-judge variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "README.md": """# Requirement-quality semantic evaluation
+
+This isolated workspace is used only to obtain a structured semantic
+assessment from the model. The complete assessment input is in the user
+message. Do not inspect or modify repository files.
+""",
+        },
+    )
 
 
 def _write_synthetic_fixture(
