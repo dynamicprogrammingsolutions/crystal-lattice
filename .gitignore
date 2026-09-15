@@ -32,6 +32,8 @@ application/python/agent_terminal_app/default_config/.plugin_cache/
 *.egg
 MANIFEST
 
+/application/python/agent_terminal_app/cache/*
+
 # PyInstaller
 *.manifest
 *.spec
