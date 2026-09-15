@@ -140,6 +140,11 @@ Detox. Run all macOS UI tests with:
 npm run test:macos-ui
 ```
 
+UI tests do not stop already-running Crystal Lattice processes. An ordinary
+Release instance can remain open during XCTest. If an existing Xcode test or
+Debug-harness session blocks another run, resolve that specific session
+manually and rerun the requested test.
+
 Run the focused native session-filter popover test with:
 
 ```sh

@@ -4,6 +4,14 @@ Desktop unit and real-backend component tests verify data flow and routing.
 XCUITest verifies native popovers, windows, and geometry that cannot be
 reliably proven below the native boundary.
 
+XCUITest must never terminate an already-running Crystal Lattice process.
+Ordinary Release instances can coexist with the Debug test harness and are not
+blockers. If an existing Xcode test or Debug-harness session prevents
+automation or a new harness launch, stop the run and report that specific
+conflict to the user; do not terminate it automatically. Do not add
+`forceTerminate`, `killall`, `pkill`, or equivalent process cleanup to XCTest
+setup or test scripts.
+
 Deterministic native harnesses are registered through `index.js` and selected
 by `AppDelegate.mm` launch flags. The notification rail harness uses
 authoritative fake backend snapshots plus the production application and

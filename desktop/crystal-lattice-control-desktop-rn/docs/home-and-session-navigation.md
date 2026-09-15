@@ -20,6 +20,13 @@ Recent Sessions includes cached sessions modified in the selected timeframe:
 The same collection is available in the Home workspace and the History side
 panel. A watched session can also appear in Recent Sessions.
 
+Watchlist cards and Recent timeline rows show title, an optional subtitle or
+distinct message preview, session ID, request status when available, local
+note, connection name, and relative modification time. Connection name and
+session ID truncate independently while time and actions remain available.
+Preview-only sessions show their message preview once. Recent entries use a
+neutral gray timeline rail; request-status colors keep their semantic meaning.
+
 Local notes are keyed by session ID. Home, History, Sessions, and Chat can edit
 the same note. In Sessions and Chat, Local note is in the ellipsis Session
 actions menu and may be pinned. Removing a Watchlist entry or deleting a

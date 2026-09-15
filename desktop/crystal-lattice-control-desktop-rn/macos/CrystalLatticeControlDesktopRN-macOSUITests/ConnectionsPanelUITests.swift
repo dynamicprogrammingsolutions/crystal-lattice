@@ -1,4 +1,3 @@
-import AppKit
 import XCTest
 
 final class ConnectionsPanelUITests: XCTestCase {
@@ -11,12 +10,6 @@ final class ConnectionsPanelUITests: XCTestCase {
 
   override func setUpWithError() throws {
     continueAfterFailure = false
-    for application in NSRunningApplication.runningApplications(
-      withBundleIdentifier: "org.reactjs.native.CrystalLatticeControlDesktopRN"
-    ) {
-      application.forceTerminate()
-    }
-    RunLoop.current.run(until: Date().addingTimeInterval(0.3))
     try? FileManager.default.removeItem(at: stateURL)
     try? FileManager.default.removeItem(at: workspaceStateURL)
   }
@@ -73,6 +66,21 @@ final class ConnectionsPanelUITests: XCTestCase {
     element.coordinate(
       withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
     ).click()
+  }
+
+  private func assertNoHorizontalOverlap(
+    _ left: XCUIElement,
+    _ right: XCUIElement,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    XCTAssertLessThanOrEqual(
+      left.frame.maxX,
+      right.frame.minX + 2,
+      "Expected \(left) to remain left of \(right)",
+      file: file,
+      line: line
+    )
   }
 
   private func launchHarness(
@@ -276,7 +284,10 @@ final class ConnectionsPanelUITests: XCTestCase {
     )
     _ = waitForWorkspaceState { state in
       (state["watchlistOrder"] as? [String])
-        == ["two", "one", "three", "four"]
+        == [
+          "two", "one", "three", "four",
+          "session-with-a-deliberately-long-identifier-for-native-truncation",
+        ]
     }
 
     clickCenter(workspaceElement(app, "desktop-activity-history"))
@@ -318,11 +329,172 @@ final class ConnectionsPanelUITests: XCTestCase {
     }
   }
 
+  func testHomeAndHistoryPresentationKeepMetadataAndActionsVisible() throws {
+    let app = launchWorkspaceHarness()
+    _ = waitForWorkspaceState { state in
+      (state["watchlistOrder"] as? [String])?.count == 5
+    }
+    clickCenter(workspaceElement(app, "desktop-home-tab"))
+
+    let longID =
+      "session-with-a-deliberately-long-identifier-for-native-truncation"
+    let homeScroll = app.scrollViews.firstMatch
+    XCTAssertTrue(homeScroll.waitForExistence(timeout: 20), app.debugDescription)
+
+    let tileTitle = workspaceElement(
+      app,
+      "desktop-tile-title-harness-connection-\(longID)-native"
+    )
+    if !tileTitle.isHittable {
+      homeScroll.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)
+      ).scroll(byDeltaX: 0, deltaY: -homeScroll.frame.height)
+    }
+    XCTAssertTrue(tileTitle.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertEqual(tileTitle.label, "A complete native session title")
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tile-subtitle-harness-connection-\(longID)-native"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tile-session-id-harness-connection-\(longID)-native"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    let tileConnection = workspaceElement(
+      app,
+      "desktop-tile-connection-harness-connection-\(longID)-native"
+    )
+    let tileTime = workspaceElement(
+      app,
+      "desktop-tile-time-harness-connection-\(longID)-native"
+    )
+    XCTAssertTrue(tileConnection.waitForExistence(timeout: 10))
+    XCTAssertTrue(tileTime.waitForExistence(timeout: 10))
+    assertNoHorizontalOverlap(tileConnection, tileTime)
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tile-note-action-harness-connection-\(longID)"
+      ).waitForExistence(timeout: 10)
+    )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tile-watch-action-harness-connection-\(longID)"
+      ).waitForExistence(timeout: 10)
+    )
+
+    homeScroll.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)
+    ).scroll(byDeltaX: 0, deltaY: -homeScroll.frame.height * 2)
+    let recentTitle = workspaceElement(
+      app,
+      "desktop-home-recent-title-harness-connection-\(longID)-native"
+    )
+    XCTAssertTrue(
+      recentTitle.waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    let recentConnection = workspaceElement(
+      app,
+      "desktop-home-recent-connection-harness-connection-\(longID)-native"
+    )
+    let recentTime = workspaceElement(
+      app,
+      "desktop-home-recent-time-harness-connection-\(longID)-native"
+    )
+    let recentActions = workspaceElement(
+      app,
+      "desktop-home-recent-note-action-harness-connection-\(longID)"
+    )
+    XCTAssertTrue(recentConnection.waitForExistence(timeout: 10))
+    XCTAssertTrue(recentTime.waitForExistence(timeout: 10))
+    XCTAssertTrue(recentActions.waitForExistence(timeout: 10))
+    assertNoHorizontalOverlap(recentConnection, recentTime)
+    assertNoHorizontalOverlap(recentTime, recentActions)
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-home-recent-dot-harness-connection-\(longID)"
+      ).waitForExistence(timeout: 10)
+    )
+    XCTAssertEqual(
+      workspaceElement(
+        app,
+        "desktop-home-recent-title-harness-connection-preview-only-native"
+      ).label,
+      "Preview rendered exactly once"
+    )
+    XCTAssertFalse(
+      workspaceElement(
+        app,
+        "desktop-home-recent-subtitle-harness-connection-preview-only-native"
+      ).exists
+    )
+
+    clickCenter(workspaceElement(app, "desktop-activity-history"))
+    _ = waitForWorkspaceState { state in
+      (state["lowerPanel"] as? String) == "history"
+    }
+    let historyPanel = workspaceElement(app, "desktop-history-panel")
+    let historyTitle = workspaceElement(
+      app,
+      "desktop-panel-history-title-harness-connection-\(longID)-native"
+    )
+    if !historyTitle.isHittable {
+      historyPanel.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)
+      ).scroll(byDeltaX: 0, deltaY: -historyPanel.frame.height)
+    }
+    XCTAssertTrue(
+      historyTitle.waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-panel-history-subtitle-harness-connection-\(longID)-native"
+      ).waitForExistence(timeout: 10)
+    )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-panel-history-session-id-harness-connection-\(longID)-native"
+      ).waitForExistence(timeout: 10)
+    )
+    let historyConnection = workspaceElement(
+      app,
+      "desktop-panel-history-connection-harness-connection-\(longID)-native"
+    )
+    let historyTime = workspaceElement(
+      app,
+      "desktop-panel-history-time-harness-connection-\(longID)-native"
+    )
+    XCTAssertTrue(historyConnection.waitForExistence(timeout: 10))
+    XCTAssertTrue(historyTime.waitForExistence(timeout: 10))
+    assertNoHorizontalOverlap(historyConnection, historyTime)
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-panel-history-note-action-harness-connection-\(longID)"
+      ).waitForExistence(timeout: 10)
+    )
+  }
+
   func testWatchlistVerticalDragFollowsPointerDirection() throws {
     let app = launchWorkspaceHarness()
     _ = waitForWorkspaceState { state in
       (state["watchlistOrder"] as? [String])
-        == ["one", "two", "three", "four"]
+        == [
+          "one", "two", "three", "four",
+          "session-with-a-deliberately-long-identifier-for-native-truncation",
+        ]
     }
     clickCenter(workspaceElement(app, "desktop-home-tab"))
 
@@ -347,7 +519,10 @@ final class ConnectionsPanelUITests: XCTestCase {
     )
     _ = waitForWorkspaceState { state in
       (state["watchlistOrder"] as? [String])
-        == ["two", "three", "one", "four"]
+        == [
+          "two", "three", "one", "four",
+          "session-with-a-deliberately-long-identifier-for-native-truncation",
+        ]
     }
 
     let movedFirst = workspaceElement(
@@ -368,7 +543,10 @@ final class ConnectionsPanelUITests: XCTestCase {
     )
     _ = waitForWorkspaceState { state in
       (state["watchlistOrder"] as? [String])
-        == ["one", "two", "three", "four"]
+        == [
+          "one", "two", "three", "four",
+          "session-with-a-deliberately-long-identifier-for-native-truncation",
+        ]
     }
   }
 }

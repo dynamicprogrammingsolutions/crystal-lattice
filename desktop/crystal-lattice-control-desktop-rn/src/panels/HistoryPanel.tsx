@@ -54,7 +54,7 @@ export function HistoryPanel({
         {collections.recent.length === 0 ? (
           <Text style={styles.empty}>No recent cached sessions.</Text>
         ) : (
-          collections.recent.map(item => {
+          collections.recent.map((item, index) => {
             const watched = collections.watchlist.some(
               candidate => candidate.key === item.key,
             );
@@ -72,6 +72,8 @@ export function HistoryPanel({
                 onOpen={mode => onOpenSession(item, mode)}
                 onToggleWatch={() => onToggleWatch(item, watched)}
                 onEditNote={() => onEditNote(item)}
+                isLast={index === collections.recent.length - 1}
+                presentationScope="panel-history"
               />
             );
           })

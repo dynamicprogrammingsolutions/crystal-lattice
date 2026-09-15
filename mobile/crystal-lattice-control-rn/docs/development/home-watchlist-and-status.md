@@ -70,8 +70,20 @@ selected time window.
   Watchlist tile uses `x` to remove that membership;
 - server session pins continue to use their existing rich application action.
 
-Tiles bound note previews to two lines and consume semantic typography. Native
-selectors include connection and session identity.
+Mobile owns its Watchlist and timeline presentation directly; desktop has a
+separate implementation. They currently align on title, optional
+subtitle/distinct preview, session ID, request status, note, and a final
+connection/time metadata row, but no shared React component or spacing
+contract prevents later platform-specific changes.
+
+The mobile fallback starts with the SDK session-list presentation. It uses a
+distinct preview only when no subtitle exists and never renders the same
+preview as both title and secondary text. Connection is the only flexible
+metadata child; relative time and action controls do not shrink. Tiles bound
+title, subtitle, and note lines, consume semantic theme typography, and expose
+field-level native selectors containing connection and session identity.
+Timeline rail dots use `theme.textMuted`; request-status colors remain
+semantic.
 
 ## Derived request status
 

@@ -36,6 +36,19 @@ Desktop Home and History resolve local identities against `sessionsCache`.
 The history range is native global state in `NSUserDefaults`, not part of the
 markdown preference contract.
 
+Desktop owns `DesktopSessionCollectionItem`, its display fallback,
+relative-time formatting, field identifiers, and Home/History styles. Mobile
+has an intentionally separate implementation. The two currently align on
+field hierarchy and visual rhythm without a shared React component, display
+model, or spacing contract.
+
+Desktop starts from the SDK session-list fallback, adds a preview as secondary
+text only when it differs from the title, and renders connection name and
+relative time as separate metadata children. Connection is flexible and
+truncating; time and actions do not shrink. Home Recent and the History panel
+reuse the desktop-owned timeline variant with a `textMuted` rail, while
+request status retains its shared semantic tone.
+
 ## Session interaction
 
 `sessionItemInteraction` is the shared desktop interpreter for Home, History,

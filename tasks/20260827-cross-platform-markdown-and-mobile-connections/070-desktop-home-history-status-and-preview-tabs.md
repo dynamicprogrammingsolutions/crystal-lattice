@@ -151,10 +151,11 @@ history, desktop global Settings presentation, the activity rail and lower
 panel switcher, desktop request-status consumption, and the session-tab
 preview/reorder model.
 
-It may extract portable state, geometry, and presentation from the completed
-mobile Home implementation into the shared React Native package. Such
-extraction must preserve the public behavior and persisted mobile data already
-delivered by subtask 060.
+It reuses portable Home state, status presentation, theme contracts, and
+reorder geometry already owned by shared packages. Mobile and desktop retain
+separate Watchlist-card and Recent-timeline component implementations so their
+visual designs can evolve independently while targeting deliberate current
+alignment.
 
 This subtask consumes the existing explicit-ID derived-status endpoint and
 frontend SDK types. It does not implement durable operation state, global
@@ -305,7 +306,7 @@ per connection.
 
 Pass normalized status projections to:
 
-- shared Home Watchlist and history items;
+- desktop Home Watchlist and history items;
 - compact History rows;
 - Sessions rows for the focused connection;
 - permanent and preview tabs;
@@ -664,14 +665,15 @@ acceptable completion chunks and proceeds in the order below.
   session-actions menu in both Sessions and Chat instead of a detached
   Sessions-row control.
 - [ ] Desktop and mobile Watchlist cards and Recent Sessions timeline rows use
-  the same visual structure and information hierarchy while retaining
-  responsive platform dimensions and interaction adapters.
-- [ ] Watchlist and Recent entries show title, optional subtitle, session ID,
+  closely aligned field hierarchy and visual rhythm while retaining separate
+  platform-owned presentation components, responsive dimensions, and
+  interaction adapters.
+- [x] Watchlist and Recent entries show title, optional subtitle, session ID,
   independently truncated connection name and relative time, request status,
   note, and relevant local actions.
-- [ ] When title and subtitle are both absent, a message preview fallback is
+- [x] When title and subtitle are both absent, a message preview fallback is
   shown exactly once.
-- [ ] Timeline rail dots are neutral gray; request-status indicators retain
+- [x] Timeline rail dots are neutral gray; request-status indicators retain
   semantic colors.
 - [ ] The desktop sidebar has a pointer-adjustable, bounded, locally persisted
   width plus an accessible keyboard adjustment.
@@ -693,10 +695,11 @@ acceptable completion chunks and proceeds in the order below.
 - [x] Successful non-running or missing-session results remain authoritative,
   and unavailable/unsupported authority cannot leave an unbounded stale
   in-progress result.
-- [ ] Shared React Native code owns only portable Home card/timeline
-  presentation, session fallback selection, status polling, and reorder
-  geometry. Platform storage, navigation, gestures, native menus, and desktop
-  workspace lifecycle remain platform-owned.
+- [x] Shared packages continue to own portable Home data derivation, request
+  status presentation/polling, theme contracts, and reorder geometry. Mobile
+  and desktop independently own card/timeline markup, display-text fallback,
+  relative-time formatting, styles, accessibility identifiers, and
+  interaction hosting.
 - [x] Local Watchlist actions do not invoke or visually reuse server-side
   session pin behavior and do not require an open backend.
 - [ ] Sidebar sizing has one tested policy for default/minimum/maximum values;
@@ -747,17 +750,18 @@ Watchlist actions to mobile and desktop Sessions/Chat action collections,
 without default pinning. Move desktop Local note into those same established
 session action menus.
 
-#### Chunk 3 — shared Home presentation and truncation
+#### Chunk 3 — coordinated Home presentation and truncation
 
-Add portable Watchlist-card and Recent-timeline presentation primitives plus
-one canonical title/subtitle/preview fallback selector to the shared React
-Native package. Mobile and desktop wrappers continue to own navigation,
-touch/pointer drag, double-click, and native menus.
+Keep mobile and desktop Watchlist-card and Recent-timeline implementations in
+their owning applications. Align their current information hierarchy and
+visual rhythm directly, without introducing shared React presentation
+components or a new shared display-model layer.
 
-Use the same field order and spacing structure on both platforms. Render
-connection name and relative time as separate layout children so each
-truncates independently, keep actions reachable, and use a neutral timeline
-rail. Preserve semantic request-status colors.
+On each platform, use the SDK session-list fallback as the starting point and
+independently prevent duplicate preview text. Render connection name and
+relative time as separate layout children so connection truncation cannot
+displace time or actions. Use a neutral timeline rail and preserve shared
+semantic request-status colors.
 
 #### Chunk 4 — desktop sidebar and close ergonomics
 
@@ -783,9 +787,10 @@ raw three-finger trackpad recognizer.
   persisted user choices survive.
 - **Decision:** Watchlist membership actions are state-aware Add/Remove
   commands, available but not pinned by default.
-- **Decision:** shared Home presentation means the same structure,
-  information order, spacing contract, and fallback behavior. Platform theme,
-  responsive width, input handling, and native surfaces remain platform-owned.
+- **Decision:** Home presentation remains separately implemented on mobile
+  and desktop. Current hierarchy, fallback result, and visual rhythm are
+  intentionally aligned, but neither platform is constrained by a shared
+  card/timeline component or spacing contract.
 - **Decision:** only timeline-rail dots become gray. Request-status colors do
   not change.
 - **Decision:** middle-click is the supported close event. System or
@@ -800,8 +805,8 @@ raw three-finger trackpad recognizer.
   shared polling documentation whose behavior changes.
 - Chunk 2 updates desktop Home/tab user guidance, global Settings/View-menu
   behavior, and mobile/desktop local session-action guidance.
-- Chunk 3 updates mobile and desktop Home user documentation plus shared
-  component ownership documentation.
+- Chunk 3 updates mobile and desktop Home user documentation plus independent
+  platform-presentation ownership documentation.
 - Chunk 4 updates desktop navigation/layout and native pointer-test guidance.
 - Do not rewrite immutable completion notes or generated documentation-site
   output.
@@ -812,7 +817,7 @@ raw three-finger trackpad recognizer.
   vertical drag correction.
 - [x] Complete Chunk 2 activation semantics and mobile/desktop local session
   actions.
-- [ ] Complete Chunk 3 shared Home presentation and truncation.
+- [ ] Complete Chunk 3 coordinated Home presentation and truncation.
 - [ ] Complete Chunk 4 desktop sidebar and middle-click ergonomics.
 - [ ] Keep the corresponding mobile checklist in
   `tasks/20260827-cross-platform-markdown-and-mobile-connections/060-mobile-home-watchlist-and-request-status.md`
@@ -832,10 +837,11 @@ raw three-finger trackpad recognizer.
   startup restore; and preference persistence. Mobile Detox and macOS
   XCUITest exercise Watchlist Add/Remove from Sessions and Chat and desktop
   Local note through the ellipsis menu.
-- Chunk 3 shared tests cover every title/subtitle/preview combination.
-  Mobile/desktop component and native geometry tests use long connection and
-  session IDs and prove time/actions remain visible without copied typography
-  constants. Native visual review confirms cross-platform structure.
+- Chunk 3 mobile and desktop tests independently cover every
+  title/subtitle/preview combination. Component and native geometry tests use
+  long connection and session IDs and prove time/actions remain visible
+  without copied typography constants. Native visual review confirms close
+  current alignment without requiring structural identity.
 - Chunk 4 tests cover width bounds, pointer and accessibility adjustment,
   persistence, main-content protection, one separator per boundary, and
   middle-click close without accidental select or drag. Literal trackpad
@@ -1112,3 +1118,192 @@ start the new switch preference Off.
   No correction file adds a TypeScript diagnostic.
 - The successful native result bundle is
   `Test-CrystalLatticeControlDesktopRN-macOS-2026.09.14_07-59-13-+0200.xcresult`.
+
+### Chunk 3 refined execution plan
+
+Status: Approved
+
+Chunk 3 aligns mobile and desktop Home presentation directly while
+deliberately keeping their React components, display helpers, styles, and
+accessibility identifiers in their owning applications. No new shared card,
+timeline, display-model, or relative-time abstraction will be introduced.
+Existing shared Home data, request-status, theme, and reorder contracts remain
+unchanged.
+
+Implement the same initial fallback result independently on each platform,
+using the frontend SDK's existing session-list presentation fallback as the
+starting point:
+
+1. use a non-empty server presentation title;
+2. otherwise use the non-empty message preview as the title;
+3. otherwise use the existing abbreviated `Session <id-prefix>` fallback;
+4. use a non-empty server subtitle when present;
+5. otherwise show the message preview as secondary text only when it differs
+   from the resolved title.
+
+The duplicated local guard is intentional and small. It guarantees that a
+preview-only session is rendered once today without creating a shared
+presentation contract that either platform must preserve later. Relative-time
+formatting also remains local, with tests fixing the current expected parity.
+
+Use the same current field hierarchy in both independently implemented
+Watchlist and Recent variants:
+
+1. title;
+2. optional subtitle or distinct preview;
+3. session ID;
+4. semantic request-status indicator;
+5. optional local note;
+6. metadata row containing connection name and relative time.
+
+On both platforms, the metadata row renders connection name as the only
+flexible one-line child and relative time as a separate non-shrinking child.
+Action regions do not shrink. Title and subtitle are independently bounded,
+session ID truncates to one line, and note remains bounded to two lines.
+Timeline dots use each platform theme's `textMuted`; the existing shared
+request-status indicator retains semantic tones.
+
+On mobile, refactor only the local `HomeScreen` Watchlist tile and Recent
+timeline markup. Preserve its two-column proportions, touch-sized controls,
+PanResponder/Animated drag overlay, measured placeholder, settling handoff,
+navigation, and existing root/action identifiers. Add mobile-owned field
+identifiers and styles.
+
+On desktop, refactor only `DesktopSessionCollectionItem` and its Home/History
+hosts. Preserve compact pointer-oriented sizing, selection/hover treatment,
+single/double-click interpretation, explicit Preview/Open action, native drag,
+and existing root/action identifiers. Add desktop-owned field identifiers and
+styles. Home Recent and the History side panel continue to reuse the desktop
+component, not the mobile implementation.
+
+Add controlled-time fallback and relative-time tests independently in both
+applications. Component tests compare field order, truncation props, and
+theme-derived typography within each platform; they do not import the other
+platform or encode shared snapshots. Extend both native harnesses with
+equivalent long-name and preview-only fixtures so current visual alignment can
+be assessed without turning it into a cross-platform code contract.
+
+#### Implementation decisions and open questions
+
+- **Decision:** mobile and desktop presentation code remains separate. Shared
+  packages retain only their existing data, status, theme, and reorder
+  responsibilities.
+- **Recommendation:** adopt the fallback order above independently in each
+  application. Preview supplements a title only when no server subtitle exists
+  and differs from the rendered title; it is never duplicated.
+- **Recommendation:** status receives its own row on each platform rather than
+  competing with a long title for horizontal space.
+- **Recommendation:** preserve existing root and action identifiers where
+  automation consumes them, while adding parallel but platform-owned
+  field-level identifiers.
+- **Recommendation:** use each platform's active theme tokens in production.
+  Tests inspect those tokens or rendered geometry and do not copy mutable
+  typography or spacing preset numbers.
+- **Recommendation:** current parity means closely aligned hierarchy and
+  visual rhythm, not identical source, styles, spacing, or pixel geometry.
+  Platform-specific drift can be made locally in later work.
+- No requirement question is open. Approval of this Draft accepts the
+  recommended fallback and current visual-alignment choices.
+
+#### Documentation
+
+- Update mobile Home user guidance with the complete Watchlist/Recent field
+  hierarchy and truncation behavior.
+- Update mobile and desktop Home development pages to state that presentation
+  is independently owned while existing data/status/theme/reorder contracts
+  remain shared.
+- Shared React Native API documentation does not change unless implementation
+  discovers an inaccurate existing ownership statement. Do not change
+  generated documentation output.
+
+#### Task checklist
+
+- [x] Add mobile-owned fallback/relative-time helpers and align mobile
+  Watchlist/Recent fields while preserving two-column drag, optimistic
+  settling, notes, status, navigation, and local actions.
+- [x] Add desktop-owned fallback/relative-time helpers and align desktop Home
+  and History fields while preserving pointer drag, selection, double-click,
+  explicit Open/Preview, notes, status, and local actions.
+- [x] Add long-name, truncation, fallback, neutral-rail, and parity component
+  regressions in both applications without copied typography presets or
+  cross-platform snapshots.
+- [x] Extend and run iOS, Android, and macOS native geometry scenarios,
+  including existing drag regressions after card-height changes.
+- [ ] Update current documentation, the coordinated `060` checklist, and
+  append immutable Chunk 3 completion evidence.
+
+#### Requirement verification
+
+- Separate mobile and desktop tests each cover all
+  title/subtitle/preview-presence combinations, whitespace normalization,
+  preview de-duplication, empty-preview fallback, and deterministic
+  relative-time boundaries.
+- Each platform's component tests prove its Watchlist and Recent variants
+  expose the intended ordered fields, use local theme-resolved typography,
+  keep connection and time as separate children, preserve action
+  availability, and render a preview-only value once.
+- Mobile Home native tests on iOS and Android verify a long connection and
+  session ID truncate while relative time and local actions remain visible,
+  both columns remain usable, the preview fallback is not duplicated, and
+  existing drag/settling behavior still passes.
+- Signed macOS XCTest verifies the same fields and non-overlap geometry in
+  Home Watchlist, Home Recent, and the History panel, plus the existing
+  upward/downward Watchlist drag.
+- Native visual review compares one equivalent fixture on mobile and desktop
+  for close current hierarchy and visual rhythm; source, spacing, and pixel
+  equality are not required.
+
+#### Additional implementation verification
+
+- Run the complete mobile and desktop Jest suites. Run shared RN tests only if
+  an existing shared contract needs an incidental correction.
+- Run mobile and desktop TypeScript checks, reporting only established
+  baselines separately.
+- Run targeted formatting/lint, `git diff --check`, and documentation-site
+  preparation.
+- No backend, application-server, frontend SDK transport, or hosted-provider
+  test is required because Chunk 3 does not change those boundaries.
+
+### Chunk 3 implementation notes
+
+- Mobile and desktop each own a local Home display helper and tests. Both
+  currently begin with the SDK session-list fallback, trim empty presentation
+  fields, avoid repeating preview text, and format compact relative time, but
+  neither imports the other.
+- Mobile retains its in-screen Watchlist/timeline components and touch drag
+  state. Desktop retains `DesktopSessionCollectionItem`, desktop interaction
+  interpretation, and `MacDragView`; its `history` variant now renders the
+  same neutral timeline concept in Home Recent and the History panel.
+- Both platform layouts currently use title, optional subtitle/distinct
+  preview, session ID, status, note, and connection/time metadata order.
+  Connection is flexible and one-line truncating; time and actions do not
+  shrink. Status has its own row.
+- Mobile and desktop field identifiers are deliberately platform-owned.
+  Desktop uses separate `home-recent` and `panel-history` scopes so both
+  simultaneously mounted timelines remain independently testable.
+- No shared React Native presentation component, display model, relative-time
+  API, storage change, navigation change, polling change, or backend change
+  was introduced.
+
+### Chunk 3 verification status
+
+- Complete automated verification:
+  - desktop Jest: 36 suites and 176 tests;
+  - mobile Jest: 44 suites and 197 tests;
+  - mobile TypeScript passed; desktop TypeScript reports only its established
+    frontend SDK URL, ChatPane, and Theme `shadow` baselines;
+  - fresh iOS and Android E2E builds;
+  - complete updated Home Detox scenario passed on iOS and Android, including
+    long-name non-overlap, preview de-duplication, drag/settling, persistence,
+    notes, settings, and navigation;
+  - Android passed with temporary four-core/4-GB/no-snapshot boot arguments
+    after two default-resource attempts lost emulator window focus;
+  - signed macOS XCTest: 2 tests and zero failures, covering Home Watchlist,
+    Home Recent, History-panel long-field/non-overlap geometry, preview
+    de-duplication, action availability, and upward/downward Watchlist drag;
+  - targeted desktop ESLint, mobile/desktop Prettier, `git diff --check`, and
+    documentation preparation.
+- The successful macOS result bundle is
+  `Test-CrystalLatticeControlDesktopRN-macOS-2026.09.15_12-31-05-+0200.xcresult`.
+- Native visual comparison remains pending; automated native verification is
+  complete.
