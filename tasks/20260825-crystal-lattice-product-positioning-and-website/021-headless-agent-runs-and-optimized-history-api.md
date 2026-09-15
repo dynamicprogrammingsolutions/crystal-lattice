@@ -929,7 +929,7 @@ GitHub Actions workflow.
 
 ### Approved follow-up requirements checklist
 
-- [ ] All supported source and bundled-Python runtimes provide one complete,
+- [x] All supported source and bundled-Python runtimes provide one complete,
       validated access-variable set, and every public archive, Bash installer,
       PowerShell installer, and manual archive path exposes that capability on
       its native release targets.
@@ -950,7 +950,7 @@ GitHub Actions workflow.
 - [x] `disabled` is an explicit documented Python and TypeScript UI-schema
       field, and terminal, mobile, and desktop behavior prevents changes while
       displaying the unavailable or CLI-only explanation.
-- [ ] Focused automated tests verify the access predicates, explicit config
+- [x] Focused automated tests verify the access predicates, explicit config
       text, required values, compiled variants, and every supported source,
       archive/manual, Bash-installed, and PowerShell-installed runtime path.
 - [ ] One real tool-capable LLM follows the config-owned guidance and creates
@@ -975,11 +975,12 @@ GitHub Actions workflow.
   and build jobs consumed about 53.5 raw runner-minutes in total. Individual
   build jobs ranged from 2.5 minutes on Linux ARM64 to 20.9 minutes on Windows
   ARM64.
-- Current distribution smokes verify archive identity, command discovery,
-  plugin installation, startup, and agent listing. They do not execute
+- Before this follow-up, distribution smokes verified archive identity,
+  command discovery, plugin installation, startup, and agent listing. They did
+  not execute
   `crystal-lattice run`, import `open_runtime`, or verify the complete access
   environment through each installed entry point.
-- The current real access test is source-layout-only and CLI-only. Its
+- The pre-follow-up real access test was source-layout-only and CLI-only. Its
   `glm-5.3-flash:cloud` run took 87.75 seconds and proved one real child
   session, but it does not cover the Python SDK or packaged native layouts.
 - An existing optional optimized-bundle Ollama test uses `qwen3:0.6b` for one
@@ -1113,6 +1114,22 @@ GitHub Actions workflow.
   contained spaces. The smoke now generates a temporary PowerShell forwarding
   script that invokes that exact command with `@args` and preserves
   `$LASTEXITCODE`; a focused test locks down the wrapper.
+- Final deterministic run
+  [34999315316](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34999315316)
+  passed on Linux AMD64/ARM64, macOS AMD64/ARM64, and Windows AMD64/ARM64.
+  Every direct archive passed, every applicable Bash installer passed, and
+  both native PowerShell installers passed the deterministic CLI and packaged
+  Python SDK requests with complete access-value checks. The local clean
+  source smoke also passed after the final corrections. From the test job's
+  start through Windows ARM64 completion, the run took 27 minutes 10 seconds
+  and about 57.2 aggregate test/build runner-minutes, versus the 26 minutes
+  48 seconds and roughly 53.5 runner-minutes observed before adding these
+  probes. The approximately 3.7 runner-minute delta includes normal build
+  variance and requires no model installation or provider call.
+- The post-change sparse Ollama
+  `glm-5.3-flash:cloud` delegation test passed in 94.45 seconds. Complete
+  mobile and desktop Jest suites passed with 181 and 144 tests respectively;
+  the final application suite passed 481 tests with one intentional skip.
 
 ### Draft execution plan
 
@@ -1311,7 +1328,7 @@ evidence, and remove the temporary Detox test before completion.
       test.
 - [x] Run source and packaged local macOS CLI+SDK acceptance, plus optional
       Ollama timing comparison.
-- [ ] Run focused, package, native-distribution, documentation, and security
+- [x] Run focused, package, native-distribution, documentation, and security
       verification.
 - [ ] Update requirement evidence and add immutable post-follow-up completion
       evidence.
