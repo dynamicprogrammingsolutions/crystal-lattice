@@ -1105,6 +1105,14 @@ GitHub Actions workflow.
   found the repository venv executable. Imports now occur inside stdout
   redirection, and installer headless probes invoke the exact installed
   launcher after the independent by-name checks.
+- Follow-up run
+  [34996853430](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34996853430)
+  confirmed both Linux and both macOS targets again, plus Windows AMD64 direct
+  archive and Git-Bash installation. Its PowerShell-installed command reached
+  an existing Windows batch quoting edge when the absolute `.cmd` path
+  contained spaces. The smoke now generates a temporary PowerShell forwarding
+  script that invokes that exact command with `@args` and preserves
+  `$LASTEXITCODE`; a focused test locks down the wrapper.
 
 ### Draft execution plan
 

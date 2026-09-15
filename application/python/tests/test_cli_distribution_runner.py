@@ -23,6 +23,7 @@ import install_current_archive as local_installer  # type: ignore[import-not-fou
 import run_distribution_smoke as distribution_runner  # type: ignore[import-not-found]  # noqa: E402
 import headless_access_smoke  # type: ignore[import-not-found]  # noqa: E402
 import smoke_agent_access  # type: ignore[import-not-found]  # noqa: E402
+import smoke_powershell_install  # type: ignore[import-not-found]  # noqa: E402
 
 
 def test_current_platform_archive_uses_version_platform_and_arch(
@@ -347,3 +348,31 @@ def test_powershell_smoke_executes_the_public_alias_command_shape() -> None:
     assert '"| iex; "' in script
     assert '"Invoke-RestMethod -Uri "' not in script
     assert '"| Invoke-Expression; "' not in script
+
+
+def test_powershell_smoke_wraps_exact_installed_command_with_forwarded_args(
+    tmp_path: Path,
+) -> None:
+    installed = tmp_path / "Crystal Lattice" / "crystal-lattice.cmd"
+    installed.parent.mkdir()
+    installed.touch()
+    wrapper = tmp_path / "invoke installed.ps1"
+
+    command = smoke_powershell_install.installed_command_invocation(
+        powershell="powershell.exe",
+        installed_command=installed,
+        wrapper_path=wrapper,
+    )
+
+    assert command == [
+        "powershell.exe",
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(wrapper),
+    ]
+    assert wrapper.read_text(encoding="utf-8") == (
+        f"& '{installed.resolve()}' @args\nexit $LASTEXITCODE\n"
+    )

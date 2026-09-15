@@ -163,7 +163,11 @@ def smoke_test_powershell_install(archive: Path) -> None:
                 destination_dir=temp_dir / "config",
                 additional_plugin_name=DYNAMIC_PLUGIN_PROBE,
             )
-            installed_command = [str(bin_dir / f"{COMMAND_NAME}.cmd")]
+            installed_command = installed_command_invocation(
+                powershell=powershell,
+                installed_command=bin_dir / f"{COMMAND_NAME}.cmd",
+                wrapper_path=temp_dir / "invoke installed crystal lattice.ps1",
+            )
             progress.step(
                 "Booting the PowerShell-installed command and installing the probe plugin"
             )
@@ -286,6 +290,28 @@ def count_path_entry(path_value: str, directory: Path) -> int:
         for entry in path_value.split(os.pathsep)
         if entry.strip()
     )
+
+
+def installed_command_invocation(
+    *,
+    powershell: str,
+    installed_command: Path,
+    wrapper_path: Path,
+) -> list[str]:
+    quoted_command = str(installed_command.resolve()).replace("'", "''")
+    wrapper_path.write_text(
+        f"& '{quoted_command}' @args\nexit $LASTEXITCODE\n",
+        encoding="utf-8",
+    )
+    return [
+        powershell,
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(wrapper_path),
+    ]
 
 
 @contextmanager
