@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+import shutil
 import sys
+from types import SimpleNamespace
 
 import pytest
+
+from agent_core import Message, Session
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -16,6 +21,8 @@ import distribution_support as distribution  # type: ignore[import-not-found]  #
 import build_runtime_archive as runtime_builder  # type: ignore[import-not-found]  # noqa: E402
 import install_current_archive as local_installer  # type: ignore[import-not-found]  # noqa: E402
 import run_distribution_smoke as distribution_runner  # type: ignore[import-not-found]  # noqa: E402
+import headless_access_smoke  # type: ignore[import-not-found]  # noqa: E402
+import smoke_agent_access  # type: ignore[import-not-found]  # noqa: E402
 
 
 def test_current_platform_archive_uses_version_platform_and_arch(
@@ -205,9 +212,11 @@ def test_application_owned_cli_scripts_are_package_local() -> None:
         "install.sh",
         "install_dev.py",
         "install_current_archive.py",
+        "headless_access_smoke.py",
         "progress.py",
         "run_distribution_smoke.py",
         "smoke_default_install.py",
+        "smoke_agent_access.py",
         "smoke_optimized_archive.py",
         "smoke_powershell_install.py",
         "smoke_runtime_archive.py",
@@ -233,6 +242,102 @@ def test_application_owned_cli_scripts_are_package_local() -> None:
         "smoke_test_crystal_lattice_source_install.py",
     }
     assert not any((ROOT / "scripts" / name).exists() for name in legacy_root_names)
+
+
+def test_headless_access_configs_are_minimal_and_never_store_provider_key(
+    tmp_path: Path,
+) -> None:
+    default_config_dir = (
+        ROOT / "application" / "python" / "agent_terminal_app" / "default_config"
+    )
+    source_config_dir = tmp_path / "source config"
+    shutil.copytree(default_config_dir, source_config_dir)
+
+    deterministic = headless_access_smoke.prepare_headless_access_config(
+        source_config_dir / "config.json"
+    )
+    deterministic_config = json.loads(deterministic.read_text(encoding="utf-8"))
+    assert set(deterministic_config["agents"]) == {
+        headless_access_smoke.ACCESS_AGENT_ID
+    }
+    assert (
+        deterministic_config["agents"][headless_access_smoke.ACCESS_AGENT_ID][
+            "provider"
+        ]
+        == headless_access_smoke.ACCESS_PROVIDER_ID
+    )
+
+    real_config = smoke_agent_access.write_real_access_config(
+        default_config_dir=default_config_dir,
+        config_dir=tmp_path / "real config",
+        workspace=tmp_path / "workspace",
+    )
+    real_text = real_config.read_text(encoding="utf-8")
+    real = json.loads(real_text)
+    assert real["providers"]["outer"]["api_key"] == "${env:OPENROUTER_API_KEY}"
+    assert set(real["agents"]) == {
+        smoke_agent_access.OUTER_AGENT,
+        smoke_agent_access.CLI_WORKER,
+        smoke_agent_access.SDK_WORKER,
+    }
+    assert "test-secret-must-not-appear" not in real_text
+
+
+def test_real_access_acceptance_requires_method_evidence_in_tool_calls() -> None:
+    marker = smoke_agent_access.CLI_MARKER
+    worker = Session(
+        session_id="worker-session",
+        messages=[Message(role="assistant", content=marker)],
+        metadata={"agent_id": smoke_agent_access.CLI_WORKER},
+    )
+    outer = Session(
+        session_id="outer-session",
+        messages=[
+            Message(
+                role="assistant",
+                content="Using the requested method",
+                metadata={
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "Bash",
+                                "arguments": (
+                                    "python -m agent_terminal_app run "
+                                    "--agent cli-worker"
+                                ),
+                            }
+                        }
+                    ]
+                },
+            ),
+            Message(role="assistant", content=marker),
+        ],
+    )
+    result = SimpleNamespace(
+        status="succeeded",
+        output_text=marker,
+        session_id=outer.session_id,
+        to_dict=lambda: {},
+    )
+
+    smoke_agent_access._assert_method_result(
+        result=result,
+        records=[outer, worker],
+        worker_id=smoke_agent_access.CLI_WORKER,
+        marker=marker,
+        method_evidence=('"name": "Bash"', "agent_terminal_app", "cli-worker"),
+        secret="not-present",
+    )
+
+    with pytest.raises(RuntimeError, match="tool calls lack method evidence"):
+        smoke_agent_access._assert_method_result(
+            result=result,
+            records=[outer, worker],
+            worker_id=smoke_agent_access.CLI_WORKER,
+            marker=marker,
+            method_evidence=("open_runtime",),
+            secret="not-present",
+        )
 
 
 def test_powershell_smoke_executes_the_public_alias_command_shape() -> None:

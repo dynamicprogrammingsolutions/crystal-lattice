@@ -239,6 +239,29 @@ changes only when it is directly consolidated with the shared probe. A
 repository-wide cleanup of provider test environments is not part of this
 specification.
 
+## Headless access contract
+
+The headless-run specification owns the CLI/SDK APIs and system-message
+content. Distribution acceptance additionally proves that each supported user
+entry point exposes those APIs through its native packaged runtime.
+
+Source installation, direct archive/manual use, Bash installation, and
+PowerShell installation each run a credential-free deterministic probe that:
+
+- sends one request with `crystal-lattice run`;
+- sends one request through the packaged interpreter and `open_runtime`;
+- verifies the full runtime-access variable set and compiled full-access
+  section;
+- uses isolated config, session, docs, and installation paths containing
+  spaces;
+- asserts the expected persisted sessions and results.
+
+The real provider scenario runs once per native target against the extracted
+archive rather than once per installer transformation. Release tags require
+the scenario; workflow dispatch may opt in. See the
+[headless-run technical specification](../headless-agent-runs/technical-spec.md#native-installation-and-model-mediated-acceptance)
+for model, credential-isolation, tool, and child-session requirements.
+
 ## Source-installation smoke
 
 The source-installation smoke creates a new venv and installs:

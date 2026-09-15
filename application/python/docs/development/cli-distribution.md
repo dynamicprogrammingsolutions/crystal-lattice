@@ -132,6 +132,7 @@ npm run test:cli:source-install
 npm run test:cli:archive
 npm run test:cli:default-install
 npm run test:cli:powershell-install
+npm run test:cli:agent-access
 ```
 
 The source-installation smoke creates a fresh venv, installs only editable Core
@@ -165,6 +166,18 @@ The PowerShell-installer smoke independently serves `install.ps1`,
 PowerShell process and a fresh `cmd.exe`, boots the default configuration, and
 installs the designated non-preinstalled plugin into another fresh cache.
 
+Each source/archive/installer smoke also runs a credential-free deterministic
+headless probe. It sends one task through the actual `crystal-lattice run`
+entry point and another through that runtime's packaged interpreter and
+`open_runtime`, then verifies the full compiled access section and isolated
+persisted sessions.
+
+`test:cli:agent-access` is the separately gated real-provider scenario. It
+runs once per native target against the extracted archive, uses production
+shell/write tools to invoke both the CLI and SDK routes, and requires the
+corresponding deterministic worker sessions. The OpenRouter key is removed
+from the model-controlled process environment before any tool call.
+
 Set
 `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` to reuse a matching prebuilt archive
 for the direct archive or either installer scenario.
@@ -174,10 +187,10 @@ share that immutable archive, but they use different extraction, home,
 workspace, config, plugin-cache, pip-cache, installation, and command
 directories. No scenario invokes another.
 
-All boot probes isolate the workspace, `HOME`, `USERPROFILE`, config files,
-plugin cache, and pip cache. Environment names are derived from placeholders in
-the exact default-derived config under test; the probes supply no dummy values
-and make no model or tool API request.
+All ordinary probes isolate the workspace, `HOME`, `USERPROFILE`, config
+files, plugin cache, and pip cache. Environment names are derived from
+placeholders in the exact default-derived config under test. They supply no
+dummy credentials and contact no external model or tool service.
 
 On POSIX, cleanup owns the command's process group. On Windows, `.cmd`
 launchers run in a dedicated process group with a `CTRL_BREAK_EVENT` attempt
@@ -189,6 +202,10 @@ smoke. macOS and Linux run the Bash installer; Windows AMD64 runs both Bash
 and PowerShell; Windows ARM64 runs PowerShell. Applicable installer steps are
 still attempted after an archive-smoke failure when archive location
 succeeded.
+
+Release tags additionally require the real agent-access scenario on every
+target. Workflow dispatch runs it only when `run_agent_access` is selected.
+Public pull-request jobs do not receive or run the provider credential.
 
 Existing deeper optimized-bundle tests target the separate PyInstaller layout
 and remain manually gated.
@@ -255,6 +272,10 @@ placement.
   `application/python/scripts/smoke_powershell_install.py`
 - Source-installation smoke:
   `application/python/scripts/smoke_source_install.py`
+- Deterministic CLI/SDK helper:
+  `application/python/scripts/headless_access_smoke.py`
+- Real model-mediated CLI/SDK smoke:
+  `application/python/scripts/smoke_agent_access.py`
 - Distribution smoke runner:
   `application/python/scripts/run_distribution_smoke.py`
 - Shared config and boot probe:

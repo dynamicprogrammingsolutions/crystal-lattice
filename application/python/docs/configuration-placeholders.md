@@ -67,6 +67,8 @@ The application supplies:
 - `CRYSTAL_LATTICE_SYSTEM_MESSAGES`: runtime-owned system-message resources.
 - `CRYSTAL_LATTICE_CLI_ARGV_JSON`: authoritative CLI argument vector for the
   active config and session root.
+- `CRYSTAL_LATTICE_CLI_COMMAND`: platform-shell-rendered form of the
+  authoritative CLI invocation.
 - `CRYSTAL_LATTICE_CONFIG`: absolute active config path.
 - `CRYSTAL_LATTICE_SESSIONS`: absolute active session root.
 - `CRYSTAL_LATTICE_PYTHON`: general runtime Python interpreter when available.

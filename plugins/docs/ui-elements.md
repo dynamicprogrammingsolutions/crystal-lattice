@@ -218,6 +218,18 @@ def get_ui_elements(self, state, config=None, context=None):
 | `dropdown` | Dropdown menu (collapsed until clicked) |
 | `number` | Numeric input |
 
+#### Disabled configuration controls
+
+A configuration element may set `"disabled": true`. Supporting frontends keep
+the element visible, prevent edits, and continue rendering `description`.
+Use the description to explain why the setting is unavailable; do not hide an
+unavailable capability when the user needs that diagnostic.
+
+Terminal configuration commands also reject updates to disabled elements.
+`disabled` is presentation and interaction metadata, not the feature's only
+authorization check: runtime behavior must still validate its own
+preconditions.
+
 #### Compact rich configuration
 
 An ordinary session configuration element may include `rich_ui` to make the
@@ -1279,6 +1291,7 @@ interface UiSchemaElement {
   label?: string;
   icon?: string;
   description?: string;
+  disabled?: boolean;
   options?: any;
   data?: string;
   template?: string;

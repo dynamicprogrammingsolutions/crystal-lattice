@@ -5,7 +5,11 @@ from pathlib import Path
 import sys
 
 from agent_terminal_app.__main__ import _ensure_default_config
-from agent_terminal_app.runtime_layout import load_runtime_layout
+from agent_terminal_app.runtime_layout import (
+    _packaged_runtime_manifest,
+    _render_shell_command,
+    load_runtime_layout,
+)
 
 
 def test_source_runtime_layout_resolves_bundle_paths() -> None:
@@ -39,6 +43,17 @@ def test_source_runtime_layout_resolves_bundle_paths() -> None:
     ]
     assert access["CRYSTAL_LATTICE_PYTHON"] == str(Path(sys.executable).resolve())
     assert access["CRYSTAL_LATTICE_PYTHON_API_MODULE"] == "agent_terminal_app"
+    assert access["CRYSTAL_LATTICE_CLI_COMMAND"] == " ".join(
+        [
+            str(Path(sys.executable).resolve()),
+            "-m",
+            "agent_terminal_app",
+            "--config",
+            str((repo_root / ".crystal" / "config.json").resolve()),
+            "--sessions-dir",
+            str((repo_root / ".crystal" / "sessions").resolve()),
+        ]
+    )
     assert access["CRYSTAL_LATTICE_DOCS"] == str(layout.application_docs)
     assert access["CRYSTAL_LATTICE_SYSTEM_MESSAGES"] == str(layout.root_system_messages)
 
@@ -136,6 +151,7 @@ def test_bundled_runtime_layout_exposes_bundled_plugin_root(tmp_path: Path) -> N
         config_path=tmp_path / "config.json",
         session_root=tmp_path / "sessions",
         env_overrides={
+            "CONFIG_DIR": "/must-not-win",
             "CRYSTAL_LATTICE_CONFIG": "/must-not-win",
             "CUSTOM_RUNTIME_VALUE": "preserved",
         },
@@ -151,11 +167,54 @@ def test_bundled_runtime_layout_exposes_bundled_plugin_root(tmp_path: Path) -> N
     assert "CRYSTAL_LATTICE_PYTHON" not in access
     assert "CRYSTAL_LATTICE_PYTHON_API_MODULE" not in access
     assert access["CRYSTAL_LATTICE_CONFIG"] == str((tmp_path / "config.json").resolve())
+    assert access["CONFIG_DIR"] == str(tmp_path.resolve())
     assert access["CRYSTAL_LATTICE_DOCS"] == str(manifest.parent / "docs")
     assert access["CRYSTAL_LATTICE_SYSTEM_MESSAGES"] == str(
         manifest.parent / "system_messages"
     )
     assert access["CUSTOM_RUNTIME_VALUE"] == "preserved"
+
+
+def test_windows_shell_command_uses_powershell_call_operator() -> None:
+    rendered = _render_shell_command(
+        [r"C:\Program Files\Crystal Lattice\python.exe", "-m", "agent_terminal_app"],
+        windows=True,
+    )
+
+    assert rendered == (
+        "& 'C:\\Program Files\\Crystal Lattice\\python.exe' "
+        "'-m' 'agent_terminal_app'"
+    )
+
+
+def test_packaged_runtime_manifest_is_found_from_posix_and_windows_python(
+    tmp_path: Path,
+) -> None:
+    manifest = (
+        tmp_path
+        / "runtime"
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "runtime_layout.json"
+    )
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("{}", encoding="utf-8")
+
+    assert (
+        _packaged_runtime_manifest(tmp_path / "runtime" / "python" / "bin" / "python")
+        == manifest.resolve()
+    )
+    assert (
+        _packaged_runtime_manifest(tmp_path / "runtime" / "python" / "python.exe")
+        == manifest.resolve()
+    )
+    assert (
+        _packaged_runtime_manifest(
+            tmp_path / "runtime" / "python" / "Scripts" / "python.exe"
+        )
+        == manifest.resolve()
+    )
 
 
 def test_default_config_bootstrap_excludes_generated_private_state(
@@ -167,10 +226,7 @@ def test_default_config_bootstrap_excludes_generated_private_state(
     assert config_path.is_file()
     assert (config_path.parent / "system_messages").is_dir()
     assert (
-        config_path.parent
-        / "system_messages"
-        / "helpers"
-        / "crystal_lattice_access.py"
+        config_path.parent / "system_messages" / "helpers" / "crystal_lattice_access.py"
     ).is_file()
     assert (config_path.parent / "cloud-agent" / "profiles").is_dir()
     assert not (config_path.parent / "auth").exists()

@@ -460,6 +460,7 @@ config and session root:
 | Variable | Value |
 |---|---|
 | `CRYSTAL_LATTICE_CLI_ARGV_JSON` | JSON string array containing the authoritative CLI prefix, active `--config`, and active `--sessions-dir` |
+| `CRYSTAL_LATTICE_CLI_COMMAND` | Platform-shell-rendered form of the same authoritative CLI prefix |
 | `CRYSTAL_LATTICE_CONFIG` | Absolute active config path |
 | `CRYSTAL_LATTICE_SESSIONS` | Absolute active session root |
 | `CRYSTAL_LATTICE_PYTHON` | Absolute general Python interpreter when available |
@@ -473,11 +474,10 @@ runtime environment overlay, like `BUILTIN_PLUGINS`. A known runtime identity
 outranks inherited values with the same names. They contain no provider
 credentials or auth/cache paths.
 
-The canonical CLI value is JSON argv rather than a prequoted shell command.
-System-message rendering parses the JSON array and uses `shlex.join` on POSIX
-or `subprocess.list2cmdline` on Windows. Consumers that execute directly should
-prefer an argv API and append the desired `agents`, `run`, or `history`
-arguments.
+The canonical execution value remains JSON argv. The application additionally
+renders `CRYSTAL_LATTICE_CLI_COMMAND` for config-owned prompt text, using
+`shlex.join` on POSIX and a PowerShell-compatible invocation on Windows.
+Programmatic consumers should prefer the argv value.
 
 Including the config and session root is mandatory. A child command inherits
 the external project's current directory for tool behavior while continuing
@@ -504,10 +504,11 @@ relative to the relocated runtime manifest before being resolved to absolute
 values.
 
 Optimized PyInstaller layouts use the frozen executable followed by the
-config/session arguments. They may advertise staged local docs and the public
-URL, but omit `CRYSTAL_LATTICE_PYTHON` and
+config/session arguments. They advertise staged local docs and the public URL,
+but omit `CRYSTAL_LATTICE_PYTHON` and
 `CRYSTAL_LATTICE_PYTHON_API_MODULE`: the frozen executable is not a general
-Python interpreter or import host.
+Python interpreter or import host. This is a valid CLI-only capability rather
+than a full capability or an unavailable runtime.
 
 Pip and pipx installation are not supported product layouts and do not define
 fallback behavior in this contract.
@@ -515,32 +516,57 @@ fallback behavior in this contract.
 ### Opt-in system-message section
 
 Maintained default Codex, Qwen, Gemini, Grok, Kimi, and Claude templates expose
-one `CRYSTAL_LATTICE_ACCESS` variable at the end of the template. Its
-variable-level runtime helper contributes:
+both `CRYSTAL_LATTICE_ACCESS` and `CRYSTAL_LATTICE_CLI_ACCESS` at the end of
+the template. One shared config mixin owns both complete Markdown values with
+explicit named runtime placeholders and mappings to the corresponding
+environment values. Helper Python contains no operational instruction prose.
+
+The variable-level runtime helper contributes:
 
 ```text
 include_crystal_lattice_access: bool = false
 ```
 
-and one config checkbox labeled **Include Crystal Lattice Access Guidance**.
-It is independent from `include_tasks`.
+and one config checkbox. It is independent from `include_tasks`.
 
-When disabled, the variable renders empty and does not change the prior
-compiled prompt after surrounding trailing whitespace is stripped.
+The predicates are mutually exclusive:
 
-When enabled, the bounded section:
+- `include_crystal_lattice_access()` requires the user opt-in and valid CLI,
+  interpreter, API module, config, session, and docs values;
+- `include_crystal_lattice_cli_access()` requires the same user opt-in, valid
+  CLI/config/session/docs values, and the absence of a valid full capability;
+- invalid CLI capability makes both predicates false, even when a true
+  override was previously persisted.
+
+When disabled by the user, both variables render empty and do not change the
+prior compiled prompt after surrounding trailing whitespace is stripped.
+
+The full bounded section:
 
 - identifies the authoritative CLI command;
 - shows agent discovery, initial run, follow-up, and compact-history forms;
-- identifies the general interpreter and `agent_terminal_app` import when
-  available;
+- identifies the general interpreter and `agent_terminal_app` import;
+- provides a complete `open_runtime(config_path=..., session_root=...)`
+  example;
 - identifies local docs when present and always supplies the public docs URL;
 - says that these commands create ordinary persisted synchronous sessions;
 - does not claim persistent subagent, parent-child, mid-run input, or detached
   lifetime semantics.
 
-The helper reads only the named runtime access variables. It does not enumerate
-the environment or include provider configuration values.
+The CLI-only section contains the same CLI and documentation guidance and
+limitations, explicitly identifies itself as CLI-only, and contains no Python
+SDK instruction or import claim.
+
+The one UI element:
+
+- identifies full CLI+SDK mode when full values are valid;
+- identifies CLI-only mode when only CLI values are valid;
+- remains visible with `disabled: true`, `default: false`, and a concrete
+  description of missing or invalid CLI values when unavailable.
+
+The helper reads only the named runtime access variables to validate
+availability and return predicates/UI. It does not enumerate the environment
+or include provider configuration values.
 
 New generated default configs contain the disabled section. Existing user and
 project configs are not rewritten; current documentation provides an explicit
@@ -583,6 +609,42 @@ pytest application/python/tests/test_crystal_lattice_access_ollama_api.py \
   -m "integration and api and ollama" -q
 ```
 
+### Native installation and model-mediated acceptance
+
+Credential-free distribution probes execute one deterministic task through
+the actual `crystal-lattice run` entry point and another through the packaged
+interpreter plus `open_runtime(...)`. Source installation, direct
+archive/manual use, Bash installation, and PowerShell installation each verify
+the complete access values with isolated paths containing spaces.
+
+A separate release-gated scenario runs once per native target against the
+extracted bundled-Python archive. Its outer
+`anthropic/claude-haiku-4.5` OpenRouter agent receives one sparse CLI-route
+request and one sparse SDK-route request. Deterministic child agents avoid
+additional hosted calls. Acceptance requires production tool-call evidence,
+the exact config/session identity, and separately persisted completed child
+sessions; text-only claims fail.
+
+The OpenRouter credential is resolved into the constructed outer provider and
+removed from the process environment before model-controlled tools execute.
+Child configs and environments must not contain it. The real scenario is
+mandatory for release tags, opt-in for workflow dispatch, and absent from
+public pull-request/fork execution.
+
+Run the current-platform archive scenario explicitly with:
+
+```bash
+RUN_CRYSTAL_LATTICE_OPENROUTER_ACCESS_E2E=1 \
+OPENROUTER_API_KEY=... \
+CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE=/path/to/current-platform-archive \
+npm run test:cli:agent-access
+```
+
+One-off Detox evidence confirms that full, CLI-only, and unavailable UI
+elements render with the expected labels, descriptions, and disabled state.
+The temporary Detox scenario is removed after the run; deterministic
+component tests retain the permanent protocol coverage.
+
 ## Verification boundaries
 
 - Unit tests own coordinator classification, progress normalization, history
@@ -593,4 +655,10 @@ pytest application/python/tests/test_crystal_lattice_access_ollama_api.py \
   and parseable JSON.
 - Existing application tests own terminal and background-request compatibility.
 - The explicitly gated Ollama `glm-5.3-flash:cloud` test owns real
-  same-config delegation acceptance; no other hosted provider is required.
+  source CLI delegation evidence.
+- Native distribution probes own per-installation CLI/SDK and access-value
+  evidence.
+- The release-gated OpenRouter scenario owns real model-mediated CLI and SDK
+  evidence on all six native targets.
+- One-off Detox owns final native presentation evidence; component tests own
+  permanent disabled-state regression coverage.

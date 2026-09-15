@@ -98,6 +98,10 @@ def test_python_runtime_package_stages_launcher_layout_and_bundle_script(
     assert access["CRYSTAL_LATTICE_PYTHON"] == str(
         runtime_builder.package_python(package_dir)
     )
+    assert (
+        str(runtime_builder.package_python(package_dir))
+        in access["CRYSTAL_LATTICE_CLI_COMMAND"]
+    )
     assert access["CRYSTAL_LATTICE_PYTHON_API_MODULE"] == "agent_terminal_app"
     assert access["CRYSTAL_LATTICE_DOCS"] == str(
         package_dir / "application" / "python" / "docs"
@@ -418,6 +422,7 @@ def test_optimized_layout_stages_docs_without_advertising_python_api(
     assert json.loads(access["CRYSTAL_LATTICE_CLI_ARGV_JSON"])[0] == str(
         Path(sys.executable).resolve()
     )
+    assert str(Path(sys.executable).resolve()) in access["CRYSTAL_LATTICE_CLI_COMMAND"]
     assert "CRYSTAL_LATTICE_PYTHON" not in access
     assert "CRYSTAL_LATTICE_PYTHON_API_MODULE" not in access
     assert access["CRYSTAL_LATTICE_DOCS"] == str(

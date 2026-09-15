@@ -98,8 +98,8 @@ For contributors and local validation:
   pytest application/python/tests -m docker -q
   ```
 
-The shipped CLI distribution has four independently executable local smoke
-scenarios:
+The shipped CLI distribution has four independently executable
+credential-free installation smoke scenarios:
 
 ```bash
 npm run test:cli:source-install
@@ -114,6 +114,16 @@ launcher directly. The default-installer smoke runs the public download
 installer with default paths and executes `crystal-lattice` by name through
 PATH. The PowerShell-installer smoke runs the native Windows installer and
 verifies the command from both PowerShell and `cmd.exe`.
+
+Each scenario also executes one deterministic agent request through the CLI
+and one through the packaged Python SDK. The separately gated real
+model-mediated check is:
+
+```bash
+RUN_CRYSTAL_LATTICE_OPENROUTER_ACCESS_E2E=1 \
+OPENROUTER_API_KEY=... \
+npm run test:cli:agent-access
+```
 
 The direct archive and applicable installer smokes use separate temporary
 homes, configurations, plugin caches, and pip caches. Each independently
@@ -323,10 +333,10 @@ Important layout behavior:
 - `CONFIG_DIR` always resolves to the directory of the active config file.
 - `BUILTIN_PLUGINS` comes from the runtime layout and points at bundled plugin
   sources in binary installs.
-- `CRYSTAL_LATTICE_CLI_ARGV_JSON`, `CRYSTAL_LATTICE_CONFIG`, and
-  `CRYSTAL_LATTICE_SESSIONS` identify the same runtime for optional delegated
-  local runs; interpreter, API, local-docs, and public-docs values are exposed
-  only when applicable to the current layout.
+- `CRYSTAL_LATTICE_CLI_ARGV_JSON`, `CRYSTAL_LATTICE_CLI_COMMAND`,
+  `CRYSTAL_LATTICE_CONFIG`, and `CRYSTAL_LATTICE_SESSIONS` identify the same
+  runtime for optional delegated local runs; interpreter, API, local-docs, and
+  public-docs values determine whether full or CLI-only guidance is available.
 - Config files, sessions, auth state, and plugin install caches are user-owned
   state and stay outside the bundle.
 

@@ -93,31 +93,30 @@ selected by mixins and variants.
 
 ## Optional Crystal Lattice access guidance
 
-The bundled default config defines a `CRYSTAL_LATTICE_ACCESS` variable at the
-end of each maintained vendor template. It uses a variable-level runtime
-helper and condition, following the same pattern as optional task guidance:
+The bundled default config defines one shared `crystal_lattice_access` mixin.
+Maintained vendor templates end with:
 
-```json
-{
-  "system_message": {
-    "template": "{{BASE}}\n\n{{CRYSTAL_LATTICE_ACCESS}}",
-    "variables": {
-      "CRYSTAL_LATTICE_ACCESS": {
-        "code": "${env:CRYSTAL_LATTICE_SYSTEM_MESSAGES}/helpers/crystal_lattice_access.py",
-        "runtime_code": "${env:CRYSTAL_LATTICE_SYSTEM_MESSAGES}/helpers/crystal_lattice_access.py",
-        "condition": {
-          "inline_code": "include_crystal_lattice_access()"
-        }
-      }
-    }
-  }
-}
+```text
+{{CRYSTAL_LATTICE_ACCESS}}
+
+{{CRYSTAL_LATTICE_CLI_ACCESS}}
 ```
 
-The helper contributes an `include_crystal_lattice_access` checkbox, defaulting
-to false. When enabled, it renders only the named runtime-owned CLI, config,
-session, interpreter/API, and documentation values. It does not enumerate the
-environment or expose credentials.
+The mixin contains both complete Markdown values under `text`, followed by
+small named variables that read only the corresponding runtime access values.
+The full section uses `include_crystal_lattice_access()`; the CLI-only section
+uses `include_crystal_lattice_cli_access()`. The conditions are mutually
+exclusive.
+
+The helper contributes the `include_crystal_lattice_access` checkbox,
+defaulting to false, and validates availability. It contains no command, SDK,
+history, documentation, or delegation instruction prose.
+
+When full values are available, the UI and compiled message identify CLI and
+Python SDK access. When only CLI values are available, the UI explicitly says
+**CLI only** and only that section compiles. When CLI values are unavailable,
+the element remains visible with `disabled: true` and a description naming
+the problem.
 
 The CLI invocation includes the active `--config` and `--sessions-dir`, which
 is important when the agent is working in another project's directory.

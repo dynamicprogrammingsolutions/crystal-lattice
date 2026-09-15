@@ -126,6 +126,17 @@ Requirement `HLR-060` records this required later outcome. Requirement
 completes a separate configured-agent session through the same config and
 session root. A textual claim of delegation is not sufficient evidence.
 
+The approved post-completion extension adds:
+
+- explicit, mutually exclusive full CLI+SDK and CLI-only config-owned
+  sections;
+- visible disabled UI when no valid CLI capability exists;
+- deterministic CLI and SDK execution through every supported native
+  installation path;
+- a real model-mediated CLI and SDK scenario on all six native release
+  targets;
+- one-off native Detox evidence for the three availability presentations.
+
 ## Specification documents
 
 - [Technical specification](technical-spec.md)

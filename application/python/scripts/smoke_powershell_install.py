@@ -26,7 +26,9 @@ from distribution_support import (
     resolve_powershell,
 )
 from download_server import serve_directory
+from headless_access_smoke import assert_headless_access
 from progress import StepLogger
+from smoke_runtime_archive import python_path
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -53,7 +55,7 @@ def smoke_test_powershell_install(archive: Path) -> None:
         raise RuntimeError(f"Archive does not exist: {archive}")
     assert_archive_matches_current_platform(archive)
 
-    progress = StepLogger(total_steps=4)
+    progress = StepLogger(total_steps=5)
     with tempfile.TemporaryDirectory(prefix="crystal-powershell-install-smoke-") as tmp:
         temp_dir = Path(tmp)
         progress.step("Preparing isolated PowerShell-installer state")
@@ -174,6 +176,15 @@ def smoke_test_powershell_install(archive: Path) -> None:
                 base_env=fresh_env,
                 timeout_seconds=300,
                 progress=progress.detail,
+            )
+            progress.step("Verifying installed CLI and Python SDK headless access")
+            assert_headless_access(
+                [COMMAND_NAME],
+                python=python_path(installed_bundle),
+                config_path=config_path,
+                workspace=temp_dir / "headless access workspace",
+                home_dir=home_dir,
+                base_env=fresh_env,
             )
 
 

@@ -10,6 +10,62 @@
       "enable_reasoning": true,
       "reasoning_effort": "medium"
     },
+    "crystal_lattice_access": {
+      "$merge": {
+        "default": "shallow",
+        "deep": ["system_message"]
+      },
+      "system_message": {
+        "variables": {
+          "CRYSTAL_LATTICE_ACCESS": {
+            "text": "# Crystal Lattice Access (CLI and Python SDK)\n\nYou can delegate a bounded task to another configured Crystal Lattice agent by creating a distinct persisted session. When a user gives an agent ID, use that exact value for `<agent-id>` without asking them to select it again.\n\nUse this exact CLI base command; it already selects this runtime's config and session store:\n\n- List configured agents: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} agents --format json`\n- Start a delegated task: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --agent \"<agent-id>\" --prompt \"<task>\" --format json`\n- Continue a completed session: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --session \"<session-id>\" --prompt \"<follow-up>\" --format json`\n- Inspect bounded history: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} history --session \"<session-id>\" --start -50 --format json`\n- Programmatic CLI argv: `{{CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE}}`\n\nFor the Python SDK, create a short script and execute it with `{{CRYSTAL_LATTICE_PYTHON_VALUE}}`:\n\n```python\nfrom {{CRYSTAL_LATTICE_PYTHON_API_MODULE_VALUE}} import open_runtime\n\nwith open_runtime(\n    config_path=r\"{{CRYSTAL_LATTICE_CONFIG_VALUE}}\",\n    session_root=r\"{{CRYSTAL_LATTICE_SESSIONS_VALUE}}\",\n) as runtime:\n    result = runtime.run(\"<task>\", agent_id=\"<agent-id>\")\n    print(result.output_text)\n    print(result.session_id)\n```\n\nLocal documentation: `{{CRYSTAL_LATTICE_DOCS_VALUE}}`\nPublic documentation: {{CRYSTAL_LATTICE_DOCS_URL_VALUE}}\n\nThese commands run ordinary synchronous requests in persisted sessions. They do not provide parent-child session metadata, mid-run input, detached lifetime, or persistent subagent recovery.",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
+            "condition": {
+              "inline_code": "include_crystal_lattice_access()"
+            }
+          },
+          "CRYSTAL_LATTICE_CLI_ACCESS": {
+            "text": "# Crystal Lattice Access (CLI only)\n\nYou can delegate a bounded task to another configured Crystal Lattice agent by creating a distinct persisted session through the CLI. This runtime does not expose a supported general Python SDK. When a user gives an agent ID, use that exact value for `<agent-id>` without asking them to select it again.\n\nUse this exact CLI base command; it already selects this runtime's config and session store:\n\n- List configured agents: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} agents --format json`\n- Start a delegated task: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --agent \"<agent-id>\" --prompt \"<task>\" --format json`\n- Continue a completed session: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --session \"<session-id>\" --prompt \"<follow-up>\" --format json`\n- Inspect bounded history: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} history --session \"<session-id>\" --start -50 --format json`\n- Programmatic CLI argv: `{{CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE}}`\n\nActive config: `{{CRYSTAL_LATTICE_CONFIG_VALUE}}`\nShared session root: `{{CRYSTAL_LATTICE_SESSIONS_VALUE}}`\nLocal documentation: `{{CRYSTAL_LATTICE_DOCS_VALUE}}`\nPublic documentation: {{CRYSTAL_LATTICE_DOCS_URL_VALUE}}\n\nThese commands run ordinary synchronous requests in persisted sessions. They do not provide parent-child session metadata, mid-run input, detached lifetime, or persistent subagent recovery.",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
+            "condition": {
+              "inline_code": "include_crystal_lattice_cli_access()"
+            }
+          },
+          "CRYSTAL_LATTICE_CLI_COMMAND_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_CLI_COMMAND')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_CLI_ARGV_JSON')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_CONFIG_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_CONFIG')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_SESSIONS_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_SESSIONS')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_PYTHON_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_PYTHON')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_PYTHON_API_MODULE_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_PYTHON_API_MODULE')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_DOCS_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_DOCS')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_DOCS_URL_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_DOCS_URL')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          }
+        }
+      }
+    },
     "codex_mcp_defaults": {
       "mcp_enabled": false,
       "mcp_reuse_runtime": true,
@@ -178,13 +234,6 @@
             "condition": {
               "inline_code": "include_tasks()"
             }
-          },
-          "CRYSTAL_LATTICE_ACCESS": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "condition": {
-              "inline_code": "include_crystal_lattice_access()"
-            }
           }
         }
       }
@@ -192,7 +241,7 @@
     "cloud_script_author_codex_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou create Crystal Lattice cloud-agent project hooks and optional project config.\n\nRead and follow the bundled authoring guide before writing files:\n`{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}`\n\nUse the bundled default profile scripts as examples:\n`{{CLOUD_AGENT_DEFAULT_PROFILES_PATH}}`\n\nUse AGENTS.md, README files, package manifests, lockfiles, and tests to infer the project's fresh-checkout setup and validation command. If runtime image changes are needed, follow the guide's container profile section. Do not print secrets.\n\nBefore your final response, run cheap syntax and JSON checks for generated files. Run `crystal-lattice validate-cloud --workspace-dir <project>` when Docker is available and practical.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}\n\n{{CRYSTAL_LATTICE_ACCESS}}",
+        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou create Crystal Lattice cloud-agent project hooks and optional project config.\n\nRead and follow the bundled authoring guide before writing files:\n`{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}`\n\nUse the bundled default profile scripts as examples:\n`{{CLOUD_AGENT_DEFAULT_PROFILES_PATH}}`\n\nUse AGENTS.md, README files, package manifests, lockfiles, and tests to infer the project's fresh-checkout setup and validation command. If runtime image changes are needed, follow the guide's container profile section. Do not print secrets.\n\nBefore your final response, run cheap syntax and JSON checks for generated files. Run `crystal-lattice validate-cloud --workspace-dir <project>` when Docker is available and practical.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
         "variables": {
           "CODEX_DEVELOPER_MESSAGE": {
@@ -218,13 +267,6 @@
             "condition": {
               "inline_code": "include_tasks()"
             }
-          },
-          "CRYSTAL_LATTICE_ACCESS": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "condition": {
-              "inline_code": "include_crystal_lattice_access()"
-            }
           }
         }
       }
@@ -232,7 +274,7 @@
     "qwen_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION_AND_CORE_MANDATES}}\n\n{{PRIMARY_WORKFLOWS}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}",
+        "template": "{{INTRODUCTION_AND_CORE_MANDATES}}\n\n{{PRIMARY_WORKFLOWS}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
         "variables": {
           "INTRODUCTION_AND_CORE_MANDATES": {
@@ -265,13 +307,6 @@
               "inline_code": "include_tasks()"
             }
           },
-          "CRYSTAL_LATTICE_ACCESS": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "condition": {
-              "inline_code": "include_crystal_lattice_access()"
-            }
-          },
           "AGENTS_SECTION": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
           }
@@ -281,7 +316,7 @@
     "gemini_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{PREAMBLE}}\n\n{{CORE_MANDATES}}\n\n{{WORKFLOW_SECTION}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{CONTEXT_FILES_SECTION}}\n\n{{TASKS}}\n\n{{CRYSTAL_LATTICE_ACCESS}}",
+        "template": "{{PREAMBLE}}\n\n{{CORE_MANDATES}}\n\n{{WORKFLOW_SECTION}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{CONTEXT_FILES_SECTION}}\n\n{{TASKS}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
         "variables": {
           "PREAMBLE": {
@@ -321,13 +356,6 @@
             "condition": {
               "inline_code": "include_tasks()"
             }
-          },
-          "CRYSTAL_LATTICE_ACCESS": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "condition": {
-              "inline_code": "include_crystal_lattice_access()"
-            }
           }
         }
       }
@@ -335,7 +363,7 @@
     "grok_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{AVAILABLE_TOOLS_SECTION}}\n\n{{TOOL_USAGE_RULES}}\n\n{{WORKFLOW_AND_RESPONSE_GUIDANCE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{WORKING_DIRECTORY_LINE}}\n\n{{CRYSTAL_LATTICE_ACCESS}}",
+        "template": "{{INTRODUCTION}}\n\n{{AVAILABLE_TOOLS_SECTION}}\n\n{{TOOL_USAGE_RULES}}\n\n{{WORKFLOW_AND_RESPONSE_GUIDANCE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{WORKING_DIRECTORY_LINE}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
         "variables": {
           "INTRODUCTION": {
@@ -365,13 +393,6 @@
               "inline_code": "include_tasks()"
             }
           },
-          "CRYSTAL_LATTICE_ACCESS": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "condition": {
-              "inline_code": "include_crystal_lattice_access()"
-            }
-          },
           "AGENTS_SECTION": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
           },
@@ -384,7 +405,7 @@
     "kimi_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{PROMPT_AND_TOOL_USE}}\n\n{{GENERAL_GUIDELINES_FOR_CODING}}\n\n{{GENERAL_GUIDELINES_FOR_RESEARCH_AND_DATA_PROCESSING}}\n\n{{WORKING_ENVIRONMENT_SECTION}}\n\n{{PROJECT_INFORMATION_SECTION}}\n\n{{TASKS}}\n\n{{ULTIMATE_REMINDERS}}\n\n{{CRYSTAL_LATTICE_ACCESS}}",
+        "template": "{{INTRODUCTION}}\n\n{{PROMPT_AND_TOOL_USE}}\n\n{{GENERAL_GUIDELINES_FOR_CODING}}\n\n{{GENERAL_GUIDELINES_FOR_RESEARCH_AND_DATA_PROCESSING}}\n\n{{WORKING_ENVIRONMENT_SECTION}}\n\n{{PROJECT_INFORMATION_SECTION}}\n\n{{TASKS}}\n\n{{ULTIMATE_REMINDERS}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
         "variables": {
           "INTRODUCTION": {
@@ -420,13 +441,6 @@
               "inline_code": "include_tasks()"
             }
           },
-          "CRYSTAL_LATTICE_ACCESS": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "condition": {
-              "inline_code": "include_crystal_lattice_access()"
-            }
-          },
           "ULTIMATE_REMINDERS": {
             "files": [
               "${env:CONFIG_DIR}/system_messages/kimi/ultimate-reminders.md"
@@ -438,7 +452,7 @@
     "claude_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}",
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
         "variables": {
           "INTRODUCTION": {
@@ -491,13 +505,6 @@
               "inline_code": "include_tasks()"
             }
           },
-          "CRYSTAL_LATTICE_ACCESS": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
-            "condition": {
-              "inline_code": "include_crystal_lattice_access()"
-            }
-          },
           "AGENTS_SECTION": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
           }
@@ -513,7 +520,7 @@
       "bash_include_cwd_in_result": false,
       "bash_permissive_cd_guidance": false,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}"
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
     "claude_bash_permissive": {
@@ -525,7 +532,7 @@
       "bash_include_cwd_in_result": false,
       "bash_permissive_cd_guidance": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}"
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
     "claude_bash_permissive_visible": {
@@ -537,7 +544,7 @@
       "bash_include_cwd_in_result": true,
       "bash_permissive_cd_guidance": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}"
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
     "claude_bash_permissive_no_persistence": {
@@ -549,7 +556,7 @@
       "bash_include_cwd_in_result": false,
       "bash_permissive_cd_guidance": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}"
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
     "claude_anthropic_model_variants": {
@@ -879,7 +886,7 @@
   },
   "agents": {
     "cloud-script-author": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "cloud_script_author_codex_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "cloud_script_author_codex_message", "crystal_lattice_access"],
       "provider": "openai",
       "model": "gpt-5.4-mini",
       "allowed_paths": [".", "..", "${env:BUILTIN_PLUGINS}/cloud-agent-app", "${env:CONFIG_DIR}/cloud-agent/profiles"],
@@ -889,7 +896,7 @@
       "shell_tool_mode": "auto"
     },
     "codex-openrouter": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "crystal_lattice_access"],
       "provider": "openrouter",
       "model": "openai/gpt-5.4-mini",
       "plugins": [
@@ -898,7 +905,7 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "crystal_lattice_access"],
       "provider": "openai",
       "model": "gpt-5.4-mini",
       "plugins": [
@@ -907,7 +914,7 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai-api": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "crystal_lattice_access"],
       "provider": "openai",
       "model": "gpt-5.4",
       "plugins": [
@@ -919,7 +926,7 @@
       "strip_leading_system_or_developer_message": false
     },
     "gpt-5-openrouter": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "crystal_lattice_access"],
       "provider": "openrouter",
       "model": "openai/gpt-5",
       "plugins": [
@@ -930,7 +937,7 @@
       "disabled_plugins": ["apply_patch"]
     },
     "gpt-5-openai": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "crystal_lattice_access"],
       "provider": "openai",
       "model": "gpt-5",
       "plugins": [
@@ -941,7 +948,7 @@
       "disabled_plugins": ["apply_patch"]
     },
     "qwen": {
-      "mixin_refs": ["qwen_system_message"],
+      "mixin_refs": ["qwen_system_message", "crystal_lattice_access"],
       "provider": "openrouter",
       "model": "qwen/qwen3.5-flash-02-23",
       "plugins": [
@@ -950,7 +957,7 @@
       "disabled_plugins": ["apply_patch"]
     },
     "gemini": {
-      "mixin_refs": ["gemini_system_message"],
+      "mixin_refs": ["gemini_system_message", "crystal_lattice_access"],
       "provider": "openrouter",
       "model": "google/gemini-2.5-flash-lite",
       "plugins": [
@@ -963,7 +970,7 @@
       "web_search_provider": "gemini_api"
     },
     "grok": {
-      "mixin_refs": ["grok_system_message"],
+      "mixin_refs": ["grok_system_message", "crystal_lattice_access"],
       "provider": "openrouter",
       "model": "x-ai/grok-4.1-fast",
       "plugins": [
@@ -977,7 +984,7 @@
       ]
     },
     "kimi": {
-      "mixin_refs": ["kimi_system_message"],
+      "mixin_refs": ["kimi_system_message", "crystal_lattice_access"],
       "provider": "openrouter",
       "model": "moonshotai/kimi-k2.5",
       "plugins": [
@@ -994,7 +1001,7 @@
       }
     },
     "claude-openrouter": {
-      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
+      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults", "crystal_lattice_access"],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
       "plugins": [
@@ -1017,7 +1024,8 @@
         "claude_system_message",
         "claude_bash_permissive",
         "claude_mcp_defaults",
-        "claude_anthropic_model_variants"
+        "claude_anthropic_model_variants",
+        "crystal_lattice_access"
       ],
       "provider": "anthropic",
       "model": "claude-sonnet-5",
@@ -1030,7 +1038,7 @@
       "web_search_provider": "gemini_api"
     },
     "glm": {
-      "mixin_refs": ["gemini_system_message"],
+      "mixin_refs": ["gemini_system_message", "crystal_lattice_access"],
       "provider": "openrouter",
       "model": "z-ai/glm-5.2",
       "reasoning_effort": "max",
@@ -1054,7 +1062,7 @@
       "model": "qwen3:0.6b"
     },
     "glm-ollama": {
-      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
+      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults", "crystal_lattice_access"],
       "provider": "ollama",
       "model": "glm-5.2:cloud",
       "plugins": [
@@ -1072,7 +1080,7 @@
       }
     },
     "deepseek-ollama": {
-      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
+      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults", "crystal_lattice_access"],
       "provider": "ollama",
       "model": "deepseek-v4-pro:cloud",
       "plugins": [
@@ -1090,7 +1098,7 @@
       }
     },
     "kimi-ollama": {
-      "mixin_refs": ["kimi_system_message"],
+      "mixin_refs": ["kimi_system_message", "crystal_lattice_access"],
       "provider": "ollama",
       "model": "kimi-k2.6:cloud",
       "plugins": [

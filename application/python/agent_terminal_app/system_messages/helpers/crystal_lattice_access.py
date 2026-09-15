@@ -1,129 +1,119 @@
 import json
 import os
-import shlex
-import subprocess
+from pathlib import Path
 
 
 CONFIG = globals().get("CONFIG", {})
 
+_CLI_VARIABLES = (
+    "CRYSTAL_LATTICE_CLI_ARGV_JSON",
+    "CRYSTAL_LATTICE_CLI_COMMAND",
+    "CRYSTAL_LATTICE_CONFIG",
+    "CRYSTAL_LATTICE_SESSIONS",
+    "CRYSTAL_LATTICE_DOCS",
+    "CRYSTAL_LATTICE_DOCS_URL",
+)
+_FULL_VARIABLES = (
+    "CRYSTAL_LATTICE_PYTHON",
+    "CRYSTAL_LATTICE_PYTHON_API_MODULE",
+)
 
-def include_crystal_lattice_access() -> bool:
+
+def access_value(name: str) -> str:
+    if name not in {*_CLI_VARIABLES, *_FULL_VARIABLES}:
+        return ""
+    return os.environ.get(name, "")
+
+
+def _cli_argv() -> list[str] | None:
+    try:
+        value = json.loads(os.environ.get("CRYSTAL_LATTICE_CLI_ARGV_JSON", ""))
+    except Exception:
+        return None
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and item for item in value
+    ):
+        return None
+    return value
+
+
+def _missing_cli_values() -> list[str]:
+    missing = [name for name in _CLI_VARIABLES if not os.environ.get(name)]
+    argv = _cli_argv()
+    if argv is None:
+        missing.append("CRYSTAL_LATTICE_CLI_ARGV_JSON (invalid JSON argv)")
+    elif not Path(argv[0]).is_file():
+        missing.append("CRYSTAL_LATTICE_CLI_ARGV_JSON (executable missing)")
+    path_checks = (
+        ("CRYSTAL_LATTICE_CONFIG", Path.is_file),
+        ("CRYSTAL_LATTICE_SESSIONS", Path.is_dir),
+        ("CRYSTAL_LATTICE_DOCS", Path.is_dir),
+    )
+    for name, predicate in path_checks:
+        value = os.environ.get(name)
+        if value and not predicate(Path(value)):
+            missing.append(f"{name} (path missing)")
+    return sorted(set(missing))
+
+
+def _missing_full_values() -> list[str]:
+    missing = [name for name in _FULL_VARIABLES if not os.environ.get(name)]
+    python = os.environ.get("CRYSTAL_LATTICE_PYTHON")
+    if python and not Path(python).is_file():
+        missing.append("CRYSTAL_LATTICE_PYTHON (executable missing)")
+    if os.environ.get("CRYSTAL_LATTICE_PYTHON_API_MODULE") not in {
+        None,
+        "",
+        "agent_terminal_app",
+    }:
+        missing.append("CRYSTAL_LATTICE_PYTHON_API_MODULE (unsupported)")
+    return sorted(set(missing))
+
+
+def _requested() -> bool:
     return bool(CONFIG.get("include_crystal_lattice_access", False))
 
 
+def include_crystal_lattice_access() -> bool:
+    return _requested() and not _missing_cli_values() and not _missing_full_values()
+
+
+def include_crystal_lattice_cli_access() -> bool:
+    return _requested() and not _missing_cli_values() and bool(_missing_full_values())
+
+
 def get_ui_elements() -> list[dict]:
+    cli_missing = _missing_cli_values()
+    full_missing = _missing_full_values()
+    if cli_missing:
+        label = "Include Crystal Lattice Access Guidance (unavailable)"
+        description = (
+            "Unavailable because these runtime values are missing or invalid: "
+            + ", ".join(cli_missing)
+        )
+        disabled = True
+        default = False
+    elif full_missing:
+        label = "Include Crystal Lattice Access Guidance (CLI only)"
+        description = (
+            "CLI-only guidance is available. Python SDK guidance is unavailable "
+            "because: " + ", ".join(full_missing)
+        )
+        disabled = False
+        default = _requested()
+    else:
+        label = "Include Crystal Lattice Access Guidance"
+        description = "CLI and Python SDK guidance are available."
+        disabled = False
+        default = _requested()
     return [
         {
             "ui_type": "config",
             "type": "checkbox",
             "key": "include_crystal_lattice_access",
-            "label": "Include Crystal Lattice Access Guidance",
-            "default": include_crystal_lattice_access(),
+            "label": label,
+            "description": description,
+            "disabled": disabled,
+            "default": default,
         }
     ]
-
-
-def _cli_argv() -> list[str]:
-    raw = os.environ.get("CRYSTAL_LATTICE_CLI_ARGV_JSON", "")
-    try:
-        value = json.loads(raw)
-    except Exception:
-        return []
-    if not isinstance(value, list) or not all(
-        isinstance(item, str) and item for item in value
-    ):
-        return []
-    return value
-
-
-def _shell_command(argv: list[str]) -> str:
-    if os.name == "nt":
-        return subprocess.list2cmdline(argv)
-    return shlex.join(argv)
-
-
-def _command(base: list[str], *arguments: str) -> str:
-    return _shell_command([*base, *arguments])
-
-
-def get_value() -> str:
-    base = _cli_argv()
-    docs_path = os.environ.get("CRYSTAL_LATTICE_DOCS", "")
-    docs_url = os.environ.get("CRYSTAL_LATTICE_DOCS_URL", "")
-    python = os.environ.get("CRYSTAL_LATTICE_PYTHON", "")
-    api_module = os.environ.get("CRYSTAL_LATTICE_PYTHON_API_MODULE", "")
-    config_path = os.environ.get("CRYSTAL_LATTICE_CONFIG", "")
-    session_root = os.environ.get("CRYSTAL_LATTICE_SESSIONS", "")
-
-    lines = [
-        "# Crystal Lattice Access",
-        "",
-        "You can delegate a bounded task to another configured Crystal Lattice "
-        "agent by creating a distinct persisted session.",
-    ]
-
-    if base:
-        lines.extend(
-            [
-                "",
-                "Use these commands exactly as the base invocation is shown; it "
-                "already selects this runtime's config and session store:",
-                "Replace angle-bracket placeholders with the selected agent, "
-                "session, and task values.",
-                "",
-                f"- List configured agents: `{_command(base, 'agents', '--format', 'json')}`",
-                "- Start a delegated task in a new session: "
-                f"`{_command(base, 'run', '--agent', '<agent-id>', '--prompt', '<task>', '--format', 'json')}`",
-                "- Continue only after that run completes: "
-                f"`{_command(base, 'run', '--session', '<session-id>', '--prompt', '<follow-up>', '--format', 'json')}`",
-                "- Inspect bounded history: "
-                f"`{_command(base, 'history', '--session', '<session-id>', '--start', '-50', '--format', 'json')}`",
-            ]
-        )
-    else:
-        lines.extend(
-            [
-                "",
-                "The runtime did not publish a usable CLI invocation. Do not "
-                "guess an executable or configuration path.",
-            ]
-        )
-
-    if config_path:
-        lines.append(f"- Active config: `{config_path}`")
-    if session_root:
-        lines.append(f"- Shared session root: `{session_root}`")
-
-    if python and api_module:
-        lines.extend(
-            [
-                "",
-                f"Python interpreter: `{python}`",
-                f"Python API import: `from {api_module} import open_runtime`",
-                "Pass the active config and session root above when opening the "
-                "runtime from another project.",
-            ]
-        )
-    else:
-        lines.extend(
-            [
-                "",
-                "This runtime does not expose a general Python interpreter or "
-                "importable Python API. Use the CLI invocation above.",
-            ]
-        )
-
-    if docs_path:
-        lines.extend(["", f"Local documentation: `{docs_path}`"])
-    if docs_url:
-        lines.append(f"Public documentation: {docs_url}")
-
-    lines.extend(
-        [
-            "",
-            "These commands run ordinary synchronous requests in persisted "
-            "sessions. They do not provide parent-child session metadata, "
-            "mid-run input, detached lifetime, or persistent subagent recovery.",
-        ]
-    )
-    return "\n".join(lines)

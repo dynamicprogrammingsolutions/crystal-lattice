@@ -381,11 +381,12 @@ Enable it for one session:
 /set include_crystal_lattice_access true
 ```
 
-Mobile and desktop session settings expose the same **Include Crystal Lattice
-Access Guidance** checkbox through the normal configuration schema. The
-setting defaults to off and is independent from **Include TASKS Guidance**.
+Mobile and desktop session settings expose the access checkbox through the
+normal configuration schema. The setting defaults to off and is independent
+from **Include TASKS Guidance**.
 
-When enabled, the agent receives:
+Source checkouts and bundled-Python distributions show **Include Crystal
+Lattice Access Guidance**. When enabled, the agent receives:
 
 - an authoritative CLI argument vector rendered as a correctly quoted command;
 - the active `--config` and `--sessions-dir`, so delegated calls cannot select
@@ -398,9 +399,16 @@ When enabled, the agent receives:
 - local application documentation when included in the runtime and the public
   documentation URL.
 
-Source checkouts and bundled-Python distributions expose the Python API.
-Optimized frozen executables expose their CLI and documentation but correctly
-state that the executable is not a general Python interpreter.
+Optimized frozen executables show **Include Crystal Lattice Access Guidance
+(CLI only)**. Their separately authored section includes CLI and documentation
+instructions, explicitly says that no supported general Python SDK is
+available, and never emits an SDK import or interpreter claim.
+
+If the CLI/config/session/documentation values are absent or invalid, the
+setting remains visible as **Include Crystal Lattice Access Guidance
+(unavailable)**. It is disabled and its description names the missing or
+invalid values. A previously stored true override cannot compile either
+section in that state.
 
 The guidance describes ordinary synchronous persisted sessions. It does not
 turn them into parent-linked persistent subagents and does not add mid-run
@@ -408,34 +416,30 @@ input, detached lifetime, or restart recovery.
 
 ### Adopt the section in an existing config
 
-Crystal Lattice does not rewrite an existing user or project config. Add the
-placeholder at the end of the applicable `system_message.template`:
+Crystal Lattice does not rewrite an existing user or project config. Add both
+placeholders at the end of the applicable `system_message.template`:
 
 ```text
 {{CRYSTAL_LATTICE_ACCESS}}
+
+{{CRYSTAL_LATTICE_CLI_ACCESS}}
 ```
 
-Then add this variable to that system message's `variables`:
-
-```json
-{
-  "CRYSTAL_LATTICE_ACCESS": {
-    "code": "${env:CRYSTAL_LATTICE_SYSTEM_MESSAGES}/helpers/crystal_lattice_access.py",
-    "runtime_code": "${env:CRYSTAL_LATTICE_SYSTEM_MESSAGES}/helpers/crystal_lattice_access.py",
-    "condition": {
-      "inline_code": "include_crystal_lattice_access()"
-    }
-  }
-}
-```
+Copy the bundled default config's `mixins.crystal_lattice_access` definition
+and its `system_messages/helpers/crystal_lattice_access.py` file into the
+corresponding active config directory, then add `"crystal_lattice_access"` as
+the last `mixin_refs` entry for the agent. That one mixin contains the complete
+inspectable Markdown for both variants, the named runtime-value placeholders,
+and the mutually exclusive conditions.
 
 The runtime owns `CRYSTAL_LATTICE_SYSTEM_MESSAGES` in the same way it owns
-`BUILTIN_PLUGINS`. The helper contributes the session checkbox as well as the
-rendered section.
+`BUILTIN_PLUGINS`. The helper contributes availability, conditions, and the
+session checkbox; the configuration owns every line of agent guidance.
 
 The other runtime-owned values are:
 
 - `CRYSTAL_LATTICE_CLI_ARGV_JSON`;
+- `CRYSTAL_LATTICE_CLI_COMMAND`;
 - `CRYSTAL_LATTICE_CONFIG`;
 - `CRYSTAL_LATTICE_SESSIONS`;
 - `CRYSTAL_LATTICE_PYTHON` when available;

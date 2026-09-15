@@ -433,6 +433,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
             <View style={styles.itemHeaderRow}>
               <View style={styles.itemTitleRow}>
                 <MacCheckbox
+                  testID={`session-setting-checkbox-${item.key}`}
                   style={styles.macCheckbox}
                   label={item.label}
                   value={boolValue}

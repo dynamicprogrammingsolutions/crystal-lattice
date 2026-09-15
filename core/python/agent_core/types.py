@@ -120,6 +120,7 @@ class BasePlugin(Protocol):
                   "key": "config_key",          # stable configuration key
                   "label": "Human label",       # short caption for UIs
                   "description": "Longer help text",  # optional
+                  "disabled": False,             # optional non-editable state
                   "options": [                    # for select-like fields
                       "value" | {"value": "v", "label": "Display"},
                   ],
@@ -141,7 +142,9 @@ class BasePlugin(Protocol):
 
           When ``"ui_type"`` is missing or falsy, the core normalizes the
           element to ``"config"`` and will de-duplicate on ``"key"`` when
-          flattening the global UI schema.
+          flattening the global UI schema. A disabled element remains visible;
+          applications should prevent edits and render ``"description"`` as
+          the reason or explanatory note.
 
         * **Message footer elements** (``ui_type == "message_footer"``):
 

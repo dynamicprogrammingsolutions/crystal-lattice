@@ -50,6 +50,15 @@ function renderSettingsModal() {
         },
         {
           ui_type: 'config',
+          key: 'include_crystal_lattice_access',
+          type: 'checkbox',
+          label: 'Include Crystal Lattice Access Guidance (unavailable)',
+          description:
+            'Unavailable because CRYSTAL_LATTICE_CLI_COMMAND is missing.',
+          disabled: true,
+        },
+        {
+          ui_type: 'config',
           key: 'generic_provider',
           type: 'dropdown',
           label: 'Generic provider',
@@ -89,6 +98,7 @@ function renderSettingsModal() {
       configSchema: [
         { key: 'generic_mode', default: 'fast' },
         { key: 'generic_enabled', default: false },
+        { key: 'include_crystal_lattice_access', default: false },
         { key: 'generic_provider', default: 'local' },
         { key: 'generic_name', default: 'Alpha' },
         { key: 'generic_readonly', default: 'Read only value' },
@@ -96,6 +106,7 @@ function renderSettingsModal() {
       ],
       baseConfig: {
         generic_enabled: false,
+        include_crystal_lattice_access: false,
         generic_provider: 'local',
         generic_name: 'Alpha',
         generic_readonly: 'Read only value',
@@ -133,6 +144,19 @@ test('session settings modal renders generic settings control types', () => {
   expect(screen.getByText('Fast')).toBeTruthy();
   expect(screen.getByText('Careful')).toBeTruthy();
   expect(screen.getByText('Generic enabled')).toBeTruthy();
+  expect(
+    screen.getByText('Include Crystal Lattice Access Guidance (unavailable)')
+  ).toBeTruthy();
+  expect(
+    screen.getByText(
+      'Unavailable because CRYSTAL_LATTICE_CLI_COMMAND is missing.'
+    )
+  ).toBeTruthy();
+  expect(
+    screen.getByTestId(
+      'session-setting-checkbox-include_crystal_lattice_access'
+    ).props.disabled
+  ).toBe(true);
   expect(screen.getByText('Generic provider:')).toBeTruthy();
   expect(screen.getByText('Local')).toBeTruthy();
   expect(screen.getByText('Generic name')).toBeTruthy();
@@ -141,6 +165,23 @@ test('session settings modal renders generic settings control types', () => {
   expect(screen.getByText('Read only value')).toBeTruthy();
   expect(screen.getByText('Generic fallback')).toBeTruthy();
   expect(screen.getByDisplayValue('Fallback value')).toBeTruthy();
+});
+
+test('disabled session setting cannot patch an override', () => {
+  renderSettingsModal();
+
+  fireEvent(
+    screen.getByTestId(
+      'session-setting-checkbox-include_crystal_lattice_access'
+    ),
+    'valueChange',
+    true
+  );
+
+  expect(patchOverride).not.toHaveBeenCalledWith(
+    'include_crystal_lattice_access',
+    true
+  );
 });
 
 test('session settings select chips patch generic option values', async () => {
