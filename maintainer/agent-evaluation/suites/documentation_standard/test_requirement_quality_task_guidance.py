@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from collections.abc import Iterator
 
@@ -10,6 +11,7 @@ from .requirement_quality import (
     PRODUCER_CASES,
     SCENARIOS,
     RequirementQualityScenario,
+    candidate_task_guidance_source,
     current_task_guidance_source,
     load_target,
     scenario_task_file_prompt,
@@ -31,13 +33,33 @@ from .test_consumers import _evidence_value
 pytestmark = [pytest.mark.agent_eval, pytest.mark.requirement_task_current]
 
 
+def _selected_task_dataset():
+    name = os.getenv("AGENT_EVAL_TASK_GUIDANCE_VARIANT", "current").strip()
+    if name == "current":
+        return (
+            "current-task-guidance-20260914",
+            "requirement-task-current",
+            current_task_guidance_source(),
+        )
+    if name == "candidate-v2":
+        return (
+            "candidate-task-guidance-v2-20260915",
+            "requirement-task-candidate-v2",
+            candidate_task_guidance_source(),
+        )
+    raise ValueError(
+        "AGENT_EVAL_TASK_GUIDANCE_VARIANT must be current or candidate-v2"
+    )
+
+
 @pytest.fixture(scope="session")
 def requirement_task_harness() -> Iterator[DocumentationEvaluationHarness]:
     profile = selected_profile()
     enforce_real_model_gate(profile)
+    _, _, guidance = _selected_task_dataset()
     harness = DocumentationEvaluationHarness(
         profile,
-        guidance=current_task_guidance_source(),
+        guidance=guidance,
     )
     yield harness
     harness.close()
@@ -133,8 +155,8 @@ def _task_structure_findings(files: dict[str, str]) -> tuple[AssertionFinding, .
         ),
         AssertionFinding(
             "planning output has no implementation or completion notes",
-            "## Implementation Notes" not in text
-            and "## Completion Notes" not in text,
+            re.search(r"(?m)^## Implementation Notes\s*$", text) is None
+            and re.search(r"(?m)^## Completion Notes\s*$", text) is None,
             path,
         ),
     )
@@ -151,6 +173,7 @@ def _task_structure_findings(files: dict[str, str]) -> tuple[AssertionFinding, .
     "DOCGUIDE-006",
     "DOCVAL-010",
     "DOCVAL-011",
+        "DOCVAL-012",
 )
 def test_requirement_quality_with_current_task_guidance(
     requirement_task_harness: DocumentationEvaluationHarness,
@@ -164,14 +187,21 @@ def test_requirement_quality_with_current_task_guidance(
 
     target = load_target(scenario)
     target_hash = target_sha256(scenario)
-    guidance = current_task_guidance_source()
+    dataset_id, test_prefix, guidance = _selected_task_dataset()
     prompt = scenario_task_file_prompt(scenario)
+    repeat_variant = os.getenv(
+        "AGENT_EVAL_TASK_CACHE_VARIANT",
+        "",
+    ).strip()
     run = requirement_task_harness.fresh_scenario(
-        test_id=f"requirement-task-current-{scenario.scenario_id}-{reasoning_effort}",
+        test_id=f"{test_prefix}-{scenario.scenario_id}-{reasoning_effort}",
         spec_file=scenario.spec_file,
         fixture_id=scenario.fixture_id,
         reasoning_effort=reasoning_effort,
-        cache_variant=f"task-current-v1-{target_hash[:16]}",
+        cache_variant=(
+            f"{dataset_id}-{target_hash[:16]}:"
+            f"{repeat_variant or 'default'}"
+        ),
         prompt_heading="## Exact task-file user prompt",
     )
     value = require_run_value(run)
@@ -218,10 +248,10 @@ def test_requirement_quality_with_current_task_guidance(
     guidance_message = guidance.context_message()
     run.record("assertions.json", [finding.__dict__ for finding in findings])
     run.record(
-        "requirement-task-current.json",
+        f"{test_prefix}.json",
         {
             "schema_version": 1,
-            "dataset_id": "current-task-guidance-20260914",
+            "dataset_id": dataset_id,
             "scenario_id": scenario.scenario_id,
             "project": {
                 "name": scenario.project_name,
@@ -232,6 +262,7 @@ def test_requirement_quality_with_current_task_guidance(
             "target": target,
             "target_sha256": target_hash,
             "prompt": prompt,
+            "repeat_variant": repeat_variant or "default",
             "producer": {
                 "profile": profile.name,
                 "agent_id": profile.agent_id,

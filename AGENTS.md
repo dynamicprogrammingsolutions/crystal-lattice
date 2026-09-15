@@ -330,7 +330,8 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - Any change in `agent_core`, `agent_app`, `agent_terminal_app`, built-in plugin projects, or core-packaged plugins visible to users.
 
 **What to test**
-- Prefer **unit tests** first (pure functions, protocol implementations, small helpers).
+- Use unit or component tests when the behavior can be proved locally; choose
+  the lowest test boundary that still contains the failure being detected.
 - Use **integration tests** for multi-layer flows or provider-backed behavior; mark them with `integration`.
 - Add `api` for hosted real-provider tests that require credentials and may incur cost.
 - Add `slow_integration` for broad, high-latency, or expensive integration suites that should be run selectively.
@@ -365,21 +366,16 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - First-party built-in plugin projects live under repo-root `plugins/`, and their tests live alongside them.
 - Do not add new plugin projects under `core/python/plugins` without explicit user consent.
 
-**When to update docs**
-- Changing public behavior:
-  - Update the owning package's current user docs and any affected
-    cross-package user guidance.
-- Changing implementation, architecture, testing, or maintenance behavior:
-  - Update the owning package's `docs/development/` pages.
-- Changing an intended target:
-  - Update its specification first and update requirements as implementation,
-    verification, and documentation progress.
-- During the initial documentation migration, current legacy pages such as
-  `TYPES_AND_PROTOCOLS.md`, `docs/api/core-sdk.md`,
-  `docs/reference/agent_core/*` and
-  `application/python/README.md` remain valid until their owning subtasks move
-  them.
-- Changing examples or adding new ones:
-  - Update example code + tests, then regenerate `EXAMPLES.md`.
+**Documentation changes**
+- Follow `## Documentation ownership and workflow` above and
+  `docs/development/documentation.md`.
+- For consumer-visible behavior, update the owning current user documentation
+  and affected cross-package guidance.
+- For durable implementation, architecture, testing, or maintenance changes,
+  update the owning developer documentation.
+- For target changes, update the specification first and keep requirement
+  implementation, verification, and documentation state current.
+- After example changes, update source and tests, then regenerate
+  `EXAMPLES.md`.
 
 Treat tests, type hints, and documentation updates as part of “done” for any substantive change.

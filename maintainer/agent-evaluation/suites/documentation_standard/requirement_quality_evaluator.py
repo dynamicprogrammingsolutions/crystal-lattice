@@ -82,6 +82,39 @@ def load_accepted_anchors() -> dict[str, Any]:
 def load_task_dataset(
     artifact_root: Path = DEFAULT_ARTIFACT_ROOT,
 ) -> dict[str, Any]:
+    return _load_task_dataset(
+        artifact_root=artifact_root,
+        dataset_id="current-task-guidance-20260914",
+        test_prefix="requirement-task-current",
+    )
+
+
+def load_candidate_task_dataset(
+    artifact_root: Path = DEFAULT_ARTIFACT_ROOT,
+) -> dict[str, Any]:
+    return _load_task_dataset(
+        artifact_root=artifact_root,
+        dataset_id="candidate-task-guidance-20260915",
+        test_prefix="requirement-task-candidate",
+    )
+
+
+def load_candidate_v2_task_dataset(
+    artifact_root: Path = DEFAULT_ARTIFACT_ROOT,
+) -> dict[str, Any]:
+    return _load_task_dataset(
+        artifact_root=artifact_root,
+        dataset_id="candidate-task-guidance-v2-20260915",
+        test_prefix="requirement-task-candidate-v2",
+    )
+
+
+def _load_task_dataset(
+    *,
+    artifact_root: Path,
+    dataset_id: str,
+    test_prefix: str,
+) -> dict[str, Any]:
     records: list[dict[str, Any]] = []
     for scenario_id in (
         "33-eleventy-archive-pagination",
@@ -90,8 +123,8 @@ def load_task_dataset(
     ):
         for profile, effort in PRODUCER_CASES:
             pattern = (
-                f"*requirement-task-current-{scenario_id}-{effort}-*/"
-                "records/requirement-task-current.json"
+                f"*{test_prefix}-{scenario_id}-{effort}-*/"
+                f"records/{test_prefix}.json"
             )
             paths = sorted((artifact_root / profile / "runs").glob(pattern))
             matching: list[tuple[Path, dict[str, Any]]] = []
@@ -99,7 +132,7 @@ def load_task_dataset(
                 value = json.loads(path.read_text(encoding="utf-8"))
                 producer = value.get("producer")
                 if (
-                    value.get("dataset_id") == "current-task-guidance-20260914"
+                    value.get("dataset_id") == dataset_id
                     and isinstance(producer, dict)
                     and producer.get("profile") == profile
                     and producer.get("reasoning_effort") == effort
@@ -123,20 +156,30 @@ def load_task_dataset(
                         path.read_bytes()
                     ).hexdigest(),
                     "guidance": value["guidance"],
+                    "producer_result": {
+                        "completed": any(
+                            finding.get("name") == "run completed"
+                            and finding.get("passed") is True
+                            for finding in value.get("findings", [])
+                            if isinstance(finding, dict)
+                        ),
+                        "response": value.get("response", ""),
+                        "findings": value.get("findings", []),
+                    },
                 }
             )
     dataset = {
         "schema_version": 1,
-        "dataset_id": "current-task-guidance-20260914",
+        "dataset_id": dataset_id,
         "description": (
-            "Task files and Draft plans produced with the maintained general "
-            "documentation guidance and effective current TASKS-v7 guidance."
+            "Task files and Draft plans produced with paired documentation "
+            "and TASKS-v7 guidance."
         ),
         "records": records,
     }
     validate_dataset(
         dataset,
-        expected_dataset="current-task-guidance-20260914",
+        expected_dataset=dataset_id,
     )
     return dataset
 
@@ -173,8 +216,17 @@ def validate_dataset(
             raise ValueError(f"duplicate dataset record: {key}")
         keys.add(key)
         files = record.get("generated_files")
-        if not isinstance(files, dict) or not files:
+        if not isinstance(files, dict):
             raise ValueError(f"dataset record {key} needs generated_files")
+        producer_result = record.get("producer_result")
+        producer_completed = (
+            isinstance(producer_result, dict)
+            and producer_result.get("completed") is True
+        )
+        if not files and producer_completed:
+            raise ValueError(
+                f"completed dataset record {key} needs generated_files"
+            )
         if any(
             not isinstance(path, str)
             or not isinstance(content, str)
@@ -240,6 +292,10 @@ def build_evaluator_prompt(
             "candidate_id": value["candidate_id"],
             "producer": value["producer"],
             "generated_files": value["generated_files"],
+            "producer_result": value.get(
+                "producer_result",
+                {"completed": True},
+            ),
         }
         for value in candidates
     ]
@@ -368,6 +424,10 @@ Apply these distinctions:
   Implementation decisions and work steps are legitimate in the execution
   plan; classify them as requirement expansion only when the task promotes
   them into the product completion contract.
+- If producer_result.completed is false or generated_files is empty, do not
+  infer missing content. Mark requirement coverage and testing coverage
+  missing, explain the incomplete producer result, and keep semantic expansion
+  separate from the execution failure.
 
 Use these expansion-severity definitions:
 
@@ -474,13 +534,28 @@ def parse_evaluator_response_with_repairs(
                 and value[position - 2] == "}"
                 and value.startswith('{"candidate_id"', position)
             )
+            missing_final_candidate_close = (
+                position >= 1
+                and value[position] == "]"
+                and value[position - 1] == "}"
+                and value[position:] == "]}"
+            )
+            if missing_candidate_close:
+                value = value[: position - 1] + "}" + value[position - 1 :]
+                repairs.append(
+                    "inserted missing outer candidate-closing brace before "
+                    f"character {position}"
+                )
+                continue
+            if missing_final_candidate_close:
+                value = value[:position] + "}" + value[position:]
+                repairs.append(
+                    "inserted missing final candidate-closing brace before "
+                    f"character {position}"
+                )
+                continue
             if not missing_candidate_close:
                 raise
-            value = value[: position - 1] + "}" + value[position - 1 :]
-            repairs.append(
-                "inserted missing outer candidate-closing brace before "
-                f"character {position}"
-            )
     else:
         raise json.JSONDecodeError(
             "too many evaluator response repairs",
@@ -578,7 +653,7 @@ def validate_evaluator_result(
                 raise ValueError(f"{candidate_id}: invalid coverage item")
             _require_enum(item, "status", COVERAGE_STATUSES, candidate_id)
             _require_text(item, "evidence", candidate_id)
-            _require_text(item, "notes", candidate_id)
+            _require_string(item, "notes", candidate_id)
         signals = requirement.get("signals")
         if (
             not isinstance(signals, list)
@@ -867,3 +942,12 @@ def _require_text(
     item = value.get(key)
     if not isinstance(item, str) or not item.strip():
         raise ValueError(f"{candidate_id}: {key} must be non-empty text")
+
+
+def _require_string(
+    value: dict[str, Any],
+    key: str,
+    candidate_id: str,
+) -> None:
+    if not isinstance(value.get(key), str):
+        raise ValueError(f"{candidate_id}: {key} must be text")

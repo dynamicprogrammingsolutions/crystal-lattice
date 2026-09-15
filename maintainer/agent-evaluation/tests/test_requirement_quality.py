@@ -9,6 +9,7 @@ from suites.documentation_standard.requirement_quality import (
     ALL_SCENARIOS,
     PRODUCER_CASES,
     SCENARIOS,
+    candidate_task_guidance_source,
     current_task_guidance_source,
     load_target,
     requirement_minimal_guidance_source,
@@ -122,6 +123,28 @@ def test_current_task_guidance_uses_maintained_general_and_task_files() -> None:
     assert "Include the testing strategy" not in text
 
 
+def test_candidate_task_guidance_contains_the_approved_replacements() -> None:
+    current = current_task_guidance_source()
+    candidate = candidate_task_guidance_source()
+    text = "\n".join(
+        candidate.read_bytes(path).decode("utf-8")
+        for path in candidate.paths
+    )
+
+    assert candidate.paths == current.paths
+    assert candidate.sha256() != current.sha256()
+    assert "minimum approved outcomes and constraints" in text
+    assert (
+        "Easy-to-reverse code does not make a public contract a local choice"
+        in text
+    )
+    assert "Do not invent fallback or error behavior" in text
+    assert "A mock is insufficient when it supplies or bypasses that behavior" in text
+    assert "do not install dependencies or create scratch implementations" in text
+    assert "remove incidental changes before handoff" in text
+    assert "testing strategy" not in scenario_task_file_prompt(SCENARIOS[0]).lower()
+
+
 def test_accepted_requirement_quality_dataset_is_complete() -> None:
     dataset = load_accepted_dataset()
     anchors = load_accepted_anchors()
@@ -163,7 +186,7 @@ def test_semantic_evaluator_prompt_and_schema_round_trip() -> None:
                             "outcome_id": outcome["id"],
                             "status": "complete",
                             "evidence": "Candidate evidence.",
-                            "notes": "Covered.",
+                            "notes": "",
                         }
                         for outcome in target["required_outcomes"]
                     ],
@@ -225,6 +248,22 @@ def test_semantic_evaluator_prompt_and_schema_round_trip() -> None:
     assert repaired == repair_fixture
     assert len(repairs) == 1
 
+    final_fixture = {"assessments": [repair_fixture["assessments"][0]]}
+    rendered_final_fixture = json.dumps(
+        final_fixture,
+        separators=(",", ":"),
+    )
+    malformed_final = rendered_final_fixture.replace(
+        '"one"}}]}',
+        '"one"}]}',
+        1,
+    )
+    repaired_final, final_repairs = parse_evaluator_response_with_repairs(
+        malformed_final
+    )
+    assert repaired_final == final_fixture
+    assert len(final_repairs) == 1
+
 
 def test_frozen_task_and_semantic_datasets_are_complete() -> None:
     task_dataset = json.loads(TASK_DATASET_OUTPUT.read_text(encoding="utf-8"))
@@ -253,6 +292,48 @@ def test_frozen_task_and_semantic_datasets_are_complete() -> None:
     assert len(repaired) == 1
     assert repaired[0]["dataset_id"] == "current-task-guidance-20260914"
     assert repaired[0]["scenario_id"] == "35-flask-vue-book-filter"
+
+
+def test_frozen_candidate_datasets_are_complete() -> None:
+    fixture_root = Path(
+        "maintainer/agent-evaluation/suites/documentation_standard/fixtures"
+    )
+    variants = (
+        (
+            "candidate-task-guidance-20260915",
+            fixture_root
+            / "candidate_task_guidance_requirement_quality_dataset.json",
+            fixture_root / "requirement_quality_candidate_semantic_results.json",
+        ),
+        (
+            "candidate-task-guidance-v2-20260915",
+            fixture_root
+            / "candidate_v2_task_guidance_requirement_quality_dataset.json",
+            fixture_root
+            / "requirement_quality_candidate_v2_semantic_results.json",
+        ),
+    )
+    expected_candidates = {
+        f"{profile}-{effort}" for profile, effort in PRODUCER_CASES
+    }
+
+    for dataset_id, task_path, semantic_path in variants:
+        task_dataset = json.loads(task_path.read_text(encoding="utf-8"))
+        semantic_dataset = json.loads(
+            semantic_path.read_text(encoding="utf-8")
+        )
+        assert task_dataset["dataset_id"] == dataset_id
+        assert semantic_dataset["dataset_id"] == dataset_id
+        assert len(task_dataset["records"]) == len(SCENARIOS) * len(
+            PRODUCER_CASES
+        )
+        assert len(semantic_dataset["results"]) == len(SCENARIOS)
+        for scenario in SCENARIOS:
+            assert {
+                record["candidate_id"]
+                for record in task_dataset["records"]
+                if record["scenario_id"] == scenario.scenario_id
+            } == expected_candidates
 
 
 def test_task_structure_parser_uses_the_required_closing_sequence() -> None:
@@ -284,6 +365,7 @@ No user documentation change.
 ### Task checklist
 
 - [ ] Implement.
+- [ ] Add `## Implementation Notes` only after execution starts.
 
 ### Requirement verification
 
@@ -308,6 +390,19 @@ No user documentation change.
         if not finding.passed
     ]
     assert failures == ["plan closing sections are present and ordered"]
+
+    premature_notes = {
+        path: text + "\n## Implementation Notes\n\nNot started.\n"
+        for path, text in valid.items()
+    }
+    note_failures = [
+        finding.name
+        for finding in _task_structure_findings(premature_notes)
+        if not finding.passed
+    ]
+    assert note_failures == [
+        "planning output has no implementation or completion notes"
+    ]
 
 
 def test_requirement_quality_profiles_apply_provider_specific_effort() -> None:

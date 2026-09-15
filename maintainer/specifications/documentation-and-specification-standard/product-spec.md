@@ -153,13 +153,15 @@ must remain durable before implementation, it stays with the specification.
 - Keep user documentation, developer documentation, specifications,
   requirements, tasks, and maintainer material distinguishable in plain
   language.
-- Keep requirements focused on approved outcomes and constraints.
+- Keep requirements limited to necessary, traceable approved outcomes and
+  constraints; group variants proportionately and surface unspecified public
+  behavior as a question instead of silently selecting it.
 - Keep primary evidence concise and directly related to requirement
   validation.
-- Give agents practical guidance for choosing test layers, identifying
-  important crossings, avoiding brittle assertions about implementation
-  details outside the required contract, and recording tests intentionally
-  omitted.
+- Give agents practical guidance for choosing the lowest-cost reliable test
+  boundary, identifying important crossings, recording an unavailable
+  decisive test as a gap, avoiding brittle implementation/source assertions
+  outside the required contract, and recording tests intentionally omitted.
 - Make completion reports emphasize decisive acceptance evidence rather than
   routine quality-check counts.
 - Preserve scope, ownership, source-of-truth, validation, and publication
@@ -231,6 +233,11 @@ hardening, and future configuration. It records them as risks, recommendations,
 or follow-ups instead of silently adding them to the required completion state.
 Only user-approved outcomes and constraints become requirements.
 
+When implementation requires a choice about a public API, persisted data,
+compatibility, security, privacy, or user-visible behavior, the agent records a
+question unless that class of decision is already authorized. Easy-to-reverse
+code does not make the public contract a local implementation choice.
+
 Requirement-quality evaluation uses several small tasks from different project
 types. The implementing agent maps generated requirements to the approved
 semantic targets and identifies omissions, unsupported additions, duplication,
@@ -246,6 +253,12 @@ as JSON should not receive an exact-key snapshot merely because the object is
 easy to compare. If behavior crosses plugin, backend, transport, and frontend
 boundaries, at least one test reaches the important real crossing rather than
 replacing it with mocks.
+
+If the important boundary is unavailable, the plan records the missing
+evidence rather than substituting a weaker mocked test and claiming the
+requirement is verified. Representative boundaries and regressions are
+preferred over exhaustive operation-by-state combinations, and unresolved
+behavior is not turned into a test target.
 
 ### Early user-documentation draft
 

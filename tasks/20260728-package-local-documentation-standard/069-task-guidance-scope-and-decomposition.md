@@ -20,18 +20,19 @@ Related Specifications:
 
 Requirement IDs:
 
-- Existing ownership: `DOCFLOW-002`–`DOCFLOW-004`, `DOCVAL-001`
-- Add stable scope/decomposition and verification IDs to the governing
-  requirements ledger during execution after confirming the next available IDs
-  against concurrent specification work.
+- Requirement/testing candidate: `DOCGUIDE-005`–`DOCGUIDE-006`,
+  `DOCFLOW-002`–`DOCFLOW-004`, `DOCVAL-012`
+- Add stable decomposition IDs only after the six-case baseline confirms the
+  exact independently required behavior.
 
 # Task Guidance Scope and Decomposition
 
 Refine task guidance so agents derive the minimum sufficient requirements,
 choose one task by default, and create subtasks only as independently
-reviewable working iterations or isolated responsibilities. Verify the behavior
-through six baseline-first real-model scenarios on the migrated programmatic
-agent-evaluation framework.
+reviewable working iterations or isolated responsibilities. First verify the
+evidence-backed requirement and testing rewrite through the exact 21-cell
+subtask 067 matrix, then verify decomposition through six baseline-first
+real-model scenarios on the migrated programmatic agent-evaluation framework.
 
 ## Requirements checklist
 
@@ -84,6 +85,22 @@ agent-evaluation framework.
   recorded in cache identity and artifacts.
 - [ ] Candidate guidance starts with the shortest general wording and grows
   only when paired evidence shows that the concise form is insufficient.
+- [ ] The first candidate comparison reuses subtask 067's exact three
+  projects, seven model/effort profiles, product targets, prompts, fixtures,
+  requirement assertions, and testing-plan assertions without rerunning or
+  reconstructing the current-guidance baseline.
+- [ ] Candidate task prompts continue to request one Draft task file without
+  mentioning a testing strategy; standing task guidance must elicit
+  requirement verification.
+- [ ] The candidate preserves complete product-outcome coverage, removes
+  material unsupported public decisions and wrong-record requirements, and
+  improves decisive testing evidence without introducing material duplication
+  or combinatorial test expansion.
+- [ ] Public API, persisted-data, compatibility, security, privacy, and
+  user-visible ambiguities remain questions unless the request or approved task
+  grants the relevant decision authority.
+- [ ] Planning-only task creation leaves only authorized task-file changes and
+  contains no premature implementation or completion notes.
 - [ ] Canonical and bundled TASKS-v7 guidance remain mechanically synchronized.
 - [ ] Deterministic assertions, structured semantic assessment, and human
   review remain distinct evidence sources.
@@ -129,6 +146,40 @@ ChatGPT profile and max effort for GLM. The migrated suite must expose and
 record the selected effort instead of treating model identity alone as the
 profile.
 
+### Evidence from subtask 067
+
+The committed September 14–15 baseline provides the current-guidance failure
+gate required by this task:
+
+- all 21 current-guidance task files cover the approved product outcomes;
+- semantic expansion improves from 5 high/12 medium/4 low in the
+  requirement-minimal specification baseline to 0 high/5 medium/11 low/5 none
+  in the current task-file baseline;
+- GPT improves from 5 high/7 medium to 4 none/7 low/1 medium;
+- GLM improves less and all three Flask/Vue efforts silently choose public
+  behavior for unsupported `read` values;
+- FastAPI tasks often raise missing companion-parameter defaults as questions
+  but several plans partly assume a recommended answer;
+- 12 of 21 testing plans contain complete decisive evidence and 9 are partial;
+- 20 of 21 plans include the important production crossing;
+- no plan has material test duplication or combinatorial expansion;
+- FastAPI plans commonly use a mocked boundary that cannot prove database
+  ordering/count behavior, omit valid boundary cases, or rely on nonexistent
+  CRUD regression tests;
+- three genuine GLM task-guidance adherence failures remain: generated site
+  files left by planning, a missing required closing section, and premature
+  Implementation Notes.
+
+The accepted interpretation and exact evidence are in:
+
+- `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`;
+- `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/20260915-requirement-task-testing-comparison.md`.
+
+This evidence authorizes a candidate for requirement authority, proportional
+grouping, verification boundaries, and planning cleanliness. It does not by
+itself authorize decomposition wording; the six decomposition scenarios retain
+their separate baseline-first gate.
+
 ### Current evaluation limitation
 
 The existing evaluation deliberately disables TASKS guidance for its planning
@@ -144,19 +195,47 @@ boundaries.
 
 ### Proposed requirement rule to test
 
-The shortest candidate should express this concept:
+Subtask 068 owns the exact concise `TASKS-v7` replacements. The key
+requirement-scope candidate is:
 
-> Derive the smallest set of independently verifiable outcomes and constraints
-> from the approved request. Do not multiply requirements by implementation
-> stages, evidence types, optional improvements, non-blocking risks, or possible
-> future work. Keep non-required ideas explicitly optional or deferred, and ask
-> before promoting them into scope.
+> Derive the minimum approved outcomes and constraints needed for completion.
+> Add a requirement only when it is traceable to the request, an explicitly
+> preserved contract, a necessary consequence, an applicable approved policy,
+> or an approved design or quality decision. Use one requirement per
+> independently meaningful outcome; keep variants, operations, boundary values,
+> and examples beneath it unless independent acceptance, deferral, ownership,
+> evidence, or status tracking adds value.
 
-This is a candidate hypothesis, not approved output wording. It may be added
-only after baseline evidence demonstrates the targeted failure.
+The same replacement keeps implementation, testing, documentation,
+refactoring, and verification work in the plan unless its resulting outcome is
+independently required.
 
 The rule must not hide real blockers, safety constraints, compatibility needs,
 or dependencies required to deliver the approved outcome.
+
+### Public decisions, verification, and planning cleanliness
+
+The requirement/testing candidate also adds:
+
+> Resolve local, reversible implementation choices without separate approval.
+> Public APIs, persisted data, compatibility, security, privacy, and
+> user-visible behavior are material rather than local choices; ask unless the
+> user or approved task has authorized that class of decision.
+
+> Planning may use safe diagnostics, but task creation must leave only the
+> requested task-file changes. Remove generated output and restore other
+> incidental workspace changes before handing off the plan.
+
+> Requirement verification maps each requirement, or coherent requirement
+> group, to the smallest reliable acceptance evidence at the user-relevant or
+> public boundary containing the claimed behavior. A mocked or lower-level test
+> is not sufficient when it bypasses that behavior. Use representative
+> boundary and regression cases; do not plan tests for unresolved or
+> unapproved behavior.
+
+Additional implementation verification remains limited to lower-level tests,
+internal invariants, or robustness checks covering a distinct material risk.
+Routine checks remain supporting evidence.
 
 ### Proposed decomposition rule to test
 
@@ -451,18 +530,15 @@ Human review should answer:
 - Do dependencies reflect real blockers?
 - Did higher reasoning effort produce additional unapproved scope?
 
-## Baseline-first approval gate
+## Decomposition baseline-first approval gate
 
-The six scenario contracts and assertions are completed before guidance edits.
+Subtask 067 already satisfies the requirement/testing baseline gate. The six
+decomposition scenario contracts and assertions are completed before adding or
+changing decomposition wording.
 
-Run the exact current post-068 guidance first. Require at least:
-
-- one demonstrated requirement-inflation failure in a single-task scenario; or
-- one demonstrated horizontal, excessive, or dependency-invalid decomposition
-  in a task-directory scenario.
-
-Prefer evidence for both before changing both guidance concepts. If only one
-behavior fails, change only the wording governing that behavior.
+Run the exact accepted requirement/testing candidate guidance first. Require at
+least one demonstrated horizontal, excessive, or dependency-invalid
+decomposition before changing the decomposition rule.
 
 If all representative baseline runs pass:
 
@@ -470,31 +546,35 @@ If all representative baseline runs pass:
 - keep passing cases as robustness evidence;
 - refine or replace a scenario without embedding the expected requirements or
   decomposition in the prompt;
-- rerun the current guidance before proposing candidate wording.
+- rerun the accepted guidance before proposing decomposition wording.
 
 Prompts, fixtures, assertions, model profiles, and reasoning effort stay
 unchanged between a failing baseline and its candidate comparison.
 
 ## Reasoning-effort coverage
 
-Initial discovery:
+Requirement/testing candidate comparison:
 
-- GLM-5.2 at max effort: all six baseline scenarios;
-- GPT at high or xhigh where supported: at least one single-task and two
-  task-directory sentinels;
-- one unchanged single-task and one task-directory scenario at medium and max
-  on the same model to observe effort-related expansion.
+- `glm-5.3-flash:cloud` at low, high, and max across all three subtask 067
+  projects;
+- `gpt-5.6-luna` through ChatGPT login at medium, high, xhigh, and max across
+  the same projects.
 
-Candidate runs reuse the exact failing model and effort profile. A full
-model/effort cross-product is not required unless observed variance justifies
-it.
+Decomposition discovery:
+
+- `glm-5.3-flash:cloud` at max across all six decomposition cases;
+- GPT high/xhigh sentinels covering at least one single-task and two
+  task-directory cases;
+- medium/max comparisons only when needed to explain observed effort variance.
+
+Every candidate run reuses the exact baseline model and effort profile.
 
 ## Optional post-completion expansion
 
 Status: Not planned and not authorized by this execution plan.
 
 After the core task is completed, the completing agent must explicitly offer
-the following possible expansions to the user. It must not investigate them,
+the following remaining possible expansions to the user. It must not investigate them,
 define detailed requirements, design scenarios, change guidance, or make them
 conditions of core completion unless the user separately approves reopening or
 extending the task.
@@ -515,26 +595,6 @@ This possible expansion is not limited to security or privacy. It may cover
 other high-impact safety, data-loss, legal, financial, compatibility, or
 operational risks.
 
-### Requirement verification semantics
-
-Explore why models confuse:
-
-- requirement verification;
-- additional implementation verification;
-- automated tests;
-- manual verification.
-
-The later refinement should clarify that requirement verification maps each
-requirement or coherent group to acceptance evidence at a user-relevant or
-public boundary. Most software requirements should normally have automated
-test coverage where behavior is practically assertable, while some outcomes
-require human verification. Additional implementation verification commonly
-covers lower-level unit tests, internal invariants, robustness checks, or other
-evidence that supports implementation quality without replacing requirement
-acceptance.
-
-The exact wording, exceptions, and scenarios are intentionally deferred.
-
 ### Proportional non-development task forms
 
 Explore task shapes that do not require every development-plan element.
@@ -551,81 +611,119 @@ this task.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-### 1. Start from the migrated task-guidance suite
+### 1. Consume the committed requirement/testing baseline
 
-1. Wait for subtask 068 to establish the canonical TASKS-v7 source, bundled
-   synchronization, migrated evaluator, commands, and fixtures.
-2. Reassess the migrated public test helpers and scenario ownership without
-   recreating the old specialized CLI beside the new framework.
-3. Confirm the next available stable requirement IDs in the governing
-   requirements ledger and add the approved scope/decomposition targets.
+1. Use commit `73a2f4bf` and the frozen Dataset B records from subtask 067 as
+   the current-guidance baseline.
+2. Do not rerun the 21 current-guidance producer cells.
+3. Preserve the exact three projects, task prompts, fixtures, product targets,
+   seven producer model/effort profiles, calibrated semantic evaluator, and
+   testing-plan assertions.
+4. Treat the committed comparison as the requirement/testing failure gate.
+5. Keep the six decomposition scenarios and their separate baseline gate
+   unchanged until the requirement/testing candidate is reviewed.
 
-### 2. Specify six scenarios before changing guidance
+### 2. Prepare the synchronized candidate guidance
 
-1. Select or adapt pinned repository commits and narrow issue descriptions for
-   the three single-task and three task-directory cases.
-2. Rewrite prompts as natural prose when source issues already enumerate
-   requirements or subtasks.
-3. Record exact derivable parent outcomes, expected task shape, valid
-   dependencies, mutation allowlists, and human-review questions.
-4. Keep fixture facts sufficient for deterministic assertions without putting
-   the expected answer in the user prompt.
+1. Wait for subtask 068 to establish `agents/TASKS-v7.md` as the canonical
+   source and provide deterministic bundled-copy synchronization.
+2. Update the governing specification and requirements before changing either
+   guide.
+3. Apply the exact requirements and testing replacements from subtask 010.
+4. Apply the five exact task-guidance replacements from subtask 068.
+5. Regenerate the bundled `TASKS_v7.md` and verify exact parity.
+6. Record the candidate documentation-guidance hash, task-guidance hash,
+   effective compiled developer-message hash, and source commit.
 
-### 3. Implement guidance-aware evaluation flow
+### 3. Run the exact 21-cell candidate matrix
+
+1. Run Eleventy, FastAPI, and Flask/Vue with
+   `glm-5.3-flash:cloud` at low/high/max.
+2. Run the same projects with `gpt-5.6-luna` through ChatGPT login at
+   medium/high/xhigh/max.
+3. Ask only for one task file with a Draft execution plan; do not mention a
+   testing strategy or expected requirements.
+4. Start each cell from a fresh equivalent fixture.
+5. Apply the same structural, mutation, provenance, requirement, and
+   testing-plan assertions as Dataset B.
+6. Preserve every task file, response, changed path, compiled instruction,
+   semantic result, parser repair, and provider error.
+
+### 4. Compare requirement and testing behavior
+
+1. Require complete target coverage in every candidate.
+2. Identify material unsupported public behavior, unresolved choices made
+   operative, implementation constraints, wrong-record requirements, and
+   disproportionate grouping.
+3. Confirm the GLM Flask/Vue candidates raise unsupported `read` behavior as a
+   question rather than silently selecting it.
+4. Confirm FastAPI missing companion-parameter behavior remains a question
+   until approved and is not assumed by implementation or tests.
+5. Confirm no candidate promotes documentation, testing, verification, or task
+   mutation boundaries into product requirements.
+6. Evaluate testing completeness, selected layer, important crossing,
+   duplication, combinatorial expansion, implementation coupling, and
+   verification focus from the same task output.
+7. Specifically check:
+   - Eleventy: all seven plans include complete build/output evidence;
+   - FastAPI: plans include valid boundary cases and evidence at the
+     ordering/count boundary or record the unavailable integration as a gap;
+   - Flask/Vue: all plans commit to a real client-to-Flask crossing;
+   - no plan tests unresolved or unapproved behavior.
+8. Recompute task structure with the corrected exact-heading parser and require
+   task-only planning to leave no generated output.
+
+### 5. Adjust only demonstrated candidate failures
+
+1. If a candidate fails semantically, map the failure to one exact replacement
+   block before changing wording.
+2. Prefer reducing ambiguity or improving placement over adding examples.
+3. Rerun only the failed exact model/effort cells while calibrating wording.
+4. After a wording change passes focused cells, rerun the affected three-project
+   matrix slice; run the full 21 cells only when more than one general rule
+   changes.
+5. Do not weaken product targets, testing expectations, or evaluator
+   classifications to make candidate guidance pass.
+6. Present the paired current/candidate comparison for human review before
+   accepting the requirement/testing rewrite.
+
+### 6. Specify the six decomposition scenarios
+
+1. After the requirement/testing candidate is accepted, select or adapt pinned
+   repository commits for the three single-task and three task-directory cases
+   already described in this task.
+2. Keep natural prompts free of expected requirement counts and subtask shapes.
+3. Record derivable parent outcomes, valid task shape, dependencies, mutation
+   allowlists, and semantic review questions.
+4. Reuse the migrated evaluator and exact accepted candidate guidance as the
+   new decomposition baseline.
+
+### 7. Implement decomposition evidence and run its baseline
 
 1. Cache narrow factual investigation independently of guidance.
-2. Create separate baseline/candidate planning branches with guidance present
-   before requirement derivation.
-3. Continue task creation only from the matching guidance-bearing plan.
-4. Support direct-creation and existing-task variants.
-5. Include guidance identity and reasoning effort in run/cache provenance.
+2. Support direct creation, guidance-bearing planning followed by task
+   creation, and existing-task planning.
+3. Record task trees, requirement mappings, unique semantic outcomes,
+   horizontal phases, working iterations, isolated responsibilities, and
+   dependency graphs.
+4. Run all six cases with GLM max and the focused GPT high/xhigh sentinels.
+5. Add medium/max comparisons only where observed variance justifies them.
+6. Require a demonstrated decomposition failure before changing decomposition
+   wording.
 
-### 4. Add objective and semantic evidence
+### 8. Test the shortest decomposition candidate and hand off
 
-1. Implement parent requirement-count, task-count, path, mapping, and
-   dependency assertions.
-2. Preserve planning and task-creation evidence separately.
-3. Add a narrow structured assessment for unique outcomes, optional work,
-   horizontal phases, working iterations, isolated slices, and unnecessary
-   dependencies.
-4. Add compact human-review presentation.
-
-### 5. Run the current-guidance baseline
-
-1. Run all six cases with GLM at max reasoning effort.
-2. Run the focused GPT high/xhigh sentinel set.
-3. Run selected same-model medium/max comparisons.
-4. Classify failures as planning-stage expansion, task-creation expansion,
-   requirement inflation, poor slice boundaries, or invalid dependencies.
-5. Do not edit guidance until the applicable baseline failure gate is
-   satisfied.
-
-### 6. Test the shortest candidate
-
-1. Add only the requirement-minimality wording supported by a demonstrated
-   requirement-inflation failure.
-2. Add only the decomposition wording supported by a demonstrated task-split
-   failure.
-3. Synchronize the canonical and bundled guidance through the mechanism owned
-   by subtask 068.
-4. Rerun the same failing model, effort, prompt, fixture, and assertions.
-5. Try longer wording or examples only when the concise candidate remains
-   insufficient.
-
-### 7. Calibrate and hand off
-
-1. Run deterministic package and parity tests.
-2. Run the final supported-model matrix justified by observed variance.
-3. Preserve canonical, raw, structured-assessment, and manual-review
-   artifacts.
-4. Update requirement evidence without marking human review complete
-   automatically.
-5. Summarize requirement counts, task shapes, effort effects, guidance changes,
-   and remaining variance.
-6. Complete the core task, then explicitly offer the three optional
-   post-completion expansion areas without planning or starting them.
+1. Add only the decomposition wording supported by the six-case baseline.
+2. Synchronize canonical and bundled guidance through subtask 068's mechanism.
+3. Rerun the exact failed cells and then the justified final sentinel matrix.
+4. Run deterministic package, synchronization, cache, and parser tests.
+5. Preserve concise canonical evidence and complete raw records separately.
+6. Update requirements without marking human review complete automatically.
+7. Summarize requirement/testing and decomposition evidence separately.
+8. Complete the task, then offer only the remaining high-risk and
+   non-development optional expansions without planning or starting them.
 
 ### Implementation decisions and open questions
 
@@ -638,9 +736,12 @@ Status: Draft
 - Approved: reusable factual investigation may be guidance-neutral, but
   planning that derives requirements or task boundaries must receive the
   selected TASKS guidance.
-- Approved: baseline failures are required before changing guidance.
-- Approved: requirement count is the primary mechanical scope-expansion signal,
-  supplemented by semantic unique-outcome and unmatched-outcome analysis.
+- Approved: subtask 067's committed 21-cell current-guidance matrix satisfies
+  the baseline failure gate for requirement authority and testing evidence;
+  decomposition wording retains a separate six-case baseline gate.
+- Approved: requirement count is descriptive rather than a verdict. Structured
+  target coverage, added obligations, grouping, wrong-record material, and
+  review burden are the primary requirement-quality evidence.
 - Approved: task-directory cases require working iterations or isolated
   responsibilities rather than horizontal phase subtasks.
 - Approved: use a subtask rather than an internal stage when an iteration
@@ -648,11 +749,22 @@ Status: Draft
   implementation and execution or review checkpoints inside one task.
 - Approved: exact expected task/subtask counts are scenario-specific, not a
   universal preference for fewer files.
-- Approved: GLM max and GPT high/xhigh profiles are used to expose the observed
-  high-reasoning failure mode; comparisons preserve exact effort.
-- Approved: optional high-risk behavior, verification semantics, and
-  non-development task forms are post-completion offers only and receive no
-  exploration or planning in this execution plan.
+- Approved: the first candidate uses the exact full seven-profile matrix from
+  subtask 067. Later decomposition coverage uses GLM max and GPT high/xhigh
+  sentinels plus only variance-justified effort comparisons.
+- Approved: the task-file prompt does not request a testing strategy. Standing
+  task guidance must produce requirement verification.
+- Approved: requirement-verification semantics are core scope after the
+  September 15 user direction and Dataset B evidence; only high-risk behavior
+  and non-development task forms remain optional post-completion offers.
+- Proposed acceptance: candidate requirement behavior keeps all 21 outcomes
+  complete, has no material unsupported public behavior or wrong-record
+  requirements, and does not introduce high expansion.
+- Proposed acceptance: candidate testing behavior has no material duplication
+  or combinatorial expansion, includes every important crossing, and either
+  supplies decisive evidence or records an honest gap at the required boundary.
+- Proposed acceptance: task-only planning leaves one task-file mutation and no
+  premature implementation/completion notes.
 - Implementation decision: select exact repository commits/issues during
   execution using the scenario constraints above.
 - Implementation decision: confirm stable requirement IDs after concurrent
@@ -674,27 +786,44 @@ maintainer guidance and evaluation infrastructure.
 
 ### Task checklist
 
-- [ ] Confirm subtask 068 migration and canonical guidance state.
-- [ ] Confirm stable requirement IDs and update the governing target.
+- [x] Confirm subtask 068 canonical guidance state; evaluator migration remains
+  independently open in subtask 068.
+- [x] Confirm stable requirement IDs and update the governing target.
+- [x] Apply the exact subtask 010 requirements/testing replacements.
+- [x] Apply and synchronize the exact subtask 068 task-guidance replacements.
+- [x] Run the exact 21-cell paired candidate matrix for v1 and v2.
+- [x] Run the three project-batched calibrated semantic/testing evaluations for
+  v1 and v2.
+- [x] Compare current and candidate requirement expansion.
+- [x] Compare current and candidate testing completeness and layer choice.
+- [ ] Verify public ambiguities remain questions and planning leaves a clean
+  workspace.
+- [x] Refine only failed wording and rerun the smallest affected slice.
+- [x] Present the requirement/testing candidate comparison for human review.
+- [ ] Apply the approved selective v3 requirement/testing ablation.
+- [ ] Run and semantically assess the known-sensitive v3 cells.
+- [ ] Run the full 21-cell v3 matrix only if the focused comparison improves.
+- [ ] Present the v3 comparison for final guidance acceptance.
 - [ ] Specify three single-task scenarios.
 - [ ] Specify three task-directory scenarios.
 - [ ] Implement guidance-bearing planning branches.
 - [ ] Implement direct-creation and existing-task branches.
-- [ ] Add requirement-count and unique-outcome evidence.
+- [ ] Add semantic unique-outcome and unmatched-outcome evidence.
 - [ ] Add task-tree, mapping, and dependency evidence.
 - [ ] Add structured semantic assessment and human-review presentation.
-- [ ] Run all six current-guidance GLM max baselines.
+- [ ] Run all six decomposition-baseline GLM max cases.
 - [ ] Run GPT high/xhigh baseline sentinels.
 - [ ] Run selected medium/max effort comparisons.
-- [ ] Confirm a baseline failure before changing each guidance concept.
-- [ ] Add the shortest evidence-backed requirement-minimality wording.
+- [ ] Confirm a decomposition baseline failure before changing decomposition
+  wording.
 - [ ] Add the shortest evidence-backed decomposition wording.
 - [ ] Synchronize canonical and bundled guidance.
 - [ ] Rerun paired candidate cases without changing test pressure.
-- [ ] Run deterministic tests and parity checks.
+- [x] Run deterministic tests and parity checks for the requirement/testing
+  candidate work.
 - [ ] Run the final justified model/effort matrix.
-- [ ] Record requirement and task-count findings.
-- [ ] Prepare final human-review artifacts.
+- [x] Record requirement and task-count findings.
+- [x] Prepare focused human-review results.
 - [ ] Update requirement evidence and completion notes.
 - [ ] Explicitly offer the optional post-completion expansion areas.
 
@@ -703,6 +832,9 @@ maintainer guidance and evaluation infrastructure.
 | Requirement group | Acceptance evidence |
 |---|---|
 | Minimum sufficient requirements | Three single-task scenarios preserve the exact scenario-owned parent outcome count; structured assessment reports no unmatched required outcomes or optional work promoted to scope. |
+| Paired requirement candidate | The exact 21-cell current/candidate comparison preserves complete product coverage and reports no material unsupported public behavior, implementation constraint, wrong-record requirement, or high expansion introduced by the candidate. |
+| Paired testing candidate | The same 21 task outputs provide complete or honestly deferred decisive evidence at the required boundary, retain every important crossing, and avoid material duplication, combinatorial expansion, unresolved-behavior tests, and implementation coupling. |
+| Planning cleanliness | Corrected deterministic assertions show task-only planning leaves only the requested task file and has no premature implementation/completion notes. |
 | Proportionate task choice | Direct and planned cases create one task or a task directory according to the scenario contract rather than model preference for more files. |
 | Subtask quality | Every child maps to parent requirements and is classified as a working iteration or isolated responsibility; deliverable iterations use subtasks, partial implementation remains an internal stage, and no generic phase-only child owns implementation, tests, documentation, review, or deployment for another slice. |
 | Dependencies | Declared dependency graphs are acyclic and match actual contract, component, compatibility, or iteration blockers; independent siblings remain parallel. |
@@ -711,7 +843,7 @@ maintainer guidance and evaluation infrastructure.
 | Reasoning effort | Artifacts record effort and selected medium/high/xhigh/max comparisons show whether expansion changes with effort without altering scenario pressure. |
 | Guidance delivery | Canonical and bundled files match mechanically and contain only wording justified by paired evidence. |
 | Evidence separation | Deterministic findings, structured model assessment, and human review remain separate; model assessment does not mark human verification complete. |
-| Optional expansion boundary | Core completion contains no implementation, requirements, or scenario plan for the three deferred areas and explicitly offers them to the user for a separate approval decision. |
+| Optional expansion boundary | Core completion contains no implementation, requirements, or scenario plan for the remaining deferred areas and explicitly offers them to the user for a separate approval decision. |
 
 ### Additional implementation verification
 
@@ -726,3 +858,36 @@ maintainer guidance and evaluation infrastructure.
 - Verify existing retain-plan, omit-plan, and approved-task scenarios still
   pass after migration and guidance refinement.
 - Report skipped provider/model cases as not run.
+
+## Implementation Notes
+
+- September 15, 2026: Consumed the committed current-guidance baseline at
+  `73a2f4bf` without rerunning it. Candidate v1 ran the exact 21 producer cells
+  and three semantic batches, then was frozen before refinement.
+- September 15, 2026: Candidate v1 improved requirement restraint but produced
+  only 18 complete requirement sets, 7 complete testing plans, and 18
+  structurally valid task-only plans. One GLM-max producer twice failed to
+  produce a task; two low-effort plans misordered final sections.
+- September 15, 2026: Candidate v2 added only evidence-backed wording for
+  preserving grouped conditions, unspecified input behavior, bounded planning
+  inspection, exact final headings, test boundaries, actual existing coverage,
+  and missing harnesses. Corrected one task parser false positive that treated
+  an inline future-heading mention as a premature notes section.
+- September 15, 2026: Candidate v2 produced 21/21 complete requirement sets and
+  21/21 structurally valid task-only plans. Testing regressed to 5 complete and
+  16 partial plans, with only 11 appropriate primary-layer assessments.
+  Requirement expansion was 2 none, 14 low, and 5 medium, with no high
+  expansion.
+- September 15, 2026: The calibrated judge needed two previously supported
+  missing-brace repairs, one retry after a 2,217-character truncated response,
+  and a validator correction allowing optional empty coverage notes. No
+  semantic content was repaired or replaced.
+- September 15, 2026: Added
+  `agent-behavior-verification/20260915-requirement-testing-candidate-results.md`
+  with current/v1/v2 comparisons and a proposed shorter testing ablation.
+  Human review is required before another wording candidate or the six
+  decomposition scenarios begin.
+- September 15, 2026: The user approved all four review decisions: retain v2
+  task-creation structure, retain and refine the complete-coverage requirement
+  direction, treat approval-gated recommendations as expansion only when they
+  become normative, and run the shorter testing ablation before decomposition.

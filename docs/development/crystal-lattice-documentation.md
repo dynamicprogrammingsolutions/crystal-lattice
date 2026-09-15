@@ -121,6 +121,16 @@ Tasks under `tasks/` own approval, execution plans, dependencies, findings, and
 completion. A task links relevant requirement IDs without becoming a second
 specification.
 
+`agents/TASKS-v7.md` is the maintained task-guidance source. The application
+ships a generated copy at
+`application/python/agent_terminal_app/default_config/TASKS_v7.md`. Update or
+check it with:
+
+```bash
+python scripts/sync_tasks_v7.py
+python scripts/sync_tasks_v7.py --check
+```
+
 Published user and developer documentation describes available behavior.
 Target-only user text may be drafted on a development branch with a visible
 `Not implemented` marker, but it is not published as current guidance by

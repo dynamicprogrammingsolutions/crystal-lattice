@@ -21,6 +21,9 @@ CURRENT_TASK_GUIDANCE_PATHS = (
     "docs/development/documentation.md",
     "agents/TASKS-v7.md",
 )
+CURRENT_TASK_GUIDANCE_REVISION = (
+    "73a2f4bf9d326118f9dc8b87c2e57b9c75fe8f11"
+)
 PRODUCER_CASES = (
     ("glm", "low"),
     ("glm", "high"),
@@ -280,5 +283,13 @@ def requirement_minimal_guidance_source() -> GuidanceSource:
 def current_task_guidance_source() -> GuidanceSource:
     return GuidanceSource(
         name="current-task-guidance-v1",
+        revision=CURRENT_TASK_GUIDANCE_REVISION,
+        paths=CURRENT_TASK_GUIDANCE_PATHS,
+    )
+
+
+def candidate_task_guidance_source() -> GuidanceSource:
+    return GuidanceSource(
+        name="candidate-task-guidance-v2",
         paths=CURRENT_TASK_GUIDANCE_PATHS,
     )

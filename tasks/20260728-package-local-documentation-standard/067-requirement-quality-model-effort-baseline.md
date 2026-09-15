@@ -91,7 +91,7 @@ testing-plan scope before any guidance rewrite.
   with testing-plan expansion by project, model, and effort without claiming
   that output format, documentation guidance, and task guidance were isolated
   independently.
-- [ ] No maintained documentation, task-file, or testing guidance is changed
+- [x] No maintained documentation, task-file, or testing guidance is changed
   until the evaluator and current-guidance task-file matrix are complete, the
   useful comparisons are presented to the user, and a separate rewrite plan is
   approved.
@@ -946,3 +946,32 @@ change is authorized by this plan.
   plans, 20/21 important crossings, three genuine GLM structure/mutation
   failures, and the future guidance implications. Maintained guidance remains
   unchanged pending user review.
+
+## Completion Notes
+
+- Outcome: completed the three-project, seven-profile requirement-quality
+  baseline; calibrated a semantic evaluator against the accepted human
+  interpretation; reused the same projects and profiles for current task-file
+  guidance; and assessed requirement and testing-plan quality from the same 21
+  task outputs without prompting for a testing strategy.
+- Primary evidence: commit `73a2f4bf`; the September 14 direct baseline report;
+  the September 15 requirement/task/testing comparison; frozen Dataset A,
+  Dataset B, and six semantic result batches under
+  `maintainer/agent-evaluation/suites/documentation_standard/fixtures/`.
+- Verification: 83 deterministic tests, Ruff, Python compilation, JSON schema
+  and link validation, exact model/effort provenance, 21 current task-file
+  producer calls, and six project-batched semantic evaluator calls. Evaluator
+  v2 passes all accepted Dataset A anchors.
+- Findings: current task guidance preserves complete product coverage and
+  reduces high/medium requirement expansion substantially, especially for GPT.
+  Remaining issues concern public-contract ambiguity, compatibility
+  fragmentation, incomplete or mocked-away testing boundaries, tests for
+  invented behavior, and three genuine GLM task-structure/mutation failures.
+- Plan deviations: the proposed separate current-documentation-only replay was
+  removed as unnecessary; testing-plan assessment reused task-file runs; two
+  heading-parser false negatives and one missing JSON candidate brace were
+  corrected without replacement producer or judge calls.
+- Follow-up ownership: subtask 010 owns the general requirements/testing guide
+  rewrite, subtask 068 owns canonical and bundled `TASKS-v7`, and subtask 069
+  owns the exact paired candidate matrix plus later task-decomposition
+  calibration. No maintained guide was changed by this completed subtask.

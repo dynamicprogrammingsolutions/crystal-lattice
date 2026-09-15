@@ -139,7 +139,7 @@ task and the subtasks:
 |---|---|
 | Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
 | First documentation-guidance implementation and preserved behavior evidence | `DOCGEN-001`–`DOCGEN-010`, `DOCREP-001`–`DOCREP-007` |
-| Approved documentation-guide redesign | `DOCGUIDE-001`–`DOCGUIDE-006`, `DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010`–`DOCVAL-011` |
+| Approved documentation-guide redesign | `DOCGUIDE-001`–`DOCGUIDE-006`, `DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010`–`DOCVAL-012` |
 | Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-018` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
@@ -761,7 +761,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`
+- [x] `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
@@ -798,19 +798,18 @@ The work is organized standards-first:
 6. Subtask 065 creates the concise contributor workflow after the terminology
    and document roles from 010 are established. It can proceed in parallel with
    most migration work.
-7. Subtask 067 establishes three diverse small-project requirement targets, a
-   seven-profile baseline, direct semantic interpretation, and concise human
-   review. It can proceed in parallel with task-guidance source alignment and
-   must complete before overlapping requirement-minimality guidance is
-   changed.
-8. Subtask 068 aligns and synchronizes `TASKS-v7` after the documentation
-   standard and contributor workflow are defined. It may adopt the committed
-   agent-evaluation framework while 015 continues non-blocking refinements, and
-   it owns moving the existing task-guidance evaluator.
-9. Subtask 069 uses the migrated evaluator to verify minimum sufficient
-   requirements and coherent single-task/subtask decomposition. Guidance
-   changes are baseline-first, preserve exact model/reasoning profiles, and
-   consume the requirement-quality findings from 067.
+7. Subtask 067 completed three diverse small-project requirement targets, the
+   seven-profile specification and current-task-guidance baselines, calibrated
+   semantic requirement/testing evaluation, and concise human-review evidence
+   in commit `73a2f4bf`.
+8. Subtask 068 establishes `agents/TASKS-v7.md` as the proposed canonical
+   source, applies the evidence-backed concise task-guidance replacements,
+   generates the bundled copy, enforces exact parity, and moves the remaining
+   task-guidance evaluator into the maintainer-owned framework.
+9. Subtask 069 first runs the exact 21-cell paired candidate matrix for the
+   general requirements/testing guide and synchronized task guidance. After
+   human review, it separately verifies coherent single-task/subtask
+   decomposition through its six baseline-first scenarios.
 10. Subtask 070 performs final verification after migration, contributor
    workflow, and task-guidance alignment are complete.
 
@@ -874,7 +873,7 @@ Required new or updated documentation includes:
 - [ ] 060: Update navigation, compatibility paths, repository links, and build triggers.
 - [ ] 065: Create the human-led AI-assisted contributor workflow, integrated
   prompt examples, and instruction-inspection guidance.
-- [ ] 067: Establish the human-approved requirement-quality model/effort baseline and semantic review.
+- [x] 067: Establish the human-approved requirement-quality model/effort baseline and semantic review.
 - [ ] 068: Align specifications/tasks guidance and synchronize canonical/bundled `TASKS-v7`.
 - [ ] 069: Verify and refine task-guidance scope discipline and subtask decomposition.
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.

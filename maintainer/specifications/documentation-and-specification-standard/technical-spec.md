@@ -83,16 +83,29 @@ The guide uses this order:
    - specifications describe intended behavior;
    - requirements track implementation, verification, and documentation;
    - tasks track approval and execution;
+   - requirements are necessary and traceable to approved outcomes,
+     preserved contracts, necessary consequences, or approved policies and
+     decisions;
+   - variants and examples remain grouped unless independent tracking adds
+     value;
+   - unresolved public, persisted, compatibility, security, privacy, or
+     user-visible behavior remains a question unless the decision is
+     authorized;
    - progress notes in specifications are allowed when they clarify a
      meaningful current/target difference and remain shorter than the
      requirements they reference.
 5. **Testing and verification**
-   - select the least expensive test that proves the requirement without
-     mocking away the important boundary;
+   - select the lowest-cost boundary that can reliably detect the required
+     failure without mocking away the behavior;
    - distinguish unit/component, integration, end-to-end, hosted, and manual
      evidence by what each proves;
-   - record deliberate test exclusions and avoid duplicate coverage without a
+   - use representative boundaries and regressions, avoid tests for unresolved
+     behavior, and avoid duplicate or combinatorial coverage without a
      risk-based reason;
+   - record an unavailable decisive test as a gap rather than substituting a
+     weaker test and claiming verification;
+   - distinguish requirement acceptance from additional lower-level
+     implementation robustness checks;
    - report decision-relevant verification before routine quality checks.
 6. **Placement, links, and generated documentation**
    - place a page with the package or component whose behavior it explains;
@@ -436,10 +449,26 @@ generated files or raw evidence only when needed.
 
 Higher producer effort may identify more risks and improvements, but does not
 silently promote them into completion requirements. Useful discoveries remain
-visible as questions, recommendations, supporting details, or follow-ups. No
-semantic-judge automation, repeated sampling, candidate matrix, or guidance
-wording change begins before the interpreted baseline is reviewed and a
-follow-up is approved.
+visible as questions, recommendations, supporting details, or follow-ups.
+
+After the direct baseline is accepted, a calibrated semantic evaluator may
+compare requirement coverage, added obligations, grouping, public decisions,
+wrong-record material, testing boundaries, and review burden. The evaluator is
+calibrated against the accepted human interpretation before it is used on
+candidate guidance.
+
+The current task-guidance baseline reuses the same 21 project/model/effort
+cells and asks only for one task file with a Draft plan. Standing task guidance
+must elicit requirement verification without a testing instruction in the
+prompt. The approved candidate changes general documentation guidance and
+canonical task guidance together, then reruns the exact 21 cells and three
+project-batched semantic evaluations before human review.
+
+`agents/TASKS-v7.md` is the canonical task-guidance source. A repository sync
+command generates
+`application/python/agent_terminal_app/default_config/TASKS_v7.md`, and an
+application-package test requires exact byte parity. Task-only planning may run
+safe diagnostics but leaves only the requested task-file mutation.
 
 Testing-strategy scenarios use paired pressures:
 

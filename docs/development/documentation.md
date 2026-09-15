@@ -178,87 +178,94 @@ Such sections should not reach published current documentation by default. If
 proposed user-facing text must remain durable before implementation, keep it
 with the specification.
 
-### Write requirements as completion outcomes
+### Write necessary, traceable requirements
 
-A requirement states one necessary outcome or constraint. If it can fail while
-the approved work is still complete, it is not a requirement.
+Requirements are the minimum approved outcomes and constraints needed for the
+target to be complete. Before adding one, ask:
 
-Do not turn implementation steps, test-writing tasks, documentation tasks,
-possible refactors, speculative hardening, or low-priority improvements into
-requirements unless their resulting outcome was approved as necessary. Keep
-useful discoveries as supporting details, questions, recommendations, or
-follow-ups. More analysis may identify more possibilities; it does not enlarge
+> If this requirement were removed, would an explicit user need, approved
+> quality target, preserved contract, or necessary consequence of the target
+> remain unsatisfied?
+
+A requirement belongs when it traces to the request, a preserved contract, a
+necessary consequence, an approved policy, or an approved design or quality
+decision. Other ideas remain supporting details, questions, recommendations,
+or follow-ups.
+
+When useful, distinguish behavioral outcomes, approved assessable qualities,
+and approved solution constraints. Implementation, testing, documentation,
+refactoring, and verification work stays in plans or evidence unless its
+outcome is independently required.
+
+Use one requirement per independently meaningful outcome. Group variants,
+operations, boundaries, and examples without hiding an approved condition,
+unless separate acceptance, ownership, or status adds value.
+
+Ask before resolving unspecified public, persisted, compatibility, security,
+privacy, or user-visible behavior unless that decision is authorized.
+Do not invent fallback or error behavior for unspecified inputs.
+Easy-to-reverse code does not make a public contract a local choice.
+
+More analysis may discover more relevant considerations; it does not enlarge
 the approved completion state.
 
-Use stable identifiers when requirements need durable tracking. Keep
-implementation, verification, and documentation states separate. A concise
-table can use:
+Use stable identifiers when durable tracking helps. Keep implementation,
+verification, and documentation states separate. A concise table can use:
 
 ```markdown
 | ID | Requirement | Implementation | Verification | Documentation | Primary evidence |
 |---|---|---|---|---|---|
-| EVT-001 | External events have stable type identifiers. | Implemented | Automated | Documented | `tests/test_events.py::test_public_type` |
-| EVT-002 | Internal checkpoints are not exposed publicly. | In progress | Unverified | Pending | — |
+| EVT-001 | External events have stable identifiers. | Implemented | Automated | Documented | `test_public_type` |
+| EVT-002 | Internal checkpoints stay private. | In progress | Unverified | Pending | — |
 ```
 
-The primary evidence is the smallest direct reference supporting the state:
-usually one focused test, one human confirmation, or one documentation page.
-Record shared task, pull-request, or commit references once below the table
-instead of repeating them in every row. Use a separate note keyed by
-requirement ID only when a concise cell cannot explain important evidence.
-
-A task owns approval, execution steps, findings, and completion notes. Link it
-to requirements rather than copying the specification or turning the
-requirements file into a second plan.
+Use the smallest direct evidence for each state. Record shared delivery
+references once below the table; longer ID-keyed notes are exceptional.
 
 ## Plan testing around risks and boundaries
 
-Use the least expensive test that proves the requirement without mocking away
-the important boundary.
+For each requirement or coherent requirement group, identify the failure that
+must be detected and the lowest-cost boundary that can detect it reliably.
+
+> Use the least expensive test that proves the requirement without mocking
+> away the important boundary.
 
 | Test level | Use it for |
 |---|---|
-| Unit or component | Local calculations, transformations, state transitions, and rendering behavior that can be proved without another real component. |
-| Integration | Contracts and failures that appear only when real components, storage, transports, processes, or adapters interact. |
-| End-to-end, hosted, or native | A critical deployed path or environment that lower layers cannot represent faithfully. |
-| Manual | Perception, exploration, product judgment, or a real environment for which reliable automation is not practical. |
+| Unit or component | Behavior proved within one calculation, component, or state transition. |
+| Integration | Contracts and failures that require real components, storage, transports, or adapters. |
+| End-to-end, hosted, or native | Critical paths or environments lower layers cannot represent. |
+| Manual | Perception, exploration, product judgment, or impractical automation. |
 
-Choose the layer from the failure you need to detect, not from a desire to use
-every test type. Add integration coverage when an important requirement crosses
-a real boundary. Do not substitute a mocked unit test that bypasses the
-interaction being claimed.
+A cheap test is not evidence when its mocks supply or bypass the claimed
+behavior. Use the real boundary when the requirement appears only there. If it
+is unavailable, record the gap instead of claiming verification through a
+weaker test.
 
-Assert exact values, structures, ordering, or internal calls only when those
-details are required behavior or part of a public, persisted, or
-interoperability contract. Otherwise test the observable outcome and the
-minimum stable properties needed to prove it. Avoid repeating the same
-assertion at every layer without a distinct risk-based reason.
+Select representative accepted and rejected boundaries and regressions. Cite
+existing coverage only when it actually proves the preserved behavior. Do not
+multiply equivalent cases or test unresolved behavior.
 
-Record important exclusions. For example, say when a hosted test is omitted
-because deterministic contract and local integration coverage already prove
-the requirement, or when a manual check remains necessary because automation
-cannot represent the visual result.
+Assert exact values, structures, ordering, markup, calls, or source identity
+only when they are approved contract details. Otherwise test the observable
+outcome and its minimum stable properties.
 
-Create `testing-strategy.md` only when these choices deserve a durable record:
-important layer crossings, expensive or manual checks, credible alternative
-approaches, or exclusions that future work might otherwise reverse. A compact
-strategy can contain:
+Requirement verification maps approved outcomes to decisive evidence.
+Additional implementation verification covers lower-level checks only for a
+distinct material risk. Routine quality checks are supporting evidence.
 
-```text
-Behaviors and risks
-Selected test boundary for each
-Hosted, native, or manual checks
-Tests intentionally omitted and why
-Remaining verification
-```
+Record important exclusions and remaining verification. Manual verification
+is complete only when a human performs or confirms it; a generated checklist
+remains a plan.
 
-After implementation, report the few tests or observations that directly prove
-the requested outcome and state what remains unverified. Formatting, lint,
-compilation, and broad passing-test counts are supporting quality checks; group
-or omit them unless they materially affect acceptance.
+Missing test infrastructure alone does not make automatable behavior manual.
+Plan the smallest harness or record why it is not proportionate.
 
-Manual verification is complete only when a human performs or directly
-confirms it. An automated or AI-generated checklist is still a plan.
+Create `testing-strategy.md` only when important crossings, expensive or manual
+checks, or durable exclusions need more explanation.
+
+After implementation, report the few tests or observations that directly
+prove the requested outcome and state what remains unverified.
 
 ## Place, link, and generate documentation
 

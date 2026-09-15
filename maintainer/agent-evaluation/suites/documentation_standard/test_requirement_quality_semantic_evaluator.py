@@ -14,6 +14,8 @@ from .requirement_quality_evaluator import (
     dataset_sha256,
     load_accepted_anchors,
     load_accepted_dataset,
+    load_candidate_task_dataset,
+    load_candidate_v2_task_dataset,
     load_task_dataset,
     parse_evaluator_response_with_repairs,
     task_quality_findings,
@@ -42,8 +44,13 @@ def _selected_dataset() -> tuple[dict, bool]:
         return load_accepted_dataset(), False
     if name == "task-current":
         return load_task_dataset(), True
+    if name == "task-candidate":
+        return load_candidate_task_dataset(), True
+    if name == "task-candidate-v2":
+        return load_candidate_v2_task_dataset(), True
     raise ValueError(
-        "AGENT_EVAL_SEMANTIC_DATASET must be accepted or task-current"
+        "AGENT_EVAL_SEMANTIC_DATASET must be accepted, task-current, "
+        "task-candidate, or task-candidate-v2"
     )
 
 
@@ -62,6 +69,7 @@ def semantic_evaluator_harness() -> Iterator[DocumentationEvaluationHarness]:
     "DOCGUIDE-006",
     "DOCVAL-010",
     "DOCVAL-011",
+        "DOCVAL-012",
 )
 def test_requirement_quality_semantic_evaluator(
     semantic_evaluator_harness: DocumentationEvaluationHarness,
@@ -83,6 +91,10 @@ def test_requirement_quality_semantic_evaluator(
             "records": candidates,
         }
     )
+    repeat_variant = os.getenv(
+        "AGENT_EVAL_SEMANTIC_CACHE_VARIANT",
+        "",
+    ).strip()
     run = semantic_evaluator_harness.fresh_prompt(
         test_id=(
             f"requirement-semantic-{dataset['dataset_id']}-"
@@ -91,7 +103,8 @@ def test_requirement_quality_semantic_evaluator(
         prompt=prompt,
         reasoning_effort="max",
         cache_variant=(
-            f"{EVALUATOR_PROMPT_VERSION}-{dataset_hash[:16]}"
+            f"{EVALUATOR_PROMPT_VERSION}-{dataset_hash[:16]}:"
+            f"{repeat_variant or 'default'}"
         ),
     )
     value = require_run_value(run)
@@ -118,6 +131,7 @@ def test_requirement_quality_semantic_evaluator(
                 "error_type": type(error).__name__,
                 "error": str(error),
                 "response": value.response,
+                "repeat_variant": repeat_variant or "default",
             },
         )
         raise
@@ -161,6 +175,7 @@ def test_requirement_quality_semantic_evaluator(
             ],
             "result": result,
             "response_repairs": list(response_repairs),
+            "repeat_variant": repeat_variant or "default",
             "findings": [finding.__dict__ for finding in findings],
         },
     )
