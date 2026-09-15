@@ -675,12 +675,12 @@ acceptable completion chunks and proceeds in the order below.
   shown exactly once.
 - [x] Timeline rail dots are neutral gray; request-status indicators retain
   semantic colors.
-- [ ] The desktop sidebar has a pointer-adjustable, bounded, locally persisted
+- [x] The desktop sidebar has a pointer-adjustable, bounded, locally persisted
   width plus an accessible keyboard adjustment.
-- [ ] The desktop activity rail, sidebar, and child panels render exactly one
+- [x] The desktop activity rail, sidebar, and child panels render exactly one
   separator for each visual boundary, without redundant outer top or left
   lines.
-- [ ] Middle-click closes a closable desktop session tab. A trackpad or utility
+- [x] Middle-click closes a closable desktop session tab. A trackpad or utility
   configured to map a three-finger click to middle-click receives the same
   behavior; raw trackpad finger-count recognition is out of scope.
 
@@ -702,13 +702,13 @@ acceptable completion chunks and proceeds in the order below.
   interaction hosting.
 - [x] Local Watchlist actions do not invoke or visually reuse server-side
   session pin behavior and do not require an open backend.
-- [ ] Sidebar sizing has one tested policy for default/minimum/maximum values;
+- [x] Sidebar sizing has one tested policy for default/minimum/maximum values;
   tests resolve that policy or rendered geometry instead of duplicating
   mutable numeric values.
-- [ ] Every changed action, divider, status, card field, and drag target has a
+- [x] Every changed action, divider, status, card field, and drag target has a
   stable production accessibility identifier where native verification needs
   one.
-- [ ] Each completion chunk owns its unit/component/integration/native
+- [x] Each completion chunk owns its unit/component/integration/native
   verification and current user/development documentation.
 
 ### Follow-up execution plan
@@ -818,11 +818,11 @@ raw three-finger trackpad recognizer.
 - [x] Complete Chunk 2 activation semantics and mobile/desktop local session
   actions.
 - [ ] Complete Chunk 3 coordinated Home presentation and truncation.
-- [ ] Complete Chunk 4 desktop sidebar and middle-click ergonomics.
-- [ ] Keep the corresponding mobile checklist in
+- [x] Complete Chunk 4 desktop sidebar and middle-click ergonomics.
+- [x] Keep the corresponding mobile checklist in
   `tasks/20260827-cross-platform-markdown-and-mobile-connections/060-mobile-home-watchlist-and-request-status.md`
   current.
-- [ ] Append immutable completion evidence for each accepted chunk.
+- [x] Append immutable completion evidence for each accepted chunk.
 
 ### Requirement verification
 
@@ -1229,7 +1229,7 @@ be assessed without turning it into a cross-platform code contract.
   cross-platform snapshots.
 - [x] Extend and run iOS, Android, and macOS native geometry scenarios,
   including existing drag regressions after card-height changes.
-- [ ] Update current documentation, the coordinated `060` checklist, and
+- [x] Update current documentation, the coordinated `060` checklist, and
   append immutable Chunk 3 completion evidence.
 
 #### Requirement verification
@@ -1307,3 +1307,69 @@ be assessed without turning it into a cross-platform code contract.
   `Test-CrystalLatticeControlDesktopRN-macOS-2026.09.15_12-31-05-+0200.xcresult`.
 - Native visual comparison remains pending; automated native verification is
   complete.
+
+### Chunk 4 implementation notes
+
+- Execution started from the approved plan. `DesktopShell` will own one
+  persisted width preference and one policy that resolves nominal bounds,
+  window-aware main-workspace protection, and deterministic adjustment steps.
+- The shell boundary will use a wider pointer target around one visible
+  separator. The same target will expose arrow-key and accessibility
+  increment/decrement adjustment without duplicating policy dimensions in
+  tests.
+- `MacDragView` will keep primary-button drag and middle-button click on
+  separate native recognizers. Session tabs will close from the middle-click
+  event without selecting or reordering; raw trackpad recognition remains out
+  of scope.
+
+#### Task checklist
+
+- [x] Add the bounded desktop sidebar-width policy and local persistence.
+- [x] Add pointer, keyboard, and accessibility adjustment with main-workspace
+  protection.
+- [x] Consolidate shell/panel separator ownership.
+- [x] Add middle-click close to permanent and preview session tabs.
+- [x] Add unit, component, and focused macOS native regression coverage.
+- [x] Update desktop user/development/native-test documentation and record
+  completion evidence.
+
+### Chunk 4 completion notes
+
+- `DesktopShell` now owns a locally persisted sidebar width under
+  `clc_desktop_sidebar_width_v1`. One policy defines its default, nominal
+  bounds, deterministic adjustment step, fixed shell dimensions, and protected
+  main-workspace width. Current-window constraints are resolved without
+  duplicating dimensions in tests.
+- The panel/workspace divider has a wider pointer target around one visible
+  separator. Pointer drag updates live; Left/Right Arrow and accessibility
+  decrement/increment use the same policy; completed adjustments persist.
+- The activity-rail/panel and panel/workspace boundaries now each have one
+  shell-owned separator. The redundant History-panel outer top line was
+  removed, and production shell/divider targets have stable identifiers.
+- `MacDragView` now uses a primary-button-only pan recognizer and a separate
+  middle-button click recognizer. Permanent and preview tabs route
+  middle-click directly to close without selection or reorder. System or
+  utility three-finger-to-middle-click mappings inherit this behavior; no
+  finger-count recognizer was added.
+- Verification passed:
+  - complete desktop Jest: 38 suites and 183 tests;
+  - focused policy/component tests cover parsing, nominal/window-aware bounds,
+    main-width protection, pointer updates, persistence across remount,
+    keyboard/accessibility adjustment, separator ownership, and permanent plus
+    preview middle-click isolation;
+  - targeted ESLint and Prettier, `git diff --check`, and documentation-site
+    preparation;
+  - signed macOS `ConnectionsPanelUITests`: 8 tests and zero failures,
+    including real pointer/keyboard sidebar adjustment, runtime-derived bounds,
+    main-width protection, native middle-click close, and existing tab and
+    Watchlist drag regressions.
+- The successful macOS result bundle is
+  `Test-CrystalLatticeControlDesktopRN-macOS-2026.09.15_14-19-26-+0200.xcresult`.
+  An initial run did not start because macOS timed out enabling Automation. A
+  subsequent run overlapped the user's Accessibility-permission change and
+  produced pointer/snapshot failures; the clean post-permission rerun passed
+  all methods.
+- Desktop TypeScript reports only its established frontend SDK URL,
+  `ChatPane`, and Theme `shadow` baselines; no touched-file TypeScript error
+  remains. No shared package, mobile, backend, or transport contract changed,
+  so those suites were outside Chunk 4.

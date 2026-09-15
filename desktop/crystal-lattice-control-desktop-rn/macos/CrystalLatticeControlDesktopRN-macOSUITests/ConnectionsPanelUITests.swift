@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 
 final class ConnectionsPanelUITests: XCTestCase {
   private let stateURL = URL(
@@ -66,6 +67,29 @@ final class ConnectionsPanelUITests: XCTestCase {
     element.coordinate(
       withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
     ).click()
+  }
+
+  private func middleClickCenter(_ element: XCUIElement) {
+    let point = CGPoint(x: element.frame.midX, y: element.frame.midY)
+    let source = CGEventSource(stateID: .hidSystemState)
+    CGEvent(
+      mouseEventSource: source,
+      mouseType: .mouseMoved,
+      mouseCursorPosition: point,
+      mouseButton: .center
+    )?.post(tap: .cghidEventTap)
+    CGEvent(
+      mouseEventSource: source,
+      mouseType: .otherMouseDown,
+      mouseCursorPosition: point,
+      mouseButton: .center
+    )?.post(tap: .cghidEventTap)
+    CGEvent(
+      mouseEventSource: source,
+      mouseType: .otherMouseUp,
+      mouseCursorPosition: point,
+      mouseButton: .center
+    )?.post(tap: .cghidEventTap)
   }
 
   private func assertNoHorizontalOverlap(
@@ -139,6 +163,10 @@ final class ConnectionsPanelUITests: XCTestCase {
       return 0
     }
     return value.doubleValue
+  }
+
+  private func sidebarMetrics(_ state: [String: Any]) -> [String: Any]? {
+    return state["sidebarMetrics"] as? [String: Any]
   }
 
   func testNaturalHeightAndBoundedScrollingFollowConnectionCount() throws {
@@ -326,6 +354,109 @@ final class ConnectionsPanelUITests: XCTestCase {
 
     _ = waitForWorkspaceState { state in
       (state["permanentOrder"] as? [String]) == ["two", "one"]
+    }
+  }
+
+  func testSidebarPointerAndKeyboardResizeStayWithinReportedPolicy() throws {
+    let app = launchWorkspaceHarness()
+    let initialState = waitForWorkspaceState { state in
+      self.sidebarMetrics(state)?["width"] is NSNumber
+    }
+    guard let initialMetrics = sidebarMetrics(initialState) else {
+      XCTFail("Missing initial sidebar metrics: \(initialState)")
+      return
+    }
+    let initialWidth = number(initialMetrics, "width")
+    let step = number(initialMetrics, "adjustmentStep")
+
+    let handle = workspaceElement(app, "desktop-sidebar-resize-handle")
+    XCTAssertTrue(handle.waitForExistence(timeout: 20), app.debugDescription)
+    XCTAssertEqual(handle.label, "Resize sidebar")
+
+    let source = handle.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    )
+    source.press(
+      forDuration: 0.2,
+      thenDragTo: source.withOffset(CGVector(dx: step * 2, dy: 0))
+    )
+    let draggedState = waitForWorkspaceState { state in
+      guard let metrics = self.sidebarMetrics(state),
+            let width = metrics["width"] as? NSNumber else {
+        return false
+      }
+      return width.doubleValue > initialWidth
+    }
+    guard let draggedMetrics = sidebarMetrics(draggedState) else {
+      XCTFail("Missing dragged sidebar metrics: \(draggedState)")
+      return
+    }
+    let draggedWidth = number(draggedMetrics, "width")
+
+    clickCenter(handle)
+    handle.typeKey(.leftArrow, modifierFlags: [])
+    let keyboardState = waitForWorkspaceState { state in
+      guard let metrics = self.sidebarMetrics(state),
+            let width = metrics["width"] as? NSNumber else {
+        return false
+      }
+      return abs(width.doubleValue - (draggedWidth - step)) < 0.5
+    }
+    guard let keyboardMetrics = sidebarMetrics(keyboardState) else {
+      XCTFail("Missing keyboard sidebar metrics: \(keyboardState)")
+      return
+    }
+
+    let resizedHandle = workspaceElement(app, "desktop-sidebar-resize-handle")
+    let maximumWidth = number(keyboardMetrics, "maximumWidth")
+    let currentWidth = number(keyboardMetrics, "width")
+    let resizeSource = resizedHandle.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    )
+    resizeSource.press(
+      forDuration: 0.2,
+      thenDragTo: resizeSource.withOffset(
+        CGVector(dx: maximumWidth - currentWidth + step * 2, dy: 0)
+      )
+    )
+    let maximumState = waitForWorkspaceState { state in
+      guard let metrics = self.sidebarMetrics(state),
+            let width = metrics["width"] as? NSNumber,
+            let maximum = metrics["maximumWidth"] as? NSNumber,
+            let mainWidth = metrics["mainWidth"] as? NSNumber,
+            let minimumMain = metrics["minimumMainWidth"] as? NSNumber else {
+        return false
+      }
+      return abs(width.doubleValue - maximum.doubleValue) < 0.5
+        && mainWidth.doubleValue >= minimumMain.doubleValue
+    }
+    guard let maximumMetrics = sidebarMetrics(maximumState) else {
+      XCTFail("Missing maximum sidebar metrics: \(maximumState)")
+      return
+    }
+    XCTAssertGreaterThanOrEqual(
+      number(maximumMetrics, "mainWidth"),
+      number(maximumMetrics, "minimumMainWidth")
+    )
+  }
+
+  func testMiddleClickClosesTabWithoutSelectingOrDragging() throws {
+    let app = launchWorkspaceHarness()
+    _ = waitForWorkspaceState { state in
+      (state["permanentOrder"] as? [String]) == ["one", "two"]
+        && (state["active"] as? String) == "harness-connection:preview"
+    }
+    let tab = workspaceElement(
+      app,
+      "desktop-session-tab-harness-connection:one"
+    )
+    XCTAssertTrue(tab.waitForExistence(timeout: 20), app.debugDescription)
+
+    middleClickCenter(tab)
+
+    _ = waitForWorkspaceState { state in
+      (state["permanentOrder"] as? [String]) == ["two"]
+        && (state["active"] as? String) == "harness-connection:preview"
     }
   }
 

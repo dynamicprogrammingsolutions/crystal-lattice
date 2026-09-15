@@ -8,6 +8,7 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 import type {
   ConnectionRecord,
+  KeyValueStore,
   SessionRequestStatus,
   SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
@@ -16,7 +17,10 @@ import {
   DesktopActivityRail,
   type DesktopLowerPanel,
 } from '../layout/DesktopActivityRail';
-import { DesktopShell } from '../layout/DesktopShell';
+import {
+  DesktopShell,
+  type DesktopSidebarMetrics,
+} from '../layout/DesktopShell';
 import { DesktopHomeView } from '../home/DesktopHomeView';
 import { HistoryPanel } from '../panels/HistoryPanel';
 import { SessionTabs } from '../tabs/SessionTabs';
@@ -34,6 +38,17 @@ const connection = {
   host: '127.0.0.1',
   port: 9000,
 } as ConnectionRecord;
+
+const sidebarStoreValues = new Map<string, string>();
+const sidebarWidthStore: KeyValueStore = {
+  get: async key => sidebarStoreValues.get(key) ?? null,
+  set: async (key, value) => {
+    sidebarStoreValues.set(key, value);
+  },
+  delete: async key => {
+    sidebarStoreValues.delete(key);
+  },
+};
 
 const summaries: SessionSummary[] = [
   {
@@ -113,6 +128,8 @@ export function DesktopWorkspaceHarness(): React.JSX.Element {
   const [homeActive, setHomeActive] = useState(false);
   const [connectionsVisible, setConnectionsVisible] = useState(true);
   const [lowerPanel, setLowerPanel] = useState<DesktopLowerPanel>('sessions');
+  const [sidebarMetrics, setSidebarMetrics] =
+    useState<DesktopSidebarMetrics | null>(null);
   const [watchlist, setWatchlist] = useState([
     { connectionId: connection.id, sessionId: 'one' },
     { connectionId: connection.id, sessionId: 'two' },
@@ -154,6 +171,7 @@ export function DesktopWorkspaceHarness(): React.JSX.Element {
       connectionsVisible,
       lowerPanel,
       watchlistOrder: watchlist.map(item => item.sessionId),
+      sidebarMetrics,
     });
   }, [
     active,
@@ -162,12 +180,15 @@ export function DesktopWorkspaceHarness(): React.JSX.Element {
     lowerPanel,
     permanentTabs,
     previewTab,
+    sidebarMetrics,
     watchlist,
   ]);
 
   return (
     <ThemeProvider theme={theme}>
       <DesktopShell
+        sidebarWidthStore={sidebarWidthStore}
+        onSidebarMetricsChange={setSidebarMetrics}
         activityRail={
           <DesktopActivityRail
             connectionsVisible={connectionsVisible}

@@ -49,7 +49,10 @@ The desktop-workspace harness mounts the production Home, History, activity
 rail, and session tab strip with deterministic sessions. Focused methods in
 `ConnectionsPanelUITests` verify preview promotion, activity-panel state,
 request-status accessibility, Home navigation, real Watchlist mouse drag, and
-real permanent-tab mouse drag.
+real permanent-tab mouse drag. The same harness reports policy-derived sidebar
+metrics so native tests can verify pointer and arrow-key resizing, bounds, and
+main-workspace protection without copying dimensions. It also posts a native
+middle-button click to prove tab close does not select or reorder the tab.
 `MarkdownDisplayMenuUITests` verifies that the application Settings item opens
 the separate keyed Settings window.
 

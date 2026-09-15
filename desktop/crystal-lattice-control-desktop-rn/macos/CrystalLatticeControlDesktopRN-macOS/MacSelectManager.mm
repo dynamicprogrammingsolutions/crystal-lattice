@@ -33,6 +33,12 @@
 @property(nonatomic, copy) RCTDirectEventBlock onDragMove;
 @property(nonatomic, copy) RCTDirectEventBlock onDragEnd;
 @property(nonatomic, copy) RCTDirectEventBlock onDragCancel;
+@property(nonatomic, copy) RCTDirectEventBlock onAuxiliaryClick;
+@property(nonatomic, copy) RCTDirectEventBlock onKeyIncrement;
+@property(nonatomic, copy) RCTDirectEventBlock onKeyDecrement;
+@property(nonatomic, assign) BOOL dragEnabled;
+@property(nonatomic, assign) BOOL keyboardAdjustable;
+@property(nonatomic, strong) NSPanGestureRecognizer *panRecognizer;
 
 @end
 
@@ -115,18 +121,79 @@ doCommandBySelector:(SEL)commandSelector
 {
   if ((self = [super initWithFrame:frame])) {
     self.mouseDownCanMoveWindow = NO;
-    NSPanGestureRecognizer *recognizer =
+    self.dragEnabled = YES;
+    self.keyboardAdjustable = NO;
+    self.panRecognizer =
         [[NSPanGestureRecognizer alloc] initWithTarget:self
                                                action:@selector(handlePan:)];
-    [self addGestureRecognizer:recognizer];
+    self.panRecognizer.buttonMask = 0x1;
+    [self addGestureRecognizer:self.panRecognizer];
+
+    NSClickGestureRecognizer *middleClickRecognizer =
+        [[NSClickGestureRecognizer alloc] initWithTarget:self
+                                                  action:@selector(handleMiddleClick:)];
+    middleClickRecognizer.buttonMask = (1 << 2);
+    middleClickRecognizer.numberOfClicksRequired = 1;
+    [self addGestureRecognizer:middleClickRecognizer];
   }
   return self;
 }
 
-- (NSDictionary *)payloadForRecognizer:(NSPanGestureRecognizer *)recognizer
+- (void)setDragEnabled:(BOOL)dragEnabled
 {
-  NSPoint translation = [recognizer translationInView:self];
-  NSPoint location = [recognizer locationInView:self];
+  _dragEnabled = dragEnabled;
+  self.panRecognizer.enabled = dragEnabled;
+}
+
+- (BOOL)acceptsFirstResponder
+{
+  return self.keyboardAdjustable || [super acceptsFirstResponder];
+}
+
+- (void)setKeyboardAdjustable:(BOOL)keyboardAdjustable
+{
+  _keyboardAdjustable = keyboardAdjustable;
+  if (self.window) {
+    [self.window invalidateCursorRectsForView:self];
+  }
+}
+
+- (void)resetCursorRects
+{
+  [super resetCursorRects];
+  if (self.keyboardAdjustable) {
+    [self addCursorRect:self.bounds cursor:[NSCursor resizeLeftRightCursor]];
+  }
+}
+
+- (void)mouseDown:(NSEvent *)event
+{
+  if (self.keyboardAdjustable) {
+    [self.window makeFirstResponder:self];
+  }
+  [super mouseDown:event];
+}
+
+- (void)keyDown:(NSEvent *)event
+{
+  if (self.keyboardAdjustable && event.keyCode == 123) {
+    if (self.onKeyDecrement) {
+      self.onKeyDecrement(@{});
+    }
+    return;
+  }
+  if (self.keyboardAdjustable && event.keyCode == 124) {
+    if (self.onKeyIncrement) {
+      self.onKeyIncrement(@{});
+    }
+    return;
+  }
+  [super keyDown:event];
+}
+
+- (NSDictionary *)payloadForLocation:(NSPoint)location
+                         translation:(NSPoint)translation
+{
   BOOL usesTopLeftCoordinates = self.isFlipped;
   NSView *pageView = self.window.contentView;
   NSPoint pageLocation =
@@ -146,6 +213,26 @@ doCommandBySelector:(SEL)commandSelector
                      ? pageLocation.y
                      : NSHeight(pageView.bounds) - pageLocation.y),
   };
+}
+
+- (NSDictionary *)payloadForRecognizer:(NSPanGestureRecognizer *)recognizer
+{
+  NSPoint translation = [recognizer translationInView:self];
+  NSPoint location = [recognizer locationInView:self];
+  return [self payloadForLocation:location translation:translation];
+}
+
+- (void)handleMiddleClick:(NSClickGestureRecognizer *)recognizer
+{
+  if (recognizer.state != NSGestureRecognizerStateEnded ||
+      !self.onAuxiliaryClick) {
+    return;
+  }
+  NSMutableDictionary *payload =
+      [[self payloadForLocation:[recognizer locationInView:self]
+                   translation:NSZeroPoint] mutableCopy];
+  payload[@"button"] = @2;
+  self.onAuxiliaryClick(payload);
 }
 
 - (void)handlePan:(NSPanGestureRecognizer *)recognizer
@@ -248,6 +335,11 @@ RCT_EXPORT_VIEW_PROPERTY(onDragStart, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onDragMove, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onDragEnd, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onDragCancel, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onAuxiliaryClick, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onKeyIncrement, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onKeyDecrement, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(dragEnabled, BOOL)
+RCT_EXPORT_VIEW_PROPERTY(keyboardAdjustable, BOOL)
 
 @end
 

@@ -40,6 +40,12 @@ The narrow activity rail has three controls:
 - Sessions at the bottom shows the focused connection's Sessions panel.
 - History at the bottom shows recent sessions across connections.
 
+Drag the divider between the side panel and main workspace to resize the
+panel. The selected width is stored locally. The divider can also be focused
+and adjusted with the Left and Right Arrow keys, or through its accessibility
+Make Sidebar Narrower and Make Sidebar Wider actions. Resizing is bounded so
+the sidebar remains useful without consuming the main workspace.
+
 ## Preview and permanent tabs
 
 Single-clicking a session item only selects it. Double-click behavior is
@@ -57,6 +63,10 @@ of creating a duplicate.
 Double-click an italic preview tab to make it permanent. Starting a request or
 another session mutation also makes the preview permanent before the operation
 begins. Permanent tabs can be dragged to reorder them.
+
+Middle-click any session tab to close it without selecting it. A three-finger
+click has the same behavior when macOS or a pointing-device utility maps that
+gesture to middle-click.
 
 Permanent order, the current preview, and the active Home or session workspace
 are restored after relaunch. Selecting or restoring a session tab attempts to

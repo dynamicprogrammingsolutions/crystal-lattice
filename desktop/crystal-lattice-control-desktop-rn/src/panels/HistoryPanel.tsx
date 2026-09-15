@@ -87,8 +87,6 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
   return StyleSheet.create({
     root: {
       flex: 1,
-      borderTopWidth: 1,
-      borderTopColor: theme.border,
       backgroundColor: theme.surface,
     },
     list: {

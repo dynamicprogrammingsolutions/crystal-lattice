@@ -655,13 +655,28 @@ function SessionTabItem({
       onLayout={!isDragging ? onLayout : undefined}
       {...(Platform.OS !== 'macos' && !preview ? panResponder.panHandlers : {})}
     >
-      {Platform.OS === 'macos' && !preview ? (
+      {Platform.OS === 'macos' ? (
         <MacDragView
+          testID={`desktop-session-tab-pointer-${tab.tabId}`}
+          dragEnabled={!preview}
           mouseDownCanMoveWindow={false}
-          onDragStart={event => onDragStart?.(nativeDragGesture(event))}
-          onDragMove={event => onDragMove?.(nativeDragGesture(event))}
-          onDragEnd={event => onDragRelease?.(nativeDragGesture(event))}
-          onDragCancel={() => onDragCancel?.()}
+          onDragStart={
+            preview
+              ? undefined
+              : event => onDragStart?.(nativeDragGesture(event))
+          }
+          onDragMove={
+            preview
+              ? undefined
+              : event => onDragMove?.(nativeDragGesture(event))
+          }
+          onDragEnd={
+            preview
+              ? undefined
+              : event => onDragRelease?.(nativeDragGesture(event))
+          }
+          onDragCancel={preview ? undefined : () => onDragCancel?.()}
+          onAuxiliaryClick={() => onClose()}
         >
           {tabContent}
         </MacDragView>

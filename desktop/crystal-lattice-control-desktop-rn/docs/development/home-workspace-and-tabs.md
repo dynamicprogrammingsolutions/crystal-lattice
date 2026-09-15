@@ -92,12 +92,23 @@ read cannot overwrite an early mutation.
 `DesktopShell` has three columns:
 
 1. activity rail;
-2. 340-point panel;
+2. locally resizable panel;
 3. main workspace.
 
 Connections visibility is independent. Sessions and History are mutually
-exclusive lower-panel destinations. These presentation choices are local to a
-main window.
+exclusive lower-panel destinations. `desktopSidebarWidth` owns the default,
+minimum, maximum, keyboard step, and protected main-workspace width. The shell
+persists the selected width under `clc_desktop_sidebar_width_v1`, constrains it
+again for the current window width, and keeps temporary window narrowing from
+overwriting the user's preference.
+
+The resize handle is wider than its single visible separator. `MacDragView`
+supplies primary-button movement and Left/Right Arrow events; React owns the
+same policy-driven accessibility increment/decrement actions. The activity
+rail/panel and panel/workspace boundaries each have one shell-owned separator.
+Child panels do not add outer top or left boundary lines. Connections
+visibility, lower-panel selection, and sidebar width remain local presentation
+choices.
 
 ## Request status
 
@@ -131,11 +142,20 @@ The adapter normalizes AppKit Y values according to the actual view
 orientation, so upward and downward pointer movement agree with React Native
 layout coordinates.
 
+The adapter also has a separate middle-button click recognizer. Permanent and
+preview tabs route that event directly to close, while the primary-button-only
+pan recognizer continues to own reordering. As a result, middle-click neither
+selects nor drags a tab. Three-finger behavior is inherited only from system or
+utility middle-click mappings; the application does not inspect trackpad
+finger counts.
+
 Primary tests:
 
 - `__tests__/desktopWorkspaceState.test.ts`
 - `__tests__/DesktopHomeWorkspaceContext.test.tsx`
 - `__tests__/DesktopHomeAndActivity.test.tsx`
+- `__tests__/DesktopShell.test.tsx`
+- `__tests__/desktopSidebarWidth.test.ts`
 - `__tests__/SessionTabsMenu.test.tsx`
 - `__tests__/DesktopRoot.sessionReopen.test.tsx`
 - `__tests__/desktopStatusScope.test.ts`

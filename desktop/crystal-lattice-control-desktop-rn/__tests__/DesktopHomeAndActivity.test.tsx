@@ -336,5 +336,10 @@ describe('desktop Home and activity rail', () => {
     expect(
       screen.getByTestId('desktop-panel-history-dot-connection-session'),
     ).toBeTruthy();
+    expect(
+      StyleSheet.flatten(
+        screen.getByTestId('desktop-history-panel').props.style,
+      ),
+    ).not.toHaveProperty('borderTopWidth');
   });
 });
