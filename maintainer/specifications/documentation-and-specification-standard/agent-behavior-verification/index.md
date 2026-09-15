@@ -13,6 +13,7 @@ Latest comparison:
 
 - [September 14, 2026 guidance follow-up results](20260914-guidance-followup-results.md)
 - [September 12, 2026 guidance rewrite results](20260912-guidance-rewrite-results.md)
+- [September 15, 2026 example-backed terminology results](20260915-example-backed-terminology-results.md)
 
 Several scenarios deliberately create boundary pressure. The agent may have
 internal context unavailable to the destination audience, receive a request
@@ -110,13 +111,14 @@ Current seeds:
 | [Seed 02](seed-02-report-export-row-limit.md) | Inspect one approved row-limit task and its current spec/code/test/doc state | Tests [03](03-target-specification-workflow.md), [07](07-approved-task-specification-only.md), [08](08-approved-specification-implementation.md), [15](15-premature-current-documentation.md), and [29](29-early-user-documentation-is-explicit.md) |
 | [Seed 03](seed-03-mobile-composer-refinement.md) | Inspect one portable contract, mobile package, and approved UX task | Test [04](04-package-owned-refinement.md) |
 | [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Tests [05](05-normative-owner-and-discoverability.md), [17](17-public-package-profile.md), [19](19-apply-versus-maintain-boundary.md), [20](20-routed-guidance-reading.md), and [27](27-routed-current-guidance.md) |
-| [Seed 05](seed-05-batch-sync-design.md) | Inspect one package and related persistence/transport contracts | Tests [06](06-substantial-specification-approval.md), [09](09-task-authorized-new-specification.md), [21](21-explicit-specification-layout-override.md), and [26](26-explicit-optional-layout.md) |
+| [Seed 05](seed-05-batch-sync-design.md) | Inspect one package and related persistence/transport contracts | Tests [06](06-substantial-specification-approval.md), [09](09-task-authorized-new-specification.md), [21](21-explicit-specification-layout-override.md), [26](26-explicit-optional-layout.md), and [30](30-source-terms-in-specification-records.md) |
 | [Seed 06](seed-06-existing-contract-bugfix.md) | Reproduce one public bug against an already-correct target contract | Test [10](10-bug-fix-with-existing-specification.md) |
 | [Seed 07](seed-07-local-bugfix.md) | Reproduce one internal race with no durable public contract | Test [11](11-local-bugfix-without-durable-specification.md) |
 | [Seed 08](seed-08-completed-small-implementation.md) | Complete one code/test-only change whose target already exists | Test [12](12-documentation-follow-up-after-implementation.md) |
 | [Seed 09](seed-09-partial-major-change.md) | Inspect one approved partially implemented multi-commit target | Test [13](13-partial-major-change.md) |
 | [Seed 10](seed-10-requirement-scope.md) | Distinguish approved batch-enqueue outcomes from explicitly unapproved ideas | Test [22](22-requirement-scope-restraint.md) at three reasoning efforts |
 | [Seed 11](seed-11-testing-strategy.md) | Distinguish contracted option behavior, implementation detail, and delivery boundaries | Tests [23](23-testing-without-overspecification.md) and [24](24-testing-important-layer-crossing.md) |
+| [Seed 12](seed-12-status-label-naming.md) | Inspect an established status API and a pending behavior whose public function name is unspecified | Test [31](31-source-terms-in-code-and-tests.md) |
 
 Each seed page owns its exact fixture, prompt, request profile, assertions,
 cache identity, provenance, and current/planned branches.
@@ -260,6 +262,8 @@ AI assessment is supporting evidence and does not satisfy human verification.
 | [Routed current guidance](27-routed-current-guidance.md) | Seed 04 | Read the two current guidance pages before editing | `DOCAGENT-001`, `DOCLOCAL-001`, `DOCVAL-010` |
 | [Proportionate small-package documentation](28-small-package-proportionate-documentation.md) | Seed 01 | Improve a small package without requiring README-only or creating filler | `DOCGUIDE-002`–`DOCGUIDE-003`, `DOCVAL-010` |
 | [Explicit early user documentation](29-early-user-documentation-is-explicit.md) | Seed 02 | Permit only clearly marked branch-only target documentation | `DOCGUIDE-004`, `DOCVAL-010` |
+| [Source terms in specification records](30-source-terms-in-specification-records.md) | Seed 05 | Create an approved specification while source-local task, sequence, and evaluative wording is present | `DOCGUIDE-007`–`DOCGUIDE-008`, `DOCVAL-011` |
+| [Source terms in code and tests](31-source-terms-in-code-and-tests.md) | Seed 12 | Implement a pending API while choosing source, test, evidence, and developer-documentation terminology | `DOCGUIDE-007`–`DOCGUIDE-008`, `DOCVAL-011` |
 
 ## Execution groups
 
@@ -273,12 +277,12 @@ three parametrized branches for low, high, and max reasoning effort.
 - **Revised routine:** retained routine Tests 02–07, 10, 11, 13, and 18, plus
   Tests 22–25 and 28–29.
 - **Revised extended:** retained Tests 08, 09, 12, 14, 16, and 19, plus Tests
-  26–27.
+  26–27 and 30–31. Tests 30–31 each have three source-wording variants.
 
 All GLM runs target `glm-5.3-flash:cloud`. Model availability is checked before
 execution and a resolution failure is reported rather than silently
-substituting another model. GPT remains optional second-model evidence when
-variance or a separate request justifies its cost.
+substituting another model. Focused source-wording comparisons run GLM and GPT
+at low, high, and max reasoning effort as defined by their scenario plan.
 
 ## Cross-test invariants
 

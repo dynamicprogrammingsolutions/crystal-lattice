@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from suites.documentation_standard.support import (
     BASELINE_GUIDANCE_REVISION,
     CURRENT_GUIDANCE_PATHS,
@@ -16,6 +18,7 @@ from suites.documentation_standard.support import (
     PROFILES,
     REPOSITORY_ROOT,
     SPEC_ROOT,
+    SUPPORTED_REASONING_EFFORTS,
     GuidanceSource,
     DocumentationEvaluationHarness,
     ScenarioWorkspaceFactory,
@@ -28,6 +31,7 @@ from suites.documentation_standard.support import (
     fixture_revision,
     followup_baseline_guidance_source,
     original_develop_guidance_source,
+    selected_reasoning_effort,
     _commit_fixture,
     _project_config_for_profile,
     EVALUATION_TOOL_PLUGINS,
@@ -50,6 +54,40 @@ def test_profiles_pin_requested_models() -> None:
     assert PROFILES["gpt"].model == "gpt-5.6-luna"
     assert PROFILES["gpt"].auth_mode == "chatgpt"
     assert PROFILES["gpt"].hosted is True
+
+
+def test_profiles_forward_explicit_reasoning_effort(tmp_path: Path) -> None:
+    glm = PROFILES["glm"].request_overrides(
+        tmp_path,
+        reasoning_effort="max",
+    )
+    gpt = PROFILES["gpt"].request_overrides(
+        tmp_path,
+        reasoning_effort="max",
+    )
+
+    assert glm["request_options"] == {"reasoning_effort": "max"}
+    assert gpt["reasoning_effort"] == "max"
+    assert "request_options" not in gpt
+    assert PROFILES["glm"].request_overrides(tmp_path)["request_options"] == {
+        "reasoning_effort": "high"
+    }
+    assert "request_options" not in PROFILES["gpt"].request_overrides(tmp_path)
+
+
+def test_selected_reasoning_effort_is_optional_and_validated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AGENT_EVAL_REASONING_EFFORT", raising=False)
+    assert selected_reasoning_effort() is None
+
+    for effort in SUPPORTED_REASONING_EFFORTS:
+        monkeypatch.setenv("AGENT_EVAL_REASONING_EFFORT", effort.upper())
+        assert selected_reasoning_effort() == effort
+
+    monkeypatch.setenv("AGENT_EVAL_REASONING_EFFORT", "unsupported")
+    with pytest.raises(ValueError, match="AGENT_EVAL_REASONING_EFFORT"):
+        selected_reasoning_effort()
 
 
 def test_candidate_guidance_provenance_is_stable() -> None:
@@ -143,14 +181,60 @@ def test_current_documentation_guidance_shape_is_concise() -> None:
         assert "does not define separate rules" in text
 
 
-def test_current_guidance_contains_substantial_specification_approval_boundary() -> None:
+def test_guidance_examples_are_marked_and_separate_from_held_out_terms() -> None:
+    guide = REPOSITORY_ROOT.joinpath("docs/development/documentation.md").read_text(
+        encoding="utf-8"
+    )
+    agents = REPOSITORY_ROOT.joinpath("AGENTS.md").read_text(encoding="utf-8")
+    agent_start = agents.index("## Documentation ownership and routing")
+    agent_end = agents.index("**Auxiliary directories**", agent_start)
+    agent_section = agents[agent_start:agent_end]
+
+    first_rule = guide.index("1. Input material")
+    assert guide.index("Input material is") < first_rule
+    assert guide.index("The destination is") < first_rule
+
+    rule_section = guide[first_rule : guide.index("Apply the rules", first_rule)]
+    examples = re.findall(
+        r"\*Example:\*\s*(.*?)(?=\n\n(?:[1-4]\. |Apply the rules))",
+        rule_section + "\n\nApply the rules",
+        flags=re.DOTALL,
+    )
+    assert len(examples) == 4
+
+    held_out_terms = (
+        "task 010",
+        "stage a",
+        "track a",
+        "track b",
+        "phase 1",
+        "phase 2",
+        "phase 3",
+        "portable",
+        "useful",
+    )
+    rendered_examples = re.sub(r"\s+", " ", "\n".join(examples).lower())
+    assert all(term not in rendered_examples for term in held_out_terms)
+
+    applications = guide[
+        guide.index("Apply the rules") : guide.index("Use verified examples")
+    ]
+    assert "*Example:*" not in applications
+
+    assert agent_section.count("Example:") == 1
+    root_example = agent_section.split("Example:", 1)[1].split("\n\n", 1)[0]
+    assert all(term not in root_example.lower() for term in held_out_terms)
+
+
+def test_current_guidance_contains_substantial_specification_approval_boundary() -> (
+    None
+):
     guide = re.sub(
         r"\s+",
         " ",
-        (
-            REPOSITORY_ROOT
-            / "docs/development/documentation.md"
-        ).read_text(encoding="utf-8").lower(),
+        (REPOSITORY_ROOT / "docs/development/documentation.md")
+        .read_text(encoding="utf-8")
+        .lower(),
     )
 
     assert "before creating a substantial new specification" in guide
@@ -377,7 +461,9 @@ def test_chatgpt_guidance_uses_late_request_feature(tmp_path: Path) -> None:
     assert context.messages == [("user", "Please continue.")]
 
 
-def test_guidance_feature_preserves_compiled_instruction_and_strips_request_item() -> None:
+def test_guidance_feature_preserves_compiled_instruction_and_strips_request_item() -> (
+    None
+):
     feature = DocumentationStandardGuidanceFeature()
     leading = {
         "type": "message",
@@ -526,9 +612,7 @@ def test_profile_projection_reuses_path_plugin_from_agent_definition(
 
 
 def test_plugin_runtime_constraints_pin_validated_openai_sdk() -> None:
-    assert PLUGIN_RUNTIME_CONSTRAINTS.read_text().splitlines()[-1] == (
-        "openai==2.53.0"
-    )
+    assert PLUGIN_RUNTIME_CONSTRAINTS.read_text().splitlines()[-1] == ("openai==2.53.0")
 
 
 def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
@@ -614,6 +698,20 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "Please prepare the approved testing strategy for option visibility. "
         "Do not implement the change or edit test code."
     )
+    specification_terms = extract_blockquote(
+        SPEC_ROOT / "30-source-terms-in-specification-records.md",
+        "## Task-number exact user prompt",
+    )
+    assert specification_terms.startswith(
+        "Please complete Task 010 from `tasks/batch-offline-sync.md`."
+    )
+    source_terms = extract_blockquote(
+        SPEC_ROOT / "31-source-terms-in-code-and-tests.md",
+        "## Evaluative-wording exact user prompt",
+    )
+    assert source_terms.startswith(
+        "Please implement the useful, portable status-label addition"
+    )
 
 
 def test_all_current_specification_pages_are_indexed() -> None:
@@ -670,11 +768,12 @@ def test_all_seed_and_consumer_prompts_are_extractable() -> None:
     for path in sorted(SPEC_ROOT.glob("seed-*.md")):
         assert extract_blockquote(path, "## Exact seed prompt")
     for path in sorted(SPEC_ROOT.glob("[0-9][0-9]-*.md")):
-        headings = (
-            ("## First exact user prompt", "## Second exact user prompt")
-            if path.name.startswith("06-")
-            else ("## Exact user prompt",)
+        headings = tuple(
+            line
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.startswith("## ") and line.lower().endswith("exact user prompt")
         )
+        assert headings, path.name
         for heading in headings:
             assert extract_blockquote(path, heading)
 
@@ -741,8 +840,7 @@ def test_seed_prompts_name_the_exact_bounded_fixture_paths() -> None:
             "packages/sync-engine/README.md",
             "packages/sync-engine/src/sync.py",
             "packages/sync-engine/tests/test_sync.py",
-            "packages/sync-engine/docs/development/specifications/"
-            "sync-v2/index.md",
+            "packages/sync-engine/docs/development/specifications/" "sync-v2/index.md",
             "packages/sync-engine/docs/development/specifications/"
             "sync-v2/product-spec.md",
             "packages/sync-engine/docs/development/specifications/"
@@ -765,6 +863,18 @@ def test_seed_prompts_name_the_exact_bounded_fixture_paths() -> None:
             "application/python/example_api/options.py",
             "packages/frontend-sdk/src/options.ts",
             "docs/development/specifications/option-delivery/index.md",
+        ),
+        "seed-12-status-label-naming.md": (
+            "packages/status-labels/README.md",
+            "packages/status-labels/src/status_labels.py",
+            "packages/status-labels/tests/test_status_labels.py",
+            "packages/status-labels/docs/development/status-labels.md",
+            "packages/status-labels/docs/development/specifications/"
+            "status-labels/index.md",
+            "packages/status-labels/docs/development/specifications/"
+            "status-labels/technical-spec.md",
+            "packages/status-labels/docs/development/specifications/"
+            "status-labels/requirements.md",
         ),
     }
     for filename, paths in required_paths.items():
@@ -793,6 +903,10 @@ def test_synthetic_fixtures_contain_expected_seed_sources(tmp_path: Path) -> Non
             "plugins/ui-options/docs/development/specifications/"
             "option-visibility/index.md"
         ),
+        "status-labels": (
+            "packages/status-labels/docs/development/specifications/"
+            "status-labels/requirements.md"
+        ),
     }
     for fixture_id, expected in fixtures.items():
         workspace = tmp_path / fixture_id
@@ -811,6 +925,7 @@ def test_synthetic_python_fixture_baselines_are_runnable(tmp_path: Path) -> None
         "slug-utils": "packages/slug-utils/tests",
         "label-utils": "packages/label-utils/tests",
         "sync-engine": "packages/sync-engine/tests",
+        "status-labels": "packages/status-labels/tests",
     }
     for fixture_id, tests_path in package_paths.items():
         workspace = tmp_path / fixture_id
@@ -844,6 +959,7 @@ def test_fixture_revision_participates_in_workspace_fingerprint() -> None:
     assert fixture_revision("event-retry") == "v5"
     assert fixture_revision("requirement-scope") == "v1"
     assert fixture_revision("testing-strategy") == "v1"
+    assert fixture_revision("status-labels") == "v2"
 
 
 def test_failed_generator_fixture_preserves_prepared_output(tmp_path: Path) -> None:
@@ -890,14 +1006,33 @@ def test_batch_single_decisions_variant_records_exact_layout(tmp_path: Path) -> 
 
     apply_fixture(workspace, "batch-sync", "approved-task-single-decisions")
 
-    task = workspace.joinpath("tasks/batch-offline-sync.md").read_text(
-        encoding="utf-8"
-    )
+    task = workspace.joinpath("tasks/batch-offline-sync.md").read_text(encoding="utf-8")
     assert "Status: Approved" in task
     assert "one `decisions.md` file" in task
     assert "Do not create a" in task
     assert "`decisions/` directory" in task
     assert fixture_revision("batch-sync") == "v2"
+
+
+def test_terminology_branch_variants_add_source_context(tmp_path: Path) -> None:
+    cases = {
+        "terminology-task-number": "Task 010",
+        "terminology-sequence-label": "Stage A",
+        "terminology-evaluative-wording": "useful, portable",
+    }
+    for fixture_id in ("batch-sync", "status-labels"):
+        for variant, phrase in cases.items():
+            workspace = tmp_path / f"{fixture_id}-{variant}"
+            workspace.mkdir()
+            workspace.joinpath(".git").write_text("fixture\n", encoding="utf-8")
+            apply_fixture(workspace, fixture_id, variant)
+            task_name = (
+                "batch-offline-sync.md"
+                if fixture_id == "batch-sync"
+                else "status-label-formatting.md"
+            )
+            task = workspace.joinpath("tasks", task_name).read_text(encoding="utf-8")
+            assert phrase in task
 
 
 def test_fixture_commit_does_not_change_linked_repository_identity(
@@ -936,24 +1071,33 @@ def test_fixture_commit_does_not_change_linked_repository_identity(
 
     _commit_fixture(worktree)
 
-    assert subprocess.run(
-        ["git", "config", "--local", "--get", "user.name"],
-        cwd=source,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip() == "Original User"
-    assert subprocess.run(
-        ["git", "config", "--local", "--get", "user.email"],
-        cwd=source,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip() == "original@example.com"
-    assert subprocess.run(
-        ["git", "show", "-s", "--format=%an <%ae>"],
-        cwd=worktree,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip() == "Agent Evaluation <agent-eval@example.invalid>"
+    assert (
+        subprocess.run(
+            ["git", "config", "--local", "--get", "user.name"],
+            cwd=source,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "Original User"
+    )
+    assert (
+        subprocess.run(
+            ["git", "config", "--local", "--get", "user.email"],
+            cwd=source,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "original@example.com"
+    )
+    assert (
+        subprocess.run(
+            ["git", "show", "-s", "--format=%an <%ae>"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "Agent Evaluation <agent-eval@example.invalid>"
+    )

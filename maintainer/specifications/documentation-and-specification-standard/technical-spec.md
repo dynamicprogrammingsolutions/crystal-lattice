@@ -75,6 +75,10 @@ The guide uses this order:
 3. **Writing useful pages**
    - introduce terms before using them;
    - write for the reader of the page;
+   - distinguish relevant source information from source wording, labels,
+     examples, or organization that the destination should not inherit;
+   - preserve exact requested and established terms while defining or
+     translating other terms for the destination;
    - include concrete, verified examples and observable results;
    - keep one primary maintained explanation and use links or focused
      summaries elsewhere;
@@ -109,9 +113,72 @@ owner, authoritative scope, meta-specification, reusable standard, or
 current-state documentation.
 
 The writing guidance is positive: name the page, file, test result, or output
-being discussed. It does not teach concrete language by repeating a forbidden
-umbrella word. User-documentation guidance similarly says to explain available
-behavior in user language instead of listing forbidden planning terms.
+being discussed. It does not teach terminology by listing prohibited words.
+The source of a term may be a conversation, task, specification, requirement,
+decision, existing file, example, review comment, or another maintained
+record. Relevance of that source does not by itself make its wording suitable
+for a destination.
+
+## Source wording and destination terminology
+
+The project-independent guide owns both the general rule and its concise
+applications to the file roles it defines.
+
+Before presenting the rule, the guide defines:
+
+- **input material**: a request, conversation, existing file, specification,
+  review note, or other information being adapted;
+- **destination**: the maintained artifact being written.
+
+A file can serve as input material in one change and as a destination in
+another. The definition appears before either term is relied upon.
+
+The general rule establishes four points:
+
+1. A request or source can define an intended outcome without defining the
+   names used in another maintained destination.
+2. Wording, labels, examples, and organization from conversations and other
+   records are source context.
+3. Exact wording is retained when it is explicitly required or already
+   established by the product, interface, or domain rather than merely present
+   in a file.
+4. Other terminology is introduced and explained or translated into the
+   behavior, component, condition, outcome, or relationship meaningful to the
+   destination.
+
+Each point is followed by one explicitly marked portable example. Examples:
+
+- use vocabulary distinct from held-out behavioral prompts;
+- illustrate one transfer rather than enumerate destinations, permitted
+  wording, or prohibited wording;
+- avoid Crystal Lattice paths, task structure, and repository-specific terms;
+- do not replace the destination-specific instructions below.
+
+After the four rule/example pairs, a separate application section covers the
+distinctions that readers cannot reliably derive from the general rule alone:
+
+- a task's local wording remains local, illustrated with a different label
+  from behavioral fixtures, while other records use its descriptive title and
+  full path;
+- specifications, requirements, and decisions use domain terms and descriptive
+  links, and source descriptions become requirements only when their
+  observable meaning is required;
+- source and tests name behavior, with requirement IDs accompanied by an
+  explanation of the invariant or assertion;
+- developer documentation explains current implementation without requiring
+  linked internal records;
+- user documentation translates internal grouping into delivered
+  capabilities, replaces inherited local labels, and omits internal future
+  work without depending on developer context;
+- headings, filenames, identifiers, and commit or pull-request titles name
+  destination behavior instead of unexplained source labels.
+
+A requirement or decision reference used outside its canonical record pairs
+the stable identifier with a concise description and direct link. The
+description gives local meaning without copying the full normative text.
+Internal requirement identifiers do not appear in user documentation. Code and
+tests may use them for traceability only when the surrounding comment,
+docstring, parameter, or assertion explains the relevant behavior.
 
 ## Crystal Lattice documentation conventions
 
@@ -130,8 +197,10 @@ information:
 - migration and public-route compatibility.
 
 It does not repeat the general writing, specification, requirements, or
-testing explanations. It does not maintain a prose inventory of every package;
-the package registry and package entry points provide the current inventory.
+testing explanations, including the project-independent terminology and
+reference rules.
+It does not maintain a prose inventory of every package; the package registry
+and package entry points provide the current inventory.
 
 A specification is named after the capability it defines. Cross-package
 placement is a location decision, not a naming convention. Terms such as
@@ -214,11 +283,38 @@ The root documentation section targets roughly 200–300 words. It contains only
 - specification, requirements, and task roles;
 - the generated-documentation source rule;
 - incremental adoption without invented baselines;
+- a concise instruction to choose terminology and names for the destination
+  rather than automatically reusing source wording;
 - links to the two public guidance documents;
 - the additional maintainer route used only when changing the rules.
 
 It does not repeat file-role explanations, forbidden-word lists, reference
 matrices, testing taxonomy, or migration procedures.
+
+The terminology instruction is integrated by replacing less precise wording,
+not by adding another root policy section. The complete root documentation
+section remains approximately 200–300 words after reconciliation with the
+separate root-guidance consolidation work.
+
+The instruction includes one compact, explicitly marked portable example. It
+does not reproduce the guide's complete example set or destination-specific
+applications.
+
+## Task guidance
+
+Canonical task guidance contains only the task-specific application of the
+project-independent rule. A task file may retain wording from its conversation
+when doing so preserves meaningful intent, but it defines the term and remains
+understandable without the conversation. Task titles and requirement,
+decision, and execution-item wording use descriptive destination terms.
+References to other tasks use full relative paths rather than unexplained
+ordinal shorthand.
+
+The project-independent guide owns the detailed destination rules. Task
+guidance links or routes to that explanation instead of reproducing its table.
+Canonical and bundled v7 task guidance are updated through the source and
+synchronization mechanism owned by
+[the task-guidance alignment work](../../../tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md).
 
 ## Maintainer boundary
 
@@ -400,17 +496,54 @@ Behavioral model results supplement rather than replace:
 - explicit human review.
 
 Behavioral validation deliberately creates boundary pressure. Scenarios may
-give the agent planning context inappropriate for user documentation, point the
-request at generated output, request current documentation for an
-unimplemented target, or make the normal generation or verification path
-unavailable. The expected behavior preserves the underlying reader,
-maintained-source, scope, verification, and completion boundaries.
+give the agent relevant source context whose wording, labels, examples,
+organization, or references are unsuitable for one or more requested
+destinations; point the request at generated output; request current
+documentation for an unimplemented target; or make the normal generation or
+verification path unavailable. The expected behavior preserves the underlying
+reader, maintained-source, scope, terminology, reference, verification, and
+completion boundaries.
 
 Agent-visible candidate guidance states the desired general behavior without
-enumerating the fixture's forbidden words. Test fixtures use held-out planning
-vocabulary and varied examples. Deterministic token checks may remain narrow
-backstops, but the primary assessment asks whether the produced page serves its
-reader and whether headings name their actual contents.
+enumerating the fixture's held-out words. Test fixtures vary source terms,
+their intended meaning, and destination roles. Deterministic token and path
+checks may remain narrow backstops, but initial assessment inspects complete
+changed files, diffs, responses, tool behavior, and provenance and asks whether
+each destination uses meaningful terminology and references without suppressing
+an explicit or established term.
+
+Before changing the guidance, the terminology follow-up samples:
+
+- the retained Test 13 user-documentation boundary;
+- source-to-task/specification/requirements/decision and filename boundaries;
+- source-to-code/function/test/comment boundaries;
+- specification-to-developer-documentation and
+  developer-to-user-documentation boundaries;
+- several source-term classes, including ordinal shorthand, sequence labels,
+  and evaluative descriptions whose exact words are not agent-visible rules;
+- supported models and reasoning efforts already shown to produce different
+  outcomes.
+
+Existing seeds and scenarios are reused when their facts and mutation
+allowlists exercise the boundary with minimal change. A new seed is justified
+only when reuse would make a source term an actual domain requirement, omit a
+necessary destination, or require unrealistic fixture changes. Test 13 remains
+unchanged. New or extended cases begin as observation runs: semantic and human
+inspection precedes final deterministic assertions.
+
+Candidate comparison separates the contribution of the guidance layers:
+
+1. the first candidate adds only the four general rules to the
+   project-independent guide and the concise recurring rule to root
+   `AGENTS.md`;
+2. the second candidate adds the short file-role applications after the
+   general rules and the task-specific rule through canonical task guidance.
+
+The same preserved scenarios are evaluated after each candidate. Simpler
+terminology choices should follow the first candidate; cross-record reference,
+self-containment, and task-handoff cases may require the second. Guidance is
+expanded further only when repeated paired evidence identifies a remaining
+shared misunderstanding.
 
 Requirement-restraint scenarios run the same task across supported low,
 medium, and high reasoning-effort settings. Higher effort may identify more

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
+import subprocess
+import sys
 from collections.abc import Iterator
 
 import pytest
@@ -17,17 +20,20 @@ from .support import (
     record_review,
     require_run_value,
     selected_profile,
+    selected_reasoning_effort,
 )
 from .test_consumers import (
     _complete_read_positions,
     _evidence_value,
     _first_mutation_tool_index,
     _placement_communication_is_proportionate,
+    _raw_session_text,
     _seed_04,
     _seed_05,
     _seed_08,
     _seed_01,
     _seed_02,
+    _tool_command_observed,
     _tool_messages,
 )
 
@@ -66,6 +72,115 @@ def _seed_11(harness: DocumentationEvaluationHarness):
     assert run.value.completed
     assert not run.changed_paths
     return run
+
+
+def _seed_12(harness: DocumentationEvaluationHarness):
+    run = harness.seed(
+        seed_id="seed-12-status-label-naming",
+        spec_file="seed-12-status-label-naming.md",
+        fixture_id="status-labels",
+    )
+    run.raise_for_error()
+    assert run.value.completed
+    assert not run.changed_paths
+    return run
+
+
+SOURCE_TERM_CASES = (
+    pytest.param(
+        "task-number",
+        "terminology-task-number",
+        "## Task-number exact user prompt",
+        ("task 010", "task-010", "task_010", "task010"),
+        id="task-number",
+    ),
+    pytest.param(
+        "sequence-label",
+        "terminology-sequence-label",
+        "## Sequence-label exact user prompt",
+        ("stage a", "stage-a", "stage_a", "stagea"),
+        id="sequence-label",
+    ),
+    pytest.param(
+        "evaluative-wording",
+        "terminology-evaluative-wording",
+        "## Evaluative-wording exact user prompt",
+        ("portable", "useful"),
+        id="evaluative-wording",
+    ),
+)
+
+
+def _contains_source_term(text: str, terms: tuple[str, ...]) -> bool:
+    normalized = text.lower()
+    return any(term in normalized for term in terms)
+
+
+def _markdown_headings(text: str) -> str:
+    return "\n".join(
+        line.strip() for line in text.splitlines() if line.lstrip().startswith("#")
+    )
+
+
+def _python_function_names(text: str) -> tuple[str, ...]:
+    tree = ast.parse(text)
+    return tuple(
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    )
+
+
+def _python_comments(text: str) -> str:
+    return "\n".join(
+        line.strip() for line in text.splitlines() if line.lstrip().startswith("#")
+    )
+
+
+def _status_label_behavior_passes(
+    run,
+    function_name: str,
+) -> tuple[bool, str]:
+    if run.workspace is None:
+        return False, "run has no workspace"
+    script = f"""
+import sys
+sys.path.insert(0, "packages/status-labels/src")
+import status_labels
+
+function = getattr(status_labels, {function_name!r})
+assert function("in_progress") == "In progress"
+assert function("done") == "Done"
+try:
+    function("unknown")
+except KeyError:
+    pass
+else:
+    raise AssertionError("unknown status must raise KeyError")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=run.workspace,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    detail = (
+        "\n".join(value for value in (result.stdout, result.stderr) if value)
+        or f"exit code {result.returncode}"
+    )
+    return result.returncode == 0, detail
+
+
+def _requirement_reference_is_explained(text: str, requirement_id: str) -> bool:
+    for line in text.splitlines():
+        lowered = line.lower()
+        if requirement_id.lower() not in lowered:
+            continue
+        without_id = lowered.replace(requirement_id.lower(), "")
+        if any(term in without_id for term in ("label", "in_progress", "done")):
+            return True
+    return False
 
 
 def _requirement_rows(text: str) -> tuple[str, ...]:
@@ -141,7 +256,9 @@ def test_22_requirement_scope_restraint(
                 for term in ("batch", "order", "empty", "max", "enqueue")
             )
             and ("before" in row_text or "without changing" in row_text)
-            and ("existing" in row_text or "compatib" in row_text or "single" in row_text),
+            and (
+                "existing" in row_text or "compatib" in row_text or "single" in row_text
+            ),
             row_text,
         ),
         AssertionFinding(
@@ -340,8 +457,7 @@ def test_24_testing_important_layer_crossing(
             and all(
                 path.endswith(".md")
                 and (
-                    path.startswith("docs/development/")
-                    or "/docs/development/" in path
+                    path.startswith("docs/development/") or "/docs/development/" in path
                 )
                 for path in run.changed_paths
             ),
@@ -534,8 +650,7 @@ def test_27_routed_current_guidance(
     injection = _evidence_value(run, "documentation_standard.guidance_injection")
     injection_value = injection if isinstance(injection, dict) else {}
     tool_output = "\n".join(
-        str(message.get("content", ""))
-        for message in _tool_messages(run)
+        str(message.get("content", "")) for message in _tool_messages(run)
     ).lower()
     paths = set(run.changed_paths)
     public_text = "\n".join(
@@ -626,9 +741,7 @@ def test_28_small_package_proportionate_documentation(
     paths = set(run.changed_paths)
     readme_path = "plugins/js-single-file-tool/README.md"
     readme = file_text(run, readme_path).lower()
-    shared_changes = tuple(
-        path for path in paths if path.startswith("plugins/docs/")
-    )
+    shared_changes = tuple(path for path in paths if path.startswith("plugins/docs/"))
     shared = "\n".join(file_text(run, path).lower() for path in shared_changes)
     findings = basic_run_findings(run) + (
         AssertionFinding(
@@ -647,8 +760,7 @@ def test_28_small_package_proportionate_documentation(
                 for path in paths
             )
             and not any(
-                path.startswith("plugins/js-single-file-tool/docs/")
-                for path in paths
+                path.startswith("plugins/js-single-file-tool/docs/") for path in paths
             ),
             repr(run.changed_paths),
         ),
@@ -711,7 +823,9 @@ def test_29_early_user_documentation_is_explicit(
                 not changed
                 or (
                     "not implemented" in readme
-                    and any(term in readme for term in ("currently", "existing", "today"))
+                    and any(
+                        term in readme for term in ("currently", "existing", "today")
+                    )
                 )
             ),
             readme,
@@ -742,6 +856,274 @@ def test_29_early_user_documentation_is_explicit(
     record_review(
         run,
         spec_file="29-early-user-documentation-is-explicit.md",
+        findings=findings,
+    )
+    assert_findings(findings)
+
+
+@pytest.mark.extended
+@pytest.mark.parametrize(
+    ("case_id", "branch_variant", "prompt_heading", "source_terms"),
+    SOURCE_TERM_CASES,
+)
+@pytest.mark.requirements("DOCGUIDE-007", "DOCGUIDE-008", "DOCVAL-011")
+def test_30_source_terms_in_specification_records(
+    harness: DocumentationEvaluationHarness,
+    case_id: str,
+    branch_variant: str,
+    prompt_heading: str,
+    source_terms: tuple[str, ...],
+) -> None:
+    reasoning_effort = selected_reasoning_effort()
+    run = harness.branch(
+        test_id=f"30-source-terms-in-specification-records-{case_id}",
+        spec_file="30-source-terms-in-specification-records.md",
+        parent=_seed_05(harness),
+        fixture_id="batch-sync",
+        branch_variant=branch_variant,
+        prompt_heading=prompt_heading,
+        reasoning_effort=reasoning_effort,
+    )
+    paths = set(run.changed_paths)
+    spec_paths = matching_paths(
+        run,
+        "packages/batch-sdk/docs/development/specifications",
+    )
+    spec_text = "\n".join(file_text(run, path) for path in spec_paths)
+    task = file_text(run, "tasks/batch-offline-sync.md")
+    requirements = "\n".join(
+        file_text(run, path) for path in spec_paths if path.endswith("/requirements.md")
+    )
+    development_index = file_text(
+        run,
+        "packages/batch-sdk/docs/development/index.md",
+    )
+    identity_text = "\n".join(
+        (
+            *spec_paths,
+            _markdown_headings(spec_text),
+            "\n".join(_requirement_rows(requirements)),
+            _markdown_headings(development_index),
+        )
+    )
+    destination_text = "\n".join(
+        (
+            *spec_paths,
+            spec_text,
+            development_index,
+        )
+    )
+    profile = _evidence_value(run, "documentation_standard.profile")
+    profile_value = profile if isinstance(profile, dict) else {}
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "selected reasoning effort recorded",
+            reasoning_effort is None
+            or profile_value.get("reasoning_effort") == reasoning_effort,
+            json.dumps(profile_value, sort_keys=True),
+        ),
+        AssertionFinding(
+            "source wording retained with capability context in task",
+            _contains_source_term(task, source_terms)
+            and "offline synchronization" in task.lower(),
+            task,
+        ),
+        AssertionFinding(
+            "package specification created",
+            bool(spec_paths) and any(path.endswith("/index.md") for path in spec_paths),
+            repr(spec_paths),
+        ),
+        AssertionFinding(
+            "specification records use capability terms",
+            not _contains_source_term(
+                identity_text if case_id == "evaluative-wording" else destination_text,
+                source_terms,
+            ),
+            identity_text if case_id == "evaluative-wording" else destination_text,
+        ),
+        AssertionFinding(
+            "requirements remain target-only",
+            (
+                "not started" in requirements.lower()
+                or "not implemented" in requirements.lower()
+            )
+            and "unverified" in requirements.lower(),
+            requirements,
+        ),
+        AssertionFinding(
+            "one decisions file used",
+            sum(path.endswith("/decisions.md") for path in spec_paths) == 1
+            and not any("/decisions/" in path for path in spec_paths),
+            repr(spec_paths),
+        ),
+        AssertionFinding(
+            "development index links the capability",
+            "offline" in development_index.lower(),
+            development_index,
+        ),
+        AssertionFinding(
+            "scope remains specification-only",
+            bool(paths)
+            and all(
+                path == "tasks/batch-offline-sync.md"
+                or path == "packages/batch-sdk/docs/development/index.md"
+                or path.startswith(
+                    "packages/batch-sdk/docs/development/specifications/"
+                )
+                for path in paths
+            )
+            and "packages/batch-sdk/src/batch.py" not in paths,
+            repr(run.changed_paths),
+        ),
+    )
+    record_review(
+        run,
+        spec_file="30-source-terms-in-specification-records.md",
+        findings=findings,
+    )
+    assert_findings(findings)
+
+
+@pytest.mark.extended
+@pytest.mark.parametrize(
+    ("case_id", "branch_variant", "prompt_heading", "source_terms"),
+    SOURCE_TERM_CASES,
+)
+@pytest.mark.requirements("DOCGUIDE-007", "DOCGUIDE-008", "DOCVAL-011")
+def test_31_source_terms_in_code_and_tests(
+    harness: DocumentationEvaluationHarness,
+    case_id: str,
+    branch_variant: str,
+    prompt_heading: str,
+    source_terms: tuple[str, ...],
+) -> None:
+    reasoning_effort = selected_reasoning_effort()
+    run = harness.branch(
+        test_id=f"31-source-terms-in-code-and-tests-{case_id}",
+        spec_file="31-source-terms-in-code-and-tests.md",
+        parent=_seed_12(harness),
+        fixture_id="status-labels",
+        branch_variant=branch_variant,
+        prompt_heading=prompt_heading,
+        reasoning_effort=reasoning_effort,
+    )
+    paths = set(run.changed_paths)
+    source_path = "packages/status-labels/src/status_labels.py"
+    test_path = "packages/status-labels/tests/test_status_labels.py"
+    developer_path = "packages/status-labels/docs/development/status-labels.md"
+    requirements_path = (
+        "packages/status-labels/docs/development/specifications/"
+        "status-labels/requirements.md"
+    )
+    source = file_text(run, source_path)
+    tests = file_text(run, test_path)
+    developer = file_text(run, developer_path)
+    requirements = file_text(run, requirements_path)
+    source_functions = _python_function_names(source)
+    test_functions = _python_function_names(tests)
+    new_functions = tuple(name for name in source_functions if name != "is_terminal")
+    identity_text = "\n".join(
+        (
+            *paths,
+            *source_functions,
+            *test_functions,
+            _python_comments(source),
+            _python_comments(tests),
+            _markdown_headings(developer),
+            "\n".join(_requirement_rows(requirements)),
+        )
+    )
+    maintained_text = "\n".join((source, tests, developer, requirements))
+    behavior_passed, behavior_detail = (
+        _status_label_behavior_passes(run, new_functions[0])
+        if len(new_functions) == 1
+        else (False, f"expected one new public function: {new_functions!r}")
+    )
+    profile = _evidence_value(run, "documentation_standard.profile")
+    profile_value = profile if isinstance(profile, dict) else {}
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "selected reasoning effort recorded",
+            reasoning_effort is None
+            or profile_value.get("reasoning_effort") == reasoning_effort,
+            json.dumps(profile_value, sort_keys=True),
+        ),
+        AssertionFinding(
+            "status-label behavior implemented",
+            behavior_passed,
+            f"functions={source_functions!r}\n{behavior_detail}",
+        ),
+        AssertionFinding(
+            "established function preserved",
+            "is_terminal" in source_functions,
+            repr(source_functions),
+        ),
+        AssertionFinding(
+            "source and test identities use behavior terms",
+            not _contains_source_term(identity_text, source_terms),
+            identity_text,
+        ),
+        AssertionFinding(
+            "maintained implementation text uses behavior terms",
+            case_id == "evaluative-wording"
+            or not _contains_source_term(maintained_text, source_terms),
+            maintained_text,
+        ),
+        AssertionFinding(
+            "requirement traceability explains the assertion",
+            _requirement_reference_is_explained(tests, "STATUS-002"),
+            tests,
+        ),
+        AssertionFinding(
+            "focused tests executed successfully",
+            _tool_command_observed(run, "pytest")
+            and "passed" in _raw_session_text(run),
+            _raw_session_text(run),
+        ),
+        AssertionFinding(
+            "requirement evidence completed",
+            "status-002" in requirements.lower()
+            and "implemented" in requirements.lower()
+            and "automated" in requirements.lower()
+            and "documented" in requirements.lower(),
+            requirements,
+        ),
+        AssertionFinding(
+            "developer documentation explains delivered behavior",
+            any(name in developer for name in new_functions)
+            and "In progress" in developer
+            and "Done" in developer,
+            developer,
+        ),
+        AssertionFinding(
+            "user documentation and target remain unchanged",
+            "packages/status-labels/README.md" not in paths
+            and (
+                "packages/status-labels/docs/development/specifications/"
+                "status-labels/technical-spec.md" not in paths
+            ),
+            repr(run.changed_paths),
+        ),
+        AssertionFinding(
+            "scope remains within approved files",
+            bool(paths)
+            and all(
+                path
+                in {
+                    "tasks/status-label-formatting.md",
+                    source_path,
+                    test_path,
+                    developer_path,
+                    requirements_path,
+                }
+                for path in paths
+            ),
+            repr(run.changed_paths),
+        ),
+    )
+    record_review(
+        run,
+        spec_file="31-source-terms-in-code-and-tests.md",
         findings=findings,
     )
     assert_findings(findings)

@@ -1,7 +1,8 @@
 # Partial major-change implementation
 
 Requirement coverage: `DOCGEN-002`, `DOCGEN-006`, `DOCREP-006`,
-`DOCVAL-007`–`DOCVAL-008`
+`DOCVAL-007`–`DOCVAL-008`, `DOCGUIDE-007`–`DOCGUIDE-008`,
+`DOCAGENT-002`, `DOCVAL-011`
 
 ## Normative traceability
 
@@ -94,6 +95,11 @@ proportional.
 Continue from
 [Seed 09: partial major-change investigation](seed-09-partial-major-change.md)
 with candidate guidance added.
+
+Focused source-wording comparisons run this unchanged scenario with both the
+GLM and GPT profiles at low, high, and max reasoning effort. The effort changes
+request configuration and cache identity; it does not change the prompt,
+fixture, allowed mutations, or assertions.
 
 ## Exact user prompt
 

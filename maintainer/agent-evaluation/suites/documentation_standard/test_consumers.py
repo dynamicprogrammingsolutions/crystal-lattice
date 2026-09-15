@@ -20,6 +20,7 @@ from .support import (
     record_review,
     require_run_value,
     selected_profile,
+    selected_reasoning_effort,
 )
 
 
@@ -34,7 +35,9 @@ def _markdown_requirement_row(text: str, requirement_id: str) -> tuple[str, ...]
     for line in text.splitlines():
         if requirement_id.lower() not in line.lower() or "|" not in line:
             continue
-        return tuple(value.strip().lower() for value in line.strip().strip("|").split("|"))
+        return tuple(
+            value.strip().lower() for value in line.strip().strip("|").split("|")
+        )
     return ()
 
 
@@ -521,7 +524,9 @@ def test_03_target_specification_workflow(
         ),
         AssertionFinding(
             "no unnecessary target version",
-            not any("v2" in path.lower() or "change-spec" in path.lower() for path in paths),
+            not any(
+                "v2" in path.lower() or "change-spec" in path.lower() for path in paths
+            ),
             repr(run.changed_paths),
         ),
     )
@@ -797,7 +802,10 @@ def test_06_substantial_specification_approval(
         ),
         AssertionFinding(
             "no root specification",
-            not any(path.startswith("docs/development/specifications/") for path in second.changed_paths),
+            not any(
+                path.startswith("docs/development/specifications/")
+                for path in second.changed_paths
+            ),
             repr(second.changed_paths),
         ),
     )
@@ -834,7 +842,9 @@ def test_07_approved_task_specification_only(
     ).lower()
     max_rows_row = _markdown_requirement_row(spec_text, "max_rows")
     findings = basic_run_findings(run) + (
-        AssertionFinding("target prepared", "max_rows" in spec_text, "missing max_rows"),
+        AssertionFinding(
+            "target prepared", "max_rows" in spec_text, "missing max_rows"
+        ),
         AssertionFinding(
             "requirements pending",
             len(max_rows_row) >= 6
@@ -910,7 +920,9 @@ def test_08_approved_specification_implementation(
         ),
         AssertionFinding(
             "no new target version",
-            not any("v2" in path.lower() or "change-spec" in path.lower() for path in paths),
+            not any(
+                "v2" in path.lower() or "change-spec" in path.lower() for path in paths
+            ),
             repr(run.changed_paths),
         ),
     )
@@ -966,7 +978,9 @@ def test_09_task_authorized_new_specification(
         ),
         AssertionFinding(
             "no implementation",
-            not any(path.startswith("packages/batch-sdk/src/") for path in run.changed_paths),
+            not any(
+                path.startswith("packages/batch-sdk/src/") for path in run.changed_paths
+            ),
             repr(run.changed_paths),
         ),
     )
@@ -1009,8 +1023,7 @@ def test_10_bug_fix_with_existing_specification(
         AssertionFinding(
             "target remains stable",
             "packages/path-policy/docs/development/specifications/"
-            "path-normalization/technical-spec.md"
-            not in paths,
+            "path-normalization/technical-spec.md" not in paths,
             repr(run.changed_paths),
         ),
         AssertionFinding(
@@ -1123,8 +1136,7 @@ def test_12_documentation_followup_after_implementation(
         AssertionFinding(
             "target stable",
             "packages/label-utils/docs/development/specifications/"
-            "label-normalization/technical-spec.md"
-            not in paths,
+            "label-normalization/technical-spec.md" not in paths,
             repr(run.changed_paths),
         ),
     )
@@ -1147,11 +1159,13 @@ def test_12_documentation_followup_after_implementation(
 def test_13_partial_major_change(
     harness: DocumentationEvaluationHarness,
 ) -> None:
+    reasoning_effort = selected_reasoning_effort()
     run = harness.branch(
         test_id="13-partial-major-change",
         spec_file="13-partial-major-change.md",
         parent=_seed_09(harness),
         fixture_id="sync-engine",
+        reasoning_effort=reasoning_effort,
     )
     paths = set(run.changed_paths)
     requirements = file_text(
@@ -1164,7 +1178,15 @@ def test_13_partial_major_change(
         "packages/sync-engine/docs/development/specifications/sync-v2/index.md",
     ).lower()
     readme = file_text(run, "packages/sync-engine/README.md").lower()
+    profile = _evidence_value(run, "documentation_standard.profile")
+    profile_value = profile if isinstance(profile, dict) else {}
     findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "selected reasoning effort recorded",
+            reasoning_effort is None
+            or profile_value.get("reasoning_effort") == reasoning_effort,
+            json.dumps(profile_value, sort_keys=True),
+        ),
         AssertionFinding(
             "phase 2 implementation",
             "packages/sync-engine/src/sync.py" in paths,
@@ -1224,7 +1246,9 @@ def test_13_partial_major_change(
         ),
         AssertionFinding(
             "no extra target version",
-            not any("v3" in path.lower() or "change-spec" in path.lower() for path in paths),
+            not any(
+                "v3" in path.lower() or "change-spec" in path.lower() for path in paths
+            ),
             repr(run.changed_paths),
         ),
     )
@@ -1288,7 +1312,9 @@ def test_14_portable_contract_owner(
         ),
         AssertionFinding(
             "no root owner",
-            not any(path.startswith("docs/development/specifications/") for path in paths),
+            not any(
+                path.startswith("docs/development/specifications/") for path in paths
+            ),
             repr(run.changed_paths),
         ),
     )
@@ -1329,8 +1355,7 @@ def test_15_premature_current_documentation(
         AssertionFinding(
             "README remains current",
             "max_rows" not in readme
-            and re.search(r"accepts\s+any\s+number\s+of\s+rows", readme)
-            is not None,
+            and re.search(r"accepts\s+any\s+number\s+of\s+rows", readme) is not None,
             readme,
         ),
         AssertionFinding(
@@ -1347,8 +1372,8 @@ def test_15_premature_current_documentation(
                     "does not yet exist",
                     "do not exist",
                     "does not accept",
-                        "has no `max_rows` parameter",
-                        "remains unimplemented",
+                    "has no `max_rows` parameter",
+                    "remains unimplemented",
                 ),
             ),
             run.value.response,
@@ -1360,7 +1385,9 @@ def test_15_premature_current_documentation(
         ),
         AssertionFinding(
             "completion remains honest",
-            not _contains_any(response, ("updated the readme", "readme has been updated")),
+            not _contains_any(
+                response, ("updated the readme", "readme has been updated")
+            ),
             run.value.response,
         ),
     )
@@ -1500,7 +1527,9 @@ def test_17_public_package_profile(
         else ""
     )
     agents_path = "packages/event-sdk/AGENTS.md"
-    agents = file_text(run, agents_path).lower() if file_exists(run, agents_path) else ""
+    agents = (
+        file_text(run, agents_path).lower() if file_exists(run, agents_path) else ""
+    )
     public_text = "\n".join((readme, docs_index, quickstart))
     allowed_prefix = "packages/event-sdk/"
     findings = basic_run_findings(run) + (
@@ -1640,8 +1669,7 @@ def test_18_shared_plugin_authoring_boundary(
         }
     )
     shared = "\n".join(
-        file_text(run, path).lower()
-        for path in (canonical_path, *focused_paths)
+        file_text(run, path).lower() for path in (canonical_path, *focused_paths)
     )
     canonical = file_text(run, canonical_path).lower()
     shared_index = file_text(run, "plugins/docs/index.md").lower()
@@ -1696,7 +1724,9 @@ def test_18_shared_plugin_authoring_boundary(
         AssertionFinding(
             "shared single-file workflow added",
             "single-file" in shared
-            and _contains_any(shared, ("object export", "object-export", "export object"))
+            and _contains_any(
+                shared, ("object export", "object-export", "export object")
+            )
             and _contains_any(shared, ("node:", "node_tool", '"file"'))
             and _contains_any(shared, ("verify", "validation", "test")),
             shared,
@@ -1711,19 +1741,14 @@ def test_18_shared_plugin_authoring_boundary(
         AssertionFinding(
             "claims remain supported by the bounded fixture",
             not any(term in rendered for term in unsupported_loader_claims),
-            "\n".join(
-                term for term in unsupported_loader_claims if term in rendered
-            )
+            "\n".join(term for term in unsupported_loader_claims if term in rendered)
             or "no unsupported loader claim detected",
         ),
         AssertionFinding(
             "fixture boundary retained",
             not external_roots
             and not any(term in response for term in external_checkout_language),
-            (
-                f"external_roots={external_roots!r}; "
-                f"response={run.value.response}"
-            ),
+            (f"external_roots={external_roots!r}; " f"response={run.value.response}"),
         ),
         AssertionFinding(
             "environment limitations are accurate",
@@ -1739,8 +1764,7 @@ def test_18_shared_plugin_authoring_boundary(
         ),
         AssertionFinding(
             "scope remains documentation-only",
-            len(focused_paths) <= 1
-            and paths <= allowed_paths,
+            len(focused_paths) <= 1 and paths <= allowed_paths,
             repr(run.changed_paths),
         ),
     )
@@ -1786,11 +1810,11 @@ def test_19_apply_versus_maintain_boundary(
                     "readme audience",
                     "user-facing sdk documentation",
                     "user-facing sdk readme",
-                        "public package readme",
-                        "public package readmes",
-                        "package-user documentation",
+                    "public package readme",
+                    "public package readmes",
+                    "package-user documentation",
                     "audience boundary",
-                        "audience-boundary",
+                    "audience-boundary",
                 ),
             ),
             run.value.response,
@@ -1850,13 +1874,13 @@ def test_19_apply_versus_maintain_boundary(
                     "repository policy",
                     "contributor",
                     "development/repository",
-                        "development documentation",
-                        "development docs",
-                        "development page",
-                        "package development page",
-                        "docs/development/",
+                    "development documentation",
+                    "development docs",
+                    "development page",
+                    "package development page",
+                    "docs/development/",
                     "public guidance",
-                        "readme-compatible alternative",
+                    "readme-compatible alternative",
                 ),
             ),
             run.value.response,

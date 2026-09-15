@@ -28,6 +28,10 @@ These users need to:
 - choose tests that prove important behavior at the appropriate layer without
   duplicating or overspecifying implementation details;
 - identify the primary evidence that validates each requirement;
+- distinguish information that is relevant to a destination from wording,
+  labels, examples, or organization that the destination should not inherit;
+- use terminology and references that remain meaningful within the maintained
+  file's own role and available context;
 - keep user and developer documentation aligned with available behavior;
 - find the effective repository rules without reading implementation history or
   validation internals.
@@ -73,6 +77,26 @@ one specification file, or use a larger specification directory.
 User and developer documentation is written for its readers and describes
 available behavior. Planning and implementation tracking stays in
 specifications, requirements, tasks, and temporary development notes.
+
+Every maintained destination uses terminology that its intended reader or
+maintainer can understand from that destination and the sources appropriate to
+its role. Wording, labels, examples, and organization from a conversation or
+another record may inform the work without automatically becoming names in the
+destination. Exact requested wording and established domain terms are
+preserved; other source-local terms are introduced and explained or translated
+into the behavior, component, condition, or outcome they represent.
+
+The project-independent guide first states this general rule and then applies
+it concisely to tasks, specifications, requirements, decisions, code, tests,
+developer documentation, user documentation, filenames, links, and delivery
+records. The Crystal Lattice addendum continues to contain only repository
+paths, local exceptions, publication, generation, and migration rules.
+
+Before the rule, the guide explains the roles of input material and maintained
+destination. Each general rule has one clearly marked portable example whose
+wording is distinct from behavioral evaluation prompts. Examples illustrate
+individual transfers rather than enumerate destinations or prohibited terms.
+Destination-specific instructions remain a separate application section.
 
 A human contributor can begin with a rough description and use AI-assisted
 brainstorming to research the repository, compare approaches, and shape the
@@ -150,6 +174,12 @@ must remain durable before implementation, it stays with the specification.
 - Keep user documentation, developer documentation, specifications,
   requirements, tasks, and maintainer material distinguishable in plain
   language.
+- Keep terminology, names, and references meaningful within the destination's
+  own role without treating source wording as an automatic naming request.
+- Give project-independent file roles concise rules for retaining, defining,
+  translating, and linking terminology across tasks, specifications,
+  requirements, decisions, source, tests, developer documentation, and user
+  documentation.
 - Keep requirements focused on approved outcomes and constraints.
 - Keep primary evidence concise and directly related to requirement
   validation.
@@ -201,6 +231,10 @@ must remain durable before implementation, it stays with the specification.
 - Moving all maintainer tooling as part of creating this approval package.
 - Treating one model response or reviewer score as sole evidence that the
   standards are correct or human verified.
+- Replacing context-sensitive terminology choices with a global list of
+  prohibited words.
+- Renaming explicit public contracts, required user wording, or established
+  domain terms merely because the same words could be source-local elsewhere.
 
 ## Acceptance examples
 
@@ -249,6 +283,16 @@ After completing a feature, the agent reports the few tests that directly
 prove the requested behavior and any important manual or unverified boundary.
 Formatting, lint, and broad passing-test counts are grouped as supporting
 checks rather than obscuring the acceptance evidence.
+
+### Source wording and destination terminology
+
+A conversation or source record uses local shorthand and evaluative language
+while describing a change. A task may retain a useful term after defining it,
+but specifications, requirements, code, tests, developer documentation, and
+user documentation use names and references that make sense in their own
+roles. Exact requested names and established contract terms remain unchanged.
+A linked internal record may supply authority or detail without becoming
+required reader context for current documentation.
 
 ### Blocked generated-documentation workflow
 

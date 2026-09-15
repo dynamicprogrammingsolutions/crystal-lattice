@@ -114,12 +114,22 @@ pytest maintainer/agent-evaluation/suites/documentation_standard \
 
 Use `AGENT_EVAL_GUIDANCE_VARIANT=candidate` for the paired candidate run.
 
+For a focused scenario at an explicit supported reasoning effort, add:
+
+```bash
+AGENT_EVAL_REASONING_EFFORT=max
+```
+
+Focused terminology comparisons use low, high, and max with both the GLM and
+GPT profiles. The effort value participates in branch cache identity and is
+recorded in canonical evidence.
+
 The current suite collects:
 
 - 21 legacy consumers for direct comparison;
 - 18 revised routine branches;
-- 8 extended consumers;
-- 26 revised branches over 11 guidance-neutral seeds.
+- 14 revised extended branches;
+- 32 revised branches over 12 guidance-neutral seeds.
 
 ## Run a custom wording variant
 

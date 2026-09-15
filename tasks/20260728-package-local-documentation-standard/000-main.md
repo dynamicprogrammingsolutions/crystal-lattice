@@ -41,6 +41,10 @@ Requirements:
 - [ ] The guidance defines how to write README, AGENTS, indexes, quickstarts,
   user and developer pages, specifications, requirements, optional testing
   strategies, reference, and decision records.
+- [ ] Maintained files use terminology and references appropriate to their own
+  role and available context; wording from conversations or other records is
+  retained only when it is required, established, or introduced and explained
+  for the destination.
 - [ ] Specifications describe the intended target and may temporarily differ
   from implementation, while requirements track the live implementation,
   verification, and documentation state.
@@ -66,6 +70,10 @@ Requirements:
   requirement restraint across supported reasoning efforts, testing balance,
   and focused verification reporting while preserving static and human
   verification as distinct evidence.
+- [ ] Documentation-guidance behavior tests observe terminology choices across
+  tasks, specifications, requirements, decisions, source, tests, developer
+  documentation, and user documentation using varied source terms, models, and
+  reasoning efforts before candidate wording or final assertions are selected.
 - [ ] Root `CONTRIBUTING.md` provides an easy-to-follow, risk-scaled
   AI-assisted development workflow centered on what humans initiate, review,
   question, decide, verify, accept, and authorize.
@@ -136,6 +144,7 @@ task and the subtasks:
 | Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
 | First documentation-guidance implementation and preserved behavior evidence | `DOCGEN-001`–`DOCGEN-010`, `DOCREP-001`–`DOCREP-007` |
 | Approved documentation-guide redesign | `DOCGUIDE-001`–`DOCGUIDE-006`, `DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010` |
+| Source wording and destination terminology | `DOCGUIDE-007`–`DOCGUIDE-008`, `DOCAGENT-002`, `DOCFLOW-007`, `DOCVAL-011` |
 | Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-018` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
@@ -538,6 +547,9 @@ task's requirements or rationale.
 | DOC-DEC-033 | A requirement contains only an approved necessary outcome or constraint. Useful discoveries remain supporting details, questions, recommendations, or follow-ups until their scope is approved. | Approved September 11, 2026 | Prevents higher reasoning effort from silently expanding completion obligations while preserving useful analysis. | Repeated tasks lose important acceptance behavior because the rule is too restrictive. |
 | DOC-DEC-034 | Add practical testing guidance and an optional `testing-strategy.md` triggered by meaningful risk, layer crossings, expensive/manual verification, credible tradeoffs, or important exclusions. | Approved September 11, 2026 | Guides agents toward decisive coverage without maximizing test count or freezing incidental implementation details. | Package-specific testing standards provide a clearer source or the file is consistently unused. |
 | DOC-DEC-035 | Behavioral guidance tests evaluate underlying decisions with held-out vocabulary and supported reasoning-effort variants; literal token assertions are secondary backstops rather than primary evidence. | Approved September 11, 2026 | Demonstrates abstract rule understanding instead of success caused by repeating the exact prohibited term in guidance. | Semantic evaluation proves too unstable without a narrower deterministic contract. |
+| DOC-DEC-036 | Treat wording, labels, examples, and organization from conversations and other sources as context rather than automatic terminology for a maintained destination. Reuse exact or established terms where appropriate; otherwise name the underlying behavior in terms available to the destination. | Approved September 14, 2026 | Prevents source-local wording from becoming unexplained names while preserving explicit naming requests and genuine domain terminology. | Repeated work shows that the distinction is too broad to apply consistently or suppresses required exact terms. |
+| DOC-DEC-037 | Put both the general terminology rule and its concise applications to tasks, specifications, requirements, decisions, code, tests, developer documentation, and user documentation in the project-independent guide. Keep the Crystal Lattice addendum limited to repository paths and exceptions. | Approved September 14, 2026 | These file roles apply across repositories; placing them in the local addendum would incorrectly make general guidance project-specific. | Another project-independent owner or released guide separates maintained-code and documentation terminology. |
+| DOC-DEC-038 | Observe unchanged scenarios across varied source terms, destination boundaries, supported models, and reasoning efforts before editing guidance. Begin with additions below 20% per guidance file, keep mechanical assertions secondary, and expand only when paired evidence shows the concise candidate is insufficient. | Approved September 14, 2026 | Avoids tuning rules to one word or model while preserving the concise two-guide design. | The observation matrix is prohibitively expensive or repeated evidence supports a smaller reliable calibration. |
 
 ## Open requirement questions
 
@@ -760,6 +772,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/067-source-wording-and-destination-terminology.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
@@ -803,14 +816,19 @@ The work is organized standards-first:
 6. Subtask 065 creates the concise contributor workflow after the terminology
    and document roles from 010 are established. It can proceed in parallel with
    most migration work.
-7. Subtask 068 aligns and synchronizes `TASKS-v7` after the documentation
+7. Subtask 067 defines and verifies source wording and destination terminology
+   across
+   project-independent file roles, adds the concise root rule, and supplies the
+   task-specific wording that 068 publishes through the canonical/bundled task
+   guidance mechanism.
+8. Subtask 068 aligns and synchronizes `TASKS-v7` after the documentation
    standard and contributor workflow are defined. It may adopt the committed
    agent-evaluation framework while 015 continues non-blocking refinements, and
    it owns moving the existing task-guidance evaluator.
-8. Subtask 069 uses the migrated evaluator to verify minimum sufficient
+9. Subtask 069 uses the migrated evaluator to verify minimum sufficient
    requirements and coherent single-task/subtask decomposition. Guidance
    changes are baseline-first and preserve exact model/reasoning profiles.
-9. Subtask 070 performs final verification after migration, contributor
+10. Subtask 070 performs final verification after migration, contributor
    workflow, and task-guidance alignment are complete.
 
 Existing content should be moved with minimal editorial changes. Verification
@@ -877,6 +895,8 @@ Required new or updated documentation includes:
 - [ ] 060: Update navigation, compatibility paths, repository links, and build triggers.
 - [ ] 065: Create the human-led AI-assisted contributor workflow, integrated
   prompt examples, and instruction-inspection guidance.
+- [ ] 067: Define and verify source wording, destination terminology, and reference
+  boundaries across maintained destinations.
 - [ ] 068: Align specifications/tasks guidance and synchronize canonical/bundled `TASKS-v7`.
 - [ ] 069: Verify and refine task-guidance scope discipline and subtask decomposition.
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.
@@ -887,6 +907,7 @@ Required new or updated documentation includes:
 |---|---|
 | Canonical documentation structure and profiles | Root development documentation describes each document role, package profile, ownership rule, and incremental adoption rule; initial package entry points conform without filler. |
 | Agent routing and update behavior | Root `AGENTS.md` points to the full standard and clearly distinguishes README, user docs, development docs, specifications, root cross-package docs, and generated site output. |
+| Source wording and destination terminology | The project-independent guide, concise root guidance, task guidance, and behavioral evidence show that source wording is retained only when required, established, or explained; otherwise tasks, records, code, tests, developer docs, and user docs use meaningful destination terminology and complete descriptive references. |
 | Specification and requirement conventions | The documentation guide and Crystal Lattice addendum define target specifications, live requirements, concise primary evidence, task-owned approval, early documentation behavior, package refinements, and optional file use. |
 | Agent-evaluation framework | Deterministic package tests verify the minimal program/environment/run API, complete environment substitution, Crystal Lattice lower-layer customization, continuation, caching, workspace isolation, canonical/raw artifacts, and failure preservation without required evaluation-specific abstractions. |
 | Documentation-standard behavioral evidence | Gated pytest consumers map every `DOCGEN-*` and `DOCREP-*` requirement to a neutral-seed continuation and preserve exact artifacts for separate human review. |

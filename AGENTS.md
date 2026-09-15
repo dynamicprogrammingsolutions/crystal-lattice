@@ -115,37 +115,40 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 
 ## Documentation ownership and routing
 
-Start package work by reading its `README.md`, nearest `AGENTS.md`, and
-`docs/index.md` when present. Use the smallest documentation structure that
-helps the reader; README-only, one-page, and larger documentation or
-specification layouts are all valid.
+Start package work with its `README.md`, nearest `AGENTS.md`, and `docs/index.md`
+when present. Use the smallest structure that helps the reader.
 
 Put package-user documentation under `<package>/docs/` and current internals,
 architecture, testing, and specifications under
 `<package>/docs/development/`. Keep root `docs/` for project-wide guidance,
 cross-package architecture and behavior, and site entry points.
 
-Specifications describe intended targets. Requirements track necessary
-outcomes and their implementation, verification, and documentation state.
-Tasks track approval and execution. Published user and developer documentation
-describe available behavior in language appropriate to their readers.
-Target-only user text may be drafted on a development branch with a visible
-`Not implemented` marker, but is not published as current guidance by default.
+Specifications define intended targets, requirements track live implementation,
+verification, and documentation, and tasks track approval and execution.
+Published user and developer documentation describes available behavior.
+Branch-only target text is marked `Not implemented` and is not published as
+current guidance by default. Update only maintained sources affected by a
+behavior change.
 
-When behavior changes, update only the affected maintained sources: user
-documentation for supported use, developer documentation for current internals
-and operations, and specifications plus requirements when the intended target
-changes.
+Treat wording from prompts, conversations, tasks, plans, and review comments as
+source context, not automatically as terminology for maintained output.
+Preserve the intended behavior, but unless exact wording is explicitly required
+or the term is established by the product, interface, or domain, name files,
+headings, identifiers, tests, comments, documentation, specifications,
+user-visible text, and commit or pull-request titles using concepts defined by
+the destination domain.
+Translate quality directions and conversation-local shorthand into concrete
+behavior.
+Example: a request for “quiet startup” may define logging behavior without
+establishing that phrase as an identifier.
 
 Change generated documentation through its maintained source or generator;
-never edit `docs_site/prepared/` or `docs_site/dist/` directly. If a required
-generation or validation step is blocked, preserve the source and validation
-boundaries and report the remaining action. Publication and site-generation
-commands are maintained in the Crystal Lattice conventions.
+never edit `docs_site/prepared/` or `docs_site/dist/` directly. If generation is
+blocked, preserve the boundaries and report the remaining action. Commands are
+maintained in the Crystal Lattice conventions.
 
-Document verified facts discovered during the current work. Do not reconstruct
-large unfamiliar areas merely to fill an illustrated directory structure, and
-do not normalize existing variations unless the current work makes that useful.
+Document verified facts; do not reconstruct unfamiliar areas or normalize
+unrelated variations.
 
 Before creating, moving, or materially restructuring documentation or
 specifications, read both files in full:

@@ -32,9 +32,7 @@ SPEC_ROOT = (
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
 BASELINE_GUIDANCE_REVISION = "3a62b6fc"
 ORIGINAL_DEVELOP_GUIDANCE_REVISION = "f81f36326b58268297ba59c1cacbcda604257c27"
-FOLLOWUP_BASELINE_GUIDANCE_REVISION = (
-    "cdeb50a7df92820e487c466b030ea8f5f6dcb993"
-)
+FOLLOWUP_BASELINE_GUIDANCE_REVISION = "cdeb50a7df92820e487c466b030ea8f5f6dcb993"
 GUIDANCE_INJECTION_VERSION = "v6"
 PROFILE_CONFIG_VERSION = "v8"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
@@ -51,6 +49,7 @@ FIXTURE_REVISIONS = {
     "sync-engine": "v3",
     "requirement-scope": "v1",
     "testing-strategy": "v1",
+    "status-labels": "v2",
 }
 SYNTHETIC_SRC_CONFTEST = """import sys
 from pathlib import Path
@@ -112,6 +111,8 @@ class ModelProfile:
             overrides["request_options"] = {
                 "reasoning_effort": reasoning_effort or "high"
             }
+        elif reasoning_effort is not None:
+            overrides["reasoning_effort"] = reasoning_effort
         if self.auth_mode is not None:
             overrides["auth_mode"] = self.auth_mode
         return overrides
@@ -145,6 +146,10 @@ PROFILES = {
         ),
     ),
 }
+
+SUPPORTED_REASONING_EFFORTS = frozenset(
+    {"low", "medium", "high", "xhigh", "max", "ultra"}
+)
 
 EVALUATION_TOOL_PLUGINS = (
     "plugins.file_reader_tool.FileReaderTool",
@@ -403,7 +408,12 @@ class DocumentationEvaluationHarness:
         artifact_root = Path(
             os.getenv(
                 "AGENT_EVAL_ARTIFACT_ROOT",
-                str(REPOSITORY_ROOT / "tmp" / "agent-evaluation" / "documentation-standard"),
+                str(
+                    REPOSITORY_ROOT
+                    / "tmp"
+                    / "agent-evaluation"
+                    / "documentation-standard"
+                ),
             )
         ).expanduser()
         projected_config = _project_config_for_profile(
@@ -493,9 +503,7 @@ class DocumentationEvaluationHarness:
         cache_key = None
         if cache:
             cache_variant_suffix = f":{cache_variant}" if cache_variant else ""
-            instruction_paths = (
-                guidance_instruction_paths or self.guidance.paths
-            )
+            instruction_paths = guidance_instruction_paths or self.guidance.paths
             cache_key = (
                 f"documentation-standard:{self.profile.name}:{test_id}:"
                 f"{self.guidance.name}:{self.guidance.sha256()}:"
@@ -594,9 +602,8 @@ class DocumentationEvaluationHarness:
                 "model": self.profile.model,
                 "hosted": self.profile.hosted,
                 "auth_mode": self.profile.auth_mode,
-                "reasoning_effort": reasoning_effort or (
-                    "high" if self.profile.name == "glm" else None
-                ),
+                "reasoning_effort": reasoning_effort
+                or ("high" if self.profile.name == "glm" else None),
             },
         )
         context.services.record(
@@ -673,9 +680,7 @@ class DocumentationEvaluationHarness:
             stream=True,
             max_events=max_events,
             observers=(observe_tool_results,),
-            stop_when=lambda progress: (
-                len(completed_tool_calls) >= max_tool_calls
-            ),
+            stop_when=lambda progress: (len(completed_tool_calls) >= max_tool_calls),
         )
         context.services.record(
             "documentation_standard.completed_tool_calls",
@@ -708,6 +713,18 @@ def selected_profile() -> ModelProfile:
             "AGENT_EVAL_PROFILE must be one of: " + ", ".join(sorted(PROFILES))
         )
     return PROFILES[name]
+
+
+def selected_reasoning_effort() -> str | None:
+    value = os.getenv("AGENT_EVAL_REASONING_EFFORT", "").strip().lower()
+    if not value:
+        return None
+    if value not in SUPPORTED_REASONING_EFFORTS:
+        raise ValueError(
+            "AGENT_EVAL_REASONING_EFFORT must be one of: "
+            + ", ".join(sorted(SUPPORTED_REASONING_EFFORTS))
+        )
+    return value
 
 
 def candidate_guidance_source() -> GuidanceSource:
@@ -837,7 +854,9 @@ def record_review(
     spec_path = SPEC_ROOT / spec_file
     human_questions = extract_section(spec_path, "## Human review")
     value = run.value
-    prompt = value.prompt if value is not None else "(Run failed before prompt execution.)"
+    prompt = (
+        value.prompt if value is not None else "(Run failed before prompt execution.)"
+    )
     response = value.response if value is not None else "(No assistant response.)"
     guidance_name = value.guidance_name if value is not None else None
     guidance_revision = value.guidance_revision if value is not None else None
@@ -1030,8 +1049,7 @@ def _project_config_for_profile(
     config_root = artifact_root / "config"
     config_root.mkdir(parents=True, exist_ok=True)
     target = (
-        config_root
-        / f"{profile.name}-{source_sha[:16]}-{PROFILE_CONFIG_VERSION}.json"
+        config_root / f"{profile.name}-{source_sha[:16]}-{PROFILE_CONFIG_VERSION}.json"
     )
     rendered = json.dumps(projection, indent=2, sort_keys=True) + "\n"
     if not target.exists() or target.read_text() != rendered:
@@ -1113,6 +1131,8 @@ def apply_fixture(workspace: Path, fixture_id: str, branch_variant: str) -> None
         _fixture_requirement_scope(workspace, branch_variant)
     elif fixture_id == "testing-strategy":
         _fixture_testing_strategy(workspace, branch_variant)
+    elif fixture_id == "status-labels":
+        _fixture_status_labels(workspace, branch_variant)
     else:
         raise KeyError(f"unknown fixture: {fixture_id}")
 
@@ -1134,10 +1154,7 @@ def _fixture_js_single_file_tool(workspace: Path, branch_variant: str) -> None:
             encoding="utf-8",
         )
     if branch_variant in {"generated-typo", "generated-typo-failing-generator"}:
-        prepared = (
-            workspace
-            / "docs_site/prepared/plugins/js-single-file-tool/index.md"
-        )
+        prepared = workspace / "docs_site/prepared/plugins/js-single-file-tool/index.md"
         prepared.parent.mkdir(parents=True, exist_ok=True)
         prepared.write_text(
             "<!-- generated from plugins/js-single-file-tool/README.md -->\n\n"
@@ -1381,8 +1398,17 @@ Defines request delivery, retryable transport errors, and idempotency keys.
 Defines durable record encoding, schema migration, and recovery boundaries.
 """,
     }
-    if branch_variant in {"approved-task", "approved-task-single-decisions"}:
-        files["tasks/batch-offline-sync.md"] = """# Batch offline synchronization
+    task_variants = {
+        "approved-task",
+        "approved-task-single-decisions",
+        "terminology-task-number",
+        "terminology-sequence-label",
+        "terminology-evaluative-wording",
+    }
+    if branch_variant in task_variants:
+        files[
+            "tasks/batch-offline-sync.md"
+        ] = """# Batch offline synchronization
 
 Status: Approved
 
@@ -1396,10 +1422,40 @@ Status: Approved
 
 Specification and requirements are authorized. Do not implement the protocol.
 """
-        if branch_variant == "approved-task-single-decisions":
-            files["tasks/batch-offline-sync.md"] += """
+        if branch_variant in {
+            "approved-task-single-decisions",
+            "terminology-task-number",
+            "terminology-sequence-label",
+            "terminology-evaluative-wording",
+        }:
+            files[
+                "tasks/batch-offline-sync.md"
+            ] += """
 Record material decisions in one `decisions.md` file. Do not create a
 `decisions/` directory or separate decision-record files.
+"""
+        if branch_variant == "terminology-task-number":
+            files[
+                "tasks/batch-offline-sync.md"
+            ] += """
+
+The conversation refers to this approved specification work as `Task 010`.
+"""
+        elif branch_variant == "terminology-sequence-label":
+            files[
+                "tasks/batch-offline-sync.md"
+            ] += """
+
+The conversation refers to this first approved specification delivery as
+`Stage A`.
+"""
+        elif branch_variant == "terminology-evaluative-wording":
+            files[
+                "tasks/batch-offline-sync.md"
+            ] += """
+
+The user described the requested specification as a useful, portable first
+version. The approved capability and requirements remain those listed above.
 """
     elif branch_variant != "base":
         raise KeyError(f"unknown batch-sync variant: {branch_variant}")
@@ -1541,6 +1597,105 @@ whitespace.
 """,
         },
     )
+
+
+def _fixture_status_labels(workspace: Path, branch_variant: str) -> None:
+    files = {
+        ".gitignore": """__pycache__/
+*.pyc
+.pytest_cache/
+""",
+        "packages/status-labels/README.md": """# status-labels
+
+`is_terminal(status)` reports whether a status has finished.
+""",
+        "packages/status-labels/src/status_labels.py": """def is_terminal(status):
+    return status in {"done", "failed"}
+""",
+        "packages/status-labels/tests/conftest.py": SYNTHETIC_SRC_CONFTEST,
+        "packages/status-labels/tests/test_status_labels.py": """from status_labels import is_terminal
+
+
+def test_terminal_statuses():
+    assert is_terminal("done") is True
+    assert is_terminal("in_progress") is False
+""",
+        "packages/status-labels/docs/development/status-labels.md": """# Status-label implementation
+
+`is_terminal(status)` recognizes `done` and `failed` as terminal values.
+""",
+        "packages/status-labels/docs/development/specifications/status-labels/index.md": """# Status labels
+
+- [Technical specification](technical-spec.md)
+- [Requirements](requirements.md)
+""",
+        "packages/status-labels/docs/development/specifications/status-labels/technical-spec.md": """# Technical specification
+
+The package exposes a public callable that returns display labels for machine
+status values:
+
+- `in_progress` becomes `In progress`;
+- `done` becomes `Done`.
+
+The public behavior does not require a particular Python function name.
+Existing `is_terminal(status)` behavior remains compatible.
+Values without a defined display label raise `KeyError`.
+""",
+        "packages/status-labels/docs/development/specifications/status-labels/requirements.md": """# Requirements
+
+| ID | Requirement | Implementation | Verification | Documentation | Primary evidence |
+|---|---|---|---|---|---|
+| STATUS-001 | Terminal status detection remains available. | Implemented | Automated | Documented | `tests/test_status_labels.py::test_terminal_statuses` |
+| STATUS-002 | Machine status values have display labels. | Not started | Unverified | Pending | — |
+""",
+    }
+    task_variants = {
+        "terminology-task-number",
+        "terminology-sequence-label",
+        "terminology-evaluative-wording",
+    }
+    if branch_variant in task_variants:
+        files[
+            "tasks/status-label-formatting.md"
+        ] = """# Status label formatting
+
+Status: Approved
+
+## Requirements checklist
+
+- [ ] Implement the pending `STATUS-002` display-label behavior.
+- [ ] Preserve the established `is_terminal(status)` API and behavior.
+- [ ] Add focused tests and keep `STATUS-002` visible beside the assertion it
+      verifies.
+- [ ] Verify that a value without a defined display label raises `KeyError`.
+- [ ] Update requirement evidence and current developer documentation.
+- [ ] Leave the README and target specification unchanged.
+"""
+        if branch_variant == "terminology-task-number":
+            files[
+                "tasks/status-label-formatting.md"
+            ] += """
+
+The conversation refers to this approved change as `Task 010`.
+"""
+        elif branch_variant == "terminology-sequence-label":
+            files[
+                "tasks/status-label-formatting.md"
+            ] += """
+
+The conversation refers to this approved change as `Stage A`.
+"""
+        else:
+            files[
+                "tasks/status-label-formatting.md"
+            ] += """
+
+The user described this as a useful, portable status-label addition. The
+approved behavior remains the `STATUS-002` outcome above.
+"""
+    elif branch_variant != "base":
+        raise KeyError(f"unknown status-labels variant: {branch_variant}")
+    _write_synthetic_fixture(workspace, files)
 
 
 def _fixture_sync_engine(workspace: Path, branch_variant: str) -> None:
@@ -1712,7 +1867,9 @@ provider- or plugin-specific types.
 """,
     }
     if branch_variant == "local-option":
-        files["tasks/ui-options-local-testing.md"] = """# Local option visibility testing
+        files[
+            "tasks/ui-options-local-testing.md"
+        ] = """# Local option visibility testing
 
 Status: Approved
 
@@ -1720,7 +1877,9 @@ Prepare the testing strategy for implementing the option-visibility target in
 `plugins/ui-options`. Do not implement the change or edit test code.
 """
     elif branch_variant == "cross-layer":
-        files["tasks/ui-options-delivery-testing.md"] = """# Option delivery testing
+        files[
+            "tasks/ui-options-delivery-testing.md"
+        ] = """# Option delivery testing
 
 Status: Approved
 

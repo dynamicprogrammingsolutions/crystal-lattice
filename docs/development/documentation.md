@@ -101,30 +101,59 @@ should not present that target as available.
 
 ## Write pages readers can use
 
-Introduce a term before relying on it. Prefer the vocabulary already used by
-the product, package, or programming interface. When a specialized term is
-necessary, define it close to its first use.
+Input material is a request, conversation, existing file, specification, or
+review note. The destination is the maintained artifact being written. A file
+can fill either role in different changes.
 
-Use concrete examples for tasks that are easier to understand by seeing them:
+Introduce terms before relying on them. Prefer product, package, or interface
+vocabulary, and define specialized terms near first use.
 
-- installation followed by a successful command;
-- configuration followed by the resulting behavior;
-- an API call followed by its relevant return value;
-- a failure followed by the recovery action.
+Marked examples illustrate individual transfers, not a complete list.
 
-Verify commands, code, configuration, and expected results against current
-implementation or tests. Do not preserve an example merely because it already
-exists in another page.
+1. Input material can define an outcome without naming the destination.
 
-Name the thing being discussed: page, specification, requirement, test result,
-generated file, build output, or source code. Precise names make headings and
-instructions easier to understand.
+   *Example:* A request for “calmer retries” may mean two delayed attempts; it
+   does not establish `calm_retry`.
 
-Write for the reader of the destination page. User documentation explains
-available behavior in user language. Planning and implementation tracking
-stays in specifications, requirements, tasks, and temporary developer notes.
-Translate a current limitation when users need it; do not copy internal
-tracking vocabulary merely because it was available to the author.
+2. Input wording, labels, examples, and organization provide context; they do
+   not transfer automatically.
+
+   *Example:* A review may group defects under “amber set.” A release note
+   names the corrected behaviors instead.
+
+3. Retain exact wording when required or established by the product, interface,
+   or domain, not merely present in a file.
+
+   *Example:* Documentation and tests retain an established `--dry-run` flag.
+
+4. Otherwise explain or translate terminology into the destination's behavior,
+   component, condition, outcome, or relationship.
+
+   *Example:* “Stuck work” may become “jobs waiting for retry,” or a defined
+   queue state when one exists.
+
+Apply the rules according to the destination:
+
+- Task-local terms may remain when defined; other records use the descriptive
+  task title and full path.
+- Specifications, requirements, and decisions use domain terms and descriptive
+  links. Input descriptions become requirements only when their observable
+  meaning is defined.
+- Source-code and test identifiers name behavior. Requirement IDs include an
+  explanation of the assertion they trace.
+- Developer documentation defines needed specification terms and explains
+  current implementation without requiring linked records.
+- User documentation describes supported behavior, replaces inherited internal
+  grouping, and omits internal future work.
+- Headings, filenames, identifiers, and commit or pull-request titles name
+  changed behavior, not input-local labels.
+
+Use verified examples when input and result clarify installation,
+configuration, an API, or recovery. Check them against current implementation
+or tests.
+
+Write for the destination reader, keep tracking in its owning records, and
+translate current limitations when users need them.
 
 ## Specifications, requirements, and tasks
 
