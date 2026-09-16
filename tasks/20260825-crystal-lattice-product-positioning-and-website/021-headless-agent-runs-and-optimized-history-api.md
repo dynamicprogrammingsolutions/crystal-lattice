@@ -1130,11 +1130,12 @@ GitHub Actions workflow.
   `glm-5.3-flash:cloud` delegation test passed in 94.45 seconds. Complete
   mobile and desktop Jest suites passed with 181 and 144 tests respectively;
   the final application suite passed 481 tests with one intentional skip.
-- A project-local secret updater and its allowlisted dotenv live under the
-  ignored `.crystal/github-actions-secrets/` directory. The updater imports
-  only `OPENROUTER_API_KEY`, rejects unexpected local dotenv keys, uses file
-  mode `0600`, and sends the value to `gh secret set` over stdin. The
-  repository Actions secret was populated without adding worktree changes.
+- A project-local secret updater and its dedicated dotenv live under the
+  ignored `.crystal/github-actions-secrets/` directory. The simple shell
+  wrapper passes the complete colocated dotenv to `gh secret set --env-file`,
+  so additional repository secrets require only another dotenv entry and a
+  rerun. It enforces file mode `0600`, and the repository Actions secrets are
+  populated without adding worktree changes.
 - Secret-enabled run
   [35061039335](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/35061039335)
   passed the real CLI+SDK gate on both Linux and both macOS targets. Windows
@@ -1431,10 +1432,11 @@ evidence, and remove the temporary Detox test before completion.
   runs passed, as did the sparse `glm-5.3-flash:cloud` delegation test. The
   one-off Detox run proved full, CLI-only, and unavailable controls and left
   no permanent test harness.
-- **Secret handling:** A local updater and allowlisted dotenv are stored under
+- **Secret handling:** A local updater and dedicated dotenv are stored under
   ignored `.crystal/github-actions-secrets/`, with modes `0700` and `0600`.
-  The updater sends only `OPENROUTER_API_KEY` to the repository Actions secret
-  over stdin. No credential appears in tracked changes. The repository secret
+  The updater passes every entry in that file to repository Actions secrets
+  through `gh secret set --env-file`; adding another secret requires no script
+  change. No credential appears in tracked changes. The repository secret
   remains configured for release and explicitly enabled dispatch runs.
 - **Verification:** Core, application, Claude tools, frontend SDK/React/shared
   RN, complete mobile and desktop Jest suites, focused distribution/config/UI
