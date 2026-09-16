@@ -557,6 +557,47 @@ Do not overwrite or independently reproduce that branch's work.
   run because subtask 068 has not applied the canonical/bundled task-guidance
   change. The combined verification checklist remains incomplete for that
   reason.
+- September 16, 2026: replaced the proposed runtime candidate renderer with
+  committed complete fixture sets under
+  `maintainer/agent-evaluation/suites/documentation_standard/fixtures/destination_terminology_guidance_sets/`.
+  The suite continues to use its existing current-guidance or explicit
+  directory selection; no production or general evaluation runtime changed.
+- Added a fifth `contextual` wording family. It defines context as where
+  wording comes from, where it is used, and its audience; distinguishes source
+  context; and uses explicit file or record language where context alone would
+  be ambiguous.
+- Added a small deterministic fixture compiler and generated 11 complete
+  roots: the committed checkpoint plus generic and specific forms of five
+  wording families. The output contains 77 files and is approximately 812 KB.
+  Every set includes the six supported guidance paths and a stable manifest.
+- Renamed the fixture directory, deterministic test, test plan, review record,
+  and index links so their destination-terminology scope is explicit.
+- Removed the hardcoded Git revision from the compiler, manifests, and tests.
+  `option-a-checkpoint` is a maintained snapshot fixture used only to compile
+  the candidate sets. Repository-current behavior continues to use the
+  evaluator's normal `candidate` guidance source.
+- Completed semantic inspection of every compiled root policy and guide
+  section, all checkpoint diffs, and all generic/specific diffs. Review found
+  and corrected excessive marker-removal spacing, an abstract initial context
+  definition, and one awkward line wrap. Independent human review and
+  first-real-branch provenance checks remain pending.
+- Added six deterministic fixture tests covering reproducible compilation,
+  manifest and `GuidanceSource` agreement, changed-file boundaries,
+  generic/specific pairing, shared held-out examples, and contextual
+  definition-before-use.
+- Fixture-preparation verification:
+  - all 78 `maintainer/agent-evaluation/tests` passed;
+  - focused and full Ruff checks passed;
+  - focused mypy passed;
+  - Black reformatted the two new Python files and its focused check then
+    passed;
+  - `compile.py --check`, Python compilation, Markdown links, fixture
+    whitespace, and `git diff --check` passed.
+- Full package mypy still reports two pre-existing assignment errors at
+  `maintainer/agent-evaluation/tests/test_documentation_standard_suite.py:377`
+  and `:378`. The new compiler and fixture test are type-clean.
+- No real-model evaluation or temporary parallel launcher was started during
+  fixture preparation.
 
 ## Execution plan
 
@@ -744,8 +785,97 @@ This step is distinct from the earlier experimental Candidate A.
 8. Present the changed guidance and representative before/after outputs for
    explicit human review.
 
+### 10. Compare versioned generic and specific guidance
+
+The checkpoint before this comparison is commit
+`ebde9ab0c1b0a098104accb86815e53612938e3e`. Do not edit the public
+`AGENTS.md` or documentation guide while testing wording alternatives.
+
+Complete committed guidance sets, their maintained source sections, and the
+destination-terminology test plan live under
+`maintainer/agent-evaluation/suites/documentation_standard/fixtures/destination_terminology_guidance_sets/`.
+
+1. Compile complete candidate roots from the maintained
+   `option-a-checkpoint` fixture and commit the resulting directories for later
+   reproduction. Tests select either current repository guidance or one
+   supplied guidance-set directory.
+2. Compare five general-wording families:
+   - the current abstract grouping terms as a control;
+   - explicit action-first wording;
+   - wording centered on each file, its readers, and interfaces;
+   - an explicit list of maintained contexts;
+   - a concise `context` form that defines context, source context, and
+     audience before use.
+3. Compile every family in both generic-only and comprehensive-specific modes.
+4. Run, inspect, and record every generic-only candidate before starting any
+   comprehensive-specific run.
+5. Keep prevention and remediation in separate scenarios:
+   - Tests 30 and 31 verify that terms do not enter new records;
+   - a new focused scenario verifies removal of a term already present in an
+     edited current page;
+   - Test 13 remains unchanged as broader combined integration coverage.
+6. Use the same examples, prompts, fixtures, tools, assertions, and profiles
+   across wording candidates. Example boundary descriptions remain in
+   maintainer analysis only and are not included in injected guidance.
+7. Use temporary task-local orchestration to run up to five processes per
+   provider concurrently, with no more than ten total and no duplicate
+   provider/candidate/mode/effort/cache combination. Do not commit the launcher
+   unless it proves a reusable, non-trivial capability.
+8. Compare each specific candidate directly with its generic counterpart.
+   Specific rules should improve model or effort variants that did not respond
+   to the corresponding generic wording.
+9. Test the selected generic and specific candidates with fresh high-effort
+   repeats and low/max sentinels before proposing a public-file update.
+10. Update the master files only after behavioral comparison and human
+    selection. Consolidate overlapping public prose rather than copying the
+    longer experimental specific version wholesale.
+11. Keep task-guidance changes as a later comparison through subtask 068.
+12. Verify compiled sets mechanically and through complete human review.
+    Confirm the recorded manifest and injection provenance during the first
+    real-model branch for each set before running the rest of its matrix.
+
 ### Implementation decisions and open questions
 
+- **Approved follow-up direction (September 15, 2026):** retain the
+  rule/example structure, but test whether explicitly naming requests, tasks,
+  specifications, files, code, tests, and documentation is more effective than
+  the grouping terms `input material`, `destination`, and `artifact`.
+- Approved: preventing a term from entering a new record and removing a term
+  already present in edited content are separate rules and receive separate
+  focused tests.
+- Approved: examples cover varied boundaries with wording natural to the
+  originating context. Boundary labels used during analysis do not appear in
+  public examples.
+- Approved: all generic-only candidates are run and recorded before the
+  comprehensive specific-rule section is injected. Each wording family is
+  then tested both without and with that same specific section.
+- Approved: task and requirement references are specific rules, not changes to
+  a generic example. Task-file guidance about retaining and referencing task
+  terms remains a later improvement through subtask 068.
+- Approved: root `AGENTS.md` candidates may contain several concise examples
+  covering prevention, remediation, and preservation, while the complete root
+  documentation policy remains at most 300 words.
+- Approved: candidate document versions are complete isolated guidance roots
+  compiled from a maintained snapshot fixture; public master files change only
+  after comparison and human selection.
+- **Approved simplification (September 16, 2026):** maintain source sections
+  and a small deterministic compiler beside the documentation-standard tests,
+  commit every complete compiled guidance root as a fixture, and select a set
+  by directory during evaluation. Do not add a general orchestration framework
+  for this one-off comparison.
+- Approved: deterministic fixture tests do not pin a Git commit. Historical
+  provenance belongs in task and result records; current repository guidance
+  remains a separate selectable source.
+- Approved: add a fifth wording family that defines `context`, `source
+  context`, and `audience`, then uses those terms where repeating every
+  concrete context would be longer or less clear.
+- Approved: empirical consistency review includes complete generated-file and
+  pairwise-diff inspection plus provenance confirmation in the first real
+  branch for each set; mechanical generation checks alone are insufficient.
+- Approved: hosted execution may use up to five concurrent evaluations per
+  provider, ten total.
+- Approved: parallel-launch code remains temporary and uncommitted unless it
+  develops a reusable, non-trivial capability.
 - **Initial decision (approved September 15, 2026): choose Option A.** Define
   input material and maintained destination before the rules, pair each general
   rule with an explicitly marked portable example, and keep
@@ -791,6 +921,9 @@ This step is distinct from the earlier experimental Candidate A.
   `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
 - `maintainer/specifications/documentation-and-specification-standard/`
 - affected agent-behavior scenario contracts and dated results
+- compiled terminology fixtures, source sections, compiler, and test plan under
+  `maintainer/agent-evaluation/suites/documentation_standard/fixtures/destination_terminology_guidance_sets/`
+- deterministic fixture tests under `maintainer/agent-evaluation/tests/`
 - this task and the parent task
 
 No substantive Crystal Lattice conventions change is planned.
@@ -813,7 +946,6 @@ No substantive Crystal Lattice conventions change is planned.
 - [x] Add Candidate B's six concise file-role applications.
 - [ ] Apply Candidate B's task-specific rule through
   `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`.
-- [ ] Run and inspect the Candidate B matrix.
 - [x] Run and inspect the Candidate B matrix.
 - [x] Expand guidance only if repeated evidence requires it.
 - [x] Record the approved Option A and considered Options B–C.
@@ -822,6 +954,27 @@ No substantive Crystal Lattice conventions change is planned.
 - [x] Rerun and inspect the unchanged matrix after Option A.
 - [ ] Run deterministic, task-guidance, link, preparation, and build checks.
 - [x] Record dated evidence and update live requirement state.
+- [x] Commit the verified Option A checkpoint.
+- [x] Create versioned general and root guidance candidate sources.
+- [x] Create the shared comprehensive specific-rule candidate.
+- [x] Draft the split generic/specific candidate test plan.
+- [x] Record the five-process-per-provider execution limit.
+- [x] Obtain review of the candidate wording, version layout, and test plan.
+- [x] Move candidate sources beside the documentation-standard tests.
+- [x] Give the fixture path, test plan, review, and deterministic test explicit
+  destination-terminology names.
+- [x] Add the defined-context wording family.
+- [x] Implement deterministic candidate compilation.
+- [x] Remove Git-revision coupling from the compiler and tests.
+- [x] Compile the checkpoint and ten complete candidate fixture roots.
+- [x] Add deterministic compiler, manifest, pairing, and example checks.
+- [x] Complete semantic review of every compiled root and pairwise diff.
+- [ ] Obtain independent human review of the compiled fixtures.
+- [ ] Add the focused inherited-terminology remediation scenario.
+- [ ] Run and record all generic-only candidates.
+- [ ] Run and record all comprehensive-specific candidates.
+- [ ] Repeat the strongest candidates across selected reasoning efforts.
+- [ ] Select and apply the final public guidance.
 - [ ] Obtain human review.
 
 ### Requirement verification

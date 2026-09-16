@@ -146,6 +146,27 @@ pytest maintainer/agent-evaluation/suites/documentation_standard \
 
 Do not change the task prompt, fixture, or assertions between guidance variants.
 
+Committed terminology candidates live under
+`suites/documentation_standard/fixtures/destination_terminology_guidance_sets/sets/`.
+For example:
+
+```bash
+GUIDANCE_SET_ROOT="$PWD/maintainer/agent-evaluation/suites/documentation_standard/fixtures/destination_terminology_guidance_sets/sets"
+
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_PROFILE=glm \
+AGENT_EVAL_GUIDANCE_VARIANT=contextual-generic \
+AGENT_EVAL_GUIDANCE_DIR="$GUIDANCE_SET_ROOT/contextual-generic" \
+pytest maintainer/agent-evaluation/suites/documentation_standard \
+  -m "agent_eval and routine" -q
+```
+
+The complete sets and their manifests are committed for reproduction.
+Regenerate them from their maintained source sections with
+`fixtures/destination_terminology_guidance_sets/compile.py` and use
+`compile.py --check` in deterministic verification. See the fixture README and
+destination-terminology test plan before running the terminology matrix.
+
 For a fresh stochastic repetition with the same seed, task, fixture, guidance,
 assertions, and model, set a unique branch cache label:
 

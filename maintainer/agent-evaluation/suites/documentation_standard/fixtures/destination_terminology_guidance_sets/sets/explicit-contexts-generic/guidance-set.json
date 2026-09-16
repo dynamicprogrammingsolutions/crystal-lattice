@@ -1,0 +1,42 @@
+{
+  "base_set": "option-a-checkpoint",
+  "combined_sha256": "421fed7aca9a99319103e9b3b7f2afe993f59905c1cf897ef9c549ecbed4d498",
+  "family": "explicit-contexts",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "f3f3eaeee403670db0f9bf2991c827826edafc2a0ed875fa9754f208d8b2328e"
+    },
+    {
+      "path": "docs/development/index.md",
+      "sha256": "360499e5cf5aa476c9a08d16c90a29f634ad4b77fb0587d9a1bb867bc62a2a75"
+    },
+    {
+      "path": "docs/development/documentation.md",
+      "sha256": "7cd6d048cc73b41e5e171d243f86311a9433ffd6eab242bd91cc5dc9ff8fb796"
+    },
+    {
+      "path": "docs/development/crystal-lattice-documentation.md",
+      "sha256": "9dfb5117f599980eef621972200d79a75024c8213f54344fe2c3dcb030a01100"
+    },
+    {
+      "path": "plugins/AGENTS.md",
+      "sha256": "0b1f492f269639a99293cd2ac788c702f4c904b0520d92517f72fa7e98e867dc"
+    },
+    {
+      "path": "plugins/docs/AGENTS.md",
+      "sha256": "200b0fb4702ef42de977b01c9d25507f0371008bf534e7cebe26cee48c8078f2"
+    }
+  ],
+  "rule_mode": "generic",
+  "schema": 1,
+  "set_id": "explicit-contexts-generic",
+  "source_files": {
+    "sources/explicit-contexts/agents-section.md": "369e223d45495dcf5b95555d9d3088377291a040e67ce61c52f4da27a0b6ac3f",
+    "sources/explicit-contexts/documentation-section.md": "31940dd30a78453f29e205b471f0c07ea6c6f7d77b9c316f55480f75ee207a33"
+  },
+  "word_counts": {
+    "portable_guide": 2178,
+    "root_documentation_policy": 300
+  }
+}

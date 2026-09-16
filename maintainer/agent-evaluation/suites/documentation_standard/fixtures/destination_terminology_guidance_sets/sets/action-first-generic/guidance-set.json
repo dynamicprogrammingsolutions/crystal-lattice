@@ -1,0 +1,42 @@
+{
+  "base_set": "option-a-checkpoint",
+  "combined_sha256": "27df7d84405506cecb80472e0d5df2a4d22fccb56da6188464a6f92e72a76f8a",
+  "family": "action-first",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "b36c3648a2d6a92ff6435d2ac4fcddf4b39c43f3263eaf42c551a97877f23e96"
+    },
+    {
+      "path": "docs/development/index.md",
+      "sha256": "360499e5cf5aa476c9a08d16c90a29f634ad4b77fb0587d9a1bb867bc62a2a75"
+    },
+    {
+      "path": "docs/development/documentation.md",
+      "sha256": "1a41302b72d2d486fd3c477f5240ca0afa20ef0396a0cf6d932ecaed85b05288"
+    },
+    {
+      "path": "docs/development/crystal-lattice-documentation.md",
+      "sha256": "9dfb5117f599980eef621972200d79a75024c8213f54344fe2c3dcb030a01100"
+    },
+    {
+      "path": "plugins/AGENTS.md",
+      "sha256": "0b1f492f269639a99293cd2ac788c702f4c904b0520d92517f72fa7e98e867dc"
+    },
+    {
+      "path": "plugins/docs/AGENTS.md",
+      "sha256": "200b0fb4702ef42de977b01c9d25507f0371008bf534e7cebe26cee48c8078f2"
+    }
+  ],
+  "rule_mode": "generic",
+  "schema": 1,
+  "set_id": "action-first-generic",
+  "source_files": {
+    "sources/action-first/agents-section.md": "6369f9f4089cf76dad7683e4ba620a2e00be91dedb7b425c956e103002461f40",
+    "sources/action-first/documentation-section.md": "fa5af1620af1ee19792f533cc9d73f4d477785f21dd5c1bdc3c29572214d3a69"
+  },
+  "word_counts": {
+    "portable_guide": 2179,
+    "root_documentation_policy": 300
+  }
+}

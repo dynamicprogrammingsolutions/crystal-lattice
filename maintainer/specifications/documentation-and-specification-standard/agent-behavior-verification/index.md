@@ -14,6 +14,9 @@ Latest comparison:
 - [September 14, 2026 guidance follow-up results](20260914-guidance-followup-results.md)
 - [September 12, 2026 guidance rewrite results](20260912-guidance-rewrite-results.md)
 - [September 15, 2026 example-backed terminology results](20260915-example-backed-terminology-results.md)
+- [Destination-terminology guidance sets](../../../agent-evaluation/suites/documentation_standard/fixtures/destination_terminology_guidance_sets/README.md)
+  and their
+  [Destination-terminology test plan](../../../agent-evaluation/suites/documentation_standard/fixtures/destination_terminology_guidance_sets/DESTINATION_TERMINOLOGY_TEST_PLAN.md)
 
 Several scenarios deliberately create boundary pressure. The agent may have
 internal context unavailable to the destination audience, receive a request
