@@ -30,12 +30,10 @@ These requirements track the live implementation of the
 | HLR-080 | Default system-message configuration contains explicit full CLI+SDK and CLI-only access text with mutually exclusive predicates; helper code owns only validation, gating, and UI contribution. | Implemented | Automated | Documented | Default-config inspection and all-agent compilation tests; [system-message configuration](../../../configuration-system-messages.md) |
 | HLR-081 | The access UI identifies full or CLI-only mode and remains visible but disabled with a concrete reason when no valid CLI capability exists; a persisted true override cannot compile invalid guidance. | Implemented | Automated | Documented | Helper predicate/UI, terminal rejection, and mobile/desktop component tests; [external-project guidance](../../../headless-agent-runs.md#let-a-configured-agent-delegate-from-another-project) |
 | HLR-082 | Source, direct archive/manual, Bash-installed, and PowerShell-installed runtimes execute deterministic tasks through both their real CLI and Python SDK entry points and verify every required access value on applicable native targets. | Implemented | Automated | Documented | Clean macOS ARM64 source smoke plus all native archives/installers passed in [run 34999315316](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34999315316); cross-reference CLI distribution requirements |
-| HLR-083 | A release-gated OpenRouter model uses production tools and config-owned guidance to create separately persisted child sessions through both CLI and SDK routes on all six native release targets without exposing its credential to tool or child environments. | Implemented | Native verification pending | Documented | Source and packaged macOS ARM64 runs passed with `anthropic/claude-haiku-4.5`; six-target workflow and secret-isolation assertions added |
+| HLR-083 | A release-gated OpenRouter model uses production tools and config-owned guidance to create separately persisted child sessions through both CLI and SDK routes on all six native release targets without exposing its credential to tool or child environments. | Implemented | Automated | Documented | `anthropic/claude-haiku-4.5` passed both routes on all six native targets in [run 35062591328](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/35062591328); tool-call, child-session, marker, runtime-identity, and credential-isolation assertions enforced |
 | HLR-084 | Permanent component coverage plus one-off Detox evidence verifies full, CLI-only, and unavailable native UI presentation and disabled behavior. | Implemented | Automated + one-off native | Documented | Mobile/desktop component tests; one-off iOS Detox run passed on iPhone 17 Pro and temporary harness/test changes were removed |
 
 ## Current-state note
 
-Requirements `HLR-080` through `HLR-082` and `HLR-084` are implemented,
-verified, and documented. `HLR-083` is implemented with local source and
-packaged macOS evidence; its remaining acceptance boundary is the
-secret-backed six-target native workflow.
+Requirements `HLR-080` through `HLR-084` are implemented, verified, and
+documented.

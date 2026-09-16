@@ -953,7 +953,7 @@ GitHub Actions workflow.
 - [x] Focused automated tests verify the access predicates, explicit config
       text, required values, compiled variants, and every supported source,
       archive/manual, Bash-installed, and PowerShell-installed runtime path.
-- [ ] One real tool-capable LLM follows the config-owned guidance and creates
+- [x] One real tool-capable LLM follows the config-owned guidance and creates
       distinct persisted child sessions through both the CLI and Python SDK on
       every native release target. Textual claims without tool and child
       session evidence fail.
@@ -1144,7 +1144,14 @@ GitHub Actions workflow.
   `printf` syntax. The superseded run was cancelled before Windows ARM64 made
   another hosted call. Claude Bash now emits native PowerShell or `cmd`
   wrappers and parses CRLF sentinels, with focused package coverage; native
-  rerun evidence remains pending.
+  rerun evidence remained pending at that point.
+- Corrected secret-enabled run
+  [35062591328](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/35062591328)
+  passed the real CLI and Python SDK routes on Linux AMD64/ARM64, macOS
+  AMD64/ARM64, and Windows AMD64/ARM64. Every target recorded production Bash
+  tool-call evidence, two distinct completed worker sessions, expected worker
+  markers, exact packaged runtime/config/session identity, and no provider
+  credential in model-controlled or child state.
 
 ### Draft execution plan
 
@@ -1345,7 +1352,7 @@ evidence, and remove the temporary Detox test before completion.
       Ollama timing comparison.
 - [x] Run focused, package, native-distribution, documentation, and security
       verification.
-- [ ] Update requirement evidence and add immutable post-follow-up completion
+- [x] Update requirement evidence and add immutable post-follow-up completion
       evidence.
 
 #### Requirement verification
@@ -1396,3 +1403,47 @@ evidence, and remove the temporary Detox test before completion.
 - Execute the real provider gate with the required environment flag and key;
   a skip is not acceptance. Report provider outages separately without
   replacing the real scenario with a mock.
+
+### Follow-up completion notes
+
+- **Outcome:** The approved follow-up is complete. External projects receive
+  validated full CLI+SDK or CLI-only access guidance from explicit config;
+  unavailable controls remain visible and disabled. Deterministic requests
+  pass through every supported source/archive/installer path, and real
+  model-mediated CLI and SDK delegation passes on all six native release
+  targets.
+- **Native evidence:** Deterministic run
+  [34999315316](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34999315316)
+  passed every native archive and applicable Bash/PowerShell installer.
+  Secret-backed run
+  [35062591328](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/35062591328)
+  passed both real delegation methods on all six targets. The real scenario
+  enforces persisted child sessions, production tool-call arguments, worker
+  markers, packaged runtime identity, and credential isolation.
+- **Windows finding and correction:** The first secret-backed run exposed that
+  Claude Bash selected PowerShell but wrapped foreground commands with POSIX
+  syntax. The tool now emits native PowerShell or `cmd` wrappers and parses
+  CRLF sentinels. The complete Claude tools suite passed 142 tests, focused
+  adjacent application coverage passed 20 tests, and the corrected native
+  run proves both Windows architectures.
+- **Local and UI evidence:** Clean source, direct macOS archive, and public
+  Bash installer CLI+SDK smokes passed. Real source and packaged OpenRouter
+  runs passed, as did the sparse `glm-5.3-flash:cloud` delegation test. The
+  one-off Detox run proved full, CLI-only, and unavailable controls and left
+  no permanent test harness.
+- **Secret handling:** A local updater and allowlisted dotenv are stored under
+  ignored `.crystal/github-actions-secrets/`, with modes `0700` and `0600`.
+  The updater sends only `OPENROUTER_API_KEY` to the repository Actions secret
+  over stdin. No credential appears in tracked changes. The repository secret
+  remains configured for release and explicitly enabled dispatch runs.
+- **Verification:** Core, application, Claude tools, frontend SDK/React/shared
+  RN, complete mobile and desktop Jest suites, focused distribution/config/UI
+  tests, documentation build, workflow security, Ruff, Black, original
+  access-surface typechecks, JSON validation, and whitespace checks passed.
+  Targeted Claude package Pyright, repository-wide Pyright, and desktop
+  lint/typecheck retain unrelated pre-existing baseline failures recorded
+  above.
+- **Scope boundary:** This delivers natural synchronous CLI and Python SDK
+  delegation with persisted sessions and compact history. Persistent parent-
+  child orchestration, detached lifetime, recovery semantics, and HTTP/TS
+  compact-history expansion remain outside this follow-up.
