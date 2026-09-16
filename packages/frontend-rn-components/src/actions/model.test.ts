@@ -50,7 +50,7 @@ describe('buildActionsMenuModel', () => {
     expect(model.visibleOverflow.map((def) => def.key)).toEqual(['b']);
   });
 
-  it('stable-sorts combined base and extra actions by numeric order', () => {
+  it('keeps program actions above plugin actions and sorts within each group', () => {
     const model = buildActionsMenuModel({
       baseActions: [
         { key: 'reload', label: 'Reload', order: 0 },
@@ -69,13 +69,39 @@ describe('buildActionsMenuModel', () => {
 
     expect(model.orderedActions.map((def) => def.key)).toEqual([
       'reload',
+      'settings',
+      'unordered-base',
       'copy',
       'edit',
       'same-a',
       'same-b',
-      'settings',
-      'unordered-base',
       'unordered-extra',
+    ]);
+  });
+
+  it('retains global numeric order for the compact pinned representation', () => {
+    const model = buildActionsMenuModel({
+      baseActions: [
+        { key: 'reload', label: 'Reload', order: 0 },
+        { key: 'settings', label: 'Settings', order: 90 },
+      ],
+      extraActions: [
+        { key: 'model', label: 'Model', order: 10 },
+        { key: 'plugin', label: 'Plugin action', order: 20 },
+      ],
+      pinned: ['settings', 'model', 'plugin'],
+    });
+
+    expect(model.orderedActions.map((def) => def.key)).toEqual([
+      'reload',
+      'settings',
+      'model',
+      'plugin',
+    ]);
+    expect(model.visiblePinned.map((def) => def.key)).toEqual([
+      'model',
+      'plugin',
+      'settings',
     ]);
   });
 

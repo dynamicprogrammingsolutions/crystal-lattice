@@ -68,6 +68,12 @@ Middle-click any session tab to close it without selecting it. A three-finger
 click has the same behavior when macOS or a pointing-device utility maps that
 gesture to middle-click.
 
+Session-action pin choices are connection-scoped. Pinning or unpinning an
+action updates the other currently mounted tabs for that connection
+immediately; an older tab restored into the warm set reads the same persisted
+choice. Program actions are listed before plugin-contributed actions in the
+complete menu.
+
 Permanent order, the current preview, and the active Home or session workspace
 are restored after relaunch. Selecting or restoring a session tab attempts to
 reopen its saved connection while cached messages remain visible.

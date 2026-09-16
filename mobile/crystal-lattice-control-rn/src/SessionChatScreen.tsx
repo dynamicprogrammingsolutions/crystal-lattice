@@ -87,6 +87,7 @@ import {
   SessionListRichActionControl,
   SessionListRichActionList,
   SessionNotificationsHost,
+  ALL_SESSION_ACTIONS,
   SESSION_ACTIONS,
   LOCAL_WATCHLIST_SESSION_ACTION_KEY,
   buildLocalSessionActionDefinitions,
@@ -1983,16 +1984,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }),
     [currentSessionSummary, headerSessionActions, sessionId]
   );
-  const sessionActionDefs = useMemo(
+  const sessionProgramActionDefs = useMemo(
     () => [
+      ...ALL_SESSION_ACTIONS,
       ...MOBILE_REQUEST_SESSION_ACTIONS,
       ...buildLocalSessionActionDefinitions({
         watched: sessionWatched,
         includeNote: false,
       }),
-      ...pluginSessionActionDefs,
     ],
-    [pluginSessionActionDefs, sessionWatched]
+    [sessionWatched]
   );
 
   const pluginMessageActionDefs = useMemo(
@@ -4887,7 +4888,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                       : resumeRecoveryInProgress && action === "reload")
                   );
                 }}
-                extraActions={sessionActionDefs}
+                baseActions={sessionProgramActionDefs}
+                extraActions={pluginSessionActionDefs}
                 renderPinnedAction={renderPinnedHeaderSessionAction}
                 isActive={isActive}
                 modalContentStyle={styles.sessionActionsModalContent}

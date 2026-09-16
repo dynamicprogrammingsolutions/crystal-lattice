@@ -87,6 +87,13 @@ Watchlist membership remains independent from server pin state. The actions
 remain disabled until the local Home records finish hydrating, so a startup
 read cannot overwrite an early mutation.
 
+Desktop Chat session-action pinning uses
+`useSynchronizedPersistentPinnedActions`. Each connection retains its existing
+storage key, while the desktop event bus immediately distributes a user change
+to the other mounted Chat panes using that key. The originating pane remains
+the only persistence writer. A live update wins over an older storage read,
+and a pane mounted later hydrates from the persisted value.
+
 ## Panels
 
 `DesktopShell` has three columns:

@@ -167,6 +167,7 @@ import { useSessionStatusBarParts } from './useSessionStatusBarParts';
 import { usePersistedChatDraft } from './usePersistedChatDraft';
 import { useProactiveChatScrollPersistence } from './useProactiveChatScrollPersistence';
 import { openAttachmentMetadataWindow } from '../windows/attachmentMetadataCoordinator';
+import { useSynchronizedPersistentPinnedActions } from './useSynchronizedPersistentPinnedActions';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE =
@@ -671,7 +672,7 @@ export const ChatPane = React.memo(function ChatPane({
     pinned: pinnedSessionActionKeys,
     setPinned: setPinnedSessionActionKeys,
     hasStoredPreference: hasStoredSessionActionPreference,
-  } = usePersistentPinnedActions<ActionKey>({
+  } = useSynchronizedPersistentPinnedActions<ActionKey>({
     store: asyncStorageKeyValueStore,
     key: pinnedSessionActionsStorageKey,
     initialPinned: DEFAULT_PINNED_SESSION_ACTION_KEYS,

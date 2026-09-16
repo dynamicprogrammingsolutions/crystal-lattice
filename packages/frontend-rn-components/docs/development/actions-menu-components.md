@@ -3,6 +3,12 @@
 `ActionsMenuBar` composes built-in and plugin-contributed actions using stable
 keys. It supports complete-menu and pinned representations while leaving pin
 persistence and platform menu presentation to consuming applications.
+Program-defined `baseActions` are listed before plugin-defined
+`extraActions`. Numeric `order` values sort actions only within their owning
+group, so a plugin cannot move ahead of Settings, Snapshots, or another
+program action by declaring a lower order. This grouping applies to the
+complete list only; compact pinned controls retain their global numeric order
+so established toolbar and two-row composer layouts do not shift.
 
 The compact bar hosts pinned actions in a shrinkable, clipped flex viewport
 and hosts the overflow trigger in a separate non-shrinking slot. Consumers may
