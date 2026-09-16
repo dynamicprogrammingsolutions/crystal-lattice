@@ -1130,6 +1130,21 @@ GitHub Actions workflow.
   `glm-5.3-flash:cloud` delegation test passed in 94.45 seconds. Complete
   mobile and desktop Jest suites passed with 181 and 144 tests respectively;
   the final application suite passed 481 tests with one intentional skip.
+- A project-local secret updater and its allowlisted dotenv live under the
+  ignored `.crystal/github-actions-secrets/` directory. The updater imports
+  only `OPENROUTER_API_KEY`, rejects unexpected local dotenv keys, uses file
+  mode `0600`, and sends the value to `gh secret set` over stdin. The
+  repository Actions secret was populated without adding worktree changes.
+- Secret-enabled run
+  [35061039335](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/35061039335)
+  passed the real CLI+SDK gate on both Linux and both macOS targets. Windows
+  AMD64 copied the correct advertised PowerShell CLI command but exposed a
+  production Claude Bash defect: shell detection selected PowerShell while
+  foreground execution still wrapped every command in POSIX `eval`, `$?`, and
+  `printf` syntax. The superseded run was cancelled before Windows ARM64 made
+  another hosted call. Claude Bash now emits native PowerShell or `cmd`
+  wrappers and parses CRLF sentinels, with focused package coverage; native
+  rerun evidence remains pending.
 
 ### Draft execution plan
 

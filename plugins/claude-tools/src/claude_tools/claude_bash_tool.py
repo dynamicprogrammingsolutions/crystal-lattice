@@ -328,7 +328,8 @@ MAX_TIMEOUT_MS = 600_000
 SENTINEL_STATUS = "__CLAUDE_BASH_STATUS__:"
 SENTINEL_CWD = "__CLAUDE_BASH_CWD__:"
 SENTINEL_RE = re.compile(
-    rf"\n{re.escape(SENTINEL_STATUS)}(?P<status>-?\d+)\n{re.escape(SENTINEL_CWD)}(?P<cwd>[^\n]*)\n?$",
+    rf"\r?\n{re.escape(SENTINEL_STATUS)}(?P<status>-?\d+)\r?\n"
+    rf"{re.escape(SENTINEL_CWD)}(?P<cwd>[^\r\n]*)\r?\n?$",
     re.S,
 )
 
@@ -365,7 +366,35 @@ def _tool_result_block(
     }
 
 
-def _wrap_foreground_command(command: str) -> str:
+def _wrap_foreground_command(command: str, *, shell: ShellInfo) -> str:
+    if shell.name == "powershell":
+        quoted = "'" + command.replace("'", "''") + "'"
+        return (
+            f"$__crystal_command = {quoted}; "
+            "$global:LASTEXITCODE = 0; "
+            "Invoke-Expression $__crystal_command; "
+            "$__crystal_success = $?; "
+            "$__crystal_status = if ($__crystal_success) { "
+            "$LASTEXITCODE "
+            "} elseif ($LASTEXITCODE -ne 0) { "
+            "$LASTEXITCODE "
+            "} else { 1 }; "
+            "if ($null -eq $__crystal_status) { $__crystal_status = 0 }; "
+            "$__crystal_cwd = (Get-Location).Path; "
+            f'[Console]::Out.Write("`n{SENTINEL_STATUS}'
+            f'$__crystal_status`n{SENTINEL_CWD}$__crystal_cwd`n"); '
+            "exit 0"
+        )
+    if shell.name == "cmd":
+        return (
+            f"{command}\r\n"
+            'set "__CRYSTAL_STATUS=%ERRORLEVEL%"\r\n'
+            'set "__CRYSTAL_CWD=%CD%"\r\n'
+            f"echo.\r\necho {SENTINEL_STATUS}%__CRYSTAL_STATUS%\r\n"
+            f"echo {SENTINEL_CWD}%__CRYSTAL_CWD%\r\n"
+            "exit /b 0"
+        )
+
     quoted = shlex.quote(command)
     return (
         'ORIG_PWD="$PWD"; '
@@ -611,7 +640,7 @@ class ClaudeBashTool(ToolPlugin):
         working_directory: str,
     ) -> Dict[str, Any]:
         shell = _detect_login_shell()
-        wrapped = _wrap_foreground_command(command)
+        wrapped = _wrap_foreground_command(command, shell=shell)
         result = _run_async(
             run_shell_command(
                 wrapped,

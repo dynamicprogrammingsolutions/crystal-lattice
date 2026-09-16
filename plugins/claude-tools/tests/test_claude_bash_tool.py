@@ -42,14 +42,19 @@ from agent_core.tool_result_payloads import FORMAT_ANTHROPIC_MESSAGES, TOOL_RESU
 from claude_tools import ClaudeBashTool
 from claude_tools.claude_bash_tool import (
     BASH_DESCRIPTION,
+    SENTINEL_CWD,
+    SENTINEL_STATUS,
     _apply_cwd_lines,
     _bash_description_for_options,
     _cwd_for_storage,
     _last_bash_end_cwd_from_context,
+    _parse_wrapped_output,
     _resolve_stored_cwd,
+    _wrap_foreground_command,
     _UPSTREAM_CD_GUIDANCE,
     _UPSTREAM_OPENING,
 )
+from tool_compat_shared.shell_engine import ShellInfo
 
 
 def _wrapper(tmp_path: Path):
@@ -60,6 +65,55 @@ def _wrapper(tmp_path: Path):
         }
     )
     return tool, state
+
+
+def test_foreground_wrapper_uses_native_powershell_syntax() -> None:
+    shell = ShellInfo(
+        name="powershell",
+        path="powershell.exe",
+        args=("-command",),
+    )
+
+    wrapped = _wrap_foreground_command(
+        "Write-Output 'hello'",
+        shell=shell,
+    )
+
+    assert "Invoke-Expression" in wrapped
+    assert "Write-Output ''hello''" in wrapped
+    assert SENTINEL_STATUS in wrapped
+    assert SENTINEL_CWD in wrapped
+    assert " eval " not in wrapped
+    assert "printf" not in wrapped
+
+
+def test_parse_foreground_wrapper_accepts_windows_newlines() -> None:
+    output = (
+        "command output\r\n"
+        f"{SENTINEL_STATUS}7\r\n"
+        f"{SENTINEL_CWD}C:\\workspace with spaces\r\n"
+    )
+
+    parsed = _parse_wrapped_output(output, working_directory="C:\\original")
+
+    assert parsed == {
+        "exit_code": 7,
+        "output": "command output",
+        "cwd": "C:\\workspace with spaces",
+    }
+
+
+def test_foreground_wrapper_uses_native_cmd_syntax() -> None:
+    shell = ShellInfo(name="cmd", path="cmd.exe", args=("/c",))
+
+    wrapped = _wrap_foreground_command("where python", shell=shell)
+
+    assert wrapped.startswith("where python\r\n")
+    assert 'set "__CRYSTAL_STATUS=%ERRORLEVEL%"' in wrapped
+    assert SENTINEL_STATUS in wrapped
+    assert SENTINEL_CWD in wrapped
+    assert "eval" not in wrapped
+    assert "printf" not in wrapped
 
 
 def _fixture(name: str) -> dict:
