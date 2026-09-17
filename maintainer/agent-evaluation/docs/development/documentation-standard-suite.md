@@ -107,6 +107,18 @@ model/effort, response or task file, mutations, and deterministic findings.
 The semantic evaluator uses the same hidden targets and requirement/testing
 dimensions as the v3 task-guidance comparison.
 
+After all selected producer and semantic runs finish, freeze the focused
+records with:
+
+```bash
+python -m suites.documentation_standard.freeze_root_guidance_focused_results
+```
+
+The generated fixture keeps successful producer records, failed producer
+attempts, valid semantic assessments, invalid evaluator attempts, and missing
+assessments separate. It removes repeated full effective-instruction text while
+retaining every guidance file hash and the effective-message hash.
+
 ## Run GLM-5.3 Flash
 
 The GLM profile targets `glm-5.3-flash:cloud` for every seed and branch.

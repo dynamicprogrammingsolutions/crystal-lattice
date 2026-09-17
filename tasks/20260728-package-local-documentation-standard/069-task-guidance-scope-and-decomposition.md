@@ -949,11 +949,11 @@ maintainer guidance and evaluation infrastructure.
 - [x] Run integrated Core migration and root-guidance baseline checks.
 - [x] Record integrated guidance hashes and effective instruction provenance.
 - [x] Add stable requirements for the root Requirements and Testing sections.
-- [ ] Test the requirements-only root candidate.
-- [ ] Test the testing-only root candidate.
-- [ ] Test the combined root candidate.
-- [ ] Exercise both root-only and root-plus-TASKS delivery modes.
-- [ ] Present the root-guidance comparison for human review.
+- [x] Test the requirements-only root candidate.
+- [x] Test the testing-only root candidate.
+- [x] Test the combined root candidate.
+- [x] Exercise both root-only and root-plus-TASKS delivery modes.
+- [x] Present the root-guidance comparison for human review.
 - [ ] Specify three single-task scenarios.
 - [ ] Specify three task-directory scenarios.
 - [ ] Implement guidance-bearing planning branches.
@@ -1119,3 +1119,11 @@ maintainer guidance and evaluation infrastructure.
   prove an interaction, requires valid boundaries plus representative invalid
   values and focused regression evidence, and explicitly cleans planning-only
   caches and generated files.
+- September 17, 2026: Completed the focused root-only and root-plus-TASKS
+  comparison with provider parallelism capped at eight processes. Frozen
+  evidence contains 66 producer records and 60 valid semantic assessments,
+  plus separately recorded failed/invalid attempts. Combined-v2 improves
+  average requirement restraint and FastAPI layer choice, but reduces crossing
+  coverage in root-only mode and worsens GLM task-file structure. The focused
+  report recommends rejecting combined-v2 and testing a smaller v3 ablation;
+  no candidate has been applied to the real root `AGENTS.md`.

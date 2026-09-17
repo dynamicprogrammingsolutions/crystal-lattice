@@ -36,6 +36,12 @@ from suites.documentation_standard.freeze_requirement_quality_current_results im
     SEMANTIC_RESULTS_OUTPUT,
     TASK_DATASET_OUTPUT,
 )
+from suites.documentation_standard.freeze_root_guidance_focused_results import (
+    FOCUSED_CASES,
+    OUTPUT_PATH as ROOT_GUIDANCE_FOCUSED_RESULTS,
+    dataset_id as root_guidance_dataset_id,
+    test_prefix as root_guidance_test_prefix,
+)
 from suites.documentation_standard.support import PROFILES, apply_fixture
 from suites.documentation_standard.test_requirement_quality_task_guidance import (
     _task_structure_findings,
@@ -255,6 +261,58 @@ def test_root_guidance_variants_are_isolated_and_reproducible(
             combined_v2.sha256(),
         }
     ) == 7
+
+
+def test_root_guidance_focused_selection_is_unique_and_traceable() -> None:
+    identities: set[tuple[str, str, str, str]] = set()
+    for (variant, mode, scenario_id), cases in FOCUSED_CASES.items():
+        assert variant
+        assert mode in {"root-only", "task"}
+        assert scenario_id in {
+            scenario.scenario_id for scenario in SCENARIOS
+        }
+        assert root_guidance_dataset_id(variant, mode) == (
+            f"root-guidance-{variant}-{mode}-20260917"
+        )
+        assert root_guidance_test_prefix(variant, mode) == (
+            f"requirement-root-{variant}-{mode}"
+        )
+        assert cases
+        for profile, effort in cases:
+            identity = (
+                variant,
+                mode,
+                scenario_id,
+                f"{profile}-{effort}",
+            )
+            assert identity not in identities
+            identities.add(identity)
+            assert (profile, effort) in PRODUCER_CASES
+    assert len(identities) == 66
+
+
+def test_frozen_root_guidance_focused_results_are_complete() -> None:
+    value = json.loads(
+        ROOT_GUIDANCE_FOCUSED_RESULTS.read_text(encoding="utf-8")
+    )
+
+    assert value["schema_version"] == 1
+    assert value["dataset_id"] == "root-guidance-focused-20260917"
+    assert len(value["producer_records"]) == 66
+    assert len(value["semantic_assessments"]) == 60
+    assert len(value["producer_failed_attempts"]) == 1
+    assert len(value["semantic_errors"]) == 3
+    assert len(value["missing_semantic_assessments"]) == 6
+    assert all(
+        "effective_message" not in record["guidance"]
+        for record in value["producer_records"]
+    )
+    decision_missing = [
+        item
+        for item in value["missing_semantic_assessments"]
+        if item["variant"] in {"baseline", "combined-v2"}
+    ]
+    assert decision_missing == []
 
 
 def test_accepted_requirement_quality_dataset_is_complete() -> None:

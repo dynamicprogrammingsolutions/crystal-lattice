@@ -18,6 +18,7 @@ Latest comparison:
 - [September 15, 2026 requirement/testing candidate results](20260915-requirement-testing-candidate-results.md)
 - [September 15, 2026 requirement/testing v3 results](20260915-requirement-testing-v3-results.md)
 - [September 17, 2026 integrated root-guidance baseline](20260917-integrated-root-guidance-baseline.md)
+- [September 17, 2026 focused root Requirements and Testing results](20260917-root-requirements-testing-focused-results.md)
 
 Requirement-quality calibration:
 
