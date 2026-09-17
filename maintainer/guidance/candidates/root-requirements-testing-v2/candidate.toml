@@ -1,0 +1,8 @@
+format = 1
+id = "root-requirements-testing-v2"
+extends = "../../current"
+
+[overrides]
+requirements = "sections/requirements.md"
+root-testing = "sections/root-testing.md"
+testing-strategy = "sections/testing-strategy.md"

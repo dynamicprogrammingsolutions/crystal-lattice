@@ -34,7 +34,7 @@ include = ["agent_eval*"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "suites"]
 python_files = ["test_*.py"]
-pythonpath = ["src", ".", "../../core/python", "../../application/python"]
+pythonpath = ["src", ".", "../..", "../../core/python", "../../application/python"]
 addopts = "-m 'not agent_eval'"
 markers = [
   "agent_eval: explicitly enabled tests that invoke real agents or models",

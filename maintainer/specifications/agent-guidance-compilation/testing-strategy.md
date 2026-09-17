@@ -31,10 +31,10 @@ Focused unit tests cover:
 Temporary Git repositories verify:
 
 - current-checkout selection;
-- explicit committed-ref selection without checkout mutation;
-- candidate-directory selection at the same ref;
-- missing paths at a selected ref fail clearly;
-- dirty working-tree sources record HEAD, dirty state, and content hashes;
+- bundle and target directories in different repositories;
+- identical content at different absolute paths has the same compilation hash;
+- candidate-directory selection without test-code changes;
+- dirty working-tree sources record optional Git metadata and content hashes;
 - one test module can run current and candidate sources without code changes.
 
 ## Repository-output tests
@@ -70,21 +70,13 @@ The documentation-standard harness verifies:
 - producer and semantic records include the same compilation hash;
 - frozen snapshots regenerate byte-for-byte.
 
-## Corrected real-model comparison
+## Consuming-project behavioral comparison
 
-After deterministic migration passes:
-
-1. compile current and combined-v2 for each project base;
-2. run three projects, seven model/effort profiles, and both delivery modes;
-3. preserve all 84 producer records for each variant pair;
-4. obtain complete semantic assessments for requirement coverage, expansion,
-   testing layers, crossings, focus, and unnecessary work;
-5. score low/medium/high-assurance efforts separately;
-6. compare exact paired outputs for requirement readability, testing
-   decisiveness, proportionality, and plan usability;
-7. inspect passing outputs as well as failures;
-8. compare corrected patterns with the legacy matrix without combining their
-   counts.
+After deterministic migration passes, a consuming repository may compare
+current and candidate portable guidance with its own target and representative
+tasks. The comparison should preserve exact compilation locks, interpret
+effort levels separately, inspect passing outputs as well as failures, and keep
+legacy Crystal Lattice-context counts separate.
 
 Low effort may have lower completeness without automatically invalidating the
 guidance. High, xhigh, and max effort are warning conditions when completeness

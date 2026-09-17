@@ -22,6 +22,7 @@ from .requirement_quality_evaluator import (
     load_candidate_task_dataset,
     load_candidate_v2_task_dataset,
     load_candidate_v3_task_dataset,
+    load_compiled_guidance_dataset,
     load_root_guidance_dataset,
     load_task_dataset,
     parse_evaluator_response_with_repairs,
@@ -125,10 +126,44 @@ def _selected_dataset(
             ),
             True,
         )
+    if name == "compiled-guidance":
+        mode = os.getenv(
+            "AGENT_EVAL_ROOT_GUIDANCE_MODE",
+            "root-only",
+        ).strip()
+        requested = tuple(
+            item.strip()
+            for item in os.getenv(
+                "AGENT_EVAL_ROOT_GUIDANCE_CANDIDATES",
+                "",
+            ).split(",")
+            if item.strip()
+        )
+        valid_ids = {
+            f"{profile}-{effort}": (profile, effort)
+            for profile, effort in PRODUCER_CASES
+        }
+        unknown = set(requested).difference(valid_ids)
+        if unknown:
+            raise ValueError(
+                "unknown AGENT_EVAL_ROOT_GUIDANCE_CANDIDATES: "
+                f"{sorted(unknown)!r}"
+            )
+        producer_cases = tuple(
+            valid_ids[candidate_id] for candidate_id in requested
+        ) or PRODUCER_CASES
+        return (
+            load_compiled_guidance_dataset(
+                mode=mode,
+                scenario_ids=(scenario.scenario_id,),
+                producer_cases=producer_cases,
+            ),
+            True,
+        )
     raise ValueError(
         "AGENT_EVAL_SEMANTIC_DATASET must be accepted, task-current, "
         "task-candidate, task-candidate-v2, task-candidate-v3, or "
-        "root-guidance"
+        "root-guidance, or compiled-guidance"
     )
 
 

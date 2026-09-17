@@ -30,16 +30,20 @@ maintainer/guidance/
         └── sections/
             └── <repository-specific sections>.md
 
-maintainer/agent-evaluation/suites/documentation_standard/
-└── guidance_targets/
-    ├── eleventy/
-    ├── fastapi/
-    └── flask-vue/
+<consuming repository>/
+└── maintainer/
+    └── guidance/
+        └── target/
+            ├── target.toml
+            ├── AGENTS.md.in
+            └── sections/
+                └── <project-specific sections>.md
 ```
 
-The generic compiler accepts arbitrary target directories. Production targets
-belong under `maintainer/guidance/targets/`; evaluation-only project bases
-remain with their owning evaluation suite.
+The generic compiler accepts an arbitrary target directory, including an
+absolute path in another repository. Crystal Lattice stores only its own
+project target. Every consuming repository stores its own templates and local
+sections.
 
 ## Section bundles
 
@@ -110,19 +114,19 @@ Compilation accepts:
 
 - bundle directory;
 - target directory;
-- optional Git reference;
 - output directory or repository-write mode.
 
-Without a Git reference, sources are read from the current checkout. With a
-reference, the compiler reads the named bundle and target paths from that Git
-tree without requiring a checkout change.
+The compiler reads each directory directly. To compile a historical portable
+guidance version, a maintainer points the bundle argument at a checkout or
+worktree for that revision. Bundle and target may belong to different Git
+repositories.
 
 Compilation produces:
 
 - compiled files;
-- a lock with compiler version, selected source, resolved commit, dirty-state
-  information when applicable, input file hashes, output file hashes, and one
-  compilation hash.
+- a lock with compiler version, selected bundle and target, optional Git
+  revision/dirty metadata detected independently for each source, input file
+  hashes, output file hashes, and one location-independent compilation hash.
 
 The compilation hash participates in evaluation cache and dataset identity.
 
@@ -148,25 +152,17 @@ output.
 
 ## Test selection
 
-Evaluation code receives selection through shared harness options rather than
+Evaluation or compilation commands receive selection through paths rather than
 test constants:
 
 ```text
 --guidance-bundle <directory>
 --guidance-target <directory>
---guidance-ref <optional Git reference>
 ```
 
-Defaults are:
-
-```text
-bundle: maintainer/guidance/current
-target: scenario-owned current target
-ref: current checkout
-```
-
-Tests do not permanently name a candidate or commit. Scenario definitions name
-only their appropriate target base.
+The bundle normally points into a Crystal Lattice checkout. The target points
+into the consuming repository. Tests do not permanently name a candidate or
+commit.
 
 ## Evaluation snapshots
 
@@ -182,22 +178,26 @@ maintainer/agent-evaluation/guidance-snapshots/<experiment-id>/
 Snapshots are evidence for inspection and reproduction. Tests do not use them
 as the default current source.
 
-## Corrected project targets
+## Consuming-project targets
 
-Eleventy, FastAPI, and Flask/Vue receive separate bases describing only their
-actual project, important paths, and relevant commands. They compile the same
-shared requirement and testing sections selected for Crystal Lattice.
+Each consuming repository owns a base describing its project, important paths,
+and relevant commands. The same machine-local command can be rerun after the
+Crystal Lattice checkout advances to an accepted portable-guidance version.
 
-The corrected evaluation labels the September 17, 2026 matrix as legacy and
-runs:
+The command may be saved outside version control because it contains
+computer-specific absolute paths:
 
-- the current baseline bundle;
-- the latest combined-v2 candidate bundle;
-- all three projects;
-- all seven model/effort profiles;
-- root-only and root-plus-TASKS modes;
-- semantic effort-aware assessment;
-- pairwise requirement, testing, and plan-usability review.
+```bash
+python /absolute/path/to/ai-agent-platform/maintainer/guidance/compiler.py \
+  write \
+  --bundle /absolute/path/to/ai-agent-platform/maintainer/guidance/current \
+  --target /absolute/path/to/consumer/maintainer/guidance/target \
+  --destination /absolute/path/to/consumer
+```
+
+Task guidance is not compiled into the consuming repository. Crystal Lattice
+runtime configuration supplies the updated canonical task guidance when its
+develop branch is updated.
 
 ## Promotion
 
@@ -222,8 +222,8 @@ During migration:
 
 - Python string candidates remain only until equivalent bundle compilation is
   proven;
-- hardcoded baseline commits and variant names are removed from tests after
-  runtime selection is available;
+- hardcoded baseline commits and variant names are removed from active tests
+  after path selection is available;
 - legacy frozen records remain unchanged;
 - current repository files stay byte-identical until an approved guidance
   change is promoted.

@@ -517,7 +517,9 @@ prompt. The approved candidate changes general documentation guidance and
 canonical task guidance together, then reruns the exact 21 cells and three
 project-batched semantic evaluations before human review.
 
-`agents/TASKS-v7.md` is the canonical task-guidance source. A repository sync
+`maintainer/guidance/current/sections/tasks-v7.md` is the maintained
+task-guidance source. Compilation writes the repository/runtime canonical
+`agents/TASKS-v7.md`. A repository sync
 command generates
 `application/python/agent_terminal_app/default_config/TASKS_v7.md`, and an
 application-package test requires exact byte parity. Task-only planning may run

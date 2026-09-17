@@ -3,21 +3,24 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-from collections.abc import Iterator
 
 import pytest
 
 from .requirement_quality import (
     PRODUCER_CASES,
     ROOT_GUIDANCE_MODES,
-    ROOT_GUIDANCE_VARIANTS,
     SCENARIOS,
     RequirementQualityScenario,
     load_target,
-    root_guidance_source,
     scenario_root_plan_prompt,
     scenario_task_file_prompt,
     target_sha256,
+)
+from .compiled_guidance import (
+    compilation_evidence,
+    compile_scenario_guidance,
+    dataset_identity,
+    guidance_source,
 )
 from .support import (
     AssertionFinding,
@@ -36,28 +39,27 @@ pytestmark = [pytest.mark.agent_eval, pytest.mark.root_requirement_testing]
 RECORD_NAME = "root-guidance-requirement-quality.json"
 
 
-def _selected_root_dataset() -> tuple[str, str, str, object]:
-    variant = os.getenv(
-        "AGENT_EVAL_ROOT_GUIDANCE_VARIANT",
-        "baseline",
-    ).strip()
+def _selected_root_dataset(
+    scenario: RequirementQualityScenario,
+) -> tuple[str, str, str, object, object]:
     mode = os.getenv(
         "AGENT_EVAL_ROOT_GUIDANCE_MODE",
         "root-only",
     ).strip()
-    if variant not in ROOT_GUIDANCE_VARIANTS:
-        raise ValueError(
-            "AGENT_EVAL_ROOT_GUIDANCE_VARIANT must be one of: "
-            + ", ".join(sorted(ROOT_GUIDANCE_VARIANTS))
-        )
     if mode not in ROOT_GUIDANCE_MODES:
         raise ValueError(
             "AGENT_EVAL_ROOT_GUIDANCE_MODE must be one of: "
             + ", ".join(sorted(ROOT_GUIDANCE_MODES))
         )
-    dataset_id = f"root-guidance-{variant}-{mode}-20260917"
-    test_prefix = f"requirement-root-{variant}-{mode}"
-    return dataset_id, test_prefix, mode, root_guidance_source(variant, mode)
+    compilation = compile_scenario_guidance(scenario)
+    dataset_id, test_prefix = dataset_identity(compilation, mode=mode)
+    return (
+        dataset_id,
+        test_prefix,
+        mode,
+        guidance_source(compilation, mode=mode),
+        compilation,
+    )
 
 
 def _selected_candidate_ids() -> set[str]:
@@ -72,16 +74,10 @@ def _selected_candidate_ids() -> set[str]:
 
 
 @pytest.fixture(scope="session")
-def root_guidance_harness() -> Iterator[DocumentationEvaluationHarness]:
+def root_guidance_profile():
     profile = selected_profile()
     enforce_real_model_gate(profile)
-    _, _, _, guidance = _selected_root_dataset()
-    harness = DocumentationEvaluationHarness(
-        profile,
-        guidance=guidance,
-    )
-    yield harness
-    harness.close()
+    return profile
 
 
 def _changed_task_files(run) -> dict[str, str]:
@@ -176,12 +172,12 @@ def _task_structure_findings(
     "DOCVAL-013",
 )
 def test_root_requirement_testing_guidance(
-    root_guidance_harness: DocumentationEvaluationHarness,
+    root_guidance_profile,
     scenario: RequirementQualityScenario,
     producer_profile: str,
     reasoning_effort: str,
 ) -> None:
-    profile = root_guidance_harness.profile
+    profile = root_guidance_profile
     candidate_id = f"{producer_profile}-{reasoning_effort}"
     if profile.name != producer_profile:
         pytest.skip(f"run with AGENT_EVAL_PROFILE={producer_profile}")
@@ -189,7 +185,13 @@ def test_root_requirement_testing_guidance(
     if selected_ids and candidate_id not in selected_ids:
         pytest.skip(f"{candidate_id} is not in the focused candidate set")
 
-    dataset_id, test_prefix, mode, guidance = _selected_root_dataset()
+    (
+        dataset_id,
+        test_prefix,
+        mode,
+        guidance,
+        compilation,
+    ) = _selected_root_dataset(scenario)
     target = load_target(scenario)
     target_hash = target_sha256(scenario)
     task_mode = mode == "task"
@@ -212,18 +214,24 @@ def test_root_requirement_testing_guidance(
         "AGENT_EVAL_ROOT_GUIDANCE_CACHE_VARIANT",
         "",
     ).strip()
-    run = root_guidance_harness.fresh_scenario(
-        test_id=f"{test_prefix}-{scenario.scenario_id}-{reasoning_effort}",
-        spec_file=scenario.spec_file,
-        fixture_id=scenario.fixture_id,
-        reasoning_effort=reasoning_effort,
-        cache_variant=(
-            f"{dataset_id}-{target_hash[:16]}:"
-            f"{repeat_variant or 'default'}"
-        ),
-        prompt_heading=prompt_heading,
-        guidance_instruction_paths=instruction_paths,
-    )
+    harness = DocumentationEvaluationHarness(profile, guidance=guidance)
+    try:
+        run = harness.fresh_scenario(
+            test_id=(
+                f"{test_prefix}-{scenario.scenario_id}-{reasoning_effort}"
+            ),
+            spec_file=scenario.spec_file,
+            fixture_id=scenario.fixture_id,
+            reasoning_effort=reasoning_effort,
+            cache_variant=(
+                f"{dataset_id}-{target_hash[:16]}:"
+                f"{repeat_variant or 'default'}"
+            ),
+            prompt_heading=prompt_heading,
+            guidance_instruction_paths=instruction_paths,
+        )
+    finally:
+        harness.close()
     value = require_run_value(run)
     files = (
         _changed_task_files(run)
@@ -317,6 +325,10 @@ def test_root_requirement_testing_guidance(
         "prompt": prompt,
         "mode": mode,
         "repeat_variant": repeat_variant or "default",
+        "guidance_compilation": compilation_evidence(
+            compilation,
+            mode=mode,
+        ),
         "producer": {
             "profile": profile.name,
             "agent_id": profile.agent_id,

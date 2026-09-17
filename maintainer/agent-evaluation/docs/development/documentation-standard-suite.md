@@ -54,16 +54,26 @@ Test 27 uses a routing-only variation: root AGENTS guidance is injected while
 the two current guidance pages remain ordinary workspace files. Legacy Test 20
 retains the former four-page route for direct comparison only.
 
-## Root Requirements and Testing calibration
+## Compiled Requirements and Testing calibration
 
-The September 17 root-guidance comparison keeps the committed integrated
-documentation guide and TASKS-v7 fixed while synthesizing four root
-`AGENTS.md` variants:
+Guidance producers compile one selected bundle into the base owned by each
+scenario. The default bundle is:
 
-- `baseline`;
-- `requirements`;
-- `testing`;
-- `combined`.
+```text
+maintainer/guidance/current
+```
+
+The latest candidate is:
+
+```text
+maintainer/guidance/candidates/root-requirements-testing-v2
+```
+
+The complete September 17 matrix that injected Crystal Lattice root guidance
+into unrelated projects is frozen as legacy comparison evidence. Corrected
+portable-guidance evaluation is run by a consuming repository using its own
+target template and local sections; this repository does not store those
+project-specific files.
 
 It supports two instruction modes:
 
@@ -72,18 +82,33 @@ It supports two instruction modes:
 - `task`: inject root `AGENTS.md` plus canonical `TASKS-v7`; ask for one Draft
   task file.
 
-All current documentation pages are copied into the fixture but are not
-injected. Record exact producer cells with:
+Record current-bundle producer cells with:
 
 ```bash
 AGENT_EVAL_RUN_REAL=1 \
 AGENT_EVAL_PROFILE=glm \
-AGENT_EVAL_ROOT_GUIDANCE_VARIANT=baseline \
 AGENT_EVAL_ROOT_GUIDANCE_MODE=root-only \
 AGENT_EVAL_ROOT_GUIDANCE_CANDIDATES=glm-low,glm-high \
+AGENT_EVAL_ROOT_GUIDANCE_CACHE_VARIANT=compiled-matrix-r1 \
 pytest maintainer/agent-evaluation/suites/documentation_standard/test_root_requirement_testing_guidance.py \
   -m "agent_eval and root_requirement_testing" -q
 ```
+
+Set the consuming repository's absolute target path:
+
+```bash
+AGENT_EVAL_GUIDANCE_TARGET=/absolute/path/to/consumer-project/maintainer/guidance/target
+```
+
+Select the candidate by adding:
+
+```bash
+AGENT_EVAL_GUIDANCE_BUNDLE=maintainer/guidance/candidates/root-requirements-testing-v2
+```
+
+To use a historical guidance revision, point the bundle path at a checkout or
+worktree for that revision. Tests do not permanently name a candidate or
+commit.
 
 For GPT through ChatGPT login, set `AGENT_EVAL_PROFILE=gpt` and
 `AGENT_EVAL_ALLOW_HOSTED=1`.
@@ -93,42 +118,38 @@ Semantically assess a recorded subset with:
 ```bash
 AGENT_EVAL_RUN_REAL=1 \
 AGENT_EVAL_PROFILE=glm \
-AGENT_EVAL_SEMANTIC_DATASET=root-guidance \
-AGENT_EVAL_ROOT_GUIDANCE_VARIANT=baseline \
+AGENT_EVAL_SEMANTIC_DATASET=compiled-guidance \
 AGENT_EVAL_ROOT_GUIDANCE_MODE=root-only \
 AGENT_EVAL_ROOT_GUIDANCE_CANDIDATES=glm-low,glm-high \
+AGENT_EVAL_SEMANTIC_CACHE_VARIANT=compiled-matrix-r1 \
 pytest maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_semantic_evaluator.py \
   -m "agent_eval and requirement_semantic" -q
 ```
 
-The producer prompt never requests a testing strategy. Every record preserves
-the copied guidance files, injected paths, effective instruction hash,
-model/effort, response or task file, mutations, and deterministic findings.
-The semantic evaluator uses the same hidden targets and requirement/testing
-dimensions as the v3 task-guidance comparison.
+Add the same candidate bundle variable when assessing candidate records.
 
-After all selected producer and semantic runs finish, freeze the focused
-records with:
+Pairwise quality review uses both bundle directories after semantic records
+exist:
 
 ```bash
-python -m suites.documentation_standard.freeze_root_guidance_focused_results
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_PROFILE=glm \
+AGENT_EVAL_ROOT_GUIDANCE_QUALITY_CACHE_VARIANT=compiled-matrix-r1 \
+pytest maintainer/agent-evaluation/suites/documentation_standard/test_root_guidance_quality.py \
+  -m "agent_eval and root_guidance_quality" -q
 ```
 
-The generated fixture keeps successful producer records, failed producer
-attempts, valid semantic assessments, invalid evaluator attempts, and missing
-assessments separate. It removes repeated full effective-instruction text while
-retaining every guidance file hash and the effective-message hash.
+Every producer record preserves the compilation lock, exact injected paths,
+effective instruction hash, model/effort, response or task file, mutations,
+and deterministic findings. The compilation hash participates in cache and
+dataset identity.
 
-Rendered, reviewable copies of the pinned baseline and combined-v2 root files
-live under
-`suites/documentation_standard/guidance_variants/root-guidance/`. Refresh them
-after changing variant composition with:
+Task-mode evaluation obtains canonical task guidance from Crystal Lattice
+runtime configuration. The consuming repository's target compiles only its
+own root guidance.
 
-```bash
-python -m suites.documentation_standard.render_root_guidance_snapshots
-```
-
-Deterministic tests require each snapshot to equal the exact runtime variant.
+Guidance source, compiler commands, and manual promotion rules are documented
+in `maintainer/guidance/README.md`.
 
 ## Run GLM-5.3 Flash
 

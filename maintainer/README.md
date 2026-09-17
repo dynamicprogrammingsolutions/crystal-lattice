@@ -22,6 +22,7 @@ Current specifications:
 Current maintainer tooling:
 
 - [Agent evaluation kernel](agent-evaluation/README.md)
+- [Agent guidance source and compiler](guidance/README.md)
 
 Current maintainer procedures:
 

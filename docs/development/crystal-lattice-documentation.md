@@ -121,8 +121,23 @@ Tasks under `tasks/` own approval, execution plans, dependencies, findings, and
 completion. A task links relevant requirement IDs without becoming a second
 specification.
 
-`agents/TASKS-v7.md` is the maintained task-guidance source. The application
-ships a generated copy at
+`maintainer/guidance/current/sections/tasks-v7.md` is the maintained
+task-guidance source. Compilation writes the repository/runtime canonical
+`agents/TASKS-v7.md`. Check or explicitly write current compiled guidance
+with:
+
+```bash
+python -m maintainer.guidance check \
+  --bundle maintainer/guidance/current \
+  --target maintainer/guidance/targets/crystal-lattice \
+  --destination .
+python -m maintainer.guidance write \
+  --bundle maintainer/guidance/current \
+  --target maintainer/guidance/targets/crystal-lattice \
+  --destination .
+```
+
+The application ships a synchronized copy at
 `application/python/agent_terminal_app/default_config/TASKS_v7.md`. Update or
 check it with:
 

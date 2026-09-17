@@ -34,8 +34,8 @@ Evaluation authors need to:
 - select a candidate directory without changing test code;
 - optionally select a Git reference and directory for historical
   reproduction;
-- compile the same shared sections into bases appropriate to Eleventy,
-  FastAPI, Flask/Vue, Crystal Lattice, or another project;
+- compile the same shared sections into a base owned by each consuming
+  project;
 - preserve exact source and output provenance in cache keys and result
   records;
 - distinguish old-context evidence from corrected project-specific evidence.
@@ -58,18 +58,20 @@ A candidate extends the current bundle and overrides only named shared
 sections. A reviewer sees the candidate manifest and changed Markdown files
 without reading test fixtures or generated model records.
 
-The compiler accepts a bundle, target, and optional Git reference. It validates
-every slot, produces deterministic Markdown, and records a lock containing
-every source hash and compiled-file hash.
+The compiler accepts independent bundle and target directory paths. It
+validates every slot, produces deterministic Markdown, and records a lock
+containing every source hash and compiled-file hash.
 
-Tests default to the current bundle and current checkout. A test invocation may
-select a candidate directory and optional Git reference, but no test module is
-permanently tied to a candidate or commit.
+Tests default to the current bundle. A consuming repository may select a
+candidate directory, but no test module is permanently tied to a candidate or
+commit. Historical guidance is selected by pointing at a checkout or worktree
+for that revision.
 
-Crystal Lattice and external project fixtures compile the same portable
-requirements and testing sections into different project-specific bases.
-Repository maps, package paths, and local commands therefore reach only the
-projects to which they apply.
+Crystal Lattice stores the portable requirements and testing sections and its
+own base. Every other repository stores its own base, repository map, package
+paths, commands, and local sections. The compiler may read those inputs through
+absolute paths without copying the consuming repository's information into
+Crystal Lattice.
 
 After successful testing and human approval, maintainers copy or merge the
 accepted section changes into the current bundle and manually compile the
@@ -84,12 +86,13 @@ repository outputs. Compilation never promotes a candidate automatically.
 - Keep the normal compiled files at their existing repository paths.
 - Use simple named slots with no general-purpose template language.
 - Make current checkout/current bundle the default test selection.
-- Permit explicit candidate-directory and optional Git-reference selection.
+- Permit explicit bundle and target directories in independent repositories.
 - Pin every evaluation to exact input and output hashes.
 - Keep candidate source outside test-fixture directories.
-- Compile external project fixtures from project-appropriate bases.
+- Let consuming repositories compile from their own project-appropriate bases.
 - Preserve the September 17 old-context matrix for comparison.
-- Rerun the current baseline and latest candidate with corrected project bases.
+- Permit consuming projects to compare current and candidate portable guidance
+  with their own bases.
 - Interpret model behavior by model and effort, including the quality of
   passing outputs, rather than only aggregate failure counts.
 
@@ -102,6 +105,6 @@ repository outputs. Compilation never promotes a candidate automatically.
 - Requiring agents applying normal repository guidance to read maintainer
   source manifests.
 - Treating a compilation lock as approval evidence.
-- Treating the legacy old-context matrix as the corrected portable baseline.
+- Treating the legacy old-context matrix as portable-guidance evidence.
 - Assuming one full model matrix provides formal statistical inference across
   all software tasks.

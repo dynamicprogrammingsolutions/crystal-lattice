@@ -11,6 +11,10 @@ from .requirement_quality import (
     SCENARIOS,
     RequirementQualityScenario,
 )
+from .compiled_guidance import (
+    compile_scenario_guidance,
+    selected_bundle,
+)
 from .support import AssertionFinding, REPOSITORY_ROOT
 
 
@@ -196,6 +200,104 @@ def load_root_guidance_dataset(
         "description": (
             "Requirements and verification plans produced with isolated "
             f"{variant} root guidance in {mode} mode."
+        ),
+        "records": records,
+    }
+    validate_dataset(dataset, expected_dataset=dataset_id)
+    return dataset
+
+
+def load_compiled_guidance_dataset(
+    *,
+    mode: str,
+    bundle: str | None = None,
+    artifact_root: Path = DEFAULT_ARTIFACT_ROOT,
+    scenario_ids: tuple[str, ...] | None = None,
+    producer_cases: tuple[tuple[str, str], ...] = PRODUCER_CASES,
+) -> dict[str, Any]:
+    selected_scenarios = [
+        scenario
+        for scenario in SCENARIOS
+        if scenario_ids is None or scenario.scenario_id in scenario_ids
+    ]
+    bundle_path = bundle or selected_bundle()
+    records: list[dict[str, Any]] = []
+    bundle_ids: set[str] = set()
+    for scenario in selected_scenarios:
+        compilation = compile_scenario_guidance(
+            scenario,
+            bundle=bundle_path,
+        )
+        bundle_ids.add(compilation.bundle_id)
+        compilation_hash = compilation.lock["compilation_sha256"]
+        test_prefix = (
+            f"requirement-compiled-{compilation.bundle_id}-{mode}"
+        )
+        for profile, effort in producer_cases:
+            pattern = (
+                f"*{test_prefix}-{scenario.scenario_id}-{effort}-*/"
+                "records/root-guidance-requirement-quality.json"
+            )
+            matching: list[tuple[Path, dict[str, Any]]] = []
+            for path in sorted(
+                (artifact_root / profile / "runs").glob(pattern)
+            ):
+                value = json.loads(path.read_text(encoding="utf-8"))
+                producer = value.get("producer")
+                lock = value.get("guidance_compilation")
+                if (
+                    value.get("scenario_id") == scenario.scenario_id
+                    and isinstance(producer, dict)
+                    and producer.get("profile") == profile
+                    and producer.get("reasoning_effort") == effort
+                    and isinstance(lock, dict)
+                    and lock.get("compilation_sha256") == compilation_hash
+                ):
+                    matching.append((path, value))
+            if not matching:
+                raise FileNotFoundError(
+                    "missing compiled-guidance dataset record for "
+                    f"{scenario.scenario_id}/{profile}/{effort}/"
+                    f"{compilation_hash}"
+                )
+            path, value = matching[-1]
+            records.append(
+                {
+                    "candidate_id": f"{profile}-{effort}",
+                    "scenario_id": scenario.scenario_id,
+                    "producer": value["producer"],
+                    "generated_files": value["generated_files"],
+                    "changed_paths": value["changed_paths"],
+                    "source_run_id": path.parents[1].name,
+                    "source_record_sha256": hashlib.sha256(
+                        path.read_bytes()
+                    ).hexdigest(),
+                    "guidance": value["guidance"],
+                    "guidance_compilation": lock,
+                    "producer_result": {
+                        "completed": any(
+                            finding.get("name") == "run completed"
+                            and finding.get("passed") is True
+                            for finding in value.get("findings", [])
+                            if isinstance(finding, dict)
+                        ),
+                        "response": value.get("response", ""),
+                        "findings": value.get("findings", []),
+                    },
+                }
+            )
+    if len(bundle_ids) != 1:
+        raise ValueError(
+            f"compiled scenarios resolved different bundles: {bundle_ids!r}"
+        )
+    bundle_id = next(iter(bundle_ids))
+    dataset_id = f"compiled-guidance-{bundle_id}-{mode}-20260917"
+    dataset = {
+        "schema_version": 1,
+        "dataset_id": dataset_id,
+        "description": (
+            "Requirements and verification plans produced from compiled "
+            f"{bundle_id} guidance in {mode} mode."
         ),
         "records": records,
     }

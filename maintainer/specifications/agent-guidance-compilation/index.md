@@ -11,8 +11,8 @@ It establishes a deterministic compiler so:
 - candidate guidance is a source variation rather than a test fixture;
 - different projects can compile the same shared sections into
   project-appropriate `AGENTS.md` files;
-- tests use the current checked-out sources by default and may explicitly
-  select a candidate directory and optional Git reference;
+- tests use the current portable bundle by default and may explicitly select a
+  candidate bundle and consuming-repository target directory;
 - every evaluated compilation is pinned by its inputs and output hashes;
 - accepted guidance is promoted manually before repository files are
   regenerated.

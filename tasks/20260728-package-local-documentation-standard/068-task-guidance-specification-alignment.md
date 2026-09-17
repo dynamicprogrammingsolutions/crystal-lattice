@@ -543,3 +543,9 @@ Status: Approved
   requirement refinement direction, normative-only treatment of
   approval-gated recommendations, and shorter testing ablation. Final guidance
   acceptance remains pending the v3 comparison.
+- September 17, 2026: Subtask 071 supersedes authored-source placement without
+  changing task-guidance text. Maintained source moves to
+  `maintainer/guidance/current/sections/tasks-v7.md`; compilation writes the
+  byte-identical repository/runtime canonical `agents/TASKS-v7.md`; and the
+  existing sync script continues copying that compiled file to the bundled
+  default-config location.

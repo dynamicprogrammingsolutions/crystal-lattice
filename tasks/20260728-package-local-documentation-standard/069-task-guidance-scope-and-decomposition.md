@@ -1137,3 +1137,25 @@ maintainer guidance and evaluation infrastructure.
   unrelated project fixtures is a confound. These results are retained as the
   old comparison; both variants must be rerun after guidance compilation uses
   project-appropriate base files.
+- September 17, 2026: Preserve these directions for the candidate after the
+  corrected compiled matrix is interpreted:
+  - preserve every approved observable outcome even when its mechanism or
+    exact public form remains unresolved;
+  - state the approved invariant as a requirement and keep only the unresolved
+    concrete choice as a separate question;
+  - do not classify an observable quality as implementation detail merely
+    because several implementations could satisfy it;
+  - distinguish application state from the user's ability to perceive that
+    state, using active-choice visibility only as one diagnostic example;
+  - ensure evidence planning maps back to every approved outcome so a
+    requirement omission cannot silently remove its verification;
+  - retain the candidate's demonstrated removal of wrong-record testing,
+    documentation, and internal-mechanism requirements rather than restoring
+    broad scope;
+  - treat high/xhigh/max completeness regressions as warning conditions even
+    when aggregate scope and testing scores improve.
+  The legacy matrix shows one mostly record-role regression (stable later-page
+  URLs remained in the Eleventy plan and complete tests), five repetitions of
+  one missing Flask/Vue observable outcome, and one incomplete producer run.
+  The corrected matrix must confirm whether these patterns remain before
+  wording changes.

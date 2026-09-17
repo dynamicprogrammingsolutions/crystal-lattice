@@ -24,27 +24,29 @@ corrected current/candidate comparison.
 
 ## Requirements checklist
 
-- [ ] Current, candidate, and target guidance sources have an inspectable
+- [x] Current, candidate, and target guidance sources have an inspectable
   maintainer-owned layout outside evaluation fixtures.
-- [ ] A deterministic compiler assembles named sections into target bases and
+- [x] A deterministic compiler assembles named sections into target bases and
   rejects missing, duplicate, unknown, and unused slots.
-- [ ] Current source compiles the existing root `AGENTS.md` exactly before any
+- [x] Current source compiles the existing root `AGENTS.md` exactly before any
   guidance behavior changes.
-- [ ] Canonical task guidance retains exact bundled-copy synchronization while
+- [x] Canonical task guidance retains exact bundled-copy synchronization while
   moving to the shared source model where in scope.
-- [ ] Combined-v2 is represented by a candidate directory containing only its
+- [x] Combined-v2 is represented by a candidate directory containing only its
   changed sections and manifest.
-- [ ] Evaluation defaults to current sources and can select a candidate
-  directory and optional Git reference without hardcoded test revisions.
-- [ ] Every run records an exact compilation lock and uses its hash for cache
+- [x] Evaluation defaults to current portable sources and can select a
+  candidate bundle plus consuming-repository target directory without
+  hardcoded test revisions.
+- [x] Every run records an exact compilation lock and uses its hash for cache
   and dataset identity.
-- [ ] Crystal Lattice, Eleventy, FastAPI, and Flask/Vue compile shared portable
-  sections into project-appropriate bases.
-- [ ] The old Crystal Lattice-context external-project matrix remains frozen
+- [x] The compiler reads portable sections from Crystal Lattice and
+  project-specific templates/sections from an independently owned consuming
+  repository path.
+- [x] The old Crystal Lattice-context external-project matrix remains frozen
   and labeled legacy.
-- [ ] Corrected current and combined-v2 tests are prepared from the new source
-  model and started across the approved model/effort and delivery-mode matrix.
-- [ ] Candidate promotion remains a separate manual, human-approved action.
+- [ ] A consuming repository validates current and candidate portable guidance
+  with its own target and representative model/effort coverage.
+- [x] Candidate promotion remains a separate manual, human-approved action.
 
 ## Supporting details
 
@@ -68,8 +70,8 @@ corrected current/candidate comparison.
 - Candidate guidance is a maintained source variation, not a fixture.
 - Current and candidate bundles compile through target-specific base files.
 - Base files use simple named slots and no general template language.
-- Tests default to current source and may explicitly select a candidate
-  directory and optional Git reference.
+- Tests default to current portable source and may explicitly select a
+  candidate bundle and consuming-repository target directory.
 - No test remains permanently tied to a candidate or commit.
 - Current repository files use the same compiler and are regenerated manually
   only after successful testing and human approval.
@@ -93,8 +95,9 @@ guidance while migrating its source representation.
 
 - Approved: use `maintainer/guidance/` for generic compiler, current bundle,
   candidates, and production targets.
-- Approved: keep evaluation-only target bases with the documentation-standard
-  suite.
+- Revised and approved September 17, 2026: do not keep consuming-project target
+  bases in Crystal Lattice. Each consuming repository owns its templates and
+  local sections.
 - Approved: use complete Markdown sections inserted by
   `<!-- guidance-slot:<name> -->` placeholders.
 - Approved: use TOML manifests for bundles, candidates, and targets.
@@ -118,21 +121,47 @@ guidance while migrating its source representation.
 
 ### Task checklist
 
-- [ ] Implement section, bundle, target, compiler, and lock models.
-- [ ] Add deterministic slot and source-selection tests.
-- [ ] Extract the current root base and shared/local sections.
-- [ ] Prove byte-identical current `AGENTS.md` compilation and drift checking.
-- [ ] Migrate canonical task guidance where compatible with subtask 068.
-- [ ] Move combined-v2 into an inspectable candidate overlay.
-- [ ] Remove hardcoded root baseline/candidate selection from evaluator tests.
-- [ ] Add generic runtime bundle, target, and optional-ref selection.
-- [ ] Add Eleventy, FastAPI, and Flask/Vue project-specific bases.
-- [ ] Include compilation locks in evaluation cache and records.
-- [ ] Preserve and relabel the legacy matrix.
-- [ ] Prepare corrected baseline and candidate full-matrix commands.
-- [ ] Run deterministic verification.
-- [ ] Commit migration and prepared test inputs.
-- [ ] Start corrected tests in the background.
+- [x] Implement section, bundle, target, compiler, and lock models.
+- [x] Add deterministic slot and source-selection tests.
+- [x] Extract the current root base and shared/local sections.
+- [x] Prove byte-identical current `AGENTS.md` compilation and drift checking.
+- [x] Migrate canonical task guidance where compatible with subtask 068.
+- [x] Move combined-v2 into an inspectable candidate overlay.
+- [x] Remove hardcoded root baseline/candidate selection from evaluator tests.
+- [x] Add generic runtime bundle and independently located target selection.
+- [x] Support target templates and local sections outside the Crystal Lattice
+  repository.
+- [x] Include compilation locks in evaluation cache and records.
+- [x] Preserve and relabel the legacy matrix.
+- [x] Document a machine-local absolute-path compilation command.
+- [x] Run deterministic verification.
+- [x] Commit migration and prepared test inputs.
+- [ ] Run consumer-owned current/candidate behavioral comparison when a
+  consuming repository supplies its target and tasks.
+
+## Implementation Notes
+
+- September 17, 2026: Added `maintainer/guidance/` with TOML bundles and
+  targets, named Markdown slots, deterministic compilation/check/write
+  commands, Git-ref selection, input/output locks, and manual promotion.
+- September 17, 2026: Extracted current root and TASKS source without changing
+  either compiled file. Current root SHA remains `a56c068e…`; task guidance
+  remains `191fc888…`; Crystal Lattice combined-v2 remains `cf943bb…`.
+- September 17, 2026: The exact current Crystal Lattice root keeps a full
+  `root-testing` compatibility section because splitting its interleaved
+  generic and package-specific rules would change current instructions before
+  guidance acceptance; `GCOMP-003` remains partially implemented for that
+  production source boundary.
+- September 17, 2026: Active producer, semantic, and pairwise suites select a
+  bundle and consuming-repository target directory at runtime. The old
+  hardcoded variant functions remain only for reproducing frozen legacy
+  evidence.
+- September 17, 2026: A corrected in-repository matrix was started using
+  project targets stored under Crystal Lattice, then invalidated when the user
+  clarified that consuming repositories exclusively own their templates and
+  local sections. Its semantic run was stopped and its local scratch results
+  are not evidence. The compiler and tests were revised to use independent
+  paths instead.
 
 ### Requirement verification
 

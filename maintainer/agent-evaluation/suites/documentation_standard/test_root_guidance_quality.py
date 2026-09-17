@@ -16,15 +16,15 @@ from .requirement_quality import (
 )
 from .requirement_quality_evaluator import (
     DEFAULT_ARTIFACT_ROOT,
-    load_root_guidance_dataset,
+    load_compiled_guidance_dataset,
     parse_evaluator_response_with_repairs,
 )
 from .root_guidance_quality import (
+    compiled_semantic_record_paths,
     QUALITY_PROMPT_VERSION,
     build_quality_prompt,
     mapped_quality_result,
     quality_label_mapping,
-    semantic_record_paths,
     validate_quality_result,
 )
 from .support import (
@@ -40,7 +40,24 @@ from .support import (
 
 pytestmark = [pytest.mark.agent_eval, pytest.mark.root_guidance_quality]
 RECORD_NAME = "root-guidance-pairwise-quality.json"
-FULL_MATRIX_REPEAT_VARIANT = "full-matrix-r1"
+FULL_MATRIX_REPEAT_VARIANT = "compiled-matrix-r1"
+DEFAULT_BASELINE_BUNDLE = "maintainer/guidance/current"
+DEFAULT_CANDIDATE_BUNDLE = (
+    "maintainer/guidance/candidates/root-requirements-testing-v2"
+)
+
+
+def _quality_bundles() -> dict[str, str]:
+    return {
+        "baseline": os.getenv(
+            "AGENT_EVAL_QUALITY_BASELINE_BUNDLE",
+            DEFAULT_BASELINE_BUNDLE,
+        ).strip(),
+        "combined-v2": os.getenv(
+            "AGENT_EVAL_QUALITY_CANDIDATE_BUNDLE",
+            DEFAULT_CANDIDATE_BUNDLE,
+        ).strip(),
+    }
 
 
 @pytest.fixture(scope="session")
@@ -79,13 +96,13 @@ def _selected_candidate_ids() -> set[str]:
 
 def _producer_record(
     *,
-    variant: str,
+    bundle: str,
     mode: str,
     scenario: RequirementQualityScenario,
     producer_case: tuple[str, str],
 ) -> dict:
-    dataset = load_root_guidance_dataset(
-        variant=variant,
+    dataset = load_compiled_guidance_dataset(
+        bundle=bundle,
         mode=mode,
         scenario_ids=(scenario.scenario_id,),
         producer_cases=(producer_case,),
@@ -95,14 +112,15 @@ def _producer_record(
 
 def _semantic_record(
     *,
-    variant: str,
+    bundle: str,
+    bundle_id: str,
     mode: str,
     scenario: RequirementQualityScenario,
     candidate_id: str,
 ) -> tuple[dict, dict]:
-    paths = semantic_record_paths(
+    paths = compiled_semantic_record_paths(
         DEFAULT_ARTIFACT_ROOT,
-        variant=variant,
+        bundle_id=bundle_id,
         mode=mode,
         scenario_id=scenario.scenario_id,
         repeat_variant=FULL_MATRIX_REPEAT_VARIANT,
@@ -120,7 +138,7 @@ def _semantic_record(
                 }
     raise FileNotFoundError(
         "missing full-matrix semantic assessment for "
-        f"{variant}/{mode}/{scenario.scenario_id}/{candidate_id}"
+        f"{bundle}/{mode}/{scenario.scenario_id}/{candidate_id}"
     )
 
 
@@ -147,20 +165,23 @@ def test_root_guidance_pairwise_quality(
         pytest.skip(f"{candidate_id} is not in the selected quality candidates")
 
     producer_case = (producer_profile, reasoning_effort)
+    bundles = _quality_bundles()
     outputs = {
         variant: _producer_record(
-            variant=variant,
+            bundle=bundle,
             mode=mode,
             scenario=scenario,
             producer_case=producer_case,
         )
-        for variant in ("baseline", "combined-v2")
+        for variant, bundle in bundles.items()
     }
     semantic_records = {}
     semantic_assessments = {}
     for variant in ("baseline", "combined-v2"):
+        lock = outputs[variant]["guidance_compilation"]
         semantic_record, assessment = _semantic_record(
-            variant=variant,
+            bundle=bundles[variant],
+            bundle_id=lock["bundle"]["id"],
             mode=mode,
             scenario=scenario,
             candidate_id=candidate_id,
@@ -251,6 +272,9 @@ def test_root_guidance_pairwise_quality(
                 variant: {
                     "source_run_id": record["source_run_id"],
                     "source_record_sha256": record["source_record_sha256"],
+                    "compilation_sha256": record[
+                        "guidance_compilation"
+                    ]["compilation_sha256"],
                 }
                 for variant, record in outputs.items()
             },

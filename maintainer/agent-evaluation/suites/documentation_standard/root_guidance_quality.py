@@ -294,3 +294,28 @@ def semantic_record_paths(
         ):
             paths.append(path)
     return paths
+
+
+def compiled_semantic_record_paths(
+    artifact_root: Path,
+    *,
+    bundle_id: str,
+    mode: str,
+    scenario_id: str,
+    repeat_variant: str,
+) -> list[Path]:
+    dataset_id = f"compiled-guidance-{bundle_id}-{mode}-20260917"
+    pattern = (
+        f"*requirement-semantic-{dataset_id}-{scenario_id}-*/"
+        "records/semantic-evaluation.json"
+    )
+    paths: list[Path] = []
+    for path in sorted((artifact_root / "glm" / "runs").glob(pattern)):
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            value.get("dataset_id") == dataset_id
+            and value.get("scenario_id") == scenario_id
+            and value.get("repeat_variant") == repeat_variant
+        ):
+            paths.append(path)
+    return paths
