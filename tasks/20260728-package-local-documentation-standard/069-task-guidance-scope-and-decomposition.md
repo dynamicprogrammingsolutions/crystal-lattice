@@ -1127,3 +1127,13 @@ maintainer guidance and evaluation infrastructure.
   coverage in root-only mode and worsens GLM task-file structure. The focused
   report recommends rejecting combined-v2 and testing a smaller v3 ablation;
   no candidate has been applied to the real root `AGENTS.md`.
+- September 17, 2026: User review rejected the focused seven-cell task-mode
+  comparison as insufficient for deciding the next candidate and required
+  effort-sensitive interpretation. Completed a fresh 84-cell producer matrix
+  and all 84 semantic assessments for the integrated baseline and combined-v2
+  across both modes. The legacy matrix shows strong aggregate scope/testing
+  improvement but GPT high/xhigh/max requirement-completeness regressions.
+  It also confirms that injecting full Crystal Lattice root guidance into
+  unrelated project fixtures is a confound. These results are retained as the
+  old comparison; both variants must be rerun after guidance compilation uses
+  project-appropriate base files.

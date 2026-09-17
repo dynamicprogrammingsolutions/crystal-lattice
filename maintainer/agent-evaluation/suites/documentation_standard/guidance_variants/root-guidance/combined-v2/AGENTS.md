@@ -1,0 +1,431 @@
+# Agent Guidelines
+
+This file is the starting point when you’re asked to change behavior, add a feature, or debug an issue. It summarizes architecture, key directories, dev workflow, and testing/doc principles. For details, read the referenced modules and docs.
+
+---
+
+## Project Overview
+
+The AI Agent Platform is a **modular, functional agent framework** for building conversational apps on top of arbitrary LLM providers.
+
+Main pieces:
+- **Core SDK** (`core/python/agent_core`): pure conversation engine + plugin system.
+- **Application layer** (`core/python/agent_app`): config loading, session & event stores, tool loop.
+- **Terminal + HTTP + mobile integration app** (`application/python/agent_terminal_app`): FastAPI JSON API, prompt_toolkit terminal, and glue for mobile connectivity (direct HTTP, Bonjour/mDNS, and bridge service).
+- **Mobile app** (`mobile/crystal-lattice-control-rn`): React Native client (Crystal Lattice Control) that connects to the terminal/HTTP app directly or via the bridge, providing a sessions/messages UI on phones and simulators.
+- **Desktop app** (`desktop/crystal-lattice-control-desktop-rn`): React Native macOS desktop client for Crystal Lattice Control.
+- **Shared packages** (`packages/`): shared frontend SDKs, React bindings, React Native components, and tool-host packages used by mobile, desktop, and related runtimes.
+- **Bridge service** (`bridge-elixir`): Elixir/Phoenix WebSocket bridge that lets mobile/desktop apps talk to local HTTP servers across networks using pairing + proxied HTTP requests.
+- **Built-in plugin projects** (`plugins/`): first-party plugin repos used by the current runtime and bundled layout, plus plugin docs and templates.
+- **Core-packaged plugins** (`core/python/plugins`): older Python plugins shipped with `agent-core`, kept mainly for tests, compatibility, and a small set of package-local/core features.
+- **Examples & tests** (`core/python/examples`, `core/python/tests`, `application/python/tests`, `plugins/*/tests`).
+
+Design principles:
+- Immutable core types (`Message`, `Session`); operations return new objects.
+- Plugin-based providers/features/tools; core only orchestrates.
+- Streaming-first APIs.
+- Application-managed sessions, config, and persistence.
+- Returned data structures are treated as immutable by convention; **avoid defensive copying** just to guard against potential mutation.
+
+---
+
+## Architecture & Key Directories
+
+**Core SDK – `core/python/agent_core`**
+- `core.py`: `AgentCore` – session/message ops, request/streaming pipeline, tool orchestration, native history.
+- `types.py`: immutable data types and plugin Protocols.
+- `plugin/`: wrappers for providers, extensions, features, tools; default adapters.
+- `utils.py`: `pipeline` and logging helpers.
+
+**Application layer – `core/python/agent_app`**
+- `application_future.py`: `AgentApplication` – loads config, discovers plugins, builds per-agent cores, exposes `send_request` (event stream).
+- `tool_loop.py`: `ToolLoopRunner` – drives LLM + tool loop on top of `AgentCore`.
+- `sessions.py`: `FilesystemSessionStore`.
+- `events.py`: `InMemoryEventStore`.
+
+**Terminal & HTTP app – `application/python/agent_terminal_app`**
+- `server.py`: FastAPI routes; maps HTTP JSON to `AgentApplication`, exposes both agent/session APIs and small demo endpoints used by the mobile app (e.g. `/api/data`, `/api/hello`).
+- `terminal_app.py`: `TerminalApplication` – terminal-facing app API (sessions, delete/modify/list, agents, plugins, overrides).
+- `terminal.py`: CLI UI (slash commands, shortcuts); calls `TerminalApplication` only.
+- `event_rendering.py`: how streamed events (assistant, reasoning, tools) are printed.
+- `bonjour.py` / `bridge_client.py`: integration helpers so the mobile app can connect via direct address, Bonjour discovery, or the bridge service.
+
+See `application/python/agent_terminal_app/AGENTS.md` for directory-specific guidelines when working on the server, terminal, or mobile/bridge integration.
+
+**Mobile app – `mobile/crystal-lattice-control-rn`**
+- React Native app (Crystal Lattice Control) that talks to the terminal/HTTP app and bridge.
+- Connection methods: manual IP/port, Bonjour/mDNS discovery, and bridge WebSocket.
+- Main pieces:
+  - `App.tsx`: connection flow; constructs SDK transports (`FetchTransport` / `BridgeTransport`) and a backend (`RestAgentBackend`).
+  - `src/ConnectedRoot.tsx`: bottom-tab navigation (Connection / Sessions / Messages).
+  - `src/api.ts`: type-only re-export shim (SDK types).
+  - `src/components/MessageBubble.tsx`: per-role message renderers (user/system/tool/assistant) including collapsible tool results and reasoning.
+  - `src/SessionsScreen.tsx`, `src/SessionChatScreen.tsx`, `src/ConnectionScreen.tsx`: screens for listing sessions, viewing messages, and connection status.
+
+See `mobile/crystal-lattice-control-rn/AGENTS.md` for React Native–specific guidelines, styling rules, and notes on message rendering and scrolling behavior.
+
+**Desktop app – `desktop/crystal-lattice-control-desktop-rn`**
+- React Native macOS desktop client for Crystal Lattice Control.
+- Reuses shared workspace packages from `packages/`.
+- See `desktop/crystal-lattice-control-desktop-rn/README.md` for setup and workflow details.
+
+**Shared packages – `packages/`**
+- Shared workspace packages used by mobile, desktop, and tool runtimes.
+- Main examples:
+  - `packages/frontend-sdk`
+  - `packages/frontend-sdk-react`
+  - `packages/frontend-rn-components`
+  - `packages/tool-host-node`
+  - `packages/react-native-mac-text-view`
+- Check the package-local README before changing shared interfaces or package-specific build/test behavior.
+
+**Bridge service – `bridge-elixir`**
+- Distributed Elixir/Phoenix bridge that:
+  - Accepts "server" WebSocket clients (e.g. Python `agent_terminal_app`).
+  - Accepts "app" WebSocket clients (e.g. the React Native demo).
+  - Manages pairing (6-digit codes) and sessions.
+  - Forwards serialized HTTP requests/responses between app and server.
+
+See `bridge-elixir/AGENTS.md` for directory-specific guidelines and deployment notes.
+
+**Cloud orchestrator – `cloud-orchestrator`**
+- Elixir/Phoenix service plus runtime/deploy assets for remote cloud agents.
+
+See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules and related test references.
+
+**Plugins**
+- Built-in plugin projects: `plugins/`
+  - First-party plugin repos used by the current runtime and bundled layout.
+  - Contains Python plugin packages, Node/Bash tool packages, templates, and shared plugin docs.
+  - Depending on plugin type, loaders may use `path:`, `node:`, or `bash:` sources.
+  - Start with `plugins/AGENTS.md` and `plugins/docs/index.md`.
+- Core-packaged plugins: `core/python/plugins` (Python package `plugins.*`)
+  - Older plugins that still ship inside `agent-core`.
+  - Used mainly for tests, compatibility, and a small set of package-local/core features.
+  - Do not place new plugins here without explicit user consent.
+
+**Documentation & scripts**
+- Root: `ARCHITECTURE.md` and cross-package documentation entry points.
+- Core package docs: `core/python/docs/index.md`; generated Core API reference:
+  `docs/reference/agent_core/`.
+- Development documentation and conventions: `docs/development/index.md`.
+- Guidance-maintenance specifications: `maintainer/specifications/`.
+- Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
+- General plugin overview: `plugins/docs/overview.md`.
+- Examples generator: `scripts/generate_examples_md.py`.
+
+## Documentation ownership and routing
+
+Start package work by reading its `README.md`, nearest `AGENTS.md`, and
+`docs/index.md` when present. Use the smallest documentation structure that
+helps the reader; README-only, one-page, and larger documentation or
+specification layouts are all valid.
+
+Put package-user documentation under `<package>/docs/` and current internals,
+architecture, testing, and specifications under
+`<package>/docs/development/`. Keep root `docs/` for project-wide guidance,
+cross-package architecture and behavior, and site entry points.
+
+Specifications describe intended targets. Requirements track necessary
+outcomes and their implementation, verification, and documentation state.
+Tasks track approval and execution. Published user and developer documentation
+describe available behavior in language appropriate to their readers.
+Target-only user text may be drafted on a development branch with a visible
+`Not implemented` marker, but is not published as current guidance by default.
+
+When behavior changes, update only the affected maintained sources: user
+documentation for supported use, developer documentation for current internals
+and operations, and specifications plus requirements when the intended target
+changes.
+
+Change generated documentation through its maintained source or generator;
+never edit `docs_site/prepared/` or `docs_site/dist/` directly. If a required
+generation or validation step is blocked, preserve the source and validation
+boundaries and report the remaining action. Publication and site-generation
+commands are maintained in the Crystal Lattice conventions.
+
+Document verified facts discovered during the current work. Do not reconstruct
+large unfamiliar areas merely to fill an illustrated directory structure, and
+do not normalize existing variations unless the current work makes that useful.
+
+Before creating, moving, or materially restructuring documentation or
+specifications, read both files in full:
+
+- `docs/development/documentation.md`
+- `docs/development/crystal-lattice-documentation.md`
+
+A local factual correction does not require unrelated structure guidance when
+the page, reader, and maintained source are clear.
+
+When changing this guidance, task guidance, publication rules, or their
+validation, also read:
+
+- `maintainer/specifications/documentation-and-specification-standard/index.md`
+- `maintainer/specifications/documentation-and-specification-standard/requirements.md`
+
+**Auxiliary directories**
+- `evaluations/`: shared evaluation framework and benchmark suites.
+- `tasks/`: task handoff files used for planning and delegated follow-up work.
+- `test/`: repository-level shared test support and cross-cutting tests.
+- `archive/`: historical conversations, plans, notes, and diagnostics; not current guidance.
+- `artifacts/`, `build/`, `dist/`, `tmp/`: generated outputs, staging areas, and local scratch space.
+- `test_dir/`: ad hoc local scratch/test workspace.
+
+---
+
+## Requirements
+
+- Requirements are the minimum approved completed-state outcomes and
+  constraints, not the work or evidence used to deliver them. Include one only
+  when removing it would leave an explicit request, preserved contract,
+  necessary consequence, or approved policy or decision unsatisfied.
+- Trace every requirement to that authority. Group variants, operations,
+  boundaries, and examples unless separate acceptance, ownership, evidence, or
+  status adds value.
+- Evidence needed to prove an outcome is not another product requirement. Put
+  implementation steps, test cases, verification procedures, documentation
+  updates, refactors, risks, and possible improvements in the plan or
+  supporting details unless the user explicitly requires that result as a
+  deliverable.
+- Do not choose unspecified public, persisted, compatibility, security,
+  privacy, or user-visible behavior merely because implementation needs an
+  answer. Record the question for approval. A recommendation may explain the
+  tradeoff but remains outside requirements and operative implementation steps
+  until approved.
+- A requested quality or behavior does not authorize an internal mechanism.
+  Make a technology, architecture, algorithm, storage, or query strategy a
+  requirement only when that solution constraint is approved.
+- Keep implementation, verification, and documentation states separate. Use
+  the smallest direct evidence for each state, and leave human verification
+  incomplete until a human confirms it.
+
+---
+
+## Development Workflow
+
+**Commit guidance**
+
+Create a commit only when the user explicitly requests one in the current conversation. Use a short, clear message—usually two to six words—without type or scope prefixes unless a specific format is requested. Stage only files belonging to the requested work and leave unrelated changes unstaged.
+
+Examples: `Improve error handling`, `Add cache validation`, `Update deployment notes`.
+
+**Setup (Python 3.10+)**
+- Core SDK + core-packaged plugins:
+  ```bash
+  python -m pip install -e "core/python[dev]"
+  ```
+- Terminal app against the local core checkout:
+  ```bash
+  python -m pip install -e application/python
+  ```
+- Built-in or optional plugin packages you are actively changing:
+  ```bash
+  python -m pip install -e "plugins/<plugin-name>[dev]"
+  ```
+
+**Tests**
+- Major Python test locations:
+  - `core/python/tests`
+  - `core/python/examples/tests`
+  - `application/python/tests`
+  - `plugins/openrouter/tests`
+  - `plugins/openai_responses/tests`
+  - `plugins/reference-openai-compatible-provider/tests`
+- Default package-local `pytest` runs are intentionally narrow:
+  - `core/python`: excludes `integration`
+  - `application/python`: excludes `integration` and `docker`
+  - `plugins/openrouter`: excludes `integration`
+  - `plugins/openai_responses`: excludes `integration` and `manual_integration`
+  - `plugins/reference-openai-compatible-provider`: excludes `integration`
+- Fast default verification:
+  - `pytest core/python/tests -q`
+  - `pytest application/python/tests -q`
+  - `pytest plugins/openrouter/tests -q`
+  - `pytest plugins/openai_responses/tests -q`
+  - `pytest plugins/reference-openai-compatible-provider/tests -q`
+- Integration verification:
+  - Core non-API integration: `pytest core/python/tests -m 'integration and not api and not slow_integration' -q`
+  - Application non-API integration: `pytest application/python/tests -m 'integration and not api and not slow_integration and not docker' -q`
+  - OpenAI Responses non-API integration: `pytest plugins/openai_responses/tests -m 'integration and not api and not slow_integration and not manual_integration' -q`
+  - Local Ollama verification: `pytest core/python/tests -m 'ollama and not api' -q`
+- Hosted API verification:
+  - Examples / SDK smoke tests: `pytest core/python/examples/tests -m 'integration and api and not slow_integration' -q`
+  - Application hosted API: `pytest application/python/tests -m 'integration and api and not slow_integration and not docker' -q`
+  - OpenRouter: `pytest plugins/openrouter/tests -m 'integration and api and not slow_integration and openrouter' -q`
+  - OpenAI Responses: `pytest plugins/openai_responses/tests -m 'integration and api and not slow_integration and openai' -q`
+  - Reference provider Fireworks: `pytest plugins/reference-openai-compatible-provider/tests -m 'integration and api and not slow_integration and fireworks' -q`
+  - Reference provider Z.ai: `pytest plugins/reference-openai-compatible-provider/tests -m 'integration and api and not slow_integration and zai' -q`
+- Slow integration verification:
+  - Run slow suites selectively, usually by package marker or single file rather than all at once.
+  - OpenRouter slow hosted suites: `pytest plugins/openrouter/tests -m 'slow_integration and openrouter' -q`
+- Provider follow-up for major changes:
+  - For major provider, request-pipeline, tool-loop, or default-config changes, explicitly consider follow-up verification in `plugins/openrouter`, `plugins/openai_responses`, and `plugins/reference-openai-compatible-provider`.
+- Shared workspace package verification:
+  - Fast/default package tests:
+    - `npm --workspace @crystal-lattice/frontend-sdk test`
+    - `npm --workspace @crystal-lattice/frontend-sdk-react test`
+    - `npm --workspace @crystal-lattice/frontend-rn-components test`
+  - `packages/frontend-sdk` excludes `src/integration/**` from its default Vitest run; use explicit `integration:*` scripts for backend, hosted-provider, bridge, cloud, or AWS e2e coverage.
+  - Frontend SDK integration commands are documented in `packages/frontend-sdk/src/integration/__tests__/README.md`; run hosted API, Docker, cloud, and AWS-backed suites selectively rather than all at once.
+  - `packages/react-native-mac-text-view` and `packages/tool-host-node` currently do not define package-local automated test scripts.
+- Coverage (core focus):
+  ```bash
+  pytest core/python/tests -v --cov=core/python/agent_core --cov-report=term-missing
+  ```
+
+**Lint / format / typecheck (from repo root)**
+- `ruff check core/python/agent_core core/python/tests core/python/examples core/python/plugins`
+- `black core/python/agent_core core/python/tests core/python/examples core/python/plugins`
+- `pyright`
+
+---
+
+## Where to Change What
+
+**Core behavior (`agent_core`)**
+- Change `core/python/agent_core/core.py` when you need new capabilities that all apps share:
+  - Session/message operations, streaming behavior, native history, provider selection, tool orchestration.
+- Change `types.py` or `plugin/*.py` when you touch public types or plugin-wrapping behavior.
+- Tests: `core/python/tests` (+ example tests if examples demonstrate the change).
+
+**Built-in And First-party Plugin Projects (`plugins/`)**
+- Add/modify providers, provider extensions, features, tools, application plugins, and related tool packages here.
+- Start with `plugins/AGENTS.md` and `plugins/docs/index.md`.
+- Use `plugins/docs/provider-plugins.md`, `plugins/docs/provider-extensions.md`, `plugins/docs/feature-plugins.md`, `plugins/docs/tool-plugins.md`, and `plugins/docs/application-plugins.md` as the current authoring docs.
+- Tests live alongside each plugin project under `plugins/<plugin>/tests`.
+
+**Core-packaged plugins (`core/python/plugins`)**
+- This is the older in-package plugin directory for `agent-core`.
+- Use it mainly for tests, compatibility, and a small set of package-local/core features that truly belong in the core package.
+- Do not place new plugins here without explicit user consent.
+- Tests remain primarily under `core/python/tests`.
+
+**Application layer (`agent_app`)**
+- Use `core/python/agent_app/application_future.py` and `tool_loop.py` when changing:
+  - Config loading/placeholder resolution.
+  - Agent ↔ plugin wiring.
+  - Request API and tool-loop semantics.
+- Session/event storage: `sessions.py`, `events.py`.
+- Tests: `core/python/tests/test_application_layer_*.py` and related.
+
+**Terminal & HTTP app (`agent_terminal_app`)**
+- HTTP API behavior: `server.py`.
+- Terminal behavior and business logic: `terminal_app.py` (history ops, agent switching, plugin toggling, overrides).
+- CLI UX and commands: `terminal.py` (keep UI-only; delegate logic to `TerminalApplication`).
+- Event printing: `event_rendering.py`.
+- Tests: `application/python/tests`.
+
+---
+
+## Plugin Development (Summary)
+
+- Plugins are plain classes with instance methods, using explicit `state: dict`.
+- Instances are short-lived per request; avoid persistent mutable attributes.
+- Providers/extensions/features share provider state; tools keep separate tool state.
+- For new first-party plugin work, prefer repo-root `plugins/` unless there is a clear reason the code must stay in the core package.
+
+**Provider plugins** (`ProviderPlugin`)
+- Implement the hooks your provider actually needs.
+- Default adapters can supply `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted.
+- Put new first-party implementations in repo-root `plugins/` and add unit/integration tests alongside the plugin project.
+
+**Extensions & features**
+- Extensions (`ProviderExtensionPlugin`): hot-path streaming enrichments + finalize.
+- Features (`FeaturePlugin`): cold-path per-turn behavior, operate in `init` / `initialize_request` / `finalize`.
+- See `plugins/docs/provider-extensions.md`, `plugins/docs/feature-plugins.md`, and `plugins/docs/actions.md` for the current hook surface.
+
+**Application plugins** (`ApplicationPlugin`)
+- Application-layer plugins live above `AgentCore` and can expose actions and UI schema with access to sessions, persistence, and multi-session workflows.
+- Protocol: `core/python/agent_app/app_plugins.py`
+- Docs: `plugins/docs/application-plugins.md`
+
+**Tools** (`ToolPlugin`)
+- Implement the hooks you need such as `init`, `get_tool_schemas`, `execute_tool`, and `format_tool_result`; optional hooks include preparation, streaming, async, and display helpers.
+- Register via `AgentCore.register_tool`; use `get_tool_schemas`, `iter_tool_messages`, `execute_tool_calls` in apps.
+- Tool-packaged plugins can be Python, Node, or Bash depending on the loader.
+- Docs: `plugins/docs/tool-plugins.md`, `plugins/docs/node-tool-plugins.md`, `plugins/docs/bash-tool-plugins.md`, and `plugins/docs/tool-interop.md`.
+
+---
+
+## Testing
+
+Add or update evidence for changed behavior and regressions.
+
+**Choose decisive evidence**
+
+- Map each requirement or coherent group to the smallest reliable evidence at
+  the boundary where its failure would be observable.
+- Use unit or component tests for local behavior. Use integration tests when
+  the requirement depends on real components, storage, transports, processes,
+  or adapters interacting. Use end-to-end, hosted, or native tests only for
+  critical paths lower layers cannot represent faithfully.
+- Separate component tests do not prove an interaction requirement. Name at
+  least one check through the real connection between those components; when
+  that check is unavailable, record the gap instead of substituting mocks.
+- A mock that supplies or bypasses the claimed behavior is not decisive
+  evidence. Cite existing coverage only when it actually proves the required
+  behavior; otherwise add focused evidence or record the gap.
+- For bounded inputs, include the valid boundaries and representative invalid
+  values. For behavior that must remain compatible, identify focused
+  regression evidence.
+- Do not test unresolved or unapproved behavior. Avoid exact internal values,
+  structures, calls, ordering, markup, or source identity unless they are part
+  of an approved contract.
+- Prefer representative checks over duplicate layers or operation-by-state
+  combinations without a distinct risk.
+- Separate requirement acceptance from additional implementation robustness
+  checks. Keep routine formatting, lint, compilation, and broad test counts as
+  supporting evidence.
+
+**Keep execution realistic**
+
+- Integration and end-to-end tests use realistic public or deployment paths;
+  do not add test-only shortcuts that hide a product defect.
+- Run requested or required gated tests with their gate enabled. Otherwise
+  report them as not run, not as passing.
+- Describe coverage by the boundary actually crossed. A run succeeds only when
+  the intended tests collect and the command exits cleanly without teardown,
+  timer, or open-handle failures.
+- Planning-only work leaves no generated files, caches, or other incidental
+  repository changes behind.
+- Treat shared harnesses as maintained test infrastructure and verify them
+  through a real consumer.
+
+**Place tests with their owner**
+
+- Keep package-specific tests and fixtures with the owning package. Put
+  cross-cutting repository test support under `test/`.
+- Keep first-party plugin tests with their plugin projects and Core-only test
+  fixtures under `core/python/tests/fixtures`.
+
+## Long-running work and waiting
+
+- Start safe, authorized commands expected to take longer than 10 minutes in
+  the background, and keep a process ID, log, or other status mechanism.
+- Continue independent in-scope work while background commands run. Use
+  waiting intervals only when completion blocks the remaining work.
+- Monitor at intervals of up to 10 minutes. Limit waiting-only work to two
+  hours or 12 wait calls.
+- Read the current time at the start of commands whose behavior depends on it.
+
+For example, start a long-running command and continue other work:
+
+```bash
+nohup <command> > /tmp/<task-name>.log 2>&1 < /dev/null &
+pid=$!
+```
+
+Check it later:
+
+```bash
+date -u
+kill -0 "$pid" && tail -n 50 /tmp/<task-name>.log
+```
+
+For a scheduled wait, calculate from the current time read by that command:
+
+```bash
+now=$(date -u +%s)
+(( now < target_epoch )) &&
+  sleep $(( target_epoch - now < 600 ? target_epoch - now : 600 ))
+```

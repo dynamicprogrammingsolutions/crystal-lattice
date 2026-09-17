@@ -1,0 +1,1869 @@
+{
+  "counts": {
+    "missing_pairwise_quality": 42,
+    "missing_semantic_assessments": 0,
+    "pairwise_quality_errors": 0,
+    "pairwise_quality_records": 0,
+    "producer_failures": 7,
+    "producer_records": 84,
+    "semantic_assessments": 84,
+    "semantic_errors": 0
+  },
+  "dataset_id": "root-guidance-full-matrix-20260917",
+  "effort_policies": {
+    "high": {
+      "description": "Complete, focused requirements and decisive verification are expected.",
+      "maximum_expansion": "low",
+      "require_complete_requirements": true,
+      "require_complete_testing": true,
+      "require_real_crossing": true
+    },
+    "low": {
+      "description": "Completeness shortfalls are descriptive; material scope invention and unusable testing remain failures.",
+      "maximum_expansion": "medium",
+      "require_complete_requirements": false,
+      "require_complete_testing": false,
+      "require_real_crossing": false
+    },
+    "max": {
+      "description": "Complete, focused requirements and decisive verification are expected.",
+      "maximum_expansion": "low",
+      "require_complete_requirements": true,
+      "require_complete_testing": true,
+      "require_real_crossing": true
+    },
+    "medium": {
+      "description": "Requirements should be complete and safe; testing may be partial but should select the real boundary.",
+      "maximum_expansion": "medium",
+      "require_complete_requirements": true,
+      "require_complete_testing": false,
+      "require_real_crossing": true
+    },
+    "xhigh": {
+      "description": "Complete, focused requirements and decisive verification are expected.",
+      "maximum_expansion": "low",
+      "require_complete_requirements": true,
+      "require_complete_testing": true,
+      "require_real_crossing": true
+    }
+  },
+  "paired_score_deltas": [
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": -60,
+      "testing_delta": 21
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 35,
+      "testing_delta": 4
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 50,
+      "testing_delta": -18
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": -10,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": -15,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 0,
+      "testing_delta": 2
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 70,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": -25,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 20,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 75,
+      "testing_delta": 2
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 60,
+      "testing_delta": 60
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": -55,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 0,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 85,
+      "testing_delta": -6
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 70,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 65,
+      "testing_delta": 13
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 85,
+      "testing_delta": 53
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 8,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": -60,
+      "testing_delta": -47
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "medium",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 65,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "xhigh",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 8,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 15,
+      "testing_delta": -31
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 0,
+      "testing_delta": 1
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -100,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 100,
+      "testing_delta": -75
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 18,
+      "testing_delta": 1
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 18,
+      "testing_delta": 7
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 18,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": -20,
+      "testing_delta": 3
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 60,
+      "testing_delta": -19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": -5,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 80,
+      "testing_delta": 2
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 0,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 0,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": -5,
+      "testing_delta": -21
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 0,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 80,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "low",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 0,
+      "testing_delta": 26
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 40,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 60,
+      "testing_delta": 37
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": -23,
+      "testing_delta": 53
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 18,
+      "testing_delta": 53
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 40,
+      "effort": "medium",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 18,
+      "testing_delta": 52
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 0,
+      "testing_delta": 52
+    }
+  ],
+  "pairwise_quality": {
+    "groups": [],
+    "likely_cause_counts": {},
+    "overall_preferences": {},
+    "plan_usability_preferences": {},
+    "requirements_preferences": {},
+    "testing_preferences": {}
+  },
+  "producer_failures": [
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "tasks/20260917-paginate-blog-archive.md",
+          "name": "planning output has no implementation or completion notes",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "tasks/20260917-notes-list-pagination.md",
+          "name": "planning output has no implementation or completion notes",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "tasks/20260917-books-read-filter.md",
+          "name": "planning output has no implementation or completion notes",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-max",
+      "failed_findings": [
+        {
+          "detail": "tasks/20260917-books-read-unread-filter.md",
+          "name": "planning output has no implementation or completion notes",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-max",
+      "failed_findings": [
+        {
+          "detail": "error=None, outcome_errors=()",
+          "name": "run completed",
+          "passed": false
+        },
+        {
+          "detail": "0 characters",
+          "name": "assistant response",
+          "passed": false
+        },
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "()",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "tasks/20260917-notes-list-pagination.md",
+          "name": "planning output has no implementation or completion notes",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "tasks/20260917-books-read-unread-filter.md",
+          "name": "planning output has no implementation or completion notes",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "combined-v2"
+    }
+  ],
+  "schema_version": 1,
+  "score_groups": {
+    "variant": [
+      {
+        "average_coverage_score": 98.1,
+        "average_scope_score": 50.8,
+        "average_testing_score": 73.8,
+        "cells": 42,
+        "coverage_statuses": {
+          "complete": 40,
+          "partial": 2
+        },
+        "effort_expectation_met": 9,
+        "expansion_severities": {
+          "high": 4,
+          "low": 17,
+          "medium": 17,
+          "none": 4
+        },
+        "group": [
+          "baseline"
+        ],
+        "important_crossings": {
+          "missing": 11,
+          "present": 31
+        },
+        "requirement_expectation_met": 21,
+        "testing_coverage": {
+          "complete": 11,
+          "partial": 31
+        },
+        "testing_expectation_met": 16,
+        "testing_layers": {
+          "appropriate": 28,
+          "mixed": 11,
+          "poor": 3
+        }
+      },
+      {
+        "average_coverage_score": 91.9,
+        "average_scope_score": 72.3,
+        "average_testing_score": 81.0,
+        "cells": 42,
+        "coverage_statuses": {
+          "complete": 35,
+          "missing": 1,
+          "partial": 6
+        },
+        "effort_expectation_met": 18,
+        "expansion_severities": {
+          "high": 1,
+          "low": 21,
+          "medium": 8,
+          "none": 12
+        },
+        "group": [
+          "combined-v2"
+        ],
+        "important_crossings": {
+          "missing": 5,
+          "present": 37
+        },
+        "requirement_expectation_met": 29,
+        "testing_coverage": {
+          "complete": 17,
+          "missing": 1,
+          "partial": 24
+        },
+        "testing_expectation_met": 25,
+        "testing_layers": {
+          "appropriate": 32,
+          "mixed": 6,
+          "poor": 4
+        }
+      }
+    ],
+    "variant_candidate": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 41.7,
+        "average_testing_score": 75.0,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 4
+        },
+        "group": [
+          "baseline",
+          "glm-high"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 43.7,
+        "average_testing_score": 74.7,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 4
+        },
+        "group": [
+          "baseline",
+          "glm-low"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 7.5,
+        "average_testing_score": 69.7,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 4,
+          "medium": 2
+        },
+        "group": [
+          "baseline",
+          "glm-max"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 0,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 1,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 74.0,
+        "average_testing_score": 69.2,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 4,
+          "medium": 1,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "gpt-high"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 3,
+          "mixed": 3
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 84.0,
+        "average_testing_score": 80.3,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 5,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "gpt-max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 5,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 47.7,
+        "average_testing_score": 73.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "low": 3,
+          "medium": 3
+        },
+        "group": [
+          "baseline",
+          "gpt-medium"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 1,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 57.0,
+        "average_testing_score": 73.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 3,
+          "none": 2
+        },
+        "group": [
+          "baseline",
+          "gpt-xhigh"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 1,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 65.0,
+        "average_testing_score": 70.2,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 2,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "glm-high"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 4
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 62.8,
+        "average_testing_score": 82.0,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 4,
+        "expansion_severities": {
+          "low": 3,
+          "medium": 2,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "glm-low"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 5,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 83.3,
+        "average_scope_score": 82.5,
+        "average_testing_score": 69.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "missing": 1
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "low": 5,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "glm-max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "missing": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 0,
+        "testing_layers": {
+          "appropriate": 5,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 82.8,
+        "average_testing_score": 91.3,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 4,
+        "expansion_severities": {
+          "low": 5,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "gpt-high"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 2
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 5,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 86.7,
+        "average_scope_score": 68.3,
+        "average_testing_score": 88.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 4,
+          "partial": 2
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 2,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "gpt-max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 5,
+          "partial": 1
+        },
+        "testing_expectation_met": 5,
+        "testing_layers": {
+          "appropriate": 5,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 63.7,
+        "average_testing_score": 79.3,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 1,
+          "low": 2,
+          "medium": 1,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "gpt-medium"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 5,
+        "testing_layers": {
+          "appropriate": 5,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 80.8,
+        "average_testing_score": 85.2,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 4,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 1,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "gpt-xhigh"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 2
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 5,
+          "poor": 1
+        }
+      }
+    ],
+    "variant_effort": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 57.8,
+        "average_testing_score": 72.1,
+        "cells": 12,
+        "coverage_statuses": {
+          "complete": 12
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "low": 6,
+          "medium": 5,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "high"
+        ],
+        "important_crossings": {
+          "missing": 3,
+          "present": 9
+        },
+        "requirement_expectation_met": 7,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 10
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 7,
+          "mixed": 5
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 43.7,
+        "average_testing_score": 74.7,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 4
+        },
+        "group": [
+          "baseline",
+          "low"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 96.7,
+        "average_scope_score": 45.8,
+        "average_testing_score": 75.0,
+        "cells": 12,
+        "coverage_statuses": {
+          "complete": 11,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "high": 4,
+          "low": 5,
+          "medium": 2,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "max"
+        ],
+        "important_crossings": {
+          "missing": 3,
+          "present": 9
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 8
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 9,
+          "mixed": 2,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 47.7,
+        "average_testing_score": 73.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "low": 3,
+          "medium": 3
+        },
+        "group": [
+          "baseline",
+          "medium"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 1,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 57.0,
+        "average_testing_score": 73.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 3,
+          "none": 2
+        },
+        "group": [
+          "baseline",
+          "xhigh"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 1,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 96.7,
+        "average_scope_score": 73.9,
+        "average_testing_score": 80.8,
+        "cells": 12,
+        "coverage_statuses": {
+          "complete": 11,
+          "partial": 1
+        },
+        "effort_expectation_met": 4,
+        "expansion_severities": {
+          "low": 7,
+          "medium": 2,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "high"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 11
+        },
+        "requirement_expectation_met": 9,
+        "testing_coverage": {
+          "complete": 5,
+          "partial": 7
+        },
+        "testing_expectation_met": 5,
+        "testing_layers": {
+          "appropriate": 7,
+          "mixed": 5
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 62.8,
+        "average_testing_score": 82.0,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 4,
+        "expansion_severities": {
+          "low": 3,
+          "medium": 2,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "low"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 5,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 85.0,
+        "average_scope_score": 75.4,
+        "average_testing_score": 79.3,
+        "cells": 12,
+        "coverage_statuses": {
+          "complete": 9,
+          "missing": 1,
+          "partial": 2
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "low": 7,
+          "medium": 2,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "max"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 10
+        },
+        "requirement_expectation_met": 8,
+        "testing_coverage": {
+          "complete": 5,
+          "missing": 1,
+          "partial": 6
+        },
+        "testing_expectation_met": 5,
+        "testing_layers": {
+          "appropriate": 10,
+          "poor": 2
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 63.7,
+        "average_testing_score": 79.3,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 1,
+          "low": 2,
+          "medium": 1,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "medium"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 5,
+        "testing_layers": {
+          "appropriate": 5,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 80.8,
+        "average_testing_score": 85.2,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 4,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 1,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "xhigh"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 2
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 5,
+          "poor": 1
+        }
+      }
+    ],
+    "variant_mode": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 38.9,
+        "average_testing_score": 72.6,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 21
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 2,
+          "low": 6,
+          "medium": 12,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "root-only"
+        ],
+        "important_crossings": {
+          "missing": 4,
+          "present": 17
+        },
+        "requirement_expectation_met": 8,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 18
+        },
+        "testing_expectation_met": 8,
+        "testing_layers": {
+          "appropriate": 14,
+          "mixed": 4,
+          "poor": 3
+        }
+      },
+      {
+        "average_coverage_score": 96.2,
+        "average_scope_score": 62.7,
+        "average_testing_score": 75.0,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 19,
+          "partial": 2
+        },
+        "effort_expectation_met": 6,
+        "expansion_severities": {
+          "high": 2,
+          "low": 11,
+          "medium": 5,
+          "none": 3
+        },
+        "group": [
+          "baseline",
+          "task"
+        ],
+        "important_crossings": {
+          "missing": 7,
+          "present": 14
+        },
+        "requirement_expectation_met": 13,
+        "testing_coverage": {
+          "complete": 8,
+          "partial": 13
+        },
+        "testing_expectation_met": 8,
+        "testing_layers": {
+          "appropriate": 14,
+          "mixed": 7
+        }
+      },
+      {
+        "average_coverage_score": 90.5,
+        "average_scope_score": 61.3,
+        "average_testing_score": 78.4,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 16,
+          "partial": 5
+        },
+        "effort_expectation_met": 6,
+        "expansion_severities": {
+          "high": 1,
+          "low": 11,
+          "medium": 6,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "root-only"
+        ],
+        "important_crossings": {
+          "missing": 3,
+          "present": 18
+        },
+        "requirement_expectation_met": 11,
+        "testing_coverage": {
+          "complete": 6,
+          "partial": 15
+        },
+        "testing_expectation_met": 11,
+        "testing_layers": {
+          "appropriate": 16,
+          "mixed": 2,
+          "poor": 3
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 83.3,
+        "average_testing_score": 83.5,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 19,
+          "missing": 1,
+          "partial": 1
+        },
+        "effort_expectation_met": 12,
+        "expansion_severities": {
+          "low": 10,
+          "medium": 2,
+          "none": 9
+        },
+        "group": [
+          "combined-v2",
+          "task"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 19
+        },
+        "requirement_expectation_met": 18,
+        "testing_coverage": {
+          "complete": 11,
+          "missing": 1,
+          "partial": 9
+        },
+        "testing_expectation_met": 14,
+        "testing_layers": {
+          "appropriate": 16,
+          "mixed": 4,
+          "poor": 1
+        }
+      }
+    ],
+    "variant_scenario": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 61.6,
+        "average_testing_score": 92.3,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 14
+        },
+        "effort_expectation_met": 7,
+        "expansion_severities": {
+          "high": 1,
+          "low": 7,
+          "medium": 4,
+          "none": 2
+        },
+        "group": [
+          "baseline",
+          "33-eleventy-archive-pagination"
+        ],
+        "important_crossings": {
+          "present": 14
+        },
+        "requirement_expectation_met": 10,
+        "testing_coverage": {
+          "complete": 10,
+          "partial": 4
+        },
+        "testing_expectation_met": 10,
+        "testing_layers": {
+          "appropriate": 14
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 44.6,
+        "average_testing_score": 79.1,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 14
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "high": 2,
+          "low": 6,
+          "medium": 6
+        },
+        "group": [
+          "baseline",
+          "34-fastapi-notes-pagination"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 13
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 13
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 13,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 94.3,
+        "average_scope_score": 46.1,
+        "average_testing_score": 49.9,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 12,
+          "partial": 2
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 1,
+          "low": 4,
+          "medium": 7,
+          "none": 2
+        },
+        "group": [
+          "baseline",
+          "35-flask-vue-book-filter"
+        ],
+        "important_crossings": {
+          "missing": 10,
+          "present": 4
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "partial": 14
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 1,
+          "mixed": 10,
+          "poor": 3
+        }
+      },
+      {
+        "average_coverage_score": 90.0,
+        "average_scope_score": 77.3,
+        "average_testing_score": 87.6,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 12,
+          "missing": 1,
+          "partial": 1
+        },
+        "effort_expectation_met": 8,
+        "expansion_severities": {
+          "high": 1,
+          "low": 6,
+          "medium": 1,
+          "none": 6
+        },
+        "group": [
+          "combined-v2",
+          "33-eleventy-archive-pagination"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 13
+        },
+        "requirement_expectation_met": 10,
+        "testing_coverage": {
+          "complete": 9,
+          "missing": 1,
+          "partial": 4
+        },
+        "testing_expectation_met": 11,
+        "testing_layers": {
+          "appropriate": 12,
+          "mixed": 1,
+          "poor": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 65.4,
+        "average_testing_score": 84.5,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 14
+        },
+        "effort_expectation_met": 5,
+        "expansion_severities": {
+          "low": 8,
+          "medium": 4,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "34-fastapi-notes-pagination"
+        ],
+        "important_crossings": {
+          "present": 14
+        },
+        "requirement_expectation_met": 10,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 10
+        },
+        "testing_expectation_met": 8,
+        "testing_layers": {
+          "appropriate": 13,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 85.7,
+        "average_scope_score": 74.2,
+        "average_testing_score": 70.8,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 9,
+          "partial": 5
+        },
+        "effort_expectation_met": 5,
+        "expansion_severities": {
+          "low": 7,
+          "medium": 3,
+          "none": 4
+        },
+        "group": [
+          "combined-v2",
+          "35-flask-vue-book-filter"
+        ],
+        "important_crossings": {
+          "missing": 4,
+          "present": 10
+        },
+        "requirement_expectation_met": 9,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 10
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 7,
+          "mixed": 4,
+          "poor": 3
+        }
+      }
+    ]
+  }
+}

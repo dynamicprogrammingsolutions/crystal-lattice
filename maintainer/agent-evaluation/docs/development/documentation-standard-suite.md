@@ -119,6 +119,17 @@ attempts, valid semantic assessments, invalid evaluator attempts, and missing
 assessments separate. It removes repeated full effective-instruction text while
 retaining every guidance file hash and the effective-message hash.
 
+Rendered, reviewable copies of the pinned baseline and combined-v2 root files
+live under
+`suites/documentation_standard/guidance_variants/root-guidance/`. Refresh them
+after changing variant composition with:
+
+```bash
+python -m suites.documentation_standard.render_root_guidance_snapshots
+```
+
+Deterministic tests require each snapshot to equal the exact runtime variant.
+
 ## Run GLM-5.3 Flash
 
 The GLM profile targets `glm-5.3-flash:cloud` for every seed and branch.

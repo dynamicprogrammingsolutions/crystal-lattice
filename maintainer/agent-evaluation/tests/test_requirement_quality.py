@@ -32,6 +32,22 @@ from suites.documentation_standard.requirement_quality_evaluator import (
     parse_evaluator_response_with_repairs,
     validate_evaluator_result,
 )
+from suites.documentation_standard.root_guidance_quality import (
+    QUALITY_DIMENSIONS,
+    QUALITY_METRICS,
+    build_quality_prompt,
+    mapped_quality_result,
+    quality_label_mapping,
+    validate_quality_result,
+)
+from suites.documentation_standard.root_guidance_scoring import (
+    aggregate_scored_cells,
+    score_semantic_assessment,
+)
+from suites.documentation_standard.render_root_guidance_snapshots import (
+    SNAPSHOT_ROOT,
+    SNAPSHOT_VARIANTS,
+)
 from suites.documentation_standard.freeze_requirement_quality_current_results import (
     SEMANTIC_RESULTS_OUTPUT,
     TASK_DATASET_OUTPUT,
@@ -41,6 +57,12 @@ from suites.documentation_standard.freeze_root_guidance_focused_results import (
     OUTPUT_PATH as ROOT_GUIDANCE_FOCUSED_RESULTS,
     dataset_id as root_guidance_dataset_id,
     test_prefix as root_guidance_test_prefix,
+)
+from suites.documentation_standard.freeze_root_guidance_full_matrix import (
+    OUTPUT_PATH as ROOT_GUIDANCE_FULL_MATRIX_RESULTS,
+)
+from suites.documentation_standard.analyze_root_guidance_full_matrix import (
+    ANALYSIS_PATH as ROOT_GUIDANCE_FULL_MATRIX_ANALYSIS,
 )
 from suites.documentation_standard.support import PROFILES, apply_fixture
 from suites.documentation_standard.test_requirement_quality_task_guidance import (
@@ -313,6 +335,193 @@ def test_frozen_root_guidance_focused_results_are_complete() -> None:
         if item["variant"] in {"baseline", "combined-v2"}
     ]
     assert decision_missing == []
+
+
+def test_frozen_legacy_root_guidance_full_matrix_is_complete() -> None:
+    matrix = json.loads(
+        ROOT_GUIDANCE_FULL_MATRIX_RESULTS.read_text(encoding="utf-8")
+    )
+    analysis = json.loads(
+        ROOT_GUIDANCE_FULL_MATRIX_ANALYSIS.read_text(encoding="utf-8")
+    )
+
+    assert matrix["dataset_id"] == "root-guidance-full-matrix-20260917"
+    assert len(matrix["producer_records"]) == 84
+    assert len(matrix["semantic_assessments"]) == 84
+    assert matrix["semantic_errors"] == []
+    assert matrix["missing_semantic_assessments"] == []
+    assert matrix["pairwise_quality_records"] == []
+    assert len(matrix["missing_pairwise_quality"]) == 42
+    assert analysis["counts"] == {
+        "producer_records": 84,
+        "semantic_assessments": 84,
+        "pairwise_quality_records": 0,
+        "producer_failures": 7,
+        "semantic_errors": 0,
+        "missing_semantic_assessments": 0,
+        "pairwise_quality_errors": 0,
+        "missing_pairwise_quality": 42,
+    }
+
+
+def test_root_guidance_effort_scoring_distinguishes_quality_axes() -> None:
+    assessment = {
+        "requirement_assessment": {
+            "coverage_status": "complete",
+            "expansion_severity": "low",
+            "added_obligations": [],
+            "grouping": [],
+        },
+        "testing_plan_assessment": {
+            "overall_coverage": "complete",
+            "layer_selection": "appropriate",
+            "important_crossing": "present",
+            "verification_focus": "focused",
+            "duplication": "none",
+            "combinatorial_expansion": "none",
+        },
+    }
+    high = score_semantic_assessment(assessment, effort="high")
+
+    assert high == {
+        "effort": "high",
+        "effort_tier": "high_assurance",
+        "coverage_score": 100,
+        "scope_score": 85,
+        "testing_score": 100,
+        "requirement_expectation_met": True,
+        "testing_expectation_met": True,
+        "effort_expectation_met": True,
+        "material_added_obligations": 0,
+        "material_grouping_issues": 0,
+    }
+
+    partial = {
+        **assessment,
+        "requirement_assessment": {
+            **assessment["requirement_assessment"],
+            "coverage_status": "partial",
+        },
+        "testing_plan_assessment": {
+            **assessment["testing_plan_assessment"],
+            "overall_coverage": "partial",
+            "important_crossing": "missing",
+        },
+    }
+    low = score_semantic_assessment(partial, effort="low")
+    high_partial = score_semantic_assessment(partial, effort="high")
+
+    assert low["requirement_expectation_met"] is True
+    assert low["testing_expectation_met"] is True
+    assert high_partial["requirement_expectation_met"] is False
+    assert high_partial["testing_expectation_met"] is False
+
+    aggregate = aggregate_scored_cells(
+        [
+            {"scores": high, "assessment": assessment},
+            {"scores": high_partial, "assessment": partial},
+        ]
+    )
+    assert aggregate["cells"] == 2
+    assert aggregate["average_coverage_score"] == 80.0
+    assert aggregate["effort_expectation_met"] == 1
+
+
+def test_root_guidance_pairwise_quality_contract() -> None:
+    scenario = next(
+        item
+        for item in SCENARIOS
+        if item.scenario_id == "34-fastapi-notes-pagination"
+    )
+    mapping = quality_label_mapping(
+        scenario_id=scenario.scenario_id,
+        mode="task",
+        candidate_id="gpt-high",
+    )
+    assert set(mapping) == {"A", "B"}
+    assert set(mapping.values()) == {"baseline", "combined-v2"}
+
+    semantic = {
+        "candidate_id": "gpt-high",
+        "requirement_assessment": {"summary": "complete and focused"},
+        "testing_plan_assessment": {"summary": "decisive"},
+    }
+    prompt = build_quality_prompt(
+        scenario=scenario,
+        target=load_target(scenario),
+        mode="task",
+        candidate_id="gpt-high",
+        outputs={
+            "baseline": {
+                "producer": {"profile": "gpt"},
+                "generated_files": {"tasks/a.md": "first output"},
+            },
+            "combined-v2": {
+                "producer": {"profile": "gpt"},
+                "generated_files": {"tasks/a.md": "second output"},
+            },
+        },
+        semantic_assessments={
+            "baseline": semantic,
+            "combined-v2": semantic,
+        },
+        label_mapping=mapping,
+    )
+    assert "Do not reward verbosity" in prompt
+    assert '"combined-v2"' not in prompt
+    assert '"baseline"' not in prompt
+
+    result = {
+        "schema_version": 1,
+        "scenario_id": scenario.scenario_id,
+        "candidate_id": "gpt-high",
+        "dimension_reviews": [
+            {
+                "dimension": dimension,
+                "preferred": "A",
+                "difference": "slight",
+                "rationale": "A is easier to use.",
+            }
+            for dimension in QUALITY_DIMENSIONS
+        ],
+        "scores": {
+            label: {metric: 4 for metric in QUALITY_METRICS}
+            for label in ("A", "B")
+        },
+        "overall_preference": "A",
+        "overall_difference": "slight",
+        "strengths_a": ["clear"],
+        "strengths_b": ["complete"],
+        "weaknesses_a": [],
+        "weaknesses_b": ["long"],
+        "guidance_effects": [
+            {
+                "observation": "Requirements are shorter.",
+                "likely_cause": "dedicated_requirements_section",
+                "confidence": "medium",
+                "rationale": "The section emphasizes minimum outcomes.",
+            }
+        ],
+        "summary": "A is slightly easier to review.",
+    }
+    validate_quality_result(
+        result,
+        scenario_id=scenario.scenario_id,
+        candidate_id="gpt-high",
+    )
+    mapped = mapped_quality_result(result, label_mapping=mapping)
+    assert mapped["overall_preference"] == mapping["A"]
+    assert set(mapped["scores"]) == {"baseline", "combined-v2"}
+
+
+@pytest.mark.parametrize("variant", SNAPSHOT_VARIANTS)
+def test_rendered_root_guidance_snapshot_matches_runtime_variant(
+    variant: str,
+) -> None:
+    expected = root_guidance_source(variant, "root-only").read_bytes(
+        "AGENTS.md"
+    )
+    assert (SNAPSHOT_ROOT / variant / "AGENTS.md").read_bytes() == expected
 
 
 def test_accepted_requirement_quality_dataset_is_complete() -> None:
