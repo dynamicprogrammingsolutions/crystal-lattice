@@ -757,6 +757,10 @@ It does not generally watch package-local README or `docs/` paths such as
 
 - [ ] `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/016-root-agents-documentation-consolidation.md`
+- [x] `tasks/20260728-package-local-documentation-standard/017-shared-plugin-guidance-calibration.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/018-substantial-specification-approval-guidance.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/019-evaluation-workspace-confinement-and-test18-redesign.md`
 - [x] `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 - [x] `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
 - [x] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
@@ -787,6 +791,13 @@ The work is organized standards-first:
    explicitly non-blocking for 010 completion and for subtasks 020–070. Later
    guidance changes remain owned and evidenced by 015 without reopening
    completed downstream work unless they change an approved requirement.
+   Follow-up subtasks use that framework without reopening its generic kernel:
+   - 016 consolidates root AGENTS documentation guidance and re-evaluates
+     two-page routing;
+   - 017 diagnoses the persistent shared-plugin Test 18 failure before any
+     public guidance change;
+   - 018 restores the substantial-specification approval boundary after the
+     concurrent Test-22 guidance work is reconciled.
 3. Subtask 020 extends the existing site assembler and establishes package
    registration and focused tests.
 4. Subtasks 030, 040, and 050 migrate or classify bounded documentation areas
@@ -868,6 +879,10 @@ Required new or updated documentation includes:
 
 - [ ] 010: Establish documentation/specification standard and agent guidance.
 - [ ] 015: Create the programmatic agent-evaluation library and documentation-standard consumers.
+- [ ] 016: Consolidate root AGENTS documentation guidance and verify routing.
+- [x] 017: Calibrate shared-plugin guidance Test 18.
+- [ ] 018: Restore substantial-specification approval guidance after branch reconciliation.
+- [ ] 019: Constrain evaluation workspaces and redesign shared-plugin Test 18.
 - [ ] 020: Extend package docs-site assembly and add focused tests.
 - [x] 030: Migrate and lightly verify Core Python documentation.
 - [ ] 040: Migrate and lightly verify application and shared plugin documentation.

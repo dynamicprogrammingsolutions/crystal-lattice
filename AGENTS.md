@@ -4,7 +4,7 @@ This file is the starting point when you’re asked to change behavior, add a fe
 
 ---
 
-## 1. Project Overview
+## Project Overview
 
 The AI Agent Platform is a **modular, functional agent framework** for building conversational apps on top of arbitrary LLM providers.
 
@@ -29,7 +29,7 @@ Design principles:
 
 ---
 
-## 2. Architecture & Key Directories
+## Architecture & Key Directories
 
 **Core SDK – `core/python/agent_core`**
 - `core.py`: `AgentCore` – session/message ops, request/streaming pipeline, tool orchestration, native history.
@@ -104,20 +104,17 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - Used mainly for tests, compatibility, and a small set of package-local/core features.
   - Do not place new plugins here without explicit user consent.
 
-**Docs & scripts**
+**Documentation & scripts**
 - Root: `ARCHITECTURE.md` and cross-package documentation entry points.
 - Core package docs: `core/python/docs/index.md`; generated Core API reference:
   `docs/reference/agent_core/`.
-- Development hub: `docs/development/index.md`.
-- Documentation and specification guide: `docs/development/documentation.md`.
-- Crystal Lattice documentation conventions:
-  `docs/development/crystal-lattice-documentation.md`.
+- Development documentation and conventions: `docs/development/index.md`.
 - Guidance-maintenance specifications: `maintainer/specifications/`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
 - General plugin overview: `plugins/docs/overview.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
 
-## Documentation ownership and workflow
+## Documentation ownership and routing
 
 Start package work by reading its `README.md`, nearest `AGENTS.md`, and
 `docs/index.md` when present. Use the smallest documentation structure that
@@ -136,16 +133,23 @@ describe available behavior in language appropriate to their readers.
 Target-only user text may be drafted on a development branch with a visible
 `Not implemented` marker, but is not published as current guidance by default.
 
+When behavior changes, update only the affected maintained sources: user
+documentation for supported use, developer documentation for current internals
+and operations, and specifications plus requirements when the intended target
+changes.
+
 Change generated documentation through its maintained source or generator;
 never edit `docs_site/prepared/` or `docs_site/dist/` directly. If a required
 generation or validation step is blocked, preserve the source and validation
-boundaries and report the remaining action.
+boundaries and report the remaining action. Publication and site-generation
+commands are maintained in the Crystal Lattice conventions.
 
 Document verified facts discovered during the current work. Do not reconstruct
-large unfamiliar areas merely to fill an illustrated directory structure.
+large unfamiliar areas merely to fill an illustrated directory structure, and
+do not normalize existing variations unless the current work makes that useful.
 
 Before creating, moving, or materially restructuring documentation or
-specifications, read:
+specifications, read both files in full:
 
 - `docs/development/documentation.md`
 - `docs/development/crystal-lattice-documentation.md`
@@ -169,9 +173,9 @@ validation, also read:
 
 ---
 
-## 3. Development Workflow
+## Development Workflow
 
-### Commit guidance
+**Commit guidance**
 
 Create a commit only when the user explicitly requests one in the current conversation. Use a short, clear message—usually two to six words—without type or scope prefixes unless a specific format is requested. Stage only files belonging to the requested work and leave unrelated changes unstaged.
 
@@ -246,19 +250,9 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - `black core/python/agent_core core/python/tests core/python/examples core/python/plugins`
 - `pyright`
 
-**Docs**
-- `python -m pip install -r docs_site/requirements.txt`
-- `python docs_site/scripts/prepare_mkdocs_site.py`
-- `(cd docs_site && mkdocs serve -a 127.0.0.1:8001)` / `(cd docs_site && mkdocs build)`
-- Use `python docs_site/scripts/build_mkdocs_site.py` only when the task also
-  intends to refresh committed generated reference snapshots.
-- After changing examples: run the relevant example tests selectively, then
-  regenerate `core/python/docs/examples.md` with
-  `python scripts/generate_examples_md.py`.
-
 ---
 
-## 4. Where to Change What
+## Where to Change What
 
 **Core behavior (`agent_core`)**
 - Change `core/python/agent_core/core.py` when you need new capabilities that all apps share:
@@ -295,7 +289,7 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 
 ---
 
-## 5. Plugin Development (Summary)
+## Plugin Development (Summary)
 
 - Plugins are plain classes with instance methods, using explicit `state: dict`.
 - Instances are short-lived per request; avoid persistent mutable attributes.
@@ -325,7 +319,7 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 
 ---
 
-## 6. Testing & Documentation Principles
+## Testing Principles
 
 **When to add tests**
 - Any new public behavior or API surface.
@@ -333,8 +327,9 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - Any change in `agent_core`, `agent_app`, `agent_terminal_app`, built-in plugin projects, or core-packaged plugins visible to users.
 
 **What to test**
-- Use unit or component tests when the behavior can be proved locally; choose
-  the lowest test boundary that still contains the failure being detected.
+- Use the least expensive test that proves the requirement without bypassing
+  the important boundary. Unit and component tests suit pure functions,
+  protocol implementations, local state, and rendering behavior.
 - Use **integration tests** for multi-layer flows or provider-backed behavior; mark them with `integration`.
 - Add `api` for hosted real-provider tests that require credentials and may incur cost.
 - Add `slow_integration` for broad, high-latency, or expensive integration suites that should be run selectively.
@@ -369,16 +364,37 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - First-party built-in plugin projects live under repo-root `plugins/`, and their tests live alongside them.
 - Do not add new plugin projects under `core/python/plugins` without explicit user consent.
 
-**Documentation changes**
-- Follow `## Documentation ownership and workflow` above and
-  `docs/development/documentation.md`.
-- For consumer-visible behavior, update the owning current user documentation
-  and affected cross-package guidance.
-- For durable implementation, architecture, testing, or maintenance changes,
-  update the owning developer documentation.
-- For target changes, update the specification first and keep requirement
-  implementation, verification, and documentation state current.
-- After example changes, update source and tests, then regenerate
-  `core/python/docs/examples.md`.
+Treat applicable tests, type hints, and documentation updates as part of
+“done” for substantive changes.
 
-Treat tests, type hints, and documentation updates as part of “done” for any substantive change.
+## Long-running work and waiting
+
+- Start safe, authorized commands expected to take longer than 10 minutes in
+  the background, and keep a process ID, log, or other status mechanism.
+- Continue independent in-scope work while background commands run. Use
+  waiting intervals only when completion blocks the remaining work.
+- Monitor at intervals of up to 10 minutes. Limit waiting-only work to two
+  hours or 12 wait calls.
+- Read the current time at the start of commands whose behavior depends on it.
+
+For example, start a long-running command and continue other work:
+
+```bash
+nohup <command> > /tmp/<task-name>.log 2>&1 < /dev/null &
+pid=$!
+```
+
+Check it later:
+
+```bash
+date -u
+kill -0 "$pid" && tail -n 50 /tmp/<task-name>.log
+```
+
+For a scheduled wait, calculate from the current time read by that command:
+
+```bash
+now=$(date -u +%s)
+(( now < target_epoch )) &&
+  sleep $(( target_epoch - now < 600 ? target_epoch - now : 600 ))
+```

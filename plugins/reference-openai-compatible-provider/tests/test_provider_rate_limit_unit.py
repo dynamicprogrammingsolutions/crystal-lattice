@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import pytest
@@ -7,6 +8,24 @@ import requests
 
 import reference_openai_compatible_provider.provider as provider_module
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
+
+
+def _patch_session_post(monkeypatch, fake_post) -> None:
+    parameters = inspect.signature(fake_post).parameters
+    accepts_kwargs = any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
+
+    def session_post(_session, *args, **kwargs):
+        filtered = (
+            kwargs
+            if accepts_kwargs
+            else {key: value for key, value in kwargs.items() if key in parameters}
+        )
+        return fake_post(*args, **filtered)
+
+    monkeypatch.setattr(provider_module.requests.Session, "post", session_post)
 
 
 class _Resp:
@@ -69,7 +88,7 @@ def test_call_api_retries_429_with_backoff(monkeypatch):
         assert json["stream"] is False
         return next(responses)
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -107,7 +126,7 @@ def test_call_api_enforces_min_request_interval_between_calls(monkeypatch):
             },
         )
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
     monkeypatch.setattr(provider_module.time, "monotonic", lambda: next(monotonic_values))
 
@@ -161,7 +180,7 @@ def test_stream_api_retries_429_before_stream_starts(monkeypatch):
         assert stream is True
         return next(responses)
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -220,7 +239,7 @@ def test_call_api_retries_500_with_configured_delays(monkeypatch):
     def fake_post(url, headers, json, timeout):
         return next(responses)
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -259,7 +278,7 @@ def test_call_api_mixed_status_codes_uses_global_attempt_counter(monkeypatch):
     def fake_post(url, headers, json, timeout):
         return next(responses)
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -295,7 +314,7 @@ def test_call_api_exhausted_retries_raises_on_status(monkeypatch):
     def fake_post(url, headers, json, timeout):
         return next(responses)
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -336,7 +355,7 @@ def test_stream_api_retries_500_before_stream_starts(monkeypatch):
     def fake_post(url, headers, json, timeout, stream):
         return next(responses)
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -379,7 +398,7 @@ def test_no_retry_on_status_without_config(monkeypatch):
     def fake_post(url, headers, json, timeout):
         return _Resp(ok=False, status_code=500, text="no retry configured")
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     sleeps: list[float] = []
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
@@ -415,7 +434,7 @@ def test_call_api_retries_timeout_with_configured_delays(monkeypatch):
             },
         )
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -441,7 +460,7 @@ def test_call_api_timeout_without_config_raises_immediately(monkeypatch):
     def fake_post(url, headers, json, timeout):
         raise requests.exceptions.Timeout("connection timed out")
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     sleeps: list[float] = []
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
@@ -451,7 +470,10 @@ def test_call_api_timeout_without_config_raises_immediately(monkeypatch):
         {"config": {"base_url": "http://example.com/v1", "model": "demo-model"}},
     )
 
-    with pytest.raises(requests.exceptions.Timeout, match="connection timed out"):
+    with pytest.raises(
+        RuntimeError,
+        match="OpenAI-compatible call failed: connection timed out",
+    ):
         provider.call_api(native_messages, state)
 
     assert sleeps == []
@@ -463,7 +485,7 @@ def test_call_api_exhausted_timeout_retries_raises(monkeypatch):
     def fake_post(url, headers, json, timeout):
         raise requests.exceptions.Timeout("still timing out")
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     sleeps: list[float] = []
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
@@ -479,7 +501,10 @@ def test_call_api_exhausted_timeout_retries_raises(monkeypatch):
         },
     )
 
-    with pytest.raises(requests.exceptions.Timeout, match="still timing out"):
+    with pytest.raises(
+        RuntimeError,
+        match="OpenAI-compatible call failed: still timing out",
+    ):
         provider.call_api(native_messages, state)
 
     assert sleeps == [1.0]
@@ -504,7 +529,7 @@ def test_timeout_and_status_share_global_attempt_counter(monkeypatch):
             },
         )
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -594,7 +619,7 @@ def test_stream_recovery_early_only_recovers_when_no_content(monkeypatch):
     def fake_post(url, headers, json, timeout, stream):
         return next(responses)
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -630,7 +655,7 @@ def test_stream_recovery_early_only_does_not_recover_after_content(monkeypatch):
         return broken
 
     sleeps: list[float] = []
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -669,7 +694,7 @@ def test_stream_recovery_aggressive_recovers_after_content(monkeypatch):
     def fake_post(url, headers, json, timeout, stream):
         return next(responses)
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
     provider = OpenAICompatibleProvider()
@@ -703,7 +728,7 @@ def test_stream_recovery_disabled_does_not_recover(monkeypatch):
     def fake_post(url, headers, json, timeout, stream):
         return broken
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     sleeps: list[float] = []
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
@@ -738,7 +763,7 @@ def test_stream_recovery_exhausted_retries_raises(monkeypatch):
         call_count += 1
         return broken
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     sleeps: list[float] = []
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 
@@ -769,7 +794,7 @@ def test_stream_recovery_no_config_does_not_recover(monkeypatch):
     def fake_post(url, headers, json, timeout, stream):
         return broken
 
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+    _patch_session_post(monkeypatch, fake_post)
     sleeps: list[float] = []
     monkeypatch.setattr(provider_module.time, "sleep", sleeps.append)
 

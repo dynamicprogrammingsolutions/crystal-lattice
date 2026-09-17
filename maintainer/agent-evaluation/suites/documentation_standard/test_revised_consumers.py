@@ -543,6 +543,19 @@ def test_27_routed_current_guidance(
         for path in matching_paths(run, "packages/event-sdk/docs")
         if "/development/" not in path
     )
+    target_api_mentioned = "replay_failed" in public_text
+    target_marked_unavailable = any(
+        phrase in public_text
+        for phrase in (
+            "not currently",
+            "not available",
+            "no replay",
+            "does not exist",
+            "future",
+            "planned",
+            "target-only",
+        )
+    )
     findings = basic_run_findings(run) + (
         AssertionFinding(
             "routing-only root guidance injected",
@@ -581,9 +594,13 @@ def test_27_routed_current_guidance(
             repr(run.changed_paths),
         ),
         AssertionFinding(
-            "current user behavior preserved",
-            "replay_failed" not in public_text
-            and "development/specifications" not in public_text,
+            "target-only behavior not presented as available",
+            not target_api_mentioned or target_marked_unavailable,
+            public_text,
+        ),
+        AssertionFinding(
+            "user documentation does not link internal specifications",
+            "development/specifications" not in public_text,
             public_text,
         ),
     )

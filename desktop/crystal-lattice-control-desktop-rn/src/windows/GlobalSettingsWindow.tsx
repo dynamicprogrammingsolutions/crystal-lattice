@@ -41,7 +41,8 @@ type DesktopGlobalSettingKey =
   | 'headerSize'
   | 'recentSessionsWindow'
   | 'sessionDoubleClickAction'
-  | 'sessionsFollowActiveTabEnabled';
+  | 'sessionsFollowActiveTabEnabled'
+  | 'switchConnectionWithActiveTabEnabled';
 
 export function applyDesktopGlobalSettingChange(
   current: DesktopGlobalSettings,
@@ -140,6 +141,17 @@ function GlobalSettingsWindowInner(): React.JSX.Element {
           );
         },
       ),
+      desktopWindowEvents.addListener(
+        'switchConnectionWithActiveTabChanged',
+        (payload: any) => {
+          setSettings(current =>
+            normalizeDesktopGlobalSettings({
+              ...current,
+              switchConnectionWithActiveTabEnabled: payload?.enabled === true,
+            }),
+          );
+        },
+      ),
     ];
     return () => {
       cancelled = true;
@@ -233,6 +245,19 @@ function GlobalSettingsWindowInner(): React.JSX.Element {
             }
             onValueChange={value =>
               update('sessionsFollowActiveTabEnabled', value === 'on')
+            }
+          />
+        </SettingRow>
+        <SettingRow label="Switch connection with active tab">
+          <MacSelect
+            testID="global-settings-switch-connection-with-active-tab"
+            style={styles.select}
+            options={FOLLOW_ACTIVE_TAB_OPTIONS}
+            selectedValue={
+              settings.switchConnectionWithActiveTabEnabled ? 'on' : 'off'
+            }
+            onValueChange={value =>
+              update('switchConnectionWithActiveTabEnabled', value === 'on')
             }
           />
         </SettingRow>

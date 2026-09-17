@@ -43,6 +43,7 @@ const connections = [
 function renderHome() {
   const now = Date.now() / 1000;
   const onOpenGlobalSettings = jest.fn();
+  const onOpenEmbeddedSettings = jest.fn();
   const onSelectSession = jest.fn();
   const screen = render(
     <ThemeProvider theme={lightTheme}>
@@ -98,6 +99,7 @@ function renderHome() {
             hasActiveBackend
             isActive
             onOpenGlobalSettings={onOpenGlobalSettings}
+            onOpenEmbeddedSettings={onOpenEmbeddedSettings}
             onNewConnection={() => {}}
             onNewSession={() => {}}
             onSelectSession={onSelectSession}
@@ -106,7 +108,12 @@ function renderHome() {
       </PinnedActionsProvider>
     </ThemeProvider>,
   );
-  return { ...screen, onOpenGlobalSettings, onSelectSession };
+  return {
+    ...screen,
+    onOpenEmbeddedSettings,
+    onOpenGlobalSettings,
+    onSelectSession,
+  };
 }
 
 function panEvent(options: {
@@ -170,6 +177,13 @@ describe('HomeScreen', () => {
     fireEvent.press(screen.getByTestId('home-menu-global-settings'));
 
     expect(screen.onOpenGlobalSettings).toHaveBeenCalledTimes(1);
+    fireEvent.press(screen.getByTestId('home-menu'));
+    fireEvent.press(
+      screen.getByTestId('home-menu-embedded-settings-label'),
+    );
+    await waitFor(() =>
+      expect(screen.onOpenEmbeddedSettings).toHaveBeenCalledTimes(1),
+    );
     expect(screen.getByText('Recent Sessions')).toBeTruthy();
     expect(screen.getByText('Last 3 days')).toBeTruthy();
   });

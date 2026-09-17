@@ -132,6 +132,7 @@ export { SimpleSubscribable } from "./util/subscribable";
 export type { AgentsControllerState } from "./agents/agentsController";
 export {
   AgentsController,
+  invalidateAgentsCache,
   pickDefaultAgentId,
 } from "./agents/agentsController";
 
@@ -466,6 +467,7 @@ export type {
   DiscoveryConnectionRecord,
   BridgeConnectionRecord,
   CloudConnectionRecord,
+  EmbeddedConnectionRecord,
   ConnectionRecord,
 } from "./connections/types";
 export type {

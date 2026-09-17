@@ -62,7 +62,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"markdownBaseFontSizeChanged", @"markdownHeaderSizeChanged", @"recentSessionsWindowChanged", @"sessionDoubleClickActionChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"switchConnectionWithActiveTabChanged", @"markdownBaseFontSizeChanged", @"markdownHeaderSizeChanged", @"recentSessionsWindowChanged", @"sessionDoubleClickActionChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
 }
 
 - (void)startObserving
@@ -75,6 +75,11 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleSessionsFollowActiveTabDidChange:)
                                                name:CLCSessionsFollowActiveTabDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleSwitchConnectionWithActiveTabDidChange:)
+                                               name:CLCSwitchConnectionWithActiveTabDidChangeNotification
                                              object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
@@ -138,6 +143,10 @@ RCT_EXPORT_MODULE();
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCSessionsFollowActiveTabDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCSwitchConnectionWithActiveTabDidChangeNotification
                                                 object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
@@ -220,6 +229,18 @@ RCT_EXPORT_MODULE();
   [self sendEventWithName:@"sessionsFollowActiveTabChanged" body:@{ @"enabled" : @(resolved) }];
 }
 
+- (void)handleSwitchConnectionWithActiveTabDidChange:(NSNotification *)notification
+{
+  id enabled =
+      notification.userInfo[CLCSwitchConnectionWithActiveTabEnabledUserInfoKey];
+  BOOL resolved = NO;
+  if ([enabled isKindOfClass:[NSNumber class]]) {
+    resolved = [enabled boolValue];
+  }
+  [self sendEventWithName:@"switchConnectionWithActiveTabChanged"
+                     body:@{ @"enabled" : @(resolved) }];
+}
+
 - (void)handleMarkdownBaseFontSizeDidChange:(NSNotification *)notification
 {
   NSNumber *baseFontSize = notification.userInfo[CLCMarkdownBaseFontSizeUserInfoKey];
@@ -252,7 +273,7 @@ RCT_EXPORT_MODULE();
     @"moduleName" : @"GlobalSettingsWindow",
     @"title" : @"Settings",
     @"width" : @560,
-    @"height" : @420,
+    @"height" : @468,
     @"initialProps" : @{},
   }];
 }
@@ -754,14 +775,21 @@ RCT_REMAP_METHOD(getDesktopGlobalSettings,
       ![sessionDoubleClickAction isEqualToString:@"open"]) {
     sessionDoubleClickAction = @"preview";
   }
+  id rawSessionsFollowActiveTabEnabled =
+      [defaults objectForKey:@"CrystalLattice.SessionsFollowActiveTabEnabled"];
   BOOL sessionsFollowActiveTabEnabled =
-      [defaults boolForKey:@"CrystalLattice.SessionsFollowActiveTabEnabled"];
+      rawSessionsFollowActiveTabEnabled == nil
+      ? YES
+      : [defaults boolForKey:@"CrystalLattice.SessionsFollowActiveTabEnabled"];
+  BOOL switchConnectionWithActiveTabEnabled =
+      [defaults boolForKey:@"CrystalLattice.SwitchConnectionWithActiveTabEnabled"];
   resolve(@{
     @"baseFontSize" : @(baseFontSize),
     @"headerSize" : headerSize,
     @"recentSessionsWindow" : recentSessionsWindow,
     @"sessionDoubleClickAction" : sessionDoubleClickAction,
     @"sessionsFollowActiveTabEnabled" : @(sessionsFollowActiveTabEnabled),
+    @"switchConnectionWithActiveTabEnabled" : @(switchConnectionWithActiveTabEnabled),
   });
 }
 

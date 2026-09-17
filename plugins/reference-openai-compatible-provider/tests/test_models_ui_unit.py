@@ -69,6 +69,31 @@ def test_get_models_exception_returns_empty(monkeypatch):
     )
 
 
+def test_get_models_uses_configured_tls_ca_bundle(monkeypatch):
+    def fake_get(
+        url: str,
+        headers: dict[str, str],
+        timeout: float,
+        verify: str,
+    ):
+        assert url == "https://example.com/v1/models"
+        assert headers == {}
+        assert timeout == 10.0
+        assert verify == "/app/reviewer-ca.pem"
+        return _Resp(ok=True, payload={"data": [{"id": "reviewer-model"}]})
+
+    monkeypatch.setattr("requests.get", fake_get)
+
+    provider = OpenAICompatibleProvider()
+    assert provider.get_models(
+        {
+            "base_url": "https://example.com/v1",
+            "timeout": 12,
+            "tls_ca_bundle": "/app/reviewer-ca.pem",
+        }
+    ) == [{"id": "reviewer-model"}]
+
+
 def test_get_ui_elements_keeps_rich_dropdown_when_no_models():
     provider = OpenAICompatibleProvider()
     elements = provider.get_ui_elements({}, [], [])

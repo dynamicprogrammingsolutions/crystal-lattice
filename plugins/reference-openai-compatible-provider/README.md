@@ -79,6 +79,16 @@ These keys are read by `reference_openai_compatible_provider.provider.OpenAIComp
 - `api_key` (string, optional): bearer token for hosted OpenAI-compatible APIs
 - `timeout` (number, optional): request timeout in seconds
   - default: `60`
+- `tls_verify` (boolean, optional): enable normal HTTPS certificate
+  verification
+  - default: `true`
+- `tls_ca_bundle` (string, optional): custom CA bundle path for model discovery
+  and completion requests; when set, it takes precedence over `tls_verify`
+- `tool_choice` (string, optional): OpenAI-compatible tool selection mode when
+  tools are present
+  - values commonly supported by compatible endpoints: `auto`, `required`,
+    and `none`
+  - default: `auto`
 - `debug_stream` (boolean, optional): log decoded streaming chunks as they are received
   - default: `false`
 - `min_request_interval_seconds` (number, optional): minimum spacing between requests to the same `base_url` scope
@@ -204,6 +214,9 @@ Tool support is enabled automatically when tool plugins are loaded:
 - tool schemas are injected into `config["tools"]`
 - requests include OpenAI-style `tools` and `tool_choice` when tools are present
 - assistant tool calls are surfaced as `metadata["tool_calls"]`
+
+Set `tool_choice: "required"` for a request that must produce a tool call.
+Support for non-default values depends on the selected compatible endpoint.
 
 To actually run tools, load one or more tool plugins. Example with built-in math tools:
 

@@ -66,7 +66,8 @@ export interface SetDesktopGlobalSettingParams {
     | 'headerSize'
     | 'recentSessionsWindow'
     | 'sessionDoubleClickAction'
-    | 'sessionsFollowActiveTabEnabled';
+    | 'sessionsFollowActiveTabEnabled'
+    | 'switchConnectionWithActiveTabEnabled';
   value: string | number | boolean;
 }
 

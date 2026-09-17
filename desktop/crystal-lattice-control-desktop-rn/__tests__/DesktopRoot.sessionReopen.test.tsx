@@ -103,10 +103,21 @@ jest.mock('../src/panels/ConnectionsPanel', () => ({
   },
 }));
 jest.mock('../src/panels/SessionsPanel', () => ({
-  SessionsPanel: () => {
+  SessionsPanel: ({
+    connectionId,
+    followActiveTabEnabled,
+  }: {
+    connectionId: string | null;
+    followActiveTabEnabled: boolean;
+  }) => {
     const ReactModule = require('react');
     const { View } = require('react-native');
-    return ReactModule.createElement(View, { testID: 'sessions-panel' });
+    return ReactModule.createElement(View, {
+      testID: 'sessions-panel',
+      accessibilityLabel: `connection:${connectionId ?? 'none'};follow:${
+        followActiveTabEnabled ? 'on' : 'off'
+      }`,
+    });
   },
 }));
 jest.mock('../src/panels/HistoryPanel', () => ({
@@ -180,6 +191,9 @@ test('restores an active preview and attempts to reopen its connection at startu
   expect(screen.getByTestId('connections-panel').props.accessibilityLabel).toBe(
     'focused:other',
   );
+  expect(screen.getByTestId('sessions-panel').props.accessibilityLabel).toBe(
+    'connection:other;follow:on',
+  );
   fireEvent.press(screen.getByTestId('select-preview'));
   expect(screen.getByTestId('connections-panel').props.accessibilityLabel).toBe(
     'focused:other',
@@ -191,8 +205,13 @@ test('restores an active preview and attempts to reopen its connection at startu
   );
 });
 
-test('focuses the owning connection when Sessions follow active tab is enabled', async () => {
-  const screen = render(<DesktopRoot initialSessionsFollowActiveTabEnabled />);
+test('switches connection independently while Sessions following is disabled', async () => {
+  const screen = render(
+    <DesktopRoot
+      initialSessionsFollowActiveTabEnabled={false}
+      initialSwitchConnectionWithActiveTabEnabled
+    />,
+  );
   await waitFor(() =>
     expect(mockOpenConnection).toHaveBeenCalledWith(mockConnection),
   );
@@ -200,5 +219,43 @@ test('focuses the owning connection when Sessions follow active tab is enabled',
     expect(
       screen.getByTestId('connections-panel').props.accessibilityLabel,
     ).toBe('focused:connection'),
+  );
+  expect(screen.getByTestId('sessions-panel').props.accessibilityLabel).toBe(
+    'connection:connection;follow:off',
+  );
+});
+
+test('switches connection and follows Sessions when both settings are enabled', async () => {
+  const screen = render(
+    <DesktopRoot
+      initialSessionsFollowActiveTabEnabled
+      initialSwitchConnectionWithActiveTabEnabled
+    />,
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByTestId('connections-panel').props.accessibilityLabel,
+    ).toBe('focused:connection'),
+  );
+  expect(screen.getByTestId('sessions-panel').props.accessibilityLabel).toBe(
+    'connection:connection;follow:on',
+  );
+});
+
+test('does not switch connection or follow Sessions when both settings are disabled', async () => {
+  const screen = render(
+    <DesktopRoot
+      initialSessionsFollowActiveTabEnabled={false}
+      initialSwitchConnectionWithActiveTabEnabled={false}
+    />,
+  );
+  await waitFor(() =>
+    expect(mockOpenConnection).toHaveBeenCalledWith(mockConnection),
+  );
+  expect(screen.getByTestId('connections-panel').props.accessibilityLabel).toBe(
+    'focused:other',
+  );
+  expect(screen.getByTestId('sessions-panel').props.accessibilityLabel).toBe(
+    'connection:other;follow:off',
   );
 });

@@ -11,7 +11,8 @@ describe('desktop global session interaction settings', () => {
   it('defaults double-click to preview and exposes the complementary action', () => {
     const settings = normalizeDesktopGlobalSettings(null);
     expect(settings.sessionDoubleClickAction).toBe('preview');
-    expect(settings.sessionsFollowActiveTabEnabled).toBe(false);
+    expect(settings.sessionsFollowActiveTabEnabled).toBe(true);
+    expect(settings.switchConnectionWithActiveTabEnabled).toBe(false);
     expect(
       complementarySessionOpenMode(settings.sessionDoubleClickAction),
     ).toBe('open');
@@ -50,7 +51,7 @@ describe('desktop global session interaction settings', () => {
     expect(resolveExplicitSessionOpenMode('open', 'permanent')).toBe('open');
   });
 
-  it('normalizes only an explicit true follow preference as enabled', () => {
+  it('preserves explicit navigation booleans and otherwise uses their defaults', () => {
     expect(
       normalizeDesktopGlobalSettings({
         sessionsFollowActiveTabEnabled: true,
@@ -58,8 +59,23 @@ describe('desktop global session interaction settings', () => {
     ).toBe(true);
     expect(
       normalizeDesktopGlobalSettings({
-        sessionsFollowActiveTabEnabled: 'true',
+        sessionsFollowActiveTabEnabled: false,
       }).sessionsFollowActiveTabEnabled,
+    ).toBe(false);
+    expect(
+      normalizeDesktopGlobalSettings({
+        sessionsFollowActiveTabEnabled: 'false',
+      }).sessionsFollowActiveTabEnabled,
+    ).toBe(true);
+    expect(
+      normalizeDesktopGlobalSettings({
+        switchConnectionWithActiveTabEnabled: true,
+      }).switchConnectionWithActiveTabEnabled,
+    ).toBe(true);
+    expect(
+      normalizeDesktopGlobalSettings({
+        switchConnectionWithActiveTabEnabled: 'true',
+      }).switchConnectionWithActiveTabEnabled,
     ).toBe(false);
   });
 });

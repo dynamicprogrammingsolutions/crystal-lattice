@@ -1,6 +1,6 @@
 import type { BridgeTransportMode } from '../transport/bridgeConnectionTransport';
 
-export type ConnectionKind = 'manual' | 'discovery' | 'bridge' | 'cloud';
+export type ConnectionKind = 'manual' | 'discovery' | 'bridge' | 'cloud' | 'embedded';
 
 export interface BaseConnectionRecord {
   id: string;
@@ -41,8 +41,15 @@ export interface CloudConnectionRecord extends BaseConnectionRecord {
   token: string;
 }
 
+export interface EmbeddedConnectionRecord extends BaseConnectionRecord {
+  kind: 'embedded';
+  proxyUrl: string;
+  model: string;
+}
+
 export type ConnectionRecord =
   | ManualConnectionRecord
   | DiscoveryConnectionRecord
   | BridgeConnectionRecord
-  | CloudConnectionRecord;
+  | CloudConnectionRecord
+  | EmbeddedConnectionRecord;

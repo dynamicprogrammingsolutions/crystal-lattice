@@ -176,16 +176,16 @@ final class MarkdownDisplayMenuUITests: XCTestCase {
       app.debugDescription
     )
     followSelect.click()
-    let onOption = app.menuItems["On"]
-    XCTAssertTrue(onOption.waitForExistence(timeout: 5), app.debugDescription)
-    onOption.click()
-    let onValue = NSPredicate(format: "value == %@", "On")
-    let onExpectation = XCTNSPredicateExpectation(
-      predicate: onValue,
+    let offOption = app.menuItems["Off"]
+    XCTAssertTrue(offOption.waitForExistence(timeout: 5), app.debugDescription)
+    offOption.click()
+    let offValue = NSPredicate(format: "value == %@", "Off")
+    let followOffExpectation = XCTNSPredicateExpectation(
+      predicate: offValue,
       object: followSelect
     )
     XCTAssertEqual(
-      XCTWaiter.wait(for: [onExpectation], timeout: 10),
+      XCTWaiter.wait(for: [followOffExpectation], timeout: 10),
       .completed
     )
 
@@ -200,13 +200,56 @@ final class MarkdownDisplayMenuUITests: XCTestCase {
     )
     followMenu.click()
 
-    let offValue = NSPredicate(format: "value == %@", "Off")
-    let offExpectation = XCTNSPredicateExpectation(
-      predicate: offValue,
+    let onValue = NSPredicate(format: "value == %@", "On")
+    let followOnExpectation = XCTNSPredicateExpectation(
+      predicate: onValue,
       object: followSelect
     )
     XCTAssertEqual(
-      XCTWaiter.wait(for: [offExpectation], timeout: 10),
+      XCTWaiter.wait(for: [followOnExpectation], timeout: 10),
+      .completed
+    )
+
+    let switchSelect =
+      app.popUpButtons[
+        "global-settings-switch-connection-with-active-tab"
+      ]
+    XCTAssertTrue(
+      switchSelect.waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    switchSelect.click()
+    let switchOnOption = app.menuItems["On"]
+    XCTAssertTrue(
+      switchOnOption.waitForExistence(timeout: 5),
+      app.debugDescription
+    )
+    switchOnOption.click()
+    let switchOnExpectation = XCTNSPredicateExpectation(
+      predicate: onValue,
+      object: switchSelect
+    )
+    XCTAssertEqual(
+      XCTWaiter.wait(for: [switchOnExpectation], timeout: 10),
+      .completed
+    )
+
+    view.click()
+    let switchMenu = app.menuItems[
+      "Switch Connection with Active Tab"
+    ]
+    XCTAssertTrue(
+      switchMenu.waitForExistence(timeout: 5),
+      app.debugDescription
+    )
+    switchMenu.click()
+
+    let switchOffExpectation = XCTNSPredicateExpectation(
+      predicate: offValue,
+      object: switchSelect
+    )
+    XCTAssertEqual(
+      XCTWaiter.wait(for: [switchOffExpectation], timeout: 10),
       .completed
     )
   }

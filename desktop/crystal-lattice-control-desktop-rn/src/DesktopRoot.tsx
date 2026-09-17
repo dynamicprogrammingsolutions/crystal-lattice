@@ -82,6 +82,7 @@ import {
 } from './home/DesktopHomeWorkspaceContext';
 import { DesktopHomeView } from './home/DesktopHomeView';
 import {
+  DEFAULT_DESKTOP_GLOBAL_SETTINGS,
   normalizeSessionOpenMode,
   type SessionOpenMode,
 } from './settings/desktopGlobalSettings';
@@ -116,6 +117,7 @@ function stringArraysEqual(
 export interface DesktopRootProps {
   initialTabStripStyle?: TabStripStyle;
   initialSessionsFollowActiveTabEnabled?: boolean;
+  initialSwitchConnectionWithActiveTabEnabled?: boolean;
   initialMarkdownBaseFontSize?: MarkdownBaseFontSize;
   initialMarkdownHeaderSize?: MarkdownHeaderSize;
   initialRecentSessionsWindow?: RecentSessionsWindow;
@@ -133,6 +135,7 @@ export function DesktopRoot(props: DesktopRootProps): React.JSX.Element {
 function DesktopRootInner({
   initialTabStripStyle,
   initialSessionsFollowActiveTabEnabled,
+  initialSwitchConnectionWithActiveTabEnabled,
   initialMarkdownBaseFontSize,
   initialMarkdownHeaderSize,
   initialRecentSessionsWindow,
@@ -148,8 +151,16 @@ function DesktopRootInner({
     useState<boolean>(
       initialSessionsFollowActiveTabEnabled !== undefined
         ? !!initialSessionsFollowActiveTabEnabled
-        : false,
+        : DEFAULT_DESKTOP_GLOBAL_SETTINGS.sessionsFollowActiveTabEnabled,
     );
+  const [
+    switchConnectionWithActiveTabEnabled,
+    setSwitchConnectionWithActiveTabEnabled,
+  ] = useState<boolean>(
+    initialSwitchConnectionWithActiveTabEnabled !== undefined
+      ? !!initialSwitchConnectionWithActiveTabEnabled
+      : DEFAULT_DESKTOP_GLOBAL_SETTINGS.switchConnectionWithActiveTabEnabled,
+  );
   const [markdownDisplayPreferences, setMarkdownDisplayPreferences] =
     useState<MarkdownDisplayPreferences>({
       baseFontSize: normalizeMarkdownBaseFontSize(
@@ -394,7 +405,7 @@ function DesktopRootInner({
 
   useEffect(() => {
     if (
-      !sessionsFollowActiveTabEnabled ||
+      !switchConnectionWithActiveTabEnabled ||
       !connectionsHydrated ||
       !tabsHydrated ||
       !activeTab
@@ -411,8 +422,8 @@ function DesktopRootInner({
   }, [
     activeTab,
     connectionsHydrated,
-    sessionsFollowActiveTabEnabled,
     sortedConnectionRecords,
+    switchConnectionWithActiveTabEnabled,
     tabsHydrated,
   ]);
 
@@ -588,6 +599,15 @@ function DesktopRootInner({
       },
     );
 
+    const switchConnectionSub = desktopWindowEvents.addListener(
+      'switchConnectionWithActiveTabChanged',
+      (payload: any) => {
+        if (payload && typeof payload.enabled === 'boolean') {
+          setSwitchConnectionWithActiveTabEnabled(payload.enabled);
+        }
+      },
+    );
+
     const markdownBaseFontSizeSub = desktopWindowEvents.addListener(
       'markdownBaseFontSizeChanged',
       (payload: any) => {
@@ -734,6 +754,7 @@ function DesktopRootInner({
       savedSub.remove();
       styleSub.remove();
       followSub.remove();
+      switchConnectionSub.remove();
       markdownBaseFontSizeSub.remove();
       markdownHeaderSizeSub.remove();
       clearStoredSessionCachesSub.remove();

@@ -20,6 +20,8 @@ modal responses use `ActionDisplayWindow`, opened through the generic
 `DesktopWindowManager.openReactWindow()` path. Its body is bounded and
 scrollable for lengthy content.
 
-Global Settings and the View-menu `Follow Active Tab in Sessions List` item
-read and write the same native preference. Notifications update every open
-main root and the Settings root; the missing-value default is Off.
+Global Settings and the View-menu `Follow Active Tab in Sessions List` and
+`Switch Connection with Active Tab` items read and write their respective
+native preferences. Notifications update every open main root and the
+Settings root. Missing values default to Follow On and Switch Connection Off;
+explicitly stored Follow values are retained.

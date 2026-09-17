@@ -7,6 +7,9 @@ tasks.
 Seeds are guidance-neutral. Branches select an explicit guidance source:
 
 - `develop`: the previous guidance from pinned revision `f81f3632`;
+- `followup-baseline`: the two-page guidance immediately before the
+  September 14 root-routing and specification-approval edits, pinned at
+  `cdeb50a7`;
 - `baseline`: the older historical calibration from `3a62b6fc`;
 - `candidate`: files from the current repository working tree;
 - another name plus `AGENT_EVAL_GUIDANCE_DIR`: files from an explicit directory.
@@ -42,6 +45,10 @@ For new guidance-clarity cases:
 
 A baseline that already passes can provide robustness evidence, but cannot show
 that candidate wording fixed a regression.
+
+Use `followup-baseline` for the paired Tests 6 and 27 follow-up. It differs from
+the candidate only in the root consolidation and substantial-specification
+approval paragraph being evaluated.
 
 Test 27 uses a routing-only variation: root AGENTS guidance is injected while
 the two current guidance pages remain ordinary workspace files. Legacy Test 20

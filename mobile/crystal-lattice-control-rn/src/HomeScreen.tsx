@@ -55,6 +55,12 @@ interface HomeActionDefinition extends ActionDefinition {
 
 const HOME_ACTIONS: HomeActionDefinition[] = [
   { key: 'settings', label: 'Global settings', iconName: 'settings' },
+  {
+    key: 'embeddedSettings',
+    label: 'On-device providers',
+    iconName: 'cpu',
+    testID: 'home-embedded-settings',
+  },
   { key: 'newConnection', label: 'New connection', iconName: 'wifi' },
   { key: 'newSession', label: 'New session', iconName: 'plus' },
 ];
@@ -68,6 +74,7 @@ interface HomeScreenProps {
   hasActiveBackend: boolean;
   isActive: boolean;
   onOpenGlobalSettings: () => void;
+  onOpenEmbeddedSettings?: () => void;
   onNewConnection: () => void;
   onNewSession: () => void;
   onSelectSession: (connectionId: string, sessionId: string) => void;
@@ -291,6 +298,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   hasActiveBackend,
   isActive,
   onOpenGlobalSettings,
+  onOpenEmbeddedSettings,
   onNewConnection,
   onNewSession,
   onSelectSession,
@@ -311,7 +319,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   } = useHomeWorkspace();
   const { pinned, setPinned } = usePersistentPinnedActions<string>(
     'clc_pinned_home_actions_v1',
-    ['settings', 'newConnection'],
+    ['settings', 'embeddedSettings', 'newConnection'],
   );
   const derivedCollections = useMemo(
     () =>
@@ -361,6 +369,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const tileFramesRef = useRef<Record<string, WatchlistTileFrame>>({});
   const dragTranslation = useRef(new Animated.ValueXY()).current;
   const scrollViewRef = useRef<ScrollView | null>(null);
+  const embeddedSettingsOpeningRef = useRef(false);
   const scrollOffsetRef = useRef(0);
   const scrollViewportRef = useRef<ScrollViewport | null>(null);
   const scrollContentHeightRef = useRef(0);
@@ -540,6 +549,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       });
   }, []);
 
+  const openEmbeddedSettingsFromMenu = useCallback(() => {
+    if (!onOpenEmbeddedSettings || embeddedSettingsOpeningRef.current) {
+      return;
+    }
+    embeddedSettingsOpeningRef.current = true;
+    setMenuVisible(false);
+    setTimeout(() => {
+      onOpenEmbeddedSettings();
+      embeddedSettingsOpeningRef.current = false;
+    }, 300);
+  }, [onOpenEmbeddedSettings]);
+
   const watchlistRenderSlots = useMemo(
     () =>
       activeDrag
@@ -585,6 +606,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           <ActionsMenuBar<HomeActionDefinition>
             title="Home actions"
             baseActions={HOME_ACTIONS}
+            availableActions={
+              onOpenEmbeddedSettings
+                ? ['settings', 'embeddedSettings', 'newConnection', 'newSession']
+                : ['settings', 'newConnection', 'newSession']
+            }
             pinned={pinned}
             onChangePinned={setPinned}
             isActive={isActive}
@@ -600,6 +626,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             }
             onAction={(key) => {
               if (key === 'settings') onOpenGlobalSettings();
+              if (key === 'embeddedSettings') onOpenEmbeddedSettings?.();
               if (key === 'newConnection') onNewConnection();
               if (key === 'newSession') onNewSession();
             }}
@@ -810,11 +837,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         animationType="fade"
         onRequestClose={() => setMenuVisible(false)}
       >
-        <TouchableOpacity
-          style={styles.menuOverlay}
-          activeOpacity={1}
-          onPress={() => setMenuVisible(false)}
-        >
+        <View style={styles.menuOverlay}>
           <View style={styles.menuPanel}>
             <Text style={styles.menuTitle}>Home menu</Text>
             <TouchableOpacity
@@ -828,8 +851,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               <Icon name="settings" size={18} color={theme.text} />
               <Text style={styles.menuItemText}>Global Settings</Text>
             </TouchableOpacity>
+            {onOpenEmbeddedSettings ? (
+              <TouchableOpacity
+                testID="home-menu-embedded-settings"
+                style={styles.menuItem}
+                accessibilityRole="button"
+                onPress={openEmbeddedSettingsFromMenu}
+              >
+                <Icon name="cpu" size={18} color={theme.text} />
+                <Text
+                  testID="home-menu-embedded-settings-label"
+                  style={styles.menuItemText}
+                  onPress={openEmbeddedSettingsFromMenu}
+                >
+                  On-device Provider Settings
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              testID="home-menu-close"
+              style={styles.menuItem}
+              onPress={() => setMenuVisible(false)}
+            >
+              <Icon name="x" size={18} color={theme.textSecondary} />
+              <Text style={styles.menuItemText}>Close</Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       <SessionNoteModal
@@ -1050,6 +1098,7 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: 16,
     },
     menuPanel: {
+      zIndex: 1,
       width: 260,
       borderRadius: 12,
       backgroundColor: theme.surface,
