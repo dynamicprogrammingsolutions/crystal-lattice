@@ -22,6 +22,8 @@ Requirement IDs:
 
 - Requirement/testing candidate: `DOCGUIDE-005`–`DOCGUIDE-006`,
   `DOCFLOW-002`–`DOCFLOW-004`, `DOCVAL-012`
+- Root guidance integration: `DOCAGENT-001`; add stable root-requirement and
+  root-testing IDs before changing the integrated candidate.
 - Add stable decomposition IDs only after the six-case baseline confirms the
   exact independently required behavior.
 
@@ -107,6 +109,27 @@ real-model scenarios on the migrated programmatic agent-evaluation framework.
 - [ ] The completion handoff explicitly offers the recorded optional
   post-completion expansion areas without exploring, planning, or making them
   prerequisites of this task.
+- [ ] The completed Core documentation migration and root-guidance follow-up
+  branches are merged and reconciled before further requirement/testing
+  calibration, preserving package-local Core routes, one concise root
+  documentation policy, current v3 task guidance, and current commit
+  authorization.
+- [ ] Root `AGENTS.md` has a dedicated concise Requirements section containing
+  the always-applicable minimum-outcome, traceability, grouping, public-choice,
+  state, and evidence rules.
+- [ ] Root `AGENTS.md` has a shorter, focused Testing section that foregrounds
+  requirement evidence, the lowest reliable boundary, real crossings,
+  non-decisive mocks, focused existing coverage, unresolved behavior, and
+  implementation-coupling restraint.
+- [ ] Package- or runtime-specific testing rules move to the nearest applicable
+  package guidance when that preserves discoverability, while repository-wide
+  test realism, gating, and successful-run rules remain in root guidance.
+- [ ] Root-guidance evaluation separates requirements-only, testing-only, and
+  combined candidates and exercises both normal always-loaded guidance and
+  task-file work with `TASKS-v7` enabled.
+- [ ] The incomplete destination-vocabulary branch is not merged into the
+  public guidance; only independently useful wording outside its main policy is
+  reconsidered after the integrated root guidance is established.
 
 ## Scope
 
@@ -689,7 +712,102 @@ Status: Approved
 6. Present the paired current/candidate comparison for human review before
    accepting the requirement/testing rewrite.
 
-### 6. Specify the six decomposition scenarios
+### 6. Reconcile completed documentation branches
+
+1. Merge `task/20260728-core-python-documentation-migration` first so the
+   package-local Core files and canonical routes exist before root guidance is
+   rewritten.
+2. Resolve its overlapping root guidance manually:
+   - take the Core package docs, `core/python/AGENTS.md`, README/index routes,
+     examples destination, and generated-reference ownership;
+   - retain current commit authorization, v3 requirement/testing principles,
+     the two current development-guide routes, and the package-neutral
+     documentation design;
+   - reject the older long documentation policy, `unit first` testing rule,
+     retired standards/repository routes, generic umbrella-word prohibition,
+     and duplicated documentation-update section.
+3. Merge `task/20260914-guidance-follow-up-rewrites` second.
+4. Take its one-hub repository map, one root documentation policy, removal of
+   duplicated site commands and documentation triggers, full-read routing,
+   long-running-work rules, heading cleanup, and deterministic protections.
+5. Reconcile its old Core paths against the completed migration and preserve
+   the current v3 guide and canonical/bundled task guidance.
+6. Reconcile the substantial-specification paragraph using the follow-up
+   report's stronger direct-request distinction rather than treating its
+   initially ineffective candidate as verified.
+7. Merge requirement ledgers, parent/subtask status, and evaluator support by
+   meaning; do not choose one branch's whole overlapping file.
+8. Keep `task/20260914-destination-vocabulary-guidance` unmerged. Preserve its
+   existing committed and uncommitted work for later rebase.
+
+### 7. Establish the integrated baseline
+
+1. Record the merged revision and hashes of root `AGENTS.md`,
+   `docs/development/documentation.md`, canonical `TASKS-v7`, and the bundled
+   task guidance.
+2. Verify the root has:
+   - one documentation routing/policy section;
+   - current Core package routes;
+   - no duplicate documentation command catalog or update-policy section;
+   - no restored `unit first` default;
+   - unchanged v3 requirements/testing documentation and task guidance.
+3. Run the completed Core migration's focused quickstart, Core documentation,
+   example-generator, link, preparation, and build checks.
+4. Run the follow-up branch's deterministic root-structure checks and one
+   integrated Test 27 with the merged guidance hash.
+5. Run canonical/bundled task-guidance parity and compiled-message integration.
+6. Freeze this state as the root-guidance behavioral baseline without
+   overwriting the committed v3 documentation/TASKS records.
+
+### 8. Test dedicated root Requirements and focused Testing guidance
+
+1. Update the governing specification and add stable live requirements before
+   editing root guidance.
+2. Create a requirements-only candidate:
+   - minimum approved completed-state outcomes and constraints;
+   - traceability to request, preserved contract, necessary consequence, or
+     approved policy/decision;
+   - proportional grouping;
+   - plan/supporting-detail ownership of implementation, tests, documentation,
+     refactors, risks, and optional work;
+   - unapproved public/persisted/compatibility/security/privacy/user-visible
+     behavior remains a question, with recommendations non-normative;
+   - separate implementation, verification, and documentation states with
+     direct evidence and explicit human confirmation.
+3. Create a testing-only candidate that replaces the current strategy section
+   rather than appending to it:
+   - map requirements to the smallest reliable evidence;
+   - choose the lowest-cost boundary containing the failure;
+   - require a real crossing when behavior depends on components interacting;
+   - reject a mock that supplies or bypasses the claimed behavior as decisive;
+   - use existing coverage only when it proves the behavior;
+   - avoid unresolved behavior, unapproved contracts, brittle implementation
+     assertions, duplicate layers, and unnecessary combinations;
+   - separate acceptance evidence, robustness checks, and routine quality
+     checks.
+4. Audit the remaining root testing rules. Keep repository-wide test realism,
+   gated-run, boundary-label, successful-exit, and shared-harness rules; move
+   Core-, plugin-, and React-Native-specific rules to their nearest guidance
+   only when the merged package guidance provides a discoverable home.
+5. Create the combined candidate only after requirements-only and testing-only
+   evidence is preserved.
+6. Exercise two delivery modes:
+   - root guidance without task guidance, using a planning request that does
+     not create a task file;
+   - root guidance plus `TASKS-v7`, using the existing task-file prompts.
+7. Record the exact compiled instructions and prove which root and task
+   guidance reached each producer.
+8. Run the previous sensitive requirement/testing cells first. Run the full
+   21-cell matrix only if the focused comparison improves without losing
+   product coverage or task structure.
+9. Keep `docs/development/documentation.md` and `TASKS-v7` fixed while
+   calibrating root guidance so causality remains interpretable.
+10. Preserve the four public-decision and two missing-crossing v3 failures as
+    sentinels; do not add fixture-specific wording.
+11. Present the integrated baseline and requirements-only, testing-only, and
+    combined comparisons for human review before decomposition work.
+
+### 9. Specify the six decomposition scenarios
 
 1. After the requirement/testing candidate is accepted, select or adapt pinned
    repository commits for the three single-task and three task-directory cases
@@ -700,7 +818,7 @@ Status: Approved
 4. Reuse the migrated evaluator and exact accepted candidate guidance as the
    new decomposition baseline.
 
-### 7. Implement decomposition evidence and run its baseline
+### 10. Implement decomposition evidence and run its baseline
 
 1. Cache narrow factual investigation independently of guidance.
 2. Support direct creation, guidance-bearing planning followed by task
@@ -713,7 +831,7 @@ Status: Approved
 6. Require a demonstrated decomposition failure before changing decomposition
    wording.
 
-### 8. Test the shortest decomposition candidate and hand off
+### 11. Test the shortest decomposition candidate and hand off
 
 1. Add only the decomposition wording supported by the six-case baseline.
 2. Synchronize canonical and bundled guidance through subtask 068's mechanism.
@@ -757,6 +875,21 @@ Status: Approved
 - Approved: requirement-verification semantics are core scope after the
   September 15 user direction and Dataset B evidence; only high-risk behavior
   and non-development task forms remain optional post-completion offers.
+- Approved September 17, 2026: reconcile the completed Core migration and
+  root-guidance follow-up before further testing; merge Core first, then the
+  follow-up branch, and resolve overlapping guidance semantically.
+- Approved September 17, 2026: root `AGENTS.md` needs a dedicated Requirements
+  section because it is always loaded, while `TASKS-v7` applies the same
+  invariants specifically to task-file structure.
+- Approved September 17, 2026: replace the current root testing strategy with a
+  shorter focused section and route lower-priority package/runtime details to
+  nearer guidance when possible.
+- Approved September 17, 2026: isolate root-guidance effects through
+  requirements-only, testing-only, and combined candidates in both root-only
+  and root-plus-TASKS delivery modes.
+- Approved September 17, 2026: do not merge the incomplete
+  destination-vocabulary guidance. Reconsider only concise independent wording
+  after the integrated root candidate is established.
 - Proposed acceptance: candidate requirement behavior keeps all 21 outcomes
   complete, has no material unsupported public behavior or wrong-record
   requirements, and does not introduce high expansion.
@@ -780,6 +913,10 @@ Status: Approved
 - Six scenario contracts with exact prompts, fixtures, assertions, profiles,
   and traceability
 - Compact human-review instructions and artifact locations
+- Root `AGENTS.md`
+- Core package README, `AGENTS.md`, and documentation routes from the completed
+  migration
+- Integrated root-guidance baseline and candidate comparison
 
 No product-user documentation is required because this is repository
 maintainer guidance and evaluation infrastructure.
@@ -805,6 +942,18 @@ maintainer guidance and evaluation infrastructure.
 - [x] Run the full 21-cell v3 producer matrix after the focused comparison
   improved.
 - [x] Present the v3 comparison for final guidance acceptance.
+- [ ] Merge and reconcile the completed Core documentation migration.
+- [ ] Merge and reconcile the completed root-guidance follow-up.
+- [ ] Preserve the incomplete destination-vocabulary branch without merging
+  its main guidance.
+- [ ] Run integrated Core migration and root-guidance baseline checks.
+- [ ] Record integrated guidance hashes and effective instruction provenance.
+- [ ] Add stable requirements for the root Requirements and Testing sections.
+- [ ] Test the requirements-only root candidate.
+- [ ] Test the testing-only root candidate.
+- [ ] Test the combined root candidate.
+- [ ] Exercise both root-only and root-plus-TASKS delivery modes.
+- [ ] Present the root-guidance comparison for human review.
 - [ ] Specify three single-task scenarios.
 - [ ] Specify three task-directory scenarios.
 - [ ] Implement guidance-bearing planning branches.
@@ -845,6 +994,10 @@ maintainer guidance and evaluation infrastructure.
 | Guidance delivery | Canonical and bundled files match mechanically and contain only wording justified by paired evidence. |
 | Evidence separation | Deterministic findings, structured model assessment, and human review remain separate; model assessment does not mark human verification complete. |
 | Optional expansion boundary | Core completion contains no implementation, requirements, or scenario plan for the remaining deferred areas and explicitly offers them to the user for a separate approval decision. |
+| Completed-branch reconciliation | The merged tree contains the package-local Core documentation and package guidance, one concise root documentation policy, current paths, current v3 guide/TASKS behavior, and no restored superseded root rules. |
+| Root Requirements guidance | Root-only and root-plus-TASKS outputs retain complete approved outcomes, reduce normative public-choice mistakes, and avoid wrong-record or optional requirements relative to the integrated baseline. |
+| Root Testing guidance | Root-only and root-plus-TASKS outputs improve decisive evidence and layer choice without reducing important crossings or adding material duplication, combinations, unresolved-behavior tests, or implementation coupling. |
+| Guidance delivery isolation | Compiled-message evidence identifies the exact root and task guidance present in every baseline and candidate run, allowing requirements-only, testing-only, and combined effects to be compared. |
 
 ### Additional implementation verification
 
@@ -918,3 +1071,10 @@ maintainer guidance and evaluation infrastructure.
   final acceptance recommendation are in
   `agent-behavior-verification/20260915-requirement-testing-v3-results.md`.
   Final human acceptance remains pending; decomposition work has not started.
+- September 17, 2026: The user approved reconciling the completed Core
+  documentation migration and root-guidance follow-up before further
+  calibration. The approved follow-up adds dedicated always-loaded Requirements
+  guidance, replaces the root Testing strategy with a shorter boundary-focused
+  section, isolates root-only from root-plus-TASKS behavior, and leaves the
+  incomplete destination-vocabulary branch unmerged. No decomposition work
+  begins until this integrated comparison is reviewed.
