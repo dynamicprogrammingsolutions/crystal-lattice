@@ -123,6 +123,16 @@ reconciliation so the evaluated guidance hash matches the integrated result.
   documentation preparation, MkDocs build, task structure, and `git diff
   --check` passed. MkDocs retained existing navigation, link, Material, and
   Griffe warnings unrelated to this change.
+- September 17, 2026: Reconciled the completed Core documentation migration,
+  v3 requirement/testing guidance, and this root consolidation through merge
+  commits `8c26812e` and `9c30e16c`. The integrated root section is 289 words
+  and routes to current Core and development documentation.
+- September 17, 2026: The final integrated Test 27 passed with injected
+  guidance hash
+  `b8b890674fb4ce964ae011615eec547383a81ddb03c95eefbb707021e7d40242`.
+  It read both guidance pages completely before mutation and did not read
+  maintainer specifications. The run remains routing evidence rather than
+  independent validation of every generated documentation claim.
 
 ## Execution plan
 
@@ -210,8 +220,8 @@ No public package documentation changes are planned.
 - [x] Align root testing terminology with risk-based selection.
 - [x] Add deterministic root-structure checks.
 - [x] Run paired repeated Test 27 comparisons.
-- [ ] Reconcile the concurrent documentation-guidance branch.
-- [ ] Rerun the final integrated Test 27.
+- [x] Reconcile the concurrent documentation-guidance branch.
+- [x] Rerun the final integrated Test 27.
 - [x] Run focused deterministic, site, build, and diff verification.
 - [x] Update requirement and task evidence.
 - [ ] Obtain human review of the recurring root guidance.

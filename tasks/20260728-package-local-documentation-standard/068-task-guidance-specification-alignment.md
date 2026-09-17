@@ -469,7 +469,7 @@ Status: Approved
 ### Task checklist
 
 - [x] Confirm canonical v7 source.
-- [ ] Confirm integrated root AGENTS stabilization from subtask 016.
+- [x] Confirm integrated root AGENTS stabilization from subtask 016.
 - [x] Update governing specification and requirements.
 - [x] Apply the five evidence-backed concise replacements and focused v2
   refinements.

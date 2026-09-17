@@ -942,12 +942,12 @@ maintainer guidance and evaluation infrastructure.
 - [x] Run the full 21-cell v3 producer matrix after the focused comparison
   improved.
 - [x] Present the v3 comparison for final guidance acceptance.
-- [ ] Merge and reconcile the completed Core documentation migration.
-- [ ] Merge and reconcile the completed root-guidance follow-up.
-- [ ] Preserve the incomplete destination-vocabulary branch without merging
+- [x] Merge and reconcile the completed Core documentation migration.
+- [x] Merge and reconcile the completed root-guidance follow-up.
+- [x] Preserve the incomplete destination-vocabulary branch without merging
   its main guidance.
-- [ ] Run integrated Core migration and root-guidance baseline checks.
-- [ ] Record integrated guidance hashes and effective instruction provenance.
+- [x] Run integrated Core migration and root-guidance baseline checks.
+- [x] Record integrated guidance hashes and effective instruction provenance.
 - [ ] Add stable requirements for the root Requirements and Testing sections.
 - [ ] Test the requirements-only root candidate.
 - [ ] Test the testing-only root candidate.
@@ -1078,3 +1078,17 @@ maintainer guidance and evaluation infrastructure.
   section, isolates root-only from root-plus-TASKS behavior, and leaves the
   incomplete destination-vocabulary branch unmerged. No decomposition work
   begins until this integrated comparison is reviewed.
+- September 17, 2026: Merged the completed Core migration as `8c26812e` and
+  root-guidance follow-up as `9c30e16c`, resolving root guidance, requirements,
+  and task-ledger overlaps by ownership. The incomplete vocabulary branch
+  remains unmerged.
+- September 17, 2026: The integrated baseline uses root `AGENTS.md` hash
+  `a56c068e7ea8357f7ef7f045e5a36c15194dc8d271517434ef74dc2bb8b1c54f`,
+  documentation-guide hash
+  `0dc4d6265c13ad606d447bb9f9ee2387961dad6d4a6329d9ea8f52fa43ee0e35`,
+  and matching canonical/bundled TASKS hash
+  `191fc888e8bc987e0a76b631ab362386157ed58e04fa4e56140767f3b2ab1d6c`.
+  Core, examples, generator determinism, 89 maintainer evaluator tests, 31
+  root-guidance tests, 15 assembly tests, parity, compiled-message integration,
+  links, preparation, build, and integrated Test 27 all pass. The dated
+  baseline report records exact evidence and the Test 27 accuracy caveat.
