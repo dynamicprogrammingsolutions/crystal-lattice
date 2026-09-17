@@ -1,5 +1,5 @@
 """
-PROJECT_PLAN Example 4: Message History Manipulation (Ollama)
+Example 8: Message history manipulation with Ollama.
 Preserves original message sequence and edits.
 """
 

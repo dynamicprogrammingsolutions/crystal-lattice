@@ -1,5 +1,5 @@
 """
-PROJECT_PLAN Example 10: FastAPI App + Console Client (Ollama)
+Example 10: FastAPI app and console client with Ollama.
 
 This example shows how to wrap ``agent_core.AgentCore`` in a small
 HTTP JSON application and pair it with a tiny console client.
@@ -26,18 +26,18 @@ Environment variables (optional):
 Usage (API server):
 - Run directly with the example script:
 
-    $ python core/python/examples/example10_project_plan_app.py
+    $ python core/python/examples/example10_fastapi_console_ollama.py
 
   This will start a FastAPI app on http://127.0.0.1:8000.
 
 - Or run with uvicorn explicitly:
 
-    $ uvicorn examples.example10_project_plan_app:app --reload
+    $ uvicorn examples.example10_fastapi_console_ollama:app --reload
 
 Usage (console client):
 - Run in a terminal:
 
-    $ python core/python/examples/example10_project_plan_app.py --console
+    $ python core/python/examples/example10_fastapi_console_ollama.py --console
 
   This mode does not require the HTTP server; it calls the same
   helper functions that the FastAPI routes use.
@@ -220,7 +220,7 @@ def run_console() -> None:  # pragma: no cover - manual usage
 
     Typical usage::
 
-        $ python core/python/examples/example10_project_plan_app.py --console
+        $ python core/python/examples/example10_fastapi_console_ollama.py --console
 
     This does not require the HTTP server to be running; it calls the
     same helper functions that the FastAPI routes use.
@@ -267,7 +267,7 @@ def run_example() -> FastAPI:  # pragma: no cover
 
     Intended usage:
 
-        uvicorn examples.example10_project_plan_app:app --reload
+        uvicorn examples.example10_fastapi_console_ollama:app --reload
     """
 
     return app
@@ -279,7 +279,7 @@ def _run_server(host: str = "127.0.0.1", port: int = 8000) -> None:  # pragma: n
     This helper is used by the module's ``__main__`` block. It is
     equivalent to invoking::
 
-        uvicorn examples.example10_project_plan_app:app --host HOST --port PORT
+        uvicorn examples.example10_fastapi_console_ollama:app --host HOST --port PORT
 
     from the command line.
     """
@@ -292,13 +292,13 @@ def _run_server(host: str = "127.0.0.1", port: int = 8000) -> None:  # pragma: n
         print(
             "Uvicorn is not installed. Run with: "
             "`pip install uvicorn[standard]` and then "
-            "`uvicorn examples.example10_project_plan_app:app`.",
+            "`uvicorn examples.example10_fastapi_console_ollama:app`.",
             file=_sys.stderr,
         )
         return
 
     uvicorn.run(
-        "examples.example10_project_plan_app:app",
+        "examples.example10_fastapi_console_ollama:app",
         host=host,
         port=port,
         reload=False,

@@ -105,13 +105,14 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - Do not place new plugins here without explicit user consent.
 
 **Docs & scripts**
-- Root: `ARCHITECTURE.md`, `TYPES_AND_PROTOCOLS.md`, `EXAMPLES.md`.
+- Root: `ARCHITECTURE.md` and cross-package documentation entry points.
+- Core package docs: `core/python/docs/index.md`; generated Core API reference:
+  `docs/reference/agent_core/`.
 - Development hub: `docs/development/index.md`.
 - Documentation and specification guide: `docs/development/documentation.md`.
 - Crystal Lattice documentation conventions:
   `docs/development/crystal-lattice-documentation.md`.
 - Guidance-maintenance specifications: `maintainer/specifications/`.
-- API docs: `docs/api/core-sdk.md`, `docs/reference/agent_core/*`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
 - General plugin overview: `plugins/docs/overview.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
@@ -251,7 +252,9 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - `(cd docs_site && mkdocs serve -a 127.0.0.1:8001)` / `(cd docs_site && mkdocs build)`
 - Use `python docs_site/scripts/build_mkdocs_site.py` only when the task also
   intends to refresh committed generated reference snapshots.
-- After changing examples: run the relevant example tests selectively, then `python scripts/generate_examples_md.py`
+- After changing examples: run the relevant example tests selectively, then
+  regenerate `core/python/docs/examples.md` with
+  `python scripts/generate_examples_md.py`.
 
 ---
 
@@ -376,6 +379,6 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - For target changes, update the specification first and keep requirement
   implementation, verification, and documentation state current.
 - After example changes, update source and tests, then regenerate
-  `EXAMPLES.md`.
+  `core/python/docs/examples.md`.
 
 Treat tests, type hints, and documentation updates as part of “done” for any substantive change.

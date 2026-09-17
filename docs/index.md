@@ -21,8 +21,8 @@ harnesses.
   pages for bundled plugin packages.
 - [Default configuration](reference/default-config.md): inspect the generated
   default application configuration.
-- [Event stream types](api/events.md): understand application events exposed by
-  HTTP polling and bridge streaming.
+- [Event stream types](packages/core-python/events.md): understand application
+  events exposed by HTTP polling and bridge streaming.
 - [Development documentation](development/index.md): documentation and
   specification guidance, Crystal Lattice conventions, and cross-package
   targets.
@@ -35,10 +35,13 @@ harnesses.
   package paths, plugin guidance, tasks, publication, and migration.
 - [AgentCore API](reference/agent_core/core.md): core session, message, request,
   streaming, and tool orchestration APIs.
-- [Core SDK guide](api/core-sdk.md): hand-written overview of the functional SDK
-  surface.
+- [Core SDK guide](packages/core-python/core-sdk.md): hand-written guide to
+  selected SDK surface.
+- [Core types and plugin protocols](packages/core-python/types-and-protocols.md):
+  conceptual map of important values, plugin responsibilities, state, and
+  request flow.
 - [Types and protocols](reference/agent_core/types.md): immutable core types and
-  plugin protocols.
+  exact Python plugin protocol reference generated from docstrings.
 - [Provider wrapper](reference/agent_core/plugin/provider.md): provider adapter
   API reference.
 - [OpenAI-compatible provider](reference/providers/openai_provider.md): reference

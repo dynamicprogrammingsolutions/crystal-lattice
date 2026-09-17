@@ -1,5 +1,5 @@
 """
-PROJECT_PLAN Example 1: Basic Low-Level API Usage (Python)
+Example 5: Basic low-level API usage with Ollama.
 Configured to call a local Ollama OpenAI-compatible endpoint.
 
 Environment variables (optional):

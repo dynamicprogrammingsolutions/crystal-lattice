@@ -273,7 +273,10 @@ deploy/aws-static-sites/configure-github-actions-vars.sh \
   --repo dynamicprogrammingsolutions/crystal-lattice \
   --static-stack-name crystal-lattice-static-sites-prod \
   --role-stack-name crystal-lattice-static-sites-github-oidc-prod \
-  --region us-east-1
+  --region us-east-1 \
+  --umami-script-url https://stats.dynamicprogrammingsolutions.com/insight.js \
+  --umami-landing-id <landing-website-uuid> \
+  --umami-docs-id <docs-website-uuid>
 ```
 
 Run the workflow manually:
@@ -293,8 +296,14 @@ The GitHub configuration script sets these repository variables:
 - `DOCS_CLOUDFRONT_DISTRIBUTION_ID`
 - `PUBLIC_CRYSTAL_LATTICE_SITE_URL`
 - `PUBLIC_CRYSTAL_LATTICE_DOCS_URL`
+- `PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL` when all Umami options are supplied
+- `PUBLIC_CRYSTAL_LATTICE_UMAMI_LANDING_ID` when all Umami options are supplied
+- `PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID` when all Umami options are supplied
 
-It sets `AWS_ROLE_TO_ASSUME` as a repository secret.
+It sets `AWS_ROLE_TO_ASSUME` as a repository secret. Analytics configuration is
+public build configuration, but the two website UUIDs must come from distinct
+Umami website records. Omit all three Umami options for analytics-free test or
+local builds; partial analytics configuration is rejected.
 
 Deploy or update the testing stack:
 

@@ -279,3 +279,19 @@ overrides, generated prepared inputs, and docs-site maintenance notes in
 `docs_site/`.
 
 When changing theme or icon behavior, use a local MkDocs server and inspect both dark and light modes. For visual changes, headed browser screenshots are preferred because header alignment and Material theme state can differ from static HTML inspection.
+
+## Privacy-Minimized Website Analytics
+
+The generated documentation site includes analytics only when both public build
+variables are valid:
+
+```text
+PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL=https://stats.dynamicprogrammingsolutions.com/insight.js
+PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID=<Umami website UUID for docs.crystallattice.dev>
+```
+
+`hooks/analytics.py` validates the exact script URL and UUID before the authored
+Material override renders the tracker. The tracker is restricted to
+`docs.crystallattice.dev`, shares the landing site's sanitizer behavior, and is
+absent from local or CI builds that do not provide production configuration.
+The generated footer links to the shared Privacy Policy on the landing site.

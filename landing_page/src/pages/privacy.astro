@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
+import AnalyticsOptOut from '../components/AnalyticsOptOut.astro';
 import SectionRenderer from '../section-system/SectionRenderer.astro';
 import { loadPage } from '../content/loadPage';
 import { preparePage } from '../section-system/preparePage';
@@ -12,5 +13,6 @@ const page = preparePage(loadPage('privacy'));
 <Layout title={page.seo?.title} description={page.seo?.description}>
   <Nav />
   <SectionRenderer sections={page.sections} />
+  <AnalyticsOptOut />
   <Footer />
 </Layout>

@@ -1,5 +1,5 @@
 """
-PROJECT_PLAN Example 3: Tool Calls Loop (Ollama)
+Example 7: Tool-call loop with Ollama.
 Preserves original messages and uses FileReaderTool.
 """
 

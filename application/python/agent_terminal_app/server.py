@@ -2388,12 +2388,10 @@ def list_events(
 ) -> Dict[str, Any]:
     """List events from the application's event store.
 
-    The ``limit`` parameter (default 5000) is applied to the raw
-    un-compacted event list retrieved from the store. After the
-    compaction pass, the response payload is further capped to a
-    smaller window so that clients do not receive excessively large
-    batches even when many raw events collapse into a handful of
-    logical entries.
+    The ``internal_limit`` parameter (default 5000) bounds the raw
+    un-compacted event list retrieved from the store. After compaction,
+    ``limit`` (default 100) caps the response so clients do not receive
+    excessively large batches.
     """
 
     _maybe_block_events_for_tests()

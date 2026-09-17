@@ -1,8 +1,14 @@
-"""
-Core data types for the AI Agent Platform.
+"""Core data types and plugin protocols.
 
-This module defines immutable data structures following functional programming principles.
-All transformations return new instances rather than modifying existing ones.
+``Message``, ``PartialMessage``, ``Session``, and ``ToolDescriptor`` are frozen
+dataclasses. Their nested lists and dictionaries remain ordinary mutable
+Python containers, so callers must treat returned values as immutable by
+convention and use ``AgentCore`` operations to create updated sessions.
+
+Plugin protocols define structural interfaces. Provider, provider-extension,
+and feature hooks collaborate through explicit shared provider state during a
+request; tools keep separate state. Hooks may perform I/O where their
+individual contracts permit it.
 
 Examples:
     Creating immutable messages and sessions:
@@ -34,11 +40,20 @@ from dataclasses import dataclass, field
 from copy import deepcopy
 
 MessageRole = Literal["system", "user", "assistant", "tool"]
+"""Conversation roles accepted by Core message operations."""
 
 
 @dataclass(frozen=True)
 class ToolDescriptor:
-    """Normalized metadata for a tool schema exposed to UI and requests."""
+    """Core's normalized description of one available tool schema.
+
+    Attributes:
+        plugin_name: Name of the tool plugin that contributed the schema.
+        tool_name: Semantic tool/function name extracted through tool interop.
+        schema: Original schema dictionary contributed by the tool or config.
+        metadata: Additional Core or interop metadata such as schema position
+            and source. Callers should treat it as immutable.
+    """
 
     plugin_name: str
     tool_name: str
@@ -53,7 +68,11 @@ if TYPE_CHECKING:
 
 
 class ProviderRequestCancelled(RuntimeError):
-    """Raised when a provider request is cancelled by request id."""
+    """Raised when a provider request is cancelled.
+
+    Attributes:
+        request_id: Optional identifier of the cancelled request.
+    """
 
     def __init__(self, request_id: str | None = None):
         super().__init__("Provider request cancelled")
@@ -62,13 +81,12 @@ class ProviderRequestCancelled(RuntimeError):
 
 @runtime_checkable
 class BasePlugin(Protocol):
-    """Common instance-level protocol for non-tool plugins.
+    """Common identity, configuration, and UI protocol for plugin classes.
 
-    Applies to Provider, ProviderExtension, and Feature plugins.
-    Unifies identity, configuration UI, and lifecycle method signatures
-    that are identical across these plugin types. Methods should remain
-    stateless and operate on explicit state parameters; plugin instances
-    are short‑lived per request.
+    Provider, provider-extension, feature, and tool protocols inherit these
+    common hooks. Plugin instances are short-lived per request; durable data
+    belongs in explicit plugin state or application-managed storage rather
+    than instance attributes.
     """
 
     # Identity (attributes on the class)
@@ -179,10 +197,6 @@ class BasePlugin(Protocol):
         include additional keys beyond those shown above; callers should treat
         the returned element dictionaries as immutable.
 
-        Args:
-            config: Effective configuration for the current agent/request.
-            context: Optional derived context for schema generation.
-
         Returns:
             List of UI element dictionaries.
         """
@@ -206,36 +220,38 @@ class ProviderPlugin(BasePlugin, Protocol):
         Minimal echo-like provider:
 
         ```python
-        from typing import Any, Dict, List, Tuple, Iterator
+        from typing import Any
+
         class EchoProvider:
             name = "echo"
             version = "1.0.0"
-            def get_config_schema(self) -> Dict[str, Any]:
+
+            def get_config_schema(self) -> dict[str, Any]:
                 return {"model": {"type": "string", "default": "echo-1"}}
-                    def get_ui_elements(self, config: Dict[str, Any], tags: List[str], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:  # optional
-                return []
-            def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-                # Provider state is an opaque dict; this minimal example
-                # only stores configuration.
+
+            def init(self, config: dict[str, Any]) -> dict[str, Any]:
                 return {"config": config}
-            def initialize_request(
+
+            def call_api(
                 self,
-                native_messages: List[Dict[str, Any]],
-                state: Dict[str, Any],
-            ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-                return native_messages, state
-            def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
-                return list(messages)
-            def from_native_messages(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
-                return list(native_messages)
-            def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-                content = f"Echo: {next((m['content'] for m in reversed(native_messages) if m.get('role')=='user'), '')}"
+                native_messages: list[dict[str, Any]],
+                state: dict[str, Any],
+            ):
+                user = next(
+                    (
+                        message.get("content", "")
+                        for message in reversed(native_messages)
+                        if message.get("role") == "user"
+                    ),
+                    "",
+                )
+                content = f"Echo: {user}"
                 msg = {"role": "assistant", "content": content}
-                # Return (partial_messages, final_messages, native_messages, new_state)
-                return ([], [msg], [*native_messages, msg], state)
-            def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-                yield from []
+                return [], [msg], [*native_messages, msg], state
         ```
+
+        The Python provider adapter supplies defaults for omitted conversion,
+        request-initialization, finalization, and streaming hooks.
     """
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -350,6 +366,8 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native messages for this request.
             state: Current shared provider state.
+            request_id: Optional request identifier used for cancellation and
+                diagnostics.
             context: Optional request context. The core provides keys such as
                 `core`, `config`, `request_id`, `tags`, `models`,
                 `available_tools`, `tools`, and `tool_interop` here.
@@ -459,8 +477,18 @@ class ProviderPlugin(BasePlugin, Protocol):
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return model descriptors available for this provider and config.
 
-        Optional; providers may return an empty list when model enumeration
-        is not supported.
+        Each descriptor must contain a non-empty string ``"id"``. Providers
+        may attach additional display or capability metadata. Core preserves
+        those extra fields while discarding entries without a valid ID.
+
+        This hook is optional; providers may return an empty list when model
+        enumeration is not supported.
+
+        Args:
+            config: Effective provider configuration.
+
+        Returns:
+            Model descriptor dictionaries in provider-defined order.
         """
         return []
 
@@ -496,6 +524,8 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native input messages.
             state: Current shared provider state.
+            request_id: Optional request identifier used for cancellation and
+                diagnostics.
 
         Returns:
             Tuple of (partial_messages, final_messages, native_messages, new_state).
@@ -516,6 +546,8 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native input messages.
             state: Current shared provider state.
+            request_id: Optional request identifier used for cancellation and
+                diagnostics.
 
         Yields:
             Provider-native streaming chunks.
@@ -1468,6 +1500,7 @@ class ToolPlugin(BasePlugin, Protocol):
             payload_format: Optional format identifier for the payload itself.
             payload_metadata: Optional extra payload metadata from the accessor.
             tool_call: Optional original tool-call dict.
+            cancellation: Optional cooperative cancellation controller.
             context: Optional layered context providing access to runtime capabilities.
             prepared: Optional JSON-like prepared data returned by
                 :meth:`prepare` or :meth:`prepare_async`.
@@ -1495,7 +1528,7 @@ class ToolPlugin(BasePlugin, Protocol):
             core = (context or {}).get("core")
             if core:
                 temp_session = core.create_session()
-                events = core.stream_request(temp_session, config)
+                events = core.send_request_stream(temp_session, config)
 
         Returns:
             Result dictionary, e.g., {"success": bool, "result": any, "error": str}.
@@ -1674,12 +1707,22 @@ class ToolPlugin(BasePlugin, Protocol):
 
 @dataclass(frozen=True)
 class Message:
-    """Immutable message structure representing a single conversation message.
+    """Frozen value representing one completed core conversation message.
+
+    The dataclass prevents field reassignment. Nested metadata, multipart
+    content, and tool-result dictionaries/lists are mutable Python objects and
+    must be treated as immutable by convention.
 
     Attributes:
         role: Message role ("system", "user", "assistant", or "tool").
-        content: Message content text.
-        metadata: Optional metadata dict containing tool_calls, tool_call_id, citations, etc.
+        content: Provider-independent content value. It is commonly text but
+            may be another JSON-compatible value.
+        metadata: Optional auxiliary data such as tool calls, tool-call IDs,
+            citations, reasoning, or application metadata.
+        multipart_content: Optional structured content parts. Dictionary
+            serialization uses the key ``"multipartContent"``.
+        tool_result: Optional canonical structured result for a tool message.
+            Dictionary serialization uses the key ``"toolResult"``.
 
     Examples:
         >>> msg = Message(role="user", content="Hello!")
@@ -1696,10 +1739,14 @@ class Message:
     tool_result: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert message to dictionary format.
+        """Return the external dictionary representation.
+
+        Metadata, multipart content, and tool-result containers are deep
+        copied when present. Optional values are omitted when falsey.
 
         Returns:
-            Dictionary representation of the message.
+            Dictionary with ``role`` and ``content`` plus optional
+            ``metadata``, ``multipartContent``, and ``toolResult``.
         """
         result: Dict[str, Any] = {"role": self.role, "content": self.content}
         if self.metadata:
@@ -1712,10 +1759,11 @@ class Message:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Message":
-        """Create message from dictionary.
+        """Create a message from its external dictionary representation.
 
         Args:
-            data: Dictionary containing role, content, and optional metadata.
+            data: Dictionary containing ``role`` and ``content``, with optional
+                ``metadata``, ``multipartContent``, and ``toolResult``.
 
         Returns:
             New Message instance.
@@ -1738,7 +1786,18 @@ class Message:
 
 @dataclass(frozen=True)
 class PartialMessage:
-    """Partial message type used during streaming (forwarded to frontend as-is)."""
+    """Frozen incremental message emitted during streaming.
+
+    Each instance represents new output for one stream step rather than the
+    complete content accumulated so far.
+
+    Attributes:
+        role: Core role associated with the partial output.
+        content: Incremental content value.
+        metadata: Optional incremental metadata such as reasoning content.
+
+    Nested metadata is treated as immutable by convention.
+    """
 
     role: MessageRole
     content: Any
@@ -1747,15 +1806,20 @@ class PartialMessage:
 
 @dataclass(frozen=True)
 class Session:
-    """Immutable session data structure (pure data container).
+    """Frozen conversation value managed by an application.
 
-    Contains only data, no transformation logic. All transformations are performed
-    by AgentCore functions that return new sessions.
+    The dataclass prevents field reassignment. ``messages`` and ``metadata``
+    remain mutable Python containers and must be treated as immutable by
+    convention. Use ``AgentCore`` session/message operations to return updated
+    sessions instead of modifying either container in place.
 
     Attributes:
         session_id: Unique identifier for this session.
-        messages: List of messages.
-        metadata: Optional session-level metadata.
+        messages: Ordered completed core messages.
+        metadata: Session-level application and provider metadata. Core may
+            retain provider-native history and its integrity data here; those
+            keys are implementation-managed rather than a portable message
+            schema.
 
     Examples:
         >>> session = Session(session_id="test", messages=[])
@@ -1768,7 +1832,10 @@ class Session:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert session to dictionary format.
+        """Return a serializable dictionary representation.
+
+        Messages are converted with :meth:`Message.to_dict`, and session
+        metadata is deep copied.
 
         Returns:
             Dictionary representation of the session.
@@ -1781,7 +1848,7 @@ class Session:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Session":
-        """Create session from dictionary.
+        """Create a session from a dictionary representation.
 
         Args:
             data: Dictionary containing session_id, messages, and optional metadata.

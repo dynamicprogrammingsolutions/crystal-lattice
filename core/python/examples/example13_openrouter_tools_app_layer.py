@@ -1,5 +1,5 @@
 """
-PROJECT_PLAN Example 13: Application-layer OpenRouter + tools app.
+Example 13: Application-layer OpenRouter tools app.
 
 This example mirrors Example 12 (OpenRouter + tools coding puzzle) but
 is built on top of the higher-level :class:`agent_app.AgentApplication`

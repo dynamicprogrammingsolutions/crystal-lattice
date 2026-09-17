@@ -1,5 +1,5 @@
 """
-PROJECT_PLAN Example 5: Config Updates + Web Search Feature (Ollama)
+Example 9: Configuration updates and a web-search feature with Ollama.
 Preserves original prompts and prints when search is enabled.
 """
 
