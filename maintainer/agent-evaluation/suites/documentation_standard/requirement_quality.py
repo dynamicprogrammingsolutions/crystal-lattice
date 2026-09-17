@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,84 @@ CURRENT_TASK_GUIDANCE_PATHS = (
 CURRENT_TASK_GUIDANCE_REVISION = (
     "73a2f4bf9d326118f9dc8b87c2e57b9c75fe8f11"
 )
+ROOT_GUIDANCE_BASELINE_REVISION = (
+    "4a0c078c"
+)
+ROOT_GUIDANCE_VARIANTS = {
+    "baseline",
+    "requirements",
+    "testing",
+    "combined",
+}
+ROOT_GUIDANCE_MODES = {
+    "root-only",
+    "task",
+}
+ROOT_REQUIREMENTS_SECTION = """## Requirements
+
+- Requirements are the minimum approved completed-state outcomes and
+  constraints. Include one only when removing it would leave an explicit
+  request, preserved contract, necessary consequence, or approved policy or
+  decision unsatisfied.
+- Trace every requirement to that authority. Group variants, operations,
+  boundaries, and examples unless separate acceptance, ownership, evidence, or
+  status adds value.
+- Keep implementation, tests, documentation, refactors, verification work,
+  risks, and possible improvements in the plan or supporting details unless
+  their outcome is independently required.
+- Do not resolve unspecified public, persisted, compatibility, security,
+  privacy, or user-visible behavior without approval. A recommendation may
+  explain the tradeoff but remains outside requirements and implementation
+  until approved.
+- Keep implementation, verification, and documentation states separate. Use
+  the smallest direct evidence for each state, and leave human verification
+  incomplete until a human confirms it.
+"""
+ROOT_TESTING_SECTION = """## Testing
+
+Add or update evidence for changed behavior and regressions.
+
+**Choose decisive evidence**
+
+- Map each requirement or coherent requirement group to the smallest reliable
+  evidence at the boundary where the failure would be observable.
+- Use unit or component tests for local behavior. Use integration tests when
+  the requirement depends on real components, storage, transports, processes,
+  or adapters interacting. Use end-to-end, hosted, or native tests only for
+  critical paths lower layers cannot represent faithfully.
+- A mock that supplies or bypasses the claimed behavior is not decisive
+  evidence. When behavior crosses components, retain at least one test through
+  the important real interface.
+- Cite existing coverage only when it actually proves the required behavior;
+  otherwise add focused evidence or record the gap.
+- Do not test unresolved or unapproved behavior. Avoid exact internal values,
+  structures, calls, ordering, markup, or source identity unless they are part
+  of an approved contract.
+- Prefer representative boundaries and regressions over duplicate layers or
+  operation-by-state combinations without a distinct risk.
+- Separate requirement acceptance from additional implementation robustness
+  checks. Keep routine formatting, lint, compilation, and broad test counts as
+  supporting evidence.
+
+**Keep execution realistic**
+
+- Integration and end-to-end tests use realistic public or deployment paths;
+  do not add test-only shortcuts that hide a product defect.
+- Run requested or required gated tests with their gate enabled. Otherwise
+  report them as not run, not as passing.
+- Describe coverage by the boundary actually crossed. A run succeeds only when
+  the intended tests collect and the command exits cleanly without teardown,
+  timer, or open-handle failures.
+- Treat shared harnesses as maintained test infrastructure and verify them
+  through a real consumer.
+
+**Place tests with their owner**
+
+- Keep package-specific tests and fixtures with the owning package. Put
+  cross-cutting repository test support under `test/`.
+- Keep first-party plugin tests with their plugin projects and Core-only test
+  fixtures under `core/python/tests/fixtures`.
+"""
 PRODUCER_CASES = (
     ("glm", "low"),
     ("glm", "high"),
@@ -261,6 +340,13 @@ def scenario_task_file_prompt(scenario: RequirementQualityScenario) -> str:
     )
 
 
+def scenario_root_plan_prompt(scenario: RequirementQualityScenario) -> str:
+    return extract_blockquote(
+        scenario.spec_path,
+        "## Exact root-plan user prompt",
+    )
+
+
 def scenario_fixture_facts(scenario: RequirementQualityScenario) -> str:
     return extract_section(scenario.spec_path, "## Fixture facts")
 
@@ -293,3 +379,72 @@ def candidate_task_guidance_source() -> GuidanceSource:
         name="candidate-task-guidance-v3",
         paths=CURRENT_TASK_GUIDANCE_PATHS,
     )
+
+
+def root_guidance_source(
+    variant: str,
+    mode: str,
+) -> GuidanceSource:
+    if variant not in ROOT_GUIDANCE_VARIANTS:
+        raise ValueError(
+            "root guidance variant must be one of: "
+            + ", ".join(sorted(ROOT_GUIDANCE_VARIANTS))
+        )
+    if mode not in ROOT_GUIDANCE_MODES:
+        raise ValueError(
+            "root guidance mode must be one of: "
+            + ", ".join(sorted(ROOT_GUIDANCE_MODES))
+        )
+    baseline = GuidanceSource(
+        name="root-guidance-baseline-source",
+        revision=ROOT_GUIDANCE_BASELINE_REVISION,
+        paths=("AGENTS.md",),
+    ).read_bytes("AGENTS.md").decode("utf-8")
+    rendered = render_root_guidance_variant(baseline, variant)
+    common_paths = (
+        "AGENTS.md",
+        "docs/development/documentation.md",
+        "docs/development/crystal-lattice-documentation.md",
+    )
+    paths = (
+        common_paths
+        if mode == "root-only"
+        else (*common_paths, "agents/TASKS-v7.md")
+    )
+    return GuidanceSource(
+        name=f"root-guidance-{variant}-{mode}",
+        revision=ROOT_GUIDANCE_BASELINE_REVISION,
+        paths=paths,
+        content_overrides=(("AGENTS.md", rendered.encode("utf-8")),),
+    )
+
+
+def render_root_guidance_variant(
+    baseline: str,
+    variant: str,
+) -> str:
+    if variant not in ROOT_GUIDANCE_VARIANTS:
+        raise ValueError(f"unknown root guidance variant: {variant}")
+    rendered = baseline
+    if variant in {"requirements", "combined"}:
+        marker = "\n---\n\n## Development Workflow"
+        if marker not in rendered:
+            raise ValueError("root guidance development-workflow marker missing")
+        rendered = rendered.replace(
+            marker,
+            f"\n---\n\n{ROOT_REQUIREMENTS_SECTION}\n---\n\n"
+            "## Development Workflow",
+            1,
+        )
+    if variant in {"testing", "combined"}:
+        pattern = re.compile(
+            r"(?ms)^## Testing Principles\n.*?(?=^## Long-running work and waiting)"
+        )
+        rendered, count = pattern.subn(
+            f"{ROOT_TESTING_SECTION}\n",
+            rendered,
+            count=1,
+        )
+        if count != 1:
+            raise ValueError("root guidance testing section missing or repeated")
+    return rendered

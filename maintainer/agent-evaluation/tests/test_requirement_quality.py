@@ -8,11 +8,14 @@ import pytest
 from suites.documentation_standard.requirement_quality import (
     ALL_SCENARIOS,
     PRODUCER_CASES,
+    ROOT_GUIDANCE_BASELINE_REVISION,
     SCENARIOS,
     candidate_task_guidance_source,
     current_task_guidance_source,
     load_target,
     requirement_minimal_guidance_source,
+    root_guidance_source,
+    scenario_root_plan_prompt,
     scenario_fixture_facts,
     scenario_prompt,
     scenario_project_context,
@@ -72,6 +75,13 @@ def test_primary_requirement_quality_scenario_has_project_context(scenario) -> N
     assert "Create one task file with a Draft execution plan" in prompt
     assert "testing strategy" not in prompt.lower()
     assert "test plan" not in prompt.lower()
+    root_prompt = scenario_root_plan_prompt(scenario)
+    assert root_prompt
+    assert "completion requirements" in root_prompt
+    assert "concise implementation plan" in root_prompt
+    assert "testing strategy" not in root_prompt.lower()
+    assert "test plan" not in root_prompt.lower()
+    assert "create one task file" not in root_prompt.lower()
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda value: value.scenario_id)
@@ -152,6 +162,73 @@ def test_candidate_task_guidance_contains_the_approved_replacements() -> None:
     assert "testing strategy" not in scenario_task_file_prompt(SCENARIOS[0]).lower()
 
 
+def test_root_guidance_variants_are_isolated_and_reproducible(
+    tmp_path: Path,
+) -> None:
+    baseline = root_guidance_source("baseline", "root-only")
+    requirements = root_guidance_source("requirements", "root-only")
+    testing = root_guidance_source("testing", "root-only")
+    combined = root_guidance_source("combined", "task")
+
+    baseline_text = baseline.read_bytes("AGENTS.md").decode("utf-8")
+    requirements_text = requirements.read_bytes("AGENTS.md").decode("utf-8")
+    testing_text = testing.read_bytes("AGENTS.md").decode("utf-8")
+    combined_text = combined.read_bytes("AGENTS.md").decode("utf-8")
+
+    assert baseline.revision == ROOT_GUIDANCE_BASELINE_REVISION
+    assert baseline.paths == (
+        "AGENTS.md",
+        "docs/development/documentation.md",
+        "docs/development/crystal-lattice-documentation.md",
+    )
+    assert combined.paths == (
+        "AGENTS.md",
+        "docs/development/documentation.md",
+        "docs/development/crystal-lattice-documentation.md",
+        "agents/TASKS-v7.md",
+    )
+    assert "\n## Requirements\n" not in baseline_text
+    assert "\n## Requirements\n" in requirements_text
+    assert "\n## Requirements\n" not in testing_text
+    assert "\n## Requirements\n" in combined_text
+    assert "\n## Testing Principles\n" in baseline_text
+    assert "\n## Testing Principles\n" in requirements_text
+    assert "\n## Testing\n" in testing_text
+    assert "\n## Testing Principles\n" not in testing_text
+    assert "\n## Testing\n" in combined_text
+    assert "A mock that supplies or bypasses" in testing_text
+    assert "remains outside requirements and implementation" in requirements_text
+
+    baseline_docs = baseline.read_bytes(
+        "docs/development/documentation.md"
+    )
+    for guidance in (requirements, testing, combined):
+        assert guidance.read_bytes(
+            "docs/development/documentation.md"
+        ) == baseline_docs
+    task_source = root_guidance_source("baseline", "task")
+    baseline_tasks = task_source.read_bytes("agents/TASKS-v7.md")
+    assert combined.read_bytes("agents/TASKS-v7.md") == baseline_tasks
+
+    workspace = tmp_path / "workspace"
+    requirements.copy_to(workspace)
+    assert (workspace / "AGENTS.md").read_text(encoding="utf-8") == (
+        requirements_text
+    )
+    assert (
+        requirements.metadata()["content_override_paths"]
+        == ["AGENTS.md"]
+    )
+    assert len(
+        {
+            baseline.sha256(),
+            requirements.sha256(),
+            testing.sha256(),
+            combined.sha256(),
+        }
+    ) == 4
+
+
 def test_accepted_requirement_quality_dataset_is_complete() -> None:
     dataset = load_accepted_dataset()
     anchors = load_accepted_anchors()
@@ -178,6 +255,13 @@ def test_semantic_evaluator_prompt_and_schema_round_trip() -> None:
         target=target,
         candidates=[candidate],
         assess_testing=False,
+    )
+    testing_prompt = build_evaluator_prompt(
+        dataset_id=dataset["dataset_id"],
+        scenario=scenario,
+        target=target,
+        candidates=[candidate],
+        assess_testing=True,
     )
     result = {
         "schema_version": 1,
@@ -219,6 +303,7 @@ def test_semantic_evaluator_prompt_and_schema_round_trip() -> None:
     parsed = parse_evaluator_response(json.dumps(result))
 
     assert "Requirement count is not a verdict" in prompt
+    assert "For each planning candidate" in testing_prompt
     assert "outside requirements" in prompt
     assert "not an added obligation" in prompt
     assert set(REQUIREMENT_CLASSIFICATIONS)

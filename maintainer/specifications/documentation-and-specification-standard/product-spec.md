@@ -69,6 +69,13 @@ documentation, cross-package specifications, tasks, AGENTS files, publication,
 and migration. It does not repeat the general explanations or maintain a prose
 inventory of every package.
 
+Always-loaded root guidance reinforces the small set of requirement and testing
+decisions that should affect ordinary work even when no task file is active and
+the detailed documentation guide is not read. Requirements and testing have
+separate concise sections so their core rules are not diluted by documentation
+routing, task-file mechanics, marker catalogs, or package-specific test
+conventions.
+
 The structure is optional at every level. A task may correctly update one
 existing page, add one standalone page, use an index and one child page, create
 one specification file, or use a larger specification directory.
@@ -157,12 +164,18 @@ must remain durable before implementation, it stays with the specification.
   constraints; group variants proportionately and surface unspecified public
   behavior as a question instead of silently selecting it. Recommendations
   remain outside the completion contract until approved.
+- Put that minimum requirement contract in always-loaded root guidance as well
+  as the detailed guide and task-file guidance, with each layer expressing only
+  the detail appropriate to its role.
 - Keep primary evidence concise and directly related to requirement
   validation.
 - Give agents practical guidance for choosing the lowest-cost reliable test
   boundary, identifying important crossings, avoiding brittle
   implementation/source assertions outside the required contract, and
   distinguishing decisive evidence from supporting checks.
+- Put the strategic test-selection rules first in root guidance and route
+  package/runtime-specific test mechanics to the nearest applicable guidance
+  when they remain discoverable.
 - Make completion reports emphasize decisive acceptance evidence rather than
   routine quality-check counts.
 - Preserve scope, ownership, source-of-truth, validation, and publication

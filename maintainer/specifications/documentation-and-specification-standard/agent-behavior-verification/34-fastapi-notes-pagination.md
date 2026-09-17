@@ -45,6 +45,20 @@ validation and not-found behavior.
 > unchanged. Create one task file with a Draft execution plan for this change.
 > Do not implement the change.
 
+## Exact root-plan user prompt
+
+> Please inspect this FastAPI notes service. Large note collections make
+> `GET /notes/` responses slow and unnecessarily large. Add optional `limit`
+> and `offset` query parameters. Existing requests without either parameter
+> must retain their current full-list response. When pagination is requested,
+> results must use stable ascending note-ID order, `limit` must be between 1
+> and 100, and `offset` must be zero or greater. The response body must remain
+> the existing array of note objects, and paginated responses must expose the
+> total note count through `X-Total-Count`. Invalid pagination values should
+> use FastAPI's normal validation response. Other note endpoints must remain
+> unchanged. Prepare the completion requirements and a concise implementation
+> plan in your response. Do not create or modify files or implement the change.
+
 ## Fixture facts
 
 - `read_all_notes()` currently returns `crud.get_all()` as `List[NoteDB]`.

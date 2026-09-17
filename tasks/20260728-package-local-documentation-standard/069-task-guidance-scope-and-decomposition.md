@@ -22,8 +22,8 @@ Requirement IDs:
 
 - Requirement/testing candidate: `DOCGUIDE-005`–`DOCGUIDE-006`,
   `DOCFLOW-002`–`DOCFLOW-004`, `DOCVAL-012`
-- Root guidance integration: `DOCAGENT-001`; add stable root-requirement and
-  root-testing IDs before changing the integrated candidate.
+- Root guidance integration: `DOCAGENT-001`, `DOCAGENT-003`–`DOCAGENT-004`,
+  `DOCVAL-013`.
 - Add stable decomposition IDs only after the six-case baseline confirms the
   exact independently required behavior.
 
@@ -948,7 +948,7 @@ maintainer guidance and evaluation infrastructure.
   its main guidance.
 - [x] Run integrated Core migration and root-guidance baseline checks.
 - [x] Record integrated guidance hashes and effective instruction provenance.
-- [ ] Add stable requirements for the root Requirements and Testing sections.
+- [x] Add stable requirements for the root Requirements and Testing sections.
 - [ ] Test the requirements-only root candidate.
 - [ ] Test the testing-only root candidate.
 - [ ] Test the combined root candidate.
@@ -1092,3 +1092,14 @@ maintainer guidance and evaluation infrastructure.
   root-guidance tests, 15 assembly tests, parity, compiled-message integration,
   links, preparation, build, and integrated Test 27 all pass. The dated
   baseline report records exact evidence and the Test 27 accuracy caveat.
+- September 17, 2026: Added `DOCAGENT-003`, `DOCAGENT-004`, and `DOCVAL-013`
+  before changing root guidance. `DOCAGENT-002` is left available to the
+  incomplete destination-vocabulary workstream.
+- September 17, 2026: Added deterministic synthesis for integrated baseline,
+  Requirements-only, Testing-only, and combined root `AGENTS.md` candidates.
+  Root-only mode injects only `AGENTS.md`; task mode injects `AGENTS.md` plus
+  canonical `TASKS-v7`. The current documentation pages remain byte-fixed in
+  the workspace without direct injection. One GLM-low FastAPI baseline smoke
+  completed without mutation; semantic review found complete requirements with
+  one minor testing-as-requirement row, partial testing, mixed layers, and
+  internal CRUD-return-shape coupling.

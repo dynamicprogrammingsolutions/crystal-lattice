@@ -42,6 +42,19 @@ latest three posts, and tag pages already use Eleventy pagination.
 > zero-JavaScript output. Create one task file with a Draft execution plan for
 > this change. Do not implement the change.
 
+## Exact root-plan user prompt
+
+> Please inspect this Eleventy blog project. Blogs with several thousand posts
+> produce an unmanageably large archive page. Paginate the public archive into
+> 20 posts per page. The first archive page must keep the existing `/blog/`
+> address, later pages need stable addresses, and readers need accessible
+> previous and next navigation. Preserve newest-first ordering and ensure every
+> post appears exactly once. The home page, tag pages, feed, sitemap, and
+> individual-post navigation must keep their current behavior. Preserve static
+> zero-JavaScript output. Prepare the completion requirements and a concise
+> implementation plan in your response. Do not create or modify files or
+> implement the change.
+
 ## Fixture facts
 
 - The archive passes `collections.posts` to the shared post-list template.

@@ -9,7 +9,6 @@ from typing import Any
 from .requirement_quality import SCENARIOS
 from .requirement_quality_evaluator import (
     DEFAULT_ARTIFACT_ROOT,
-    EVALUATOR_PROMPT_VERSION,
     load_candidate_task_dataset,
     load_candidate_v2_task_dataset,
     load_candidate_v3_task_dataset,
@@ -45,7 +44,7 @@ VARIANTS = {
     },
     "v3": {
         "dataset_id": "candidate-task-guidance-v3-20260915",
-        "prompt_version": EVALUATOR_PROMPT_VERSION,
+        "prompt_version": "v3",
         "loader": load_candidate_v3_task_dataset,
         "task_output": (
             FIXTURE_ROOT

@@ -24,7 +24,7 @@ ACCEPTED_ANCHORS_PATH = (
 DEFAULT_ARTIFACT_ROOT = (
     REPOSITORY_ROOT / "tmp" / "agent-evaluation" / "documentation-standard"
 )
-EVALUATOR_PROMPT_VERSION = "v3"
+EVALUATOR_PROMPT_VERSION = "v4"
 
 REQUIREMENT_CLASSIFICATIONS = {
     "traceable_target_outcome",
@@ -126,6 +126,81 @@ def load_candidate_v3_task_dataset(
         scenario_ids=scenario_ids,
         producer_cases=producer_cases,
     )
+
+
+def load_root_guidance_dataset(
+    *,
+    variant: str,
+    mode: str,
+    artifact_root: Path = DEFAULT_ARTIFACT_ROOT,
+    scenario_ids: tuple[str, ...] | None = None,
+    producer_cases: tuple[tuple[str, str], ...] = PRODUCER_CASES,
+) -> dict[str, Any]:
+    dataset_id = f"root-guidance-{variant}-{mode}-20260917"
+    test_prefix = f"requirement-root-{variant}-{mode}"
+    records: list[dict[str, Any]] = []
+    selected_scenarios = scenario_ids or tuple(
+        scenario.scenario_id for scenario in SCENARIOS
+    )
+    for scenario_id in selected_scenarios:
+        for profile, effort in producer_cases:
+            pattern = (
+                f"*{test_prefix}-{scenario_id}-{effort}-*/"
+                "records/root-guidance-requirement-quality.json"
+            )
+            paths = sorted((artifact_root / profile / "runs").glob(pattern))
+            matching: list[tuple[Path, dict[str, Any]]] = []
+            for path in paths:
+                value = json.loads(path.read_text(encoding="utf-8"))
+                producer = value.get("producer")
+                if (
+                    value.get("dataset_id") == dataset_id
+                    and isinstance(producer, dict)
+                    and producer.get("profile") == profile
+                    and producer.get("reasoning_effort") == effort
+                ):
+                    matching.append((path, value))
+            if not matching:
+                raise FileNotFoundError(
+                    f"missing root-guidance dataset record for "
+                    f"{scenario_id}/{profile}/{effort}"
+                )
+            path, value = matching[-1]
+            records.append(
+                {
+                    "candidate_id": f"{profile}-{effort}",
+                    "scenario_id": scenario_id,
+                    "producer": value["producer"],
+                    "generated_files": value["generated_files"],
+                    "changed_paths": value["changed_paths"],
+                    "source_run_id": path.parents[1].name,
+                    "source_record_sha256": hashlib.sha256(
+                        path.read_bytes()
+                    ).hexdigest(),
+                    "guidance": value["guidance"],
+                    "producer_result": {
+                        "completed": any(
+                            finding.get("name") == "run completed"
+                            and finding.get("passed") is True
+                            for finding in value.get("findings", [])
+                            if isinstance(finding, dict)
+                        ),
+                        "response": value.get("response", ""),
+                        "findings": value.get("findings", []),
+                    },
+                }
+            )
+    dataset = {
+        "schema_version": 1,
+        "dataset_id": dataset_id,
+        "description": (
+            "Requirements and verification plans produced with isolated "
+            f"{variant} root guidance in {mode} mode."
+        ),
+        "records": records,
+    }
+    validate_dataset(dataset, expected_dataset=dataset_id)
+    return dataset
 
 
 def _load_task_dataset(
@@ -327,13 +402,12 @@ def build_evaluator_prompt(
     ]
     testing_instruction = (
         """
-For each task-file candidate, also assess the execution plan's requirement
-verification and optional additional implementation verification. Testing
-quality is not inferred from the user prompt; assess the plan that the current
-task guidance naturally produced. Map the scenario's required_evidence items,
-check the important crossing, and identify unnecessary tests, missing tests,
-implementation coupling, duplication, combinatorial expansion, and verification
-focus.
+For each planning candidate, also assess its verification plan and any
+additional implementation verification. Testing quality is not inferred from
+the user prompt; assess the plan that the delivered guidance naturally
+produced. Map the scenario's required_evidence items, check the important
+crossing, and identify unnecessary tests, missing tests, implementation
+coupling, duplication, combinatorial expansion, and verification focus.
 """
         if assess_testing
         else """
@@ -451,10 +525,11 @@ Apply these distinctions:
 - Requirement count is not a verdict. Several rows can express one outcome,
   and one row can contain several obligations.
 - For task-file candidates, assess product requirements from the Requirements
-  checklist and any other text that claims a completed-state obligation.
-  Implementation decisions and work steps are legitimate in the execution
-  plan; classify them as requirement expansion only when the task promotes
-  them into the product completion contract.
+  checklist and any other text that claims a completed-state obligation. For
+  response-only plans, assess the section or prose serving the same role.
+  Implementation decisions and work steps are legitimate in a plan; classify
+  them as requirement expansion only when the candidate promotes them into the
+  product completion contract.
 - If producer_result.completed is false or generated_files is empty, do not
   infer missing content. Mark requirement coverage and testing coverage
   missing, explain the incomplete producer result, and keep semantic expansion

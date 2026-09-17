@@ -179,8 +179,12 @@ class GuidanceSource:
     root: Path = REPOSITORY_ROOT
     revision: str | None = None
     paths: tuple[str, ...] = CURRENT_GUIDANCE_PATHS
+    content_overrides: tuple[tuple[str, bytes], ...] = ()
 
     def read_bytes(self, relative: str) -> bytes:
+        for path, content in self.content_overrides:
+            if path == relative:
+                return content
         if self.revision is None:
             return self.root.joinpath(relative).read_bytes()
         result = subprocess.run(
@@ -225,6 +229,9 @@ class GuidanceSource:
             "revision": self.revision,
             "sha256": self.sha256(),
             "files": [item.__dict__ for item in self.files()],
+            "content_override_paths": [
+                path for path, _ in self.content_overrides
+            ],
             "injection_version": GUIDANCE_INJECTION_VERSION,
         }
 
@@ -483,10 +490,12 @@ class DocumentationEvaluationHarness:
         reasoning_effort: str,
         cache_variant: str,
         prompt_heading: str = "## Exact user prompt",
+        guidance_instruction_paths: tuple[str, ...] | None = None,
     ) -> Run[TurnValue]:
+        instruction_paths = guidance_instruction_paths or self.guidance.paths
         key = (
             f"fresh:{test_id}:{reasoning_effort}:{cache_variant}:"
-            f"{prompt_heading}"
+            f"{prompt_heading}:{_sha256_text(json.dumps(instruction_paths))}"
         )
         if key in self._runs:
             return self._runs[key]
@@ -501,6 +510,7 @@ class DocumentationEvaluationHarness:
             f"{self.guidance.name}:{self.guidance.sha256()}:"
             f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
             f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}:"
+            f"{_sha256_text(json.dumps(instruction_paths))}:"
             f"{reasoning_effort}:{cache_variant}"
         )
         run = self.evaluation.run(
@@ -510,6 +520,7 @@ class DocumentationEvaluationHarness:
                 prompt,
                 guidance=self.guidance,
                 inject_guidance=True,
+                guidance_instruction_paths=instruction_paths,
                 reasoning_effort=reasoning_effort,
             ),
             workspace=workspace,

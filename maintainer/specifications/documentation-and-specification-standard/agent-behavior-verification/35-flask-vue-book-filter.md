@@ -45,6 +45,21 @@ filter parameter.
 > behavior must remain compatible. Create one task file with a Draft execution
 > plan for this change. Do not implement the change.
 
+## Exact root-plan user prompt
+
+> Please inspect this Flask and Vue book application. Readers need to switch
+> the Books page between All, Read, and Unread books. Add this user-facing
+> filter across the Vue client and Flask server. All must remain the initial
+> view. Read and Unread must request the corresponding server-filtered
+> collection through an optional `read` query parameter on `GET /books`;
+> omitting the parameter must keep the current all-books response. Preserve
+> the existing JSON response shape. The selected filter must remain active
+> when the list refreshes after adding, updating, or deleting a book, and the
+> page must show a clear empty result when no books match. Existing CRUD
+> behavior must remain compatible. Prepare the completion requirements and a
+> concise implementation plan in your response. Do not create or modify files
+> or implement the change.
+
 ## Fixture facts
 
 - `Books.vue` loads all books with `axios.get("/books")`.

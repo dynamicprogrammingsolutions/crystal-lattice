@@ -54,6 +54,59 @@ Test 27 uses a routing-only variation: root AGENTS guidance is injected while
 the two current guidance pages remain ordinary workspace files. Legacy Test 20
 retains the former four-page route for direct comparison only.
 
+## Root Requirements and Testing calibration
+
+The September 17 root-guidance comparison keeps the committed integrated
+documentation guide and TASKS-v7 fixed while synthesizing four root
+`AGENTS.md` variants:
+
+- `baseline`;
+- `requirements`;
+- `testing`;
+- `combined`.
+
+It supports two instruction modes:
+
+- `root-only`: inject root `AGENTS.md`; ask for requirements and a plan in the
+  response without task-file creation;
+- `task`: inject root `AGENTS.md` plus canonical `TASKS-v7`; ask for one Draft
+  task file.
+
+All current documentation pages are copied into the fixture but are not
+injected. Record exact producer cells with:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_PROFILE=glm \
+AGENT_EVAL_ROOT_GUIDANCE_VARIANT=baseline \
+AGENT_EVAL_ROOT_GUIDANCE_MODE=root-only \
+AGENT_EVAL_ROOT_GUIDANCE_CANDIDATES=glm-low,glm-high \
+pytest maintainer/agent-evaluation/suites/documentation_standard/test_root_requirement_testing_guidance.py \
+  -m "agent_eval and root_requirement_testing" -q
+```
+
+For GPT through ChatGPT login, set `AGENT_EVAL_PROFILE=gpt` and
+`AGENT_EVAL_ALLOW_HOSTED=1`.
+
+Semantically assess a recorded subset with:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_PROFILE=glm \
+AGENT_EVAL_SEMANTIC_DATASET=root-guidance \
+AGENT_EVAL_ROOT_GUIDANCE_VARIANT=baseline \
+AGENT_EVAL_ROOT_GUIDANCE_MODE=root-only \
+AGENT_EVAL_ROOT_GUIDANCE_CANDIDATES=glm-low,glm-high \
+pytest maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_semantic_evaluator.py \
+  -m "agent_eval and requirement_semantic" -q
+```
+
+The producer prompt never requests a testing strategy. Every record preserves
+the copied guidance files, injected paths, effective instruction hash,
+model/effort, response or task file, mutations, and deterministic findings.
+The semantic evaluator uses the same hidden targets and requirement/testing
+dimensions as the v3 task-guidance comparison.
+
 ## Run GLM-5.3 Flash
 
 The GLM profile targets `glm-5.3-flash:cloud` for every seed and branch.

@@ -227,7 +227,10 @@ result.
 
 ## Root agent guidance
 
-The root documentation section targets roughly 200–300 words. It contains only:
+Root guidance has three distinct high-priority parts.
+
+The documentation routing section targets roughly 200–300 words. It contains
+only:
 
 - the package-local default and cross-package exception;
 - user versus developer documentation placement;
@@ -239,6 +242,49 @@ The root documentation section targets roughly 200–300 words. It contains only
 
 It does not repeat file-role explanations, forbidden-word lists, reference
 matrices, testing taxonomy, or migration procedures.
+
+The dedicated Requirements section states only the recurring completion
+contract:
+
+- requirements are the minimum approved completed-state outcomes and
+  constraints;
+- each traces to the request, a preserved contract, a necessary consequence,
+  or an approved policy or decision;
+- variants and examples stay grouped unless separate acceptance, ownership,
+  evidence, or status adds value;
+- implementation, tests, documentation, refactors, risks, and possible
+  improvements stay in plans or supporting details unless their outcome is
+  independently required;
+- unapproved public, persisted, compatibility, security, privacy, or
+  user-visible behavior remains a question, and a recommendation stays
+  non-normative;
+- implementation, verification, and documentation state remain separate, with
+  the smallest direct evidence and human confirmation left pending until
+  received.
+
+The Testing section begins with strategy rather than test-framework mechanics:
+
+- map a requirement or coherent group to the smallest reliable evidence;
+- choose the lowest-cost boundary containing the failure;
+- require a real crossing when behavior depends on components interacting;
+- do not treat a mock that supplies or bypasses the behavior as decisive;
+- cite existing coverage only when it proves the required behavior;
+- avoid unresolved behavior, unapproved contracts, brittle implementation
+  assertions, duplicate layers, and unnecessary combinations;
+- separate acceptance evidence, additional robustness checks, and routine
+  quality checks.
+
+Repository-wide realism, gating, boundary-label, clean-exit, and shared-harness
+rules remain in root guidance. Core-, plugin-, React-Native-, or other
+runtime-specific testing rules move to the nearest applicable package guidance
+only when that location remains discoverable from the root and package entry
+points.
+
+Root Requirements and Testing candidates are evaluated independently before
+the combined wording is accepted. The detailed documentation guide and
+canonical TASKS-v7 remain fixed during that comparison. Evaluation records the
+exact compiled instruction layers and exercises both ordinary planning without
+TASKS guidance and task-file work with TASKS guidance enabled.
 
 ## Maintainer boundary
 
