@@ -15,6 +15,15 @@ CANDIDATE_BUNDLE = (
     "maintainer/guidance/candidates/root-requirements-testing-v2"
 )
 CRYSTAL_TARGET = "maintainer/guidance/targets/crystal-lattice"
+FIXTURE_TARGET_ROOT = (
+    "maintainer/agent-evaluation/suites/documentation_standard/fixtures/"
+    "requirement_quality"
+)
+FIXTURE_TARGETS = (
+    "33-eleventy-archive-pagination",
+    "34-fastapi-notes-pagination",
+    "35-flask-vue-book-filter",
+)
 
 
 def test_current_crystal_lattice_compilation_is_exact() -> None:
@@ -54,6 +63,34 @@ def test_candidate_reproduces_reviewed_crystal_lattice_rendering() -> None:
     ).read_bytes()
 
 
+@pytest.mark.parametrize("scenario_id", FIXTURE_TARGETS)
+def test_fixture_targets_compile_portable_sections(
+    scenario_id: str,
+) -> None:
+    target = f"{FIXTURE_TARGET_ROOT}/{scenario_id}/guidance"
+    current = compile_guidance(
+        bundle=CURRENT_BUNDLE,
+        target=target,
+        repository_root=REPOSITORY_ROOT,
+    )
+    candidate = compile_guidance(
+        bundle=CANDIDATE_BUNDLE,
+        target=target,
+        repository_root=REPOSITORY_ROOT,
+    )
+    current_text = current.outputs["AGENTS.md"].decode("utf-8")
+    candidate_text = candidate.outputs["AGENTS.md"].decode("utf-8")
+
+    assert current.target_kind == "fixture"
+    assert candidate.target_kind == "fixture"
+    assert "Crystal Lattice" not in current_text
+    assert "Crystal Lattice" not in candidate_text
+    assert "## Requirements" not in current_text
+    assert "## Requirements" in candidate_text
+    assert set(current.outputs) == {"AGENTS.md"}
+    assert set(candidate.outputs) == {"AGENTS.md"}
+
+
 def test_external_target_can_live_outside_source_repository(
     tmp_path: Path,
 ) -> None:
@@ -64,6 +101,7 @@ def test_external_target_can_live_outside_source_repository(
         """
 format = 1
 id = "consumer"
+kind = "project"
 [outputs]
 "AGENTS.md" = "AGENTS.md.in"
 [slots.project-context]
@@ -110,6 +148,7 @@ section = "testing-strategy"
     assert "## Requirements" not in current_text
     assert "## Requirements" in candidate_text
     assert current.lock["target"]["path"] == str(target.resolve())
+    assert current.target_kind == "project"
 
 
 def test_compiler_rejects_duplicate_and_unused_slots(

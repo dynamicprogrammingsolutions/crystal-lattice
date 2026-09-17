@@ -11,6 +11,32 @@ from .support import GuidanceSource, REPOSITORY_ROOT
 
 
 DEFAULT_BUNDLE = "maintainer/guidance/current"
+FIXTURE_TARGET_ROOT = (
+    REPOSITORY_ROOT
+    / "maintainer"
+    / "agent-evaluation"
+    / "suites"
+    / "documentation_standard"
+    / "fixtures"
+    / "requirement_quality"
+)
+SCENARIO_TARGETS = {
+    "33-eleventy-archive-pagination": (
+        FIXTURE_TARGET_ROOT
+        / "33-eleventy-archive-pagination"
+        / "guidance"
+    ),
+    "34-fastapi-notes-pagination": (
+        FIXTURE_TARGET_ROOT
+        / "34-fastapi-notes-pagination"
+        / "guidance"
+    ),
+    "35-flask-vue-book-filter": (
+        FIXTURE_TARGET_ROOT
+        / "35-flask-vue-book-filter"
+        / "guidance"
+    ),
+}
 
 
 def selected_bundle() -> str:
@@ -20,14 +46,19 @@ def selected_bundle() -> str:
     ).strip()
 
 
-def selected_target() -> str:
+def selected_target(
+    scenario: RequirementQualityScenario,
+) -> str:
     value = os.getenv("AGENT_EVAL_GUIDANCE_TARGET", "").strip()
-    if not value:
+    if value:
+        return value
+    try:
+        return str(SCENARIO_TARGETS[scenario.scenario_id])
+    except KeyError as error:
         raise ValueError(
             "AGENT_EVAL_GUIDANCE_TARGET must name the consuming "
             "repository's target-template directory"
-        )
-    return value
+        ) from error
 
 
 def compile_scenario_guidance(
@@ -36,10 +67,9 @@ def compile_scenario_guidance(
     bundle: str | None = None,
     target: str | None = None,
 ) -> CompilationResult:
-    del scenario
     return compile_guidance(
         bundle=bundle or selected_bundle(),
-        target=target or selected_target(),
+        target=target or selected_target(scenario),
         base_directory=REPOSITORY_ROOT,
     )
 

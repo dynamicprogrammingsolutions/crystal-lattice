@@ -59,6 +59,10 @@ portable sections. Assertions verify:
 - each target's local paths and commands occur only in that target;
 - all required slots are present exactly once.
 
+Fixture target tests additionally verify that each target is colocated with its
+sample-project fixture, is marked `kind = "fixture"`, and contains factual
+context rather than the requirement or testing conclusion being evaluated.
+
 ## Evaluation integration tests
 
 The documentation-standard harness verifies:

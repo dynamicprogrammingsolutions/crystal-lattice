@@ -26,6 +26,7 @@ SLOT_PATTERN = re.compile(
 class CompilationResult:
     bundle_id: str
     target_id: str
+    target_kind: str
     outputs: Mapping[str, bytes]
     lock: Mapping[str, Any]
 
@@ -110,7 +111,7 @@ def compile_guidance(
         tracker,
         bundle_dir,
     )
-    target_id, outputs, slots = _load_target(
+    target_id, target_kind, outputs, slots = _load_target(
         tracker,
         target_dir,
     )
@@ -202,6 +203,7 @@ def compile_guidance(
         "compiler_version": COMPILER_VERSION,
         "bundle_id": bundle_id,
         "target_id": target_id,
+        "target_kind": target_kind,
         "inputs": list(inputs),
         "outputs": output_records,
     }
@@ -225,6 +227,7 @@ def compile_guidance(
         },
         "target": {
             "id": target_id,
+            "kind": target_kind,
             "path": str(target_dir),
             "git": _git_metadata(
                 target_dir,
@@ -238,6 +241,7 @@ def compile_guidance(
     return CompilationResult(
         bundle_id=bundle_id,
         target_id=target_id,
+        target_kind=target_kind,
         outputs=compiled,
         lock=lock,
     )
@@ -321,12 +325,17 @@ def _bundle_manifest(bundle_dir: Path) -> Path:
 def _load_target(
     tracker: InputTracker,
     target_dir: Path,
-) -> tuple[str, dict[str, str], dict[str, dict[str, str]]]:
+) -> tuple[str, str, dict[str, str], dict[str, dict[str, str]]]:
     manifest_path = target_dir / "target.toml"
     manifest = tracker.read_toml(manifest_path, role="target")
     if manifest.get("format") != 1:
         raise ValueError(f"{manifest_path} must use format = 1")
     target_id = _required_text(manifest, "id", str(manifest_path))
+    target_kind = manifest.get("kind", "project")
+    if target_kind not in {"project", "fixture"}:
+        raise ValueError(
+            f"{manifest_path} kind must be 'project' or 'fixture'"
+        )
     outputs = manifest.get("outputs")
     if not isinstance(outputs, dict) or not outputs:
         raise ValueError(f"{manifest_path} outputs must be a non-empty table")
@@ -346,7 +355,7 @@ def _load_target(
             str(key): str(value)
             for key, value in source.items()
         }
-    return target_id, output_values, slot_values
+    return target_id, str(target_kind), output_values, slot_values
 
 
 def _required_text(

@@ -98,6 +98,16 @@ guidance while migrating its source representation.
 - Revised and approved September 17, 2026: do not keep consuming-project target
   bases in Crystal Lattice. Each consuming repository owns its templates and
   local sections.
+- Revised and approved September 17, 2026: evaluation sample projects are
+  repository-owned fixtures, not consuming repositories. Store each fixture's
+  target template and factual local sections beside that fixture. This does
+  not authorize storing a real consuming repository's templates or local
+  guidance.
+- Approved: target selection uses an explicit consuming-project override when
+  supplied, otherwise the requirement-quality scenarios use their fixture-owned
+  targets.
+- Approved: fixture project context contains repository facts only and does not
+  teach the requirement or testing behavior being evaluated.
 - Approved: use complete Markdown sections inserted by
   `<!-- guidance-slot:<name> -->` placeholders.
 - Approved: use TOML manifests for bundles, candidates, and targets.
@@ -131,6 +141,8 @@ guidance while migrating its source representation.
 - [x] Add generic runtime bundle and independently located target selection.
 - [x] Support target templates and local sections outside the Crystal Lattice
   repository.
+- [x] Restore fixture-owned targets under each requirement-quality fixture and
+  reinstate scenario defaults without weakening the external target override.
 - [x] Include compilation locks in evaluation cache and records.
 - [x] Preserve and relabel the legacy matrix.
 - [x] Document a machine-local absolute-path compilation command.
@@ -162,6 +174,19 @@ guidance while migrating its source representation.
   local sections. Its semantic run was stopped and its local scratch results
   are not evidence. The compiler and tests were revised to use independent
   paths instead.
+- September 17, 2026: Clarified that the prior correction was too broad.
+  Sample projects are maintained test fixtures and may own fixture-only target
+  templates in this repository. The clean boundary is now: portable sections
+  and compiler under `maintainer/guidance/`; Crystal Lattice's own target under
+  `maintainer/guidance/targets/`; fixture targets beside their evaluation
+  fixtures; real consuming-project targets only in those projects. The
+  corrected producer and semantic runs must restart from the resulting
+  compiler locks.
+- September 17, 2026: Restored test-only targets beside the three
+  requirement-quality fixtures, marked them `kind = "fixture"`, and reinstated
+  scenario defaults. `AGENT_EVAL_GUIDANCE_TARGET` remains the explicit
+  consuming-project override; task guidance remains separately delivered by
+  Crystal Lattice runtime configuration.
 
 ### Requirement verification
 

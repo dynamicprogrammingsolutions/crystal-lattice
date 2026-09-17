@@ -1,0 +1,18 @@
+format = 1
+id = "requirement-quality-fastapi"
+kind = "fixture"
+
+[outputs]
+"AGENTS.md" = "AGENTS.md.in"
+
+[slots.project-context]
+source = "target"
+path = "sections/project-context.md"
+
+[slots.requirements]
+source = "bundle"
+section = "requirements"
+
+[slots.testing-strategy]
+source = "bundle"
+section = "testing-strategy"

@@ -71,9 +71,10 @@ maintainer/guidance/candidates/root-requirements-testing-v2
 
 The complete September 17 matrix that injected Crystal Lattice root guidance
 into unrelated projects is frozen as legacy comparison evidence. Corrected
-portable-guidance evaluation is run by a consuming repository using its own
-target template and local sections; this repository does not store those
-project-specific files.
+portable-guidance evaluation defaults to test-only targets colocated with the
+Eleventy, FastAPI, and Flask/Vue fixtures. Those targets contain fixture facts
+only. A real consuming repository supplies its own target path through an
+explicit override, and its files are not stored here.
 
 It supports two instruction modes:
 

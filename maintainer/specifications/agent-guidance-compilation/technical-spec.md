@@ -38,12 +38,22 @@ maintainer/guidance/
             ├── AGENTS.md.in
             └── sections/
                 └── <project-specific sections>.md
+
+maintainer/agent-evaluation/suites/documentation_standard/fixtures/
+└── requirement_quality/
+    └── <scenario>/
+        └── guidance/
+            ├── target.toml
+            ├── AGENTS.md.in
+            └── sections/
+                └── project-context.md
 ```
 
 The generic compiler accepts an arbitrary target directory, including an
 absolute path in another repository. Crystal Lattice stores only its own
 project target. Every consuming repository stores its own templates and local
-sections.
+sections. Evaluation sample projects are repository-owned fixtures and store
+their test-only targets beside the fixture that they describe.
 
 ## Section bundles
 
@@ -198,6 +208,11 @@ python /absolute/path/to/ai-agent-platform/maintainer/guidance/compiler.py \
 Task guidance is not compiled into the consuming repository. Crystal Lattice
 runtime configuration supplies the updated canonical task guidance when its
 develop branch is updated.
+
+Evaluation target selection uses an explicit external target path when one is
+provided. Otherwise a requirement-quality scenario uses its fixture-owned
+target. Fixture context contains facts only and does not repeat the expected
+requirement or testing behavior.
 
 ## Promotion
 
