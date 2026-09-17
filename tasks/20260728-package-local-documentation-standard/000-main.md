@@ -771,6 +771,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/071-guidance-source-compilation-migration.md`
 
 ## Execution plan
 
@@ -894,6 +895,8 @@ Required new or updated documentation includes:
 - [ ] 068: Align specifications/tasks guidance and synchronize canonical/bundled `TASKS-v7`.
 - [ ] 069: Verify and refine task-guidance scope discipline and subtask decomposition.
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.
+- [ ] 071: Migrate agent-guidance sources, compilation, candidate selection,
+  and corrected project-specific evaluation bases.
 
 ### Requirement verification
 

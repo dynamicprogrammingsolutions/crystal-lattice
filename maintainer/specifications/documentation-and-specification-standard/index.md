@@ -44,6 +44,9 @@ Related maintainer specification:
 - [Agent evaluation framework](../agent-evaluation-framework/index.md), whose
   first consumers provide behavioral evidence for the project-independent and
   Crystal Lattice instructions governed here.
+- [Agent guidance source and compilation](../agent-guidance-compilation/index.md),
+  which maintains inspectable shared sections, project-specific bases,
+  candidate variations, and pinned compiled evaluation inputs.
 
 The project-independent and Crystal Lattice rules share one meta-specification
 because they have one approval path, owner, delivery, and validation system. If

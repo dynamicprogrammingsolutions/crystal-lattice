@@ -17,6 +17,7 @@ Current specifications:
 
 - [Documentation and specification standard](specifications/documentation-and-specification-standard/index.md)
 - [Agent evaluation framework](specifications/agent-evaluation-framework/index.md)
+- [Agent guidance source and compilation](specifications/agent-guidance-compilation/index.md)
 
 Current maintainer tooling:
 
