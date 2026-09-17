@@ -33,6 +33,9 @@ ROOT_GUIDANCE_VARIANTS = {
     "requirements",
     "testing",
     "combined",
+    "requirements-v2",
+    "testing-v2",
+    "combined-v2",
 }
 ROOT_GUIDANCE_MODES = {
     "root-only",
@@ -54,6 +57,32 @@ ROOT_REQUIREMENTS_SECTION = """## Requirements
   privacy, or user-visible behavior without approval. A recommendation may
   explain the tradeoff but remains outside requirements and implementation
   until approved.
+- Keep implementation, verification, and documentation states separate. Use
+  the smallest direct evidence for each state, and leave human verification
+  incomplete until a human confirms it.
+"""
+ROOT_REQUIREMENTS_SECTION_V2 = """## Requirements
+
+- Requirements are the minimum approved completed-state outcomes and
+  constraints, not the work or evidence used to deliver them. Include one only
+  when removing it would leave an explicit request, preserved contract,
+  necessary consequence, or approved policy or decision unsatisfied.
+- Trace every requirement to that authority. Group variants, operations,
+  boundaries, and examples unless separate acceptance, ownership, evidence, or
+  status adds value.
+- Evidence needed to prove an outcome is not another product requirement. Put
+  implementation steps, test cases, verification procedures, documentation
+  updates, refactors, risks, and possible improvements in the plan or
+  supporting details unless the user explicitly requires that result as a
+  deliverable.
+- Do not choose unspecified public, persisted, compatibility, security,
+  privacy, or user-visible behavior merely because implementation needs an
+  answer. Record the question for approval. A recommendation may explain the
+  tradeoff but remains outside requirements and operative implementation steps
+  until approved.
+- A requested quality or behavior does not authorize an internal mechanism.
+  Make a technology, architecture, algorithm, storage, or query strategy a
+  requirement only when that solution constraint is approved.
 - Keep implementation, verification, and documentation states separate. Use
   the smallest direct evidence for each state, and leave human verification
   incomplete until a human confirms it.
@@ -93,6 +122,57 @@ Add or update evidence for changed behavior and regressions.
 - Describe coverage by the boundary actually crossed. A run succeeds only when
   the intended tests collect and the command exits cleanly without teardown,
   timer, or open-handle failures.
+- Treat shared harnesses as maintained test infrastructure and verify them
+  through a real consumer.
+
+**Place tests with their owner**
+
+- Keep package-specific tests and fixtures with the owning package. Put
+  cross-cutting repository test support under `test/`.
+- Keep first-party plugin tests with their plugin projects and Core-only test
+  fixtures under `core/python/tests/fixtures`.
+"""
+ROOT_TESTING_SECTION_V2 = """## Testing
+
+Add or update evidence for changed behavior and regressions.
+
+**Choose decisive evidence**
+
+- Map each requirement or coherent group to the smallest reliable evidence at
+  the boundary where its failure would be observable.
+- Use unit or component tests for local behavior. Use integration tests when
+  the requirement depends on real components, storage, transports, processes,
+  or adapters interacting. Use end-to-end, hosted, or native tests only for
+  critical paths lower layers cannot represent faithfully.
+- Separate component tests do not prove an interaction requirement. Name at
+  least one check through the real connection between those components; when
+  that check is unavailable, record the gap instead of substituting mocks.
+- A mock that supplies or bypasses the claimed behavior is not decisive
+  evidence. Cite existing coverage only when it actually proves the required
+  behavior; otherwise add focused evidence or record the gap.
+- For bounded inputs, include the valid boundaries and representative invalid
+  values. For behavior that must remain compatible, identify focused
+  regression evidence.
+- Do not test unresolved or unapproved behavior. Avoid exact internal values,
+  structures, calls, ordering, markup, or source identity unless they are part
+  of an approved contract.
+- Prefer representative checks over duplicate layers or operation-by-state
+  combinations without a distinct risk.
+- Separate requirement acceptance from additional implementation robustness
+  checks. Keep routine formatting, lint, compilation, and broad test counts as
+  supporting evidence.
+
+**Keep execution realistic**
+
+- Integration and end-to-end tests use realistic public or deployment paths;
+  do not add test-only shortcuts that hide a product defect.
+- Run requested or required gated tests with their gate enabled. Otherwise
+  report them as not run, not as passing.
+- Describe coverage by the boundary actually crossed. A run succeeds only when
+  the intended tests collect and the command exits cleanly without teardown,
+  timer, or open-handle failures.
+- Planning-only work leaves no generated files, caches, or other incidental
+  repository changes behind.
 - Treat shared harnesses as maintained test infrastructure and verify them
   through a real consumer.
 
@@ -426,22 +506,42 @@ def render_root_guidance_variant(
     if variant not in ROOT_GUIDANCE_VARIANTS:
         raise ValueError(f"unknown root guidance variant: {variant}")
     rendered = baseline
-    if variant in {"requirements", "combined"}:
+    if variant in {
+        "requirements",
+        "combined",
+        "requirements-v2",
+        "combined-v2",
+    }:
         marker = "\n---\n\n## Development Workflow"
         if marker not in rendered:
             raise ValueError("root guidance development-workflow marker missing")
+        requirements_section = (
+            ROOT_REQUIREMENTS_SECTION_V2
+            if variant in {"requirements-v2", "combined-v2"}
+            else ROOT_REQUIREMENTS_SECTION
+        )
         rendered = rendered.replace(
             marker,
-            f"\n---\n\n{ROOT_REQUIREMENTS_SECTION}\n---\n\n"
+            f"\n---\n\n{requirements_section}\n---\n\n"
             "## Development Workflow",
             1,
         )
-    if variant in {"testing", "combined"}:
+    if variant in {
+        "testing",
+        "combined",
+        "testing-v2",
+        "combined-v2",
+    }:
         pattern = re.compile(
             r"(?ms)^## Testing Principles\n.*?(?=^## Long-running work and waiting)"
         )
+        testing_section = (
+            ROOT_TESTING_SECTION_V2
+            if variant in {"testing-v2", "combined-v2"}
+            else ROOT_TESTING_SECTION
+        )
         rendered, count = pattern.subn(
-            f"{ROOT_TESTING_SECTION}\n",
+            f"{testing_section}\n",
             rendered,
             count=1,
         )

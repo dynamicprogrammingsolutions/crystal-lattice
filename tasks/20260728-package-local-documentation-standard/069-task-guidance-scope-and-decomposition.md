@@ -1103,3 +1103,19 @@ maintainer guidance and evaluation infrastructure.
   completed without mutation; semantic review found complete requirements with
   one minor testing-as-requirement row, partial testing, mixed layers, and
   internal CRUD-return-shape coupling.
+- September 17, 2026: Focused v1 evidence rejects both isolated candidates as
+  written. Requirements-only still promoted verification into requirements and
+  selected public/internal behavior; Testing-only increased test-as-requirement
+  rows, retained FastAPI public choices and Flask crossing gaps, and caused one
+  planning run to leave a Python cache file. The combined candidate fully
+  passed Eleventy GPT-max and improved FastAPI GPT-high and Flask GLM-high, but
+  retained database/public-choice expansion, missing crossings, and one
+  incidental-cache mutation.
+- September 17, 2026: Added versioned v2 candidates without replacing v1
+  records. Requirements v2 states that evidence is not another product
+  requirement, unresolved observable behavior remains a question even when
+  implementation needs an answer, and quality targets do not authorize an
+  internal mechanism. Testing v2 states that separate component tests do not
+  prove an interaction, requires valid boundaries plus representative invalid
+  values and focused regression evidence, and explicitly cleans planning-only
+  caches and generated files.

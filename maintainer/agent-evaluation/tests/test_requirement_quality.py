@@ -169,11 +169,19 @@ def test_root_guidance_variants_are_isolated_and_reproducible(
     requirements = root_guidance_source("requirements", "root-only")
     testing = root_guidance_source("testing", "root-only")
     combined = root_guidance_source("combined", "task")
+    requirements_v2 = root_guidance_source("requirements-v2", "root-only")
+    testing_v2 = root_guidance_source("testing-v2", "root-only")
+    combined_v2 = root_guidance_source("combined-v2", "task")
 
     baseline_text = baseline.read_bytes("AGENTS.md").decode("utf-8")
     requirements_text = requirements.read_bytes("AGENTS.md").decode("utf-8")
     testing_text = testing.read_bytes("AGENTS.md").decode("utf-8")
     combined_text = combined.read_bytes("AGENTS.md").decode("utf-8")
+    requirements_v2_text = requirements_v2.read_bytes("AGENTS.md").decode(
+        "utf-8"
+    )
+    testing_v2_text = testing_v2.read_bytes("AGENTS.md").decode("utf-8")
+    combined_v2_text = combined_v2.read_bytes("AGENTS.md").decode("utf-8")
 
     assert baseline.revision == ROOT_GUIDANCE_BASELINE_REVISION
     assert baseline.paths == (
@@ -198,17 +206,34 @@ def test_root_guidance_variants_are_isolated_and_reproducible(
     assert "\n## Testing\n" in combined_text
     assert "A mock that supplies or bypasses" in testing_text
     assert "remains outside requirements and implementation" in requirements_text
+    assert "Evidence needed to prove an outcome is not another" in (
+        requirements_v2_text
+    )
+    assert "does not authorize an internal mechanism" in requirements_v2_text
+    assert "Separate component tests do not prove" in testing_v2_text
+    assert "valid boundaries and representative invalid" in testing_v2_text
+    assert "Planning-only work leaves no generated files" in testing_v2_text
+    assert "\n## Requirements\n" in combined_v2_text
+    assert "\n## Testing\n" in combined_v2_text
 
     baseline_docs = baseline.read_bytes(
         "docs/development/documentation.md"
     )
-    for guidance in (requirements, testing, combined):
+    for guidance in (
+        requirements,
+        testing,
+        combined,
+        requirements_v2,
+        testing_v2,
+        combined_v2,
+    ):
         assert guidance.read_bytes(
             "docs/development/documentation.md"
         ) == baseline_docs
     task_source = root_guidance_source("baseline", "task")
     baseline_tasks = task_source.read_bytes("agents/TASKS-v7.md")
     assert combined.read_bytes("agents/TASKS-v7.md") == baseline_tasks
+    assert combined_v2.read_bytes("agents/TASKS-v7.md") == baseline_tasks
 
     workspace = tmp_path / "workspace"
     requirements.copy_to(workspace)
@@ -225,8 +250,11 @@ def test_root_guidance_variants_are_isolated_and_reproducible(
             requirements.sha256(),
             testing.sha256(),
             combined.sha256(),
+            requirements_v2.sha256(),
+            testing_v2.sha256(),
+            combined_v2.sha256(),
         }
-    ) == 4
+    ) == 7
 
 
 def test_accepted_requirement_quality_dataset_is_complete() -> None:
