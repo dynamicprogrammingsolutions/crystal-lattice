@@ -81,13 +81,22 @@ def root_guidance_profile():
 
 
 def _changed_task_files(run) -> dict[str, str]:
-    if run.workspace is None:
-        return {}
     values: dict[str, str] = {}
     for relative in matching_paths(run, "tasks"):
         if relative not in run.changed_paths or not relative.endswith(".md"):
             continue
-        values[relative] = (run.workspace / relative).read_text(
+        live = run.workspace / relative if run.workspace is not None else None
+        retained = (
+            run.artifact_dir
+            / "raw"
+            / "workspace"
+            / "untracked"
+            / relative
+        )
+        source = live if live is not None and live.is_file() else retained
+        if not source.is_file():
+            continue
+        values[relative] = source.read_text(
             encoding="utf-8",
             errors="replace",
         )
@@ -344,6 +353,7 @@ def test_root_requirement_testing_guidance(
             ).hexdigest(),
             "effective_message": guidance_message,
         },
+        "instruction_delivery": injection_value,
         "changed_paths": run.changed_paths,
         "generated_files": files,
         "response": value.response,

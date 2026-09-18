@@ -6,13 +6,19 @@ ownership-clear documentation without turning the work into a project-wide
 documentation rewrite or code archaeology exercise.
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
+
+Reusable Guidance Specification:
+`maintainer/docs/development/specifications/documentation-guidance/index.md`
 
 Related Specification:
-`maintainer/specifications/agent-evaluation-framework/index.md`
+`maintainer/agent-evaluation/docs/development/specifications/framework/index.md`
 
 Requirements:
-`maintainer/specifications/documentation-and-specification-standard/requirements.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/requirements.md`
+
+Reusable Guidance Requirements:
+`maintainer/docs/development/specifications/documentation-guidance/requirements.md`
 
 ## Requirements checklist
 
@@ -130,17 +136,18 @@ sheet.
 
 ## Specification and requirement mapping
 
-The documentation meta-specification defines the documentation-system target.
-The separate agent-evaluation specification defines its reusable framework.
-Their requirements track live implementation and verification across this main
-task and the subtasks:
+The reusable guidance, Crystal Lattice integration, package-owned evaluation
+and compiler specifications, and suite requirements define separate targets.
+Their ledgers track live implementation and verification across this main task
+and the subtasks:
 
 | Workstream | Requirement IDs |
 |---|---|
 | Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
 | First documentation-guidance implementation and preserved behavior evidence | `DOCGEN-001`–`DOCGEN-010`, `DOCREP-001`–`DOCREP-007` |
 | Approved documentation-guide redesign | `DOCGUIDE-001`–`DOCGUIDE-006`, `DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010`–`DOCVAL-012` |
-| Programmatic agent evaluation framework | `AEVAL-001`–`AEVAL-018` |
+| Programmatic agent evaluation framework and Crystal Lattice environment | `AEVAL-001`–`AEVAL-019` |
+| Documentation-guidance evaluation suite | `AEVAL-016`, `AEVAL-020`–`AEVAL-022`, `DSEVAL-001`–`DSEVAL-002` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
 | Contributor workflow, task guidance, and maintainer-owned evaluation | `DOCFLOW-001`–`DOCFLOW-006` |
@@ -531,8 +538,8 @@ task's requirements or rationale.
 | DOC-DEC-022 | Published user and developer docs describe available behavior. A development branch may draft target-only user text with a visible `Not implemented` marker, but that marker does not reach published current guidance by default. | Revised and approved September 11, 2026 | Early documentation can clarify design without misleading ordinary readers. | Versioned or preview documentation intentionally publishes future behavior. |
 | DOC-DEC-023 | Requirements are the detailed progress record. A specification may include a short temporary implementation note whenever it materially clarifies the target/current difference, and the note points to requirements rather than duplicating them. | Revised and approved September 11, 2026 | Useful status context remains available without turning specifications into duplicated dashboards. | Repeated long-running work needs a durable standardized roadmap format. |
 | DOC-DEC-024 | Publish one project-independent documentation and specification guide plus one concise Crystal Lattice addendum. The addendum maps local paths and exceptions without repeating general explanations. | Revised and approved September 11, 2026 | A two-file split by project scope avoids the repetition created by splitting documentation and specification rules separately. | The project-independent guide gains independent ownership or release needs. |
-| DOC-DEC-025 | Use one meta-specification and requirements ledger for both public guidance documents. | Revised and approved September 11, 2026 | Both outputs share one owner, approval path, delivery, and validation system. | The project-independent guide gains independent owners, releases, or multiple repository consumers. |
-| DOC-DEC-026 | Use the simplified `maintainer/specifications/` path because the entire `maintainer/` domain is development-only; move standards-maintenance tooling such as task-guidance evaluation under the same domain through its owning subtask. | Approved | Avoids empty `maintainer/docs/development/` parent indexes while preserving a clear non-public maintenance boundary. | Maintainer content later needs a distinct user-documentation layer or publication profile. |
+| DOC-DEC-025 | Use one meta-specification and requirements ledger for both public guidance documents. | Superseded September 18, 2026 by DOC-DEC-037 | Both outputs originally shared one owner, approval path, delivery, and validation system. | Triggered: the project-independent guide gained another consuming repository and independently owned portable source. |
+| DOC-DEC-026 | Use the simplified central specification path because the entire `maintainer/` domain is development-only. | Superseded September 18, 2026 by DOC-DEC-037 | Avoided empty parent indexes while maintainer content had one effective audience. | Triggered: maintainers now use reusable tools, durable concepts, interpreted results, package-owned specifications, and suite-owned test definitions. |
 | DOC-DEC-027 | Build agent evaluation as a programmatic Python library rather than a declarative scenario language. | Approved | Ordinary Python and pytest keep programs flexible and readable while each run environment owns its runtime behavior. | Repeated consumers demonstrate a stable declarative subset with clear value. |
 | DOC-DEC-028 | Keep `AgentEval.run()` minimal: name, arbitrary program callback, and optional run environment, parent run, workspace, and cache key. | Approved | Prevents prompt, guidance, tool-loop, reviewer, scoring, and presentation concepts from becoming mandatory kernel semantics. | A missing input recurs across independent consumers and cannot remain ordinary program/environment logic. |
 | DOC-DEC-029 | Use a generic kernel with one broad `RunEnvironment` replacement seam; implement Crystal Lattice as the first rich environment with optional lower-level strategies. | Approved | Allows complete environment substitution while keeping tool-loop, snapshot, evidence, evaluation, and presentation customization close to the Crystal Lattice operations that use it. | Generic lifecycle and environment behavior no longer share a stable contract or several independent environment seams become necessary. |
@@ -543,6 +550,7 @@ task's requirements or rationale.
 | DOC-DEC-034 | Add practical testing guidance and an optional `testing-strategy.md` triggered by meaningful risk, layer crossings, expensive/manual verification, credible tradeoffs, or important exclusions. | Approved September 11, 2026 | Guides agents toward decisive coverage without maximizing test count or freezing incidental implementation details. | Package-specific testing standards provide a clearer source or the file is consistently unused. |
 | DOC-DEC-035 | Behavioral guidance tests evaluate underlying decisions with held-out vocabulary and supported reasoning-effort variants; literal token assertions are secondary backstops rather than primary evidence. | Approved September 11, 2026 | Demonstrates abstract rule understanding instead of success caused by repeating the exact prohibited term in guidance. | Semantic evaluation proves too unstable without a narrower deterministic contract. |
 | DOC-DEC-036 | Evaluate requirement quality through three diverse small-project semantic targets and seven producer model/effort profiles. Interpret the baseline directly and present a concise human review before changing guidance; preserve original Test 22 as preliminary robustness evidence and retain same-family scenarios only when they add diagnostic value. | Revised and approved September 14, 2026 | Separates natural model behavior from literal assertions while exercising website, public REST API/performance, and full-stack requirement shapes. | The baseline shows that fewer project types or a deterministic/model-driven assertion preserves the same diagnostic value. |
+| DOC-DEC-037 | Treat `maintainer/` as an audience and publication boundary rather than one document role: put cross-cutting concepts and interpreted results under `maintainer/docs/`, package specifications with their reusable tool, suite scenarios and frozen evidence with the suite, and separate reusable guidance from Crystal Lattice integration. | Approved September 18, 2026 | Portable guidance now has another real consumer, instruction delivery needs a cross-cutting explanation, and framework/compiler/suite requirements have distinct owners. | Independent ownership or publication needs later justify another package or documentation split. |
 
 ## Open requirement questions
 
@@ -687,20 +695,24 @@ It does not generally watch package-local README or `docs/` paths such as
 │
 ├── maintainer/
 │   ├── README.md
+│   ├── docs/
+│   │   ├── index.md
+│   │   ├── evaluations/
+│   │   └── development/specifications/
 │   ├── agent-evaluation/
 │   │   ├── README.md
+│   │   ├── docs/
 │   │   ├── pyproject.toml
 │   │   ├── src/agent_eval/
 │   │   ├── suites/
 │   │   └── tests/
-│   ├── specifications/
-│   │   ├── agent-evaluation-framework/
-│   │   └── documentation-and-specification-standard/
-│   │       ├── index.md
-│   │       ├── product-spec.md
-│   │       ├── technical-spec.md
-│   │       └── requirements.md
-│   └── ...                                  # standards-maintenance tooling
+│   ├── guidance/
+│   │   ├── README.md
+│   │   ├── docs/
+│   │   ├── current/
+│   │   ├── candidates/
+│   │   └── targets/
+│   └── ...                                  # other maintenance tooling
 │
 └── docs_site/
     ├── README.md
@@ -772,6 +784,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/071-guidance-source-compilation-migration.md`
+- [x] `tasks/20260728-package-local-documentation-standard/080-maintainer-documentation-ownership-migration.md`
 
 ## Execution plan
 
@@ -862,8 +875,8 @@ Required new or updated documentation includes:
 - `docs/development/repository/documentation.md`
 - `docs/development/repository/specifications.md`
 - `maintainer/README.md`
-- `maintainer/specifications/documentation-and-specification-standard/*`
-- `maintainer/specifications/agent-evaluation-framework/*`
+- `maintainer/docs/development/specifications/documentation-guidance/*`
+- `maintainer/agent-evaluation/docs/development/specifications/framework/*`
 - `maintainer/agent-evaluation/README.md`
 - root `CONTRIBUTING.md`
 - root `AGENTS.md`

@@ -11,7 +11,7 @@ Related Tasks:
 - `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCGUIDE-005`–`DOCGUIDE-006`, `DOCVAL-010`–`DOCVAL-011`,
@@ -890,7 +890,7 @@ change is authorized by this plan.
   completed the requested documentation, and reported no provider error. The
   tool misuse remains part of the raw behavioral evidence.
 - Added
-  `agent-behavior-verification/20260914-requirement-quality-baseline-results.md`
+  `maintainer/docs/evaluations/documentation-guidance/20260914-requirement-quality-baseline-results.md`
   with aggregate model/effort findings, one concise row per run, and optional
   links to every complete local record. Calibration remains unplanned pending
   user review.
@@ -940,7 +940,7 @@ change is authorized by this plan.
 - Frozen all 21 task-file records, exact current guidance metadata, and all six
   calibrated Dataset A/B semantic batches as durable fixtures.
 - Added
-  `agent-behavior-verification/20260915-requirement-task-testing-comparison.md`.
+  `maintainer/docs/evaluations/documentation-guidance/20260915-requirement-task-testing-comparison.md`.
   It records complete requirement coverage, the shift from 5 high/12 medium
   expansion results to 0 high/5 medium, 12 complete and 9 partial testing
   plans, 20/21 important crossings, three genuine GLM structure/mutation

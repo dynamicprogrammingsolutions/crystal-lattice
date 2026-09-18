@@ -13,10 +13,10 @@ Related Existing Task:
 
 Related Specification:
 
-- `maintainer/specifications/agent-evaluation-framework/index.md`
+- `maintainer/agent-evaluation/docs/development/specifications/framework/index.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCGUIDE-005`–`DOCGUIDE-006`, `DOCFLOW-002`–`DOCFLOW-004`,
@@ -396,7 +396,7 @@ Status: Approved
     21-cell real-model comparison and later decomposition scenarios.
 13. Document any intentionally deferred empirical evaluation.
 14. After subtask 016 is integrated, verify the compiled instruction-layer
-    boundary: root AGENTS owns always-loaded invariants, TASKS-v7 owns
+    boundary: root AGENTS owns repository guidance supplied by the normal host setup, TASKS-v7 owns developer-message
     task-file mechanics, and `CONTRIBUTING.md` remains human-only.
 15. Move remaining `test/task_guidance/` evaluation code and review tooling
     into the approved maintainer-owned layout without duplicating the migrated

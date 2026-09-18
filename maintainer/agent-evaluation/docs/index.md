@@ -93,8 +93,8 @@ Use these pages according to the work you are doing:
 - [Development](development/index.md): package architecture, tests, and
   maintenance boundaries.
 
-The target specification lives separately under
-`maintainer/specifications/agent-evaluation-framework/`. These pages describe
-current implemented behavior. The specification describes the intended target;
-the `AEVAL-*` requirements ledger records which parts are implemented and
-verified.
+The generic target specification lives under
+`maintainer/agent-evaluation/docs/development/specifications/framework/`.
+The Crystal Lattice environment has a separate package-local specification.
+These pages describe current implemented behavior; requirements record which
+target parts are implemented and verified.

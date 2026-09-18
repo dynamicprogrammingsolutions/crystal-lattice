@@ -22,12 +22,11 @@ from agent_eval.workspace import GitWorkspaceFactory, git_workspace
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 PACKAGE_ROOT = REPOSITORY_ROOT / "maintainer" / "agent-evaluation"
-SPEC_ROOT = (
-    REPOSITORY_ROOT
-    / "maintainer"
-    / "specifications"
-    / "documentation-and-specification-standard"
-    / "agent-behavior-verification"
+SCENARIO_ROOT = (
+    PACKAGE_ROOT
+    / "suites"
+    / "documentation_standard"
+    / "scenarios"
 )
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
 BASELINE_GUIDANCE_REVISION = "3a62b6fc"
@@ -462,7 +461,7 @@ class DocumentationEvaluationHarness:
         key = f"seed:{seed_id}"
         if key in self._runs:
             return self._runs[key]
-        prompt = extract_blockquote(SPEC_ROOT / spec_file, "## Exact seed prompt")
+        prompt = extract_blockquote(SCENARIO_ROOT / spec_file, "## Exact seed prompt")
         workspace = ScenarioWorkspaceFactory(
             fixture_id=fixture_id,
             candidate_guidance=False,
@@ -499,7 +498,7 @@ class DocumentationEvaluationHarness:
         )
         if key in self._runs:
             return self._runs[key]
-        prompt = extract_blockquote(SPEC_ROOT / spec_file, prompt_heading)
+        prompt = extract_blockquote(SCENARIO_ROOT / spec_file, prompt_heading)
         workspace = ScenarioWorkspaceFactory(
             fixture_id=fixture_id,
             candidate_guidance=True,
@@ -585,7 +584,7 @@ class DocumentationEvaluationHarness:
         key = f"branch:{test_id}:{branch_variant}:{effort_key}"
         if key in self._runs:
             return self._runs[key]
-        prompt = extract_blockquote(SPEC_ROOT / spec_file, prompt_heading)
+        prompt = extract_blockquote(SCENARIO_ROOT / spec_file, prompt_heading)
         cache_variant = os.getenv("AGENT_EVAL_BRANCH_CACHE_VARIANT", "").strip()
         workspace = ScenarioWorkspaceFactory(
             fixture_id=fixture_id,
@@ -641,7 +640,7 @@ class DocumentationEvaluationHarness:
             return self._runs[key]
         if parent.workspace is None:
             raise ValueError("parent run has no workspace")
-        prompt = extract_blockquote(SPEC_ROOT / spec_file, prompt_heading)
+        prompt = extract_blockquote(SCENARIO_ROOT / spec_file, prompt_heading)
         workspace = ParentWorkspaceFactory(
             parent_workspace=parent.workspace,
             fixture_id=fixture_id,
@@ -937,7 +936,7 @@ def record_review(
     spec_file: str,
     findings: tuple[AssertionFinding, ...],
 ) -> None:
-    spec_path = SPEC_ROOT / spec_file
+    spec_path = SCENARIO_ROOT / spec_file
     human_questions = extract_section(spec_path, "## Human review")
     value = run.value
     prompt = value.prompt if value is not None else "(Run failed before prompt execution.)"

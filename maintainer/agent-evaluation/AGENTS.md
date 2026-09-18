@@ -8,7 +8,9 @@ Start with:
 - `README.md` for installation and first use;
 - `docs/index.md` for user documentation;
 - `docs/development/index.md` for implementation and test boundaries;
-- `../specifications/agent-evaluation-framework/index.md` for target behavior;
+- `docs/development/specifications/framework/index.md` for generic target behavior;
+- `docs/development/specifications/crystal-lattice-environment/index.md`
+  for the bundled environment;
 - `../../tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
   for approved execution and current progress.
 

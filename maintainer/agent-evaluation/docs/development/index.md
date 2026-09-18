@@ -74,7 +74,7 @@ pytest maintainer/agent-evaluation/tests -q
 
 Real-model tests use the `agent_eval` marker and are excluded by default.
 The
-[documentation-standard behavioral suite](documentation-standard-suite.md)
+[documentation-guidance behavioral suite](../../suites/documentation_standard/docs/index.md)
 explains baseline/candidate guidance variants, routine/extended selection, and
 real-model commands.
 
@@ -93,6 +93,6 @@ real-model commands.
 ## Specifications and task
 
 - Target:
-  `maintainer/specifications/agent-evaluation-framework/`
+  `maintainer/agent-evaluation/docs/development/specifications/framework/`
 - Execution:
   `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`

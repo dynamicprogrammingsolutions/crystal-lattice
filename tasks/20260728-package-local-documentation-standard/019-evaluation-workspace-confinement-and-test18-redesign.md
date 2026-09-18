@@ -7,8 +7,8 @@ Depends On:
 
 Related Specifications:
 
-- `maintainer/specifications/agent-evaluation-framework/index.md`
-- `maintainer/specifications/documentation-and-specification-standard/index.md`
+- `maintainer/agent-evaluation/docs/development/specifications/framework/index.md`
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `AEVAL-011`, `AEVAL-017`, `DOCREP-002`, `DOCVAL-010`

@@ -6,6 +6,12 @@ repository and evaluation agent guidance.
 Normal contributors and agents continue to read compiled files such as root
 `AGENTS.md` and `agents/TASKS-v7.md`.
 
+Documentation:
+
+- [Documentation index](docs/index.md)
+- [Quickstart](docs/quickstart.md)
+- [Development](docs/development/index.md)
+
 ## Source roles
 
 - `current/` contains the current shared Documentation, Requirements, Testing,
@@ -69,10 +75,11 @@ A consuming repository stores:
 
 It does not copy Crystal Lattice project templates. It points directly to the
 portable bundle in a Crystal Lattice checkout. The portable Documentation
-section supplies concise always-loaded invariants; the consuming target keeps
-only its project-specific routes, paths, and exceptions. Updating the checkout
-to an accepted newer guidance commit and rerunning the same local command
-updates the compiled file.
+section supplies concise repository guidance; the consuming target keeps only
+its project-specific routes, paths, and exceptions. The consuming runtime
+determines how the compiled file is delivered and what authority it has.
+Updating the checkout to an accepted newer guidance commit and rerunning the
+same local command updates the compiled file.
 
 Task guidance is delivered separately by Crystal Lattice runtime
 configuration. A consuming-project target normally compiles only its

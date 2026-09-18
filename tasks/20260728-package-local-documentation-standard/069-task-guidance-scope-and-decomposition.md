@@ -15,8 +15,8 @@ Related Requirement-Quality Baseline:
 
 Related Specifications:
 
-- `maintainer/specifications/documentation-and-specification-standard/index.md`
-- `maintainer/specifications/agent-evaluation-framework/index.md`
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
+- `maintainer/agent-evaluation/docs/development/specifications/framework/index.md`
 
 Requirement IDs:
 
@@ -125,7 +125,7 @@ real-model scenarios on the migrated programmatic agent-evaluation framework.
   package guidance when that preserves discoverability, while repository-wide
   test realism, gating, and successful-run rules remain in root guidance.
 - [ ] Root-guidance evaluation separates requirements-only, testing-only, and
-  combined candidates and exercises both normal always-loaded guidance and
+  combined candidates and exercises compiled root guidance both alone and with
   task-file work with `TASKS-v7` enabled.
 - [ ] The incomplete destination-vocabulary branch is not merged into the
   public guidance; only independently useful wording outside its main policy is
@@ -196,7 +196,7 @@ gate required by this task:
 The accepted interpretation and exact evidence are in:
 
 - `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`;
-- `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/20260915-requirement-task-testing-comparison.md`.
+- `maintainer/docs/evaluations/documentation-guidance/20260915-requirement-task-testing-comparison.md`.
 
 This evidence authorizes a candidate for requirement authority, proportional
 grouping, verification boundaries, and planning cleanliness. It does not by
@@ -879,7 +879,7 @@ Status: Approved
   root-guidance follow-up before further testing; merge Core first, then the
   follow-up branch, and resolve overlapping guidance semantically.
 - Approved September 17, 2026: root `AGENTS.md` needs a dedicated Requirements
-  section because it is always loaded, while `TASKS-v7` applies the same
+  section because it is part of root repository guidance, while `TASKS-v7` applies the same
   invariants specifically to task-file structure.
 - Approved September 17, 2026: replace the current root testing strategy with a
   shorter focused section and route lower-priority package/runtime details to
@@ -1037,7 +1037,7 @@ maintainer guidance and evaluation infrastructure.
   and a validator correction allowing optional empty coverage notes. No
   semantic content was repaired or replaced.
 - September 15, 2026: Added
-  `agent-behavior-verification/20260915-requirement-testing-candidate-results.md`
+  `maintainer/docs/evaluations/documentation-guidance/20260915-requirement-testing-candidate-results.md`
   with current/v1/v2 comparisons and a proposed shorter testing ablation.
   Human review is required before another wording candidate or the six
   decomposition scenarios begin.
@@ -1069,11 +1069,11 @@ maintainer guidance and evaluation infrastructure.
   5 mixed primary layers, 19/21 important crossings, no poor layers, and
   21/21 focused or mixed-but-bounded verification. Frozen records and the
   final acceptance recommendation are in
-  `agent-behavior-verification/20260915-requirement-testing-v3-results.md`.
+  `maintainer/docs/evaluations/documentation-guidance/20260915-requirement-testing-v3-results.md`.
   Final human acceptance remains pending; decomposition work has not started.
 - September 17, 2026: The user approved reconciling the completed Core
   documentation migration and root-guidance follow-up before further
-  calibration. The approved follow-up adds dedicated always-loaded Requirements
+  calibration. The approved follow-up adds dedicated root Requirements
   guidance, replaces the root Testing strategy with a shorter boundary-focused
   section, isolates root-only from root-plus-TASKS behavior, and leaves the
   incomplete destination-vocabulary branch unmerged. No decomposition work

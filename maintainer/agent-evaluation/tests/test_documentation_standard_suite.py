@@ -15,7 +15,7 @@ from suites.documentation_standard.support import (
     ORIGINAL_DEVELOP_GUIDANCE_REVISION,
     PROFILES,
     REPOSITORY_ROOT,
-    SPEC_ROOT,
+    SCENARIO_ROOT,
     GuidanceSource,
     DocumentationEvaluationHarness,
     ScenarioWorkspaceFactory,
@@ -535,11 +535,11 @@ def test_plugin_runtime_constraints_pin_validated_openai_sdk() -> None:
 
 def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
     seed = extract_blockquote(
-        SPEC_ROOT / "seed-01-js-single-file-tool-documentation.md",
+        SCENARIO_ROOT / "seed-01-js-single-file-tool-documentation.md",
         "## Exact seed prompt",
     )
     branch = extract_blockquote(
-        SPEC_ROOT / "01-small-package-documentation.md",
+        SCENARIO_ROOT / "01-small-package-documentation.md",
         "## Exact user prompt",
     )
     assert seed.startswith("Please investigate `plugins/js-single-file-tool`")
@@ -548,7 +548,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "investigation. Keep the scope to documentation."
     )
     failed_refresh = extract_blockquote(
-        SPEC_ROOT / "16-failed-generated-refresh.md",
+        SCENARIO_ROOT / "16-failed-generated-refresh.md",
         "## Exact user prompt",
     )
     assert failed_refresh == (
@@ -557,7 +557,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "`npm --vesion`. Please fix that documentation issue."
     )
     public_profile = extract_blockquote(
-        SPEC_ROOT / "17-public-package-profile.md",
+        SCENARIO_ROOT / "17-public-package-profile.md",
         "## Exact user prompt",
     )
     assert public_profile == (
@@ -567,7 +567,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "documentation-only."
     )
     plugin_boundary = extract_blockquote(
-        SPEC_ROOT / "18-shared-plugin-authoring-boundary.md",
+        SCENARIO_ROOT / "18-shared-plugin-authoring-boundary.md",
         "## Exact user prompt",
     )
     assert plugin_boundary == (
@@ -578,7 +578,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "example and keep the work documentation-only."
     )
     maintainer_boundary = extract_blockquote(
-        SPEC_ROOT / "19-apply-versus-maintain-boundary.md",
+        SCENARIO_ROOT / "19-apply-versus-maintain-boundary.md",
         "## Exact user prompt",
     )
     assert maintainer_boundary == (
@@ -588,12 +588,12 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "covering this package, so SDK users can trace the internal decision."
     )
     routed_reading = extract_blockquote(
-        SPEC_ROOT / "20-routed-guidance-reading.md",
+        SCENARIO_ROOT / "20-routed-guidance-reading.md",
         "## Exact user prompt",
     )
     assert routed_reading == public_profile
     layout_override = extract_blockquote(
-        SPEC_ROOT / "21-explicit-specification-layout-override.md",
+        SCENARIO_ROOT / "21-explicit-specification-layout-override.md",
         "## Exact user prompt",
     )
     assert layout_override == (
@@ -601,7 +601,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "task. Do not implement the protocol."
     )
     requirement_scope = extract_blockquote(
-        SPEC_ROOT / "22-requirement-scope-restraint.md",
+        SCENARIO_ROOT / "22-requirement-scope-restraint.md",
         "## Exact user prompt",
     )
     assert requirement_scope == (
@@ -609,7 +609,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "requirements. Do not implement the change."
     )
     testing_strategy = extract_blockquote(
-        SPEC_ROOT / "23-testing-without-overspecification.md",
+        SCENARIO_ROOT / "23-testing-without-overspecification.md",
         "## Exact user prompt",
     )
     assert testing_strategy == (
@@ -619,19 +619,19 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
 
 
 def test_all_current_specification_pages_are_indexed() -> None:
-    index = SPEC_ROOT.joinpath("index.md").read_text(encoding="utf-8")
-    for path in sorted(SPEC_ROOT.glob("[0-9][0-9]-*.md")):
+    index = SCENARIO_ROOT.joinpath("index.md").read_text(encoding="utf-8")
+    for path in sorted(SCENARIO_ROOT.glob("[0-9][0-9]-*.md")):
         assert path.name in index
         text = path.read_text(encoding="utf-8")
         assert "## Semantic assessment" in text
         assert "## Human review" in text
-    for path in sorted(SPEC_ROOT.glob("seed-*.md")):
+    for path in sorted(SCENARIO_ROOT.glob("seed-*.md")):
         assert path.name in index
 
 
 def test_specification_root_exists() -> None:
-    assert isinstance(SPEC_ROOT, Path)
-    assert SPEC_ROOT.is_dir()
+    assert isinstance(SCENARIO_ROOT, Path)
+    assert SCENARIO_ROOT.is_dir()
 
 
 def test_completed_tool_calls_ignore_stream_fragments() -> None:
@@ -669,9 +669,9 @@ def test_completed_tool_calls_support_claude_result_shape() -> None:
 
 
 def test_all_seed_and_consumer_prompts_are_extractable() -> None:
-    for path in sorted(SPEC_ROOT.glob("seed-*.md")):
+    for path in sorted(SCENARIO_ROOT.glob("seed-*.md")):
         assert extract_blockquote(path, "## Exact seed prompt")
-    for path in sorted(SPEC_ROOT.glob("[0-9][0-9]-*.md")):
+    for path in sorted(SCENARIO_ROOT.glob("[0-9][0-9]-*.md")):
         headings = (
             ("## First exact user prompt", "## Second exact user prompt")
             if path.name.startswith("06-")
@@ -771,7 +771,7 @@ def test_seed_prompts_name_the_exact_bounded_fixture_paths() -> None:
     }
     for filename, paths in required_paths.items():
         prompt = extract_blockquote(
-            SPEC_ROOT / filename,
+            SCENARIO_ROOT / filename,
             "## Exact seed prompt",
         )
         assert all(path in prompt for path in paths), filename
@@ -959,3 +959,53 @@ def test_fixture_commit_does_not_change_linked_repository_identity(
         capture_output=True,
         text=True,
     ).stdout.strip() == "Agent Evaluation <agent-eval@example.invalid>"
+
+
+def test_maintainer_documentation_ownership_is_separated() -> None:
+    maintainer = REPOSITORY_ROOT / "maintainer"
+
+    assert not maintainer.joinpath("specifications").exists()
+    assert maintainer.joinpath("docs/index.md").is_file()
+    assert maintainer.joinpath(
+        "docs/instruction-delivery-and-authority.md"
+    ).is_file()
+    assert maintainer.joinpath(
+        "docs/evaluations/documentation-guidance/"
+        "20260918-portable-root-guidance-results.md"
+    ).is_file()
+    assert maintainer.joinpath(
+        "agent-evaluation/suites/documentation_standard/scenarios/index.md"
+    ).is_file()
+
+
+def test_generic_product_specifications_exclude_consumer_requirements() -> None:
+    framework = REPOSITORY_ROOT.joinpath(
+        "maintainer/agent-evaluation/docs/development/specifications/"
+        "framework/requirements.md"
+    ).read_text(encoding="utf-8")
+    compiler = REPOSITORY_ROOT.joinpath(
+        "maintainer/guidance/docs/development/specifications/"
+        "compiler/requirements.md"
+    ).read_text(encoding="utf-8")
+
+    assert "DOCGEN-" not in framework
+    assert "DOCREP-" not in framework
+    assert "documentation-guidance suite preserves" not in framework
+    assert "old-context matrix" not in compiler
+    assert "combined-v2" not in compiler
+
+
+def test_instruction_delivery_concepts_are_explicit() -> None:
+    concept = REPOSITORY_ROOT.joinpath(
+        "maintainer/docs/instruction-delivery-and-authority.md"
+    ).read_text(encoding="utf-8")
+
+    for term in (
+        "Source",
+        "Delivery",
+        "Authority",
+        "Availability",
+        "Observed use",
+    ):
+        assert term in concept
+    assert "Do not use “always loaded”" in concept

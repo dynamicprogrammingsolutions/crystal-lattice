@@ -8,11 +8,11 @@ Depends On:
 
 Specification:
 
-- `maintainer/specifications/agent-guidance-compilation/index.md`
+- `maintainer/guidance/docs/development/specifications/compiler/index.md`
 
 Requirement IDs:
 
-- `GCOMP-001`–`GCOMP-013`
+- `GCOMP-001`–`GCOMP-014`
 
 # Guidance source and compilation migration
 

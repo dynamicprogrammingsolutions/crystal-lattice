@@ -6,7 +6,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCAGENT-001`, `DOCLOCAL-001`, `DOCVAL-010`
@@ -117,7 +117,7 @@ reconciliation so the evaluated guidance hash matches the integrated result.
   documentation linked an internal specification; the other baseline and both
   candidates passed.
 - The detailed model and assertion review is recorded in
-  `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/20260914-guidance-followup-results.md`.
+  `maintainer/docs/evaluations/documentation-guidance/20260914-guidance-followup-results.md`.
 - Final local verification completed: 68 agent-evaluation tests and 15
   documentation-site preparation tests passed; Ruff, Python compilation,
   documentation preparation, MkDocs build, task structure, and `git diff

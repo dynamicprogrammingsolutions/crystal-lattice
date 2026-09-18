@@ -7,10 +7,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .support import GuidanceSource, PACKAGE_ROOT, SPEC_ROOT, extract_blockquote, extract_section
+from .support import GuidanceSource, PACKAGE_ROOT, SCENARIO_ROOT, extract_blockquote, extract_section
 
 
-TARGET_DIR = SPEC_ROOT / "targets"
+TARGET_DIR = (
+    PACKAGE_ROOT
+    / "suites"
+    / "documentation_standard"
+    / "targets"
+)
 GUIDANCE_VARIANT_ROOT = (
     PACKAGE_ROOT
     / "suites"
@@ -208,7 +213,7 @@ class RequirementQualityScenario:
 
     @property
     def spec_path(self) -> Path:
-        return SPEC_ROOT / self.spec_file
+        return SCENARIO_ROOT / self.spec_file
 
     @property
     def target_path(self) -> Path:

@@ -261,12 +261,13 @@ def load_compiled_guidance_dataset(
                     f"{compilation_hash}"
                 )
             path, value = matching[-1]
+            generated_files = record_generated_files(path, value)
             records.append(
                 {
                     "candidate_id": f"{profile}-{effort}",
                     "scenario_id": scenario.scenario_id,
                     "producer": value["producer"],
-                    "generated_files": value["generated_files"],
+                    "generated_files": generated_files,
                     "changed_paths": value["changed_paths"],
                     "source_run_id": path.parents[1].name,
                     "source_record_sha256": hashlib.sha256(
@@ -303,6 +304,30 @@ def load_compiled_guidance_dataset(
     }
     validate_dataset(dataset, expected_dataset=dataset_id)
     return dataset
+
+
+def record_generated_files(
+    record_path: Path,
+    value: dict[str, Any],
+) -> dict[str, str]:
+    files = value.get("generated_files")
+    if isinstance(files, dict) and files:
+        return {
+            str(path): str(content)
+            for path, content in files.items()
+        }
+    recovered: dict[str, str] = {}
+    run_root = record_path.parents[1]
+    for relative in value.get("changed_paths", []):
+        if not isinstance(relative, str):
+            continue
+        source = run_root / "raw" / "workspace" / "untracked" / relative
+        if source.is_file():
+            recovered[relative] = source.read_text(
+                encoding="utf-8",
+                errors="replace",
+            )
+    return recovered
 
 
 def _load_task_dataset(

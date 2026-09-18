@@ -6,7 +6,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCGEN-005`, `DOCGUIDE-004`, `DOCVAL-010`
@@ -96,7 +96,7 @@ not require new durable structure.
 - Tests 10 and 11 and the Test-22 sentinel remain intentionally unresolved
   until concurrent guidance reconciliation.
 - Detailed behavior review and recommended wording are recorded in
-  `agent-behavior-verification/20260914-guidance-followup-results.md`.
+  `maintainer/docs/evaluations/documentation-guidance/20260914-guidance-followup-results.md`.
 - Final local verification completed: 68 agent-evaluation tests and 15
   documentation-site preparation tests passed; Ruff, Python compilation,
   documentation preparation, MkDocs build, task structure, and `git diff

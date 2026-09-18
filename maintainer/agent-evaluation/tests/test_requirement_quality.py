@@ -30,6 +30,7 @@ from suites.documentation_standard.requirement_quality_evaluator import (
     load_accepted_dataset,
     parse_evaluator_response,
     parse_evaluator_response_with_repairs,
+    record_generated_files,
     validate_evaluator_result,
 )
 from suites.documentation_standard.root_guidance_quality import (
@@ -60,6 +61,10 @@ from suites.documentation_standard.freeze_root_guidance_focused_results import (
 )
 from suites.documentation_standard.freeze_root_guidance_full_matrix import (
     OUTPUT_PATH as ROOT_GUIDANCE_FULL_MATRIX_RESULTS,
+)
+from suites.documentation_standard.freeze_compiled_guidance_matrix import (
+    ANALYSIS_PATH as COMPILED_GUIDANCE_ANALYSIS,
+    OUTPUT_PATH as COMPILED_GUIDANCE_RESULTS,
 )
 from suites.documentation_standard.analyze_root_guidance_full_matrix import (
     ANALYSIS_PATH as ROOT_GUIDANCE_FULL_MATRIX_ANALYSIS,
@@ -362,6 +367,34 @@ def test_frozen_legacy_root_guidance_full_matrix_is_complete() -> None:
         "pairwise_quality_errors": 0,
         "missing_pairwise_quality": 42,
     }
+
+
+def test_frozen_portable_matrix_preserves_valid_and_missing_boundaries() -> None:
+    matrix = json.loads(
+        COMPILED_GUIDANCE_RESULTS.read_text(encoding="utf-8")
+    )
+    analysis = json.loads(
+        COMPILED_GUIDANCE_ANALYSIS.read_text(encoding="utf-8")
+    )
+
+    assert len(matrix["producer_records"]) == 84
+    assert len(matrix["semantic_assessments"]) == 42
+    assert len(matrix["pairwise_quality_records"]) == 21
+    assert len(matrix["missing_semantic_assessments"]) == 42
+    assert len(matrix["missing_pairwise_quality"]) == 21
+    assert matrix["pairwise_quality_errors"] == []
+    assert all(
+        record["generated_files"]
+        for record in matrix["producer_records"]
+        if record["mode"] == "task"
+    )
+    assert all(
+        record["instruction_delivery"]
+        for record in matrix["producer_records"]
+    )
+    assert analysis["counts"]["producer_records"] == 84
+    assert analysis["counts"]["semantic_assessments"] == 42
+    assert analysis["counts"]["pairwise_quality_records"] == 21
 
 
 def test_root_guidance_effort_scoring_distinguishes_quality_axes() -> None:
@@ -848,3 +881,30 @@ def test_requirement_quality_profiles_apply_provider_specific_effort() -> None:
     assert gpt["reasoning_effort"] == "xhigh"
     assert "request_options" not in gpt
     assert gpt["auth_mode"] == "chatgpt"
+
+
+def test_record_generated_files_recovers_retained_untracked_task(
+    tmp_path: Path,
+) -> None:
+    run_root = tmp_path / "runs" / "example"
+    record = run_root / "records" / "root-guidance-requirement-quality.json"
+    task = (
+        run_root
+        / "raw"
+        / "workspace"
+        / "untracked"
+        / "tasks"
+        / "20260918-example.md"
+    )
+    task.parent.mkdir(parents=True)
+    task.write_text("# Example task\n", encoding="utf-8")
+    record.parent.mkdir(parents=True)
+    record.write_text("{}", encoding="utf-8")
+
+    assert record_generated_files(
+        record,
+        {
+            "generated_files": {},
+            "changed_paths": ["tasks/20260918-example.md"],
+        },
+    ) == {"tasks/20260918-example.md": "# Example task\n"}

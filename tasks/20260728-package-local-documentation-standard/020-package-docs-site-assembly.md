@@ -5,7 +5,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCPUB-001`–`DOCPUB-003`, partial `DOCPUB-005`, `DOCVAL-001`, partial
@@ -415,7 +415,7 @@ in the public docs-site README or repository policy.
 - `docs/development/repository/documentation.md`
 - `landing_page/README.md` if its local cross-site verification instructions
   require clarification
-- `maintainer/specifications/documentation-and-specification-standard/requirements.md`
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/requirements.md`
 - this subtask and the parent task for implementation/completion evidence
 
 ### Task checklist

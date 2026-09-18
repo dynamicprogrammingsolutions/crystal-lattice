@@ -14,7 +14,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCMIG-004`, `DOCFLOW-004`, `DOCVAL-001`–`DOCVAL-005`

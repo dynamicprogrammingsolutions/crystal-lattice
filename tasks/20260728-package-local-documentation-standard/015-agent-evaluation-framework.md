@@ -10,10 +10,10 @@ Related Task:
 - `tasks/20260721-task-guidance-evaluation-workflow.md`
 
 Specification:
-`maintainer/specifications/agent-evaluation-framework/index.md`
+`maintainer/agent-evaluation/docs/development/specifications/framework/index.md`
 
 Requirement IDs:
-`AEVAL-001`–`AEVAL-021`, `DOCGEN-001`–`DOCGEN-010`,
+`AEVAL-001`–`AEVAL-022`, `DSEVAL-001`–`DSEVAL-002`, `DOCGEN-001`–`DOCGEN-010`,
 `DOCREP-001`–`DOCREP-007`, `DOCVAL-005`–`DOCVAL-009`
 
 # Programmatic Agent Evaluation Framework
@@ -289,7 +289,7 @@ presentation mechanism.
   `raw/evidence.json`. The artifact renderer now omits internal evidence, with a
   regression test, matching the documented visibility contract.
 - August 7, 2026: The user approved a standard-owned
-  `agent-behavior-verification/` specification with one page per consumer test.
+  suite-owned scenario pages under `maintainer/agent-evaluation/suites/documentation_standard/scenarios/`.
   The first six pages define `DOCGEN-*` behavior through ordinary repository
   tasks, exact AGENTS/routed guidance delivery, short human-style prompts,
   mechanical assertions, semantic projections, and human-review questions.
@@ -1242,7 +1242,7 @@ Cover:
 ### 7. Add pytest documentation-standard consumers
 
 1. Implement and maintain the standard-owned seed and scenario contracts under
-   `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/`.
+   `maintainer/agent-evaluation/suites/documentation_standard/scenarios/`.
 2. Register an `agent_eval` marker and exclude real-model suites from normal
    package tests.
 3. Create session-scoped narrow scenario-family base runs using pinned
@@ -1505,8 +1505,8 @@ confirmation.
 - Complete simple, customized Crystal Lattice, and alternate-environment
   examples
 - `maintainer/README.md` routing
-- `maintainer/specifications/agent-evaluation-framework/*`
-- `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/*`
+- `maintainer/agent-evaluation/docs/development/specifications/framework/*`
+- `maintainer/agent-evaluation/suites/documentation_standard/scenarios/*`
 - Updated evidence in both framework and documentation-standard requirements
 
 ### Task checklist
@@ -1768,4 +1768,4 @@ Final calibrated results:
 Candidate Test 18 failed a fresh repeat after consuming the 30-call budget.
 Candidate Test 27 passed a fresh repeat after failing the complete matrix.
 See
-`maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/20260912-guidance-rewrite-results.md`.
+`maintainer/docs/evaluations/documentation-guidance/20260912-guidance-rewrite-results.md`.

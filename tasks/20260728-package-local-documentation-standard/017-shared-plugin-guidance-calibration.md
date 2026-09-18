@@ -6,7 +6,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCREP-002`, `DOCGUIDE-003`, `DOCLOCAL-001`, `DOCVAL-010`, `AEVAL-020`
@@ -102,7 +102,7 @@ without preserving a cross-owner check would weaken the intended behavior.
 - Created Draft subtask 019 for shell/evaluation confinement, fixture-owned
   verification, and focused package/shared/cross-owner scenarios.
 - Full findings and exact guidance hashes are recorded in
-  `agent-behavior-verification/20260914-guidance-followup-results.md`.
+  `maintainer/docs/evaluations/documentation-guidance/20260914-guidance-followup-results.md`.
 
 ## Execution plan
 

@@ -12,5 +12,7 @@ Before materially changing documentation structure, also read
 `docs/development/crystal-lattice-documentation.md`. When changing this
 guidance, task guidance, publication rules, or their validation, read:
 
-- `maintainer/specifications/documentation-and-specification-standard/index.md`
-- `maintainer/specifications/documentation-and-specification-standard/requirements.md`
+- `maintainer/docs/development/specifications/documentation-guidance/index.md`
+- `maintainer/docs/development/specifications/documentation-guidance/requirements.md`
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/requirements.md`

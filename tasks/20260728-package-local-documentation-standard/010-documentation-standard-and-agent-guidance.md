@@ -1,7 +1,7 @@
 Parent Task: tasks/20260728-package-local-documentation-standard/000-main.md
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCMETA-001`–`DOCMETA-003`, `DOCGUIDE-001`–`DOCGUIDE-006`,
@@ -244,7 +244,7 @@ baseline evidence. They are not the target of the current plan.
   for the revised target. A fresh candidate repeat failed Test 18 again and
   passed Test 27, leaving persistent concerns in Tests 6, 13, and 18 and mixed
   routing evidence in Test 27. Full interpretation is recorded in
-  `agent-behavior-verification/20260912-guidance-rewrite-results.md`.
+  `maintainer/docs/evaluations/documentation-guidance/20260912-guidance-rewrite-results.md`.
 - September 13, 2026: Reconciled the documentation-review edits left
   uncommitted in the original worktree before the isolated rewrite began.
   Preserved the September 10 review history in this task and `archive/`, while
@@ -257,7 +257,7 @@ baseline evidence. They are not the target of the current plan.
   task-only plans, but testing completeness drops to 5/21 and appropriate
   layer selection to 11/21. The focused interpretation and proposed shorter
   testing ablation are recorded in
-  `agent-behavior-verification/20260915-requirement-testing-candidate-results.md`.
+  `maintainer/docs/evaluations/documentation-guidance/20260915-requirement-testing-candidate-results.md`.
   Human acceptance remains pending; decomposition work has not started.
 
 ## Prior execution plan
@@ -659,7 +659,7 @@ Documentation-only verification:
 - `docs/development/repository/documentation.md`
 - `docs/development/repository/specifications.md`
 - `maintainer/README.md`
-- `maintainer/specifications/documentation-and-specification-standard/*`
+- `maintainer/docs/development/specifications/documentation-guidance/*`
 - root `AGENTS.md`
 - `docs/index.md`
 - root `README.md`
@@ -1380,7 +1380,7 @@ package placement, current-versus-target definitions, or migration guidance.
 - `docs/development/crystal-lattice-documentation.md`
 - root `AGENTS.md`
 - root README/docs entry-point links affected by the route change
-- `maintainer/specifications/documentation-and-specification-standard/`
+- `maintainer/docs/development/specifications/documentation-guidance/`
 - task 010 and the parent task
 - subtask 015 scenario definitions after separate approval
 - subtask 060 compatibility mapping

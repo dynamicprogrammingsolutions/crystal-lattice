@@ -109,7 +109,8 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 - Core package docs: `core/python/docs/index.md`; generated Core API reference:
   `docs/reference/agent_core/`.
 - Development documentation and conventions: `docs/development/index.md`.
-- Guidance-maintenance specifications: `maintainer/specifications/`.
+- Guidance-maintenance documentation and specifications:
+  `maintainer/docs/`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
 - General plugin overview: `plugins/docs/overview.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
@@ -156,8 +157,10 @@ Before materially changing documentation structure, also read
 `docs/development/crystal-lattice-documentation.md`. When changing this
 guidance, task guidance, publication rules, or their validation, read:
 
-- `maintainer/specifications/documentation-and-specification-standard/index.md`
-- `maintainer/specifications/documentation-and-specification-standard/requirements.md`
+- `maintainer/docs/development/specifications/documentation-guidance/index.md`
+- `maintainer/docs/development/specifications/documentation-guidance/requirements.md`
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/requirements.md`
 
 **Auxiliary directories**
 - `evaluations/`: shared evaluation framework and benchmark suites.
