@@ -9,6 +9,10 @@ kind = "fixture"
 source = "target"
 path = "sections/project-context.md"
 
+[slots.documentation]
+source = "bundle"
+section = "documentation"
+
 [slots.requirements]
 source = "bundle"
 section = "requirements"

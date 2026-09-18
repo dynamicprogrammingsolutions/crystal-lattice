@@ -12,6 +12,7 @@ maintainer/guidance/
 ├── current/
 │   ├── bundle.toml
 │   └── sections/
+│       ├── documentation.md
 │       ├── requirements.md
 │       ├── testing-strategy.md
 │       └── <other shared sections>.md
@@ -64,6 +65,7 @@ format = 1
 id = "current"
 
 [sections]
+documentation = "sections/documentation.md"
 requirements = "sections/requirements.md"
 testing-strategy = "sections/testing-strategy.md"
 ```
@@ -92,6 +94,7 @@ A target manifest declares compiled outputs, base files, and section
 resolution. A base uses one explicit placeholder form:
 
 ```markdown
+<!-- guidance-slot:documentation -->
 <!-- guidance-slot:requirements -->
 ```
 
@@ -111,12 +114,15 @@ The initial compiler:
 Portable strategy and local mechanics use distinct slots. For example:
 
 ```text
+documentation
+documentation-routing
 testing-strategy
 repository-testing-rules
 ```
 
-The first can be shared across targets. The second is resolved from
-target-local Crystal Lattice, Eleventy, FastAPI, or Flask/Vue content.
+The portable slots are shared across targets. The routing and repository-rule
+slots are resolved from target-local Crystal Lattice, Eleventy, FastAPI, or
+Flask/Vue content.
 
 ## Compilation
 

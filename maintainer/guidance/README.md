@@ -8,7 +8,8 @@ Normal contributors and agents continue to read compiled files such as root
 
 ## Source roles
 
-- `current/` contains the current shared section bundle.
+- `current/` contains the current shared Documentation, Requirements, Testing,
+  and task-guidance sections.
 - `candidates/` contains explicitly selected source variations.
 - `targets/` contains Crystal Lattice's own project base and local sections.
 - Every consuming repository owns its own target templates and local sections.
@@ -67,9 +68,11 @@ A consuming repository stores:
 - optionally a machine-local command template outside version control.
 
 It does not copy Crystal Lattice project templates. It points directly to the
-portable bundle in a Crystal Lattice checkout. Updating that checkout to an
-accepted newer guidance commit and rerunning the same local command updates the
-compiled file.
+portable bundle in a Crystal Lattice checkout. The portable Documentation
+section supplies concise always-loaded invariants; the consuming target keeps
+only its project-specific routes, paths, and exceptions. Updating the checkout
+to an accepted newer guidance commit and rerunning the same local command
+updates the compiled file.
 
 Task guidance is delivered separately by Crystal Lattice runtime
 configuration. A consuming-project target normally compiles only its

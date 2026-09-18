@@ -98,7 +98,7 @@ def test_current_documentation_guidance_shape_is_concise() -> None:
     local = REPOSITORY_ROOT / "docs/development/crystal-lattice-documentation.md"
     index = REPOSITORY_ROOT / "docs/development/index.md"
     agents = REPOSITORY_ROOT.joinpath("AGENTS.md").read_text()
-    start = agents.index("## Documentation ownership and routing")
+    start = agents.index("## Documentation")
     end = agents.index("**Auxiliary directories**", start)
     agent_section = agents[start:end]
 
@@ -113,8 +113,10 @@ def test_current_documentation_guidance_shape_is_concise() -> None:
     assert 200 <= agent_words <= 300
     assert 3000 <= guide_words + local_words + index_words + agent_words <= 3600
 
-    assert agents.count("## Documentation ownership and routing") == 1
-    assert "read both files in full" in agent_section
+    assert agents.count("## Documentation") == 1
+    assert agents.count("## Crystal Lattice documentation routing") == 1
+    assert "`docs/development/documentation.md`" in agent_section
+    assert "`docs/development/crystal-lattice-documentation.md`" in agent_section
     assert "## Testing & Documentation Principles" not in agents
     assert "**When to update docs**" not in agents
     assert "During the initial documentation migration" not in agents

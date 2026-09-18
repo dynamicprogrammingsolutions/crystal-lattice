@@ -54,6 +54,7 @@ The Eleventy, FastAPI, Flask/Vue, and Crystal Lattice bases compile the same
 portable sections. Assertions verify:
 
 - shared section hashes match across targets;
+- every target receives the same concise portable Documentation section;
 - Crystal Lattice package names and paths do not occur in external compiled
   files unless required by a literal test description;
 - each target's local paths and commands occur only in that target;

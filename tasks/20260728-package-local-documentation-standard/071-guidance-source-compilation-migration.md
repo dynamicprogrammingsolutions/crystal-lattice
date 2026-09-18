@@ -143,6 +143,8 @@ guidance while migrating its source representation.
   repository.
 - [x] Restore fixture-owned targets under each requirement-quality fixture and
   reinstate scenario defaults without weakening the external target override.
+- [x] Compile concise project-independent Documentation rules into every
+  maintained target and keep project-specific routing target-local.
 - [x] Include compilation locks in evaluation cache and records.
 - [x] Preserve and relabel the legacy matrix.
 - [x] Document a machine-local absolute-path compilation command.
@@ -187,6 +189,25 @@ guidance while migrating its source representation.
   scenario defaults. `AGENT_EVAL_GUIDANCE_TARGET` remains the explicit
   consuming-project override; task guidance remains separately delivered by
   Crystal Lattice runtime configuration.
+- September 18, 2026: The restored pre-documentation-section matrix completed
+  83 of 84 producers and 11 of 12 semantic batches. The remaining
+  current/task/Eleventy GLM-max producer stayed active without output for more
+  than nine hours, beyond the two-hour monitoring limit, so it was terminated.
+  The dependent semantic watcher and pairwise supervisor had already reached
+  their bounded timeouts. Preserve the completed records as incomplete
+  historical evidence; do not report that matrix as a complete comparison.
+- September 18, 2026: Review found that the portable bundle exposed
+  Requirements and Testing slots but left the concise generic Documentation
+  rules embedded in Crystal Lattice's project target. Add a portable
+  Documentation section, keep project-specific routing in each target, and
+  treat the resulting compilation hashes as a new guidance state.
+- September 18, 2026: Added the portable Documentation section and separated
+  Crystal Lattice routing into a target-local section. Current Crystal Lattice
+  root SHA is `cf502a4f…`; the combined-v2 render is `4cbc9a15…`; canonical
+  task guidance remains `191fc888…`. The previous incomplete fixture run is
+  not evidence for these new compilation hashes. Verification passed with 8
+  compiler tests, all 105 maintainer evaluator tests, lint, exact compilation,
+  and canonical/bundled task-guidance synchronization.
 
 ### Requirement verification
 

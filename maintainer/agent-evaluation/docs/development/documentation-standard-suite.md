@@ -145,6 +145,13 @@ effective instruction hash, model/effort, response or task file, mutations,
 and deterministic findings. The compilation hash participates in cache and
 dataset identity.
 
+The September 18 pre-Documentation-section fixture run is incomplete: 83 of
+84 producers and 11 of 12 semantic batches completed before one GLM-max call
+was terminated after exceeding the two-hour monitoring boundary. Do not use
+that run as a complete current/candidate comparison. The portable
+Documentation section creates new compilation hashes and requires a fresh
+matrix.
+
 Task-mode evaluation obtains canonical task guidance from Crystal Lattice
 runtime configuration. The consuming repository's target compiles only its
 own root guidance.

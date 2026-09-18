@@ -45,20 +45,29 @@ def test_current_crystal_lattice_compilation_is_exact() -> None:
     ).read_bytes()
 
 
-def test_candidate_reproduces_reviewed_crystal_lattice_rendering() -> None:
-    result = compile_guidance(
+def test_candidate_inherits_documentation_and_overrides_changed_sections() -> None:
+    current = compile_guidance(
+        bundle=CURRENT_BUNDLE,
+        target=CRYSTAL_TARGET,
+        repository_root=REPOSITORY_ROOT,
+    )
+    candidate = compile_guidance(
         bundle=CANDIDATE_BUNDLE,
         target=CRYSTAL_TARGET,
         repository_root=REPOSITORY_ROOT,
     )
-    reviewed = (
+    current_text = current.outputs["AGENTS.md"].decode("utf-8")
+    candidate_text = candidate.outputs["AGENTS.md"].decode("utf-8")
+    documentation = (
         REPOSITORY_ROOT
-        / "maintainer/agent-evaluation/suites/documentation_standard/"
-        "guidance_variants/root-guidance/combined-v2/AGENTS.md"
-    ).read_bytes()
+        / "maintainer/guidance/current/sections/documentation.md"
+    ).read_text(encoding="utf-8").strip()
 
-    assert result.outputs["AGENTS.md"] == reviewed
-    assert result.outputs["agents/TASKS-v7.md"] == (
+    assert documentation in current_text
+    assert documentation in candidate_text
+    assert "## Requirements" not in current_text
+    assert "## Requirements" in candidate_text
+    assert candidate.outputs["agents/TASKS-v7.md"] == (
         REPOSITORY_ROOT / "agents/TASKS-v7.md"
     ).read_bytes()
 
@@ -85,6 +94,9 @@ def test_fixture_targets_compile_portable_sections(
     assert candidate.target_kind == "fixture"
     assert "Crystal Lattice" not in current_text
     assert "Crystal Lattice" not in candidate_text
+    assert current_text.count("## Documentation") == 1
+    assert candidate_text.count("## Documentation") == 1
+    assert "Choose the destination by audience and ownership" in current_text
     assert "## Requirements" not in current_text
     assert "## Requirements" in candidate_text
     assert set(current.outputs) == {"AGENTS.md"}
@@ -107,6 +119,9 @@ kind = "project"
 [slots.project-context]
 source = "target"
 path = "project-context.md"
+[slots.documentation]
+source = "bundle"
+section = "documentation"
 [slots.requirements]
 source = "bundle"
 section = "requirements"
@@ -121,6 +136,8 @@ section = "testing-strategy"
         """# Consumer project
 
 <!-- guidance-slot:project-context -->
+
+<!-- guidance-slot:documentation -->
 
 <!-- guidance-slot:requirements -->
 
@@ -145,6 +162,8 @@ section = "testing-strategy"
 
     assert "Consumer-owned local instructions." in current_text
     assert "Consumer-owned local instructions." in candidate_text
+    assert "## Documentation" in current_text
+    assert "Choose the destination by audience and ownership" in current_text
     assert "## Requirements" not in current_text
     assert "## Requirements" in candidate_text
     assert current.lock["target"]["path"] == str(target.resolve())

@@ -2,6 +2,7 @@ format = 1
 id = "current"
 
 [sections]
+documentation = "sections/documentation.md"
 requirements = "sections/requirements.md"
 root-testing = "sections/root-testing.md"
 testing-strategy = "sections/testing-strategy.md"

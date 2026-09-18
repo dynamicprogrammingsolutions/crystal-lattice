@@ -67,11 +67,11 @@ candidate directory, but no test module is permanently tied to a candidate or
 commit. Historical guidance is selected by pointing at a checkout or worktree
 for that revision.
 
-Crystal Lattice stores the portable requirements and testing sections and its
-own base. Every other repository stores its own base, repository map, package
-paths, commands, and local sections. The compiler may read those inputs through
-absolute paths without copying the consuming repository's information into
-Crystal Lattice.
+Crystal Lattice stores the portable documentation, requirements, and testing
+sections and its own base. Every other repository stores its own base,
+repository map, package paths, commands, and local sections. The compiler may
+read those inputs through absolute paths without copying the consuming
+repository's information into Crystal Lattice.
 
 After successful testing and human approval, maintainers copy or merge the
 accepted section changes into the current bundle and manually compile the
