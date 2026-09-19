@@ -49,6 +49,34 @@ record the read before the first relevant mutation. When testing wording in
 isolation, direct injection is valid, but the result must be described as an
 injection test rather than discovery evidence.
 
+## Crystal Lattice system-message compilation
+
+The default Crystal Lattice Codex and Claude configurations read source files
+while compiling their normal system/developer message:
+
+- the Codex project-instructions helper reads workspace or repository-root
+  `AGENTS.md`;
+- the Claude AGENTS-section helper reads the same workspace/repository source;
+- the conditional `TASKS` variable reads `${CONFIG_DIR}/TASKS_v7.md` when
+  `include_tasks` is enabled.
+
+Those files are sources. Their observed delivery is the resulting compiled
+Codex developer instructions or Claude system message. An evaluator that aims
+to represent an ordinary Crystal Lattice run must exercise this production
+compilation path, including the standard model-family message. It must not
+replace or append the content through a suite-specific injector unless that
+alternate delivery is the behavior being tested.
+
+Runner fidelity also includes the tool contract paired with that message.
+Codex instructions expect Codex tool schemas; Claude instructions expect
+Claude tool schemas. Keeping the message while replacing its tools can change
+agent behavior and is a different evaluation setup.
+
+The direct verification is to compare source hashes and exact occurrence
+counts with the message produced by the existing system-message inspection and
+request-initialization paths. A structured provenance record may summarize
+that evidence, but must not become another delivery mechanism.
+
 ## User requests and conflicts
 
 User requests operate below applicable system and developer instructions. A

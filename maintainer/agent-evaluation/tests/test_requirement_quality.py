@@ -28,10 +28,14 @@ from suites.documentation_standard.requirement_quality_evaluator import (
     dataset_records_for_scenario,
     load_accepted_anchors,
     load_accepted_dataset,
+    load_compiled_guidance_dataset,
     parse_evaluator_response,
     parse_evaluator_response_with_repairs,
     record_generated_files,
     validate_evaluator_result,
+)
+from suites.documentation_standard.compiled_guidance import (
+    compile_scenario_guidance,
 )
 from suites.documentation_standard.root_guidance_quality import (
     QUALITY_DIMENSIONS,
@@ -369,7 +373,7 @@ def test_frozen_legacy_root_guidance_full_matrix_is_complete() -> None:
     }
 
 
-def test_frozen_portable_matrix_preserves_valid_and_missing_boundaries() -> None:
+def test_frozen_default_runner_matrix_is_complete() -> None:
     matrix = json.loads(
         COMPILED_GUIDANCE_RESULTS.read_text(encoding="utf-8")
     )
@@ -378,10 +382,10 @@ def test_frozen_portable_matrix_preserves_valid_and_missing_boundaries() -> None
     )
 
     assert len(matrix["producer_records"]) == 84
-    assert len(matrix["semantic_assessments"]) == 42
-    assert len(matrix["pairwise_quality_records"]) == 21
-    assert len(matrix["missing_semantic_assessments"]) == 42
-    assert len(matrix["missing_pairwise_quality"]) == 21
+    assert len(matrix["semantic_assessments"]) == 84
+    assert len(matrix["pairwise_quality_records"]) == 42
+    assert matrix["missing_semantic_assessments"] == []
+    assert matrix["missing_pairwise_quality"] == []
     assert matrix["pairwise_quality_errors"] == []
     assert all(
         record["generated_files"]
@@ -393,8 +397,8 @@ def test_frozen_portable_matrix_preserves_valid_and_missing_boundaries() -> None
         for record in matrix["producer_records"]
     )
     assert analysis["counts"]["producer_records"] == 84
-    assert analysis["counts"]["semantic_assessments"] == 42
-    assert analysis["counts"]["pairwise_quality_records"] == 21
+    assert analysis["counts"]["semantic_assessments"] == 84
+    assert analysis["counts"]["pairwise_quality_records"] == 42
 
 
 def test_root_guidance_effort_scoring_distinguishes_quality_axes() -> None:
@@ -908,3 +912,142 @@ def test_record_generated_files_recovers_retained_untracked_task(
             "changed_paths": ["tasks/20260918-example.md"],
         },
     ) == {"tasks/20260918-example.md": "# Example task\n"}
+
+
+def test_compiled_dataset_pins_repeat_and_rejects_failed_producer(
+    tmp_path: Path,
+) -> None:
+    scenario = SCENARIOS[0]
+    compilation = compile_scenario_guidance(
+        scenario,
+        bundle="maintainer/guidance/current",
+    )
+    test_prefix = (
+        f"requirement-compiled-{compilation.bundle_id}-root-only"
+    )
+
+    def write_record(
+        *,
+        repeat_variant: str,
+        passed: bool,
+        suffix: str,
+    ) -> None:
+        run_root = (
+            tmp_path
+            / "glm"
+            / "runs"
+            / (
+                f"20260918T00000{suffix}Z-{test_prefix}-"
+                f"{scenario.scenario_id}-low-example"
+            )
+        )
+        record = (
+            run_root
+            / "records"
+            / "root-guidance-requirement-quality.json"
+        )
+        record.parent.mkdir(parents=True)
+        record.write_text(
+            json.dumps(
+                {
+                    "scenario_id": scenario.scenario_id,
+                    "repeat_variant": repeat_variant,
+                    "producer": {
+                        "profile": "glm",
+                        "reasoning_effort": "low",
+                    },
+                    "guidance_compilation": compilation.lock,
+                    "guidance": {},
+                    "changed_paths": [],
+                    "generated_files": {
+                        "response.md": "Requirements and plan."
+                    },
+                    "response": "Requirements and plan.",
+                    "findings": [
+                        {"name": "run completed", "passed": True},
+                        {"name": "provider errors", "passed": passed},
+                        {
+                            "name": "suite guidance injection is disabled",
+                            "passed": True,
+                        },
+                        {
+                            "name": (
+                                "default model-family system message is compiled"
+                            ),
+                            "passed": True,
+                        },
+                        {
+                            "name": (
+                                "compiled sources have exact occurrence counts"
+                            ),
+                            "passed": True,
+                        },
+                        {
+                            "name": "normal TASKS condition matches mode",
+                            "passed": True,
+                        },
+                        {
+                            "name": (
+                                "producer prompt does not request a testing "
+                                "strategy"
+                            ),
+                            "passed": True,
+                        },
+                        {"name": "producer model recorded", "passed": True},
+                        {"name": "producer effort recorded", "passed": True},
+                        {
+                            "name": (
+                                "GPT producer uses configured ChatGPT login"
+                            ),
+                            "passed": True,
+                        },
+                        {"name": "assistant response", "passed": True},
+                        {
+                            "name": (
+                                "root-only planning does not mutate the "
+                                "workspace"
+                            ),
+                            "passed": True,
+                        },
+                        {
+                            "name": (
+                                "root-only planning returns substantive "
+                                "requirements and plan"
+                            ),
+                            "passed": True,
+                        },
+                    ],
+                    "instruction_delivery": {
+                        "tool_family_matches": True,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    write_record(repeat_variant="accepted-r1", passed=True, suffix="1")
+    write_record(repeat_variant="failed-r2", passed=False, suffix="2")
+
+    dataset = load_compiled_guidance_dataset(
+        mode="root-only",
+        bundle="maintainer/guidance/current",
+        artifact_root=tmp_path,
+        scenario_ids=(scenario.scenario_id,),
+        producer_cases=(("glm", "low"),),
+        repeat_variant="accepted-r1",
+        require_valid_producers=True,
+    )
+    assert dataset["records"][0]["source_run_id"].startswith(
+        "20260918T000001Z"
+    )
+
+    with pytest.raises(ValueError, match="provider errors"):
+        load_compiled_guidance_dataset(
+            mode="root-only",
+            bundle="maintainer/guidance/current",
+            artifact_root=tmp_path,
+            scenario_ids=(scenario.scenario_id,),
+            producer_cases=(("glm", "low"),),
+            repeat_variant="failed-r2",
+            require_valid_producers=True,
+        )

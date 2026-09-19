@@ -4,26 +4,32 @@ Date: September 18, 2026
 
 ## Status
 
-The producer matrix contains all 84 requested model runs, but the intended
-root-plus-task integration comparison is not complete.
+This matrix is historical direct-injection evidence, not default-runner
+calibration. The producer matrix contains all 84 requested model runs, but the
+suite-specific injection path did not faithfully reproduce the normal Crystal
+Lattice Codex and Claude system-message compilation.
 
-Valid interpreted evidence:
+Preserved interpreted evidence:
 
 - 42 root-only producers;
 - 42 root-only semantic assessments;
 - 21 of 21 root-only pairwise reviews.
 
-Incomplete or invalid for the intended claim:
+Invalid for a default-runner acceptance claim:
 
+- GLM inserted a synthetic leading system message that could replace the
+  standard Claude template;
+- GPT appended suite guidance after normal Codex compilation and could include
+  workspace AGENTS content twice;
+- both modes forced `include_tasks=false` and bypassed the normal conditional
+  `TASKS` template variable;
 - all 42 task-mode producer records initially omitted captured task-file
   content even though raw workspace evidence retained the files;
 - task-mode semantic evaluation rejected those records before model calls;
 - task-mode pairwise review therefore did not run;
-- the task mode delivered root `AGENTS.md` and `TASKS-v7` together through one
-  suite-owned instruction message rather than preserving repository-file
-  guidance versus task-enabled developer-message delivery;
 
-Do not report this as a complete root-plus-TASKS comparison.
+Do not use the root-only or task-mode aggregates below to accept or reject the
+candidate under the normal Crystal Lattice runner.
 
 ## Provenance
 
@@ -60,15 +66,20 @@ Machine-readable evidence:
 
 ## Instruction delivery
 
-The root-only mode directly injected compiled `AGENTS.md` content through the
-suite instruction mechanism. This tests wording under direct instruction
-delivery; it does not test discovery of an ordinary repository file.
+The fixture already contained compiled `AGENTS.md`, and the projected config
+retained the normal model-family mixins. The suite nevertheless applied a
+second delivery path:
 
-The task mode concatenated compiled `AGENTS.md` and canonical `TASKS-v7` into
-the same injected guidance message. Recorded delivery used a leading `system`
-message for GLM and endpoint `instructions` for ChatGPT. It did not reproduce
-the intended distinction between repository-file guidance and task-enabled
-developer-message guidance.
+- GLM received a synthetic leading system message containing suite guidance;
+- GPT retained compiled Codex instructions and received the same suite
+  guidance appended through endpoint `instructions`;
+- canonical TASKS was supplied by the suite wrapper rather than the normal
+  `include_tasks` condition.
+
+The corrected setup must remove the suite injector, retain the standard
+Codex/Claude message, let the production system-message helpers read workspace
+`AGENTS.md`, and toggle canonical `${CONFIG_DIR}/TASKS_v7.md` through
+`include_tasks`.
 
 See
 [Instruction delivery and authority](../../instruction-delivery-and-authority.md).
@@ -169,23 +180,19 @@ should wait until delivery is modeled correctly.
 
 ## Recommendation
 
-Do not promote combined-v2 yet.
+Do not promote or reject combined-v2 from this matrix.
 
-The root-only evidence is substantially more favorable than the legacy matrix,
-especially at max effort and for FastAPI. However:
-
-1. task-mode interaction with accepted task guidance is still unverified;
-2. the current task-mode delivery collapses distinct instruction layers;
-3. Flask/Vue retains two high-assurance completeness regressions;
-4. pairwise preference cannot compensate for missing task-mode integration.
+The observed outputs suggest useful hypotheses, especially reduced expansion,
+but both modes used the wrong runner setup. The Flask/Vue completeness
+regressions remain sentinels for the corrected run rather than accepted
+candidate findings.
 
 Next:
 
-1. define and implement a task-mode delivery profile that preserves the
-   intended source and authority distinction;
-2. assert delivery role, position, source, availability, and read evidence
-   deterministically;
-3. rerun only the 42 task-mode producers under that profile;
-4. run six task-mode semantic batches and 21 task-mode pairwise reviews;
-5. combine the valid root-only and corrected task-mode evidence before an
-   acceptance decision.
+1. use the reduced default-config projection without the suite guidance
+   feature;
+2. preserve the standard GPT/Codex and GLM/Claude messages;
+3. copy compiled AGENTS into the workspace and use normal helper loading;
+4. use `include_tasks=false` for root-only and `true` for task mode;
+5. complete four no-model compiled-message preflights;
+6. rerun all 84 producers, 12 semantic batches, and 42 pairwise reviews.

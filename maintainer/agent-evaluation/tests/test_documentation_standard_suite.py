@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from suites.documentation_standard.support import (
     BASELINE_GUIDANCE_REVISION,
     CURRENT_GUIDANCE_PATHS,
@@ -15,6 +17,7 @@ from suites.documentation_standard.support import (
     ORIGINAL_DEVELOP_GUIDANCE_REVISION,
     PROFILES,
     REPOSITORY_ROOT,
+    RUNNER_DEFAULT_SYSTEM_MESSAGE,
     SCENARIO_ROOT,
     GuidanceSource,
     DocumentationEvaluationHarness,
@@ -34,6 +37,14 @@ from suites.documentation_standard.support import (
     GUIDANCE_CONFIG_KEY,
     GUIDANCE_FEATURE_PLUGIN,
     PLUGIN_RUNTIME_CONSTRAINTS,
+)
+from suites.documentation_standard.compiled_guidance import (
+    compile_scenario_guidance,
+    guidance_source,
+)
+from suites.documentation_standard.requirement_quality import SCENARIOS
+from suites.documentation_standard.test_root_requirement_testing_guidance import (
+    _changed_task_files,
 )
 from suites.documentation_standard.test_consumers import (
     _external_worktree_roots,
@@ -487,7 +498,106 @@ def test_profile_config_projection_excludes_other_agent_tool_stacks(
     assert projected["mixins"] == {"shared": {}}
     assert projected["application"] == {"setting": True}
     assert "plugin-cache/gpt/" in projected["plugin_cache_dir"]
-    assert projected["plugin_cache_dir"].endswith("-v8")
+    assert projected["plugin_cache_dir"].endswith("-v10")
+
+
+@pytest.mark.parametrize(
+    ("profile_name", "agent_id", "tool_family"),
+    (
+        ("gpt", "codex-openai", "codex-tools"),
+        ("glm", "glm-ollama", "claude-tools"),
+    ),
+)
+def test_default_runner_projection_preserves_agent_tool_family(
+    tmp_path: Path,
+    profile_name: str,
+    agent_id: str,
+    tool_family: str,
+) -> None:
+    target = _project_config_for_profile(
+        REPOSITORY_ROOT
+        / "application/python/agent_terminal_app/default_config/config.json",
+        artifact_root=tmp_path / "artifacts",
+        profile=PROFILES[profile_name],
+        include_guidance_feature=False,
+    )
+    projected = json.loads(target.read_text())
+    plugins = projected["agents"][agent_id]["plugins"]
+
+    assert GUIDANCE_FEATURE_PLUGIN not in plugins
+    assert any(tool_family in plugin for plugin in plugins)
+    assert not any(
+        plugin in EVALUATION_TOOL_PLUGINS
+        for plugin in plugins
+    )
+
+
+@pytest.mark.parametrize("profile_name", ("glm", "gpt"))
+@pytest.mark.parametrize("include_tasks", (False, True))
+def test_default_runner_compiles_standard_message_and_sources(
+    profile_name: str,
+    include_tasks: bool,
+) -> None:
+    scenario = SCENARIOS[0]
+    compilation = compile_scenario_guidance(scenario)
+    mode = "task" if include_tasks else "root-only"
+    guidance = guidance_source(compilation, mode=mode)
+    harness = DocumentationEvaluationHarness(
+        PROFILES[profile_name],
+        guidance=guidance,
+        runner_mode=RUNNER_DEFAULT_SYSTEM_MESSAGE,
+    )
+    try:
+        run = harness.inspect_scenario_system_message(
+            test_id=(
+                f"default-runner-preflight-{profile_name}-{mode}-"
+                f"{compilation.lock['compilation_sha256'][:12]}"
+            ),
+            fixture_id=scenario.fixture_id,
+            include_tasks=include_tasks,
+        )
+    finally:
+        harness.close()
+
+    run.raise_for_error()
+    evidence = run.value
+    assert evidence is not None
+    assert evidence["runner"] == RUNNER_DEFAULT_SYSTEM_MESSAGE
+    assert evidence["family"] == (
+        "codex" if profile_name == "gpt" else "claude"
+    )
+    assert evidence["include_tasks"] is include_tasks
+    assert evidence["suite_wrapper_absent"] is True
+    assert evidence["tool_family_matches"] is True
+    assert all(
+        source["observed_occurrences"] == source["expected_occurrences"]
+        for source in evidence["sources"]
+    )
+
+
+def test_changed_task_files_recovers_retained_file_after_cleanup(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "run"
+    retained = (
+        artifact_dir
+        / "raw"
+        / "workspace"
+        / "untracked"
+        / "tasks"
+        / "20260918-example.md"
+    )
+    retained.parent.mkdir(parents=True)
+    retained.write_text("# Example task\n", encoding="utf-8")
+    run = SimpleNamespace(
+        changed_paths=("tasks/20260918-example.md",),
+        workspace=tmp_path / "cleaned-workspace",
+        artifact_dir=artifact_dir,
+    )
+
+    assert _changed_task_files(run) == {
+        "tasks/20260918-example.md": "# Example task\n"
+    }
 
 
 def test_profile_projection_reuses_path_plugin_from_agent_definition(

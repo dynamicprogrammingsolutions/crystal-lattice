@@ -14,8 +14,14 @@ reports remain the detailed evidence.
 | IOCharts adoption | Current portable bundle plus IOCharts-local target; migration is not yet committed in IOCharts | IOCharts root guidance plus Crystal Lattice task-enabled developer message |
 
 The [September 18 portable comparison](documentation-guidance/20260918-portable-root-guidance-results.md)
-has valid root-only producer, semantic, and complete pairwise evidence. All
-task-mode agents created task files, but the recorder initially missed their
-retained content and the suite delivered root and task guidance through one
-instruction layer. Task-mode semantic and pairwise conclusions therefore
-remain unavailable until delivery is corrected and rerun.
+is preserved as historical direct-injection evidence. It is not
+default-runner calibration: GLM could replace the normal Claude message, GPT
+could duplicate AGENTS after normal Codex compilation, and both modes bypassed
+the normal TASKS toggle. The required default-runner replacement is recorded
+below.
+
+The [corrected default-runner comparison](documentation-guidance/20260918-default-runner-results.md)
+is complete. Combined-v2 wins 34 of 42 pairwise reviews and materially improves
+scope restraint and testing, but complete requirements fall from 36/42 to
+35/42. It remains a candidate pending a focused v3 completeness correction and
+full confirmation.

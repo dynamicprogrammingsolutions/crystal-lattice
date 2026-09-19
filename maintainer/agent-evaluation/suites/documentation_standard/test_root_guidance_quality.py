@@ -18,6 +18,7 @@ from .requirement_quality_evaluator import (
     DEFAULT_ARTIFACT_ROOT,
     load_compiled_guidance_dataset,
     parse_evaluator_response_with_repairs,
+    semantic_validity_failure_names,
 )
 from .root_guidance_quality import (
     compiled_semantic_record_paths,
@@ -31,6 +32,7 @@ from .support import (
     AssertionFinding,
     DocumentationEvaluationHarness,
     PROFILES,
+    RUNNER_DEFAULT_SYSTEM_MESSAGE,
     assert_findings,
     basic_run_findings,
     enforce_real_model_gate,
@@ -40,7 +42,7 @@ from .support import (
 
 pytestmark = [pytest.mark.agent_eval, pytest.mark.root_guidance_quality]
 RECORD_NAME = "root-guidance-pairwise-quality.json"
-FULL_MATRIX_REPEAT_VARIANT = "compiled-matrix-r1"
+DEFAULT_SEMANTIC_REPEAT_VARIANT = "compiled-matrix-r1"
 DEFAULT_BASELINE_BUNDLE = "maintainer/guidance/current"
 DEFAULT_CANDIDATE_BUNDLE = (
     "maintainer/guidance/candidates/root-requirements-testing-v2"
@@ -60,11 +62,31 @@ def _quality_bundles() -> dict[str, str]:
     }
 
 
+def _semantic_repeat_variant() -> str:
+    return os.getenv(
+        "AGENT_EVAL_ROOT_GUIDANCE_SEMANTIC_VARIANT",
+        DEFAULT_SEMANTIC_REPEAT_VARIANT,
+    ).strip()
+
+
+def _producer_repeat_variant() -> str | None:
+    return (
+        os.getenv(
+            "AGENT_EVAL_ROOT_GUIDANCE_PRODUCER_VARIANT",
+            "",
+        ).strip()
+        or None
+    )
+
+
 @pytest.fixture(scope="session")
 def quality_evaluator_harness() -> Iterator[DocumentationEvaluationHarness]:
     profile = PROFILES["glm"]
     enforce_real_model_gate(profile)
-    harness = DocumentationEvaluationHarness(profile)
+    harness = DocumentationEvaluationHarness(
+        profile,
+        runner_mode=RUNNER_DEFAULT_SYSTEM_MESSAGE,
+    )
     yield harness
     harness.close()
 
@@ -106,6 +128,8 @@ def _producer_record(
         mode=mode,
         scenario_ids=(scenario.scenario_id,),
         producer_cases=(producer_case,),
+        repeat_variant=_producer_repeat_variant(),
+        require_valid_producers=True,
     )
     return dataset["records"][0]
 
@@ -123,10 +147,13 @@ def _semantic_record(
         bundle_id=bundle_id,
         mode=mode,
         scenario_id=scenario.scenario_id,
-        repeat_variant=FULL_MATRIX_REPEAT_VARIANT,
+        repeat_variant=_semantic_repeat_variant(),
     )
     for path in reversed(paths):
         value = json.loads(path.read_text(encoding="utf-8"))
+        failed_findings = semantic_validity_failure_names(value)
+        if failed_findings:
+            continue
         for assessment in value["result"]["assessments"]:
             if assessment["candidate_id"] == candidate_id:
                 return value, {
@@ -208,6 +235,10 @@ def test_root_guidance_pairwise_quality(
         "AGENT_EVAL_ROOT_GUIDANCE_QUALITY_CACHE_VARIANT",
         "",
     ).strip()
+    run_attempt = os.getenv(
+        "AGENT_EVAL_ROOT_GUIDANCE_QUALITY_RUN_ATTEMPT",
+        "",
+    ).strip()
     run = quality_evaluator_harness.fresh_prompt(
         test_id=(
             f"root-guidance-quality-{scenario.scenario_id}-"
@@ -217,7 +248,8 @@ def test_root_guidance_pairwise_quality(
         reasoning_effort="max",
         cache_variant=(
             f"{QUALITY_PROMPT_VERSION}-{prompt_hash[:16]}:"
-            f"{repeat_variant or 'default'}"
+            f"{repeat_variant or 'default'}:"
+            f"{run_attempt or 'initial'}"
         ),
     )
     value = require_run_value(run)
@@ -242,6 +274,7 @@ def test_root_guidance_pairwise_quality(
                 "error": str(error),
                 "response": value.response,
                 "repeat_variant": repeat_variant or "default",
+                "run_attempt": run_attempt or "initial",
             },
         )
         raise
@@ -296,6 +329,7 @@ def test_root_guidance_pairwise_quality(
             "raw_result": result,
             "response_repairs": list(response_repairs),
             "repeat_variant": repeat_variant or "default",
+            "run_attempt": run_attempt or "initial",
             "findings": [finding.__dict__ for finding in findings],
         },
     )

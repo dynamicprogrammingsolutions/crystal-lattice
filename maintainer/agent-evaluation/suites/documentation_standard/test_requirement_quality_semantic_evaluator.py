@@ -33,6 +33,7 @@ from .support import (
     AssertionFinding,
     DocumentationEvaluationHarness,
     PROFILES,
+    RUNNER_DEFAULT_SYSTEM_MESSAGE,
     assert_findings,
     basic_run_findings,
     enforce_real_model_gate,
@@ -157,6 +158,12 @@ def _selected_dataset(
                 mode=mode,
                 scenario_ids=(scenario.scenario_id,),
                 producer_cases=producer_cases,
+                repeat_variant=os.getenv(
+                    "AGENT_EVAL_ROOT_GUIDANCE_PRODUCER_VARIANT",
+                    "",
+                ).strip()
+                or None,
+                require_valid_producers=True,
             ),
             True,
         )
@@ -171,7 +178,10 @@ def _selected_dataset(
 def semantic_evaluator_harness() -> Iterator[DocumentationEvaluationHarness]:
     profile = PROFILES["glm"]
     enforce_real_model_gate(profile)
-    harness = DocumentationEvaluationHarness(profile)
+    harness = DocumentationEvaluationHarness(
+        profile,
+        runner_mode=RUNNER_DEFAULT_SYSTEM_MESSAGE,
+    )
     yield harness
     harness.close()
 

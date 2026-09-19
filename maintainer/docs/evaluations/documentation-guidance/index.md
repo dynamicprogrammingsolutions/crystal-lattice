@@ -12,3 +12,4 @@ These dated reports interpret preserved evaluation evidence. They do not define 
 - [Legacy root-guidance full matrix](20260917-legacy-root-guidance-full-matrix.md)
 - [Focused root Requirements and Testing results](20260917-root-requirements-testing-focused-results.md)
 - [September 18 portable root-guidance results](20260918-portable-root-guidance-results.md)
+- [September 18 corrected default-runner results](20260918-default-runner-results.md)

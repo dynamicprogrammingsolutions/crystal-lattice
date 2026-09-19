@@ -67,6 +67,33 @@ TESTING_LAYER_SELECTION = {"appropriate", "mixed", "poor"}
 TESTING_CROSSING = {"present", "not_required", "missing"}
 TESTING_DEGREES = {"none", "minor", "material"}
 TESTING_FOCUS = {"focused", "mixed", "bloated"}
+PRODUCER_COMMON_VALIDITY_FINDINGS = {
+    "run completed",
+    "provider errors",
+    "suite guidance injection is disabled",
+    "default model-family system message is compiled",
+    "compiled sources have exact occurrence counts",
+    "normal TASKS condition matches mode",
+    "producer prompt does not request a testing strategy",
+    "producer model recorded",
+    "producer effort recorded",
+    "GPT producer uses configured ChatGPT login",
+}
+PRODUCER_ROOT_VALIDITY_FINDINGS = {
+    "assistant response",
+    "root-only planning does not mutate the workspace",
+    "root-only planning returns substantive requirements and plan",
+}
+PRODUCER_TASK_VALIDITY_FINDINGS = {
+    "exactly one task file produced",
+    "mutation remains one task file",
+}
+SEMANTIC_VALIDITY_FINDINGS = {
+    "run completed",
+    "assistant response",
+    "provider errors",
+    "semantic evaluator did not mutate its workspace",
+}
 
 
 def load_accepted_dataset() -> dict[str, Any]:
@@ -214,6 +241,8 @@ def load_compiled_guidance_dataset(
     artifact_root: Path = DEFAULT_ARTIFACT_ROOT,
     scenario_ids: tuple[str, ...] | None = None,
     producer_cases: tuple[tuple[str, str], ...] = PRODUCER_CASES,
+    repeat_variant: str | None = None,
+    require_valid_producers: bool = False,
 ) -> dict[str, Any]:
     selected_scenarios = [
         scenario
@@ -252,6 +281,10 @@ def load_compiled_guidance_dataset(
                     and producer.get("reasoning_effort") == effort
                     and isinstance(lock, dict)
                     and lock.get("compilation_sha256") == compilation_hash
+                    and (
+                        repeat_variant is None
+                        or value.get("repeat_variant") == repeat_variant
+                    )
                 ):
                     matching.append((path, value))
             if not matching:
@@ -261,6 +294,13 @@ def load_compiled_guidance_dataset(
                     f"{compilation_hash}"
                 )
             path, value = matching[-1]
+            failed_findings = producer_validity_failure_names(value)
+            if require_valid_producers and failed_findings:
+                raise ValueError(
+                    "compiled-guidance producer record failed deterministic "
+                    f"findings for {scenario.scenario_id}/{profile}/{effort}: "
+                    f"{failed_findings!r}"
+                )
             generated_files = record_generated_files(path, value)
             records.append(
                 {
@@ -304,6 +344,48 @@ def load_compiled_guidance_dataset(
     }
     validate_dataset(dataset, expected_dataset=dataset_id)
     return dataset
+
+
+def producer_validity_failure_names(
+    value: dict[str, Any],
+) -> list[str]:
+    mode = value.get("mode")
+    required = set(PRODUCER_COMMON_VALIDITY_FINDINGS)
+    required.update(
+        PRODUCER_TASK_VALIDITY_FINDINGS
+        if mode == "task"
+        else PRODUCER_ROOT_VALIDITY_FINDINGS
+    )
+    findings = {
+        str(finding.get("name")): finding.get("passed") is True
+        for finding in value.get("findings", [])
+        if isinstance(finding, dict)
+    }
+    failed = sorted(
+        name for name in required if findings.get(name) is not True
+    )
+    delivery = value.get("instruction_delivery")
+    if (
+        not isinstance(delivery, dict)
+        or delivery.get("tool_family_matches") is not True
+    ):
+        failed.append("default tool family matches model family")
+    return failed
+
+
+def semantic_validity_failure_names(
+    value: dict[str, Any],
+) -> list[str]:
+    findings = {
+        str(finding.get("name")): finding.get("passed") is True
+        for finding in value.get("findings", [])
+        if isinstance(finding, dict)
+    }
+    return sorted(
+        name
+        for name in SEMANTIC_VALIDITY_FINDINGS
+        if findings.get(name) is not True
+    )
 
 
 def record_generated_files(

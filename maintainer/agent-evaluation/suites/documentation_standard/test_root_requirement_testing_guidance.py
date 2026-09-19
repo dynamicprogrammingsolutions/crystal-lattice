@@ -25,10 +25,10 @@ from .compiled_guidance import (
 from .support import (
     AssertionFinding,
     DocumentationEvaluationHarness,
+    RUNNER_DEFAULT_SYSTEM_MESSAGE,
     assert_findings,
     basic_run_findings,
     enforce_real_model_gate,
-    matching_paths,
     require_run_value,
     selected_profile,
 )
@@ -82,8 +82,8 @@ def root_guidance_profile():
 
 def _changed_task_files(run) -> dict[str, str]:
     values: dict[str, str] = {}
-    for relative in matching_paths(run, "tasks"):
-        if relative not in run.changed_paths or not relative.endswith(".md"):
+    for relative in run.changed_paths:
+        if not relative.startswith("tasks/") or not relative.endswith(".md"):
             continue
         live = run.workspace / relative if run.workspace is not None else None
         retained = (
@@ -214,16 +214,19 @@ def test_root_requirement_testing_guidance(
         if task_mode
         else scenario_root_plan_prompt(scenario)
     )
-    instruction_paths = (
-        ("AGENTS.md", "agents/TASKS-v7.md")
-        if task_mode
-        else ("AGENTS.md",)
-    )
     repeat_variant = os.getenv(
         "AGENT_EVAL_ROOT_GUIDANCE_CACHE_VARIANT",
         "",
     ).strip()
-    harness = DocumentationEvaluationHarness(profile, guidance=guidance)
+    run_attempt = os.getenv(
+        "AGENT_EVAL_ROOT_GUIDANCE_RUN_ATTEMPT",
+        "",
+    ).strip()
+    harness = DocumentationEvaluationHarness(
+        profile,
+        guidance=guidance,
+        runner_mode=RUNNER_DEFAULT_SYSTEM_MESSAGE,
+    )
     try:
         run = harness.fresh_scenario(
             test_id=(
@@ -234,10 +237,12 @@ def test_root_requirement_testing_guidance(
             reasoning_effort=reasoning_effort,
             cache_variant=(
                 f"{dataset_id}-{target_hash[:16]}:"
-                f"{repeat_variant or 'default'}"
+                f"{repeat_variant or 'default'}:"
+                f"{run_attempt or 'initial'}"
             ),
             prompt_heading=prompt_heading,
-            guidance_instruction_paths=instruction_paths,
+            include_tasks=task_mode,
+            inspect_system_message=True,
         )
     finally:
         harness.close()
@@ -254,6 +259,13 @@ def test_root_requirement_testing_guidance(
         "documentation_standard.guidance_injection",
     )
     injection_value = injection if isinstance(injection, dict) else {}
+    compiled = _evidence_value(
+        run,
+        "documentation_standard.compiled_system_message",
+    )
+    compiled_value = compiled if isinstance(compiled, dict) else {}
+    source_rows = compiled_value.get("sources")
+    sources = source_rows if isinstance(source_rows, list) else []
 
     mode_findings: tuple[AssertionFinding, ...]
     if task_mode:
@@ -288,9 +300,35 @@ def test_root_requirement_testing_guidance(
         + mode_findings
         + (
             AssertionFinding(
-                "only the intended guidance layers are injected",
-                injection_value.get("paths") == list(instruction_paths),
+                "suite guidance injection is disabled",
+                injection_value.get("injected") is False
+                and injection_value.get("paths") == [],
                 repr(injection_value),
+            ),
+            AssertionFinding(
+                "default model-family system message is compiled",
+                compiled_value.get("runner")
+                == RUNNER_DEFAULT_SYSTEM_MESSAGE
+                and compiled_value.get("family")
+                == ("codex" if profile.name == "gpt" else "claude")
+                and compiled_value.get("suite_wrapper_absent") is True,
+                repr(compiled_value),
+            ),
+            AssertionFinding(
+                "compiled sources have exact occurrence counts",
+                bool(sources)
+                and all(
+                    isinstance(item, dict)
+                    and item.get("observed_occurrences")
+                    == item.get("expected_occurrences")
+                    for item in sources
+                ),
+                repr(sources),
+            ),
+            AssertionFinding(
+                "normal TASKS condition matches mode",
+                compiled_value.get("include_tasks") is task_mode,
+                repr(compiled_value.get("include_tasks")),
             ),
             AssertionFinding(
                 "producer prompt does not request a testing strategy",
@@ -318,7 +356,7 @@ def test_root_requirement_testing_guidance(
             ),
         )
     )
-    guidance_message = guidance.context_message(instruction_paths)
+    compiled_message = str(compiled_value.get("compiled_message", ""))
     record = {
         "schema_version": 1,
         "dataset_id": dataset_id,
@@ -334,6 +372,7 @@ def test_root_requirement_testing_guidance(
         "prompt": prompt,
         "mode": mode,
         "repeat_variant": repeat_variant or "default",
+        "run_attempt": run_attempt or "initial",
         "guidance_compilation": compilation_evidence(
             compilation,
             mode=mode,
@@ -347,13 +386,13 @@ def test_root_requirement_testing_guidance(
         },
         "guidance": {
             **guidance.metadata(),
-            "injected_paths": list(instruction_paths),
+            "injected_paths": [],
             "effective_message_sha256": hashlib.sha256(
-                guidance_message.encode("utf-8")
+                compiled_message.encode("utf-8")
             ).hexdigest(),
-            "effective_message": guidance_message,
+            "effective_message": compiled_message,
         },
-        "instruction_delivery": injection_value,
+        "instruction_delivery": compiled_value,
         "changed_paths": run.changed_paths,
         "generated_files": files,
         "response": value.response,

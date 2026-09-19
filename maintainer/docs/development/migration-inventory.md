@@ -74,9 +74,7 @@ Date: September 18, 2026
 
 ## Deferred
 
-- A corrected task-mode delivery profile that preserves repository-file versus
-  developer-message instruction layers.
-- Task-mode producer, semantic, and pairwise reruns using that profile.
-- A promotion decision for combined-v2.
+- A promotion decision for combined-v2, pending the focused completeness
+  correction described by the corrected default-runner report.
 - Committing the already compiled IOCharts migration in the IOCharts Frontend
   repository.

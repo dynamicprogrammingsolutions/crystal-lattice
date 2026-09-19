@@ -15,14 +15,17 @@ from .requirement_quality_evaluator import (
 
 
 RESULT_ROOT = Path(__file__).resolve().parent / "fixtures" / "results"
-OUTPUT_PATH = RESULT_ROOT / "compiled_guidance_20260918_results.json"
-ANALYSIS_PATH = RESULT_ROOT / "compiled_guidance_20260918_analysis.json"
-SEMANTIC_REPEAT_VARIANT = "compiled-matrix-r1"
-QUALITY_REPEAT_VARIANTS = (
-    "compiled-documentation-r2",
-    "compiled-documentation-r1",
+OUTPUT_PATH = (
+    RESULT_ROOT
+    / "compiled_guidance_default_runner_20260918_results.json"
 )
-PRODUCER_REPEAT_VARIANT = "compiled-documentation-r1"
+ANALYSIS_PATH = (
+    RESULT_ROOT
+    / "compiled_guidance_default_runner_20260918_analysis.json"
+)
+SEMANTIC_REPEAT_VARIANT = "default-runner-r2"
+QUALITY_REPEAT_VARIANTS = ("default-runner-r2",)
+PRODUCER_REPEAT_VARIANT = "default-runner-r2"
 VARIANT_BUNDLES = {
     "baseline": "maintainer/guidance/current",
     "combined-v2": (
@@ -421,10 +424,11 @@ def freeze_matrix(
     }
     return {
         "schema_version": 1,
-        "dataset_id": "compiled-guidance-portable-matrix-20260918",
+        "dataset_id": "compiled-guidance-default-runner-matrix-20260918",
         "description": (
-            "Portable baseline and combined-v2 matrix using fixture-owned "
-            "targets and explicit root-only versus root-plus-TASKS delivery."
+            "Baseline and combined-v2 matrix using fixture-owned targets and "
+            "the normal Crystal Lattice Codex/Claude system-message and tool "
+            "configuration in root-only versus task-guidance modes."
         ),
         "source_revisions": sorted(revisions),
         "semantic_repeat_variant": SEMANTIC_REPEAT_VARIANT,

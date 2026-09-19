@@ -4,6 +4,48 @@ The suite under `suites/documentation_standard/` checks whether agents apply the
 authored documentation and specification guidance during ordinary repository
 tasks.
 
+## Common Crystal Lattice runner contract
+
+This is the baseline setup for every documentation-guidance real-model test.
+It is not a separate test case, candidate, or optional evaluation mode.
+
+- Derive a reduced test config from the normal Crystal Lattice default config.
+  Keep only the selected agent and needed plugins, but preserve that agent's
+  normal mixins and the production `feature-system-message` path.
+- GPT uses the standard Codex developer-message template selected for
+  `gpt-5.6-luna`. GLM uses the standard Claude system-message template through
+  the `glm-ollama` agent.
+- Preserve the selected agent's normal tool package as well as its message:
+  GPT/Codex uses the Codex array-shell interface, while GLM/Claude uses the
+  Claude Bash string-command interface. A model-family message paired with a
+  different tool schema is not a default-runner result.
+- Write the selected compiled `AGENTS.md` into the scenario workspace. The
+  normal Codex or Claude helper reads that file while compiling the effective
+  message.
+- Use `include_tasks=false` for root-only planning and `include_tasks=true` for
+  task-file planning. The normal `TASKS` template variable reads canonical
+  `${CONFIG_DIR}/TASKS_v7.md`.
+- Do not inject AGENTS or TASKS through a suite-owned feature unless direct
+  injection itself is the historical behavior under test.
+- Before model execution, inspect the effective message through the existing
+  system-message feature and assert the standard model-family content, exact
+  AGENTS and TASKS source hashes, expected occurrence counts, template order,
+  absence of suite wrapper text, active tool family, and shell-command schema.
+- Assert the initialized request carries the inspected content through the
+  provider's normal representation: Responses `instructions` for the ChatGPT
+  Codex profile and a leading system message for the GLM/Claude profile.
+
+The projected config deliberately does not load the complete default agent
+catalog. Fidelity comes from retaining the selected production agent,
+model-family mixins, system-message feature, tool package, source files, and
+request path.
+
+Downstream semantic assessment starts only when every requested producer record
+exists, matches the selected repeat variant, and passes deterministic producer
+findings. Pairwise review starts only from semantic records whose own
+deterministic findings pass. Process completion alone is not an upstream
+success condition.
+
 Seeds are guidance-neutral. Branches select an explicit guidance source:
 
 - `develop`: the previous guidance from pinned revision `f81f3632`;
@@ -76,18 +118,17 @@ Eleventy, FastAPI, and Flask/Vue fixtures. Those targets contain fixture facts
 only. A real consuming repository supplies its own target path through an
 explicit override, and its files are not stored here.
 
-It supports two instruction modes:
+It supports two normal system-message modes:
 
-- `root-only`: inject root `AGENTS.md`; ask for requirements and a plan in the
-  response without task-file creation;
-- `task`: inject root `AGENTS.md` plus canonical `TASKS-v7`; ask for one Draft
-  task file.
+- `root-only`: compile workspace `AGENTS.md` with `include_tasks=false`; ask
+  for requirements and a plan in the response without task-file creation;
+- `task`: compile the same workspace `AGENTS.md` with
+  `include_tasks=true`; ask for one Draft task file.
 
-The September 18 task profile concatenated both sources into one instruction
-message. It is retained as an invalid integration attempt, not evidence that
-repository-file guidance and task-enabled developer-message guidance interact
-correctly. A corrected task profile must preserve those delivery distinctions
-before the task matrix is rerun.
+The September 18 provisional matrix used the older suite-owned direct
+injection path and is retained only as historical diagnostic evidence. The
+[corrected default-runner matrix](../../../../docs/evaluations/documentation-guidance/20260918-default-runner-results.md)
+replaces it for current interpretation.
 
 Record current-bundle producer cells with:
 
@@ -96,7 +137,7 @@ AGENT_EVAL_RUN_REAL=1 \
 AGENT_EVAL_PROFILE=glm \
 AGENT_EVAL_ROOT_GUIDANCE_MODE=root-only \
 AGENT_EVAL_ROOT_GUIDANCE_CANDIDATES=glm-low,glm-high \
-AGENT_EVAL_ROOT_GUIDANCE_CACHE_VARIANT=compiled-matrix-r1 \
+AGENT_EVAL_ROOT_GUIDANCE_CACHE_VARIANT=default-runner-r2 \
 pytest maintainer/agent-evaluation/suites/documentation_standard/test_root_requirement_testing_guidance.py \
   -m "agent_eval and root_requirement_testing" -q
 ```
@@ -128,7 +169,8 @@ AGENT_EVAL_PROFILE=glm \
 AGENT_EVAL_SEMANTIC_DATASET=compiled-guidance \
 AGENT_EVAL_ROOT_GUIDANCE_MODE=root-only \
 AGENT_EVAL_ROOT_GUIDANCE_CANDIDATES=glm-low,glm-high \
-AGENT_EVAL_SEMANTIC_CACHE_VARIANT=compiled-matrix-r1 \
+AGENT_EVAL_ROOT_GUIDANCE_PRODUCER_VARIANT=default-runner-r2 \
+AGENT_EVAL_SEMANTIC_CACHE_VARIANT=default-runner-r2 \
 pytest maintainer/agent-evaluation/suites/documentation_standard/test_requirement_quality_semantic_evaluator.py \
   -m "agent_eval and requirement_semantic" -q
 ```
@@ -141,15 +183,17 @@ exist:
 ```bash
 AGENT_EVAL_RUN_REAL=1 \
 AGENT_EVAL_PROFILE=glm \
-AGENT_EVAL_ROOT_GUIDANCE_QUALITY_CACHE_VARIANT=compiled-matrix-r1 \
+AGENT_EVAL_ROOT_GUIDANCE_PRODUCER_VARIANT=default-runner-r2 \
+AGENT_EVAL_ROOT_GUIDANCE_SEMANTIC_VARIANT=default-runner-r2 \
+AGENT_EVAL_ROOT_GUIDANCE_QUALITY_CACHE_VARIANT=default-runner-r2 \
 pytest maintainer/agent-evaluation/suites/documentation_standard/test_root_guidance_quality.py \
   -m "agent_eval and root_guidance_quality" -q
 ```
 
-Every producer record preserves the compilation lock, exact injected paths,
-effective instruction hash, model/effort, response or task file, mutations,
-and deterministic findings. The compilation hash participates in cache and
-dataset identity.
+Every producer record preserves the compilation lock, source hashes, observed
+compiled-message and tool delivery, model/effort, response or task file,
+mutations, and deterministic findings. The compilation hash participates in
+cache and dataset identity.
 
 The September 18 pre-Documentation-section fixture run is incomplete: 83 of
 84 producers and 11 of 12 semantic batches completed before one GLM-max call

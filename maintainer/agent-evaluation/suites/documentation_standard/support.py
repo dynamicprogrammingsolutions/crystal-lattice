@@ -35,8 +35,17 @@ FOLLOWUP_BASELINE_GUIDANCE_REVISION = (
     "cdeb50a7df92820e487c466b030ea8f5f6dcb993"
 )
 GUIDANCE_INJECTION_VERSION = "v6"
-PROFILE_CONFIG_VERSION = "v8"
+PROFILE_CONFIG_VERSION = "v10"
+RUNNER_DIRECT_INJECTION = "direct-injection"
+RUNNER_DEFAULT_SYSTEM_MESSAGE = "default-system-message"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
+DEFAULT_SYSTEM_CONFIG_DIR = (
+    REPOSITORY_ROOT
+    / "application"
+    / "python"
+    / "agent_terminal_app"
+    / "default_config"
+)
 PLUGIN_RUNTIME_CONSTRAINTS = PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
 FIXTURE_REVISIONS = {
     "js-single-file-tool": "v4",
@@ -104,12 +113,13 @@ class ModelProfile:
         workspace: Path,
         *,
         reasoning_effort: str | None = None,
+        include_tasks: bool = False,
     ) -> dict[str, object]:
         overrides: dict[str, object] = {
             "model": self.model,
             "working_directory": str(workspace),
             "allowed_paths": [str(workspace)],
-            "include_tasks": False,
+            "include_tasks": include_tasks,
             "skills_enabled": False,
             "mcp_enabled": False,
             "web_search_enabled": False,
@@ -122,6 +132,16 @@ class ModelProfile:
             overrides["reasoning_effort"] = reasoning_effort
         if self.auth_mode is not None:
             overrides["auth_mode"] = self.auth_mode
+        if self.name == "gpt":
+            state_root = Path(
+                os.getenv(
+                    "CHATGPT_TEST_STATE_DIR",
+                    str(DEFAULT_CONFIG.parent),
+                )
+            ).expanduser()
+            overrides["chatgpt_credentials_path"] = str(
+                state_root / "auth" / "chatgpt-auth.json"
+            )
         return overrides
 
 
@@ -257,6 +277,206 @@ class GuidanceSource:
                 )
             )
         return "\n".join(lines)
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(REPOSITORY_ROOT))
+    except ValueError:
+        return str(path.resolve())
+
+
+def _compiled_source(
+    *,
+    path: Path,
+    text: str,
+    compiled: str,
+    role: str,
+    expected_occurrences: int,
+) -> dict[str, object]:
+    normalized = text.strip()
+    return {
+        "path": _display_path(path),
+        "role": role,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "expected_occurrences": expected_occurrences,
+        "observed_occurrences": (
+            compiled.count(normalized) if normalized else 0
+        ),
+    }
+
+
+def compiled_system_message_evidence(
+    context: CrystalLatticeContext,
+    *,
+    profile: ModelProfile,
+    guidance: GuidanceSource | None,
+    include_tasks: bool,
+) -> dict[str, object]:
+    if guidance is None or "AGENTS.md" not in guidance.paths:
+        raise ValueError(
+            "default system-message inspection requires AGENTS.md guidance"
+        )
+    effective_config = context.effective_config()
+    active_plugins = context.core.get_plugins_for_config(
+        cast(dict[str, Any], effective_config)
+    )
+    tool_schemas = context.core.get_tool_schemas(
+        cast(dict[str, Any], effective_config)
+    )
+    tool_interfaces: list[dict[str, object]] = []
+    for schema in tool_schemas:
+        function = schema.get("function")
+        function_value = function if isinstance(function, dict) else schema
+        name = function_value.get("name")
+        parameters = function_value.get("parameters")
+        if not isinstance(parameters, dict):
+            parameters = function_value.get("input_schema")
+        parameter_value = parameters if isinstance(parameters, dict) else {}
+        properties = parameter_value.get("properties")
+        property_value = properties if isinstance(properties, dict) else {}
+        command = property_value.get("command")
+        command_value = command if isinstance(command, dict) else {}
+        tool_interfaces.append(
+            {
+                "name": name,
+                "command_type": command_value.get("type"),
+            }
+        )
+    _, result = context.core.execute_session_action(
+        context.session,
+        cast(dict[str, Any], effective_config),
+        plugin_id="system_message",
+        action_id="show_compiled_system_message",
+        params={},
+    )
+    display = result.get("display")
+    if not isinstance(display, dict):
+        raise ValueError("system-message inspection returned no display")
+    body = display.get("body")
+    if not isinstance(body, str) or not body.strip():
+        raise ValueError("system-message inspection returned no content")
+
+    config_root = Path(
+        os.getenv(
+            "AGENT_EVAL_SYSTEM_CONFIG_DIR",
+            str(DEFAULT_SYSTEM_CONFIG_DIR),
+        )
+    ).expanduser()
+    agents_path = context.workspace / "AGENTS.md"
+    agents_text = guidance.read_bytes("AGENTS.md").decode("utf-8")
+    tasks_path = config_root / "TASKS_v7.md"
+    tasks_text = tasks_path.read_text(encoding="utf-8")
+    if profile.name == "gpt":
+        family = "codex"
+        tool_family = "codex-tools"
+        transport = "responses.instructions"
+        standard_paths = (
+            config_root
+            / "codex"
+            / "gpt-5.6-luna"
+            / "instructions_default.md",
+        )
+    else:
+        family = "claude"
+        tool_family = "claude-tools"
+        transport = "leading_system_message"
+        claude_root = (
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude-tools"
+            / "system_messages"
+            / "claude"
+        )
+        standard_paths = tuple(
+            claude_root / name
+            for name in (
+                "introduction.md",
+                "workflow.md",
+                "tool-usage-permissive-cd.md",
+                "tone-and-style.md",
+                "memory.md",
+                "context-management.md",
+            )
+        )
+
+    sources = [
+        *(
+            _compiled_source(
+                path=path,
+                text=path.read_text(encoding="utf-8"),
+                compiled=body,
+                role="standard_model_family_message",
+                expected_occurrences=1,
+            )
+            for path in standard_paths
+        ),
+        _compiled_source(
+            path=agents_path,
+            text=agents_text,
+            compiled=body,
+            role="workspace_agents",
+            expected_occurrences=1,
+        ),
+        _compiled_source(
+            path=tasks_path,
+            text=tasks_text,
+            compiled=body,
+            role="canonical_tasks",
+            expected_occurrences=1 if include_tasks else 0,
+        ),
+    ]
+    return {
+        "runner": RUNNER_DEFAULT_SYSTEM_MESSAGE,
+        "family": family,
+        "model": profile.model,
+        "include_tasks": include_tasks,
+        "inspection": "system_message.show_compiled_system_message",
+        "observed_transport": transport,
+        "tool_family": tool_family,
+        "active_tools": active_plugins.get("tools", []),
+        "tool_interfaces": tool_interfaces,
+        "tool_family_matches": (
+            any(
+                item.get("name") == "shell"
+                and item.get("command_type") == "array"
+                for item in tool_interfaces
+            )
+            if profile.name == "gpt"
+            else any(
+                item.get("name") == "Bash"
+                and item.get("command_type") == "string"
+                for item in tool_interfaces
+            )
+        ),
+        "compiled_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        "compiled_chars": len(body),
+        "compiled_message": body,
+        "sources": sources,
+        "suite_wrapper_absent": (
+            "<repository-guidance" not in body
+            and "Repository guidance for the next task follows." not in body
+        ),
+    }
+
+
+def _reload_context_with_defaults(
+    context: CrystalLatticeContext,
+) -> None:
+    loaded = context.application.load_session(
+        context.session.session_id,
+        overrides=context.config,
+    )
+    if loaded is None:
+        raise RuntimeError(
+            f"failed to reload evaluation session {context.session.session_id}"
+        )
+    core, base_config, session = loaded
+    context.replace_runtime(
+        core=core,
+        base_config=base_config,
+        session=session,
+    )
 
 
 @dataclass(frozen=True)
@@ -409,12 +629,25 @@ class DocumentationEvaluationHarness:
         profile: ModelProfile,
         *,
         guidance: GuidanceSource | None = None,
+        runner_mode: str = RUNNER_DIRECT_INJECTION,
     ) -> None:
-        config_path = Path(
+        if runner_mode not in {
+            RUNNER_DIRECT_INJECTION,
+            RUNNER_DEFAULT_SYSTEM_MESSAGE,
+        }:
+            raise ValueError(f"unknown documentation runner mode: {runner_mode}")
+        user_config_path = Path(
             os.getenv("AGENT_EVAL_CONFIG", str(DEFAULT_CONFIG))
         ).expanduser()
-        if not config_path.is_file():
-            raise FileNotFoundError(f"Crystal Lattice config missing: {config_path}")
+        if not user_config_path.is_file():
+            raise FileNotFoundError(
+                f"Crystal Lattice config missing: {user_config_path}"
+            )
+        config_path = (
+            DEFAULT_SYSTEM_CONFIG_DIR / "config.json"
+            if runner_mode == RUNNER_DEFAULT_SYSTEM_MESSAGE
+            else user_config_path
+        )
         artifact_root = Path(
             os.getenv(
                 "AGENT_EVAL_ARTIFACT_ROOT",
@@ -425,12 +658,18 @@ class DocumentationEvaluationHarness:
             config_path,
             artifact_root=artifact_root,
             profile=profile,
+            include_guidance_feature=(
+                runner_mode == RUNNER_DIRECT_INJECTION
+            ),
         )
         environment = WorkspaceAwareEnvironment.from_config(
             projected_config,
             environment={
-                "CONFIG_DIR": str(config_path.parent),
-                "CHATGPT_TEST_STATE_DIR": str(config_path.parent),
+                "CONFIG_DIR": os.getenv(
+                    "AGENT_EVAL_SYSTEM_CONFIG_DIR",
+                    str(DEFAULT_SYSTEM_CONFIG_DIR),
+                ),
+                "CHATGPT_TEST_STATE_DIR": str(user_config_path.parent),
                 "BUILTIN_PLUGINS": str(REPOSITORY_ROOT / "plugins"),
                 "PIP_CONSTRAINT": str(PLUGIN_RUNTIME_CONSTRAINTS),
                 "OLLAMA_OPENAI_BASE_URL": os.getenv(
@@ -441,6 +680,7 @@ class DocumentationEvaluationHarness:
         )
         self.profile = profile
         self.guidance = guidance or selected_guidance_source()
+        self.runner_mode = runner_mode
         self.evaluation = AgentEval(
             default_environment=environment,
             artifact_root=artifact_root / profile.name,
@@ -450,6 +690,55 @@ class DocumentationEvaluationHarness:
 
     def close(self) -> None:
         self.evaluation.close()
+
+    def inspect_scenario_system_message(
+        self,
+        *,
+        test_id: str,
+        fixture_id: str,
+        include_tasks: bool,
+    ) -> Run[dict[str, object]]:
+        if self.runner_mode != RUNNER_DEFAULT_SYSTEM_MESSAGE:
+            raise ValueError(
+                "system-message preflight requires default runner mode"
+            )
+        workspace = ScenarioWorkspaceFactory(
+            fixture_id=fixture_id,
+            candidate_guidance=True,
+            guidance=self.guidance,
+        )
+
+        def inspect(
+            context: CrystalLatticeContext,
+        ) -> dict[str, object]:
+            if context.workspace is None:
+                raise ValueError("missing evaluation workspace")
+            if context.session_or_none is None:
+                context.start(self.profile.agent_id)
+            context.config.update(
+                self.profile.request_overrides(
+                    context.workspace,
+                    include_tasks=include_tasks,
+                )
+            )
+            _reload_context_with_defaults(context)
+            return compiled_system_message_evidence(
+                context,
+                profile=self.profile,
+                guidance=self.guidance,
+                include_tasks=include_tasks,
+            )
+
+        return self.evaluation.run(
+            test_id,
+            inspect,
+            workspace=workspace,
+            cache_key=(
+                f"documentation-standard:{self.profile.name}:{test_id}:"
+                f"{self.guidance.sha256()}:{PROFILE_CONFIG_VERSION}:"
+                f"{self.runner_mode}:{include_tasks}"
+            ),
+        )
 
     def seed(
         self,
@@ -490,11 +779,14 @@ class DocumentationEvaluationHarness:
         cache_variant: str,
         prompt_heading: str = "## Exact user prompt",
         guidance_instruction_paths: tuple[str, ...] | None = None,
+        include_tasks: bool = False,
+        inspect_system_message: bool = False,
     ) -> Run[TurnValue]:
         instruction_paths = guidance_instruction_paths or self.guidance.paths
         key = (
             f"fresh:{test_id}:{reasoning_effort}:{cache_variant}:"
-            f"{prompt_heading}:{_sha256_text(json.dumps(instruction_paths))}"
+            f"{prompt_heading}:{_sha256_text(json.dumps(instruction_paths))}:"
+            f"{self.runner_mode}:{include_tasks}:{inspect_system_message}"
         )
         if key in self._runs:
             return self._runs[key]
@@ -510,7 +802,8 @@ class DocumentationEvaluationHarness:
             f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
             f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}:"
             f"{_sha256_text(json.dumps(instruction_paths))}:"
-            f"{reasoning_effort}:{cache_variant}"
+            f"{reasoning_effort}:{cache_variant}:{self.runner_mode}:"
+            f"{include_tasks}:{inspect_system_message}"
         )
         run = self.evaluation.run(
             test_id,
@@ -518,9 +811,13 @@ class DocumentationEvaluationHarness:
                 context,
                 prompt,
                 guidance=self.guidance,
-                inject_guidance=True,
+                inject_guidance=(
+                    self.runner_mode == RUNNER_DIRECT_INJECTION
+                ),
                 guidance_instruction_paths=instruction_paths,
                 reasoning_effort=reasoning_effort,
+                include_tasks=include_tasks,
+                inspect_system_message=inspect_system_message,
             ),
             workspace=workspace,
             cache_key=cache_key,
@@ -579,6 +876,8 @@ class DocumentationEvaluationHarness:
         cache: bool = True,
         guidance_instruction_paths: tuple[str, ...] | None = None,
         reasoning_effort: str | None = None,
+        include_tasks: bool = False,
+        inspect_system_message: bool = False,
     ) -> Run[TurnValue]:
         effort_key = reasoning_effort or "default"
         key = f"branch:{test_id}:{branch_variant}:{effort_key}"
@@ -617,6 +916,8 @@ class DocumentationEvaluationHarness:
                 inject_guidance=True,
                 guidance_instruction_paths=guidance_instruction_paths,
                 reasoning_effort=reasoning_effort,
+                include_tasks=include_tasks,
+                inspect_system_message=inspect_system_message,
             ),
             continue_from=parent,
             workspace=workspace,
@@ -677,6 +978,8 @@ class DocumentationEvaluationHarness:
         inject_guidance: bool = False,
         guidance_instruction_paths: tuple[str, ...] | None = None,
         reasoning_effort: str | None = None,
+        include_tasks: bool = False,
+        inspect_system_message: bool = False,
     ) -> TurnValue:
         if context.workspace is None:
             raise ValueError("missing evaluation workspace")
@@ -686,8 +989,11 @@ class DocumentationEvaluationHarness:
             self.profile.request_overrides(
                 context.workspace,
                 reasoning_effort=reasoning_effort,
+                include_tasks=include_tasks,
             )
         )
+        if inspect_system_message:
+            _reload_context_with_defaults(context)
         context.services.record(
             "documentation_standard.profile",
             {
@@ -758,6 +1064,17 @@ class DocumentationEvaluationHarness:
                 "paths": list(injected_paths),
             },
         )
+        if inspect_system_message:
+            compiled_message = compiled_system_message_evidence(
+                context,
+                profile=self.profile,
+                guidance=guidance,
+                include_tasks=include_tasks,
+            )
+            context.services.record(
+                "documentation_standard.compiled_system_message",
+                compiled_message,
+            )
         context.services.record(
             "documentation_standard.branch_cache_variant",
             os.getenv("AGENT_EVAL_BRANCH_CACHE_VARIANT", "").strip() or "default",
@@ -1059,6 +1376,7 @@ def _project_config_for_profile(
     *,
     artifact_root: Path,
     profile: ModelProfile,
+    include_guidance_feature: bool = True,
 ) -> Path:
     raw = json.loads(source.read_text())
     if not isinstance(raw, dict):
@@ -1076,6 +1394,16 @@ def _project_config_for_profile(
     plugins = raw.get("plugins")
     if not isinstance(plugins, list):
         raise ValueError(f"Crystal Lattice config has no plugins list: {source}")
+    plugin_fragments = profile.plugin_fragments
+    if not include_guidance_feature:
+        expected_tool_fragment = (
+            "/claude-tools" if profile.name == "glm" else "/codex-tools"
+        )
+        plugin_fragments = tuple(
+            fragment
+            for fragment in profile.plugin_fragments
+            if fragment not in {"/codex-tools", "/claude-tools"}
+        ) + (expected_tool_fragment,)
     selected_plugins = [
         item
         for item in plugins
@@ -1083,7 +1411,7 @@ def _project_config_for_profile(
             isinstance(item, str)
             and (
                 not item.startswith(("path:", "bash:", "node:"))
-                or any(fragment in item for fragment in profile.plugin_fragments)
+                or any(fragment in item for fragment in plugin_fragments)
             )
         )
     ]
@@ -1097,13 +1425,13 @@ def _project_config_for_profile(
             if (
                 isinstance(item, str)
                 and item.startswith(("path:", "bash:", "node:"))
-                and any(fragment in item for fragment in profile.plugin_fragments)
+                and any(fragment in item for fragment in plugin_fragments)
                 and item not in selected_plugins
             ):
                 selected_plugins.append(item)
     missing_fragments = [
         fragment
-        for fragment in profile.plugin_fragments
+        for fragment in plugin_fragments
         if not any(
             isinstance(item, str) and fragment in item for item in selected_plugins
         )
@@ -1113,11 +1441,31 @@ def _project_config_for_profile(
             f"Crystal Lattice config is missing profile plugins "
             f"{missing_fragments!r}: {source}"
         )
-    projected_agent = {
-        **selected,
-        "shell_tool_mode": "shell",
-        "plugins": [GUIDANCE_FEATURE_PLUGIN, *EVALUATION_TOOL_PLUGINS],
-    }
+    projected_agent = {**selected}
+    if include_guidance_feature:
+        projected_agent.update(
+            {
+                "shell_tool_mode": "shell",
+                "plugins": [
+                    GUIDANCE_FEATURE_PLUGIN,
+                    *EVALUATION_TOOL_PLUGINS,
+                ],
+            }
+        )
+    else:
+        projected_agent["plugins"] = list(selected.get("plugins") or [])
+    if profile.auth_mode is not None:
+        projected_agent["auth_mode"] = profile.auth_mode
+    if profile.name == "gpt":
+        state_root = Path(
+            os.getenv(
+                "CHATGPT_TEST_STATE_DIR",
+                str(DEFAULT_CONFIG.parent),
+            )
+        ).expanduser()
+        projected_agent["chatgpt_credentials_path"] = str(
+            state_root / "auth" / "chatgpt-auth.json"
+        )
     projection = {
         **raw,
         "agents": {profile.agent_id: projected_agent},
@@ -1133,7 +1481,10 @@ def _project_config_for_profile(
     config_root.mkdir(parents=True, exist_ok=True)
     target = (
         config_root
-        / f"{profile.name}-{source_sha[:16]}-{PROFILE_CONFIG_VERSION}.json"
+        / (
+            f"{profile.name}-{source_sha[:16]}-{PROFILE_CONFIG_VERSION}-"
+            f"{'direct' if include_guidance_feature else 'default'}.json"
+        )
     )
     rendered = json.dumps(projection, indent=2, sort_keys=True) + "\n"
     if not target.exists() or target.read_text() != rendered:

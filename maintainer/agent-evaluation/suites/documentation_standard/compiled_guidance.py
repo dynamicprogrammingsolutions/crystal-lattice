@@ -81,23 +81,12 @@ def guidance_source(
 ) -> GuidanceSource:
     if mode not in {"root-only", "task"}:
         raise ValueError(f"unknown compiled-guidance mode: {mode}")
-    paths = (
-        ("AGENTS.md",)
-        if mode == "root-only"
-        else ("AGENTS.md", "agents/TASKS-v7.md")
-    )
+    paths = ("AGENTS.md",)
     if "AGENTS.md" not in result.outputs:
         raise ValueError(
             "compiled consuming-project target lacks AGENTS.md"
         )
     overrides = [("AGENTS.md", result.outputs["AGENTS.md"])]
-    if mode == "task":
-        overrides.append(
-            (
-                "agents/TASKS-v7.md",
-                (REPOSITORY_ROOT / "agents/TASKS-v7.md").read_bytes(),
-            )
-        )
     return GuidanceSource(
         name=(
             f"compiled-{result.bundle_id}-{result.target_id}-{mode}-"

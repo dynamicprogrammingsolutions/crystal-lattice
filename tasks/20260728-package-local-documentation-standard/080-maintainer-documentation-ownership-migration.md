@@ -210,3 +210,18 @@ The current root-only candidate evidence is complete and favors combined-v2
 overall, but promotion remains blocked by two partial high-assurance
 requirement sets and unavailable task-mode integration evidence. The next
 calibration should correct delivery layering and rerun task mode only.
+
+## Post-completion follow-up
+
+### September 18, 2026 runner-fidelity correction
+
+The prior completion interpretation treated the root-only direct-injection
+matrix as valid default-runner evidence and proposed rerunning task mode only.
+That interpretation is superseded.
+
+The projected evaluator config already retained standard Codex and Claude
+mixins, but a suite-specific guidance feature altered delivery while
+`include_tasks` remained disabled. GLM could replace the normal Claude system
+message; GPT could append duplicate AGENTS content after normal Codex
+compilation; both bypassed the ordinary TASKS variable. Subtask 069 owns the
+approved correction and full two-mode rerun.

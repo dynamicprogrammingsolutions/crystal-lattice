@@ -954,6 +954,22 @@ maintainer guidance and evaluation infrastructure.
 - [x] Test the combined root candidate.
 - [x] Exercise both root-only and root-plus-TASKS delivery modes.
 - [x] Present the root-guidance comparison for human review.
+- [x] Reclassify the September 18 compiled-guidance matrix as historical
+  direct-injection evidence rather than default-runner calibration.
+- [x] Document the common Crystal Lattice runner contract used by every
+  documentation-guidance real-model test.
+- [x] Remove suite-specific guidance injection from the corrected compiled
+  matrix while preserving legacy direct-injection tests.
+- [x] Use the projected default config with the standard GPT/Codex and
+  GLM/Claude system-message mixins, workspace `AGENTS.md`, and the normal
+  `include_tasks`/`TASKS_v7.md` path.
+- [x] Add four no-model preflight assertions covering GPT/GLM and
+  root-only/task modes, including exact source hashes, occurrence counts,
+  standard message content, and actual compiled request content.
+- [x] Run the corrected 84-producer current/candidate matrix.
+- [x] Run 12 corrected semantic batches and 42 pairwise reviews.
+- [x] Replace the provisional September 18 interpretation with the corrected
+  default-runner comparison before a candidate decision.
 - [ ] Specify three single-task scenarios.
 - [ ] Specify three task-directory scenarios.
 - [ ] Implement guidance-bearing planning branches.
@@ -998,6 +1014,7 @@ maintainer guidance and evaluation infrastructure.
 | Root Requirements guidance | Root-only and root-plus-TASKS outputs retain complete approved outcomes, reduce normative public-choice mistakes, and avoid wrong-record or optional requirements relative to the integrated baseline. |
 | Root Testing guidance | Root-only and root-plus-TASKS outputs improve decisive evidence and layer choice without reducing important crossings or adding material duplication, combinations, unresolved-behavior tests, or implementation coupling. |
 | Guidance delivery isolation | Compiled-message evidence identifies the exact root and task guidance present in every baseline and candidate run, allowing requirements-only, testing-only, and combined effects to be compared. |
+| Default-runner fidelity | The projected test config preserves the selected default Codex or Claude system-message mixin and uses the normal system-message feature to read workspace `AGENTS.md` and conditionally include canonical `TASKS_v7.md`; no suite-specific guidance feature supplies those rules. Four no-model preflights compare source hashes and exact occurrence counts with the actual compiled request before model execution. |
 
 ### Additional implementation verification
 
@@ -1014,6 +1031,45 @@ maintainer guidance and evaluation infrastructure.
 - Report skipped provider/model cases as not run.
 
 ## Implementation Notes
+
+- September 18, 2026: The user corrected the compiled-guidance delivery model.
+  Documentation-guidance model tests must use the ordinary Crystal Lattice
+  request-construction path: a reduced projection of the default config,
+  standard Codex instructions for GPT, standard Claude instructions for GLM,
+  workspace `AGENTS.md` loaded by the normal template helpers, and canonical
+  `TASKS_v7.md` controlled by `include_tasks`. The suite-specific guidance
+  feature remains only for explicitly historical/direct-injection cases.
+- September 18, 2026: The prior matrix is not default-runner calibration.
+  GLM inserted a synthetic leading system message that could replace the
+  standard Claude template; GPT appended suite guidance after normal Codex
+  compilation and could duplicate workspace AGENTS content; both bypassed the
+  standard TASKS variable because `include_tasks` was forced off. This
+  established the need for the later completed two-mode rerun.
+- September 18, 2026: Added a default-system-message runner mode that projects
+  one selected agent from the bundled default config, keeps machine-local
+  ChatGPT credentials separate from bundled message assets, removes the suite
+  guidance feature, and inspects the initialized message through the existing
+  `show_compiled_system_message` action. Four no-model gates pass for
+  GLM/Claude and GPT/Codex in root-only and task modes.
+- September 18, 2026: Started the corrected matrix with eight-way parallelism
+  per producer provider. GLM PID `21669`, GPT PID `21972`; semantic PID `24066`
+  waits for both, and pairwise PID `24110` waits for semantic completion.
+- September 18, 2026: The first default-message matrix completed but exposed
+  two additional harness defects. Task-file capture enumerated the cleaned live
+  workspace before trying retained files, and the GLM/Claude message was paired
+  with the Codex array-shell evaluation tool. Downstream supervisors also
+  treated process completion as sufficient to start.
+- September 18, 2026: Corrected task capture to iterate `changed_paths`,
+  preserved Codex tools for GPT and Claude tools for GLM, added shell-schema
+  preflights, pinned dataset loading to an explicit producer repeat variant,
+  and rejected failed producer or semantic findings before dependent stages.
+- September 18, 2026: Completed the `default-runner-r2` matrix after focused
+  retries for five incomplete producers and nine malformed pairwise responses.
+  Final evidence has 84 valid producers, 84 semantic assessments, 42 pairwise
+  reviews, and no missing identity. Combined-v2 wins 34/42 pairwise reviews and
+  improves scope/testing substantially, but complete requirements decline from
+  36/42 to 35/42. The candidate is not promoted; the dated corrected-run report
+  recommends a narrow v3 completeness correction.
 
 - September 15, 2026: Consumed the committed current-guidance baseline at
   `73a2f4bf` without rerunning it. Candidate v1 ran the exact 21 producer cells
@@ -1135,8 +1191,8 @@ maintainer guidance and evaluation infrastructure.
   improvement but GPT high/xhigh/max requirement-completeness regressions.
   It also confirms that injecting full Crystal Lattice root guidance into
   unrelated project fixtures is a confound. These results are retained as the
-  old comparison; both variants must be rerun after guidance compilation uses
-  project-appropriate base files.
+  old comparison; the later default-runner matrix replaces them for current
+  decisions.
 - September 17, 2026: Preserve these directions for the candidate after the
   corrected compiled matrix is interpreted:
   - preserve every approved observable outcome even when its mechanism or

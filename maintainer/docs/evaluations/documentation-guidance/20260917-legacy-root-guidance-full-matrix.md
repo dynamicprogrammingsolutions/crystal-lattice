@@ -13,8 +13,8 @@ comparison evidence. It must not be treated as the corrected portable-guidance
 baseline because most of the injected project information did not belong to
 those repositories.
 
-The corrected baseline and latest candidate must be rerun after the guidance
-source/compiler migration using base files appropriate to each project.
+The required replacement is complete in the
+[corrected default-runner results](20260918-default-runner-results.md).
 
 ## Matrix
 

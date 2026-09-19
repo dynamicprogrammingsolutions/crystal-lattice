@@ -76,7 +76,9 @@ Real-model tests use the `agent_eval` marker and are excluded by default.
 The
 [documentation-guidance behavioral suite](../../suites/documentation_standard/docs/index.md)
 explains baseline/candidate guidance variants, routine/extended selection, and
-real-model commands.
+real-model commands. Its common Crystal Lattice runner contract preserves the
+selected default Codex or Claude system-message compilation path for every
+documentation-guidance model test.
 
 ## Extension guidance
 
