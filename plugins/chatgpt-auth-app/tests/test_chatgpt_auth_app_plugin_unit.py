@@ -507,3 +507,343 @@ def test_show_account_status_reports_missing_limits_when_no_snapshot_exists(tmp_
     )
 
     assert "- Not available yet. Run a ChatGPT-backed request to refresh." in result["display"]["body"]
+
+def _journal_path(tmp_path: Path) -> Path:
+    return tmp_path / "auth" / "chatgpt-usage-journal.ndjson"
+
+
+def _write_journal_record(tmp_path: Path, record: Dict[str, Any]) -> None:
+    journal = _journal_path(tmp_path)
+    journal.parent.mkdir(parents=True, exist_ok=True)
+    with open(journal, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record) + "\n")
+
+
+def _request_usage_record(
+    *,
+    input_tokens: int,
+    output_tokens: int = 10,
+    estimated_cost: float = 0.01,
+    timestamp: str,
+    used_percent: float = 30.0,
+) -> Dict[str, Any]:
+    return {
+        "type": "request_usage",
+        "timestamp": timestamp,
+        "response_id": "resp",
+        "model": "gpt-5",
+        "input_tokens": input_tokens,
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "output_tokens": output_tokens,
+        "reasoning_tokens": 0,
+        "estimated_cost": estimated_cost,
+        "rate_limits": {
+            "captured_at": timestamp,
+            "snapshots": [
+                {
+                    "limit_id": "codex",
+                    "primary": {
+                        "used_percent": used_percent,
+                        "window_minutes": 300,
+                        "resets_at": 1775995500,
+                    },
+                    "secondary": None,
+                    "credits": None,
+                }
+            ],
+        },
+    }
+
+
+def _create_chatgpt_session(app: AgentApplication):
+    _core, _base_config, session = app.create_session("default")
+    app.save_session(session)
+    return session
+
+
+def test_show_usage_report_totals_since_reset(tmp_path: Path) -> None:
+    app = _build_openai_responses_app(tmp_path, auth_mode="auto")
+    _write_journal_record(
+        tmp_path,
+        _request_usage_record(
+            input_tokens=100,
+            timestamp="2026-09-18T10:00:00Z",
+            used_percent=10.0,
+        ),
+    )
+    _write_journal_record(
+        tmp_path,
+        {
+            "type": "usage_reset",
+            "timestamp": "2026-09-18T11:00:00Z",
+            "source": "chatgpt_auth_app",
+        },
+    )
+    _write_journal_record(
+        tmp_path,
+        _request_usage_record(
+            input_tokens=200,
+            output_tokens=20,
+            estimated_cost=0.02,
+            timestamp="2026-09-19T10:00:00Z",
+            used_percent=45.0,
+        ),
+    )
+    _write_journal_record(
+        tmp_path,
+        _request_usage_record(
+            input_tokens=50,
+            output_tokens=5,
+            estimated_cost=0.01,
+            timestamp="2026-09-19T11:00:00Z",
+            used_percent=60.0,
+        ),
+    )
+
+    session = _create_chatgpt_session(app)
+    result = app.execute_application_action(
+        "chatgpt_auth",
+        "show_usage_report",
+        {"session_id": session.session_id},
+    )
+
+    body = result["display"]["body"]
+    assert "Tracking since reset: `2026-09-18T11:00:00Z`" in body
+    assert "Requests: `2`" in body
+    assert "Input tokens: `250`" in body
+    assert "Output tokens: `25`" in body
+    assert "Estimated cost: `$0.030000`" in body
+    assert "5h limit: `40% left`" in body
+    # Percent history is scoped to the same since-reset window.
+    assert "`45%` → `60%`" in body
+    assert "(min `45%`, max `60%`)" in body
+
+    display = result["display"]
+    assert display["form"]["kind"] == "form"
+    form_names = [entry["name"] for entry in display["form"]["inputs"]]
+    assert form_names == ["from", "to"]
+    assert all(entry["type"] == "string" for entry in display["form"]["inputs"])
+    followup = display["actions"][0]
+    assert followup["kind"] == "run_action"
+    assert followup["action_id"] == "show_usage_report"
+    assert followup["fixed_params"] == {"session_id": session.session_id}
+    assert followup["param_map"] == {"from": "$form.from", "to": "$form.to"}
+
+
+def test_show_usage_report_narrows_by_date_range(tmp_path: Path) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    app = _build_openai_responses_app(tmp_path, auth_mode="auto")
+    early_dt = datetime(2026, 9, 18, 6, 0, tzinfo=timezone.utc)
+    late_dt = datetime(2026, 9, 19, 18, 0, tzinfo=timezone.utc)
+    _write_journal_record(
+        tmp_path,
+        _request_usage_record(
+            input_tokens=100,
+            timestamp=early_dt.isoformat().replace("+00:00", "Z"),
+            used_percent=5.0,
+        ),
+    )
+    _write_journal_record(
+        tmp_path,
+        _request_usage_record(
+            input_tokens=500,
+            timestamp=late_dt.isoformat().replace("+00:00", "Z"),
+            used_percent=80.0,
+        ),
+    )
+
+    session = _create_chatgpt_session(app)
+    # Express the range in the server's own timezone text format.
+    from_text = (early_dt + timedelta(hours=1)).astimezone().strftime("%Y-%m-%d %H:%M")
+    to_text = (late_dt + timedelta(hours=1)).astimezone().strftime("%Y-%m-%d %H:%M")
+
+    result = app.execute_application_action(
+        "chatgpt_auth",
+        "show_usage_report",
+        {"session_id": session.session_id, "from": from_text, "to": to_text},
+    )
+
+    body = result["display"]["body"]
+    assert f"Date range: `{from_text}` → `{to_text}`" in body
+    assert "Requests: `1`" in body
+    assert "Input tokens: `500`" in body
+    assert "Input tokens: `100`" not in body
+    # The narrowed report keeps the range form so the user can adjust it.
+    assert result["display"]["form"]["inputs"][0].get("default") == from_text
+    assert result["display"]["form"]["inputs"][1].get("default") == to_text
+
+
+def test_show_usage_report_accepts_date_only_input(tmp_path: Path) -> None:
+    from datetime import datetime, timezone
+
+    app = _build_openai_responses_app(tmp_path, auth_mode="auto")
+    record_dt = datetime(2026, 9, 19, 12, 0, tzinfo=timezone.utc)
+    _write_journal_record(
+        tmp_path,
+        _request_usage_record(
+            input_tokens=42,
+            timestamp=record_dt.isoformat().replace("+00:00", "Z"),
+        ),
+    )
+
+    session = _create_chatgpt_session(app)
+    local_date = record_dt.astimezone().strftime("%Y-%m-%d")
+
+    result = app.execute_application_action(
+        "chatgpt_auth",
+        "show_usage_report",
+        {"session_id": session.session_id, "from": local_date},
+    )
+
+    body = result["display"]["body"]
+    assert "Requests: `1`" in body
+    assert "Input tokens: `42`" in body
+
+
+def test_show_usage_report_invalid_date_shows_friendly_error(tmp_path: Path) -> None:
+    app = _build_openai_responses_app(tmp_path, auth_mode="auto")
+    session = _create_chatgpt_session(app)
+
+    result = app.execute_application_action(
+        "chatgpt_auth",
+        "show_usage_report",
+        {"session_id": session.session_id, "from": "not-a-date"},
+    )
+
+    display = result["display"]
+    assert display["variant"] == "error"
+    assert "Could not read the requested date range" in display["body"]
+    assert "`not-a-date`" in display["body"]
+    # The form is retained so the user can retry.
+    assert display["form"]["kind"] == "form"
+
+
+def test_reset_usage_tracking_appends_marker_and_report_follows(tmp_path: Path) -> None:
+    app = _build_openai_responses_app(tmp_path, auth_mode="auto")
+    _write_journal_record(
+        tmp_path,
+        _request_usage_record(
+            input_tokens=100,
+            timestamp="2026-09-18T10:00:00Z",
+        ),
+    )
+
+    session = _create_chatgpt_session(app)
+    result = app.execute_application_action(
+        "chatgpt_auth",
+        "reset_usage_tracking",
+        {"session_id": session.session_id},
+    )
+
+    assert result["reset_appended"] is True
+    assert result["display"]["variant"] == "success"
+    journal_text = _journal_path(tmp_path).read_text(encoding="utf-8")
+    reset_lines = [
+        line
+        for line in journal_text.splitlines()
+        if '"type": "usage_reset"' in line
+    ]
+    assert len(reset_lines) == 1
+
+    report = app.execute_application_action(
+        "chatgpt_auth",
+        "show_usage_report",
+        {"session_id": session.session_id},
+    )
+    assert "Requests: `0`" in report["display"]["body"]
+    assert "Tracking since reset: " in report["display"]["body"]
+
+
+def test_show_account_status_includes_since_reset_usage(tmp_path: Path) -> None:
+    app = _build_openai_responses_app(tmp_path, auth_mode="auto")
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "refresh_token": "chatgpt-refresh-token",
+                "token_type": "Bearer",
+                "account_email": "user@example.com",
+                "account_id": "acct-123",
+                "plan_type": "plus",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_journal_record(
+        tmp_path,
+        _request_usage_record(
+            input_tokens=1000,
+            output_tokens=100,
+            estimated_cost=0.123456,
+            timestamp="2026-09-19T10:00:00Z",
+        ),
+    )
+
+    session = _create_chatgpt_session(app)
+    result = app.execute_application_action(
+        "chatgpt_auth",
+        "show_account_status",
+        {"session_id": session.session_id},
+    )
+
+    body = result["display"]["body"]
+    assert "Estimated usage since reset:" in body
+    assert "Requests: `1`" in body
+    assert "Input tokens: `1,000`" in body
+    assert "Output tokens: `100`" in body
+    assert "Estimated cost: `$0.123456`" in body
+
+
+def test_usage_report_actions_gated_to_chatgpt_sessions(tmp_path: Path) -> None:
+    # A non-openai_responses provider session must not expose usage actions.
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {
+            "echo": {"provider": "echo_openai_like", "model": "test-model"}
+        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            _plugin_entry(
+                "chatgpt-auth-app",
+                "chatgpt_auth_app.ChatGPTAuthAppPlugin",
+            ),
+        ],
+        "agents": {
+            "default": {"provider": "echo"},
+        },
+        "application": {
+            "chatgpt_auth": {
+                "credentials_path": "${env:CONFIG_DIR}/auth/chatgpt-auth.json",
+                "rate_limits_path": "${env:CONFIG_DIR}/auth/chatgpt-rate-limits.json",
+            }
+        },
+    }
+    config_path = tmp_path / "config_chatgpt_auth_echo.json"
+    config_path.write_text(json.dumps(cfg), encoding="utf-8")
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+        env_overrides={"CONFIG_DIR": str(tmp_path)},
+    )
+    _core, _base_config, session = app.create_session("default")
+    app.save_session(session)
+
+    report = app.execute_application_action(
+        "chatgpt_auth",
+        "show_usage_report",
+        {"session_id": session.session_id},
+    )
+    assert report["display"]["variant"] == "warning"
+
+    reset = app.execute_application_action(
+        "chatgpt_auth",
+        "reset_usage_tracking",
+        {"session_id": session.session_id},
+    )
+    assert reset["display"]["variant"] == "warning"
+    assert not _journal_path(tmp_path).exists()

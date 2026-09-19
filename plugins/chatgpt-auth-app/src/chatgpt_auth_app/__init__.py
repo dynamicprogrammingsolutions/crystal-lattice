@@ -4,7 +4,6 @@ import json
 import os
 import tempfile
 import threading
-import time
 import uuid
 import base64
 import subprocess
@@ -14,6 +13,8 @@ from typing import Any, Dict, List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlencode
 from urllib.request import Request, urlopen
+
+from . import usage_journal
 
 
 _DEFAULT_HTTP_TIMEOUT_SECONDS = 20.0
@@ -279,10 +280,37 @@ class ChatGPTAuthAppPlugin:
             },
             {
                 "ui_type": "session_action",
+                "id": "chatgpt_auth_show_usage_report",
+                "label": "Show ChatGPT usage report",
+                "icon": "bar-chart",
+                "order": 8,
+                "action_id": "show_usage_report",
+                "param_map": {"session_id": "$session.session_id"},
+                "dialog": {"kind": "none"},
+            },
+            {
+                "ui_type": "session_action",
+                "id": "chatgpt_auth_reset_usage_tracking",
+                "label": "Reset ChatGPT usage tracking",
+                "icon": "rotate-ccw",
+                "order": 9,
+                "action_id": "reset_usage_tracking",
+                "param_map": {"session_id": "$session.session_id"},
+                "dialog": {
+                    "kind": "confirm",
+                    "title": "Reset usage tracking",
+                    "message": (
+                        "Append a reset marker so usage totals start from now? "
+                        "Previous journal history stays inspectable."
+                    ),
+                },
+            },
+            {
+                "ui_type": "session_action",
                 "id": "chatgpt_auth_cancel_login",
                 "label": "Cancel ChatGPT login",
                 "icon": "x-circle",
-                "order": 8,
+                "order": 10,
                 "action_id": "cancel_login",
                 "dialog": {"kind": "none"},
             },
@@ -291,7 +319,7 @@ class ChatGPTAuthAppPlugin:
                 "id": "chatgpt_auth_logout",
                 "label": "Log out of ChatGPT",
                 "icon": "log-out",
-                "order": 9,
+                "order": 11,
                 "action_id": "logout",
                 "dialog": {"kind": "none"},
             },
@@ -414,6 +442,44 @@ class ChatGPTAuthAppPlugin:
                 },
             },
             {
+                "id": "show_usage_report",
+                "label": "Show ChatGPT usage report",
+                "description": (
+                    "Return estimated ChatGPT usage totals since the last reset "
+                    "(or within a date range) with usage-percent history."
+                ),
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
+                    "from": {
+                        "type": "string",
+                        "required": False,
+                        "description": (
+                            "Optional inclusive start date or date+time "
+                            "(server timezone), e.g. 2026-09-19 or 2026-09-19 14:30."
+                        ),
+                    },
+                    "to": {
+                        "type": "string",
+                        "required": False,
+                        "description": (
+                            "Optional inclusive end date or date+time "
+                            "(server timezone), e.g. 2026-09-19 or 2026-09-19 14:30."
+                        ),
+                    },
+                },
+            },
+            {
+                "id": "reset_usage_tracking",
+                "label": "Reset ChatGPT usage tracking",
+                "description": (
+                    "Append a manual reset marker so usage totals start from now. "
+                    "Journal history is preserved."
+                ),
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
+                },
+            },
+            {
                 "id": "cancel_login",
                 "label": "Cancel ChatGPT login",
                 "description": "Cancel the active background login poller.",
@@ -446,6 +512,10 @@ class ChatGPTAuthAppPlugin:
             }
         if action_id == "show_account_status":
             return self._show_account_status(app, state, params)
+        if action_id == "show_usage_report":
+            return self._show_usage_report(app, state, params)
+        if action_id == "reset_usage_tracking":
+            return self._reset_usage_tracking(app, state, params)
         if action_id == "cancel_login":
             auth_status = self._cancel_login(app, state)
             return {
@@ -1145,6 +1215,19 @@ class ChatGPTAuthAppPlugin:
             else:
                 lines.append("- Not available yet. Run a ChatGPT-backed request to refresh.")
 
+            journal_path = self._usage_journal_path(state, config)
+            report = usage_journal.build_usage_report(journal_path)
+            totals = report.get("totals") if isinstance(report.get("totals"), dict) else {}
+            if totals.get("request_count"):
+                lines.append("")
+                lines.append("Estimated usage since reset:")
+                lines.append(f"- Requests: `{totals.get('request_count', 0):,}`")
+                lines.append(f"- Input tokens: `{totals.get('input_tokens', 0):,}`")
+                lines.append(f"- Output tokens: `{totals.get('output_tokens', 0):,}`")
+                lines.append(
+                    f"- Estimated cost: `${float(totals.get('estimated_cost', 0.0)):.6f}`"
+                )
+
         display = {
             "format": "markdown",
             "title": "ChatGPT Account Status",
@@ -1157,6 +1240,346 @@ class ChatGPTAuthAppPlugin:
             "rate_limits": rate_limits_state,
             "requested_auth_mode": requested_mode,
             "effective_auth_mode": effective_mode,
+        }
+
+    def _usage_journal_path(
+        self,
+        state: Dict[str, Any],
+        session_config: Dict[str, Any],
+    ) -> Path:
+        app_cfg = self._config(state)
+        candidates: List[Path] = []
+        seen = set()
+        for cfg in (
+            session_config,
+            {
+                "chatgpt_rate_limits_path": app_cfg.get("rate_limits_path"),
+                "chatgpt_credentials_path": app_cfg.get("credentials_path"),
+            },
+        ):
+            try:
+                path = usage_journal.resolve_usage_journal_path(cfg)
+            except Exception:
+                continue
+            if str(path) not in seen:
+                seen.add(str(path))
+                candidates.append(path)
+        for path in candidates:
+            if path.exists():
+                return path
+        return candidates[0] if candidates else usage_journal.resolve_usage_journal_path(session_config)
+
+    def _render_report_limit_lines(
+        self,
+        latest_rate_limits: Optional[Dict[str, Any]],
+    ) -> List[str]:
+        if not isinstance(latest_rate_limits, dict):
+            return []
+        snapshots = latest_rate_limits.get("snapshots")
+        if not isinstance(snapshots, list):
+            return []
+        lines: List[str] = []
+        for snapshot in snapshots:
+            if not isinstance(snapshot, dict):
+                continue
+            limit_id = snapshot.get("limit_id")
+            bucket = str(limit_id) if isinstance(limit_id, str) and limit_id else "codex"
+            window_count = int(isinstance(snapshot.get("primary"), dict)) + int(
+                isinstance(snapshot.get("secondary"), dict)
+            )
+            prefix_non_codex_single = bucket != "codex" and window_count == 1
+            if bucket != "codex" and window_count > 1:
+                lines.append(f"- `{bucket}`")
+            for window_kind, fallback in (("primary", "5h limit"), ("secondary", "Weekly limit")):
+                window = snapshot.get(window_kind)
+                if not isinstance(window, dict):
+                    continue
+                label = _format_limit_label(window, fallback)
+                if prefix_non_codex_single:
+                    label = f"{bucket} {label}"
+                percent_used = window.get("used_percent")
+                percent_remaining = (
+                    100.0 - float(percent_used)
+                    if isinstance(percent_used, (int, float))
+                    else None
+                )
+                reset_text = _format_reset_time(window.get("resets_at"))
+                line = f"- {label}: "
+                if percent_remaining is not None:
+                    line += f"`{percent_remaining:.0f}% left`"
+                else:
+                    line += "`usage available`"
+                if isinstance(reset_text, str) and reset_text:
+                    line += f" (resets `{reset_text}`)"
+                lines.append(line)
+        return lines
+
+    def _render_report_percent_history(
+        self,
+        percent_summary: List[Dict[str, Any]],
+    ) -> List[str]:
+        lines: List[str] = []
+        for summary in percent_summary:
+            if not isinstance(summary, dict):
+                continue
+            limit_id = summary.get("limit_id")
+            bucket = str(limit_id) if isinstance(limit_id, str) and limit_id else "codex"
+            label = _format_limit_label(summary, "5h limit" if summary.get("window") == "primary" else "Weekly limit")
+            if bucket != "codex":
+                label = f"{bucket} {label}"
+            first = summary.get("first_used_percent")
+            last = summary.get("last_used_percent")
+            minimum = summary.get("min_used_percent")
+            maximum = summary.get("max_used_percent")
+            if not all(isinstance(value, (int, float)) for value in (first, last, minimum, maximum)):
+                continue
+            line = (
+                f"- {label}: `{first:.0f}%` → `{last:.0f}%` "
+                f"(min `{minimum:.0f}%`, max `{maximum:.0f}%`)"
+            )
+            lines.append(line)
+        return lines
+
+    def _show_usage_report(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        _ = app
+        session_id = params.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id is required")
+
+        config = self._session_config(app, session_id)
+        supported = self._should_show_session_actions(
+            config, [f"provider:{config.get('provider')}"]
+        )
+        if not supported:
+            display = {
+                "format": "markdown",
+                "title": "ChatGPT Usage Report",
+                "body": (
+                    "ChatGPT usage reports are only available for OpenAI Responses "
+                    "sessions with `auth_mode` set to `auto` or `chatgpt`."
+                ),
+                "variant": "warning",
+            }
+            return {"display": display}
+
+        raw_from = params.get("from")
+        raw_to = params.get("to")
+        from_dt = None
+        to_dt = None
+        invalid_inputs: List[str] = []
+        if isinstance(raw_from, str) and raw_from.strip():
+            from_dt = usage_journal.parse_report_datetime(raw_from)
+            if from_dt is None:
+                invalid_inputs.append(f"from (`{raw_from.strip()}`)")
+        if isinstance(raw_to, str) and raw_to.strip():
+            to_dt = usage_journal.parse_report_datetime(raw_to)
+            if to_dt is None:
+                invalid_inputs.append(f"to (`{raw_to.strip()}`)")
+        if invalid_inputs:
+            body_lines = [
+                "Could not read the requested date range:",
+            ]
+            body_lines.extend(f"- {item}" for item in invalid_inputs)
+            body_lines.append("")
+            body_lines.append(
+                "Use a date like `2026-09-19` or a date and time like "
+                "`2026-09-19 14:30` (interpreted in the server's timezone)."
+            )
+            return {
+                "display": {
+                    "format": "markdown",
+                    "title": "ChatGPT Usage Report",
+                    "body": "\n".join(body_lines),
+                    "variant": "error",
+                    "form": self._report_range_form(raw_from, raw_to),
+                    "actions": self._report_range_actions(session_id),
+                }
+            }
+        if from_dt is not None and to_dt is not None and from_dt > to_dt:
+            return {
+                "display": {
+                    "format": "markdown",
+                    "title": "ChatGPT Usage Report",
+                    "body": "The `from` date must not be after the `to` date.",
+                    "variant": "error",
+                    "form": self._report_range_form(raw_from, raw_to),
+                    "actions": self._report_range_actions(session_id),
+                }
+            }
+
+        journal_path = self._usage_journal_path(state, config)
+        report = usage_journal.build_usage_report(
+            journal_path, from_dt=from_dt, to_dt=to_dt
+        )
+        totals = report.get("totals") if isinstance(report.get("totals"), dict) else {}
+
+        lines: List[str] = []
+        if from_dt is None and to_dt is None:
+            reset_at = report.get("reset_at")
+            if isinstance(reset_at, str) and reset_at:
+                lines.append(f"Tracking since reset: `{reset_at}`")
+            else:
+                lines.append("Tracking since: `journal start (no reset marker yet)`")
+        else:
+            from_text = from_dt.strftime("%Y-%m-%d %H:%M") if from_dt is not None else "start"
+            to_text = to_dt.strftime("%Y-%m-%d %H:%M") if to_dt is not None else "now"
+            lines.append(f"Date range: `{from_text}` → `{to_text}`")
+        lines.append("")
+        lines.append("Estimated usage:")
+        lines.append(f"- Requests: `{totals.get('request_count', 0):,}`")
+        lines.append(f"- Input tokens: `{totals.get('input_tokens', 0):,}`")
+        lines.append(f"- Cached tokens: `{totals.get('cached_tokens', 0):,}`")
+        lines.append(f"- Cache write tokens: `{totals.get('cache_write_tokens', 0):,}`")
+        lines.append(f"- Output tokens: `{totals.get('output_tokens', 0):,}`")
+        lines.append(f"- Reasoning tokens: `{totals.get('reasoning_tokens', 0):,}`")
+        lines.append(f"- Estimated cost: `${float(totals.get('estimated_cost', 0.0)):.6f}`")
+
+        limit_lines = self._render_report_limit_lines(report.get("latest_rate_limits"))
+        lines.append("")
+        lines.append("Current usage limits:")
+        if limit_lines:
+            lines.extend(limit_lines)
+        else:
+            lines.append("- Not available yet. Run a ChatGPT-backed request to refresh.")
+
+        percent_lines = self._render_report_percent_history(
+            report.get("percent_summary") or []
+        )
+        lines.append("")
+        lines.append("Usage percent history:")
+        if percent_lines:
+            lines.extend(percent_lines)
+        else:
+            lines.append("- No usage percentages recorded yet.")
+
+        return {
+            "display": {
+                "format": "markdown",
+                "title": "ChatGPT Usage Report",
+                "body": "\n".join(lines),
+                "variant": "info",
+                "form": self._report_range_form(raw_from, raw_to),
+                "actions": self._report_range_actions(session_id),
+            },
+            "usage_report": report,
+        }
+
+    def _report_range_form(self, raw_from: Any, raw_to: Any) -> Dict[str, Any]:
+        inputs = [
+            {
+                "name": "from",
+                "type": "string",
+                "label": "From",
+                "placeholder": "2026-09-19 or 2026-09-19 14:30",
+                "required": False,
+                "submit_empty": True,
+            },
+            {
+                "name": "to",
+                "type": "string",
+                "label": "To",
+                "placeholder": "2026-09-20 or 2026-09-20 09:00",
+                "required": False,
+                "submit_empty": True,
+            },
+        ]
+        if isinstance(raw_from, str) and raw_from.strip():
+            inputs[0]["default"] = raw_from.strip()
+        if isinstance(raw_to, str) and raw_to.strip():
+            inputs[1]["default"] = raw_to.strip()
+        return {"kind": "form", "inputs": inputs}
+
+    def _report_range_actions(self, session_id: str) -> List[Dict[str, Any]]:
+        return [
+            {
+                "kind": "run_action",
+                "id": "chatgpt-usage-apply-range",
+                "label": "Apply date range",
+                "plugin": self.name,
+                "action_id": "show_usage_report",
+                "fixed_params": {"session_id": session_id},
+                "param_map": {
+                    "from": "$form.from",
+                    "to": "$form.to",
+                },
+            },
+            {
+                "kind": "dismiss",
+                "id": "chatgpt-usage-close-report",
+                "label": "Close",
+            },
+        ]
+
+    def _reset_usage_tracking(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        _ = app
+        session_id = params.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id is required")
+
+        config = self._session_config(app, session_id)
+        supported = self._should_show_session_actions(
+            config, [f"provider:{config.get('provider')}"]
+        )
+        if not supported:
+            return {
+                "display": {
+                    "format": "markdown",
+                    "title": "ChatGPT Usage Tracking",
+                    "body": (
+                        "ChatGPT usage tracking is only available for OpenAI Responses "
+                        "sessions with `auth_mode` set to `auto` or `chatgpt`."
+                    ),
+                    "variant": "warning",
+                }
+            }
+
+        journal_path = self._usage_journal_path(state, config)
+        appended = usage_journal.append_usage_reset(journal_path)
+        if appended:
+            body = (
+                "Usage tracking was reset. New usage reports start counting from now.\n\n"
+                "Previous journal history is preserved and stays inspectable by date."
+            )
+            variant = "success"
+        else:
+            body = (
+                "Could not append the reset marker to the usage journal. "
+                "Check server logs for details."
+            )
+            variant = "error"
+        return {
+            "display": {
+                "format": "markdown",
+                "title": "ChatGPT Usage Tracking Reset",
+                "body": body,
+                "variant": variant,
+                "actions": [
+                    {
+                        "kind": "run_action",
+                        "id": "chatgpt-usage-open-report",
+                        "label": "Show usage report",
+                        "plugin": self.name,
+                        "action_id": "show_usage_report",
+                        "fixed_params": {"session_id": session_id},
+                    },
+                    {
+                        "kind": "dismiss",
+                        "id": "chatgpt-usage-close-reset",
+                        "label": "Close",
+                    },
+                ],
+            },
+            "reset_appended": appended,
         }
 
     def _cancel_login(self, app: Any, state: Dict[str, Any]) -> Dict[str, Any]:

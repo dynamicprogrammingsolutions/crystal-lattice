@@ -37,6 +37,19 @@ def _credentials_path() -> Path:
     return _manual_state_dir() / "auth" / "chatgpt-auth.json"
 
 
+def _usage_journal_path() -> Path:
+    return _manual_state_dir() / "auth" / "chatgpt-usage-journal.ndjson"
+
+
+def _journal_records() -> list[dict[str, Any]]:
+    path = _usage_journal_path()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
 def _load_saved_credentials() -> dict[str, object]:
     path = _credentials_path()
     try:
@@ -79,7 +92,9 @@ def _send_streaming_request(
             final_session = chunk.get("session")
             final_messages = chunk.get("messages")
     assert final_session is not None, "expected final session from streaming request"
-    assert isinstance(final_messages, list) and final_messages, "expected final messages from stream"
+    assert (
+        isinstance(final_messages, list) and final_messages
+    ), "expected final messages from stream"
     return final_session, final_messages
 
 
@@ -160,7 +175,9 @@ def _run_tool_turn_streaming(
         pytest.fail(f"tool loop did not settle within {max_iterations} iterations")
 
     assert saw_tool_call, "expected at least one tool call in this ChatGPT turn"
-    assert len(assistant_turns) >= 2, "expected multiple assistant turns for this user turn"
+    assert (
+        len(assistant_turns) >= 2
+    ), "expected multiple assistant turns for this user turn"
     final = assistant_turns[-1]
     assert final.get("role") == "assistant"
     assert isinstance(final.get("content"), str)
@@ -214,9 +231,41 @@ def test_openai_responses_chatgpt_saved_login_usage_multi_turn_tool_loop() -> No
     assert len(turn1_responses) >= 2
     assert len(turn2_responses) >= 2
     assert turn1_estimates[0] == 0
-    assert any(value > 0 for value in turn1_estimates[1:]), (
-        "expected a later assistant response in turn 1 to have non-zero estimated cached tokens"
-    )
-    assert turn2_estimates[0] > 0, (
-        "expected the first assistant response in turn 2 to reuse estimated cached tokens"
-    )
+    assert any(
+        value > 0 for value in turn1_estimates[1:]
+    ), "expected a later assistant response in turn 1 to have non-zero estimated cached tokens"
+    assert (
+        turn2_estimates[0] > 0
+    ), "expected the first assistant response in turn 2 to reuse estimated cached tokens"
+
+    # The append-only usage journal must have grown end to end: one
+    # request_usage record per assistant response, each paired with the
+    # rate-limit snapshot observed on that response, plus at least one
+    # rate_limit_snapshot record.
+    journal_records = _journal_records()
+    request_records = [
+        record for record in journal_records if record.get("type") == "request_usage"
+    ]
+    snapshot_records = [
+        record
+        for record in journal_records
+        if record.get("type") == "rate_limit_snapshot"
+    ]
+    expected_requests = len(turn1_responses) + len(turn2_responses)
+    assert (
+        len(request_records) >= expected_requests
+    ), "expected the usage journal to record every ChatGPT-backed response"
+    assert snapshot_records, "expected rate-limit snapshots in the usage journal"
+    for record in request_records[-expected_requests:]:
+        assert isinstance(record.get("timestamp"), str)
+        assert isinstance(record.get("input_tokens"), int)
+        assert isinstance(record.get("output_tokens"), int)
+        assert isinstance(record.get("estimated_cost"), (int, float))
+        rate_limits = record.get("rate_limits")
+        assert isinstance(rate_limits, dict), (
+            "expected each request record to carry the rate-limit snapshot "
+            "observed on the same response"
+        )
+        assert (
+            isinstance(rate_limits.get("snapshots"), list) and rate_limits["snapshots"]
+        )

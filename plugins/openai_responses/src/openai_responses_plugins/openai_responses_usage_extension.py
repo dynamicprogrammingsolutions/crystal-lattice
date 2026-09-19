@@ -11,6 +11,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
 
+from .chatgpt_rate_limits import (
+    load_rate_limits_state,
+    resolve_rate_limits_path,
+)
+from .chatgpt_usage_journal import (
+    append_request_usage,
+    resolve_usage_journal_path,
+)
 from .openai_responses_pricing import estimate_usage_cost
 from .openai_responses_codex_models import (
     load_manual_chatgpt_model_pricing as _load_manual_chatgpt_model_pricing_shared,
@@ -19,6 +27,9 @@ from .openai_responses_codex_models import (
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"
+_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY = (
+    "_openai_responses_chatgpt_rate_limit_snapshots"
+)
 _PERSISTED_USAGE_ROOT_KEYS = frozenset(
     {
         "input_tokens",
@@ -176,6 +187,24 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 "required": False,
                 "default": False,
                 "description": "Show the effective OpenAI auth mode in usage footers.",
+            },
+            "track_chatgpt_usage_journal": {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": (
+                    "Append ChatGPT-backed request usage and rate-limit snapshots "
+                    "to the append-only ChatGPT usage journal (NDJSON)."
+                ),
+            },
+            "chatgpt_usage_journal_path": {
+                "type": "string",
+                "required": False,
+                "description": (
+                    "Optional path override for the ChatGPT usage journal file. "
+                    "Defaults to a chatgpt-usage-journal.ndjson file next to the "
+                    "ChatGPT rate-limits file."
+                ),
             },
         }
 
@@ -940,6 +969,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         base_native: List[Dict[str, Any]],
         current_items: List[Dict[str, Any]],
         state: Dict[str, Any],
+        response_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         prompt_tokens_str = None
         cached_tokens_str = None
@@ -1168,7 +1198,106 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         if cost_str is not None and effective_total_cost != 0.0:
             extra_md["usage_total_cost_formatted"] = cost_str
 
+        if effective_auth_mode == "chatgpt":
+            self._append_chatgpt_usage_journal_record(
+                usage=usage,
+                state=state,
+                config=config if isinstance(config, dict) else {},
+                response_id=response_id,
+                model=model,
+                service_tier=service_tier,
+                reasoning_mode=reasoning_mode,
+                estimated_cached_tokens=estimated_cached_tokens,
+                input_tokens=current_input,
+                cached_tokens=current_cached,
+                cache_write_tokens=current_cache_write,
+                output_tokens=current_output,
+                reasoning_tokens=current_reasoning,
+                estimated_cost=effective_total_cost,
+            )
+
         return extra_md
+
+    @staticmethod
+    def _chatgpt_rate_limits_for_journal(
+        state: Dict[str, Any],
+        config: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Return the rate-limit snapshot payload for the journal record.
+
+        Prefers the exact snapshot stashed in shared provider state for the
+        current response; falls back to the latest persisted rate-limits
+        state file.
+        """
+
+        stash = (
+            state.get(_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY)
+            if isinstance(state, dict)
+            else None
+        )
+        if (
+            isinstance(stash, dict)
+            and isinstance(stash.get("snapshots"), list)
+            and stash["snapshots"]
+        ):
+            return stash
+        try:
+            rate_limits_state = load_rate_limits_state(resolve_rate_limits_path(config))
+        except Exception:
+            return None
+        if (
+            isinstance(rate_limits_state, dict)
+            and isinstance(rate_limits_state.get("snapshots"), list)
+            and rate_limits_state["snapshots"]
+        ):
+            return rate_limits_state
+        return None
+
+    def _append_chatgpt_usage_journal_record(
+        self,
+        *,
+        usage: Dict[str, Any],
+        state: Dict[str, Any],
+        config: Dict[str, Any],
+        response_id: Optional[str],
+        model: Any,
+        service_tier: Any,
+        reasoning_mode: Any,
+        estimated_cached_tokens: Optional[int],
+        input_tokens: int,
+        cached_tokens: int,
+        cache_write_tokens: int,
+        output_tokens: int,
+        reasoning_tokens: int,
+        estimated_cost: float,
+    ) -> None:
+        """Append one request_usage record to the ChatGPT usage journal.
+
+        Best-effort by contract: journaling failures are swallowed so they
+        can never break the request pipeline.
+        """
+
+        if config.get("track_chatgpt_usage_journal") is False:
+            return
+        try:
+            append_request_usage(
+                resolve_usage_journal_path(config),
+                input_tokens=input_tokens,
+                cached_tokens=cached_tokens,
+                cache_write_tokens=cache_write_tokens,
+                output_tokens=output_tokens,
+                reasoning_tokens=reasoning_tokens,
+                estimated_cached_tokens=estimated_cached_tokens,
+                estimated_cost=estimated_cost,
+                model=model,
+                response_id=response_id,
+                service_tier=service_tier,
+                reasoning_mode=reasoning_mode,
+                usage=project_usage_for_persistence(usage),
+                rate_limits=self._chatgpt_rate_limits_for_journal(state, config),
+            )
+        except Exception:
+            return
 
     @staticmethod
     def _manual_model_pricing() -> Dict[str, Any] | None:
@@ -1191,6 +1320,22 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             return usage
         return None
 
+    def _extract_stream_response_id(
+        self, native_chunk: Optional[Dict[str, Any]]
+    ) -> Optional[str]:
+        if not isinstance(native_chunk, dict):
+            return None
+        if native_chunk.get("type") == "response.completed":
+            response = native_chunk.get("response")
+            if isinstance(response, dict):
+                response_id = response.get("id")
+                if isinstance(response_id, str) and response_id:
+                    return response_id
+        response_id = native_chunk.get("response_id")
+        if isinstance(response_id, str) and response_id:
+            return response_id
+        return None
+
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
@@ -1211,7 +1356,13 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         except Exception:
             base_native = list(native_messages)
 
-        extra_md = self._build_usage_metadata(usage, base_native, final_messages, state)
+        extra_md = self._build_usage_metadata(
+            usage,
+            base_native,
+            final_messages,
+            state,
+            response_id=self._extract_stream_response_id(native_chunk),
+        )
         attach_idx = self._select_attach_index(final_messages)
         if attach_idx is None:
             return partial_messages, final_messages, native_messages, state
@@ -1310,7 +1461,11 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             if idx not in response_index_set and isinstance(item, dict)
         ]
         extra_md = self._build_usage_metadata(
-            current_usage, base_native, current_items, state
+            current_usage,
+            base_native,
+            current_items,
+            state,
+            response_id=current_response_id,
         )
         attach_rel_idx = self._select_attach_index(current_items)
         if attach_rel_idx is None:

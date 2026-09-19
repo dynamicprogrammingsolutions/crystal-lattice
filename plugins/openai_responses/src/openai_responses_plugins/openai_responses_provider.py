@@ -18,6 +18,7 @@ import json
 import queue
 import threading
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 from urllib.error import HTTPError, URLError
@@ -67,6 +68,7 @@ from .chatgpt_credentials import (
     ChatGPTRefreshTransientError,
     credentials_are_valid as _chatgpt_credentials_are_valid_shared,
     credentials_have_access_token,
+    isoformat_utc,
     load_credentials as _load_chatgpt_credentials_shared,
     refresh_chatgpt_credentials,
     resolve_credentials_path as _resolve_chatgpt_credentials_path_shared,
@@ -75,6 +77,10 @@ from .chatgpt_rate_limits import (
     parse_all_rate_limit_headers,
     persist_rate_limit_snapshots,
     resolve_rate_limits_path as _resolve_chatgpt_rate_limits_path_shared,
+)
+from .chatgpt_usage_journal import (
+    append_rate_limit_snapshot,
+    resolve_usage_journal_path,
 )
 from .openai_responses_runtime import (
     DEFAULT_API_BASE_URL as _DEFAULT_BASE_URL,
@@ -108,6 +114,7 @@ _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _RAW_REASONING_CONTEXT_METADATA_KEY = "_openai_responses_reasoning_context"
 _RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"
+_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY = "_openai_responses_chatgpt_rate_limit_snapshots"
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
 _COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
@@ -600,6 +607,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         config: Dict[str, Any],
         headers: Any,
+        *,
+        state: Optional[Dict[str, Any]] = None,
     ) -> None:
         if self._effective_auth_mode(config) != "chatgpt" or headers is None:
             return
@@ -612,20 +621,45 @@ class OpenAIResponsesProvider(ProviderPlugin):
         snapshots = parse_all_rate_limit_headers(header_map)
         if not snapshots:
             return
+        captured_at = datetime.now(timezone.utc)
         persist_rate_limit_snapshots(
             self._chatgpt_rate_limits_path(config),
             snapshots,
+            captured_at=captured_at,
             plan_type=config.get("chatgpt_plan_type"),
         )
+        if isinstance(state, dict):
+            state[_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY] = {
+                "captured_at": isoformat_utc(captured_at),
+                "source": "x-codex-headers",
+                "snapshots": snapshots,
+            }
+            if isinstance(config.get("chatgpt_plan_type"), str) and config.get(
+                "chatgpt_plan_type"
+            ):
+                state[_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY]["plan_type"] = config.get(
+                    "chatgpt_plan_type"
+                )
+        try:
+            append_rate_limit_snapshot(
+                resolve_usage_journal_path(config),
+                snapshots=snapshots,
+                plan_type=config.get("chatgpt_plan_type"),
+                captured_at=captured_at,
+            )
+        except Exception:
+            return
 
     def _capture_chatgpt_rate_limits_from_stream(
         self,
         config: Dict[str, Any],
         stream: Any,
+        *,
+        state: Optional[Dict[str, Any]] = None,
     ) -> None:
         response = getattr(stream, "_response", None)
         headers = getattr(response, "headers", None)
-        self._capture_chatgpt_rate_limits(config, headers)
+        self._capture_chatgpt_rate_limits(config, headers, state=state)
 
     def _chatgpt_config_with_credentials(
         self,
@@ -2596,6 +2630,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if not isinstance(request, dict):
             raise RuntimeError("[openai_responses_provider] missing request in state")
         context = self._request_context(state)
+        # Keep the caller-owned state dict for in-place rate-limit snapshot
+        # sharing; `state` below may be rebound for the upload cache.
+        capture_state = state
 
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
@@ -2842,11 +2879,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                     self._capture_chatgpt_rate_limits(
                                         local_cfg,
                                         getattr(stream, "headers", None),
+                                        state=capture_state,
                                     )
                                     event_iter = self._iter_raw_sse_event_dicts(stream)
                                 else:
                                     self._capture_chatgpt_rate_limits_from_stream(
-                                        local_cfg, stream
+                                        local_cfg,
+                                        stream,
+                                        state=capture_state,
                                     )
                                     event_iter = stream
                                 for event in event_iter:

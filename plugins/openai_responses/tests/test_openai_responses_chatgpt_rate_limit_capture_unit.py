@@ -130,3 +130,96 @@ def test_stream_api_captures_codex_rate_limit_headers(tmp_path: Path, monkeypatc
     assert saved["plan_type"] == "plus"
     assert saved["snapshots"][0]["primary"]["used_percent"] == 45.0
     assert saved["snapshots"][0]["credits"]["balance"] == "13"
+
+
+def test_stream_api_stashes_snapshots_in_state_and_journals_them(tmp_path: Path, monkeypatch) -> None:
+    provider = OpenAIResponsesProvider()
+    state = _chatgpt_state(tmp_path)
+    stream = _FixtureStream(
+        [
+            {
+                "type": "response.completed",
+                "response": {
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [{"type": "output_text", "text": "ok"}],
+                        }
+                    ]
+                },
+            },
+        ],
+        headers={
+            "x-codex-primary-used-percent": "12",
+            "x-codex-primary-window-minutes": "300",
+            "x-codex-primary-reset-at": "1704069000",
+        },
+    )
+
+    monkeypatch.setattr(
+        provider,
+        "_create_sdk_client_with_options",
+        lambda config, *, timeout, max_retries: _StreamingClient(stream),
+    )
+
+    chunks = list(provider.stream_api(_native_messages(), state))
+    assert [chunk["type"] for chunk in chunks] == ["response.completed"]
+
+    stash = state.get("_openai_responses_chatgpt_rate_limit_snapshots")
+    assert isinstance(stash, dict)
+    assert stash["snapshots"][0]["primary"]["used_percent"] == 12.0
+    assert stash["plan_type"] == "plus"
+    assert isinstance(stash["captured_at"], str)
+
+    journal_path = tmp_path / "auth" / "chatgpt-usage-journal.ndjson"
+    assert journal_path.exists()
+    lines = [
+        line
+        for line in journal_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(lines) == 1
+    record = json.loads(lines[0])
+    assert record["type"] == "rate_limit_snapshot"
+    assert record["plan_type"] == "plus"
+    assert record["snapshots"][0]["primary"]["used_percent"] == 12.0
+    assert isinstance(record["timestamp"], str)
+
+
+def test_stream_api_does_not_capture_for_api_mode(tmp_path: Path, monkeypatch) -> None:
+    provider = OpenAIResponsesProvider()
+    state = _chatgpt_state(tmp_path)
+    state["config"]["_openai_responses_effective_auth_mode"] = "api"
+    state["config"].pop("chatgpt_access_token", None)
+    stream = _FixtureStream(
+        [
+            {
+                "type": "response.completed",
+                "response": {
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [{"type": "output_text", "text": "ok"}],
+                        }
+                    ]
+                },
+            },
+        ],
+        headers={
+            "x-codex-primary-used-percent": "12",
+        },
+    )
+
+    monkeypatch.setattr(
+        provider,
+        "_create_sdk_client_with_options",
+        lambda config, *, timeout, max_retries: _StreamingClient(stream),
+    )
+
+    list(provider.stream_api(_native_messages(), state))
+
+    journal_path = tmp_path / "auth" / "chatgpt-usage-journal.ndjson"
+    assert not journal_path.exists()
+    assert "_openai_responses_chatgpt_rate_limit_snapshots" not in state

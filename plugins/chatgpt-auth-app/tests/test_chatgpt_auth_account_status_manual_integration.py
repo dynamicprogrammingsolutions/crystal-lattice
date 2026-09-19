@@ -35,6 +35,10 @@ def _rate_limits_path() -> Path:
     return _manual_state_dir() / "auth" / "chatgpt-rate-limits.json"
 
 
+def _usage_journal_path() -> Path:
+    return _manual_state_dir() / "auth" / "chatgpt-usage-journal.ndjson"
+
+
 def _load_saved_credentials() -> dict[str, object]:
     path = _credentials_path()
     try:
@@ -67,7 +71,9 @@ def _write_config(state_dir: Path) -> Path:
         },
         "plugins": [
             _plugin_entry("chatgpt-auth-app", "chatgpt_auth_app.ChatGPTAuthAppPlugin"),
-            _plugin_entry("openai_responses", "openai_responses_plugins.OpenAIResponsesProvider"),
+            _plugin_entry(
+                "openai_responses", "openai_responses_plugins.OpenAIResponsesProvider"
+            ),
             _plugin_entry(
                 "openai_responses",
                 "openai_responses_plugins.OpenAIResponsesChatGPTAuthFeature",
@@ -128,11 +134,15 @@ def test_chatgpt_account_status_after_real_request() -> None:
             final_seen = True
 
     assert final_seen, "expected final event from real ChatGPT-backed request"
-    assert rate_limits_path.exists(), "expected ChatGPT rate-limit sidecar to be captured"
+    assert (
+        rate_limits_path.exists()
+    ), "expected ChatGPT rate-limit sidecar to be captured"
 
     saved_limits = json.loads(rate_limits_path.read_text(encoding="utf-8"))
     snapshots = saved_limits.get("snapshots")
-    assert isinstance(snapshots, list) and snapshots, "expected non-empty rate-limit snapshots"
+    assert (
+        isinstance(snapshots, list) and snapshots
+    ), "expected non-empty rate-limit snapshots"
 
     result = app.execute_application_action(
         "chatgpt_auth",
@@ -148,3 +158,47 @@ def test_chatgpt_account_status_after_real_request() -> None:
         or "Monthly limit:" in body
         or "Credits:" in body
     )
+
+    # The append-only usage journal must have grown end to end and the
+    # account status must show the since-reset estimated usage.
+    journal_path = _usage_journal_path()
+    assert journal_path.exists(), "expected ChatGPT usage journal to be created"
+    journal_records = [
+        json.loads(line)
+        for line in journal_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    request_records = [
+        record for record in journal_records if record.get("type") == "request_usage"
+    ]
+    snapshot_records = [
+        record
+        for record in journal_records
+        if record.get("type") == "rate_limit_snapshot"
+    ]
+    assert request_records, "expected request usage records in the journal"
+    assert snapshot_records, "expected rate-limit snapshot records in the journal"
+    assert isinstance(
+        request_records[-1].get("rate_limits"), dict
+    ), "expected the request record to carry the rate-limit snapshot"
+    assert "Estimated usage since reset:" in body
+    assert "Requests: `" in body
+
+    # The usage report action must render totals and keep the date-range
+    # follow-up form wired to the same action.
+    report = app.execute_application_action(
+        "chatgpt_auth",
+        "show_usage_report",
+        {"session_id": session.session_id},
+    )
+    report_body = report["display"]["body"]
+    assert "Estimated usage:" in report_body
+    assert "Requests: `" in report_body
+    assert "Usage percent history:" in report_body
+    form = report["display"].get("form") or {}
+    assert form.get("kind") == "form"
+    assert [entry["name"] for entry in form.get("inputs", [])] == ["from", "to"]
+    followup = (report["display"].get("actions") or [{}])[0]
+    assert followup.get("kind") == "run_action"
+    assert followup.get("action_id") == "show_usage_report"
+    assert followup.get("param_map") == {"from": "$form.from", "to": "$form.to"}

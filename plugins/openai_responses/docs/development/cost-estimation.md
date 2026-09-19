@@ -134,6 +134,11 @@ The estimate is an observability and pricing heuristic, not a
 provider-reported or billing-grade cache measurement. It does not expose the
 inferred preserved/interleaved classification as metadata.
 
+The same effective cached-token count and estimated cost are also appended to
+the append-only ChatGPT usage journal together with the rate-limit snapshot
+observed on the same response; see
+[Usage journal](usage-journal.md).
+
 ## ChatGPT cost estimate caveat
 
 ChatGPT users are generally governed by subscription limits/rate limits rather
