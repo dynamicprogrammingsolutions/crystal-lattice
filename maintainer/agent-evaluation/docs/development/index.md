@@ -80,6 +80,12 @@ real-model commands. Its common Crystal Lattice runner contract preserves the
 selected default Codex or Claude system-message compilation path for every
 documentation-guidance model test.
 
+The
+[task-guidance suite target](../../suites/task_guidance/docs/index.md)
+specifies staged task handoff, plan continuation, decomposition, and
+quality-gated efficiency evaluation. It is not implemented yet; the current
+human-operated workflow remains under `test/task_guidance/`.
+
 ## Extension guidance
 
 - Add optional helpers only after repeated consumers justify them.
@@ -98,3 +104,5 @@ documentation-guidance model test.
   `maintainer/agent-evaluation/docs/development/specifications/framework/`
 - Execution:
   `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
+- Planned task-guidance suite:
+  `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`

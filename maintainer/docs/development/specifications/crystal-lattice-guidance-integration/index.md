@@ -12,3 +12,8 @@ migration, and validation.
 
 The reusable guide remains package-neutral. This specification owns only
 Crystal Lattice paths, exceptions, delivery, and concrete verification.
+
+The package-owned
+[task-guidance evaluation suite target](../../../../agent-evaluation/suites/task_guidance/docs/development/specification.md)
+verifies staged handoff, decomposition, continuation, and guidance-placement
+behavior defined by this integration specification.

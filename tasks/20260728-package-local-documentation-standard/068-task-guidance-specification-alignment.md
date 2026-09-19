@@ -59,8 +59,11 @@ human-facing guide.
   from being published as available behavior.
 - [ ] The guide remains concise because it is appended to developer messages
   whenever task-file guidance is active.
-- [ ] `TASKS-v7` is self-contained for task-file behavior and does not route
-  agents to or require them to read human-facing `CONTRIBUTING.md`.
+- [ ] `TASKS-v7` is self-contained for task-file mechanics and does not route
+  agents to or require them to read human-facing `CONTRIBUTING.md`. It may rely
+  on generic Requirements and Testing guidance only when the compiler/runtime
+  contract verifies that guidance is present in the same effective
+  instruction context.
 - [ ] Standing task rules remain in the developer-message guidance so normal
   user prompts can be short and stage-specific.
 - [ ] Task guidance derives only necessary, traceable requirements, groups
@@ -488,8 +491,14 @@ Status: Approved
 - [x] Run or explicitly defer any real-model review not covered by subtask 069.
 - [x] Record human review of the current/v1/v2 evaluation comparison.
 - [ ] Specify and obtain approval for the staged test workflow.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Add fixed-prefix independent stage matrices.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Add fresh-agent handoff and same-agent continuation tests.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 
 ### Requirement verification
 
@@ -524,6 +533,12 @@ Status: Approved
   prompts, outputs, assertions, and human review status.
 
 ## Implementation Notes
+
+- September 19, 2026: The user approved splitting staged task-handoff,
+  independent-stage, fresh-agent, and same-agent evaluation into
+  `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`.
+  This task retains canonical TASKS synchronization, completed wording
+  history, and specification/task relationship ownership.
 
 - September 15, 2026: Established `agents/TASKS-v7.md` as the canonical
   authored/evaluated source. Added `scripts/sync_tasks_v7.py` with update and

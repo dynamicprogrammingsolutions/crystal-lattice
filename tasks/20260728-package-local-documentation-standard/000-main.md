@@ -147,7 +147,8 @@ and the subtasks:
 | First documentation-guidance implementation and preserved behavior evidence | `DOCGEN-001`–`DOCGEN-010`, `DOCREP-001`–`DOCREP-007` |
 | Approved documentation-guide redesign | `DOCGUIDE-001`–`DOCGUIDE-006`, `DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010`–`DOCVAL-012` |
 | Programmatic agent evaluation framework and Crystal Lattice environment | `AEVAL-001`–`AEVAL-019` |
-| Documentation-guidance evaluation suite | `AEVAL-016`, `AEVAL-020`–`AEVAL-022`, `DSEVAL-001`–`DSEVAL-002` |
+| Documentation-guidance evaluation suite | `AEVAL-016`, `AEVAL-020`–`AEVAL-022`, `DSEVAL-001`–`DSEVAL-003` |
+| Task-guidance handoff and decomposition evaluation | `TGEVAL-001`–`TGEVAL-010`, `DOCFLOW-007`–`DOCFLOW-009`, `DOCVAL-014` |
 | Package documentation assembly, publication, navigation, and compatibility | `DOCPUB-001`–`DOCPUB-006` |
 | Bounded Core/application/plugin/cross-package migration | `DOCMIG-001`–`DOCMIG-004` |
 | Contributor workflow, task guidance, and maintainer-owned evaluation | `DOCFLOW-001`–`DOCFLOW-006` |
@@ -785,6 +786,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/071-guidance-source-compilation-migration.md`
 - [x] `tasks/20260728-package-local-documentation-standard/080-maintainer-documentation-ownership-migration.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 
 ## Execution plan
 
@@ -910,6 +912,8 @@ Required new or updated documentation includes:
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.
 - [ ] 071: Migrate agent-guidance sources, compilation, candidate selection,
   and corrected project-specific evaluation bases.
+- [ ] 090: Establish the task-guidance handoff/decomposition baseline and
+  compare guidance placement.
 
 ### Requirement verification
 

@@ -971,23 +971,43 @@ maintainer guidance and evaluation infrastructure.
 - [x] Replace the provisional September 18 interpretation with the corrected
   default-runner comparison before a candidate decision.
 - [ ] Specify three single-task scenarios.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Specify three task-directory scenarios.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Implement guidance-bearing planning branches.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Implement direct-creation and existing-task branches.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Add semantic unique-outcome and unmatched-outcome evidence.
 - [ ] Add task-tree, mapping, and dependency evidence.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Add structured semantic assessment and human-review presentation.
 - [ ] Run all six decomposition-baseline GLM max cases.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Run GPT high/xhigh baseline sentinels.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Run selected medium/max effort comparisons.
 - [ ] Confirm a decomposition baseline failure before changing decomposition
   wording.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Add the shortest evidence-backed decomposition wording.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] Synchronize canonical and bundled guidance.
 - [ ] Rerun paired candidate cases without changing test pressure.
 - [x] Run deterministic tests and parity checks for the requirement/testing
   candidate work.
 - [ ] Run the final justified model/effort matrix.
+  - SPLIT INTO:
+    `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [x] Record requirement and task-count findings.
 - [x] Prepare focused human-review results.
 - [ ] Update requirement evidence and completion notes.
@@ -1031,6 +1051,13 @@ maintainer guidance and evaluation infrastructure.
 - Report skipped provider/model cases as not run.
 
 ## Implementation Notes
+
+- September 19, 2026: The user approved splitting the remaining six topology
+  scenarios, continuity evidence, decomposition baseline, and guidance
+  placement comparison into
+  `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`.
+  This task retains the completed requirement/testing candidates and corrected
+  default-runner evidence as historical inputs.
 
 - September 18, 2026: The user corrected the compiled-guidance delivery model.
   Documentation-guidance model tests must use the ordinary Crystal Lattice
