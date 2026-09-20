@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
-from .chatgpt_credentials import isoformat_utc, load_credentials, parse_iso8601, write_json_atomic
+from .chatgpt_credentials import (
+    isoformat_utc,
+    load_credentials,
+    parse_iso8601,
+    write_json_atomic,
+)
 
 
 DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH = "auth/chatgpt-rate-limits.json"
@@ -22,9 +26,13 @@ def resolve_rate_limits_path(config: Dict[str, Any]) -> Path:
     if isinstance(credentials_path, str) and credentials_path.strip():
         return Path(credentials_path).expanduser().with_name("chatgpt-rate-limits.json")
 
-    config_dir = os.environ.get("CONFIG_DIR")
-    if isinstance(config_dir, str) and config_dir:
-        return Path(config_dir).expanduser() / DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH
+    # Rate-limit snapshots are user-owned usage data, so they follow the
+    # Crystal data directory rather than the active config file location
+    # (``CONFIG_DIR`` can point at copied config assets, for example in the
+    # cloud runtime).
+    data_dir = os.environ.get("CRYSTAL_DATA_DIR")
+    if isinstance(data_dir, str) and data_dir:
+        return Path(data_dir).expanduser() / DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH
 
     return Path.cwd() / DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH
 
@@ -117,9 +125,7 @@ def _parse_window(
     resets_at = _header_int(headers, f"{prefix}-{kind}-reset-at")
 
     has_data = (
-        used_percent is not None
-        or window_minutes is not None
-        or resets_at is not None
+        used_percent is not None or window_minutes is not None or resets_at is not None
     )
     if not has_data:
         return None
@@ -197,13 +203,19 @@ def parse_all_rate_limit_headers(headers: Mapping[str, Any]) -> List[Dict[str, A
     return snapshots
 
 
-def _merge_snapshot(existing: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_snapshot(
+    existing: Dict[str, Any], incoming: Dict[str, Any]
+) -> Dict[str, Any]:
     merged = dict(existing)
     merged["limit_id"] = incoming.get("limit_id") or existing.get("limit_id")
     merged["limit_name"] = incoming.get("limit_name") or existing.get("limit_name")
     merged["primary"] = incoming.get("primary")
     merged["secondary"] = incoming.get("secondary")
-    merged["credits"] = incoming.get("credits") if incoming.get("credits") is not None else existing.get("credits")
+    merged["credits"] = (
+        incoming.get("credits")
+        if incoming.get("credits") is not None
+        else existing.get("credits")
+    )
     merged["plan_type"] = incoming.get("plan_type") or existing.get("plan_type")
     return merged
 
@@ -239,7 +251,9 @@ def persist_rate_limit_snapshots(
             incoming["plan_type"] = plan_type
         previous = merged_by_id.get(limit_id)
         merged_by_id[limit_id] = (
-            _merge_snapshot(previous, incoming) if isinstance(previous, dict) else incoming
+            _merge_snapshot(previous, incoming)
+            if isinstance(previous, dict)
+            else incoming
         )
 
     next_state = {
@@ -256,12 +270,16 @@ def persist_rate_limit_snapshots(
     return next_state
 
 
-def limit_snapshot_is_stale(rate_limits_state: Dict[str, Any], *, now: Optional[datetime] = None) -> bool:
+def limit_snapshot_is_stale(
+    rate_limits_state: Dict[str, Any], *, now: Optional[datetime] = None
+) -> bool:
     captured_at = parse_iso8601(rate_limits_state.get("captured_at"))
     if captured_at is None:
         return False
     observed_at = now or datetime.now(timezone.utc)
-    return observed_at - captured_at > timedelta(minutes=RATE_LIMIT_STALE_THRESHOLD_MINUTES)
+    return observed_at - captured_at > timedelta(
+        minutes=RATE_LIMIT_STALE_THRESHOLD_MINUTES
+    )
 
 
 __all__ = [

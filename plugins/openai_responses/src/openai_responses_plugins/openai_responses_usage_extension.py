@@ -22,6 +22,7 @@ from .chatgpt_usage_journal import (
     resolve_working_directory,
     session_id_from_state,
 )
+from .cost_bucket import resolve_cost_bucket
 from .openai_responses_pricing import estimate_usage_cost
 from .openai_responses_codex_models import (
     load_manual_chatgpt_model_pricing as _load_manual_chatgpt_model_pricing_shared,
@@ -70,6 +71,7 @@ _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_completion_tokens_formatted",
     "usage_effective_auth_mode",
     "usage_effective_auth_mode_label",
+    "usage_bucket",
     "usage_service_tier",
     "usage_reasoning_mode",
     "usage_total_cost",
@@ -173,11 +175,16 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     "When omitted, the existing complete footer is preserved."
                 ),
             },
-            "show_usage_status_total": {
-                "type": "boolean",
+            "cost_bucket": {
+                "type": "string",
                 "required": False,
-                "default": True,
-                "description": "Show cumulative usage cost as Total in the chat status bar.",
+                "default": "openai-responses",
+                "description": (
+                    "Base name of the provider-defined cost bucket used by the "
+                    "generic cost tracking plugin. The provider appends the "
+                    "active endpoint suffix ('-chatgpt' or '-api') to form the "
+                    "final bucket."
+                ),
             },
             "show_estimated_cached_tokens": {
                 "type": "boolean",
@@ -452,17 +459,6 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                         "template": template,
                     }
                 )
-        if (
-            not isinstance(config, dict)
-            or config.get("show_usage_status_total") is not False
-        ):
-            elements.append(
-                {
-                    "ui_type": "status_bar",
-                    "data": "metadata.usage_total_cost_cumulative_formatted",
-                    "template": "Total: {{data}}",
-                }
-            )
         return elements
 
     def get_tags(
@@ -1166,6 +1162,10 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             "usage_effective_auth_mode": effective_auth_mode,
             "usage_effective_auth_mode_label": self._effective_auth_mode_label(
                 effective_auth_mode
+            ),
+            "usage_bucket": resolve_cost_bucket(
+                state.get("config") if isinstance(state, dict) else None,
+                effective_auth_mode,
             ),
             "usage_total_cost": effective_total_cost,
             "usage_total_cost_cumulative": cumulative_cost,

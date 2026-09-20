@@ -388,6 +388,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             "supports_reasoning",
             "supports_reasoning_effort",
             "supports_tools",
+            # This provider stamps usage/cost metadata and a provider-defined
+            # cost bucket, enabling the generic cost tracking plugin.
+            "cost_tracking",
         ]
 
         model = config.get("model")

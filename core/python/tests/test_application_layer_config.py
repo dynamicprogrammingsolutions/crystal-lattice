@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from agent_app.application_future import AgentApplication
 from agent_app.config import (
     build_config_resolution_env,
+    build_runtime_overlay_env,
     load_raw_config,
     resolve_config_mixins,
     resolve_placeholders,
@@ -213,6 +216,7 @@ def test_build_config_resolution_env_sets_derived_defaults(tmp_path, monkeypatch
     assert env["CONFIG_DIR"] == str(config_path.parent.resolve())
     assert env["WORKING_DIR"] == str(tmp_path.resolve())
     assert env["BUILTIN_PLUGINS"].endswith("plugins")
+    assert env["CRYSTAL_DATA_DIR"] == str(Path.home() / ".crystal")
 
 
 def test_build_config_resolution_env_allows_explicit_overrides(tmp_path, monkeypatch):
@@ -221,6 +225,7 @@ def test_build_config_resolution_env_allows_explicit_overrides(tmp_path, monkeyp
     custom_plugins = tmp_path / "portable-plugins"
     custom_working_dir = tmp_path / "workspace"
     custom_config_dir = tmp_path / "portable-config"
+    custom_data_dir = tmp_path / "portable-data"
 
     env = build_config_resolution_env(
         config_path,
@@ -229,12 +234,73 @@ def test_build_config_resolution_env_allows_explicit_overrides(tmp_path, monkeyp
             "CONFIG_DIR": str(custom_config_dir),
             "WORKING_DIR": str(custom_working_dir),
             "BUILTIN_PLUGINS": str(custom_plugins),
+            "CRYSTAL_DATA_DIR": str(custom_data_dir),
         },
     )
 
     assert env["CONFIG_DIR"] == str(custom_config_dir)
     assert env["WORKING_DIR"] == str(custom_working_dir)
     assert env["BUILTIN_PLUGINS"] == str(custom_plugins)
+    assert env["CRYSTAL_DATA_DIR"] == str(custom_data_dir)
+
+
+def test_build_config_resolution_env_data_dir_overrides_config_dir(
+    tmp_path, monkeypatch
+):
+    """CRYSTAL_DATA_DIR stays independent of the active config file location."""
+
+    monkeypatch.chdir(tmp_path)
+    config_path = tmp_path / "portable-config" / "config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    env = build_config_resolution_env(config_path, env={})
+
+    assert env["CONFIG_DIR"] == str(config_path.parent.resolve())
+    assert env["CRYSTAL_DATA_DIR"] == str(Path.home() / ".crystal")
+
+
+def test_build_runtime_overlay_env_installs_derived_keys(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    config_path = tmp_path / "config.json"
+
+    overlay = build_runtime_overlay_env(config_path)
+
+    assert overlay["CONFIG_DIR"] == str(config_path.resolve().parent)
+    assert overlay["WORKING_DIR"] == str(tmp_path.resolve())
+    assert overlay["BUILTIN_PLUGINS"].endswith("plugins")
+    assert overlay["CRYSTAL_DATA_DIR"] == str(Path.home() / ".crystal")
+
+
+def test_build_runtime_overlay_env_honors_overrides(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    config_path = tmp_path / "config.json"
+    custom_data_dir = tmp_path / "portable-data"
+
+    overlay = build_runtime_overlay_env(
+        config_path, env_overrides={"CRYSTAL_DATA_DIR": str(custom_data_dir)}
+    )
+
+    assert overlay["CRYSTAL_DATA_DIR"] == str(custom_data_dir)
+
+
+def test_resolve_placeholders_supports_crystal_data_dir(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    config_path = tmp_path / "config.json"
+    data_dir = tmp_path / "portable-data"
+
+    env = build_config_resolution_env(
+        config_path,
+        env={},
+        env_overrides={"CRYSTAL_DATA_DIR": str(data_dir)},
+    )
+
+    resolved, errors = resolve_placeholders(
+        {"journal_path": "${env:CRYSTAL_DATA_DIR}/auth/usage-journal.ndjson"},
+        env=env,
+    )
+
+    assert errors == []
+    assert resolved["journal_path"] == f"{data_dir}/auth/usage-journal.ndjson"
 
 
 def test_build_config_resolution_env_uses_config_env_below_process_env(

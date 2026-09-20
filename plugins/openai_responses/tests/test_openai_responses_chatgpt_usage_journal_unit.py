@@ -59,6 +59,17 @@ def test_journal_path_honors_explicit_override(tmp_path: Path) -> None:
     assert resolve_usage_journal_path(config) == override
 
 
+def test_journal_path_follows_crystal_data_dir_without_overrides(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("CRYSTAL_DATA_DIR", str(tmp_path / "data"))
+    path = resolve_usage_journal_path({})
+    assert path == tmp_path / "data" / "auth" / "chatgpt-usage-journal.ndjson"
+    assert resolve_summary_csv_path({}) == (
+        tmp_path / "data" / "auth" / "chatgpt-usage-summary.csv"
+    )
+
+
 def test_append_and_iterate_records(tmp_path: Path) -> None:
     path = resolve_usage_journal_path(_config(tmp_path))
 

@@ -51,7 +51,7 @@ def _load_saved_credentials() -> dict[str, object]:
 
 
 def _write_config(state_dir: Path) -> Path:
-    model = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5"
+    model = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5.6-luna"
     cfg: Dict[str, Any] = {
         "plugin_cache_dir": str(state_dir / ".plugin_cache"),
         "providers": {
@@ -68,6 +68,9 @@ def _write_config(state_dir: Path) -> Path:
                 "system_message": "You are a precise assistant. Reply exactly with the requested text.",
                 "timeout": 120,
                 "working_directory": ".",
+                "cost_tracking_db_path": str(
+                    state_dir / "cost-tracking" / "cost-tracking.sqlite3"
+                ),
             }
         },
         "plugins": [
@@ -78,6 +81,10 @@ def _write_config(state_dir: Path) -> Path:
             _plugin_entry(
                 "openai_responses",
                 "openai_responses_plugins.OpenAIResponsesUsageExtension",
+            ),
+            _plugin_entry(
+                "cost-tracking",
+                "cost_tracking_plugins.cost_tracking_extension.CostTrackingExtension",
             ),
             _plugin_entry(
                 "openai_responses",
@@ -134,9 +141,11 @@ def test_chatgpt_account_status_after_real_request() -> None:
     app.save_session(session)
 
     final_seen = False
+    final_messages = None
     for event in app.send_request(core, session, base_config, stream=True):
         if event.get("type") == "final":
             final_seen = True
+            final_messages = event.get("messages")
 
     assert final_seen, "expected final event from real ChatGPT-backed request"
     assert (
@@ -204,6 +213,38 @@ def test_chatgpt_account_status_after_real_request() -> None:
     own_rows = [row for row in request_rows if row["session_id"] == session.session_id]
     assert own_rows, "expected this session's rows in the summary CSV"
     assert own_rows[-1]["working_directory"].startswith("/")
+
+    # The generic cost tracking store records this session's request under
+    # the provider-defined ChatGPT bucket, and the store-backed session total
+    # reaches the assistant message metadata for the chat status bar.
+    cost_db_path = state_dir / "cost-tracking" / "cost-tracking.sqlite3"
+    assert cost_db_path.exists(), "expected the cost tracking SQLite store"
+    import sqlite3
+
+    conn = sqlite3.connect(str(cost_db_path))
+    try:
+        cost_rows = conn.execute(
+            "SELECT bucket, session_id, working_directory FROM cost_requests "
+            "WHERE session_id = ?",
+            (session.session_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    assert cost_rows, "expected this session's rows in the cost store"
+    workspace = os.path.abspath(".")
+    for bucket, _row_session_id, row_wd in cost_rows:
+        assert bucket == "openai-responses-chatgpt"
+        assert row_wd == workspace
+    # The application event stream serializes final messages as plain dicts.
+    assistants = [
+        message
+        for message in (final_messages or [])
+        if isinstance(message, dict) and message.get("role") == "assistant"
+    ]
+    assert assistants, "expected an assistant message in the final event messages"
+    final_metadata = assistants[-1].get("metadata") or {}
+    assert isinstance(final_metadata.get("cost_session_total_formatted"), str)
+    assert final_metadata.get("cost_session_requests", 0) >= 1
 
     # The usage report action must render totals and keep the date-range
     # follow-up form wired to the same action.

@@ -657,6 +657,7 @@
     "path:${env:BUILTIN_PLUGINS}/session-asset-attachments",
     "path:${env:BUILTIN_PLUGINS}/reference-openai-compatible-provider",
     "path:${env:BUILTIN_PLUGINS}/openai_responses",
+    "path:${env:BUILTIN_PLUGINS}/cost-tracking",
     "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
   ],
   "application": {

@@ -24,8 +24,14 @@ export are the inspection path.
 Default path: `auth/chatgpt-usage-journal.ndjson`, a sibling of
 `auth/chatgpt-rate-limits.json`. Resolution follows the same chain as the
 rate-limits file (`chatgpt_usage_journal_path` override, credentials-path
-sibling, `CONFIG_DIR`, cwd) — see `resolve_usage_journal_path` in
+sibling, `CRYSTAL_DATA_DIR`, cwd) — see `resolve_usage_journal_path` in
 `chatgpt_usage_journal.py`.
+
+Usage files are user-owned data, so their default root is the Crystal data
+directory (`CRYSTAL_DATA_DIR`, default `~/.crystal`) rather than the active
+config file location (`CONFIG_DIR`), which can point at copied config assets
+(for example in the cloud runtime). On a normal install both point at
+`~/.crystal`, so existing files stay where they are.
 
 ## Record format
 
@@ -111,6 +117,12 @@ the latest persisted rate-limits file — so each request's plan-limit state
 
 Usage-extension config keys:
 
+- `cost_bucket` (string, default `openai-responses`): base name of the
+  provider-defined cost bucket used by the generic cost tracking plugin. The
+  provider appends the active endpoint suffix (`-chatgpt` for the ChatGPT
+  backend, `-api` for the OpenAI API) to form the final bucket — for example
+  `openai-responses-chatgpt`, or `openai-chatgpt` / `openai-api` with
+  `cost_bucket: "openai"`. The final bucket is always defined by the provider.
 - `track_chatgpt_usage_journal` (boolean, default `true`): appends request
   usage and snapshots to the journal. Set to `false` to stop journaling.
 - `chatgpt_usage_journal_path` (string, optional): journal file override.
@@ -180,6 +192,22 @@ python plugins/openai_responses/scripts/inspect_chatgpt_usage_journal.py \
 
 `--from`/`--to`/`--at` accept a date (`2026-09-19`) or date and time
 (`2026-09-19 14:30`) interpreted in the server's own timezone.
+
+## Cost buckets and the generic cost tracking plugin
+
+The provider emits the `cost_tracking` capability tag, which enables the
+generic cost tracking plugin (`plugins/cost-tracking`). The usage extension
+stamps the provider-defined bucket into message metadata as `usage_bucket`
+(see the `cost_bucket` config key above), alongside the usage and estimated
+cost metadata the cost tracking extension records. See
+`plugins/cost-tracking/docs/` for the store, the footer total, and the
+report/reset actions.
+
+The usage extension no longer contributes a chat status-bar element: the
+stateless per-message cumulative total (`show_usage_status_total`) was
+retired in favor of the cost tracking plugin's store-backed session total,
+aggregated by workspace and session id. Per-message footers (turn cost,
+token cumulatives) are unchanged.
 
 ## UI
 

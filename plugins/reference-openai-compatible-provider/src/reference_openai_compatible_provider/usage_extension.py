@@ -4,6 +4,8 @@ from typing import Any
 
 from agent_core.types import ProviderExtensionPlugin
 
+from .cost_bucket import resolve_cost_bucket
+
 
 def _format_token_count(value: int | None) -> str | None:
     if not isinstance(value, int):
@@ -583,6 +585,11 @@ def _per_message_metadata(usage: dict[str, Any]) -> dict[str, Any]:
 class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
     name = "reference_openai_usage"
     version = "0.1.0"
+    # Must run before the generic cost tracking extension (priority 70):
+    # this extension stamps the provider-defined ``usage_bucket`` that cost
+    # tracking records rows under. The wrapper default (100) would run it
+    # too late, so cost tracking would see usage without a bucket.
+    priority: int = 60
 
     def required_tags(self) -> list[str]:
         return ["provider:openai_compatible"]
@@ -590,6 +597,16 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
     def get_config_schema(self) -> dict[str, Any]:
         return {
             "show_usage": {"type": "boolean", "default": True},
+            "cost_bucket": {
+                "type": "string",
+                "required": False,
+                "default": "openai-compatible",
+                "description": (
+                    "Base name of the provider-defined cost bucket used by the "
+                    "generic cost tracking plugin. The provider appends a slug "
+                    "of the endpoint URL host to form the final bucket."
+                ),
+            },
             "estimate_cached_tokens": {
                 "type": "boolean",
                 "default": False,
@@ -690,11 +707,6 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                 "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
                 "template": "turn output: {{data}}",
             },
-            {
-                "ui_type": "status_bar",
-                "data": "metadata.usage_total_cost_cumulative_formatted",
-                "template": "Total: {{data}}",
-            },
         ]
 
     def get_tags(
@@ -753,6 +765,7 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
         config = state.get("config") or {}
         token_rates = config.get("token_rates")
         estimate_cached_tokens = config.get("estimate_cached_tokens") is True
+        usage_bucket = resolve_cost_bucket(config)
 
         final_native_indices = _native_indices_for_final_messages(
             native_messages, final_messages
@@ -813,6 +826,7 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
             per_msg_metadata = _per_message_metadata(usage)
             provisional_metadata = {
                 **per_msg_metadata,
+                "usage_bucket": usage_bucket,
                 "turn": {
                     "id": current_turn_id,
                     "has_tool_calls": _message_has_tool_calls(msg),
@@ -840,7 +854,11 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
         session_metadata = _session_totals(provisional_native)
         turn_metadata = _turn_totals(provisional_native, provisional_finals)
 
-        cumulative_metadata = {**session_metadata, **turn_metadata}
+        cumulative_metadata = {
+            "usage_bucket": usage_bucket,
+            **session_metadata,
+            **turn_metadata,
+        }
         new_finals: list[dict[str, Any]] = []
         for msg in provisional_finals:
             if not isinstance(msg, dict):

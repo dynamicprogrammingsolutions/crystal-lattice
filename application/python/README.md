@@ -348,6 +348,9 @@ the PyInstaller layout.
 Important layout behavior:
 
 - `CONFIG_DIR` always resolves to the directory of the active config file.
+- `CRYSTAL_DATA_DIR` is the user-level data directory (default `~/.crystal`):
+  user-owned data such as usage journals and cost tracking stores follow it
+  rather than the active config file location.
 - `BUILTIN_PLUGINS` comes from the runtime layout and points at bundled plugin
   sources in binary installs.
 - Config files, sessions, auth state, and plugin install caches are user-owned

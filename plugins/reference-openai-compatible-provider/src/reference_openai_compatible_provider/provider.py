@@ -914,6 +914,9 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             "provider:openai_compatible",
             "supports_streaming",
             "supports_tools",
+            # This provider stamps usage/cost metadata and a provider-defined
+            # cost bucket, enabling the generic cost tracking plugin.
+            "cost_tracking",
         ]
 
     def initialize_request(

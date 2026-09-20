@@ -68,21 +68,31 @@ def test_parse_all_rate_limit_headers_includes_extra_limit_family() -> None:
     assert snapshots[1]["primary"]["window_minutes"] == 43200
 
 
-def test_persist_rate_limit_snapshots_preserves_prior_credits_and_other_limits(tmp_path: Path) -> None:
+def test_persist_rate_limit_snapshots_preserves_prior_credits_and_other_limits(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "auth" / "chatgpt-rate-limits.json"
     initial = persist_rate_limit_snapshots(
         path,
         [
             {
                 "limit_id": "codex",
-                "primary": {"used_percent": 10.0, "window_minutes": 300, "resets_at": 111},
+                "primary": {
+                    "used_percent": 10.0,
+                    "window_minutes": 300,
+                    "resets_at": 111,
+                },
                 "secondary": None,
                 "credits": {"has_credits": True, "unlimited": False, "balance": "25"},
             },
             {
                 "limit_id": "codex_other",
                 "limit_name": "monthly",
-                "primary": {"used_percent": 50.0, "window_minutes": 43200, "resets_at": 222},
+                "primary": {
+                    "used_percent": 50.0,
+                    "window_minutes": 43200,
+                    "resets_at": 222,
+                },
                 "secondary": None,
                 "credits": None,
             },
@@ -97,7 +107,11 @@ def test_persist_rate_limit_snapshots_preserves_prior_credits_and_other_limits(t
         [
             {
                 "limit_id": "codex",
-                "primary": {"used_percent": 20.0, "window_minutes": 300, "resets_at": 333},
+                "primary": {
+                    "used_percent": 20.0,
+                    "window_minutes": 300,
+                    "resets_at": 333,
+                },
                 "secondary": None,
                 "credits": None,
             }
@@ -115,8 +129,46 @@ def test_persist_rate_limit_snapshots_preserves_prior_credits_and_other_limits(t
 
 
 def test_resolve_rate_limits_path_defaults_next_to_credentials_path() -> None:
-    path = resolve_rate_limits_path({"chatgpt_credentials_path": "/tmp/demo/chatgpt-auth.json"})
+    path = resolve_rate_limits_path(
+        {"chatgpt_credentials_path": "/tmp/demo/chatgpt-auth.json"}
+    )
     assert str(path).endswith("/tmp/demo/chatgpt-rate-limits.json")
+
+
+def test_resolve_rate_limits_path_prefers_crystal_data_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("CRYSTAL_DATA_DIR", str(tmp_path))
+    path = resolve_rate_limits_path({})
+    assert path == tmp_path / "auth" / "chatgpt-rate-limits.json"
+
+
+def test_resolve_rate_limits_path_explicit_override_wins_over_data_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("CRYSTAL_DATA_DIR", str(tmp_path / "data"))
+    override = tmp_path / "elsewhere" / "chatgpt-rate-limits.json"
+    path = resolve_rate_limits_path({"chatgpt_rate_limits_path": str(override)})
+    assert path == override
+
+
+def test_resolve_rate_limits_path_credentials_sibling_wins_over_data_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("CRYSTAL_DATA_DIR", str(tmp_path / "data"))
+    path = resolve_rate_limits_path(
+        {"chatgpt_credentials_path": str(tmp_path / "auth" / "chatgpt-auth.json")}
+    )
+    assert path == tmp_path / "auth" / "chatgpt-rate-limits.json"
+
+
+def test_resolve_rate_limits_path_falls_back_to_cwd_without_data_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.delenv("CRYSTAL_DATA_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+    path = resolve_rate_limits_path({})
+    assert path == tmp_path / "auth" / "chatgpt-rate-limits.json"
 
 
 def test_limit_snapshot_is_stale_detects_old_capture_time(tmp_path: Path) -> None:

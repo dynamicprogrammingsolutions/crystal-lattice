@@ -9,6 +9,8 @@ import pytest
 from dotenv import load_dotenv
 
 from agent_core import AgentCore
+from cost_tracking_plugins import cost_store
+from cost_tracking_plugins.cost_tracking_extension import CostTrackingExtension
 from feature_system_message.system_message_feature import SystemMessageFeature
 from openai_responses_plugins import (
     OpenAIResponsesChatGPTAuthFeature,
@@ -43,6 +45,10 @@ def _usage_journal_path() -> Path:
 
 def _usage_summary_csv_path() -> Path:
     return _manual_state_dir() / "auth" / "chatgpt-usage-summary.csv"
+
+
+def _cost_db_path() -> Path:
+    return _manual_state_dir() / "cost-tracking" / "cost-tracking.sqlite3"
 
 
 def _journal_records() -> list[dict[str, Any]]:
@@ -82,6 +88,7 @@ def _chatgpt_config(credentials_path: Path) -> dict[str, object]:
         "show_openai_auth_mode": True,
         "timeout": 180,
         "working_directory": ".",
+        "cost_tracking_db_path": str(_cost_db_path()),
     }
 
 
@@ -123,6 +130,9 @@ def _assert_chatgpt_usage_metadata(message: Dict[str, Any], session: Any) -> int
     assert isinstance(metadata.get("usage"), dict)
     assert metadata.get("usage_effective_auth_mode") == "chatgpt"
     assert metadata.get("usage_effective_auth_mode_label") == "ChatGPT"
+    assert (
+        metadata.get("usage_bucket") == "openai-responses-chatgpt"
+    ), "expected the provider-defined ChatGPT cost bucket in usage metadata"
     assert isinstance(metadata.get("usage_estimated_cached_tokens"), int)
     assert isinstance(metadata.get("usage_estimated_cached_tokens_formatted"), str)
     assert "usage_cached_tokens_formatted" not in metadata
@@ -202,7 +212,11 @@ def test_openai_responses_chatgpt_saved_login_usage_multi_turn_tool_loop() -> No
     core = AgentCore()
     core.register_provider(
         OpenAIResponsesProvider,
-        extensions=[OpenAIResponsesToolsExtension, OpenAIResponsesUsageExtension],
+        extensions=[
+            OpenAIResponsesToolsExtension,
+            OpenAIResponsesUsageExtension,
+            CostTrackingExtension,
+        ],
     )
     core.register_feature(OpenAIResponsesChatGPTAuthFeature)
     core.register_feature(SystemMessageFeature)
@@ -293,3 +307,46 @@ def test_openai_responses_chatgpt_saved_login_usage_multi_turn_tool_loop() -> No
         ), "expected an absolute working directory in summary CSV rows"
         assert float(row["estimated_cost"]) >= 0.0
         assert float(row["total_cost"]) >= float(row["estimated_cost"])
+
+    # The generic cost tracking store records the same responses under the
+    # provider-defined ChatGPT bucket, and the store-backed session total
+    # reaches the assistant message metadata rendered by the chat status bar.
+    db_path = _cost_db_path()
+    assert db_path.exists(), "expected the cost tracking SQLite store"
+    session_id = session.session_id
+    workspace = os.path.abspath(os.path.expanduser(str(config["working_directory"])))
+    own_cost_rows = 0
+    import sqlite3
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        rows = conn.execute(
+            "SELECT response_id, bucket, session_id, working_directory, estimated_cost "
+            "FROM cost_requests"
+        ).fetchall()
+    finally:
+        conn.close()
+    own_response_ids = {
+        (response.get("metadata") or {}).get("response_id")
+        for response in turn1_responses + turn2_responses
+    }
+    own_response_ids.discard(None)
+    for response_id, bucket, row_session_id, row_wd, estimated_cost in rows:
+        if response_id in own_response_ids:
+            own_cost_rows += 1
+            assert bucket == "openai-responses-chatgpt"
+            assert row_session_id, "expected the session id on cost store rows"
+            assert row_wd == workspace
+            assert isinstance(estimated_cost, (int, float))
+    assert own_cost_rows >= expected_requests, (
+        "expected every ChatGPT-backed response recorded in the cost store "
+        "under the provider-defined bucket"
+    )
+    totals = cost_store.session_totals(
+        db_path, working_directory=workspace, session_id=str(session_id)
+    )
+    assert totals["request_count"] >= expected_requests
+    assert totals["total_cost"] > 0.0
+    final_metadata = turn2_responses[-1].get("metadata") or {}
+    assert isinstance(final_metadata.get("cost_session_total_formatted"), str)
+    assert final_metadata.get("cost_session_requests", 0) >= expected_requests

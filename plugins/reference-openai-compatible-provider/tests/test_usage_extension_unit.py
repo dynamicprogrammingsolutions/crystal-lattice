@@ -157,13 +157,36 @@ def test_usage_extension_exposes_openrouter_style_ui_elements():
             "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
             "template": "turn output: {{data}}",
         },
-        {
-            "ui_type": "status_bar",
-            "data": "metadata.usage_total_cost_cumulative_formatted",
-            "template": "Total: {{data}}",
-        },
     ]
     assert ext.get_ui_elements({"show_usage": False}, [], []) == []
+
+
+def test_usage_extension_stamps_provider_defined_cost_bucket():
+    ext = OpenAICompatibleUsageExtension()
+
+    finals, _native, _state = ext.finalize(
+        [
+            {
+                "role": "assistant",
+                "_metadata": {"usage": {"prompt_tokens": 100, "completion_tokens": 10}},
+            }
+        ],
+        [
+            {
+                "role": "assistant",
+                "_metadata": {"usage": {"prompt_tokens": 100, "completion_tokens": 10}},
+            }
+        ],
+        {
+            "config": {
+                "base_url": "https://api.fireworks.ai/v1",
+                "cost_bucket": "openai-compatible",
+            }
+        },
+    )
+
+    metadata = finals[0]["_metadata"]
+    assert metadata["usage_bucket"] == "openai-compatible-api-fireworks-ai"
 
 
 def test_usage_extension_can_show_estimated_cached_tokens_footer():

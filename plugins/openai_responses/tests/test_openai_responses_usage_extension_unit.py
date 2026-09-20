@@ -13,11 +13,24 @@ from openai_responses_plugins.openai_responses_usage_extension import (
 RAW_USAGE_KEY = "_openai_responses_usage_raw"
 
 
+@pytest.fixture(autouse=True)
+def _isolate_usage_journal_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Keep best-effort ChatGPT journal writes inside tmp.
+
+    ChatGPT-mode tests in this file configure no credentials path, so journal
+    resolution falls back to the Crystal data directory; without this fixture
+    the fallback would be the process working directory.
+    """
+
+    monkeypatch.setenv("CRYSTAL_DATA_DIR", str(tmp_path))
+
+
 def test_usage_config_schema_exposes_footer_visibility_controls() -> None:
     schema = OpenAIResponsesUsageExtension().get_config_schema()
 
     assert schema["show_usage"]["default"] is True
-    assert schema["show_usage_status_total"]["default"] is True
+    assert schema["cost_bucket"]["default"] == "openai-responses"
+    assert "show_usage_status_total" not in schema
     assert schema["usage_message_footer_fields"]["items"]["enum"] == [
         "input",
         "cached",
@@ -117,6 +130,7 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
 
     md = finals[0].get("_metadata") or {}
     assert md.get("usage") == usage
+    assert md.get("usage_bucket") == "openai-responses-api"
     assert md.get("usage_prompt_tokens_formatted") == "1,234"
     assert md.get("usage_cached_tokens_formatted") == "12"
     assert md.get("usage_completion_tokens_formatted") == "56"
@@ -914,7 +928,6 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
         "metadata.usage_turn_input_tokens_cumulative_formatted",
         "metadata.usage_turn_cached_tokens_cumulative_formatted",
         "metadata.usage_turn_output_tokens_cumulative_formatted",
-        "metadata.usage_total_cost_cumulative_formatted",
     ]
     assert elements[1]["condition"] == {
         "not": {
@@ -1325,31 +1338,23 @@ def test_usage_ui_elements_can_select_compact_turn_footer() -> None:
         "turn input: {{data}}",
         "turn output: {{data}}",
     ]
+    # The stateless status-bar total was retired; the session total in the
+    # chat status bar is now contributed by the generic cost tracking plugin.
     assert [
-        element["template"]
-        for element in elements
-        if element.get("ui_type") == "status_bar"
-    ] == ["Total: {{data}}"]
+        element for element in elements if element.get("ui_type") == "status_bar"
+    ] == []
 
 
-def test_usage_ui_elements_can_hide_message_footer_or_status_total_independently() -> (
-    None
-):
+def test_usage_ui_elements_contribute_no_status_bar_elements() -> None:
     ext = OpenAIResponsesUsageExtension()
 
-    status_only = ext.get_ui_elements(
+    elements = ext.get_ui_elements(
         config={"usage_message_footer_fields": []},
         tags=["openai_responses"],
         models=[],
     )
-    footer_only = ext.get_ui_elements(
-        config={"show_usage_status_total": False},
-        tags=["openai_responses"],
-        models=[],
-    )
 
-    assert [element.get("ui_type") for element in status_only] == ["status_bar"]
-    assert all(element.get("ui_type") == "message_footer" for element in footer_only)
+    assert all(element.get("ui_type") == "message_footer" for element in elements)
     assert (
         ext.get_ui_elements(
             config={"show_usage": False},
@@ -1642,3 +1647,34 @@ def test_usage_ui_elements_include_cache_write_footer_when_present() -> None:
         "path": "metadata.usage_cache_write_tokens_formatted",
         "exists": True,
     }
+
+
+def test_streaming_usage_stamps_provider_defined_bucket_for_chatgpt() -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {"input_tokens": 10, "output_tokens": 2}
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_1")
+    ]
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_1", "usage": usage},
+    }
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=list(final_messages),
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+                "cost_bucket": "openai",
+            }
+        },
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_bucket") == "openai-chatgpt"
+    assert md.get("usage_effective_auth_mode") == "chatgpt"

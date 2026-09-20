@@ -29,15 +29,18 @@ The plugin exposes session actions for OpenAI Responses sessions with
 
 Usage reports and reset markers operate on the append-only
 `auth/chatgpt-usage-journal.ndjson` file written by the `openai_responses`
-provider and usage extension. It records every captured rate-limit snapshot
-and every ChatGPT-backed request's estimated usage with the plan-limit state
-observed on the same response, so usage contributors, usage-percent history,
-and reset-time changes can be reconstructed by date. Records carry the
-request's session id and absolute working directory, and a simplified
-`auth/chatgpt-usage-summary.csv`
+provider and usage extension (default root: the Crystal data directory,
+`CRYSTAL_DATA_DIR`, default `~/.crystal`). It records every captured
+rate-limit snapshot and every ChatGPT-backed request's estimated usage with
+the plan-limit state observed on the same response, so usage contributors,
+usage-percent history, and reset-time changes can be reconstructed by date.
+Records carry the request's session id and absolute working directory, and a
+simplified `auth/chatgpt-usage-summary.csv`
 (`time, working_directory, session_id, estimated_cost, total_cost,
-used_percent`) is appended alongside the journal. See the
-`openai_responses` package's
+used_percent`) is appended alongside the journal. Detailed, cross-provider
+cost reporting lives in the generic cost tracking plugin
+(`plugins/cost-tracking`); this app keeps the simple ChatGPT usage report.
+See the `openai_responses` package's
 [usage journal documentation](../openai_responses/docs/development/usage-journal.md)
 for the record format and the CLI inspection script.
 

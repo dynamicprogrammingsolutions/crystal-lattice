@@ -40,6 +40,19 @@ def _default_builtin_plugins_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "plugins"
 
 
+def _default_crystal_data_dir() -> Path:
+    """Return the default user-level Crystal data directory.
+
+    This is the home for user-owned state that must not follow the active
+    config file location (``CONFIG_DIR``) — for example usage journals, cost
+    tracking stores, and other per-user data. It defaults to ``~/.crystal``,
+    which is also the usual ``CONFIG_DIR`` location, so both point at the same
+    directory on a normal machine while remaining independently overridable.
+    """
+
+    return Path.home() / ".crystal"
+
+
 def build_config_resolution_env(
     config_path: str | Path,
     *,
@@ -61,6 +74,7 @@ def build_config_resolution_env(
         "CONFIG_DIR": config_dir,
         "WORKING_DIR": working_dir,
         "BUILTIN_PLUGINS": str(_default_builtin_plugins_dir()),
+        "CRYSTAL_DATA_DIR": str(_default_crystal_data_dir()),
     }
 
     merged: Dict[str, str] = dict(derived)
@@ -88,6 +102,7 @@ def build_runtime_overlay_env(
         "CONFIG_DIR": str(Path(config_path).expanduser().resolve().parent),
         "WORKING_DIR": str(Path.cwd().resolve()),
         "BUILTIN_PLUGINS": str(_default_builtin_plugins_dir()),
+        "CRYSTAL_DATA_DIR": str(_default_crystal_data_dir()),
     }
     if env_overrides:
         overlay.update({key: str(value) for key, value in env_overrides.items()})
