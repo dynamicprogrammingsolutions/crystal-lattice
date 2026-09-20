@@ -67,12 +67,17 @@ def _write_config(state_dir: Path) -> Path:
                 "strip_leading_system_or_developer_message": True,
                 "system_message": "You are a precise assistant. Reply exactly with the requested text.",
                 "timeout": 120,
+                "working_directory": ".",
             }
         },
         "plugins": [
             _plugin_entry("chatgpt-auth-app", "chatgpt_auth_app.ChatGPTAuthAppPlugin"),
             _plugin_entry(
                 "openai_responses", "openai_responses_plugins.OpenAIResponsesProvider"
+            ),
+            _plugin_entry(
+                "openai_responses",
+                "openai_responses_plugins.OpenAIResponsesUsageExtension",
             ),
             _plugin_entry(
                 "openai_responses",
@@ -183,6 +188,22 @@ def test_chatgpt_account_status_after_real_request() -> None:
     ), "expected the request record to carry the rate-limit snapshot"
     assert "Estimated usage since reset:" in body
     assert "Requests: `" in body
+
+    # The simplified summary CSV is appended alongside the journal and the
+    # request rows carry the session id and absolute working directory. The
+    # journal is shared with other live sessions, so look for this session's
+    # own rows rather than the last row.
+    summary_path = state_dir / "auth" / "chatgpt-usage-summary.csv"
+    assert summary_path.exists(), "expected the ChatGPT usage summary CSV"
+    import csv
+
+    with open(summary_path, encoding="utf-8", newline="") as handle:
+        summary_rows = list(csv.DictReader(handle))
+    request_rows = [row for row in summary_rows if row["estimated_cost"] != ""]
+    assert request_rows, "expected request rows in the summary CSV"
+    own_rows = [row for row in request_rows if row["session_id"] == session.session_id]
+    assert own_rows, "expected this session's rows in the summary CSV"
+    assert own_rows[-1]["working_directory"].startswith("/")
 
     # The usage report action must render totals and keep the date-range
     # follow-up form wired to the same action.

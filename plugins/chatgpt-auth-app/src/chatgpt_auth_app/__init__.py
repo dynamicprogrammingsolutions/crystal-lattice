@@ -103,7 +103,9 @@ def _ensure_parent_dir(path: Path) -> None:
 
 def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
     _ensure_parent_dir(path)
-    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
+    )
     tmp_path = Path(tmp_name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -151,7 +153,9 @@ def _resolve_rate_limits_path(config: Dict[str, Any]) -> Path:
         return Path(credentials_path).expanduser().with_name("chatgpt-rate-limits.json")
     config_dir = os.environ.get("CONFIG_DIR")
     if isinstance(config_dir, str) and config_dir:
-        return Path(config_dir).expanduser() / _DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH
+        return (
+            Path(config_dir).expanduser() / _DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH
+        )
     return Path.cwd() / _DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH
 
 
@@ -188,7 +192,9 @@ def _format_limit_label(window: Dict[str, Any], fallback: str) -> str:
     return fallback
 
 
-def _format_reset_time(resets_at: Any, *, now: Optional[datetime] = None) -> Optional[str]:
+def _format_reset_time(
+    resets_at: Any, *, now: Optional[datetime] = None
+) -> Optional[str]:
     if not isinstance(resets_at, int):
         return None
     observed_at = now or _utcnow()
@@ -334,7 +340,11 @@ class ChatGPTAuthAppPlugin:
             auth_cfg = {}
 
         config_dir = os.environ.get("CONFIG_DIR")
-        config_root = Path(config_dir) if isinstance(config_dir, str) and config_dir else Path.cwd()
+        config_root = (
+            Path(config_dir)
+            if isinstance(config_dir, str) and config_dir
+            else Path.cwd()
+        )
 
         credentials_path = auth_cfg.get("credentials_path")
         if isinstance(credentials_path, str) and credentials_path.strip():
@@ -352,12 +362,14 @@ class ChatGPTAuthAppPlugin:
             "rate_limits_path": str(rate_limits_file),
             "protocol": (
                 auth_cfg.get("protocol").strip().lower()
-                if isinstance(auth_cfg.get("protocol"), str) and auth_cfg.get("protocol").strip()
+                if isinstance(auth_cfg.get("protocol"), str)
+                and auth_cfg.get("protocol").strip()
                 else "codex_deviceauth"
             ),
             "issuer": (
                 auth_cfg.get("issuer").strip().rstrip("/")
-                if isinstance(auth_cfg.get("issuer"), str) and auth_cfg.get("issuer").strip()
+                if isinstance(auth_cfg.get("issuer"), str)
+                and auth_cfg.get("issuer").strip()
                 else _DEFAULT_ISSUER
             ),
             "device_code_endpoint": auth_cfg.get("device_code_endpoint"),
@@ -369,15 +381,21 @@ class ChatGPTAuthAppPlugin:
             "client_secret": auth_cfg.get("client_secret"),
             "scope": auth_cfg.get("scope"),
             "audience": auth_cfg.get("audience"),
-            "device_code_request": dict(auth_cfg.get("device_code_request") or {})
-            if isinstance(auth_cfg.get("device_code_request"), dict)
-            else {},
-            "token_request": dict(auth_cfg.get("token_request") or {})
-            if isinstance(auth_cfg.get("token_request"), dict)
-            else {},
-            "headers": dict(auth_cfg.get("headers") or {})
-            if isinstance(auth_cfg.get("headers"), dict)
-            else {},
+            "device_code_request": (
+                dict(auth_cfg.get("device_code_request") or {})
+                if isinstance(auth_cfg.get("device_code_request"), dict)
+                else {}
+            ),
+            "token_request": (
+                dict(auth_cfg.get("token_request") or {})
+                if isinstance(auth_cfg.get("token_request"), dict)
+                else {}
+            ),
+            "headers": (
+                dict(auth_cfg.get("headers") or {})
+                if isinstance(auth_cfg.get("headers"), dict)
+                else {}
+            ),
             "request_encoding": (
                 auth_cfg.get("request_encoding").strip().lower()
                 if isinstance(auth_cfg.get("request_encoding"), str)
@@ -507,7 +525,9 @@ class ChatGPTAuthAppPlugin:
         if action_id == "check_status":
             auth_status = self._current_status(state)
             return {
-                "display": self._status_display_payload(auth_status, action="check_status"),
+                "display": self._status_display_payload(
+                    auth_status, action="check_status"
+                ),
                 "auth_status": auth_status,
             }
         if action_id == "show_account_status":
@@ -519,7 +539,9 @@ class ChatGPTAuthAppPlugin:
         if action_id == "cancel_login":
             auth_status = self._cancel_login(app, state)
             return {
-                "display": self._status_display_payload(auth_status, action="cancel_login"),
+                "display": self._status_display_payload(
+                    auth_status, action="cancel_login"
+                ),
                 "auth_status": auth_status,
             }
         if action_id == "logout":
@@ -564,7 +586,9 @@ class ChatGPTAuthAppPlugin:
             return resolve_effective(base_config, session, overrides)
         return dict(base_config)
 
-    def _effective_auth_mode(self, config: Dict[str, Any], auth_status: Dict[str, Any]) -> str:
+    def _effective_auth_mode(
+        self, config: Dict[str, Any], auth_status: Dict[str, Any]
+    ) -> str:
         raw = config.get("_openai_responses_effective_auth_mode")
         if isinstance(raw, str) and raw.strip().lower() in {"api", "chatgpt"}:
             return raw.strip().lower()
@@ -587,17 +611,23 @@ class ChatGPTAuthAppPlugin:
         if captured_at is not None and _utcnow() - captured_at > timedelta(
             minutes=_RATE_LIMIT_STALE_THRESHOLD_MINUTES
         ):
-            lines.append("_Latest known usage limits may be stale. Run a ChatGPT-backed request to refresh._")
+            lines.append(
+                "_Latest known usage limits may be stale. Run a ChatGPT-backed request to refresh._"
+            )
 
         for snapshot in snapshots:
             if not isinstance(snapshot, dict):
                 continue
             limit_id = snapshot.get("limit_id")
-            bucket = str(limit_id) if isinstance(limit_id, str) and limit_id else "codex"
+            bucket = (
+                str(limit_id) if isinstance(limit_id, str) and limit_id else "codex"
+            )
             primary = snapshot.get("primary")
             secondary = snapshot.get("secondary")
             credits = snapshot.get("credits")
-            window_count = int(isinstance(primary, dict)) + int(isinstance(secondary, dict))
+            window_count = int(isinstance(primary, dict)) + int(
+                isinstance(secondary, dict)
+            )
             prefix_non_codex_single = bucket != "codex" and window_count == 1
 
             if bucket != "codex" and window_count > 1:
@@ -608,7 +638,11 @@ class ChatGPTAuthAppPlugin:
                 if prefix_non_codex_single:
                     label = f"{bucket} {label}"
                 percent_used = primary.get("used_percent")
-                percent_remaining = 100.0 - float(percent_used) if isinstance(percent_used, (int, float)) else None
+                percent_remaining = (
+                    100.0 - float(percent_used)
+                    if isinstance(percent_used, (int, float))
+                    else None
+                )
                 reset_text = _format_reset_time(primary.get("resets_at"))
                 line = f"- {label}: "
                 if percent_remaining is not None:
@@ -624,7 +658,11 @@ class ChatGPTAuthAppPlugin:
                 if prefix_non_codex_single:
                     label = f"{bucket} {label}"
                 percent_used = secondary.get("used_percent")
-                percent_remaining = 100.0 - float(percent_used) if isinstance(percent_used, (int, float)) else None
+                percent_remaining = (
+                    100.0 - float(percent_used)
+                    if isinstance(percent_used, (int, float))
+                    else None
+                )
                 reset_text = _format_reset_time(secondary.get("resets_at"))
                 line = f"- {label}: "
                 if percent_remaining is not None:
@@ -659,11 +697,7 @@ class ChatGPTAuthAppPlugin:
             content_type = "application/json"
         else:
             body = urlencode(
-                {
-                    key: value
-                    for key, value in payload.items()
-                    if value is not None
-                }
+                {key: value for key, value in payload.items() if value is not None}
             ).encode("utf-8")
             content_type = "application/x-www-form-urlencoded"
 
@@ -752,12 +786,16 @@ class ChatGPTAuthAppPlugin:
         marker = "\n__STATUS__:"
         if marker not in output:
             stderr = completed.stderr.decode("utf-8", errors="replace")
-            raise RuntimeError(f"curl fallback returned unexpected output: {stderr or output}")
+            raise RuntimeError(
+                f"curl fallback returned unexpected output: {stderr or output}"
+            )
         raw_text, _, status_text = output.rpartition(marker)
         try:
             status = int(status_text.strip())
         except ValueError as exc:
-            raise RuntimeError("curl fallback did not return a valid HTTP status") from exc
+            raise RuntimeError(
+                "curl fallback did not return a valid HTTP status"
+            ) from exc
         try:
             parsed = json.loads(raw_text)
         except Exception:
@@ -785,12 +823,21 @@ class ChatGPTAuthAppPlugin:
             else None
         )
         client_id = cfg.get("client_id")
-        if not isinstance(device_code_endpoint, str) or not device_code_endpoint.strip():
-            raise ValueError("[chatgpt_auth] application.chatgpt_auth.device_code_endpoint is required")
+        if (
+            not isinstance(device_code_endpoint, str)
+            or not device_code_endpoint.strip()
+        ):
+            raise ValueError(
+                "[chatgpt_auth] application.chatgpt_auth.device_code_endpoint is required"
+            )
         if not isinstance(token_endpoint, str) or not token_endpoint.strip():
-            raise ValueError("[chatgpt_auth] application.chatgpt_auth.token_endpoint is required")
+            raise ValueError(
+                "[chatgpt_auth] application.chatgpt_auth.token_endpoint is required"
+            )
         if not isinstance(client_id, str) or not client_id.strip():
-            raise ValueError("[chatgpt_auth] application.chatgpt_auth.client_id is required")
+            raise ValueError(
+                "[chatgpt_auth] application.chatgpt_auth.client_id is required"
+            )
 
         payload: Dict[str, Any] = {"client_id": client_id.strip()}
         if isinstance(cfg.get("client_secret"), str) and cfg.get("client_secret"):
@@ -806,10 +853,16 @@ class ChatGPTAuthAppPlugin:
             payload=payload,
             headers=cfg.get("headers") or {},
             encoding=str(cfg.get("request_encoding") or "json"),
-            timeout=_coerce_positive_float(cfg.get("http_timeout_seconds"), _DEFAULT_HTTP_TIMEOUT_SECONDS),
+            timeout=_coerce_positive_float(
+                cfg.get("http_timeout_seconds"), _DEFAULT_HTTP_TIMEOUT_SECONDS
+            ),
         )
         if status_code >= 400:
-            error = response.get("error") if isinstance(response.get("error"), str) else "device_code_start_failed"
+            error = (
+                response.get("error")
+                if isinstance(response.get("error"), str)
+                else "device_code_start_failed"
+            )
             message = (
                 response.get("error_description")
                 if isinstance(response.get("error_description"), str)
@@ -818,7 +871,9 @@ class ChatGPTAuthAppPlugin:
             raise RuntimeError(f"{error}: {message}")
         return response
 
-    def _normalized_attempt(self, device_code_response: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalized_attempt(
+        self, device_code_response: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         cfg = self._config(state)
         protocol = cfg.get("protocol") or "codex_deviceauth"
         issuer = str(cfg.get("issuer") or _DEFAULT_ISSUER).rstrip("/")
@@ -834,11 +889,17 @@ class ChatGPTAuthAppPlugin:
         user_code = device_code_response.get("user_code")
         if protocol == "codex_deviceauth":
             if not isinstance(device_auth_id, str) or not device_auth_id:
-                raise RuntimeError("[chatgpt_auth] device code response missing device_auth_id")
+                raise RuntimeError(
+                    "[chatgpt_auth] device code response missing device_auth_id"
+                )
         elif not isinstance(device_code, str) or not device_code:
-            raise RuntimeError("[chatgpt_auth] device code response missing device_code")
+            raise RuntimeError(
+                "[chatgpt_auth] device code response missing device_code"
+            )
         if not isinstance(verification_url, str) or not verification_url:
-            raise RuntimeError("[chatgpt_auth] device code response missing verification URL")
+            raise RuntimeError(
+                "[chatgpt_auth] device code response missing verification URL"
+            )
         if not isinstance(user_code, str) or not user_code:
             raise RuntimeError("[chatgpt_auth] device code response missing user_code")
 
@@ -870,10 +931,15 @@ class ChatGPTAuthAppPlugin:
     def _start_login(self, app: Any, state: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
             current_attempt = state.get("active_attempt")
-            if isinstance(current_attempt, dict) and current_attempt.get("state") == "pending":
+            if (
+                isinstance(current_attempt, dict)
+                and current_attempt.get("state") == "pending"
+            ):
                 auth_status = self._attempt_status(current_attempt)
                 return {
-                    "display": self._status_display_payload(auth_status, action="login_start"),
+                    "display": self._status_display_payload(
+                        auth_status, action="login_start"
+                    ),
                     "auth_status": auth_status,
                 }
 
@@ -890,11 +956,15 @@ class ChatGPTAuthAppPlugin:
             worker.start()
             auth_status = self._attempt_status(attempt)
             return {
-                "display": self._status_display_payload(auth_status, action="login_start"),
+                "display": self._status_display_payload(
+                    auth_status, action="login_start"
+                ),
                 "auth_status": auth_status,
             }
 
-    def _poll_for_completion(self, app: Any, state: Dict[str, Any], attempt: Dict[str, Any]) -> None:
+    def _poll_for_completion(
+        self, app: Any, state: Dict[str, Any], attempt: Dict[str, Any]
+    ) -> None:
         cfg = self._config(state)
         protocol = cfg.get("protocol") or "codex_deviceauth"
         issuer = str(cfg.get("issuer") or _DEFAULT_ISSUER).rstrip("/")
@@ -903,7 +973,9 @@ class ChatGPTAuthAppPlugin:
             if protocol == "codex_deviceauth"
             else None
         )
-        token_exchange_endpoint = cfg.get("token_exchange_endpoint") or f"{issuer}/oauth/token"
+        token_exchange_endpoint = (
+            cfg.get("token_exchange_endpoint") or f"{issuer}/oauth/token"
+        )
         client_id = cfg.get("client_id")
         if not isinstance(token_endpoint, str) or not token_endpoint:
             return
@@ -947,7 +1019,9 @@ class ChatGPTAuthAppPlugin:
                     "device_code": attempt.get("device_code"),
                     "client_id": client_id,
                 }
-                if isinstance(cfg.get("client_secret"), str) and cfg.get("client_secret"):
+                if isinstance(cfg.get("client_secret"), str) and cfg.get(
+                    "client_secret"
+                ):
                     payload["client_secret"] = cfg["client_secret"]
                 payload.update(cfg.get("token_request") or {})
 
@@ -970,7 +1044,11 @@ class ChatGPTAuthAppPlugin:
                 self._publish_auth_event(app, state["last_status"])
                 return
 
-            error_code = token_response.get("error") if isinstance(token_response.get("error"), str) else None
+            error_code = (
+                token_response.get("error")
+                if isinstance(token_response.get("error"), str)
+                else None
+            )
             if protocol == "codex_deviceauth" and status_code in {403, 404}:
                 continue
             if error_code in _NON_FATAL_TOKEN_ERRORS:
@@ -979,16 +1057,22 @@ class ChatGPTAuthAppPlugin:
                     attempt["poll_interval_seconds"] = poll_interval
                 continue
 
-            if protocol == "codex_deviceauth" and status_code < 400 and isinstance(
-                token_response.get("authorization_code"), str
+            if (
+                protocol == "codex_deviceauth"
+                and status_code < 400
+                and isinstance(token_response.get("authorization_code"), str)
             ):
                 try:
                     exchanged = self._exchange_authorization_code(
                         token_exchange_endpoint,
-                        authorization_code=str(token_response.get("authorization_code")),
+                        authorization_code=str(
+                            token_response.get("authorization_code")
+                        ),
                         code_verifier=str(token_response.get("code_verifier") or ""),
                         client_id=client_id,
-                        redirect_uri=str(cfg.get("redirect_uri") or f"{issuer}/deviceauth/callback"),
+                        redirect_uri=str(
+                            cfg.get("redirect_uri") or f"{issuer}/deviceauth/callback"
+                        ),
                         timeout=_coerce_positive_float(
                             cfg.get("http_timeout_seconds"),
                             _DEFAULT_HTTP_TIMEOUT_SECONDS,
@@ -1023,8 +1107,12 @@ class ChatGPTAuthAppPlugin:
                 self._publish_auth_event(app, state["last_status"])
                 return
 
-            if status_code < 400 and isinstance(token_response.get("access_token"), str):
-                credentials = self._normalized_credentials(token_response, login_id=login_id)
+            if status_code < 400 and isinstance(
+                token_response.get("access_token"), str
+            ):
+                credentials = self._normalized_credentials(
+                    token_response, login_id=login_id
+                )
                 credentials["issuer"] = issuer
                 credentials["client_id"] = client_id
                 credentials["credentials_path"] = str(self._credentials_path(state))
@@ -1046,7 +1134,10 @@ class ChatGPTAuthAppPlugin:
             if error_code in _TERMINAL_TOKEN_ERRORS or status_code >= 400:
                 with self._lock:
                     attempt["state"] = "failed"
-                    attempt["error"] = error_detail or f"token polling failed with status {status_code}"
+                    attempt["error"] = (
+                        error_detail
+                        or f"token polling failed with status {status_code}"
+                    )
                     state["last_status"] = self._attempt_status(attempt)
                 self._publish_auth_event(app, state["last_status"])
                 return
@@ -1062,9 +1153,13 @@ class ChatGPTAuthAppPlugin:
         timeout: float,
     ) -> Dict[str, Any]:
         if not authorization_code:
-            raise RuntimeError("[chatgpt_auth] token poll response missing authorization_code")
+            raise RuntimeError(
+                "[chatgpt_auth] token poll response missing authorization_code"
+            )
         if not code_verifier:
-            raise RuntimeError("[chatgpt_auth] token poll response missing code_verifier")
+            raise RuntimeError(
+                "[chatgpt_auth] token poll response missing code_verifier"
+            )
         status_code, response = self._request_payload(
             url=token_exchange_endpoint,
             payload={
@@ -1084,16 +1179,25 @@ class ChatGPTAuthAppPlugin:
                 if isinstance(response.get("error_description"), str)
                 else response.get("error")
             )
-            raise RuntimeError(f"authorization code exchange failed: {detail or status_code}")
+            raise RuntimeError(
+                f"authorization code exchange failed: {detail or status_code}"
+            )
         return response
 
-    def _normalized_credentials(self, token_response: Dict[str, Any], *, login_id: Any) -> Dict[str, Any]:
+    def _normalized_credentials(
+        self, token_response: Dict[str, Any], *, login_id: Any
+    ) -> Dict[str, Any]:
         obtained_at = _utcnow()
         expires_in = token_response.get("expires_in")
         expires_at = None
         if expires_in is not None:
             expires_at = _isoformat_utc(
-                obtained_at + timedelta(seconds=_coerce_positive_int(expires_in, _DEFAULT_LOGIN_TIMEOUT_SECONDS))
+                obtained_at
+                + timedelta(
+                    seconds=_coerce_positive_int(
+                        expires_in, _DEFAULT_LOGIN_TIMEOUT_SECONDS
+                    )
+                )
             )
         id_token = token_response.get("id_token")
         claims = _jwt_claims(id_token)
@@ -1107,23 +1211,36 @@ class ChatGPTAuthAppPlugin:
             "scope": token_response.get("scope"),
             "obtained_at": _isoformat_utc(obtained_at),
             "expires_at": expires_at,
-            "account_email": token_response.get("account_email") or token_response.get("email") or claims.get("email"),
-            "account_id": token_response.get("account_id") or claims.get("chatgpt_account_id") or claims.get("sub"),
-            "plan_type": token_response.get("plan_type") or claims.get("chatgpt_plan_type"),
+            "account_email": token_response.get("account_email")
+            or token_response.get("email")
+            or claims.get("email"),
+            "account_id": token_response.get("account_id")
+            or claims.get("chatgpt_account_id")
+            or claims.get("sub"),
+            "plan_type": token_response.get("plan_type")
+            or claims.get("chatgpt_plan_type"),
         }
 
     def _credentials_status(self, credentials: Dict[str, Any]) -> Dict[str, Any]:
-        state = "authenticated" if self._credentials_are_valid(credentials) else "logged_out"
+        state = (
+            "authenticated"
+            if self._credentials_are_valid(credentials)
+            else "logged_out"
+        )
         return {
             "state": state,
             "login_id": credentials.get("login_id"),
             "account_email": credentials.get("account_email"),
             "account_id": credentials.get("account_id"),
             "plan_type": credentials.get("plan_type"),
-            "credentials_path": str(credentials.get("credentials_path"))
-            if isinstance(credentials.get("credentials_path"), Path)
-            else credentials.get("credentials_path"),
-            "error": "saved credentials have expired" if state != "authenticated" else None,
+            "credentials_path": (
+                str(credentials.get("credentials_path"))
+                if isinstance(credentials.get("credentials_path"), Path)
+                else credentials.get("credentials_path")
+            ),
+            "error": (
+                "saved credentials have expired" if state != "authenticated" else None
+            ),
         }
 
     def _credentials_are_valid(self, credentials: Dict[str, Any]) -> bool:
@@ -1151,7 +1268,10 @@ class ChatGPTAuthAppPlugin:
     def _current_status(self, state: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
             active_attempt = state.get("active_attempt")
-            if isinstance(active_attempt, dict) and active_attempt.get("state") == "pending":
+            if (
+                isinstance(active_attempt, dict)
+                and active_attempt.get("state") == "pending"
+            ):
                 return self._attempt_status(active_attempt)
             credentials_path = self._credentials_path(state)
             credentials = _read_json(credentials_path)
@@ -1179,12 +1299,18 @@ class ChatGPTAuthAppPlugin:
         auth_status = self._current_status(state)
         requested_mode = _normalize_auth_mode(config.get("auth_mode"))
         effective_mode = self._effective_auth_mode(config, auth_status)
-        supported = self._should_show_session_actions(config, [f"provider:{config.get('provider')}"])
+        supported = self._should_show_session_actions(
+            config, [f"provider:{config.get('provider')}"]
+        )
 
         rate_limits_path = _resolve_rate_limits_path(config)
         rate_limits_state = _read_json(rate_limits_path) or {}
         rate_limit_lines = self._render_rate_limit_lines(rate_limits_state)
-        endpoint = config.get("chatgpt_base_url") if effective_mode == "chatgpt" else config.get("api_base_url") or config.get("base_url")
+        endpoint = (
+            config.get("chatgpt_base_url")
+            if effective_mode == "chatgpt"
+            else config.get("api_base_url") or config.get("base_url")
+        )
 
         lines: List[str] = []
         variant = "success" if auth_status.get("state") == "authenticated" else "info"
@@ -1199,7 +1325,9 @@ class ChatGPTAuthAppPlugin:
             lines.append(f"Login state: `{auth_status.get('state') or 'unknown'}`")
             account_email = auth_status.get("account_email")
             account_id = auth_status.get("account_id")
-            plan_type = auth_status.get("plan_type") or rate_limits_state.get("plan_type")
+            plan_type = auth_status.get("plan_type") or rate_limits_state.get(
+                "plan_type"
+            )
             if isinstance(account_email, str) and account_email:
                 lines.append(f"Account: `{account_email}`")
             if isinstance(account_id, str) and account_id:
@@ -1213,11 +1341,15 @@ class ChatGPTAuthAppPlugin:
             if rate_limit_lines:
                 lines.extend(rate_limit_lines)
             else:
-                lines.append("- Not available yet. Run a ChatGPT-backed request to refresh.")
+                lines.append(
+                    "- Not available yet. Run a ChatGPT-backed request to refresh."
+                )
 
             journal_path = self._usage_journal_path(state, config)
             report = usage_journal.build_usage_report(journal_path)
-            totals = report.get("totals") if isinstance(report.get("totals"), dict) else {}
+            totals = (
+                report.get("totals") if isinstance(report.get("totals"), dict) else {}
+            )
             if totals.get("request_count"):
                 lines.append("")
                 lines.append("Estimated usage since reset:")
@@ -1267,7 +1399,55 @@ class ChatGPTAuthAppPlugin:
         for path in candidates:
             if path.exists():
                 return path
-        return candidates[0] if candidates else usage_journal.resolve_usage_journal_path(session_config)
+        return (
+            candidates[0]
+            if candidates
+            else usage_journal.resolve_usage_journal_path(session_config)
+        )
+
+    def _usage_summary_csv_path(
+        self,
+        config: Dict[str, Any],
+        journal_path: Path,
+    ) -> Path:
+        """Resolve the simplified usage summary CSV path for the reset marker.
+
+        Mirrors the openai_responses journal writer: an explicit
+        ``chatgpt_usage_summary_csv_path`` override wins; otherwise the CSV
+        lives next to the resolved journal file.
+        """
+
+        raw = config.get("chatgpt_usage_summary_csv_path")
+        if isinstance(raw, str) and raw.strip():
+            try:
+                return Path(raw).expanduser()
+            except Exception:
+                return journal_path.with_name(
+                    usage_journal.DEFAULT_CHATGPT_USAGE_SUMMARY_CSV_FILENAME
+                )
+        return journal_path.with_name(
+            usage_journal.DEFAULT_CHATGPT_USAGE_SUMMARY_CSV_FILENAME
+        )
+
+    def _append_usage_summary_reset_row(
+        self,
+        config: Dict[str, Any],
+        journal_path: Path,
+    ) -> None:
+        """Append a reset row to the simplified usage summary CSV. Best-effort.
+
+        Gated by ``track_chatgpt_usage_summary_csv`` (default enabled), the
+        same key the openai_responses journal writer honors.
+        """
+
+        if config.get("track_chatgpt_usage_summary_csv") is False:
+            return
+        try:
+            usage_journal.append_summary_reset_row(
+                self._usage_summary_csv_path(config, journal_path)
+            )
+        except Exception:
+            return
 
     def _render_report_limit_lines(
         self,
@@ -1283,14 +1463,19 @@ class ChatGPTAuthAppPlugin:
             if not isinstance(snapshot, dict):
                 continue
             limit_id = snapshot.get("limit_id")
-            bucket = str(limit_id) if isinstance(limit_id, str) and limit_id else "codex"
+            bucket = (
+                str(limit_id) if isinstance(limit_id, str) and limit_id else "codex"
+            )
             window_count = int(isinstance(snapshot.get("primary"), dict)) + int(
                 isinstance(snapshot.get("secondary"), dict)
             )
             prefix_non_codex_single = bucket != "codex" and window_count == 1
             if bucket != "codex" and window_count > 1:
                 lines.append(f"- `{bucket}`")
-            for window_kind, fallback in (("primary", "5h limit"), ("secondary", "Weekly limit")):
+            for window_kind, fallback in (
+                ("primary", "5h limit"),
+                ("secondary", "Weekly limit"),
+            ):
                 window = snapshot.get(window_kind)
                 if not isinstance(window, dict):
                     continue
@@ -1323,15 +1508,23 @@ class ChatGPTAuthAppPlugin:
             if not isinstance(summary, dict):
                 continue
             limit_id = summary.get("limit_id")
-            bucket = str(limit_id) if isinstance(limit_id, str) and limit_id else "codex"
-            label = _format_limit_label(summary, "5h limit" if summary.get("window") == "primary" else "Weekly limit")
+            bucket = (
+                str(limit_id) if isinstance(limit_id, str) and limit_id else "codex"
+            )
+            label = _format_limit_label(
+                summary,
+                "5h limit" if summary.get("window") == "primary" else "Weekly limit",
+            )
             if bucket != "codex":
                 label = f"{bucket} {label}"
             first = summary.get("first_used_percent")
             last = summary.get("last_used_percent")
             minimum = summary.get("min_used_percent")
             maximum = summary.get("max_used_percent")
-            if not all(isinstance(value, (int, float)) for value in (first, last, minimum, maximum)):
+            if not all(
+                isinstance(value, (int, float))
+                for value in (first, last, minimum, maximum)
+            ):
                 continue
             line = (
                 f"- {label}: `{first:.0f}%` → `{last:.0f}%` "
@@ -1426,7 +1619,9 @@ class ChatGPTAuthAppPlugin:
             else:
                 lines.append("Tracking since: `journal start (no reset marker yet)`")
         else:
-            from_text = from_dt.strftime("%Y-%m-%d %H:%M") if from_dt is not None else "start"
+            from_text = (
+                from_dt.strftime("%Y-%m-%d %H:%M") if from_dt is not None else "start"
+            )
             to_text = to_dt.strftime("%Y-%m-%d %H:%M") if to_dt is not None else "now"
             lines.append(f"Date range: `{from_text}` → `{to_text}`")
         lines.append("")
@@ -1437,7 +1632,9 @@ class ChatGPTAuthAppPlugin:
         lines.append(f"- Cache write tokens: `{totals.get('cache_write_tokens', 0):,}`")
         lines.append(f"- Output tokens: `{totals.get('output_tokens', 0):,}`")
         lines.append(f"- Reasoning tokens: `{totals.get('reasoning_tokens', 0):,}`")
-        lines.append(f"- Estimated cost: `${float(totals.get('estimated_cost', 0.0)):.6f}`")
+        lines.append(
+            f"- Estimated cost: `${float(totals.get('estimated_cost', 0.0)):.6f}`"
+        )
 
         limit_lines = self._render_report_limit_lines(report.get("latest_rate_limits"))
         lines.append("")
@@ -1445,7 +1642,9 @@ class ChatGPTAuthAppPlugin:
         if limit_lines:
             lines.extend(limit_lines)
         else:
-            lines.append("- Not available yet. Run a ChatGPT-backed request to refresh.")
+            lines.append(
+                "- Not available yet. Run a ChatGPT-backed request to refresh."
+            )
 
         percent_lines = self._render_report_percent_history(
             report.get("percent_summary") or []
@@ -1546,6 +1745,7 @@ class ChatGPTAuthAppPlugin:
         journal_path = self._usage_journal_path(state, config)
         appended = usage_journal.append_usage_reset(journal_path)
         if appended:
+            self._append_usage_summary_reset_row(config, journal_path)
             body = (
                 "Usage tracking was reset. New usage reports start counting from now.\n\n"
                 "Previous journal history is preserved and stays inspectable by date."
@@ -1585,7 +1785,10 @@ class ChatGPTAuthAppPlugin:
     def _cancel_login(self, app: Any, state: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
             active_attempt = state.get("active_attempt")
-            if not isinstance(active_attempt, dict) or active_attempt.get("state") != "pending":
+            if (
+                not isinstance(active_attempt, dict)
+                or active_attempt.get("state") != "pending"
+            ):
                 status = self._current_status(state)
                 return status
             cancel_event = active_attempt.get("cancel_event")
@@ -1604,9 +1807,16 @@ class ChatGPTAuthAppPlugin:
             _remove_file(self._credentials_path(state))
             _remove_file(self._rate_limits_path(state))
             active_attempt = state.get("active_attempt")
-            if isinstance(active_attempt, dict) and active_attempt.get("state") == "canceled":
+            if (
+                isinstance(active_attempt, dict)
+                and active_attempt.get("state") == "canceled"
+            ):
                 state["active_attempt"] = None
-            state["last_status"] = {"state": "logged_out", "login_id": None, "error": None}
+            state["last_status"] = {
+                "state": "logged_out",
+                "login_id": None,
+                "error": None,
+            }
             status = dict(state["last_status"])
         self._publish_auth_event(app, status)
         return status
@@ -1626,7 +1836,9 @@ class ChatGPTAuthAppPlugin:
         except Exception:
             return
 
-    def _status_display_payload(self, auth_status: Dict[str, Any], *, action: str) -> Dict[str, Any]:
+    def _status_display_payload(
+        self, auth_status: Dict[str, Any], *, action: str
+    ) -> Dict[str, Any]:
         state = str(auth_status.get("state") or "unknown")
         title = "ChatGPT Login"
         variant = "info"
@@ -1669,7 +1881,9 @@ class ChatGPTAuthAppPlugin:
                     }
                 )
             lines.append("")
-            lines.append("When you are done, return here and run **Show ChatGPT login status**.")
+            lines.append(
+                "When you are done, return here and run **Show ChatGPT login status**."
+            )
             expires_at = auth_status.get("expires_at")
             if isinstance(expires_at, str) and expires_at:
                 lines.append("")

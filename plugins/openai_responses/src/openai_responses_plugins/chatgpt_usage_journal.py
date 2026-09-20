@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +23,7 @@ from .chatgpt_rate_limits import resolve_rate_limits_path
 
 DEFAULT_CHATGPT_USAGE_JOURNAL_RELATIVE_PATH = "auth/chatgpt-usage-journal.ndjson"
 DEFAULT_CHATGPT_USAGE_JOURNAL_FILENAME = "chatgpt-usage-journal.ndjson"
+DEFAULT_CHATGPT_USAGE_SUMMARY_CSV_FILENAME = "chatgpt-usage-summary.csv"
 JOURNAL_RECORD_TYPES = frozenset(
     {
         "rate_limit_snapshot",
@@ -34,6 +36,15 @@ RATE_LIMIT_SNAPSHOT_RECORD_TYPE = "rate_limit_snapshot"
 REQUEST_USAGE_RECORD_TYPE = "request_usage"
 USAGE_RESET_RECORD_TYPE = "usage_reset"
 
+SUMMARY_CSV_FIELDNAMES = [
+    "time",
+    "working_directory",
+    "session_id",
+    "estimated_cost",
+    "total_cost",
+    "used_percent",
+]
+
 _write_lock = threading.Lock()
 
 
@@ -44,6 +55,55 @@ def resolve_usage_journal_path(config: Dict[str, Any]) -> Path:
 
     rate_limits_path = resolve_rate_limits_path(config)
     return rate_limits_path.with_name(DEFAULT_CHATGPT_USAGE_JOURNAL_FILENAME)
+
+
+def resolve_summary_csv_path(config: Dict[str, Any]) -> Path:
+    raw = config.get("chatgpt_usage_summary_csv_path")
+    if isinstance(raw, str) and raw.strip():
+        return Path(raw).expanduser()
+    return resolve_usage_journal_path(config).with_name(
+        DEFAULT_CHATGPT_USAGE_SUMMARY_CSV_FILENAME
+    )
+
+
+def summary_csv_enabled(config: Optional[Dict[str, Any]]) -> bool:
+    """Return whether the simplified summary CSV should be appended."""
+
+    if not isinstance(config, dict):
+        return False
+    return config.get("track_chatgpt_usage_summary_csv") is not False
+
+
+def session_id_from_state(state: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Return the session id from the request context in shared state.
+
+    The core's provider wrapper injects the request context (which carries
+    ``session_id``) into provider state as ``_request_context`` during
+    ``initialize_request``; providers and extensions read it from there.
+    """
+
+    context = state.get("_request_context") if isinstance(state, dict) else None
+    if isinstance(context, dict):
+        value = context.get("session_id")
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def resolve_working_directory(config: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Resolve the request working directory to an absolute path string.
+
+    Relative values are resolved against the server process working
+    directory, so journal records always carry an absolute path.
+    """
+
+    raw = config.get("working_directory") if isinstance(config, dict) else None
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        return os.path.abspath(os.path.expanduser(raw))
+    except Exception:
+        return None
 
 
 def append_journal_record(path: Path, record: Dict[str, Any]) -> bool:
@@ -66,6 +126,117 @@ def append_journal_record(path: Path, record: Dict[str, Any]) -> bool:
         return False
 
 
+def _record_session_fields(
+    record: Dict[str, Any],
+    session_id: Any,
+    working_directory: Any,
+) -> None:
+    if isinstance(session_id, str) and session_id:
+        record["session_id"] = session_id
+    if isinstance(working_directory, str) and working_directory:
+        record["working_directory"] = working_directory
+
+
+def _summary_used_percent(record: Dict[str, Any]) -> Optional[float]:
+    """Return the primary-window used percent carried by a journal record."""
+
+    payload = record_rate_limits(record)
+    if payload is None:
+        return None
+    snapshots = payload.get("snapshots")
+    if not isinstance(snapshots, list):
+        return None
+    for snapshot in snapshots:
+        if not isinstance(snapshot, dict):
+            continue
+        window = snapshot.get("primary")
+        if not isinstance(window, dict):
+            continue
+        used_percent = window.get("used_percent")
+        if isinstance(used_percent, (int, float)) and not isinstance(
+            used_percent, bool
+        ):
+            return float(used_percent)
+    return None
+
+
+def append_summary_csv_row(
+    csv_path: Path,
+    journal_path: Path,
+    record: Dict[str, Any],
+) -> bool:
+    """Append one simplified summary row for a freshly journaled record.
+
+    Columns: ``time, working_directory, session_id, estimated_cost,
+    total_cost, used_percent``. ``total_cost`` is the estimated cost
+    accumulated since the most recent reset marker (computed from the
+    journal, so it already includes the record being summarized). Best-effort:
+    failures are swallowed so journaling can never break the request pipeline.
+    """
+
+    if not isinstance(record, dict) or record.get("type") not in JOURNAL_RECORD_TYPES:
+        return False
+    try:
+        timestamp = (
+            record.get("timestamp") if isinstance(record.get("timestamp"), str) else ""
+        )
+        estimated_cost = record.get("estimated_cost")
+        if not isinstance(estimated_cost, (int, float)) or isinstance(
+            estimated_cost, bool
+        ):
+            estimated_cost = None
+        if record.get("type") == USAGE_RESET_RECORD_TYPE:
+            total_cost = 0.0
+        else:
+            total_cost = float(
+                totals_since_last_reset(journal_path).get("estimated_cost") or 0.0
+            )
+        used_percent = _summary_used_percent(record)
+        row: Dict[str, Any] = {
+            "time": timestamp,
+            "working_directory": (
+                record.get("working_directory")
+                if isinstance(record.get("working_directory"), str)
+                else ""
+            ),
+            "session_id": (
+                record.get("session_id")
+                if isinstance(record.get("session_id"), str)
+                else ""
+            ),
+            "estimated_cost": estimated_cost if estimated_cost is not None else "",
+            "total_cost": total_cost,
+            "used_percent": used_percent if used_percent is not None else "",
+        }
+        with _write_lock:
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            needs_header = not csv_path.exists() or csv_path.stat().st_size == 0
+            with open(csv_path, "a", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle, fieldnames=SUMMARY_CSV_FIELDNAMES, extrasaction="ignore"
+                )
+                if needs_header:
+                    writer.writeheader()
+                writer.writerow(row)
+        return True
+    except Exception:
+        return False
+
+
+def _append_record_with_summary(
+    path: Path,
+    record: Dict[str, Any],
+    *,
+    config: Optional[Dict[str, Any]],
+) -> bool:
+    appended = append_journal_record(path, record)
+    if not appended:
+        return False
+    if summary_csv_enabled(config):
+        append_summary_csv_row(resolve_summary_csv_path(config), path, record)
+    return appended
+
+
 def append_rate_limit_snapshot(
     path: Path,
     *,
@@ -73,6 +244,9 @@ def append_rate_limit_snapshot(
     plan_type: Any = None,
     source: str = "x-codex-headers",
     captured_at: Optional[datetime] = None,
+    session_id: Any = None,
+    working_directory: Any = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> bool:
     if not isinstance(snapshots, list) or not snapshots:
         return False
@@ -84,7 +258,8 @@ def append_rate_limit_snapshot(
     }
     if isinstance(plan_type, str) and plan_type:
         record["plan_type"] = plan_type
-    return append_journal_record(path, record)
+    _record_session_fields(record, session_id, working_directory)
+    return _append_record_with_summary(path, record, config=config)
 
 
 def append_request_usage(
@@ -104,6 +279,9 @@ def append_request_usage(
     usage: Optional[Dict[str, Any]] = None,
     rate_limits: Optional[Dict[str, Any]] = None,
     timestamp: Optional[datetime] = None,
+    session_id: Any = None,
+    working_directory: Any = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> bool:
     record: Dict[str, Any] = {
         "type": REQUEST_USAGE_RECORD_TYPE,
@@ -135,7 +313,8 @@ def append_request_usage(
         record["usage"] = usage
     if isinstance(rate_limits, dict) and rate_limits:
         record["rate_limits"] = rate_limits
-    return append_journal_record(path, record)
+    _record_session_fields(record, session_id, working_directory)
+    return _append_record_with_summary(path, record, config=config)
 
 
 def append_usage_reset(
@@ -143,13 +322,14 @@ def append_usage_reset(
     *,
     source: str = "manual",
     timestamp: Optional[datetime] = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> bool:
     record: Dict[str, Any] = {
         "type": USAGE_RESET_RECORD_TYPE,
         "timestamp": isoformat_utc(timestamp or datetime.now(timezone.utc)),
         "source": source,
     }
-    return append_journal_record(path, record)
+    return _append_record_with_summary(path, record, config=config)
 
 
 def iter_journal_records(
@@ -374,6 +554,8 @@ def percent_history(
 _CSV_FIELDNAMES = [
     "timestamp",
     "type",
+    "session_id",
+    "working_directory",
     "limit_id",
     "window",
     "used_percent",
@@ -413,6 +595,10 @@ def export_journal_csv(
         )
         record_type = record.get("type")
         base: Dict[str, Any] = {"timestamp": timestamp, "type": record_type}
+        for key in ("session_id", "working_directory"):
+            value = record.get(key)
+            if isinstance(value, str) and value:
+                base[key] = value
         if record_type == USAGE_RESET_RECORD_TYPE:
             rows.append(base)
             continue
@@ -479,20 +665,27 @@ def export_journal_csv(
 __all__ = [
     "DEFAULT_CHATGPT_USAGE_JOURNAL_FILENAME",
     "DEFAULT_CHATGPT_USAGE_JOURNAL_RELATIVE_PATH",
+    "DEFAULT_CHATGPT_USAGE_SUMMARY_CSV_FILENAME",
     "JOURNAL_RECORD_TYPES",
     "RATE_LIMIT_SNAPSHOT_RECORD_TYPE",
     "REQUEST_USAGE_RECORD_TYPE",
+    "SUMMARY_CSV_FIELDNAMES",
     "USAGE_RESET_RECORD_TYPE",
     "append_journal_record",
     "append_rate_limit_snapshot",
     "append_request_usage",
+    "append_summary_csv_row",
     "append_usage_reset",
     "export_journal_csv",
     "iter_journal_records",
     "latest_rate_limits",
     "percent_history",
     "record_rate_limits",
+    "resolve_summary_csv_path",
     "resolve_usage_journal_path",
+    "resolve_working_directory",
+    "session_id_from_state",
+    "summary_csv_enabled",
     "totals_from_request_usage_records",
     "totals_since_last_reset",
 ]

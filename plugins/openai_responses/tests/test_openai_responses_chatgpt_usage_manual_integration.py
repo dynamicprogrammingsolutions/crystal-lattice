@@ -41,6 +41,10 @@ def _usage_journal_path() -> Path:
     return _manual_state_dir() / "auth" / "chatgpt-usage-journal.ndjson"
 
 
+def _usage_summary_csv_path() -> Path:
+    return _manual_state_dir() / "auth" / "chatgpt-usage-summary.csv"
+
+
 def _journal_records() -> list[dict[str, Any]]:
     path = _usage_journal_path()
     try:
@@ -77,6 +81,7 @@ def _chatgpt_config(credentials_path: Path) -> dict[str, object]:
         "show_estimated_cached_tokens": True,
         "show_openai_auth_mode": True,
         "timeout": 180,
+        "working_directory": ".",
     }
 
 
@@ -269,3 +274,22 @@ def test_openai_responses_chatgpt_saved_login_usage_multi_turn_tool_loop() -> No
         assert (
             isinstance(rate_limits.get("snapshots"), list) and rate_limits["snapshots"]
         )
+
+    # The simplified summary CSV is appended at the same time as the journal
+    # and carries the session id and absolute working directory per record.
+    summary_path = _usage_summary_csv_path()
+    assert summary_path.exists(), "expected the ChatGPT usage summary CSV"
+    import csv
+
+    with open(summary_path, encoding="utf-8", newline="") as handle:
+        summary_rows = list(csv.DictReader(handle))
+    assert len(summary_rows) >= expected_requests
+    request_rows = [row for row in summary_rows if row["estimated_cost"] != ""]
+    assert len(request_rows) >= expected_requests
+    for row in request_rows[-expected_requests:]:
+        assert row["session_id"], "expected the session id in summary CSV rows"
+        assert row["working_directory"].startswith(
+            "/"
+        ), "expected an absolute working directory in summary CSV rows"
+        assert float(row["estimated_cost"]) >= 0.0
+        assert float(row["total_cost"]) >= float(row["estimated_cost"])

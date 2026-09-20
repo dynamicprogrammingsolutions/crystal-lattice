@@ -17,7 +17,10 @@ from .chatgpt_rate_limits import (
 )
 from .chatgpt_usage_journal import (
     append_request_usage,
+    iter_journal_records,
     resolve_usage_journal_path,
+    resolve_working_directory,
+    session_id_from_state,
 )
 from .openai_responses_pricing import estimate_usage_cost
 from .openai_responses_codex_models import (
@@ -204,6 +207,26 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     "Optional path override for the ChatGPT usage journal file. "
                     "Defaults to a chatgpt-usage-journal.ndjson file next to the "
                     "ChatGPT rate-limits file."
+                ),
+            },
+            "track_chatgpt_usage_summary_csv": {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": (
+                    "Also append a simplified per-record summary CSV "
+                    "(time, working_directory, session_id, estimated_cost, "
+                    "total_cost since the last reset, used_percent) whenever a "
+                    "journal record is written."
+                ),
+            },
+            "chatgpt_usage_summary_csv_path": {
+                "type": "string",
+                "required": False,
+                "description": (
+                    "Optional path override for the simplified ChatGPT usage "
+                    "summary CSV. Defaults to a chatgpt-usage-summary.csv file "
+                    "next to the usage journal."
                 ),
             },
         }
@@ -1280,8 +1303,19 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         if config.get("track_chatgpt_usage_journal") is False:
             return
         try:
+            journal_path = resolve_usage_journal_path(config)
+            # Re-finalize and rebuild paths can present the same response
+            # again (for example when a session is re-rendered); journal each
+            # response id at most once so rebuilds never duplicate records.
+            if isinstance(response_id, str) and response_id:
+                for record in iter_journal_records(journal_path):
+                    if (
+                        record.get("type") == "request_usage"
+                        and record.get("response_id") == response_id
+                    ):
+                        return
             append_request_usage(
-                resolve_usage_journal_path(config),
+                journal_path,
                 input_tokens=input_tokens,
                 cached_tokens=cached_tokens,
                 cache_write_tokens=cache_write_tokens,
@@ -1295,6 +1329,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 reasoning_mode=reasoning_mode,
                 usage=project_usage_for_persistence(usage),
                 rate_limits=self._chatgpt_rate_limits_for_journal(state, config),
+                session_id=session_id_from_state(state),
+                working_directory=resolve_working_directory(config),
+                config=config,
             )
         except Exception:
             return

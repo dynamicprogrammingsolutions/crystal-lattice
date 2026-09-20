@@ -20,7 +20,8 @@ The plugin exposes session actions for OpenAI Responses sessions with
   the server's own timezone.
 - **Reset ChatGPT usage tracking**: appends a reset marker to the ChatGPT
   usage journal after confirmation, so subsequent reports count usage from
-  that point. Journal history is preserved.
+  that point. Journal history is preserved; the reset also appends a
+  zeroed-total row to the simplified usage summary CSV.
 - **Cancel ChatGPT login** / **Log out of ChatGPT**: login lifecycle
   controls.
 
@@ -31,7 +32,11 @@ Usage reports and reset markers operate on the append-only
 provider and usage extension. It records every captured rate-limit snapshot
 and every ChatGPT-backed request's estimated usage with the plan-limit state
 observed on the same response, so usage contributors, usage-percent history,
-and reset-time changes can be reconstructed by date. See the
+and reset-time changes can be reconstructed by date. Records carry the
+request's session id and absolute working directory, and a simplified
+`auth/chatgpt-usage-summary.csv`
+(`time, working_directory, session_id, estimated_cost, total_cost,
+used_percent`) is appended alongside the journal. See the
 `openai_responses` package's
 [usage journal documentation](../openai_responses/docs/development/usage-journal.md)
 for the record format and the CLI inspection script.

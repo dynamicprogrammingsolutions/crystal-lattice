@@ -54,7 +54,10 @@ class _FakeDeviceCodeHandler(BaseHTTPRequestHandler):
             if state.get("always_pending") or state["poll_count"] <= succeed_after:
                 self._write_json(
                     400,
-                    {"error": "authorization_pending", "error_description": "still waiting"},
+                    {
+                        "error": "authorization_pending",
+                        "error_description": "still waiting",
+                    },
                 )
                 return
             self._write_json(
@@ -132,7 +135,9 @@ class _FakeDeviceCodeHandler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
 
-def _start_fake_server(*, succeed_after_polls: int = 1, always_pending: bool = False) -> Tuple[Any, Dict[str, Any]]:
+def _start_fake_server(
+    *, succeed_after_polls: int = 1, always_pending: bool = False
+) -> Tuple[Any, Dict[str, Any]]:
     state = {
         "device_requests": [],
         "token_requests": [],
@@ -164,9 +169,7 @@ def _make_jwt(payload: Dict[str, Any]) -> str:
 def _write_config(tmp_path: Path, *, port: int) -> Path:
     cfg: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
-        "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"}
-        },
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             _plugin_entry(
@@ -196,20 +199,32 @@ def _write_config(tmp_path: Path, *, port: int) -> Path:
     return path
 
 
-def _write_openai_responses_config(tmp_path: Path, *, auth_mode: str = "auto") -> Path:
+def _write_openai_responses_config(
+    tmp_path: Path,
+    *,
+    auth_mode: str = "auto",
+    provider_extras: Dict[str, Any] | None = None,
+) -> Path:
+    provider_cfg: Dict[str, Any] = {
+        "provider": "openai_responses",
+        "model": "gpt-5",
+        "auth_mode": auth_mode,
+        "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
+    }
+    if provider_extras:
+        provider_cfg.update(provider_extras)
     cfg: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
-        "providers": {
-            "chatgpt": {
-                "provider": "openai_responses",
-                "model": "gpt-5",
-                "auth_mode": auth_mode,
-                "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
-            }
-        },
+        "providers": {"chatgpt": provider_cfg},
         "plugins": [
             _plugin_entry("chatgpt-auth-app", "chatgpt_auth_app.ChatGPTAuthAppPlugin"),
-            _plugin_entry("openai_responses", "openai_responses_plugins.OpenAIResponsesProvider"),
+            _plugin_entry(
+                "openai_responses", "openai_responses_plugins.OpenAIResponsesProvider"
+            ),
+            _plugin_entry(
+                "openai_responses",
+                "openai_responses_plugins.OpenAIResponsesUsageExtension",
+            ),
         ],
         "agents": {
             "default": {"provider": "chatgpt"},
@@ -236,8 +251,15 @@ def _build_app(tmp_path: Path, *, port: int) -> AgentApplication:
     )
 
 
-def _build_openai_responses_app(tmp_path: Path, *, auth_mode: str = "auto") -> AgentApplication:
-    config_path = _write_openai_responses_config(tmp_path, auth_mode=auth_mode)
+def _build_openai_responses_app(
+    tmp_path: Path,
+    *,
+    auth_mode: str = "auto",
+    provider_extras: Dict[str, Any] | None = None,
+) -> AgentApplication:
+    config_path = _write_openai_responses_config(
+        tmp_path, auth_mode=auth_mode, provider_extras=provider_extras
+    )
     return AgentApplication(
         str(config_path),
         str(tmp_path / "sessions"),
@@ -249,9 +271,7 @@ def _build_openai_responses_app(tmp_path: Path, *, auth_mode: str = "auto") -> A
 def _build_default_codex_app(tmp_path: Path, *, issuer: str) -> AgentApplication:
     cfg: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
-        "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"}
-        },
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             _plugin_entry(
@@ -280,7 +300,9 @@ def _build_default_codex_app(tmp_path: Path, *, issuer: str) -> AgentApplication
     )
 
 
-def test_login_start_polls_in_background_and_persists_credentials(tmp_path: Path) -> None:
+def test_login_start_polls_in_background_and_persists_credentials(
+    tmp_path: Path,
+) -> None:
     server, state = _start_fake_server(succeed_after_polls=1)
     try:
         app = _build_app(tmp_path, port=server.server_address[1])
@@ -302,7 +324,9 @@ def test_login_start_polls_in_background_and_persists_credentials(tmp_path: Path
         deadline = time.time() + 3.5
         status = auth_status
         while time.time() < deadline:
-            status = app.execute_application_action("chatgpt_auth", "check_status", {})["auth_status"]
+            status = app.execute_application_action("chatgpt_auth", "check_status", {})[
+                "auth_status"
+            ]
             if status["state"] == "authenticated":
                 break
             time.sleep(0.1)
@@ -328,7 +352,9 @@ def test_login_start_polls_in_background_and_persists_credentials(tmp_path: Path
         server.server_close()
 
 
-def test_cancel_login_stops_pending_flow_and_keeps_credentials_absent(tmp_path: Path) -> None:
+def test_cancel_login_stops_pending_flow_and_keeps_credentials_absent(
+    tmp_path: Path,
+) -> None:
     server, state = _start_fake_server(always_pending=True)
     try:
         app = _build_app(tmp_path, port=server.server_address[1])
@@ -340,7 +366,9 @@ def test_cancel_login_stops_pending_flow_and_keeps_credentials_absent(tmp_path: 
         assert canceled["display"]["variant"] == "warning"
 
         time.sleep(0.2)
-        status = app.execute_application_action("chatgpt_auth", "check_status", {})["auth_status"]
+        status = app.execute_application_action("chatgpt_auth", "check_status", {})[
+            "auth_status"
+        ]
         assert status["state"] == "canceled"
         assert state["poll_count"] <= 1
         assert not (tmp_path / "auth" / "chatgpt-auth.json").exists()
@@ -349,7 +377,9 @@ def test_cancel_login_stops_pending_flow_and_keeps_credentials_absent(tmp_path: 
         server.server_close()
 
 
-def test_codex_default_endpoints_and_exchange_flow_work_from_issuer_only(tmp_path: Path) -> None:
+def test_codex_default_endpoints_and_exchange_flow_work_from_issuer_only(
+    tmp_path: Path,
+) -> None:
     server, state = _start_fake_server(succeed_after_polls=1)
     try:
         issuer = f"http://127.0.0.1:{server.server_address[1]}"
@@ -367,7 +397,9 @@ def test_codex_default_endpoints_and_exchange_flow_work_from_issuer_only(tmp_pat
         deadline = time.time() + 3.5
         status = auth_status
         while time.time() < deadline:
-            status = app.execute_application_action("chatgpt_auth", "check_status", {})["auth_status"]
+            status = app.execute_application_action("chatgpt_auth", "check_status", {})[
+                "auth_status"
+            ]
             if status["state"] == "authenticated":
                 break
             time.sleep(0.1)
@@ -380,13 +412,17 @@ def test_codex_default_endpoints_and_exchange_flow_work_from_issuer_only(tmp_pat
         assert saved["refresh_token"] == "codex-refresh-token"
         assert saved["account_id"] == "acct-123"
         assert saved["plan_type"] == "plus"
-        assert state["device_requests"][0]["client_id"] == "app_EMoamEEZ73f0CkXaXp7hrann"
+        assert (
+            state["device_requests"][0]["client_id"] == "app_EMoamEEZ73f0CkXaXp7hrann"
+        )
     finally:
         server.shutdown()
         server.server_close()
 
 
-def test_session_ui_elements_are_gated_by_provider_and_auth_mode(tmp_path: Path) -> None:
+def test_session_ui_elements_are_gated_by_provider_and_auth_mode(
+    tmp_path: Path,
+) -> None:
     app = _build_openai_responses_app(tmp_path, auth_mode="auto")
     visible = app.get_application_ui_schema(
         config={"provider": "openai_responses", "auth_mode": "auto"},
@@ -479,7 +515,9 @@ def test_show_account_status_reads_saved_rate_limits(tmp_path: Path) -> None:
     assert "Credits: `13 credits`" in body
 
 
-def test_show_account_status_reports_missing_limits_when_no_snapshot_exists(tmp_path: Path) -> None:
+def test_show_account_status_reports_missing_limits_when_no_snapshot_exists(
+    tmp_path: Path,
+) -> None:
     app = _build_openai_responses_app(tmp_path, auth_mode="chatgpt")
     credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
     credentials_path.parent.mkdir(parents=True, exist_ok=True)
@@ -506,7 +544,11 @@ def test_show_account_status_reports_missing_limits_when_no_snapshot_exists(tmp_
         {"session_id": session.session_id},
     )
 
-    assert "- Not available yet. Run a ChatGPT-backed request to refresh." in result["display"]["body"]
+    assert (
+        "- Not available yet. Run a ChatGPT-backed request to refresh."
+        in result["display"]["body"]
+    )
+
 
 def _journal_path(tmp_path: Path) -> Path:
     return tmp_path / "auth" / "chatgpt-usage-journal.ndjson"
@@ -741,11 +783,19 @@ def test_reset_usage_tracking_appends_marker_and_report_follows(tmp_path: Path) 
     assert result["display"]["variant"] == "success"
     journal_text = _journal_path(tmp_path).read_text(encoding="utf-8")
     reset_lines = [
-        line
-        for line in journal_text.splitlines()
-        if '"type": "usage_reset"' in line
+        line for line in journal_text.splitlines() if '"type": "usage_reset"' in line
     ]
     assert len(reset_lines) == 1
+
+    # The reset also appends a zeroed-total row to the summary CSV.
+    summary_path = tmp_path / "auth" / "chatgpt-usage-summary.csv"
+    assert summary_path.exists()
+    summary_lines = summary_path.read_text(encoding="utf-8").splitlines()
+    assert summary_lines[0] == (
+        "time,working_directory,session_id,estimated_cost,total_cost,used_percent"
+    )
+    assert len(summary_lines) == 2
+    assert summary_lines[1].endswith(",,,0.0,")
 
     report = app.execute_application_action(
         "chatgpt_auth",
@@ -754,6 +804,24 @@ def test_reset_usage_tracking_appends_marker_and_report_follows(tmp_path: Path) 
     )
     assert "Requests: `0`" in report["display"]["body"]
     assert "Tracking since reset: " in report["display"]["body"]
+
+
+def test_reset_usage_tracking_can_skip_summary_csv(tmp_path: Path) -> None:
+    app = _build_openai_responses_app(
+        tmp_path,
+        auth_mode="auto",
+        provider_extras={"track_chatgpt_usage_summary_csv": False},
+    )
+    session = _create_chatgpt_session(app)
+
+    result = app.execute_application_action(
+        "chatgpt_auth",
+        "reset_usage_tracking",
+        {"session_id": session.session_id},
+    )
+
+    assert result["reset_appended"] is True
+    assert not (tmp_path / "auth" / "chatgpt-usage-summary.csv").exists()
 
 
 def test_show_account_status_includes_since_reset_usage(tmp_path: Path) -> None:
@@ -802,9 +870,7 @@ def test_usage_report_actions_gated_to_chatgpt_sessions(tmp_path: Path) -> None:
     # A non-openai_responses provider session must not expose usage actions.
     cfg: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
-        "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"}
-        },
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             _plugin_entry(

@@ -84,7 +84,9 @@ def _native_messages() -> list[dict[str, Any]]:
     ]
 
 
-def test_stream_api_captures_codex_rate_limit_headers(tmp_path: Path, monkeypatch) -> None:
+def test_stream_api_captures_codex_rate_limit_headers(
+    tmp_path: Path, monkeypatch
+) -> None:
     provider = OpenAIResponsesProvider()
     state = _chatgpt_state(tmp_path)
     stream = _FixtureStream(
@@ -123,7 +125,10 @@ def test_stream_api_captures_codex_rate_limit_headers(tmp_path: Path, monkeypatc
     )
 
     chunks = list(provider.stream_api(_native_messages(), state))
-    assert [chunk["type"] for chunk in chunks] == ["response.output_text.delta", "response.completed"]
+    assert [chunk["type"] for chunk in chunks] == [
+        "response.output_text.delta",
+        "response.completed",
+    ]
 
     rate_limits_path = tmp_path / "auth" / "chatgpt-rate-limits.json"
     saved = json.loads(rate_limits_path.read_text(encoding="utf-8"))
@@ -132,9 +137,13 @@ def test_stream_api_captures_codex_rate_limit_headers(tmp_path: Path, monkeypatc
     assert saved["snapshots"][0]["credits"]["balance"] == "13"
 
 
-def test_stream_api_stashes_snapshots_in_state_and_journals_them(tmp_path: Path, monkeypatch) -> None:
+def test_stream_api_stashes_snapshots_in_state_and_journals_them(
+    tmp_path: Path, monkeypatch
+) -> None:
     provider = OpenAIResponsesProvider()
     state = _chatgpt_state(tmp_path)
+    state["_request_context"] = {"session_id": "session-capture"}
+    state["config"]["working_directory"] = "workspace/repo"
     stream = _FixtureStream(
         [
             {
@@ -185,6 +194,19 @@ def test_stream_api_stashes_snapshots_in_state_and_journals_them(tmp_path: Path,
     assert record["plan_type"] == "plus"
     assert record["snapshots"][0]["primary"]["used_percent"] == 12.0
     assert isinstance(record["timestamp"], str)
+    assert record["session_id"] == "session-capture"
+    import os
+
+    assert record["working_directory"] == os.path.abspath("workspace/repo")
+
+    # The simplified summary CSV is appended at the same time.
+    summary_path = tmp_path / "auth" / "chatgpt-usage-summary.csv"
+    assert summary_path.exists()
+    summary_lines = summary_path.read_text(encoding="utf-8").splitlines()
+    assert summary_lines[0] == (
+        "time,working_directory,session_id,estimated_cost,total_cost,used_percent"
+    )
+    assert summary_lines[1].endswith(",session-capture,,0.0,12.0")
 
 
 def test_stream_api_does_not_capture_for_api_mode(tmp_path: Path, monkeypatch) -> None:

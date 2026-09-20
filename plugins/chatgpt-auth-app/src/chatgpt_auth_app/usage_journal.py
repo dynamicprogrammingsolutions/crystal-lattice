@@ -11,6 +11,7 @@ reset markers; it never rewrites or truncates existing records.
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import threading
@@ -20,6 +21,7 @@ from typing import Any, Dict, Iterator, List, Optional
 
 DEFAULT_CHATGPT_RATE_LIMITS_FILENAME = "chatgpt-rate-limits.json"
 DEFAULT_CHATGPT_USAGE_JOURNAL_FILENAME = "chatgpt-usage-journal.ndjson"
+DEFAULT_CHATGPT_USAGE_SUMMARY_CSV_FILENAME = "chatgpt-usage-summary.csv"
 RATE_LIMIT_SNAPSHOT_RECORD_TYPE = "rate_limit_snapshot"
 REQUEST_USAGE_RECORD_TYPE = "request_usage"
 USAGE_RESET_RECORD_TYPE = "usage_reset"
@@ -30,6 +32,15 @@ JOURNAL_RECORD_TYPES = frozenset(
         USAGE_RESET_RECORD_TYPE,
     }
 )
+
+SUMMARY_CSV_FIELDNAMES = [
+    "time",
+    "working_directory",
+    "session_id",
+    "estimated_cost",
+    "total_cost",
+    "used_percent",
+]
 
 _DATETIME_INPUT_FORMATS = (
     "%Y-%m-%d",
@@ -384,12 +395,49 @@ def append_usage_reset(path: Path, *, source: str = "chatgpt_auth_app") -> bool:
         return False
 
 
+def append_summary_reset_row(csv_path: Path) -> bool:
+    """Append a reset row to the simplified usage summary CSV. Best-effort.
+
+    The row carries the reset time and a zeroed ``total_cost``: after a reset
+    marker, totals start counting from zero again. Column layout matches the
+    summary CSV written by the openai_responses journal writer
+    (``time, working_directory, session_id, estimated_cost, total_cost,
+    used_percent``).
+    """
+
+    row = {
+        "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "working_directory": "",
+        "session_id": "",
+        "estimated_cost": "",
+        "total_cost": 0.0,
+        "used_percent": "",
+    }
+    try:
+        with _write_lock:
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            needs_header = not csv_path.exists() or csv_path.stat().st_size == 0
+            with open(csv_path, "a", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle, fieldnames=SUMMARY_CSV_FIELDNAMES, extrasaction="ignore"
+                )
+                if needs_header:
+                    writer.writeheader()
+                writer.writerow(row)
+        return True
+    except Exception:
+        return False
+
+
 __all__ = [
     "DEFAULT_CHATGPT_USAGE_JOURNAL_FILENAME",
+    "DEFAULT_CHATGPT_USAGE_SUMMARY_CSV_FILENAME",
     "JOURNAL_RECORD_TYPES",
     "RATE_LIMIT_SNAPSHOT_RECORD_TYPE",
     "REQUEST_USAGE_RECORD_TYPE",
+    "SUMMARY_CSV_FIELDNAMES",
     "USAGE_RESET_RECORD_TYPE",
+    "append_summary_reset_row",
     "append_usage_reset",
     "build_usage_report",
     "iter_journal_records",

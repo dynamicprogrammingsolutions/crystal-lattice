@@ -81,6 +81,8 @@ from .chatgpt_rate_limits import (
 from .chatgpt_usage_journal import (
     append_rate_limit_snapshot,
     resolve_usage_journal_path,
+    resolve_working_directory,
+    session_id_from_state,
 )
 from .openai_responses_runtime import (
     DEFAULT_API_BASE_URL as _DEFAULT_BASE_URL,
@@ -114,7 +116,9 @@ _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _RAW_REASONING_CONTEXT_METADATA_KEY = "_openai_responses_reasoning_context"
 _RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"
-_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY = "_openai_responses_chatgpt_rate_limit_snapshots"
+_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY = (
+    "_openai_responses_chatgpt_rate_limit_snapshots"
+)
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
 _COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
@@ -637,8 +641,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
             if isinstance(config.get("chatgpt_plan_type"), str) and config.get(
                 "chatgpt_plan_type"
             ):
-                state[_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY]["plan_type"] = config.get(
-                    "chatgpt_plan_type"
+                state[_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY]["plan_type"] = (
+                    config.get("chatgpt_plan_type")
                 )
         try:
             append_rate_limit_snapshot(
@@ -646,6 +650,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 snapshots=snapshots,
                 plan_type=config.get("chatgpt_plan_type"),
                 captured_at=captured_at,
+                session_id=session_id_from_state(state),
+                working_directory=resolve_working_directory(config),
+                config=config,
             )
         except Exception:
             return

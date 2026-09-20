@@ -419,3 +419,49 @@ needed. Records currently carry `model`/`response_id` but no run-source
 label, so eval and interactive usage are merged; an optional
 `chatgpt_usage_journal_source`-style label config was offered to the user if
 distinguishing them becomes necessary.
+
+### Follow-up addition: session/workspace tracking and summary CSV
+
+Committed baseline first (`d9048808 Add ChatGPT usage journal and report`),
+then added (user request):
+
+- `session_id` and `working_directory` (resolved to an absolute path;
+  relative values resolved against the server process cwd) on
+  `rate_limit_snapshot` and `request_usage` records. The session id comes
+  from the request context the core injects into provider state
+  (`_request_context`); no core changes were needed. Fields are omitted
+  when unavailable (older records stay valid; readers use `.get()`).
+- Simplified append-only summary CSV written at the same time as each
+  journal record: `time, working_directory, session_id, estimated_cost,
+  total_cost, used_percent`. `total_cost` is the estimated cost since the
+  most recent reset marker (computed from the journal after the record is
+  appended, so it includes the current record; reset rows write 0).
+  `used_percent` is the primary-window value carried by the record's
+  rate-limit snapshot. Default path `auth/chatgpt-usage-summary.csv` next to
+  the journal; gated by `track_chatgpt_usage_summary_csv` (default enabled)
+  with `chatgpt_usage_summary_csv_path` override. The auth-app reset action
+  appends a zeroed-total reset row through its self-contained writer.
+- The full CSV export (`export_journal_csv`) gained `session_id` and
+  `working_directory` columns.
+
+Bugs found and fixed during real-login verification:
+
+- The chatgpt-auth-app test configs registered only the provider entry, so
+  the usage extension was never loaded in those test apps and their own
+  requests were not journaled (earlier manual-test passes were satisfied by
+  the shared real journal). Test configs now register
+  `OpenAIResponsesUsageExtension` and set `working_directory`.
+- Re-finalize/rebuild paths re-journaled old responses: the user's running
+  app appended duplicate `request_usage` records for the same response id
+  roughly every 30 seconds (visible in the real journal). The extension now
+  skips journaling when the response id is already present in the journal,
+  so rebuilds cannot duplicate records. The already-running app keeps
+  duplicating until restarted with the new code.
+
+Verification: openai_responses suite 466 passed; chatgpt-auth-app unit
+suite 14 passed; both manual integration suites re-run with the real
+`~/.crystal` login and pass on their own journaled records (session id and
+absolute working directory confirmed in both the journal and the summary
+CSV); ruff/black clean on changed files. Note: the real journal currently
+contains duplicate records written by the pre-dedupe running app; they
+inflate since-reset totals until cleaned or superseded by a reset marker.

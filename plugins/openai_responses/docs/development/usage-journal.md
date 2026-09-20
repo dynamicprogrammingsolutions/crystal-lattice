@@ -30,6 +30,10 @@ sibling, `CONFIG_DIR`, cwd) — see `resolve_usage_journal_path` in
 ## Record format
 
 One JSON object per line (NDJSON). All records carry a UTC `timestamp`.
+Snapshot and request records also carry the request's `session_id` (from the
+core request context) and `working_directory` (resolved to an absolute path),
+so usage contributors can be attributed per session and per workspace; both
+fields are omitted when unavailable.
 
 `rate_limit_snapshot` — appended by the provider whenever ChatGPT rate-limit
 headers are captured, even if the request later fails:
@@ -40,6 +44,8 @@ headers are captured, even if the request later fails:
   "timestamp": "2026-09-19T10:00:00Z",
   "source": "x-codex-headers",
   "plan_type": "plus",
+  "session_id": "0e0a...",
+  "working_directory": "/Users/me/Dev/project",
   "snapshots": [ { "limit_id": "codex", "primary": { "used_percent": 42.0, "window_minutes": 300, "resets_at": 1775995500 }, "secondary": null, "credits": null } ]
 }
 ```
@@ -55,6 +61,8 @@ streaming and non-streaming paths):
   "response_id": "resp_...",
   "model": "gpt-5",
   "service_tier": "default",
+  "session_id": "0e0a...",
+  "working_directory": "/Users/me/Dev/project",
   "input_tokens": 1000,
   "cached_tokens": 800,
   "cache_write_tokens": 0,
@@ -90,6 +98,10 @@ the latest persisted rate-limits file — so each request's plan-limit state
   `rate_limit_snapshot` journal record.
 - The usage extension's `_build_usage_metadata` appends the
   `request_usage` record when the effective auth mode is `chatgpt`.
+- Each response is journaled at most once: before appending, the extension
+  skips records whose `response_id` is already present in the journal, so
+  re-finalize/rebuild paths (for example a session re-render) cannot
+  duplicate records.
 - All journal writes are best-effort: failures are swallowed and never break
   the request pipeline.
 - Journaling is ChatGPT auth mode only. API-key requests keep the existing
@@ -102,6 +114,39 @@ Usage-extension config keys:
 - `track_chatgpt_usage_journal` (boolean, default `true`): appends request
   usage and snapshots to the journal. Set to `false` to stop journaling.
 - `chatgpt_usage_journal_path` (string, optional): journal file override.
+- `track_chatgpt_usage_summary_csv` (boolean, default `true`): also appends
+  the simplified summary CSV row whenever a journal record is written. Set
+  to `false` to write only the NDJSON journal.
+- `chatgpt_usage_summary_csv_path` (string, optional): summary CSV file
+  override.
+
+## Simplified summary CSV
+
+Alongside the journal, a simplified CSV is appended at the same time as each
+journal record. Default path: `auth/chatgpt-usage-summary.csv`, a sibling of
+the journal (or the `chatgpt_usage_summary_csv_path` override).
+
+Columns:
+
+```csv
+time,working_directory,session_id,estimated_cost,total_cost,used_percent
+2026-09-19T10:00:01Z,/Users/me/Dev/project,0e0a...,0.001234,0.01234,42.0
+```
+
+- `time` — the record's UTC timestamp;
+- `working_directory` / `session_id` — the request's absolute workspace and
+  session id (empty for reset markers);
+- `estimated_cost` — the record's own estimated cost (empty for snapshots
+  and reset markers);
+- `total_cost` — estimated cost accumulated since the most recent reset
+  marker (computed from the journal, so it includes the record being
+  summarized; `0` on reset rows);
+- `used_percent` — the primary-window used percent carried by the record's
+  rate-limit snapshot (empty when none was captured).
+
+Reset markers append a zeroed-`total_cost` row so the reset boundary stays
+visible in the simplified view. The CSV is append-only, best-effort, and
+disabled with `track_chatgpt_usage_summary_csv: false`.
 
 ## Reading the journal
 

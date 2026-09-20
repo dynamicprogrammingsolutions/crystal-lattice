@@ -256,3 +256,149 @@ def test_usage_config_schema_exposes_journal_controls() -> None:
     schema = OpenAIResponsesUsageExtension().get_config_schema()
     assert schema["track_chatgpt_usage_journal"]["default"] is True
     assert "chatgpt_usage_journal_path" in schema
+    assert schema["track_chatgpt_usage_summary_csv"]["default"] is True
+    assert "chatgpt_usage_summary_csv_path" in schema
+
+
+def _summary_csv_path(tmp_path: Path) -> Path:
+    return tmp_path / "auth" / "chatgpt-usage-summary.csv"
+
+
+def _summary_rows(tmp_path: Path) -> List[Dict[str, Any]]:
+    path = _summary_csv_path(tmp_path)
+    if not path.exists():
+        return []
+    import csv
+
+    with open(path, encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def test_journal_record_carries_session_fields(tmp_path: Path) -> None:
+    ext = OpenAIResponsesUsageExtension()
+    state = _chatgpt_state(
+        tmp_path, config_extras={"working_directory": "workspace/repo"}
+    )
+    state["_request_context"] = {"session_id": "session-journal"}
+    usage = {"input_tokens": 100, "output_tokens": 10}
+    final_messages = [_assistant_item()]
+
+    ext.process_chunk(
+        native_chunk=_completed_chunk(usage),
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=[_user_item(), *final_messages],
+        state=state,
+    )
+
+    records = _journal_records(tmp_path)
+    assert len(records) == 1
+    assert records[0]["session_id"] == "session-journal"
+    # Relative working directories are resolved to absolute paths.
+    import os
+
+    assert records[0]["working_directory"] == os.path.abspath("workspace/repo")
+
+
+def test_summary_csv_written_alongside_journal(tmp_path: Path) -> None:
+    ext = OpenAIResponsesUsageExtension()
+    state = _chatgpt_state(tmp_path)
+    state["_request_context"] = {"session_id": "session-csv"}
+    state["_openai_responses_chatgpt_rate_limit_snapshots"] = {
+        "captured_at": "2026-01-01T00:00:00Z",
+        "source": "x-codex-headers",
+        "snapshots": [
+            {
+                "limit_id": "codex",
+                "primary": {"used_percent": 61.0},
+                "secondary": None,
+                "credits": None,
+            }
+        ],
+    }
+    usage = {"input_tokens": 100, "output_tokens": 10}
+    final_messages = [_assistant_item()]
+
+    ext.process_chunk(
+        native_chunk=_completed_chunk(usage),
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=[_user_item(), *final_messages],
+        state=state,
+    )
+
+    rows = _summary_rows(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["session_id"] == "session-csv"
+    assert float(rows[0]["estimated_cost"]) > 0.0
+    assert float(rows[0]["total_cost"]) == float(rows[0]["estimated_cost"])
+    assert float(rows[0]["used_percent"]) == 61.0
+
+
+def test_summary_csv_disabled_by_config(tmp_path: Path) -> None:
+    ext = OpenAIResponsesUsageExtension()
+    state = _chatgpt_state(
+        tmp_path, config_extras={"track_chatgpt_usage_summary_csv": False}
+    )
+    usage = {"input_tokens": 100, "output_tokens": 10}
+    final_messages = [_assistant_item()]
+
+    ext.process_chunk(
+        native_chunk=_completed_chunk(usage),
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=[_user_item(), *final_messages],
+        state=state,
+    )
+
+    assert _journal_records(tmp_path), "journal must still be written"
+    assert _summary_rows(tmp_path) == []
+
+
+def test_refinalized_response_is_journaled_once(tmp_path: Path) -> None:
+    ext = OpenAIResponsesUsageExtension()
+    usage = {"input_tokens": 100, "output_tokens": 10}
+
+    # First pass: streaming journaling for resp_dup.
+    final_messages = [_assistant_item()]
+    ext.process_chunk(
+        native_chunk=_completed_chunk(usage, response_id="resp_dup"),
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=[_user_item(), *final_messages],
+        state=_chatgpt_state(tmp_path),
+    )
+
+    # Re-finalize path: the same response presented again (e.g. a session
+    # rebuild) must not append a duplicate record.
+    native_messages: List[Dict[str, Any]] = [
+        _user_item(),
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "ok"}],
+            "_metadata": {
+                "response_id": "resp_dup",
+                "_openai_responses_usage_raw": usage,
+            },
+        },
+    ]
+    ext.finalize(
+        final_messages=[],
+        native_messages=native_messages,
+        state=_chatgpt_state(tmp_path),
+    )
+
+    records = _journal_records(tmp_path)
+    assert len(records) == 1
+    assert records[0]["response_id"] == "resp_dup"
+
+    # A different response id is still journaled.
+    ext.process_chunk(
+        native_chunk=_completed_chunk(usage, response_id="resp_other"),
+        partial_messages=[],
+        final_messages=[_assistant_item()],
+        native_messages=[_user_item(), _assistant_item()],
+        state=_chatgpt_state(tmp_path),
+    )
+    assert len(_journal_records(tmp_path)) == 2
