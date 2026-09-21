@@ -11,6 +11,8 @@ Start with:
 - `docs/development/specifications/framework/index.md` for generic target behavior;
 - `docs/development/specifications/crystal-lattice-environment/index.md`
   for the bundled environment;
+- `docs/development/specifications/result-packages/index.md` for the optional
+  completed-evaluation review-package target;
 - `../../tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
   for approved execution and current progress.
 
@@ -24,6 +26,9 @@ Keep these boundaries:
 - `RunEnvironment` remains the broad replacement seam.
 - Crystal Lattice request drivers, stop conditions, observers, snapshots,
   projections, evaluations, and presentations remain optional.
+- Completed-evaluation packaging must not add session, message, request, tool,
+  provider, or suite semantics to the generic kernel. Crystal Lattice owns
+  reusable runtime review projection; suites own their result meaning.
 - Use production `AgentApplication` and `AgentCore` paths in integration tests.
 - Do not weaken a realistic integration test to accommodate an implementation
   defect.

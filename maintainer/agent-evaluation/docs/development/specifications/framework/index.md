@@ -11,6 +11,10 @@ replaceable run environments.
 Related package-owned specifications:
 
 - [Crystal Lattice evaluation environment](../crystal-lattice-environment/index.md)
+- [Evaluation result packages](../result-packages/index.md)
 
 The documentation-guidance suite is a consumer and owns its scenarios,
 requirements, and results separately.
+
+Result-package support consumes completed runs and does not extend the generic
+kernel contract.

@@ -71,7 +71,9 @@ Target behavior and live status:
 
 - [Framework specification](docs/development/specifications/framework/index.md)
 - [Crystal Lattice environment specification](docs/development/specifications/crystal-lattice-environment/index.md)
+- [Evaluation result package specification](docs/development/specifications/result-packages/index.md)
 - [Implementation task](../../tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md)
+- [Result-package task](../../tasks/20260728-package-local-documentation-standard/095-evaluation-result-review-packages.md)
 
 ## Verification
 

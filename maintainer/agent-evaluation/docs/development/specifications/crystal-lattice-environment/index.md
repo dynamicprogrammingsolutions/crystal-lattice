@@ -9,3 +9,6 @@ implementation supplied with `agent_eval`.
 
 The reusable kernel is specified by the
 [agent evaluation framework](../framework/index.md).
+
+The environment may supply reusable runtime-specific review data to the
+optional [evaluation result package](../result-packages/index.md) support.

@@ -16,7 +16,11 @@ remains pending task 090.
 - [Testing strategy](testing-strategy.md)
 - [Running and calibration target](../running-and-calibration.md)
 - [Scenario contracts](../../scenarios/index.md)
+- [Shared evaluation result package target](../../../../docs/development/specifications/result-packages/index.md)
+- [Result-package execution task](../../../../../../tasks/20260728-package-local-documentation-standard/095-evaluation-result-review-packages.md)
 
 The suite specification owns evaluator behavior. Actual task-guidance content,
 delivery, synchronization, and placement are owned by the
 [Crystal Lattice guidance integration specification](../../../../../docs/development/specifications/crystal-lattice-guidance-integration/index.md).
+The shared result-package specification owns generic collection and rendering;
+the Crystal Lattice environment owns runtime-specific review projection.

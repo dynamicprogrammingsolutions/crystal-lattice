@@ -68,6 +68,10 @@ Reusable Guidance Requirements:
   programs, replaceable run environments, compatible state reuse, clean
   continuations, and concise/raw artifacts without hardcoding agent or
   evaluation semantics.
+- [ ] Completed evaluations can be preserved outside suite test fixtures as
+  durable, compact result packages that support human and machine review,
+  regenerate without model reruns, and preserve environment- and suite-owned
+  meaning.
 - [ ] Documentation-guidance behavior tests assess abstract rule application,
   requirement restraint across supported reasoning efforts, testing balance,
   and focused verification reporting while preserving static and human
@@ -787,6 +791,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/071-guidance-source-compilation-migration.md`
 - [x] `tasks/20260728-package-local-documentation-standard/080-maintainer-documentation-ownership-migration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/095-evaluation-result-review-packages.md`
 
 ## Execution plan
 
@@ -854,7 +859,7 @@ and process directions. They remain reviewable and may be changed later only
 through an explicit user-approved update to this task and any affected
 requirements or subtasks.
 
-Subtask 015's remaining `AEVAL-017`/`AEVAL-020` work and calibration follow-ups
+Subtask 015's remaining `AEVAL-020` work and calibration follow-ups
 do not block 010, package-site assembly, migration, contributor workflow, task
 guidance alignment, or final documentation verification. Each consuming
 subtask uses the committed standards/framework state available when it starts
@@ -914,6 +919,8 @@ Required new or updated documentation includes:
   and corrected project-specific evaluation bases.
 - [ ] 090: Establish the task-guidance handoff/decomposition baseline and
   compare guidance placement.
+- [ ] 095: Add reusable, regenerable evaluation result packages and migrate
+  task-guidance baseline/candidate records out of suite fixtures.
 
 ### Requirement verification
 

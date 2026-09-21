@@ -100,9 +100,15 @@ The staged extensions remain in progress.
 
 ## Specifications and task
 
-- Target:
+- Generic kernel target:
   `maintainer/agent-evaluation/docs/development/specifications/framework/`
+- Crystal Lattice environment target:
+  `maintainer/agent-evaluation/docs/development/specifications/crystal-lattice-environment/`
+- Optional result-package target:
+  `maintainer/agent-evaluation/docs/development/specifications/result-packages/`
 - Execution:
   `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
 - Planned task-guidance suite:
   `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
+- Planned result-package work:
+  `tasks/20260728-package-local-documentation-standard/095-evaluation-result-review-packages.md`

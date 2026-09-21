@@ -195,6 +195,33 @@ The task-mechanics candidate and later placement candidates must preserve:
 When only TASKS mechanics change, focus compatibility reruns on task mode rather
 than repeating unaffected root-only cells.
 
+## Result-package verification
+
+Result-package work uses saved evaluation records and does not rerun producer
+or assessor models.
+
+Verification must establish:
+
+- selected producer, handoff, continuation, control, and assessment identities
+  agree with the currently frozen datasets;
+- exported plans and task files are byte-identical to the selected saved
+  records;
+- semantic dimensions, occurrences, scores, invalid states, and historical
+  limitations are preserved;
+- the Crystal Lattice review representation is lean and sufficient to
+  understand significant tool or execution failures without full tool output;
+- human views regenerate deterministically from committed package data;
+- usage and estimated cost preserve available provider data and leave missing
+  values unknown;
+- aggregate links reach the relevant exact outputs, review context, and
+  assessments;
+- synthetic fixtures replace completed result datasets in deterministic suite
+  tests.
+
+Review one representative failing cell before generating both complete
+historical packages. This is a presentation and completeness check, not a new
+semantic judgment of the model output.
+
 ## Human review
 
 The review package should show:

@@ -20,6 +20,9 @@ Lattice behavior mandatory for alternate environments.
 - Expose replaceable request, observation, snapshot, evaluation, and
   presentation strategies at their point of use.
 - Preserve exact runtime and instruction provenance needed by consumers.
+- Provide a reusable, lean review representation of Crystal Lattice
+  instructions, configuration, visible conversation, tool activity, failures,
+  and available provider usage.
 - Clean up application and runtime resources deterministically.
 
 ## Non-goals
@@ -27,3 +30,5 @@ Lattice behavior mandatory for alternate environments.
 - Defining the generic kernel lifecycle.
 - Requiring alternate environments to expose messages, sessions, or tool loops.
 - Embedding documentation-guidance scenarios in the adapter contract.
+- Defining suite stages, assessments, quality dimensions, or report
+  interpretation.

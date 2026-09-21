@@ -246,6 +246,40 @@ Human review receives concise scenario summaries, differences, validity
 failures, semantic anomalies, and optional detailed paths. AI assessment does
 not complete human verification.
 
+## Durable result packages
+
+The suite consumes the shared
+[evaluation result package](../../../../docs/development/specifications/result-packages/index.md)
+support and the Crystal Lattice environment's reusable review projection.
+
+The task-guidance adapter owns:
+
+- selection of producer, handoff, continuation, control, and assessment runs;
+- scenario, profile, effort, attempt, and stage identity;
+- relationships between plans, task files, continuations, and assessments;
+- generated task files and assistant responses;
+- reviewed targets, semantic dimensions, occurrences, and scores;
+- aggregate comparison and navigation for task-guidance reviewers.
+
+The result package preserves exact suite inputs and outputs needed to
+understand a finding without presenting task-guidance concepts as generic
+evaluation or Crystal Lattice contracts.
+
+Human indexes lead from aggregate semantic findings to the relevant model
+output, task file, Crystal Lattice review context, and assessment. Recurring
+execution concerns appear in aggregate only when they materially affect
+interpretation.
+
+Usage and estimated cost are supporting context for each run. They do not
+change task-quality judgments, compensate for missing outcomes, or turn tool
+efficiency into a primary acceptance measure.
+
+The current-guidance and task-mechanics evaluations are migrated from saved
+runs without new producer or assessor requests. Migration preserves selected
+run identity, generated task content, semantic results, invalid upstream
+records, and known unavailable data before existing frozen copies are removed
+from test-fixture ownership.
+
 ## Non-goals
 
 - Evaluating general coding intelligence or optimal architecture.
@@ -255,3 +289,5 @@ not complete human verification.
 - Interpreting fewer tool calls as success without plan quality.
 - Moving essential guidance exclusively into ordinary workspace pages.
 - Implementing code or completion-stage workflows in the initial suite.
+- Defining the generic result-package format or Crystal Lattice session review
+  representation.

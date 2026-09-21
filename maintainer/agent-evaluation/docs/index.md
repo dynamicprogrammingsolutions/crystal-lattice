@@ -96,5 +96,9 @@ Use these pages according to the work you are doing:
 The generic target specification lives under
 `maintainer/agent-evaluation/docs/development/specifications/framework/`.
 The Crystal Lattice environment has a separate package-local specification.
+Optional support for durable completed-evaluation review packages is specified
+separately under
+`maintainer/agent-evaluation/docs/development/specifications/result-packages/`;
+it is not part of the generic kernel contract.
 These pages describe current implemented behavior; requirements record which
 target parts are implemented and verified.

@@ -11,6 +11,7 @@ can continue with bounded rediscovery.
 - [Development specification](development/index.md)
 - [Scenario contracts](../scenarios/index.md)
 - [Execution task](../../../../../tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md)
+- [Result-package task](../../../../../tasks/20260728-package-local-documentation-standard/095-evaluation-result-review-packages.md)
 
 The staged evaluator, six scenarios, handoff variants, continuation evidence,
 semantic assessment, negative control, and result freezing are implemented.

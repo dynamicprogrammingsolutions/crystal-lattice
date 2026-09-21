@@ -205,6 +205,37 @@ Different projections may feed:
 
 The complete journal is never implicitly sent to an AI evaluator.
 
+## Reusable review projection
+
+The Crystal Lattice integration owns the interpretation of Crystal Lattice
+sessions, application requests, effective configuration, tool events, and
+provider usage. It may provide a reusable review projection for result-package
+and other evaluation consumers.
+
+The projection represents, when available:
+
+- delivered system and developer instructions plus their provenance;
+- user and visible assistant messages;
+- effective request configuration and model/effort identity;
+- tool-call intent, status, concise failures, and mutation summaries;
+- request boundaries and continuation relationships;
+- runtime and provider errors;
+- aggregate provider usage exposed or estimated by provider plugins.
+
+The projection is designed for review rather than session restoration. It is
+lean and human-readable, omits encrypted reasoning and unrestricted tool
+results, and redacts authentication or secret configuration. Complete local
+diagnostics may remain in the run directory.
+
+The projection records whether important information was captured directly,
+reconstructed from saved inputs, or unavailable. Reconstructed content is
+verified only when it matches an independently recorded identity such as a
+hash.
+
+This representation is reusable across Crystal Lattice-backed suites. It does
+not define task files, documentation pages, semantic scores, assessment
+prompts, or suite stages.
+
 ## Relationship to the kernel
 
 The adapter may expose Crystal Lattice application, session, tool-loop,
