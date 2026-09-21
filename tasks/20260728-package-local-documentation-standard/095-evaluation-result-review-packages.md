@@ -207,8 +207,37 @@ the generic `agent_eval` kernel.
   Human review still benefits from a separately rendered concise rubric
   because the exact prompt may embed several complete subjects.
 - The GPT price snapshot and saved cost metadata demonstrate why a result
-  package must pin its own selected price table instead of depending on
-  whatever table the repository uses later.
+  package must pin its own price table instead of depending on whatever
+  table the repository uses later. The maintained snapshot is
+  `plugins/openai_responses/src/openai_responses_plugins/data/openai_model_pricing.json`
+  (fetched 2026-07-18); its gpt-5.6-luna standard-tier rates are input
+  $1.00/1M, cached input $0.10/1M, cache write $1.25/1M, output $6.00/1M.
+  The saved per-turn cost metadata was computed from this same snapshot, so
+  a pinned copy reproduces the historical estimates exactly.
+- Verified September 21, 2026: each raw run directory contains
+  `result.json` (including `parent_run_id`), `records/<record>.json`,
+  `raw/environment/crystal-lattice-session.json`,
+  `raw/environment/crystal-lattice-observation.json`, and
+  `raw/workspace/git-diff.patch`.
+- Verified: GLM sessions retain the full compiled system message in
+  `compiled_content` (about 18 KB with exactly one machine-specific absolute
+  path, the run workspace) but no usage metadata; GPT sessions retain no
+  system message but carry per-assistant-message usage (input, output,
+  reasoning, cached, and cache-write tokens, per-turn and cumulative
+  provider-reported cost; one sampled producer run totals 91,279 input and
+  8,823 output tokens, $0.0789 cumulative).
+- Verified: same-agent continuation sessions contain the complete inherited
+  parent history (sample: 62 messages where the parent has 28), so
+  `parent_run_id` plus the parent session is required to bound the inherited
+  prefix and avoid counting inherited history as new usage.
+- Verified: no deterministic test reads the frozen fixture result JSONs;
+  `test_documentation.py` checks the review page set and link integrity,
+  and `freeze_b0.py` defaults its output to the fixture results path.
+- Verified: the raw runtime configs used by the runs are preserved under
+  `tmp/agent-evaluation/task-guidance/runtime-config/<hash>/` (config,
+  system-message sources, TASKS copies) with projected configs under
+  `projected-config/`, and the guidance sources have not changed since the
+  runs, so hash-verified reconstruction of GPT system messages is plausible.
 
 ## Proposed result package
 
@@ -260,29 +289,96 @@ export separate plan, task-creation, and fresh-agent-plan stages.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-Define result-package support as an optional reusable component separate from
-the generic evaluation-kernel contract. Separate collection from rendering:
-collection reads suite-selected run records and environment-owned projections
-and produces a committed package; rendering consumes only that package and the
-committed report config. This allows Markdown layout, metadata selection, and
-cost presentation to change without invoking a model or requiring temporary
-raw directories.
+The user approved this plan and the four open-question resolutions on
+September 21, 2026.
 
-Add a reusable Crystal Lattice review projection that produces lean session,
-instruction, effective-configuration, tool-activity, failure, and usage
-material without suite semantics. Implement a task-guidance adapter that
-identifies producer, handoff, continuation, and assessment stages; exports
-generated task files; and maps semantic judgments to their subject runs.
+### 1. Generic result-package support
 
-Use task-mechanics candidate v1 as the first migration. Export one
-representative GPT-xhigh book-discovery cell and review its input, generated
-tasks, normalized session, assessment, config, and run-level cost before
-generating the complete package. After the layout is accepted, generate the
-current-guidance package with the same structure, prove parity, update links,
-replace real-result test dependencies with synthetic fixtures, and remove the
-old suite-fixture result copies.
+Add an optional reusable library module, `src/agent_eval/result_packages.py`,
+separate from the kernel contract and free of Crystal Lattice imports. Split
+collection from rendering: collection reads suite-selected records plus
+environment-owned review projections and writes committed source records and
+a manifest; rendering reads only the committed package and its report
+configuration and regenerates every human or machine view; checking verifies
+manifest hashes and byte-for-byte regeneration. The module defines only
+structural contracts — package identity, run references, stage shapes,
+availability states (`captured`, `reconstructed` with verification, and
+`unavailable`), redaction hooks, normalized-path classification, and one
+configured usage/cost presentation. Suite and environment records remain
+opaque named values, so layout, metadata selection, and cost presentation can
+change later without invoking a model or requiring temporary raw directories.
+
+### 2. Crystal Lattice review projection
+
+Add `src/agent_eval/crystal_lattice/review.py`. It projects a saved session,
+observation, and effective configuration into lean review material:
+delivered instructions with provenance, visible user and assistant messages,
+tool-call intent with concise status and failures (no full tool results, no
+encrypted reasoning), request boundaries, runtime errors, and aggregate
+provider usage. It redacts secret values and normalizes machine-specific
+paths while recording the original hash, classification, and replacement map;
+bounds an inherited continuation prefix using the parent run's session; and
+classifies every important field as captured, reconstructed, or unavailable.
+It contains no task-guidance, documentation-guidance, or other suite
+semantics.
+
+### 3. Task-guidance adapter and report configuration
+
+Implement the suite result adapter and a `collect`/`render`/`check`
+command-line entry point under `suites/task_guidance/`. The adapter selects
+the frozen b0/b1 consolidated records plus raw run directories; maps
+producer, handoff, continuation, control, and assessment stages onto the
+scenario/cell layout; exports generated task files; deduplicates scenario
+targets; maps semantic judgments to their subject runs; reconstructs GPT
+system messages from the preserved runtime-config sources with SHA-256
+verification against the recorded `compiled_sha256`; and supplies sanitized
+effective-config views. The committed `report-config.toml` pins the price
+table — the gpt-5.6-luna standard-tier rates copied from the maintained
+OpenAI pricing snapshot (fetched 2026-07-18) with source provenance — so
+later repository snapshot refreshes cannot reprice these reports. Historical
+GLM usage and cost remain unknown. Future runs record the compiled system
+message and sanitized effective config directly so historical reconstruction
+is unnecessary.
+
+### 4. Representative cell review gate
+
+Collect one representative failing cell — the GPT-xhigh Flask/Vue
+book-discovery producer from the task-mechanics dataset — and pause for human
+review of its input, generated task files, normalized session, assessment,
+effective config, system-message provenance, and run-level cost row. Adjust
+the package schema and report configuration from that review before
+generating any complete package.
+
+### 5. Complete migration and parity
+
+Generate the complete `20260919-task-mechanics-b1` package, then the
+`20260919-current-guidance-b0` package, both under
+`maintainer/docs/evaluations/task-guidance/results/`, without model requests.
+Prove parity automatically: selected identities, task-file text, prompts,
+responses, scores, occurrence counts, invalid records, and run-level
+usage and cost must agree with the frozen records and saved sessions, and
+regeneration must be byte-for-byte deterministic across two consecutive
+runs. Exercise one invalid or retried cell and one continuation chain
+explicitly so selection, lineage, and run-level usage remain reviewable.
+
+### 6. Documentation and navigation
+
+Update the task-guidance evaluation index, both dated reports, and the
+maintainer evaluations index to lead to the packages; rewrite the
+command-heavy inspection section of the reproduction guide into package
+navigation while keeping the reproduction commands; add package-local user
+and development documentation for the new modules; and update the owning
+requirement ledgers (`ERPKG-*`, `CLEVAL-*`, `TGEVAL-012`–`TGEVAL-017`) as
+implementation, verification, and documentation progress.
+
+### 7. Fixture replacement
+
+After parity and link checks pass, replace completed-result suite fixtures
+with focused synthetic data covering collection, rendering, checking,
+projection, and adapter behavior, point `freeze_b0.py`'s default output away
+from fixture ownership, and remove the old fixture result copies.
 
 ### Implementation decisions and open questions
 
@@ -297,13 +393,25 @@ old suite-fixture result copies.
 - The Crystal Lattice integration owns the shared lean-session and request
   projection used by any Crystal Lattice-backed suite.
 - The report config owns its price table. Cost rendering uses only that table
-  and the run's aggregated usage fields.
+  and the run's aggregated usage fields. The pinned table copies the
+  gpt-5.6-luna standard-tier rates from the maintained OpenAI pricing
+  snapshot (fetched 2026-07-18) with source provenance; provider-reported
+  cost metadata remains captured provenance, and the parity check compares
+  it with the pinned-table calculation.
 - Cost totals are per run. Continuation lineage must avoid counting inherited
   session history as newly consumed usage.
 - Missing usage, price, system-message text, or config fields use explicit
   availability states.
-- Resolve the path-normalization and compatibility-entry-point questions
-  before finalizing the package schema.
+- Proposed resolutions for the open questions, pending plan approval:
+  normalize machine-specific paths while preserving the exact original hash,
+  a path classification, and a replacement map; keep the dated reports as
+  short entry points linking to the generated package indexes during the
+  first migration; keep historical GLM usage and cost unknown rather than
+  inferred; and use `collect`, `render`, and `check` command semantics.
+- The semantic assessment batches are scenario-level records; the adapter
+  places them so each cell links to its own judgments without duplicating
+  the batch. Exact stage and assessment file names are adapter-owned and
+  finalized at the representative-cell review.
 
 ### Documentation
 
@@ -322,10 +430,10 @@ old suite-fixture result copies.
 
 ### Task checklist
 
-- [ ] Approve this execution plan and resolve the material open questions.
-- [ ] Add the separate result-package specification and correct the former
+- [x] Approve this execution plan and resolve the material open questions.
+- [x] Add the separate result-package specification and correct the former
   framework provenance requirement.
-- [ ] Add Crystal Lattice and task-guidance requirements to their owning
+- [x] Add Crystal Lattice and task-guidance requirements to their owning
   specifications.
 - [ ] Define the result-package manifest, availability, redaction, usage,
   cost, and suite-adapter contracts without a generic session schema.
@@ -377,3 +485,13 @@ old suite-fixture result copies.
   lineage, and run-level usage remain reviewable.
 - Run the generic `agent_eval`, task-guidance suite, documentation-link, and
   guidance-compiler tests affected by the migration.
+
+## Implementation Notes
+
+- September 21, 2026: the user approved the execution plan and the four
+  open-question resolutions (path normalization with original hash and
+  replacement map; dated reports retained as entry points; GLM usage and cost
+  kept unknown; `collect`/`render`/`check` command semantics). The pinned price
+  table copies the gpt-5.6-luna standard-tier rates from the maintained
+  OpenAI pricing snapshot fetched 2026-07-18. Implementation began after
+  approval.
