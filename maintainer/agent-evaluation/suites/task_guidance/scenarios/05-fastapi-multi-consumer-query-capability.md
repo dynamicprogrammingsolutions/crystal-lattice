@@ -37,7 +37,7 @@ subtasks or task count.
 ## Approved outcomes
 
 - `QUERY-1`: one approved public query contract defines filter, sort,
-  pagination, validation, response compatibility, and total count.
+  pagination, validation, and response compatibility.
 - `QUERY-2`: the FastAPI service implements and verifies the contract through
   production HTTP and real storage behavior.
 - `QUERY-3`: the reusable Python client exposes the query capability without

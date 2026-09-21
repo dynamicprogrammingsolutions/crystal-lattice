@@ -26,8 +26,13 @@ Task-guidance verification additionally uses:
 - semantic task topology, requirement, decision, dependency, and crossing
   assessment;
 - quality-gated investigation-efficiency evidence;
-- B0 and B1 baseline reports before guidance-placement candidates;
-- focused v3/v4/v5 comparison before a full confirmation matrix.
+- reports from
+  [Stage B0 — Current-guidance baseline](../../../evaluations/task-guidance/test-plan.md#stage-b0--current-guidance-baseline)
+  and
+  [Stage B1 — Task-mechanics candidate](../../../evaluations/task-guidance/test-plan.md#stage-b1--task-mechanics-candidate)
+  before guidance-placement candidates;
+- focused comparison of concise task reinforcement, centralized root guidance,
+  and optional routed extended explanation before a full confirmation matrix.
 
 The task-guidance suite specification and strategy live under
 `maintainer/agent-evaluation/suites/task_guidance/docs/development/`.

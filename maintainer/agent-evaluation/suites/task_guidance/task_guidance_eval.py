@@ -76,7 +76,7 @@ Examples:
 
   Reuse an existing GLM planning session and run both forks:
 
-    python test/task_guidance/task_guidance_eval.py run \\
+    python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py run \\
       --steps retain-plan,omit-plan \\
       --provider ollama \\
       --source-case tmp/task-guidance-eval/runs/20260721-tasks-v7-revision-6/create-task-after-plan/ollama-glm-5.2 \\
@@ -85,21 +85,21 @@ Examples:
 
   Run a fresh plan and both forks:
 
-    python test/task_guidance/task_guidance_eval.py run \\
+    python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py run \\
       --steps plan,retain-plan,omit-plan \\
       --provider ollama \\
       --run-id task-guidance-fresh
 
   Run the existing-task planning scenario:
 
-    python test/task_guidance/task_guidance_eval.py run \\
+    python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py run \\
       --steps existing-task-plan \\
       --provider ollama \\
       --run-id task-guidance-existing
 
   Use the ChatGPT account:
 
-    python test/task_guidance/task_guidance_eval.py run \\
+    python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py run \\
       --steps plan,retain-plan,omit-plan \\
       --provider chatgpt \\
       --model gpt-5.6-luna \\
@@ -108,13 +108,13 @@ Examples:
 
   Assert, review, and bundle an existing run:
 
-    python test/task_guidance/task_guidance_eval.py assert \\
+    python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py assert \\
       --run-dir tmp/task-guidance-eval/runs/<run-id>
 
-    python test/task_guidance/task_guidance_eval.py review \\
+    python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py review \\
       --run-dir tmp/task-guidance-eval/runs/<run-id>
 
-    python test/task_guidance/task_guidance_eval.py bundle \\
+    python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py bundle \\
       --run-dir tmp/task-guidance-eval/runs/<run-id>
 """
 
@@ -669,7 +669,8 @@ def run_command(args: argparse.Namespace) -> int:
     else:
         print(
             "Next:\n"
-            f"  python test/task_guidance/task_guidance_eval.py assert "
+            "  python maintainer/agent-evaluation/suites/task_guidance/"
+            "task_guidance_eval.py assert "
             f"--run-dir {run_dir}"
         )
     if errors:
@@ -724,7 +725,8 @@ def assert_run(run_dir: Path, *, case_name: str | None) -> int:
 def _print_review_next(run_dir: Path) -> None:
     print(
         "Next:\n"
-        f"  python test/task_guidance/task_guidance_eval.py review "
+        "  python maintainer/agent-evaluation/suites/task_guidance/"
+        f"task_guidance_eval.py review "
         f"--run-dir {run_dir}"
     )
 
@@ -908,7 +910,8 @@ def review_command(args: argparse.Namespace) -> int:
         return bundle_run(run_dir, force=True)
     print(
         "Next:\n"
-        f"  python test/task_guidance/task_guidance_eval.py bundle "
+        "  python maintainer/agent-evaluation/suites/task_guidance/"
+        f"task_guidance_eval.py bundle "
         f"--run-dir {run_dir}"
     )
     return 0
@@ -990,7 +993,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run deterministic assertions against saved artifacts.",
         epilog="""\
 Example:
-  python test/task_guidance/task_guidance_eval.py assert \\
+  python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py assert \\
     --run-dir tmp/task-guidance-eval/runs/<run-id>
 
 Add --review to run the GLM empirical review afterward.""",
@@ -1015,7 +1018,7 @@ Add --review to run the GLM empirical review afterward.""",
         help="Run a separate GLM empirical review for human inspection.",
         epilog="""\
 Example:
-  python test/task_guidance/task_guidance_eval.py review \\
+  python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py review \\
     --run-dir tmp/task-guidance-eval/runs/<run-id>
 
 Add --bundle to prepare the review bundle afterward.""",
@@ -1044,7 +1047,7 @@ Add --bundle to prepare the review bundle afterward.""",
         help="Prepare an easy-to-review artifact bundle.",
         epilog="""\
 Example:
-  python test/task_guidance/task_guidance_eval.py bundle \\
+  python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py bundle \\
     --run-dir tmp/task-guidance-eval/runs/<run-id>""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

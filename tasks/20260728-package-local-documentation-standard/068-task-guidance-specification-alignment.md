@@ -130,7 +130,9 @@ Current inspection on September 14, 2026 confirms the divergence remains:
 - bundled `application/python/agent_terminal_app/default_config/TASKS_v7.md`:
   1,453 words;
 - the files have different SHA-256 hashes;
-- the specialized evaluator remains under `test/task_guidance/`;
+- at task refinement the specialized evaluator remained under
+  `test/task_guidance/`; task 090 later migrated it into the package-owned
+  suite;
 - no migrated `maintainer/agent-evaluation/suites/task_guidance/` suite exists.
 
 The repository version already contains concise requirement-minimality rules.
@@ -282,12 +284,13 @@ published as current behavior by default.
 
 ### Existing evaluation workflow
 
-Use the completed specialized infrastructure documented in:
+Use the completed specialized infrastructure, now migrated under the
+package-owned suite:
 
 - `tasks/20260721-task-guidance-evaluation-workflow.md`
-- `test/task_guidance/README.md`
-- `test/task_guidance/task_guidance_eval.py`
-- `test/task_guidance/prepare_review_bundle.py`
+- `maintainer/agent-evaluation/suites/task_guidance/docs/legacy-cli.md`
+- `maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py`
+- `maintainer/agent-evaluation/suites/task_guidance/prepare_review_bundle.py`
 
 The evaluation separates:
 
@@ -482,7 +485,7 @@ Status: Approved
 - [x] Add the update/`--check` synchronization command.
 - [x] Add the application-package exact-byte parity test.
 - [x] Generate the bundled guidance from the canonical source.
-- [ ] Move task-guidance evaluation infrastructure under `maintainer/`.
+- [x] Move task-guidance evaluation infrastructure under `maintainer/`.
 - [x] Update deterministic evaluation fixtures/assertions.
 - [x] Add concise-prompt evaluation coverage.
 - [x] Add planning-cleanliness and public-decision deterministic coverage.

@@ -13,7 +13,7 @@ Supported model paths:
 Run `--help` for copyable starting commands:
 
 ```bash
-python test/task_guidance/task_guidance_eval.py --help
+python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py --help
 ```
 
 Each successful command prints the next most obvious command. `run --assert`
@@ -48,7 +48,7 @@ for provenance.
 ## Quick start with an existing GLM planning session
 
 ```bash
-python test/task_guidance/task_guidance_eval.py run \
+python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py run \
   --steps retain-plan,omit-plan \
   --provider ollama \
   --source-case \
@@ -60,7 +60,7 @@ python test/task_guidance/task_guidance_eval.py run \
 ## Fresh run
 
 ```bash
-python test/task_guidance/task_guidance_eval.py run \
+python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py run \
   --steps plan,retain-plan,omit-plan \
   --provider ollama \
   --run-id task-guidance-fresh
@@ -69,7 +69,7 @@ python test/task_guidance/task_guidance_eval.py run \
 Use ChatGPT account credentials instead:
 
 ```bash
-python test/task_guidance/task_guidance_eval.py run \
+python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py run \
   --steps plan,retain-plan,omit-plan \
   --provider chatgpt \
   --model gpt-5.6-luna \
@@ -89,7 +89,7 @@ Useful run options:
 ## Separate mechanical assertions
 
 ```bash
-python test/task_guidance/task_guidance_eval.py assert \
+python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py assert \
   --run-dir tmp/task-guidance-eval/runs/<run-id>
 ```
 
@@ -108,7 +108,7 @@ quality.
 ## Separate GLM empirical review
 
 ```bash
-python test/task_guidance/task_guidance_eval.py review \
+python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py review \
   --run-dir tmp/task-guidance-eval/runs/<run-id>
 ```
 
@@ -132,7 +132,7 @@ and documentation as plan content that should be absent rather than required.
 ## Review bundle
 
 ```bash
-python test/task_guidance/task_guidance_eval.py bundle \
+python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py bundle \
   --run-dir tmp/task-guidance-eval/runs/<run-id>
 ```
 

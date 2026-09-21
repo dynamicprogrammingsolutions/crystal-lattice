@@ -157,6 +157,28 @@ Structured assessment records:
 - fresh-agent reconstructed-plan quality;
 - unsupported public or internal decisions.
 
+It also classifies six task-creation quality dimensions:
+
+- overall fragmentation;
+- phase-only implementation, test, documentation, deployment, cleanup, or
+  review children;
+- technical-layer splits without independent users, ownership,
+  compatibility, acceptance, or complete product value;
+- final evidence or documentation children that re-own work from delivery
+  tasks;
+- dependency graphs that permit broken intermediate states or unnecessarily
+  serialize independent work;
+- required production connections proved only by separate or mocked checks.
+
+Fragmentation uses `none`, `low`, `medium`, or `high`, mapped
+deterministically to 100, 67, 33, or 0. Other dimensions use `none`,
+`partial`, or `present`, mapped to 100, 50, or 0. The evaluator records
+concrete occurrences but does not choose numeric scores. An assessment's
+success percentage is the equal-weight average of the six scores.
+
+Results aggregate each score, affected-assessment count, and occurrence count
+for the complete cohort, each provider, and each provider/effort combination.
+
 Mechanical findings and semantic assessment remain separate.
 
 ## Investigation-efficiency evidence
@@ -183,30 +205,34 @@ same-agent continuation
 ```
 
 An intentionally incomplete handoff may be used as a negative control.
-Thresholds are selected after B0 establishes variance.
+Thresholds are selected after
+[Stage B0 — Current-guidance baseline](../../../../../docs/evaluations/task-guidance/test-plan.md#stage-b0--current-guidance-baseline)
+establishes variance.
 
 ## Baselines and candidates
 
-### B0
+### Stage B0 — Current-guidance baseline
 
 Current guidance runs unchanged against the approved new scenarios. Quality
 failures are valid baseline evidence when execution and capture are valid.
 
-### B1
+### Stage B1 — Task-mechanics candidate
 
 The shortest evidence-backed task mechanics improve handoff and decomposition
-without redistributing generic Requirements or Testing guidance. B1 becomes
-the placement-comparison baseline only after existing task-guidance behavior
-does not materially regress.
+without redistributing generic Requirements or Testing guidance. The
+task-mechanics candidate becomes the placement-comparison baseline only after
+existing task-guidance behavior does not materially regress.
 
-### Placement candidates
+### Stage B2 — Guidance-placement confirmation
 
-v3, v4, and optional v5 use the same semantic rule set:
+The descriptive placement designs use the same semantic rule set:
 
-- v3 keeps concise Requirements and Testing reinforcement in TASKS;
-- v4 centralizes generic semantics in compiled root guidance;
-- v5 keeps an essential compiled core and routes extended examples to shared
-  pages.
+- concise task reinforcement keeps short Requirements and Testing reminders in
+  task guidance;
+- centralized root guidance owns the generic semantics in compiled root
+  guidance;
+- routed extended explanation keeps an essential compiled core and places
+  longer examples on shared pages.
 
 Focused evidence precedes a full matrix.
 

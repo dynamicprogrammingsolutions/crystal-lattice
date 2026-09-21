@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "scenario_id": "tg05-fastapi-multi-consumer-decomposition",
+  "category": "decomposition",
+  "title": "FastAPI multi-consumer query decomposition",
+  "task_summary": "Recognize valid service, SDK, and application boundaries without fragmenting each component into phases.",
+  "project": {
+    "name": "FastAPI notes multi-consumer fixture",
+    "kind": "public service, reusable Python client, and CLI",
+    "fixture_id": "tg05-fastapi-multi-consumer",
+    "upstream": "https://github.com/testdrivenio/fastapi-crud-async",
+    "revision": "4fa7ae952ece61e228135285de1b6a5ff65a1dc8"
+  },
+  "approved_outcomes": [
+    {"id": "QUERY-1", "outcome": "One approved public query contract covers filtering, sorting, pagination, validation, and compatibility."},
+    {"id": "QUERY-2", "outcome": "The FastAPI service implements the contract through production HTTP and real storage behavior."},
+    {"id": "QUERY-3", "outcome": "The reusable Python client exposes the capability while preserving current calls."},
+    {"id": "QUERY-4", "outcome": "The CLI exposes the capability and proves the CLI-to-client-to-service path."},
+    {"id": "QUERY-5", "outcome": "Each independently delivered public surface has accurate current documentation."}
+  ],
+  "coherent_deliverables": [
+    {
+      "id": "QUERY-D1",
+      "title": "Approve the shared query contract",
+      "outcomes": ["QUERY-1"],
+      "independent_value": "A stable public contract independently unblocks multiple owners and consumers.",
+      "dependencies": []
+    },
+    {
+      "id": "QUERY-D2",
+      "title": "Deliver the FastAPI service capability",
+      "outcomes": ["QUERY-2", "QUERY-5"],
+      "independent_value": "The public API is independently usable by external and first-party consumers.",
+      "dependencies": ["QUERY-D1"]
+    },
+    {
+      "id": "QUERY-D3",
+      "title": "Deliver the reusable Python client capability",
+      "outcomes": ["QUERY-3", "QUERY-5"],
+      "independent_value": "The client is an independently published reusable package with its own compatibility boundary.",
+      "dependencies": ["QUERY-D1"]
+    },
+    {
+      "id": "QUERY-D4",
+      "title": "Deliver the CLI workflow and production integration",
+      "outcomes": ["QUERY-4", "QUERY-5"],
+      "independent_value": "The CLI is a separately accepted application and owns the complete first-party integration path.",
+      "dependencies": ["QUERY-D2", "QUERY-D3"]
+    }
+  ],
+  "acceptable_partition_sizes": [3, 4, 5],
+  "acceptable_alternatives": [
+    "Keep the short contract in the parent when one clear maintained owner remains.",
+    "Combine service and client only when release, ownership, and compatibility are not independent.",
+    "Use a separate integration child only when production integration is itself independently maintained."
+  ],
+  "fragmentation_examples": [
+    "Service model, query, route, tests, and docs as separate tasks.",
+    "Client transport, models, errors, tests, and docs as separate tasks.",
+    "CLI parsing, output, tests, and documentation as separate tasks.",
+    "A generic final review or integration-test phase."
+  ],
+  "overpacking_examples": [
+    "One child for service, reusable client, and CLI hides independent package ownership and compatibility."
+  ],
+  "important_crossings": [
+    "HTTP route to real storage.",
+    "Python client transport to production API.",
+    "CLI through the actual client package and HTTP service."
+  ],
+  "open_questions": [
+    "Exact filter grammar and sort fields require public-contract approval."
+  ],
+  "handoff": {
+    "retain_plan": "Preserve contract, ownership, compatibility, parallelism, and final integration dependencies.",
+    "omit_plan": "Preserve package facts, public questions, ownership boundaries, and crossings without the four-component task partition.",
+    "fresh_agent_plan": "A fresh agent recognizes valid component boundaries while keeping each component's work, tests, and docs together."
+  }
+}

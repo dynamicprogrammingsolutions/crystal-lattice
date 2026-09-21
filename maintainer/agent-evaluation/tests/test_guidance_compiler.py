@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from maintainer.guidance import compile_guidance
+from maintainer.guidance import bundle_section_path, compile_guidance
 from maintainer.guidance.compiler import check_compilation
 
 
@@ -70,6 +70,14 @@ def test_candidate_inherits_documentation_and_overrides_changed_sections() -> No
     assert candidate.outputs["agents/TASKS-v7.md"] == (
         REPOSITORY_ROOT / "agents/TASKS-v7.md"
     ).read_bytes()
+    assert bundle_section_path(
+        bundle=CANDIDATE_BUNDLE,
+        section="documentation",
+        repository_root=REPOSITORY_ROOT,
+    ) == (
+        REPOSITORY_ROOT
+        / "maintainer/guidance/current/sections/documentation.md"
+    )
 
 
 @pytest.mark.parametrize("scenario_id", FIXTURE_TARGETS)

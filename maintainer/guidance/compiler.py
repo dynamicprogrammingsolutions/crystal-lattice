@@ -247,6 +247,29 @@ def compile_guidance(
     )
 
 
+def bundle_section_path(
+    *,
+    bundle: str | Path,
+    section: str,
+    base_directory: Path | None = None,
+    repository_root: Path | None = None,
+) -> Path:
+    base = (
+        repository_root.resolve()
+        if repository_root is not None
+        else (base_directory or Path.cwd()).resolve()
+    )
+    bundle_dir = _absolute_path(bundle, base)
+    tracker = InputTracker()
+    _, sections = _load_bundle(tracker, bundle_dir)
+    try:
+        return sections[section]
+    except KeyError as error:
+        raise ValueError(
+            f"bundle {bundle_dir} has no section {section!r}"
+        ) from error
+
+
 def write_compilation(
     result: CompilationResult,
     *,

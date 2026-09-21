@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from typing import Any, Iterable, Iterator, Mapping
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[4]
 APP_PY = ROOT / "application" / "python"
 CORE_PY = ROOT / "core" / "python"
 for import_root in (ROOT, APP_PY, CORE_PY):
@@ -31,9 +31,7 @@ DEFAULT_CONFIG_DIR = (
     ROOT / "application" / "python" / "agent_terminal_app" / "default_config"
 )
 DEFAULT_GUIDANCE_PATH = ROOT / "agents" / "TASKS-v7.md"
-FIXTURE_DIR = (
-    ROOT / "test" / "fixture" / "task-guidance" / "codex-mdm-deny-read"
-)
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "codex-mdm-deny-read"
 PREMADE_TASK_TEMPLATE = FIXTURE_DIR / "premade-task.md"
 REVIEW_TEMPLATE = FIXTURE_DIR / "review-template.md"
 

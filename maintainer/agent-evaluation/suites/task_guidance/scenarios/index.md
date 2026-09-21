@@ -1,7 +1,10 @@
 # Task-guidance scenario contracts
 
-> **Not implemented:** These contracts require human approval before they
-> become executable fixtures or real-model prompts.
+These approved contracts are executable fixtures and real-model prompts.
+[Stage B0 — Current-guidance baseline](../../../../docs/evaluations/task-guidance/test-plan.md#stage-b0--current-guidance-baseline)
+has exercised all planned model/effort cells. One GPT same-agent continuity
+chain is explicitly invalid because its task-creation turn produced no task
+file.
 
 The suite uses three bounded cases for task handoff and three substantially
 larger cases for decomposition quality. The larger cases use reviewed derived
@@ -9,12 +12,12 @@ project states rather than reusing the small requirement-quality tasks.
 
 | ID | Project | Role | Primary boundary |
 |---|---|---|---|
-| [TG-01](01-eleventy-archive-single-task.md) | Eleventy Base Blog | Bounded handoff | Approved plan preservation and generated-site crossing |
-| [TG-02](02-fastapi-pagination-single-task.md) | FastAPI CRUD Async | Bounded handoff | Public API plan and HTTP/storage evidence |
-| [TG-03](03-flask-vue-filter-refresh-single-task.md) | Flask-Vue CRUD | Bounded handoff | Full-stack bug handoff and selected-filter preservation |
-| [TG-04](04-flask-vue-book-discovery-release.md) | Derived Flask-Vue CRUD fixture | Complex vertical decomposition | Four end-to-end product capabilities crossing client/server layers |
-| [TG-05](05-fastapi-multi-consumer-query-capability.md) | Derived FastAPI monorepo fixture | Complex component decomposition | Public API, reusable SDK, and first-party consumer boundaries |
-| [TG-06](06-eleventy-author-metadata-migration.md) | Derived Eleventy Base Blog fixture | Complex migration decomposition | Four compatibility-preserving content/build states |
+| [Scenario TG-01 — Eleventy archive pagination as one task](01-eleventy-archive-single-task.md) | Eleventy Base Blog | Bounded handoff | Approved plan preservation and generated-site crossing |
+| [Scenario TG-02 — FastAPI notes pagination as one task](02-fastapi-pagination-single-task.md) | FastAPI CRUD Async | Bounded handoff | Public API plan and HTTP/storage evidence |
+| [Scenario TG-03 — Flask/Vue selected-filter refresh regression](03-flask-vue-filter-refresh-single-task.md) | Flask-Vue CRUD | Bounded handoff | Full-stack bug handoff and selected-filter preservation |
+| [Scenario TG-04 — Flask/Vue book-discovery decomposition](04-flask-vue-book-discovery-release.md) | Derived Flask-Vue CRUD fixture | Complex vertical decomposition | Four end-to-end product capabilities crossing client/server layers |
+| [Scenario TG-05 — FastAPI service, client, and CLI query capability](05-fastapi-multi-consumer-query-capability.md) | Derived FastAPI monorepo fixture | Complex component decomposition | Public API, reusable SDK, and first-party consumer boundaries |
+| [Scenario TG-06 — Eleventy author-metadata compatibility migration](06-eleventy-author-metadata-migration.md) | Derived Eleventy Base Blog fixture | Complex migration decomposition | Four compatibility-preserving content/build states |
 
 The bounded handoff contracts support:
 

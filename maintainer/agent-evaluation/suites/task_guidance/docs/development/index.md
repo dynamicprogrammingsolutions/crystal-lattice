@@ -1,7 +1,15 @@
 # Task-guidance suite development
 
-> **Not implemented:** This directory describes target behavior and approved
-> test boundaries for task 090.
+The legacy evaluator migration and staged handoff/decomposition evaluator are
+implemented.
+[Stage B0 — Current-guidance baseline](../../../../../docs/evaluations/task-guidance/test-plan.md#stage-b0--current-guidance-baseline)
+is frozen with all planned task-creation and handoff cells. One GPT same-agent
+chain is preserved as invalid upstream behavior.
+[Stage B1 — Task-mechanics candidate](../../../../../docs/evaluations/task-guidance/test-plan.md#stage-b1--task-mechanics-candidate)
+v1 is frozen and not promoted verbatim. Its decomposition gains are retained
+for a practical-baseline revision with focused plan/handoff confirmation.
+[Stage B2 — Guidance-placement confirmation](../../../../../docs/evaluations/task-guidance/test-plan.md#stage-b2--guidance-placement-confirmation)
+remains pending task 090.
 
 - [Suite specification](specification.md)
 - [Suite requirements](requirements.md)

@@ -46,6 +46,8 @@ markers = [
   "root_requirement_testing: root Requirements and Testing guidance producers",
   "requirement_semantic: structured semantic requirement and testing-plan evaluator",
   "root_guidance_quality: pairwise overall-quality comparison for root guidance",
+  "task_guidance_baseline: task handoff and decomposition producer baseline",
+  "task_guidance_semantic: structured task handoff and decomposition assessment",
   "requirements(*ids): requirement identifiers covered by an acceptance test",
 ]
 

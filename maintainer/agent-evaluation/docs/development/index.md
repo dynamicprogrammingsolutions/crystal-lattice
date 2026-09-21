@@ -82,9 +82,9 @@ documentation-guidance model test.
 
 The
 [task-guidance suite target](../../suites/task_guidance/docs/index.md)
-specifies staged task handoff, plan continuation, decomposition, and
-quality-gated efficiency evaluation. It is not implemented yet; the current
-human-operated workflow remains under `test/task_guidance/`.
+preserves the migrated human-operated CLI and specifies staged task handoff,
+plan continuation, decomposition, and quality-gated efficiency evaluation.
+The staged extensions remain in progress.
 
 ## Extension guidance
 

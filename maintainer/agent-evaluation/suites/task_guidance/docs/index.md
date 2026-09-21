@@ -1,19 +1,26 @@
 # Task-guidance evaluation suite
 
-> **Not implemented:** These pages specify the approved target for a future
-> package-owned suite. The existing evaluator remains under
-> `test/task_guidance/` until the migration in task 090 is approved and
-> executed.
-
-The suite will evaluate whether task files are durable handoffs, whether plans
+The package-owned suite preserves the existing task-guidance CLI, deterministic
+assertions, imported-session forks, empirical review, and review bundles. Task
+090 is extending it to evaluate whether task files are durable handoffs, whether plans
 and task decomposition preserve approved outcomes, and whether a later agent
 can continue with bounded rediscovery.
 
 - [Running and calibration target](running-and-calibration.md)
+- [Current CLI workflow](legacy-cli.md)
 - [Development specification](development/index.md)
 - [Scenario contracts](../scenarios/index.md)
 - [Execution task](../../../../../tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md)
 
+The staged evaluator, six scenarios, handoff variants, continuation evidence,
+semantic assessment, negative control, and result freezing are implemented.
+[Stage B0 — Current-guidance baseline](../../../../docs/evaluations/task-guidance/test-plan.md#stage-b0--current-guidance-baseline)
+is frozen with the complete model/effort matrix. One GPT same-agent chain is
+explicitly invalid because its parent turn produced no task file.
+[Stage B1 — Task-mechanics candidate](../../../../docs/evaluations/task-guidance/test-plan.md#stage-b1--task-mechanics-candidate)
+v1 was compiled and evaluated. It is not promoted verbatim, but its
+decomposition gains are the foundation of the pending practical baseline.
+
 The suite is a consumer of `agent_eval`. Generic kernel and Crystal Lattice
-environment behavior remains owned by the package specifications under
+environment behavior remain owned by the package specifications under
 `maintainer/agent-evaluation/docs/development/specifications/`.

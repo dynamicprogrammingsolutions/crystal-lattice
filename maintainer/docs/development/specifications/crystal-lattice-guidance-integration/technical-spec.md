@@ -53,11 +53,11 @@ both root and task guidance route consistently.
 
 The package-owned task-guidance evaluation suite defines:
 
-- B0 current-guidance observation;
-- B1 safe task mechanics and handoff behavior;
-- v3 slight deduplication with concise TASKS reinforcement;
-- v4 generic centralization in root guidance;
-- optional v5 routed explanation pages.
+- [Stage B0 — Current-guidance baseline](../../../evaluations/task-guidance/test-plan.md#stage-b0--current-guidance-baseline);
+- [Stage B1 — Task-mechanics candidate](../../../evaluations/task-guidance/test-plan.md#stage-b1--task-mechanics-candidate);
+- concise TASKS reinforcement;
+- generic centralization in root guidance;
+- optional routed explanation pages.
 
 All placement candidates use the same semantic rule set. Compilation hashes,
 effective message/tool delivery, stage inputs, and run attempts participate in
@@ -86,6 +86,7 @@ evidence; dated Markdown reports live under
 
 The task-guidance suite target lives under
 `maintainer/agent-evaluation/suites/task_guidance/`. It owns staged task
-handoff, plan continuation, decomposition, and efficiency evaluation. Current
-implementation remains under `test/task_guidance/` until task 090 executes the
-migration.
+handoff, plan continuation, decomposition, and efficiency evaluation. Its
+legacy CLI, assertions, imported-session forks, review tooling, and fixtures
+are package-owned; the staged current-guidance baseline and task-mechanics
+candidate extensions remain with task 090.

@@ -1,7 +1,15 @@
 # Task-guidance evaluation testing strategy
 
-> **Not implemented:** This strategy defines the approved test target for task
-> 090. Commands and executable markers will be added only with the suite.
+The strategy is implemented for deterministic validation and the GLM cohort
+of
+[Stage B0 — Current-guidance baseline](../../../../../docs/evaluations/task-guidance/test-plan.md#stage-b0--current-guidance-baseline).
+The complete model/effort matrix is frozen; one GPT same-agent chain is an
+explicit invalid upstream record.
+[Stage B1 — Task-mechanics candidate](../../../../../docs/evaluations/task-guidance/test-plan.md#stage-b1--task-mechanics-candidate)
+v1 is frozen and is not promoted verbatim. Its decomposition improvements are
+retained for a practical baseline with focused important-crossing,
+plan-preservation, and fresh generated-task handoff confirmation.
+Placement comparisons have not started.
 
 ## Risks
 
@@ -124,6 +132,22 @@ Assess:
 - reconstructed-plan completeness;
 - unsupported public or implementation choices.
 
+Report these issue dimensions independently rather than leaving them only in
+summary prose:
+
+- fragmentation;
+- phase-only children;
+- layer splits without independent value;
+- evidence re-ownership;
+- unsafe or unnecessarily serializing dependencies;
+- piecewise evidence that does not prove the required production connection.
+
+The semantic judge assigns only the reviewed status and concrete occurrences.
+Code maps statuses to deterministic scores and computes an equal-weight
+success percentage. Aggregate results show per-dimension scores, affected
+assessment counts, occurrence counts, and total success for all records, each
+provider, and each provider/effort cohort.
+
 Use reviewed semantic targets. Do not require exact wording.
 
 ## Efficiency
@@ -131,7 +155,8 @@ Use reviewed semantic targets. Do not require exact wording.
 Record tool use by category. Compare only identical model/effort profiles and
 semantically passing plans.
 
-Initial B0 reporting is descriptive. After variance is reviewed, task 090 may
+Initial current-guidance baseline reporting is descriptive. After variance is
+reviewed, task 090 may
 propose a threshold such as a median 30–50% reduction in investigation calls.
 The threshold requires explicit approval before becoming an assertion.
 
@@ -140,19 +165,25 @@ because provider latency and output length vary.
 
 ## Model and effort cohort
 
-Initial baseline recommendation:
+Initial baseline cohort:
 
 - GLM max for all six task-creation and plan-preparation contracts;
 - GPT high for all six;
 - GPT xhigh for the most sensitive completeness, decomposition, and handoff
   cases;
-- repeated runs only for efficiency comparisons or observed variance.
+- repeated semantic runs during calibration where a target or assessor defect
+  was found.
 
-Expand the cohort only after B0/B1 review justifies the cost.
+The frozen GLM baseline uses one producer run per test case. It is
+observational evidence, not a statistical estimate of model or effort
+variance.
+
+Expand the cohort only after review of the current-guidance baseline and the
+task-mechanics candidate justifies the cost.
 
 ## Nondegradation
 
-B1 and later candidates must preserve:
+The task-mechanics candidate and later placement candidates must preserve:
 
 - task-guidance source/bundled parity;
 - default-runner message and tool preflights;
@@ -176,5 +207,5 @@ The review package should show:
 - candidate deltas and anomalies;
 - optional links to complete records.
 
-Humans approve scenario targets, B1, efficiency thresholds, candidate
-selection, and final promotion.
+Humans approve test-case targets, the task-mechanics candidate, efficiency
+thresholds, candidate selection, and final promotion.
