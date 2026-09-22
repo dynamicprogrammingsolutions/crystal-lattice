@@ -6,8 +6,8 @@ This task takes over `tasks/20260801-duration-and-stats-tracking/000-main.md` (s
 
 ## Requirements checklist
 
-- [ ] The framework provides a general plugin act-point around tool calls (execution-scoped hooks plus an append-scoped hook) with context-carried facts, and the timestamp plugin's `to_native_messages` append workaround is retired (subtask 020).
-- [ ] Per-tool-call and per-turn tool duration are stamped on tool-result messages by the duration measurement plugin, without a store (subtask 020).
+- [x] The framework provides a general plugin act-point around tool calls (execution-scoped hooks plus an append-scoped hook) with context-carried facts, and the timestamp plugin's `to_native_messages` append workaround is retired (subtask 020 — completed 2026-09-22).
+- [x] Per-tool-call and per-turn tool duration are stamped on tool-result messages by the duration measurement plugin, without a store (subtask 020 — completed 2026-09-22).
 - [ ] Session LLM duration is tracked per session in a SQLite store with the cost-tracking method, replacing the history-scan session total from the dropped worktree branch (subtask 010).
 - [ ] Tool call duration rows are recorded in the same store, and store-backed LLM + tool session totals surface through config-selected status-bar elements and the report action (subtasks 010 and 025).
 - [ ] Human time (review + composition) is tracked from frontend telemetry events recorded into the same store, with ingestion via a plugin-defined action; human time surfaces through the report action only, without message stamping (subtask 030).
@@ -35,7 +35,7 @@ Approved by the user on 2026-09-22 after the three-item review:
 ## Subtasks
 
 - [ ] `tasks/20260922-duration-and-human-time-tracking/010-session-duration-store.md`
-- [ ] `tasks/20260922-duration-and-human-time-tracking/020-tool-call-duration.md`
+- [x] `tasks/20260922-duration-and-human-time-tracking/020-tool-call-duration.md` (completed 2026-09-22)
 - [ ] `tasks/20260922-duration-and-human-time-tracking/025-tool-duration-store-totals.md`
 - [ ] `tasks/20260922-duration-and-human-time-tracking/030-human-time-telemetry.md`
 - [ ] `tasks/20260922-duration-and-human-time-tracking/040-docs.md`

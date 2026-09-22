@@ -178,11 +178,11 @@ Each chunk: write the tests first, verify they fail, implement, verify green.
 - [x] Implement per-turn tool duration stamping (history scan from the tool-call context plus the current call) (chunk 5)
 - [x] Verify/add message-footer UI elements for tool durations with intentional config gating (chunk 5: existing `duration:` footer now renders on tool messages; new `tool turn:` footer, same config gate)
 - [x] Migrate `TimestampExtension` append stamping onto `prepare_appended_message`; retire the `to_native_messages` workaround (chunk 6: red 3 → green 24 in the package suite; `to_native_messages` deleted entirely — the adapter default is the pass-through; both existing tests green unmodified; core suite 560 green; app suite 422 green + the known pre-existing failure)
-- [ ] Unit tests for the framework hooks (ordering, chained state, context facts, call transformation + re-inspection, no framework timing, cancellation, synthesized error results) (chunks 1–2 done; chunks 3–4 pending)
+- [x] Unit tests for the framework hooks (ordering, chained state, context facts, call transformation + re-inspection, no framework timing, cancellation, synthesized error results) (chunks 1–4: 29 tests in `core/python/tests/test_tool_call_lifecycle_hooks.py`)
 - [x] Unit tests for the stamping plugin (per-call stamping, turn accumulation, malformed metadata, LLM fields unchanged) (chunk 5: 9 new unit tests; existing 10 LLM tests green unmodified)
 - [x] Integration test through the application tool loop (events carry stamped metadata) (chunk 5: `application/python/tests/test_application_tool_duration_stamping.py` — checkpoint session, streaming `tool_partial` end + `tool_results`, reload round-trip, multi-call turn accumulation)
-- [ ] Cross-provider and streaming/non-streaming verification (chunk 7)
-- [ ] Documentation updates (chunk 7)
+- [x] Cross-provider and streaming/non-streaming verification (chunk 7: provider follow-up default suites green — openai_responses 481, reference provider 113, openrouter 135; integration tests cover streaming and non-streaming)
+- [x] Documentation updates (chunk 7: `core/python/docs/types-and-protocols.md` hook section; `plugins/docs/feature-plugins.md` protocol block + hook section; `plugins/docs/provider-extensions.md` lifecycle entries; timestamp-extension README rewritten for append-time stamping and tool duration)
 
 ## Implementation Notes
 
@@ -203,20 +203,43 @@ Each chunk: write the tests first, verify they fail, implement, verify green.
 
 | Requirement group | Verification evidence |
 |---|---|
-| Plugin-owned measurement | Source inspection of the dispatch points: no duration computation, no duration stamping, no stats writes in framework code; context carries only raw facts |
-| General tool-call act-point | Hook contract tests with a non-duration fixture plugin acting around tool calls through both tool-call hooks and the append hook |
-| Tool-call transformation in prepare | Fixture plugin rewrites a call's arguments (sanitizing) and the framework executes the transformed call after re-inspection; a non-inspectable transformed call follows the synthesized-error path; a call-id-changing transformer's correlation responsibility is documented |
-| Provider-call context symmetry | Request-pipeline tests assert `initialize_request` contexts carry started facts and `finalize` contexts carry finished facts, with no framework-computed durations |
-| Context-carried facts | Hook tests assert the context contains the framework facts (timestamps, call descriptor, session/request ids) and that the framework did not mutate the tool message |
-| Timestamp workaround retired | `TimestampExtension` tests pass after migration; the single-message `to_native_messages` detection is removed; append-time stamping covered for user/system and tool messages |
-| Per-call duration on tool messages | Integration test: after a tool call, the tool-result message metadata carries the plugin-stamped duration fields and `tool_results`/`tool_partial` end events expose them |
-| Per-turn tool duration | Unit/integration tests: two tool calls in one turn accumulate; a new turn resets; the scan reads only `role == "tool"` messages from the context session |
-| LLM duration unchanged | Existing `DurationExtension` suites remain green; tool duration fields are distinct keys; assistant-message fields untouched |
-| All providers and tools | Integration tests with an echo provider and at least one real tool plugin fixture, streaming and non-streaming |
+| Plugin-owned measurement | Source inspection of the dispatch points (`iter_tool_messages`, `add_message` dispatch, `_build_request_context`, finalize chains): no duration computation, no stamping, no stats writes in framework code; hook tests assert contexts carry only raw facts and no `duration` keys |
+| General tool-call act-point | `test_tool_call_lifecycle_hooks.py`: recording fixture plugins act around tool calls through both tool-call hooks and the append hook; ordering (extensions before features, priority within kind) and chained state verified |
+| Tool-call transformation in prepare | `test_prepare_tool_call_sanitizes_arguments` (tool received transformed payload), `test_prepare_tool_call_intercepts_tool_name` (other handler executed, result message reflects the transformed call), `test_prepare_tool_call_broken_transformation_follows_synthesized_error_path` |
+| Provider-call context symmetry | `test_provider_call_contexts_carry_timestamp_facts` (+ streaming variant): `initialize_request` contexts carry started facts, `finalize` contexts carry finished facts, no duration keys |
+| Context-carried facts | Hook tests assert timestamps, call descriptor, session/request ids, `tool_error` on synthesized paths; the framework never mutates the tool message (plugins return transformed copies) |
+| Timestamp workaround retired | `test_to_native_messages_returns_native_messages_unchanged` (fails while the workaround exists — proven red-first); `to_native_messages` deleted from `TimestampExtension`; append-time stamping covered for user/system/tool messages including native `_metadata` persistence and rebuild survival |
+| Per-call duration on tool messages | `test_application_tool_duration_stamping.py`: checkpoint session, streaming `tool_partial` end, and `tool_results` events all carry the plugin-stamped duration fields; reload round-trip keeps them |
+| Per-turn tool duration | Unit tests: two prior tool results accumulate with the current call; user message and terminal assistant reset the turn; only `role == "tool"` scanned (assistant durations excluded); malformed values skipped. Integration: two sequential calls accumulate exactly |
+| LLM duration unchanged | The 10 pre-existing `DurationExtension` tests pass unmodified; tool fields are distinct keys (`turn_tool_duration_*`); assistant fields untouched |
+| All providers and tools | Integration tests with the echo provider + `FileReaderTool`, streaming and non-streaming; provider follow-up suites green (openai_responses 481, reference 113, openrouter 135) |
 
 ### Additional implementation verification
 
-- Cancellation before a final result and synthesized error results (no handler, stream error) still dispatch the act-point or are explicitly excluded by the chosen contract.
-- Multiple sequential tool calls in one phase: facts are correlated per call id; no cross-call leakage.
-- The chosen dispatch does not change existing tool-loop checkpoint/reconciliation behavior (existing tool-loop suites stay green).
-- Run `pytest core/python/tests -q` and `pytest application/python/tests -q` for the framework change, plus `pytest plugins/timestamp-extension/tests -q` for the stamping and timestamp migration.
+- Synthesized error results dispatch finalize with `tool_error` (failed inspection without prepare, no handler, stream error with started/finished facts) — `test_finalize_tool_call_dispatches_*` tests.
+- Multiple sequential tool calls: facts correlated per call id, no cross-call leakage — `test_multiple_tool_calls_correlate_facts_per_call`.
+- Existing tool-loop checkpoint/reconciliation behavior unchanged: core suite 561 green, application suite 422 green (one pre-existing failure unrelated to this task: `test_claude_system_message_helpers` asserts pre-v7 TASKS wording, stale since commit `7472173b`).
+- Commands run: `pytest core/python/tests -q` (561 passed), `pytest application/python/tests -q` (422 passed), `pytest plugins/timestamp-extension/tests -q` (24 passed), `pytest plugins/openai_responses/tests -q` (481), `pytest plugins/reference-openai-compatible-provider/tests -q` (113), `pytest plugins/openrouter/tests -q` (135); ruff + black clean on all changed files; pyright — the 3 new `hook_context` errors introduced by chunk 2 were fixed; remaining pyright findings are pre-existing (the `logger = None` lazy-logger pattern in core.py, plugin signature drift vs the migrated protocol signatures, adapter `is_enabled` typing).
+- Merge note: `task/20260728-core-python-documentation-migration` was merged into develop before the documentation chunk (user instruction); `core.py`/`types.py` auto-merged cleanly with the hook work; conflicts in `AGENTS.md`, `README.md`, `docs/index.md` were resolved toward the branch's post-migration doc locations; core (561) and timestamp (24) suites verified green after the merge.
+## Completion Notes
+
+Completed 2026-09-22. All ten requirements verified (see the requirement
+verification table); every chunk followed the red-first discipline except the
+chunk 5 integration test (written after the unit implementation; noted in the
+Implementation Notes).
+
+Delivered: the three optional hooks (`prepare_tool_call`,
+`finalize_tool_call`, `prepare_appended_message`) on both
+`ProviderExtensionPlugin` and `FeaturePlugin` with adapters, wrappers, and
+core dispatch (tool-call paths with re-inspection and synthesized-error
+coverage; append path with native persistence); provider-call context facts
+for symmetry; `DurationExtension` per-call and per-turn tool duration
+stamping with footer UI; the `TimestampExtension` append-time migration with
+the `to_native_messages` workaround fully retired; framework hook tests (29),
+plugin unit tests (9 new), and application integration tests (3).
+
+Deferred to later subtasks: store rows and store-backed totals (025, phase 2
+with 010), session LLM duration store (010), human time telemetry (030),
+cross-subtask documentation pass (040). The pre-existing
+`test_claude_system_message_helpers` failure (stale TASKS v5 assertion) was
+reported to the user and left for the task-guidance owner.

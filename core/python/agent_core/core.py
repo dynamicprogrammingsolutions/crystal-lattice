@@ -4598,13 +4598,14 @@ class AgentCore:
             # use setdefault so we never overwrite a richer value.
             tool_context = self._build_tool_runtime_context(config, context)
 
+            # Framework-owned facts only: raw timestamps and the call
+            # descriptor. The framework never computes durations or
+            # stamps messages.
+            hook_context: Dict[str, Any] = {}
             if hook_participants:
-                # Framework-owned facts only: raw timestamps and the call
-                # descriptor. The framework never computes durations or
-                # stamps messages.
                 started_at = datetime.now(timezone.utc).isoformat()
                 started_at_mono = time.monotonic()
-                hook_context: Dict[str, Any] = {
+                hook_context = {
                     **tool_context,
                     "tool_call_id": call_id,
                     "tool_name": name,
