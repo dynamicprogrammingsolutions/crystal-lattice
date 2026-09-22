@@ -39,6 +39,17 @@ COST_SUMMARY_CSV_FIELDNAMES = [
     "bucket_total_cost",
 ]
 
+# Per-item cost columns added after the first released schema; existing
+# databases are migrated by _ensure_schema.
+_COST_ITEM_COLUMNS = (
+    "input_cost",
+    "cached_cost",
+    "cache_write_cost",
+    "output_cost",
+)
+
+COST_BREAKDOWN_KEYS = ("input", "cached", "cache_write", "output")
+
 _SCHEMA_STATEMENTS = (
     """
     CREATE TABLE IF NOT EXISTS cost_requests (
@@ -55,7 +66,11 @@ _SCHEMA_STATEMENTS = (
         output_tokens INTEGER,
         reasoning_tokens INTEGER,
         estimated_cost REAL,
-        actual_cost REAL
+        actual_cost REAL,
+        input_cost REAL,
+        cached_cost REAL,
+        cache_write_cost REAL,
+        output_cost REAL
     )
     """,
     """
@@ -123,6 +138,13 @@ def _connect(db_path: Path) -> sqlite3.Connection:
 def _ensure_schema(conn: sqlite3.Connection) -> None:
     for statement in _SCHEMA_STATEMENTS:
         conn.execute(statement)
+    # Migrate databases created before the per-item cost columns existed.
+    existing = {
+        row[1] for row in conn.execute("PRAGMA table_info(cost_requests)").fetchall()
+    }
+    for column in _COST_ITEM_COLUMNS:
+        if column not in existing:
+            conn.execute(f"ALTER TABLE cost_requests ADD COLUMN {column} REAL")
 
 
 def _coerce_int(value: Any) -> Optional[int]:
@@ -152,9 +174,14 @@ def record_request_usage(
     reasoning_tokens: Optional[int] = None,
     estimated_cost: Optional[float] = None,
     actual_cost: Optional[float] = None,
+    cost_breakdown: Optional[Dict[str, Any]] = None,
     time: Optional[str] = None,
 ) -> bool:
     """Record one request usage row.
+
+    ``cost_breakdown`` optionally carries per-item costs (keys from
+    ``COST_BREAKDOWN_KEYS``: ``input``, ``cached``, ``cache_write``,
+    ``output``); missing or invalid items are stored as NULL.
 
     Returns ``False`` when the response id was already recorded so
     re-finalize and rebuild paths never duplicate rows.
@@ -162,6 +189,13 @@ def record_request_usage(
 
     if not isinstance(bucket, str) or not bucket.strip():
         raise ValueError("bucket must be a non-empty string")
+
+    item_costs: Dict[str, Optional[float]] = {
+        column: None for column in _COST_ITEM_COLUMNS
+    }
+    if isinstance(cost_breakdown, dict):
+        for key in COST_BREAKDOWN_KEYS:
+            item_costs[f"{key}_cost"] = _coerce_float(cost_breakdown.get(key))
 
     values: Dict[str, Any] = {
         "time": time if isinstance(time, str) and time else utcnow_iso(),
@@ -179,6 +213,7 @@ def record_request_usage(
         "reasoning_tokens": _coerce_int(reasoning_tokens),
         "estimated_cost": _coerce_float(estimated_cost),
         "actual_cost": _coerce_float(actual_cost),
+        **item_costs,
     }
 
     columns = ", ".join(values)
@@ -209,7 +244,9 @@ def session_totals(
 
     Session totals are factual history and are not affected by reset markers.
     Cost prefers the actual cost reported by the provider and falls back to
-    the estimated cost.
+    the estimated cost. Per-item cost sums (``input_cost``, ``cached_cost``,
+    ``cache_write_cost``, ``output_cost``) only aggregate rows that recorded
+    a breakdown; they are 0.0 when no item data exists.
     """
 
     conn = _connect(db_path)
@@ -217,7 +254,12 @@ def session_totals(
         _ensure_schema(conn)
         row = conn.execute(
             """
-            SELECT COUNT(*), COALESCE(SUM(COALESCE(actual_cost, estimated_cost, 0.0)), 0.0)
+            SELECT COUNT(*),
+                   COALESCE(SUM(COALESCE(actual_cost, estimated_cost, 0.0)), 0.0),
+                   COALESCE(SUM(input_cost), 0.0),
+                   COALESCE(SUM(cached_cost), 0.0),
+                   COALESCE(SUM(cache_write_cost), 0.0),
+                   COALESCE(SUM(output_cost), 0.0)
             FROM cost_requests
             WHERE working_directory = ? AND session_id = ?
             """,
@@ -226,6 +268,10 @@ def session_totals(
         return {
             "request_count": int(row[0]) if row else 0,
             "total_cost": float(row[1]) if row else 0.0,
+            "input_cost": float(row[2]) if row else 0.0,
+            "cached_cost": float(row[3]) if row else 0.0,
+            "cache_write_cost": float(row[4]) if row else 0.0,
+            "output_cost": float(row[5]) if row else 0.0,
         }
     finally:
         conn.close()
@@ -457,6 +503,96 @@ def append_reset_summary_csv(
         return False
 
 
+_RESET_WINDOW_FILTER = """
+        (
+            NOT EXISTS (
+                SELECT 1 FROM cost_resets cr WHERE cr.bucket = cost_requests.bucket
+            )
+            OR time > (
+                SELECT MAX(cr.time) FROM cost_resets cr
+                WHERE cr.bucket = cost_requests.bucket
+            )
+        )
+"""
+
+
+def top_sessions(db_path: Path, *, limit: int = 10) -> List[Dict[str, Any]]:
+    """Return the top sessions by cost over the reset-aware window.
+
+    The window matches the report's overall total: each bucket contributes
+    the requests recorded after its most recent reset marker. Sessions are
+    grouped by (working_directory, session_id); rows without both are
+    skipped.
+    """
+
+    if not isinstance(limit, int) or limit <= 0:
+        limit = 10
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        rows = conn.execute(
+            f"""
+            SELECT working_directory, session_id, COUNT(*),
+                   COALESCE(SUM(COALESCE(actual_cost, estimated_cost, 0.0)), 0.0)
+            FROM cost_requests
+            WHERE session_id IS NOT NULL
+              AND working_directory IS NOT NULL
+              AND{_RESET_WINDOW_FILTER}
+            GROUP BY working_directory, session_id
+            ORDER BY 4 DESC, 3 DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [
+            {
+                "working_directory": row[0],
+                "session_id": row[1],
+                "request_count": int(row[2]),
+                "total_cost": float(row[3]),
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
+def top_projects(db_path: Path, *, limit: int = 5) -> List[Dict[str, Any]]:
+    """Return the top projects (working directories) by cost.
+
+    Reset-aware like ``top_sessions``; grouped by working_directory.
+    """
+
+    if not isinstance(limit, int) or limit <= 0:
+        limit = 5
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        rows = conn.execute(
+            f"""
+            SELECT working_directory, COUNT(*),
+                   COALESCE(SUM(COALESCE(actual_cost, estimated_cost, 0.0)), 0.0)
+            FROM cost_requests
+            WHERE working_directory IS NOT NULL
+              AND{_RESET_WINDOW_FILTER}
+            GROUP BY working_directory
+            ORDER BY 3 DESC, 2 DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [
+            {
+                "working_directory": row[0],
+                "request_count": int(row[1]),
+                "total_cost": float(row[2]),
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
 def known_buckets(db_path: Path) -> List[str]:
     """Return the distinct buckets recorded in the store."""
 
@@ -500,6 +636,7 @@ def reset_bucket(
 
 
 __all__ = [
+    "COST_BREAKDOWN_KEYS",
     "COST_SUMMARY_CSV_FIELDNAMES",
     "DEFAULT_COST_DB_RELATIVE_PATH",
     "DEFAULT_COST_SUMMARY_CSV_FILENAME",
@@ -514,5 +651,7 @@ __all__ = [
     "reset_bucket",
     "session_totals",
     "summary_csv_enabled",
+    "top_projects",
+    "top_sessions",
     "utcnow_iso",
 ]

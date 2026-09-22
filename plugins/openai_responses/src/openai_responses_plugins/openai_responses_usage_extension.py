@@ -23,7 +23,10 @@ from .chatgpt_usage_journal import (
     session_id_from_state,
 )
 from .cost_bucket import resolve_cost_bucket
-from .openai_responses_pricing import estimate_usage_cost
+from .openai_responses_pricing import (
+    estimate_usage_cost,
+    estimate_usage_cost_breakdown,
+)
 from .openai_responses_codex_models import (
     load_manual_chatgpt_model_pricing as _load_manual_chatgpt_model_pricing_shared,
 )
@@ -1054,6 +1057,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         if isinstance(output_tokens, (int, float)):
             completion_tokens_str = f"{int(output_tokens):,}"
 
+        cost_breakdown: Optional[Dict[str, Any]] = None
         if isinstance(model, str) and model:
             try:
                 total_cost = estimate_usage_cost(
@@ -1065,8 +1069,20 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     ),
                     manual_entries=manual_pricing,
                 )
+                cost_breakdown = estimate_usage_cost_breakdown(
+                    effective_usage,
+                    model=model,
+                    service_tier=service_tier,
+                    snapshot_path=(
+                        snapshot_path if isinstance(snapshot_path, str) else None
+                    ),
+                    manual_entries=manual_pricing,
+                )
+                if not isinstance(cost_breakdown, dict) or not cost_breakdown:
+                    cost_breakdown = None
             except Exception:
                 total_cost = None
+                cost_breakdown = None
 
         if isinstance(total_cost, (int, float)):
             total_cost = float(total_cost)
@@ -1196,6 +1212,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
         if isinstance(service_tier, str) and service_tier:
             extra_md["usage_service_tier"] = service_tier
+
+        if isinstance(cost_breakdown, dict) and cost_breakdown:
+            # Per-item cost components for the generic cost tracking plugin
+            # (input / cached / cache_write / output); items without data are
+            # omitted by the estimator.
+            extra_md["usage_cost_breakdown"] = cost_breakdown
 
         if isinstance(reasoning_mode, str) and reasoning_mode:
             extra_md["usage_reasoning_mode"] = reasoning_mode

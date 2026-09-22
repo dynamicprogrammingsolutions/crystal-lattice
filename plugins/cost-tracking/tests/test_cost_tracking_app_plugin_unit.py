@@ -209,3 +209,64 @@ def test_unknown_action_raises_key_error(tmp_path: Path) -> None:
 
     with pytest.raises(KeyError):
         plugin.execute_action(app, "bogus", {}, None, _state(tmp_path))
+
+
+def test_show_cost_report_lists_top_sessions_and_projects(
+    tmp_path: Path, monkeypatch
+) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+    cost_store.record_request_usage(
+        db_path,
+        bucket="openai-responses-chatgpt",
+        session_id="s1",
+        working_directory="/tmp/ws",
+        estimated_cost=1.0,
+        response_id="r1",
+        time="2026-01-01T00:00:00+00:00",
+    )
+    cost_store.record_request_usage(
+        db_path,
+        bucket="openai-responses-chatgpt",
+        session_id="s2",
+        working_directory="/tmp/other",
+        estimated_cost=2.0,
+        response_id="r2",
+        time="2026-01-02T00:00:00+00:00",
+    )
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "projects.json").write_text(
+        '{"projects": {"/tmp/ws": {"name": "workspace"}, '
+        '"/tmp/other": {"name": "other-project"}}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CRYSTAL_DATA_DIR", str(data_dir))
+    plugin = CostTrackingAppPlugin()
+    app = _FakeApp(_session_config(tmp_path))
+
+    result = plugin.execute_action(
+        app, "show_cost_report", {"session_id": "session-1"}, None, _state(tmp_path)
+    )
+
+    assert [entry["session_id"] for entry in result["top_sessions"]] == ["s2", "s1"]
+    assert [entry["working_directory"] for entry in result["top_projects"]] == [
+        "/tmp/other",
+        "/tmp/ws",
+    ]
+    body = result["display"]["body"]
+    assert "### Top sessions" in body
+    assert "### Top projects" in body
+    # Working directories render as resolved project names.
+    assert "other-project" in body
+    assert "workspace" in body
+    assert "`s2`" in body
+
+
+def test_project_names_fall_back_to_raw_paths(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CRYSTAL_DATA_DIR", str(tmp_path / "missing"))
+    from cost_tracking_plugins.cost_tracking_app_plugin import _project_display_name
+
+    assert _project_display_name("/tmp/ws") == "/tmp/ws"
+    (tmp_path / "missing").mkdir()
+    (tmp_path / "missing" / "projects.json").write_text("not json", encoding="utf-8")
+    assert _project_display_name("/tmp/ws") == "/tmp/ws"

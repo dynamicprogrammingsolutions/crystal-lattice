@@ -345,3 +345,136 @@ def test_bucket_total_since_reset_matches_report(tmp_path: Path) -> None:
     assert totals["request_count"] == 1
     assert totals["total_cost"] == pytest.approx(0.25)
     assert totals["last_reset_at"] is not None
+
+
+def test_schema_migration_adds_item_cost_columns(tmp_path: Path) -> None:
+    import sqlite3
+
+    db_path = tmp_path / "costs.sqlite3"
+    # Create a pre-item-columns database, as produced by the first release.
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        """
+        CREATE TABLE cost_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            time TEXT NOT NULL,
+            bucket TEXT NOT NULL,
+            session_id TEXT,
+            working_directory TEXT,
+            model TEXT,
+            response_id TEXT,
+            input_tokens INTEGER,
+            cached_tokens INTEGER,
+            cache_write_tokens INTEGER,
+            output_tokens INTEGER,
+            reasoning_tokens INTEGER,
+            estimated_cost REAL,
+            actual_cost REAL
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    assert _record(
+        db_path,
+        response_id="r1",
+        cost_breakdown={"input": 0.2, "cached": 0.1, "output": 0.2},
+    )
+
+    conn = sqlite3.connect(str(db_path))
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(cost_requests)")}
+    conn.close()
+    assert {
+        "input_cost",
+        "cached_cost",
+        "cache_write_cost",
+        "output_cost",
+    } <= columns
+
+    totals = cost_store.session_totals(
+        db_path, working_directory="/tmp/ws", session_id="s1"
+    )
+    assert totals["input_cost"] == pytest.approx(0.2)
+    assert totals["cached_cost"] == pytest.approx(0.1)
+    assert totals["cache_write_cost"] == pytest.approx(0.0)
+    assert totals["output_cost"] == pytest.approx(0.2)
+
+
+def test_record_accepts_partial_breakdown(tmp_path: Path) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+
+    assert (
+        _record(
+            db_path,
+            response_id="r1",
+            cost_breakdown={"input": 0.2, "bogus": 1.0},
+        )
+        is True
+    )
+
+    totals = cost_store.session_totals(
+        db_path, working_directory="/tmp/ws", session_id="s1"
+    )
+    assert totals["input_cost"] == pytest.approx(0.2)
+    assert totals["cached_cost"] == pytest.approx(0.0)
+
+
+def test_top_sessions_and_projects_reset_aware(tmp_path: Path) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+
+    # Pre-reset history in b1 for two sessions/projects...
+    _record(db_path, bucket="b1", response_id="r1", estimated_cost=1.0)
+    _record(
+        db_path,
+        bucket="b1",
+        response_id="r2",
+        session_id="s2",
+        working_directory="/tmp/other",
+        estimated_cost=2.0,
+    )
+    cost_store.reset_bucket(db_path, bucket="b1")
+    # ...post-reset request for s1 only...
+    _record(db_path, bucket="b1", response_id="r3", estimated_cost=0.5)
+    # ...and an never-reset b2 request for s2, which stays in the window.
+    _record(
+        db_path,
+        bucket="b2",
+        response_id="r4",
+        session_id="s2",
+        working_directory="/tmp/other",
+        estimated_cost=3.0,
+    )
+
+    sessions = cost_store.top_sessions(db_path)
+    # s2: b1 pre-reset history excluded, b2 request counted (3.0).
+    # s1: b1 pre-reset excluded, post-reset 0.5 counted.
+    assert [entry["session_id"] for entry in sessions] == ["s2", "s1"]
+    assert sessions[0]["total_cost"] == pytest.approx(3.0)
+    assert sessions[0]["request_count"] == 1
+    assert sessions[1]["total_cost"] == pytest.approx(0.5)
+    assert sessions[1]["request_count"] == 1
+
+    projects = cost_store.top_projects(db_path)
+    assert [entry["working_directory"] for entry in projects] == [
+        "/tmp/other",
+        "/tmp/ws",
+    ]
+    assert projects[0]["total_cost"] == pytest.approx(3.0)
+    assert projects[1]["total_cost"] == pytest.approx(0.5)
+
+
+def test_top_sessions_limit(tmp_path: Path) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+
+    for index in range(12):
+        _record(
+            db_path,
+            response_id=f"r{index}",
+            session_id=f"s{index}",
+            estimated_cost=float(index),
+        )
+
+    assert len(cost_store.top_sessions(db_path)) == 10
+    assert len(cost_store.top_sessions(db_path, limit=3)) == 3
+    assert cost_store.top_sessions(db_path)[0]["session_id"] == "s11"

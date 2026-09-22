@@ -2,7 +2,8 @@
 
 Exposes session actions backed by the SQLite cost store:
 
-- a cost report showing reset-aware totals per bucket and overall;
+- a cost report showing reset-aware totals per bucket and overall, plus
+  the top sessions and projects by cost over the same reset-aware window;
 - a reset action that appends a reset marker for one specific bucket.
 
 The store location is resolved the same way the cost tracking extension
@@ -11,6 +12,8 @@ resolves it, so both surfaces read and write the same database.
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -22,6 +25,38 @@ def _format_cost(value: Any) -> str:
         return f"${float(value):.6f}"
     except (TypeError, ValueError):
         return "$0.000000"
+
+
+def _project_display_name(working_directory: str) -> str:
+    """Resolve a working directory to a project name.
+
+    Reads ``projects.json`` under the Crystal data directory
+    (``CRYSTAL_DATA_DIR``, default ``~/.crystal``) and returns the
+    project's ``name`` for the exact path, falling back to the raw path.
+    Best-effort: unreadable or malformed files fall back silently.
+    """
+
+    data_dir = os.environ.get("CRYSTAL_DATA_DIR")
+    base = (
+        Path(data_dir)
+        if isinstance(data_dir, str) and data_dir
+        else Path.home() / ".crystal"
+    )
+    try:
+        payload = json.loads((base / "projects.json").read_text(encoding="utf-8"))
+    except Exception:
+        return working_directory
+    if not isinstance(payload, dict):
+        return working_directory
+    projects = payload.get("projects")
+    if not isinstance(projects, dict):
+        return working_directory
+    entry = projects.get(working_directory)
+    if isinstance(entry, dict):
+        name = entry.get("name")
+        if isinstance(name, str) and name:
+            return name
+    return working_directory
 
 
 class CostTrackingAppPlugin:
@@ -171,6 +206,8 @@ class CostTrackingAppPlugin:
         session_id = self._required_session_id(params)
         db_path = self._db_path(app, state, session_id)
         report = cost_store.bucket_report(db_path)
+        top_sessions = cost_store.top_sessions(db_path)
+        top_projects = cost_store.top_projects(db_path)
 
         lines: List[str] = ["## Cost report", ""]
         lines.append(f"- Total: `{_format_cost(report.get('total_cost'))}`")
@@ -193,6 +230,34 @@ class CostTrackingAppPlugin:
         else:
             lines.append("")
             lines.append("No cost records yet.")
+
+        if top_sessions:
+            lines.append("")
+            lines.append("### Top sessions")
+            lines.append("")
+            lines.append("| Project | Session | Total | Requests |")
+            lines.append("| --- | --- | --- | --- |")
+            for entry in top_sessions:
+                lines.append(
+                    f"| {_project_display_name(entry.get('working_directory') or '')} "
+                    f"| `{entry.get('session_id', '')}` "
+                    f"| `{_format_cost(entry.get('total_cost'))}` "
+                    f"| `{int(entry.get('request_count') or 0):,}` |"
+                )
+
+        if top_projects:
+            lines.append("")
+            lines.append("### Top projects")
+            lines.append("")
+            lines.append("| Project | Total | Requests |")
+            lines.append("| --- | --- | --- |")
+            for entry in top_projects:
+                lines.append(
+                    f"| {_project_display_name(entry.get('working_directory') or '')} "
+                    f"| `{_format_cost(entry.get('total_cost'))}` "
+                    f"| `{int(entry.get('request_count') or 0):,}` |"
+                )
+
         lines.append("")
         lines.append(
             "Totals cover the requests recorded after each bucket's last "
@@ -210,6 +275,8 @@ class CostTrackingAppPlugin:
                 "display_id": "cost-tracking-report",
             },
             "report": report,
+            "top_sessions": top_sessions,
+            "top_projects": top_projects,
         }
 
     def _reset_cost_tracking(

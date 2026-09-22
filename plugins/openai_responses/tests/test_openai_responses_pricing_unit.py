@@ -7,6 +7,7 @@ import pytest
 from openai_responses_plugins.openai_responses_pricing import (
     build_snapshot_payload,
     estimate_usage_cost,
+    estimate_usage_cost_breakdown,
     extract_visible_text_token_tier_pricing_from_page_html,
     merge_pricing_entry,
     normalize_model_name,
@@ -319,9 +320,7 @@ def test_refresh_snapshot_writes_visible_pricing_rows_and_preserves_existing_mod
         assert "pricing" in url
         return html
 
-    monkeypatch.setattr(
-        "refresh_openai_responses_pricing._fetch_text", fake_fetch
-    )
+    monkeypatch.setattr("refresh_openai_responses_pricing._fetch_text", fake_fetch)
 
     output_path = tmp_path / "pricing.json"
     output_path.write_text(
@@ -699,9 +698,7 @@ def test_refresh_snapshot_includes_gpt_5_6_family(monkeypatch, tmp_path) -> None
     def fake_fetch(url: str) -> str:
         return html
 
-    monkeypatch.setattr(
-        "refresh_openai_responses_pricing._fetch_text", fake_fetch
-    )
+    monkeypatch.setattr("refresh_openai_responses_pricing._fetch_text", fake_fetch)
 
     output_path = tmp_path / "pricing.json"
     output_path.write_text(
@@ -733,3 +730,90 @@ def test_refresh_snapshot_includes_gpt_5_6_family(monkeypatch, tmp_path) -> None
             assert (
                 "cache_write_per_1m" in tiers[tier]
             ), f"missing cache_write_per_1m for {model}/{tier}"
+
+
+def test_estimate_usage_cost_breakdown_items_and_sum() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[
+            {
+                "model": "gpt-5-mini",
+                "pricing": {
+                    "input_per_1m": 0.25,
+                    "cached_input_per_1m": 0.025,
+                    "cache_write_per_1m": 0.125,
+                    "output_per_1m": 2.0,
+                },
+            }
+        ],
+    )
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200, "cache_write_tokens": 100},
+        "output_tokens": 100,
+    }
+
+    breakdown = estimate_usage_cost_breakdown(
+        usage, model="gpt-5-mini", snapshot=snapshot
+    )
+
+    assert breakdown == {
+        "input": pytest.approx(700 * 0.25 / 1_000_000),
+        "cached": pytest.approx(200 * 0.025 / 1_000_000),
+        "cache_write": pytest.approx(100 * 0.125 / 1_000_000),
+        "output": pytest.approx(100 * 2.0 / 1_000_000),
+    }
+    assert sum(breakdown.values()) == pytest.approx(
+        estimate_usage_cost(usage, model="gpt-5-mini", snapshot=snapshot)
+    )
+
+
+def test_estimate_usage_cost_breakdown_omits_zero_items() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[
+            {
+                "model": "gpt-5-mini",
+                "pricing": {
+                    "input_per_1m": 0.25,
+                    "output_per_1m": 2.0,
+                },
+            }
+        ],
+    )
+    usage = {"input_tokens": 1000, "output_tokens": 100}
+
+    breakdown = estimate_usage_cost_breakdown(
+        usage, model="gpt-5-mini", snapshot=snapshot
+    )
+
+    assert set(breakdown) == {"input", "output"}
+    # A valid zero estimate returns an empty mapping, not None.
+    zero = estimate_usage_cost_breakdown(
+        {"input_tokens": 0, "output_tokens": 0},
+        model="gpt-5-mini",
+        snapshot=snapshot,
+    )
+    assert zero == {}
+    assert (
+        estimate_usage_cost(
+            {"input_tokens": 0, "output_tokens": 0},
+            model="gpt-5-mini",
+            snapshot=snapshot,
+        )
+        == 0.0
+    )
+
+
+def test_estimate_usage_cost_breakdown_unavailable_returns_none() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[],
+    )
+    usage = {"input_tokens": 1000, "output_tokens": 100}
+
+    assert (
+        estimate_usage_cost_breakdown(usage, model="unknown-model", snapshot=snapshot)
+        is None
+    )
+    assert estimate_usage_cost(usage, model="unknown-model", snapshot=snapshot) is None

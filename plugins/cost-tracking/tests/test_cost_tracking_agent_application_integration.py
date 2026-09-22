@@ -181,6 +181,21 @@ def _assert_cost_tracking(
         buckets[expected_bucket]["total_cost"]
     )
 
+    # The per-item cost breakdown reaches the footer metadata and the store.
+    assert metadata.get("cost_session_breakdown_formatted", "").startswith("Total: $")
+    assert metadata.get("cost_session_input_cost", 0.0) > 0.0
+    assert metadata.get("cost_session_cached_cost", 0.0) > 0.0
+    assert metadata.get("cost_session_output_cost", 0.0) > 0.0
+    assert session_totals["input_cost"] == pytest.approx(
+        metadata["cost_session_input_cost"]
+    )
+    assert session_totals["cached_cost"] == pytest.approx(
+        metadata["cost_session_cached_cost"]
+    )
+    assert session_totals["output_cost"] == pytest.approx(
+        metadata["cost_session_output_cost"]
+    )
+
     # The growing summary CSV beside the store carries the per-request row
     # with rolling session and reset-aware bucket totals.
     import csv

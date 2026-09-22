@@ -65,6 +65,17 @@ class CostTrackingExtension(ProviderExtensionPlugin):
                     "status bar."
                 ),
             },
+            "cost_status_breakdown": {
+                "type": "string",
+                "required": False,
+                "default": "totals",
+                "description": (
+                    "Footer cost breakdown mode: 'totals' shows per-item "
+                    "cost totals (input, cached input, cache write, output) "
+                    "with the request count; 'averages' shows per-request "
+                    "average item costs. Items without data are skipped."
+                ),
+            },
             "track_cost_tracking_summary_csv": {
                 "type": "boolean",
                 "required": False,
@@ -96,10 +107,10 @@ class CostTrackingExtension(ProviderExtensionPlugin):
         return [
             {
                 "ui_type": "status_bar",
-                "data": "metadata.cost_session_total_formatted",
-                "template": "Total: {{data}}",
+                "data": "metadata.cost_session_breakdown_formatted",
+                "template": "{{data}}",
                 "condition": {
-                    "path": "metadata.cost_session_total_formatted",
+                    "path": "metadata.cost_session_breakdown_formatted",
                     "exists": True,
                 },
             }
@@ -342,6 +353,9 @@ class CostTrackingExtension(ProviderExtensionPlugin):
         estimated_cost = (
             internal.get("usage_total_cost") if actual_cost is None else None
         )
+        cost_breakdown = internal.get("usage_cost_breakdown")
+        if not isinstance(cost_breakdown, dict):
+            cost_breakdown = None
 
         row_time = cost_store.utcnow_iso()
         recorded = False
@@ -360,6 +374,7 @@ class CostTrackingExtension(ProviderExtensionPlugin):
                 reasoning_tokens=self._usage_reasoning_tokens(usage),
                 estimated_cost=estimated_cost,
                 actual_cost=actual_cost,
+                cost_breakdown=cost_breakdown,
                 time=row_time,
             )
         except Exception:
@@ -396,11 +411,77 @@ class CostTrackingExtension(ProviderExtensionPlugin):
 
         total_cost = float(totals.get("total_cost") or 0.0)
         request_count = int(totals.get("request_count") or 0)
-        return {
+        metadata: Dict[str, Any] = {
             "cost_session_total": total_cost,
             "cost_session_total_formatted": f"${total_cost:.6f}",
             "cost_session_requests": request_count,
         }
+        metadata.update(
+            self._breakdown_metadata(
+                totals,
+                request_count=request_count,
+                total_cost=total_cost,
+                config=config if isinstance(config, dict) else None,
+            )
+        )
+        return metadata
+
+    _BREAKDOWN_ITEM_LABELS = (
+        ("input", "input"),
+        ("cached", "cached input"),
+        ("cache_write", "cache write"),
+        ("output", "output"),
+    )
+
+    @classmethod
+    def _breakdown_metadata(
+        cls,
+        totals: Dict[str, Any],
+        *,
+        request_count: int,
+        total_cost: float,
+        config: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Build the per-item cost stamps and formatted footer string.
+
+        Both modes include every applicable item (input, cached input,
+        cache write, output); items with no recorded data are skipped. The
+        ``cost_status_breakdown`` config key selects the mode:
+        ``"averages"`` shows per-request average item costs, anything
+        else (default) shows item totals.
+        """
+
+        mode = "totals"
+        if (
+            isinstance(config, dict)
+            and config.get("cost_status_breakdown") == "averages"
+        ):
+            mode = "averages"
+
+        items: List[tuple] = []
+        metadata: Dict[str, Any] = {}
+        divisor = request_count if mode == "averages" else 1
+        for key, label in cls._BREAKDOWN_ITEM_LABELS:
+            raw = totals.get(f"{key}_cost")
+            if not isinstance(raw, (int, float)) or raw <= 0:
+                continue
+            value = float(raw) / divisor if divisor else 0.0
+            items.append((label, value))
+            metadata[f"cost_session_{key}_cost"] = float(raw)
+            if mode == "averages":
+                metadata[f"cost_session_{key}_cost_avg"] = value
+
+        parts: List[str] = [f"Total: ${total_cost:.6f}"]
+        if mode == "averages":
+            parts.append(f"requests: {request_count:,}")
+            average = total_cost / request_count if request_count else 0.0
+            metadata["cost_session_average_cost"] = average
+            parts.append(f"average: ${average:.6f}")
+        parts.extend(f"{label}: ${value:.6f}" for label, value in items)
+        if mode == "totals":
+            parts.append(f"requests: {request_count:,}")
+        metadata["cost_session_breakdown_formatted"] = " · ".join(parts)
+        return metadata
 
     @staticmethod
     def _attach_internal_md(

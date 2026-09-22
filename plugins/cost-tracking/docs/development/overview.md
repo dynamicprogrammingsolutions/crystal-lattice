@@ -30,7 +30,11 @@ Tables:
   `working_directory`, `model`, `response_id` (unique — re-finalize/rebuild
   paths cannot duplicate rows), token counts (`input_tokens`,
   `cached_tokens`, `cache_write_tokens`, `output_tokens`,
-  `reasoning_tokens`), `estimated_cost`, and `actual_cost`.
+  `reasoning_tokens`), `estimated_cost`, `actual_cost`, and per-item cost
+  columns (`input_cost`, `cached_cost`, `cache_write_cost`, `output_cost`)
+  filled from the provider's `usage_cost_breakdown` when available.
+  Databases created before the per-item columns existed are migrated in
+  place on first open.
 - `cost_resets` — reset markers (`time`, `bucket`).
 
 Cost columns: `actual_cost` holds a cost reported by the provider (for
@@ -75,18 +79,42 @@ bucket is always defined by the provider that emits the capability tag:
   (default base `openai-compatible`), e.g.
   `openai-compatible-api-fireworks-ai`.
 
-## Footer total
+## Footer total and cost breakdown
 
 The extension contributes a `status_bar` UI element rendering
-`metadata.cost_session_total_formatted` — the cost total for the current
-workspace + session id, aggregated from the store on every request. This
-replaces the retired stateless per-message cumulative totals. Session totals
-are factual history and are not affected by reset markers.
+`metadata.cost_session_breakdown_formatted` — the cost total, request
+count, and per-item cost breakdown for the current workspace + session id,
+aggregated from the store on every request. This replaces the retired
+stateless per-message cumulative totals. Session totals are factual history
+and are not affected by reset markers.
+
+Two modes, selected with the `cost_status_breakdown` config key:
+
+- `totals` (default): `Total: $0.000355 · input: $0.000014 · cached
+  input: $0.000003 · cache write: $0.000010 · output: $0.000339 ·
+  requests: 1`
+- `averages`: `Total: $0.000358 · requests: 1 · average: $0.000358 ·
+  input: $0.000001 · cached input: $0.000005 · output: $0.000352`
+
+Both modes include every applicable item (input, cached input, cache write,
+output); items with no recorded data are skipped, so a provider that
+reports only a total cost renders just `Total: … · requests: N`. Stamped
+metadata fields: `cost_session_total(_formatted)`, `cost_session_requests`,
+`cost_session_average_cost`, and per item `cost_session_<item>_cost`
+(plus `_avg` in averages mode). Per-item costs come from the provider's
+`usage_cost_breakdown` metadata: `openai_responses` computes them from
+the pricing snapshot or the manual ChatGPT table (with estimated cached
+tokens), and the reference provider from `token_rates` (including an
+optional `cache_write` rate; cache-write cost is skipped when the endpoint
+does not report cache-write tokens or no rate is configured).
 
 ## Actions
 
 - **Show cost report**: reset-aware totals per bucket and overall, with
-  request counts and each bucket's last reset time.
+  request counts and each bucket's last reset time, plus the top 10
+  sessions and top 5 projects by cost over the same reset-aware window
+  (working directories resolved to project names via `projects.json` under
+  the Crystal data directory, falling back to the raw path).
 - **Reset cost tracking**: appends a reset marker for one bucket (form
   dialog with a `bucket` text field). Subsequent report totals for that
   bucket cover only records recorded after the marker; recorded history is
@@ -100,6 +128,8 @@ Extension config keys:
 - `cost_tracking_db_path` (string, optional): store path override.
 - `show_cost_status_total` (boolean, default `true`): contribute the
   status-bar session total.
+- `cost_status_breakdown` (string, default `"totals"`): footer breakdown
+  mode — `"totals"` or `"averages"`.
 - `track_cost_tracking_summary_csv` (boolean, default `true`): append the
   summary CSV rows.
 - `cost_tracking_summary_csv_path` (string, optional): summary CSV path

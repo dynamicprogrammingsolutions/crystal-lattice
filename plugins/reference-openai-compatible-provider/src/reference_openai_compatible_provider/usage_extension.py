@@ -94,6 +94,13 @@ def _usage_cached_tokens(usage: dict[str, Any]) -> int | None:
     return _as_int(details.get("cached_tokens"))
 
 
+def _usage_cache_write_tokens(usage: dict[str, Any]) -> int | None:
+    details = usage.get("prompt_tokens_details")
+    if not isinstance(details, dict):
+        return None
+    return _as_int(details.get("cache_write_tokens"))
+
+
 def _usage_input_tokens(usage: dict[str, Any]) -> int | None:
     return _as_int(usage.get("prompt_tokens"))
 
@@ -116,6 +123,93 @@ def _provider_usage_cost(usage: dict[str, Any]) -> float | None:
 
 def _clamp_cached_tokens(cached_tokens: int, prompt_tokens: int) -> int:
     return min(max(0, cached_tokens), max(0, prompt_tokens))
+
+
+def _rate_token_split(
+    usage: dict[str, Any],
+    token_rates: dict[str, Any],
+    *,
+    cached_tokens_override: int | None = None,
+) -> tuple[int, int, int, int, float, float, float, float] | None:
+    """Split reported tokens into mutually exclusive rate buckets.
+
+    Returns ``(ordinary_input_tokens, cached_tokens, cache_write_tokens,
+    completion_tokens, input_rate, cached_rate, cache_write_rate,
+    completion_rate)`` or None when the token counts or the required
+    input/completion rates are incomplete. Prompt tokens are split into
+    ordinary input, cached reads, and cache writes so the same token is
+    never charged twice; cache writes are only carved out when a
+    ``cache_write`` rate is configured (otherwise they stay ordinary input
+    tokens, matching the historical behavior). The returned rates are
+    resolved floats: the cached rate falls back to the input rate when not
+    configured, and the cache-write rate is 0.0 when not configured.
+    """
+    input_rate = token_rates.get("input")
+    completion_rate = token_rates.get("completion")
+    if not isinstance(input_rate, (int, float)) or not isinstance(
+        completion_rate, (int, float)
+    ):
+        return None
+    input_rate_f = float(input_rate)
+    completion_rate_f = float(completion_rate)
+    raw_cached_rate = token_rates.get("cached")
+    cached_rate_f = (
+        float(raw_cached_rate)
+        if isinstance(raw_cached_rate, (int, float))
+        and not isinstance(raw_cached_rate, bool)
+        else input_rate_f
+    )
+
+    prompt_tokens = _as_int(usage.get("prompt_tokens"))
+    completion_tokens = _as_int(usage.get("completion_tokens"))
+    if prompt_tokens is None or completion_tokens is None:
+        return None
+
+    cached_tokens = (
+        cached_tokens_override
+        if cached_tokens_override is not None
+        else _usage_cached_tokens(usage)
+    )
+    effective_cached_tokens = (
+        _clamp_cached_tokens(cached_tokens, prompt_tokens)
+        if cached_tokens is not None
+        else 0
+    )
+
+    cache_write_rate = token_rates.get("cache_write")
+    cache_write_tokens = _usage_cache_write_tokens(usage)
+    effective_cache_write_tokens = 0
+    if (
+        isinstance(cache_write_rate, (int, float))
+        and not isinstance(cache_write_rate, bool)
+        and isinstance(cache_write_tokens, int)
+        and cache_write_tokens > 0
+    ):
+        effective_cache_write_tokens = min(
+            max(0, cache_write_tokens),
+            max(0, prompt_tokens) - effective_cached_tokens,
+        )
+
+    ordinary_input_tokens = (
+        max(0, prompt_tokens) - effective_cached_tokens - effective_cache_write_tokens
+    )
+    raw_cache_write_rate = token_rates.get("cache_write")
+    cache_write_rate_f = (
+        float(raw_cache_write_rate)
+        if isinstance(raw_cache_write_rate, (int, float))
+        and not isinstance(raw_cache_write_rate, bool)
+        else 0.0
+    )
+    return (
+        ordinary_input_tokens,
+        effective_cached_tokens,
+        effective_cache_write_tokens,
+        max(0, completion_tokens),
+        input_rate_f,
+        cached_rate_f,
+        cache_write_rate_f,
+        completion_rate_f,
+    )
 
 
 def _usage_cost(
@@ -145,45 +239,29 @@ def _usage_cost(
     if not isinstance(token_rates, dict):
         return None
 
-    input_rate = token_rates.get("input")
-    cached_rate = token_rates.get("cached")
-    completion_rate = token_rates.get("completion")
-
-    # Need at least input and completion rates to calculate
-    if not isinstance(input_rate, (int, float)) or not isinstance(
-        completion_rate, (int, float)
-    ):
+    split = _rate_token_split(
+        usage, token_rates, cached_tokens_override=cached_tokens_override
+    )
+    if split is None:
         return None
-
-    prompt_tokens = _as_int(usage.get("prompt_tokens"))
-    completion_tokens = _as_int(usage.get("completion_tokens"))
-
-    if prompt_tokens is None or completion_tokens is None:
-        return None
-
-    cached_tokens = (
-        cached_tokens_override
-        if cached_tokens_override is not None
-        else _usage_cached_tokens(usage)
-    )
-    effective_cached_tokens = (
-        _clamp_cached_tokens(cached_tokens, prompt_tokens)
-        if cached_tokens is not None
-        else 0
-    )
-    ordinary_input_tokens = max(0, prompt_tokens) - effective_cached_tokens
-    effective_cached_rate = (
-        float(cached_rate)
-        if isinstance(cached_rate, (int, float)) and not isinstance(cached_rate, bool)
-        else float(input_rate)
-    )
+    (
+        ordinary_input_tokens,
+        effective_cached_tokens,
+        cache_write_tokens,
+        completion_tokens,
+        input_rate,
+        cached_rate,
+        cache_write_rate,
+        completion_rate,
+    ) = split
 
     # Rates are in USD per million tokens. Cached tokens fall back to the
     # ordinary input rate when no distinct cached rate is configured.
     return (
-        ordinary_input_tokens * float(input_rate)
-        + effective_cached_tokens * effective_cached_rate
-        + max(0, completion_tokens) * float(completion_rate)
+        ordinary_input_tokens * input_rate
+        + effective_cached_tokens * cached_rate
+        + cache_write_tokens * cache_write_rate
+        + completion_tokens * completion_rate
     ) / 1_000_000
 
 
@@ -209,6 +287,54 @@ def _calculate_cost_from_rates(
         token_rates=token_rates,
         cached_tokens_override=cached_tokens_override,
     )
+
+
+def _cost_breakdown_from_rates(
+    usage: dict[str, Any],
+    token_rates: dict[str, Any] | None,
+    *,
+    cached_tokens_override: int | None = None,
+) -> dict[str, float] | None:
+    """Per-item cost breakdown from token counts and configured rates.
+
+    Mirrors the rate-based branch of ``_usage_cost`` (provider-returned cost
+    is not considered here; callers only use this when they computed the
+    cost from rates). Returns a mapping with keys ``input``, ``cached``,
+    ``cache_write``, and ``output``; items with no tokens are omitted, and
+    the items always sum to ``_usage_cost``'s rate-based total. Rates are
+    in USD per million tokens.
+
+    Returns None when rates or token counts are incomplete.
+    """
+    if not isinstance(token_rates, dict):
+        return None
+
+    split = _rate_token_split(
+        usage, token_rates, cached_tokens_override=cached_tokens_override
+    )
+    if split is None:
+        return None
+    (
+        ordinary_input_tokens,
+        effective_cached_tokens,
+        cache_write_tokens,
+        completion_tokens,
+        input_rate,
+        cached_rate,
+        cache_write_rate,
+        completion_rate,
+    ) = split
+
+    breakdown: dict[str, float] = {}
+    if ordinary_input_tokens > 0:
+        breakdown["input"] = ordinary_input_tokens * input_rate / 1_000_000
+    if effective_cached_tokens > 0:
+        breakdown["cached"] = effective_cached_tokens * cached_rate / 1_000_000
+    if cache_write_tokens > 0:
+        breakdown["cache_write"] = cache_write_tokens * cache_write_rate / 1_000_000
+    if completion_tokens > 0:
+        breakdown["output"] = completion_tokens * completion_rate / 1_000_000
+    return breakdown
 
 
 def _format_cost(value: float | None) -> str | None:
@@ -630,6 +756,13 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                         "type": "number",
                         "description": "Rate per million cached tokens (USD) - typically discounted",
                     },
+                    "cache_write": {
+                        "type": "number",
+                        "description": (
+                            "Optional rate per million cache-write tokens (USD); "
+                            "cache-write cost is skipped when not configured"
+                        ),
+                    },
                     "completion": {
                         "type": "number",
                         "description": "Rate per million completion/output tokens (USD)",
@@ -814,6 +947,7 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                 )
 
             provider_cost = _provider_usage_cost(usage)
+            cost_breakdown: dict[str, float] | None = None
             if provider_cost is None and isinstance(token_rates, dict):
                 calculated_cost = _calculate_cost_from_rates(
                     usage,
@@ -822,6 +956,13 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                 )
                 if calculated_cost is not None:
                     usage = {**usage, "cost": calculated_cost}
+                    cost_breakdown = _cost_breakdown_from_rates(
+                        usage,
+                        token_rates,
+                        cached_tokens_override=estimated_cached_tokens,
+                    )
+                    if not isinstance(cost_breakdown, dict) or not cost_breakdown:
+                        cost_breakdown = None
 
             per_msg_metadata = _per_message_metadata(usage)
             provisional_metadata = {
@@ -833,6 +974,11 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                     "is_terminal": not _message_has_tool_calls(msg),
                 },
             }
+            if isinstance(cost_breakdown, dict) and cost_breakdown:
+                # Per-item cost components for the generic cost tracking
+                # plugin (input / cached / cache_write / output); items
+                # without data are omitted.
+                provisional_metadata["usage_cost_breakdown"] = cost_breakdown
             if estimated_cached_tokens is not None:
                 provisional_metadata["usage_estimated_cached_tokens"] = (
                     estimated_cached_tokens

@@ -136,6 +136,13 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
     assert md.get("usage_completion_tokens_formatted") == "56"
     assert md.get("usage_total_cost") == pytest.approx(0.0004178, rel=1e-9)
     assert md.get("usage_total_cost_formatted") == "$0.000418"
+    breakdown = md.get("usage_cost_breakdown")
+    assert isinstance(breakdown, dict) and breakdown
+    assert set(breakdown) <= {"input", "cached", "cache_write", "output"}
+    assert "cached" in breakdown
+    assert sum(breakdown.values()) == pytest.approx(
+        md.get("usage_total_cost"), rel=1e-6
+    )
     assert md.get("usage_total_cost_cumulative") == pytest.approx(0.0004178, rel=1e-9)
     assert md.get("usage_total_cost_cumulative_formatted") == "$0.000418"
     assert md.get("usage_turn_cost_cumulative") == pytest.approx(0.0004178, rel=1e-9)
@@ -1149,6 +1156,14 @@ def test_chatgpt_streaming_usage_keeps_raw_usage_separate_and_estimates_cost() -
     assert md.get("usage_effective_auth_mode") == "chatgpt"
     assert md.get("usage_effective_auth_mode_label") == "ChatGPT"
     assert md.get("usage_total_cost") == pytest.approx(0.000028, rel=1e-9)
+    # ChatGPT per-item costs come from usage + the estimated cached tokens.
+    chatgpt_breakdown = md.get("usage_cost_breakdown")
+    assert isinstance(chatgpt_breakdown, dict) and chatgpt_breakdown
+    assert set(chatgpt_breakdown) <= {"input", "cached", "cache_write", "output"}
+    assert "cached" in chatgpt_breakdown
+    assert sum(chatgpt_breakdown.values()) == pytest.approx(
+        md.get("usage_total_cost"), rel=1e-6
+    )
 
 
 def test_chatgpt_usage_ignores_reported_cached_tokens_for_cost_and_uses_estimate() -> (

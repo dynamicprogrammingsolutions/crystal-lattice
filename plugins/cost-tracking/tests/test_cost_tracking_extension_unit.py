@@ -75,6 +75,7 @@ def test_config_schema_defaults() -> None:
     assert schema["track_costs"]["default"] is True
     assert schema["show_cost_status_total"]["default"] is True
     assert schema["track_cost_tracking_summary_csv"]["default"] is True
+    assert schema["cost_status_breakdown"]["default"] == "totals"
     assert "cost_tracking_db_path" in schema
     assert "cost_tracking_summary_csv_path" in schema
 
@@ -86,10 +87,10 @@ def test_status_bar_element_and_gate() -> None:
     assert elements == [
         {
             "ui_type": "status_bar",
-            "data": "metadata.cost_session_total_formatted",
-            "template": "Total: {{data}}",
+            "data": "metadata.cost_session_breakdown_formatted",
+            "template": "{{data}}",
             "condition": {
-                "path": "metadata.cost_session_total_formatted",
+                "path": "metadata.cost_session_breakdown_formatted",
                 "exists": True,
             },
         }
@@ -442,3 +443,131 @@ def test_summary_csv_disabled_by_config(tmp_path: Path) -> None:
 
     assert cost_store_session_totals(tmp_path)["request_count"] == 1
     assert not _summary_csv_path(tmp_path).exists()
+
+
+def _final_with_breakdown(
+    *,
+    response_id: str = "resp_bd_1",
+    items: Dict[str, Any] | None = None,
+    total: float = 0.5,
+) -> Dict[str, Any]:
+    internal: Dict[str, Any] = {
+        "response_id": response_id,
+        "usage_bucket": "openai-responses-chatgpt",
+        "usage_total_cost": total,
+        "usage_cost_breakdown": items
+        or {"input": 0.2, "cached": 0.1, "cache_write": 0.05, "output": 0.15},
+        "usage": {
+            "input_tokens": 100,
+            "input_tokens_details": {"cached_tokens": 10},
+            "output_tokens": 20,
+        },
+    }
+    return {"role": "assistant", "_metadata": internal}
+
+
+def test_breakdown_totals_mode_stamps_all_items(tmp_path: Path) -> None:
+    ext = CostTrackingExtension()
+    state = _make_state(tmp_path)
+
+    _partials, finals, _native, _state = ext.process_chunk(
+        native_chunk=None,
+        partial_messages=[],
+        final_messages=[_final_with_breakdown()],
+        native_messages=[_final_with_breakdown()],
+        state=state,
+    )
+
+    md = finals[0]["_metadata"]
+    assert md["cost_session_input_cost"] == pytest.approx(0.2)
+    assert md["cost_session_cached_cost"] == pytest.approx(0.1)
+    assert md["cost_session_cache_write_cost"] == pytest.approx(0.05)
+    assert md["cost_session_output_cost"] == pytest.approx(0.15)
+    assert "cost_session_input_cost_avg" not in md
+    assert (
+        md["cost_session_breakdown_formatted"]
+        == "Total: $0.500000 · input: $0.200000 · cached input: $0.100000"
+        " · cache write: $0.050000 · output: $0.150000 · requests: 1"
+    )
+
+
+def test_breakdown_averages_mode(tmp_path: Path) -> None:
+    ext = CostTrackingExtension()
+    state = _make_state(tmp_path, cost_status_breakdown="averages")
+
+    _partials, finals, _native, _state = ext.process_chunk(
+        native_chunk=None,
+        partial_messages=[],
+        final_messages=[_final_with_breakdown()],
+        native_messages=[_final_with_breakdown()],
+        state=state,
+    )
+
+    md = finals[0]["_metadata"]
+    assert md["cost_session_input_cost"] == pytest.approx(0.2)
+    assert md["cost_session_input_cost_avg"] == pytest.approx(0.2)
+    assert md["cost_session_cached_cost_avg"] == pytest.approx(0.1)
+    assert md["cost_session_average_cost"] == pytest.approx(0.5)
+    assert (
+        md["cost_session_breakdown_formatted"]
+        == "Total: $0.500000 · requests: 1 · average: $0.500000"
+        " · input: $0.200000 · cached input: $0.100000"
+        " · cache write: $0.050000 · output: $0.150000"
+    )
+
+
+def test_breakdown_skips_unavailable_items(tmp_path: Path) -> None:
+    ext = CostTrackingExtension()
+    state = _make_state(tmp_path)
+
+    _partials, finals, _native, _state = ext.process_chunk(
+        native_chunk=None,
+        partial_messages=[],
+        # No usage_cost_breakdown at all: only total + requests render.
+        final_messages=[_final()],
+        native_messages=[_final()],
+        state=state,
+    )
+
+    md = finals[0]["_metadata"]
+    assert "cost_session_input_cost" not in md
+    assert md["cost_session_breakdown_formatted"] == "Total: $0.500000 · requests: 1"
+
+
+def test_breakdown_averages_divide_by_request_count(tmp_path: Path) -> None:
+    ext = CostTrackingExtension()
+    state = _make_state(tmp_path, cost_status_breakdown="averages")
+
+    first = _final_with_breakdown(response_id="resp_bd_a")
+    ext.process_chunk(
+        native_chunk=None,
+        partial_messages=[],
+        final_messages=[first],
+        native_messages=[first],
+        state=state,
+    )
+    second = _final_with_breakdown(
+        response_id="resp_bd_b",
+        items={"input": 0.1, "output": 0.05},
+        total=0.15,
+    )
+    _partials, finals, _native, _state = ext.process_chunk(
+        native_chunk=None,
+        partial_messages=[],
+        final_messages=[second],
+        native_messages=[second],
+        state=state,
+    )
+
+    md = finals[0]["_metadata"]
+    assert md["cost_session_requests"] == 2
+    # Session item sums: input 0.2 + 0.1, output 0.15 + 0.05; cached and
+    # cache write only have data from the first request.
+    assert md["cost_session_input_cost"] == pytest.approx(0.3)
+    assert md["cost_session_input_cost_avg"] == pytest.approx(0.15)
+    assert md["cost_session_output_cost"] == pytest.approx(0.2)
+    assert md["cost_session_output_cost_avg"] == pytest.approx(0.1)
+    assert md["cost_session_cached_cost"] == pytest.approx(0.1)
+    assert md["cost_session_cached_cost_avg"] == pytest.approx(0.05)
+    # Session total 0.5 + 0.15 across 2 requests.
+    assert md["cost_session_average_cost"] == pytest.approx(0.325)

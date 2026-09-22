@@ -437,26 +437,32 @@ agent).
 
 ## Checkpoint 2 execution plan — footer cost breakdown + report depth
 
-Status: Draft
+Status: Approved
 
 ### Outcome
 
 1. **Footer cost breakdown, two UI-configurable modes.** The chat footer
    shows, for the current session, the cost total and request count plus a
-   per-item cost breakdown. Two modes, selectable in the UI:
+   per-item cost breakdown. Two modes, selectable in the UI; both modes
+   include ALL applicable items (input, cached input, cache write, output —
+   the earlier examples were illustrative, not exhaustive):
    - **Totals mode:** `total: $150 · input: $10 · cached input: $77 ·
-     output: $63 · requests: 330` — per-item cost totals, each a separate
-     metadata field.
+     cache write: $5 · output: $63 · requests: 330` — per-item cost
+     totals, each a separate metadata field.
    - **Averages mode:** `total: $150 · requests: 330 · average: $0.454 ·
-     input: $0.303 · cached input: $0.2333` — per-request average cost per
-     item.
+     input: $0.303 · cached input: $0.2333 · cache write: $0.015 ·
+     output: $0.19` — per-request average cost per item.
    Items without data are skipped (e.g. a provider that reports only a
    total cost shows only total + requests). Works at least for
    openai_responses (ChatGPT + API) and the reference provider (ollama).
+   ChatGPT per-item costs ARE available: the estimate is computed from
+   usage and estimated cached tokens via the manual ChatGPT pricing table,
+   so ChatGPT gets input/cached/output items (cache write when reported).
 2. **Report depth.** The "Show cost report" action additionally lists the
-   top 10 sessions by cost (project + session id + total) and the top 10
+   top 10 sessions by cost (project + session id + total) and the top 5
    projects by cost (working directories resolved to project names via
-   `~/.crystal/projects.json`, falling back to the raw path).
+   `~/.crystal/projects.json`, falling back to the raw path), over the
+   reset-aware window.
 
 ### Approach
 
@@ -504,16 +510,13 @@ Status: Draft
 
 ### Implementation decisions and open questions
 
-- **Reasoning as a cost line (open question).** Both providers bill
-  reasoning tokens within the output rate, so a separate reasoning cost
-  line would double-count. Recommendation: omit reasoning from the cost
-  breakdown (skip-if-unavailable) and keep it visible in the existing
-  token-level metadata; revisit only if a provider bills it separately.
-- **Top-lists window (open question).** Recommendation: reset-aware,
-  covering the same request set as the report's overall total (each
-  bucket's requests since its last reset), so the lists match the report
-  the user is looking at. Alternative: all-time factual history.
-- **Default mode (open question).** Recommendation: `"totals"`; confirm.
+- **Reasoning (resolved):** not reported as a cost line; only output is
+  shown (reasoning tokens are billed within the output rate).
+- **Top-lists window (resolved):** reset-aware, covering the same request
+  set as the report's overall total (each bucket's requests since its last
+  reset).
+- **Default mode (resolved):** `"totals"`.
+- **Report depth (resolved):** top 10 sessions and top 5 projects.
 - **Breakdown storage (decision, reversible).** Dedicated columns (not a
   JSON blob) so per-item aggregation stays plain SQL; migration must be
   best-effort and idempotent for existing user databases.
@@ -533,18 +536,18 @@ Status: Draft
 
 ### Task checklist
 
-- [ ] Confirm open questions (reasoning line, top-lists window, default
+- [x] Confirm open questions (reasoning line, top-lists window, default
       mode).
-- [ ] openai_responses: breakdown variant of cost estimation + stamps.
-- [ ] Reference provider: breakdown from token_rates + stamps.
-- [ ] Store: per-item columns + migration + aggregation queries + tests.
-- [ ] Extension: record breakdown, stamp totals/averages by mode, config
+- [x] openai_responses: breakdown variant of cost estimation + stamps.
+- [x] Reference provider: breakdown from token_rates + stamps.
+- [x] Store: per-item columns + migration + aggregation queries + tests.
+- [x] Extension: record breakdown, stamp totals/averages by mode, config
       key + schema, formatted footer string + tests.
-- [ ] Report action: top 10 sessions + top 10 projects + tests.
-- [ ] Extend integration test (both stream modes); run openai_responses
+- [x] Report action: top 10 sessions + top 5 projects + tests.
+- [x] Extend integration test (both stream modes); run openai_responses
       and reference provider suites.
-- [ ] Lint (ruff/black), pyright, full cost-tracking suite.
-- [ ] Update docs; record completion notes.
+- [x] Lint (ruff/black), pyright, full cost-tracking suite.
+- [x] Update docs; record completion notes.
 
 ### Requirement verification
 
@@ -570,3 +573,199 @@ Status: Draft
   verify via the reference provider suite plus one real-ollama run.
 - Existing user databases: verify the migration on a copy of a real store
   before shipping.
+
+
+## Checkpoint 2 implementation notes
+
+- **Per-item cost source.** Both providers stamp `usage_cost_breakdown`
+  (`{input, cached, cache_write, output}`, zero/absent items omitted) into
+  internal `_metadata` next to `usage_bucket`. openai_responses:
+  `estimate_usage_cost_breakdown` shares `_usage_cost_components` with
+  `estimate_usage_cost` (which now sums the breakdown-equivalent single
+  expression, preserving its exact historical float math — summing the
+  per-item values instead produced last-ulp drift that broke formatted-cost
+  assertions). ChatGPT mode gets items from usage + estimated cached tokens
+  via the manual pricing table, so ChatGPT per-item costs ARE available
+  (correction to an earlier note). Reference provider: `_rate_token_split`
+  splits prompt tokens into ordinary/cached/cache-write (cache-write carved
+  out only when a `cache_write` rate is configured — otherwise historical
+  behavior where cache-write tokens stay ordinary input) and resolves
+  effective rates; `_usage_cost` and `_cost_breakdown_from_rates` share it,
+  so items always sum to the total.
+- **Store.** New REAL columns `input_cost`/`cached_cost`/`cache_write_cost`/
+  `output_cost`; `_ensure_schema` migrates pre-existing databases via
+  `PRAGMA table_info` + `ALTER TABLE`. `session_totals` returns per-item
+  session sums. `top_sessions`/`top_projects` aggregate over the
+  reset-aware window (each bucket's requests since its last reset — the
+  same set as the report's overall total), skipping rows without
+  working_directory/session_id.
+- **Footer.** `cost_status_breakdown` config key (`totals` default /
+  `averages`) declared in the schema (UI-selectable). Stamps:
+  `cost_session_<item>_cost` (+ `_avg` in averages mode),
+  `cost_session_average_cost`, and `cost_session_breakdown_formatted`; the
+  status-bar element now renders the breakdown string (template
+  `{{data}}`). Promotion is prefix-based (`cost_*`) so new keys flow
+  automatically. Skip-if-unavailable: items with no recorded data are
+  omitted from both fields and the string.
+- **Report.** Top 10 sessions (project + session id) and top 5 projects;
+  project names resolved from `projects.json` under `CRYSTAL_DATA_DIR`
+  (default `~/.crystal`), falling back to raw paths.
+- **Pyright.** The refactor fixed two pre-existing `Optional[float]`
+  multiplication errors in `estimate_usage_cost`; changed-file error count
+  is now below the pre-change baseline (12 vs 14). Remaining errors are
+  pre-existing override-conformance issues.
+- **Verification note.** Running `pytest plugins/cost-tracking/tests
+  plugins/reference-openai-compatible-provider/tests` as ONE command is not
+  a valid path: pytest then uses a single config and loses the reference
+  package's `not integration` default filter, executing real-ollama
+  integration tests (looks like a hang; it is real API traffic). Per-package
+  runs remain the verification form.
+
+## Checkpoint 2 completion notes
+
+Outcome: delivered and verified. The footer shows the session cost total,
+request count, and per-item cost breakdown in two UI-selectable modes
+(totals/averages, `cost_status_breakdown`), with all applicable items and
+skip-if-unavailable semantics; the report lists the top 10 sessions and
+top 5 projects over the reset-aware window with project names resolved.
+
+Requirement evidence:
+
+- openai_responses per-item costs: pricing unit tests (items, zero-omission,
+  None vs empty-mapping semantics, sum == total) and usage-extension tests
+  in both API and ChatGPT modes (ChatGPT items from usage + estimated
+  cached tokens).
+- Reference provider per-item costs: `_cost_breakdown_from_rates` unit tests
+  (items, cache-write carve-out and skip, sum == total) and finalize stamp
+  tests (breakdown stamped from token_rates; none for provider-reported
+  cost).
+- Store: migration test against a pre-item-columns schema, per-item session
+  sums, reset-aware `top_sessions`/`top_projects` with cross-bucket union,
+  limits.
+- Footer: extension unit tests for both modes, all-item inclusion,
+  skip-if-unavailable, request-count division, gates, element shape, config
+  schema; public-path integration test (both stream modes) asserts the
+  breakdown metadata and store item columns.
+- Report: app-plugin tests for the top tables and project-name resolution
+  (with fallbacks).
+- Suites: cost-tracking 63 passed; reference provider 113 passed (61
+  deselected); openai_responses 481 passed (93 deselected); manual ChatGPT
+  suite 10 passed against the real login; ruff/black clean on changed
+  files; pyright on changed files below the pre-change baseline.
+- Real-endpoint check: real ollama (`glm-5.2:cloud`, official rates)
+  streaming request produced `Total: $0.000355 · input: $0.000014 · cached
+  input: $0.000003 · output: $0.000339 · requests: 1` in totals mode and
+  the averages-mode equivalent.
+
+Deviations: report depth is top 10 sessions + top 5 projects (user
+correction of the earlier top-10-projects draft). Reasoning tokens are not
+a cost line (billed within output). No unresolved scope remains for this
+checkpoint; the user's in-app confirmation is the final sign-off.
+## Checkpoint 2 correction plan — separate breakdown fields
+
+Status: Approved
+
+Tracking note: the checkpoint 2 implementation as originally built (combined
+`cost_session_breakdown_formatted` footer string, mode-dependent stamping)
+is committed first as its own commit; this correction is implemented
+afterwards and committed separately, so both versions are tracked in git
+history.
+
+### Outcome
+
+Corrects the footer breakdown to the intended design: the existing total
+footer stays unchanged, and the breakdown items are separate fields with
+separate UI elements; the platform renders and orders them.
+
+1. **Total footer unchanged.** The original `status_bar` element stays
+   exactly as before: `data: metadata.cost_session_total_formatted`,
+   `template: "Total: {{data}}"`, with its exists condition.
+2. **Separate fields, raw and formatted.** Every breakdown item is stamped
+   as its own metadata field pair, always (both totals and averages are
+   stored regardless of config; the config only controls display):
+   - Totals: `cost_session_input_cost` + `cost_session_input_cost_formatted`
+     (same for `cached`, `cache_write`, `output`).
+   - Averages: `cost_session_input_cost_avg` + `_formatted` (same for the
+     other items), plus `cost_session_average_cost` + `_formatted`.
+   - `cost_session_requests_formatted` (raw `cost_session_requests` exists).
+   - The combined `cost_session_breakdown_formatted` string is removed
+     (it was the misunderstanding; unreleased, created this session).
+3. **UI config "Total usage breakdown"** — key `total_usage_breakdown`
+   (replacing `cost_status_breakdown`), choices `none` / `totals` /
+   `averages`:
+   - `none`: only the unchanged total element.
+   - `totals`: total, then `input: {{data}}`, `cached input: {{data}}`,
+     `cache write: {{data}}`, `output: {{data}}`, `requests: {{data}}` —
+     one element per field, each with an exists condition on its formatted
+     path so unavailable items do not render.
+   - `averages`: total, then `requests:`, `average:`, then the per-item
+     average elements in the same item order.
+   - Element order follows the list order returned by `get_ui_elements`
+     (verified: the core appends elements in order and the terminal renders
+     status-bar elements in that order).
+4. **Stamping is mode-independent.** `_breakdown_metadata` no longer takes
+   a mode; it always stamps the complete field set when item data exists.
+   Only `get_ui_elements` reads the config.
+
+### Approach
+
+1. Extension: simplify `_breakdown_metadata` to always stamp totals +
+   averages + formatted variants; delete the combined-string builder.
+2. Extension: restore the original total element as the first element;
+   append the breakdown elements per the config choice with fixed labels
+   and exists conditions.
+3. Config schema: replace `cost_status_breakdown` with
+   `total_usage_breakdown` (select with `none`/`totals`/`averages`,
+   label "Total usage breakdown").
+4. Tests: rewrite the breakdown stamp tests (always-stamped field pairs),
+   the element tests (element set + order per choice), the schema test, and
+   update the integration test to assert the separate fields.
+5. Docs: rewrite the footer section of the plugin overview.
+
+### Implementation decisions and open questions
+
+- **Default choice (resolved).** `none` — the footer stays unchanged
+  until the user enables the breakdown in the UI.
+- **Config key (resolved).** `total_usage_breakdown`, label
+  "Total usage breakdown"; the previous `cost_status_breakdown` key is
+  unreleased and gets renamed.
+- **Combined string removal (resolved).** Remove
+  `cost_session_breakdown_formatted` entirely.
+- **Element labels (resolved).** `input:`, `cached input:`, `cache write:`,
+  `output:`, `requests:`, `average:` — matching the user's example
+  wording; formatting stays `$%.6f`.
+- Requests element appears only when a breakdown mode is enabled (the
+  unchanged default footer shows just the total).
+
+### Documentation
+
+- `plugins/cost-tracking/docs/development/overview.md`: footer section
+  rewritten for the separate fields, the new config key and choices, and
+  the element ordering contract.
+
+### Task checklist
+
+- [x] Confirm the open questions.
+- [ ] Rework `_breakdown_metadata` (always-stamped raw+formatted pairs).
+- [ ] Rework `get_ui_elements` (unchanged total first; per-choice elements).
+- [ ] Replace the config schema key.
+- [ ] Update unit, element, schema, and integration tests.
+- [ ] Lint (ruff/black), pyright, cost-tracking suite; re-run the
+      openai_responses and reference provider suites.
+- [ ] Update docs; record completion notes.
+
+### Requirement verification
+
+- Stamp boundary: extension unit tests asserting the full field set
+  (totals + averages, raw + formatted) is stamped whenever item data
+  exists, independent of the config choice.
+- Element boundary: extension unit tests asserting the exact element list
+  and order for `none`, `totals`, and `averages`, with exists conditions.
+- Public path: the integration test (both stream modes) asserts the
+  separate formatted fields on the final assistant message.
+- Real-endpoint spot check (ollama) after implementation.
+
+### Additional implementation verification
+
+- The manual ChatGPT suites assert footer metadata; re-run if the stamp
+  changes affect them (additive renames only expected).

@@ -7,8 +7,10 @@ import pytest
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 from reference_openai_compatible_provider.usage_extension import (
     OpenAICompatibleUsageExtension,
+    _cost_breakdown_from_rates,
     _current_turn_id,
     _estimated_cached_tokens_for_current,
+    _usage_cost,
 )
 
 
@@ -1063,3 +1065,110 @@ def test_usage_extension_session_total_across_multiple_turns():
     assert (
         rebuilt[-1]["metadata"]["usage_total_cost_cumulative_formatted"] == "$0.006000"
     )
+
+
+def test_cost_breakdown_from_rates_items():
+    """Per-item breakdown mirrors the rate-based cost calculation."""
+    usage = {
+        "prompt_tokens": 1000,
+        "completion_tokens": 500,
+        "prompt_tokens_details": {"cached_tokens": 200, "cache_write_tokens": 100},
+    }
+    token_rates = {
+        "input": 0.10,
+        "cached": 0.01,
+        "cache_write": 0.05,
+        "completion": 0.30,
+    }
+
+    breakdown = _cost_breakdown_from_rates(usage, token_rates)
+
+    assert breakdown == {
+        "input": pytest.approx(700 * 0.10 / 1_000_000),
+        "cached": pytest.approx(200 * 0.01 / 1_000_000),
+        "cache_write": pytest.approx(100 * 0.05 / 1_000_000),
+        "output": pytest.approx(500 * 0.30 / 1_000_000),
+    }
+    assert sum(breakdown.values()) == pytest.approx(
+        _usage_cost(usage, token_rates=token_rates)
+    )
+
+
+def test_cost_breakdown_from_rates_omits_missing_items():
+    """Cache write is skipped without a rate; zero-token items are omitted."""
+    usage = {
+        "prompt_tokens": 1000,
+        "completion_tokens": 500,
+        "prompt_tokens_details": {"cache_write_tokens": 100},
+    }
+    token_rates = {"input": 0.10, "completion": 0.30}
+
+    breakdown = _cost_breakdown_from_rates(usage, token_rates)
+
+    assert set(breakdown) == {"input", "output"}
+    assert _cost_breakdown_from_rates(usage, None) is None
+    assert _cost_breakdown_from_rates(usage, {"input": 0.10}) is None
+
+
+def test_usage_extension_stamps_cost_breakdown_from_token_rates():
+    """Finalize stamps the per-item breakdown next to the calculated cost."""
+    ext = OpenAICompatibleUsageExtension()
+
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "prompt_tokens_details": {"cached_tokens": 200},
+                }
+            },
+        }
+    ]
+    state = {
+        "config": {"token_rates": {"input": 0.10, "cached": 0.01, "completion": 0.30}}
+    }
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    breakdown = new_finals[0]["_metadata"]["usage_cost_breakdown"]
+    assert breakdown == {
+        "input": pytest.approx(800 * 0.10 / 1_000_000),
+        "cached": pytest.approx(200 * 0.01 / 1_000_000),
+        "output": pytest.approx(500 * 0.30 / 1_000_000),
+    }
+    assert sum(breakdown.values()) == pytest.approx(
+        new_finals[0]["_metadata"]["usage"]["cost"]
+    )
+
+
+def test_usage_extension_skips_breakdown_for_provider_cost():
+    """A natively provider-reported cost carries no synthesized breakdown."""
+    ext = OpenAICompatibleUsageExtension()
+
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "cost": 0.00025,
+                }
+            },
+        }
+    ]
+    state = {
+        "config": {"token_rates": {"input": 0.10, "cached": 0.01, "completion": 0.30}}
+    }
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    assert "usage_cost_breakdown" not in new_finals[0]["_metadata"]
