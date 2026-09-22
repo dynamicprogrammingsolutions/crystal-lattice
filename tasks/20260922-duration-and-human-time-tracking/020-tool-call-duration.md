@@ -49,9 +49,11 @@ Add the general framework act-point around tool calls (execution-scoped `prepare
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-This plan records the hard constraints, the agreed mechanism (Direction C) and protocol surface, and the verification approach. All contract decisions are resolved; the plan awaits approval and does not authorize execution. This subtask is phase 1 and executes first, before 010.
+Approved by the user on 2026-09-22: mechanism (Direction C), protocol surface, phasing, testing strategy, and the test-first chunked implementation below. This subtask executes first (phase 1), before 010.
+
+This plan records the hard constraints, the agreed mechanism (Direction C) and protocol surface, the approved testing strategy, and the test-first chunk breakdown.
 
 ### Hard constraints (from the direction decision)
 
@@ -117,6 +119,32 @@ The same raw timestamp facts are added to provider (LLM) call contexts: `initial
 
 Raw timestamps (wall-clock ISO + `time.monotonic()`), tool call descriptor, session/request ids go into the context. Never in framework code: computed durations, stats, or direct message mutation.
 
+### Approved testing strategy (user, 2026-09-22)
+
+Test realism: everything through public boundaries (real `AgentCore.iter_tool_messages`/`execute_tool_calls`/`add_message`, real `AgentApplication.send_request`), fixture plugins instead of internal mocks, deterministic where possible (injected context facts, no sleeps), regression coverage for touched behavior.
+
+- **Group A — framework hook contract** (`core/python/tests/test_tool_call_lifecycle_hooks.py`, fixtures in `core/python/tests/fixtures/`): backward compatibility (plugins without the hooks work); `prepare_tool_call` dispatch (per-call, pre-execution, context facts, no duration keys, ordering, state threading, sanitizing/interception with re-inspection, broken transformation → synthesized error); `finalize_tool_call` dispatch (exactly once per call on all four yield paths, `tool_error` fact, chained transforms, finished facts, `execute_tool_calls` coverage); `prepare_appended_message` dispatch (end-appends, transform lands in the session, native `_metadata` persistence + round-trip, tool-result facts, ordering/state threading/state back to the wrapper, no fire for `after_index` inserts, no fire on the no-config path); provider-call context symmetry (started facts in `initialize_request` contexts, finished facts in `finalize` contexts, no duration keys). No-framework-timing is source inspection evidence at review.
+- **Group B — plugin units** (`plugins/timestamp-extension/tests/`): `DurationExtension.finalize_tool_call` (per-call stamping from injected fixed facts, graceful missing facts, turn accumulation, `role == "tool"`-only scan, malformed history); existing LLM tests stay green unmodified; footer/UI schema test; `TimestampExtension` migration (`prepare_appended_message` stamps, `to_native_messages` returns unchanged, end-to-end append stamping, assistant `finalize` unchanged).
+- **Group C — integration**: `application/python/tests/test_application_tool_duration_stamping.py` — realistic `AgentApplication.send_request` with a tool-calling provider fixture and a real tool plugin: events (`tool_partial` end, `tool_results`), checkpoint session, and persisted reload all carry stamped metadata; multiple sequential calls; streaming and non-streaming; cancellation dispatches finalize via the synthesized-error path. Provider follow-up default suites (openai_responses, reference provider, openrouter) stay green.
+- **Commands**: `pytest core/python/tests -q`, `pytest application/python/tests -q`, `pytest plugins/timestamp-extension/tests -q`, the three provider suites, ruff/black on changed files, pyright.
+
+**Contract details pinned with the testing strategy:**
+
+1. `prepare_tool_call` fires only for inspectable calls (a failed inspection has no facts and goes straight to the synthesized error); `finalize_tool_call` fires exactly once per call, on the single final message every call yields. Invariant: prepare once per inspectable call, finalize once per call.
+2. Cancellation needs no special case: a cancelled/errored call that produced no result reaches the existing synthesized-error path and finalize fires there with `tool_error`. No cleanup-only dispatch.
+
+### Test-first implementation chunks
+
+Each chunk: write the tests first, verify they fail, implement, verify green.
+
+1. **Protocol surface + wrappers** — red: protocol tests (both protocols expose the three hooks with default no-ops; `ExtensionWrapper`/`FeatureWrapper` pass through to the wrapped plugin; backward-compat guard for hookless plugins). Green: add the methods to `types.py` and pass-throughs to `plugin/extension.py`/`plugin/feature.py`.
+2. **Tool-call dispatch in `iter_tool_messages`** — red: group A2/A3 tests. Green: resolve extensions + features via `_resolve_plugins_for_config`, capture started facts, prepare chain with re-inspection, capture finished facts, finalize chain before each of the four yield paths.
+3. **Append dispatch in `add_message`** — red: group A4 tests. Green: dispatch on end-appends before `_append_single_message_with_native`, state back to the provider wrapper, skip no-config path and `after_index` inserts.
+4. **Provider-call context facts** — red: group A5 tests. Green: started facts at request-context build, finished facts before the finalize chain.
+5. **`DurationExtension` tool stamping** — red: B1 unit tests, B3 UI test, C1 integration test. Green: `finalize_tool_call` implementation (per-call + per-turn stamping) plus intentional footer elements.
+6. **`TimestampExtension` migration** — red: B4 tests (including `to_native_messages` returning unchanged, which fails while the workaround exists). Green: migrate stamping to `prepare_appended_message`, remove the workaround.
+7. **Full sweep + docs** — all suites (core, application, timestamp-extension, three provider suites), ruff/black/pyright, 020-scoped doc updates (timestamp-extension README, hook contract in plugin docs).
+
 ### Implementation decisions and open questions
 
 - **Resolved — mechanism choice (user, 2026-09-22)**: Direction C, the combined contract. Execution-scoped per-tool-call hooks plus an append-scoped message hook, both dispatched at core level: the tool-call hooks in `AgentCore.iter_tool_messages` (covers the app tool loop and direct core consumers; the transformed message is what gets yielded, appended, and emitted in events), the append hook in `AgentCore.add_message` end-appends (covers the user/system and tool-result call sites). The duration measurement plugin measures and stamps in `finalize_tool_call`; the timestamp plugin migrates fully off the `to_native_messages` workaround onto the append hook.
@@ -141,20 +169,32 @@ Raw timestamps (wall-clock ISO + `time.monotonic()`), tool call descriptor, sess
 
 ### Task checklist
 
-- [ ] Obtain plan approval (mechanism, protocol surface, and phasing are agreed; plan moves to Approved)
-- [ ] Add the three optional hooks to `ProviderExtensionPlugin` and `FeaturePlugin` with wrapper pass-throughs and default no-ops
-- [ ] Dispatch `prepare_tool_call`/`finalize_tool_call` in `iter_tool_messages` with context facts, call re-inspection after transformation, and the synthesized-error paths covered
-- [ ] Dispatch `prepare_appended_message` in `add_message` end-appends with state threading back to the provider wrapper; no dispatch on the no-config path
-- [ ] Add started/finished timestamp facts to provider-call contexts (`initialize_request`/`finalize`) for symmetry
-- [ ] Migrate `TimestampExtension` append stamping onto `prepare_appended_message`; retire the `to_native_messages` workaround
-- [ ] Implement per-call tool duration stamping in the duration measurement plugin (`finalize_tool_call`)
-- [ ] Implement per-turn tool duration stamping (history scan from the tool-call context plus the current call)
-- [ ] Verify/add message-footer UI elements for tool durations with intentional config gating
-- [ ] Unit tests for the framework hooks (ordering, chained state, context facts, call transformation + re-inspection, no framework timing, cancellation, synthesized error results)
-- [ ] Unit tests for the stamping plugin (per-call stamping, turn accumulation, malformed metadata, LLM fields unchanged)
-- [ ] Integration test through the application tool loop (events carry stamped metadata)
-- [ ] Cross-provider and streaming/non-streaming verification
-- [ ] Documentation updates
+- [x] Obtain plan approval (mechanism, protocol surface, phasing, testing strategy, and test-first chunks approved 2026-09-22)
+- [x] Add the three optional hooks to `ProviderExtensionPlugin` and `FeaturePlugin` with wrapper pass-throughs and default no-ops (chunk 1: red 9 → green 10; core suite 541 green)
+- [x] Dispatch `prepare_tool_call`/`finalize_tool_call` in `iter_tool_messages` with context facts, call re-inspection after transformation, and the synthesized-error paths covered (chunk 2: red 9 → green 20; core suite 551 green; black applied)
+- [x] Dispatch `prepare_appended_message` in `add_message` end-appends with state threading back to the provider wrapper; no dispatch on the no-config path (chunk 3: red 5 → green 27; app tool loop reuses one per-call context so tool-call facts flow to the append hook)
+- [x] Add started/finished timestamp facts to provider-call contexts (`initialize_request`/`finalize`) for symmetry (chunk 4: red 2 → green 29; facts on request contexts only, rebuild contexts stay fact-free)
+- [ ] Implement per-call tool duration stamping in the duration measurement plugin (`finalize_tool_call`) (chunk 5)
+- [ ] Implement per-turn tool duration stamping (history scan from the tool-call context plus the current call) (chunk 5)
+- [ ] Verify/add message-footer UI elements for tool durations with intentional config gating (chunk 5)
+- [ ] Migrate `TimestampExtension` append stamping onto `prepare_appended_message`; retire the `to_native_messages` workaround (chunk 6)
+- [ ] Unit tests for the framework hooks (ordering, chained state, context facts, call transformation + re-inspection, no framework timing, cancellation, synthesized error results) (chunks 1–2 done; chunks 3–4 pending)
+- [ ] Unit tests for the stamping plugin (per-call stamping, turn accumulation, malformed metadata, LLM fields unchanged) (chunk 5)
+- [ ] Integration test through the application tool loop (events carry stamped metadata) (chunk 5)
+- [ ] Cross-provider and streaming/non-streaming verification (chunk 7)
+- [ ] Documentation updates (chunk 7)
+
+## Implementation Notes
+
+- **Chunk 1 done** (protocol surface + adapters + wrappers): `types.py` gained the three default no-op hooks on both protocols; `adapters.py` gained normalizing defaults on both adapters (`_get_impl_method` treats protocol stubs as missing); `plugin/extension.py`/`plugin/feature.py` gained pass-throughs. Red 9 → green 10.
+- **Chunk 2 done** (tool-call dispatch): `iter_tool_messages` restructured with four new helpers (`_get_enabled_features_for_config`, `_tool_call_hook_participants`, `_dispatch_prepare_tool_call`, `_dispatch_finalize_tool_call`). Facts: `started_at`/`started_at_mono` captured before the prepare chain; `finished_at`/`finished_at_mono` after execution; `tool_error` on synthesized paths; prepare fires only for inspectable calls; transformed calls are re-inspected and re-resolved; finalize fires exactly once per call on all four yield paths. Red 9 → green 20; core suite 551 green; application suite green except one pre-existing failure (below).
+- **Discovered — state semantics**: the request pipeline re-initializes provider state per request (`provider.init` at core.py:2016) and threads state explicitly between phases, so hook-state write-back to `provider.state` cannot persist into the next request. The contract's state guarantee is therefore the within-chain threading (chained plugins read each other's state) plus a `provider.state` write-back that benefits standalone `execute_tool_calls` sequences. Recorded in the dispatch docstring.
+- **Decision — provider-gated dispatch**: the hooks dispatch only when the full plugin context resolves (a provider is registered and selected); bare-core tool execution without a provider keeps its current behavior (no dispatch). Mirrors `_resolve_tool_participants_for_config`'s existing no-provider behavior; pinned by `test_bare_core_tool_execution_does_not_dispatch_hooks`.
+- **Decision — hook exceptions propagate** (no framework-level swallowing), consistent with the request pipeline's extension dispatch; plugins own their best-effort concerns (the cost-tracking precedent: the plugin wraps its store writes).
+- **Pre-existing failure (not this task's)**: `application/python/tests/test_claude_system_message_helpers.py::test_default_config_claude_system_message_renders_sections_tasks_and_agents` fails at HEAD — commit `7472173b` rewrote `TASKS_v7.md` ("Task files are standalone handoffs...") but the test still asserts the v5 wording ("Task files are a handoff mechanism"). Reported to the user; fix pending their decision.
+- **Chunk 3 done** (append dispatch): `add_message` end-appends dispatch `prepare_appended_message` before the native conversion via `_prepare_appended_message_with_hooks`; `iter_tool_messages` records the call facts into the caller's context; the app tool loop (`tool_loop.py`) now builds one tool context per call and reuses it for `add_message`, so tool-result appends carry the full fact set. Discovered: the append conversion re-initializes provider state (`_init_provider_and_features_for_config`), so the append hook's guaranteed state contract is the within-chain threading; the write-back happens but persistence past the conversion is not guaranteed (documented in the helper docstring).
+- **Chunk 4 done** (provider-call facts): started facts are added to request contexts in `_build_request_context` (session branch only — internal rebuild contexts stay fact-free, pinned by the `session_id` filter in the tests); finished facts are added to a copied `finalize_context` before each of the three finalize chains (non-streaming + both streaming paths).
+- **Incident repaired**: an accidental `git stash pop` run from the wrong directory applied an old unrelated stash ("Cross platform markdown"), leaving merge conflicts in `application/python/*` and `tasks/20260827-*`; fully repaired via index reset + checkout to HEAD; the old stash entry was kept (nothing lost); the 020 changes were untouched. Lesson recorded: run git from the repo root.
 
 ### Requirement verification
 

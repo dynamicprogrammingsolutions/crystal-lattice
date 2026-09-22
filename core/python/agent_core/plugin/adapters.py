@@ -104,9 +104,7 @@ class _BasePluginDefaults:
             return fn(*args_before_context, context, *args_after_context)
         return fn(*args_before_context, *args_after_context)
 
-    def _get_impl_method(
-        self, name: str, protocol_cls: Optional[type] = None
-    ) -> Optional[Any]:
+    def _get_impl_method(self, name: str, protocol_cls: Optional[type] = None) -> Optional[Any]:
         """Return a concrete implementation for an optional hook.
 
         Treats Protocol stub methods (from the given protocol_cls) as "missing"
@@ -139,9 +137,7 @@ class _BasePluginDefaults:
         if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params):
             return fn(*args, **kwargs)
 
-        accepted = {
-            name: value for name, value in kwargs.items() if name in sig.parameters
-        }
+        accepted = {name: value for name, value in kwargs.items() if name in sig.parameters}
         return fn(*args, **accepted)
 
     @staticmethod
@@ -291,11 +287,7 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         if fn is None:
             return ToolInteropContribution()
         out = self._call_with_optional_kwargs(fn, config, state)
-        return (
-            out
-            if isinstance(out, ToolInteropContribution)
-            else ToolInteropContribution()
-        )
+        return out if isinstance(out, ToolInteropContribution) else ToolInteropContribution()
 
     def accepted_tool_schema_formats(  # type: ignore[override]
         self,
@@ -665,26 +657,18 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         config: Dict[str, Any],
         state: Dict[str, Any] | None = None,
     ) -> ToolInteropContribution:
-        fn = self._get_impl_method(
-            "get_tool_interop_contribution", ProviderExtensionPlugin
-        )
+        fn = self._get_impl_method("get_tool_interop_contribution", ProviderExtensionPlugin)
         if fn is None:
             return ToolInteropContribution()
         out = self._call_with_optional_kwargs(fn, config, state)
-        return (
-            out
-            if isinstance(out, ToolInteropContribution)
-            else ToolInteropContribution()
-        )
+        return out if isinstance(out, ToolInteropContribution) else ToolInteropContribution()
 
     def accepted_tool_schema_formats(  # type: ignore[override]
         self,
         config: Dict[str, Any],
         state: Dict[str, Any] | None = None,
     ) -> List[str]:
-        fn = self._get_impl_method(
-            "accepted_tool_schema_formats", ProviderExtensionPlugin
-        )
+        fn = self._get_impl_method("accepted_tool_schema_formats", ProviderExtensionPlugin)
         if fn is None:
             return []
         out = self._call_with_optional_kwargs(fn, config, state)
@@ -757,6 +741,73 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
             )
         return final_messages, native_messages, state
 
+    def prepare_tool_call(  # type: ignore[override]
+        self,
+        tool_call: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        fn = self._get_impl_method("prepare_tool_call", ProviderExtensionPlugin)
+        if fn is not None:
+            out = self._call_with_optional_kwargs(
+                fn,
+                tool_call,
+                state,
+                context=context,
+            )
+            if isinstance(out, tuple) and len(out) == 2:
+                out_call, out_state = out
+                call = out_call if isinstance(out_call, dict) else tool_call
+                new_state = out_state if isinstance(out_state, dict) else state
+                return call, new_state
+        return tool_call, state
+
+    def finalize_tool_call(  # type: ignore[override]
+        self,
+        tool_message: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        fn = self._get_impl_method("finalize_tool_call", ProviderExtensionPlugin)
+        if fn is not None:
+            out = self._call_with_optional_kwargs(
+                fn,
+                tool_message,
+                state,
+                context=context,
+            )
+            if isinstance(out, tuple) and len(out) == 2:
+                out_message, out_state = out
+                message = out_message if isinstance(out_message, dict) else tool_message
+                new_state = out_state if isinstance(out_state, dict) else state
+                return message, new_state
+        return tool_message, state
+
+    def prepare_appended_message(  # type: ignore[override]
+        self,
+        message: Dict[str, Any],
+        state: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        base_state = state if isinstance(state, dict) else {}
+        fn = self._get_impl_method("prepare_appended_message", ProviderExtensionPlugin)
+        if fn is not None:
+            out = self._call_with_optional_kwargs(
+                fn,
+                message,
+                base_state,
+                context=context,
+            )
+            if isinstance(out, tuple) and len(out) == 2:
+                out_message, out_state = out
+                new_message = out_message if isinstance(out_message, dict) else message
+                new_state = out_state if isinstance(out_state, dict) else base_state
+                return new_message, new_state
+        return message, base_state
+
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:  # type: ignore[override]
         fn = self._get_impl_method("get_actions", ProviderExtensionPlugin)
         if fn is not None:
@@ -782,11 +833,7 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
                 context,
                 (state,),
             )
-            return (
-                out
-                if isinstance(out, dict)
-                else {"native_messages": list(native_messages)}
-            )
+            return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
         return {"native_messages": list(native_messages)}
 
 
@@ -995,6 +1042,73 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
             )
         return final_messages, native_messages, state
 
+    def prepare_tool_call(  # type: ignore[override]
+        self,
+        tool_call: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        fn = self._get_impl_method("prepare_tool_call", FeaturePlugin)
+        if fn is not None:
+            out = self._call_with_optional_kwargs(
+                fn,
+                tool_call,
+                state,
+                context=context,
+            )
+            if isinstance(out, tuple) and len(out) == 2:
+                out_call, out_state = out
+                call = out_call if isinstance(out_call, dict) else tool_call
+                new_state = out_state if isinstance(out_state, dict) else state
+                return call, new_state
+        return tool_call, state
+
+    def finalize_tool_call(  # type: ignore[override]
+        self,
+        tool_message: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        fn = self._get_impl_method("finalize_tool_call", FeaturePlugin)
+        if fn is not None:
+            out = self._call_with_optional_kwargs(
+                fn,
+                tool_message,
+                state,
+                context=context,
+            )
+            if isinstance(out, tuple) and len(out) == 2:
+                out_message, out_state = out
+                message = out_message if isinstance(out_message, dict) else tool_message
+                new_state = out_state if isinstance(out_state, dict) else state
+                return message, new_state
+        return tool_message, state
+
+    def prepare_appended_message(  # type: ignore[override]
+        self,
+        message: Dict[str, Any],
+        state: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        base_state = state if isinstance(state, dict) else {}
+        fn = self._get_impl_method("prepare_appended_message", FeaturePlugin)
+        if fn is not None:
+            out = self._call_with_optional_kwargs(
+                fn,
+                message,
+                base_state,
+                context=context,
+            )
+            if isinstance(out, tuple) and len(out) == 2:
+                out_message, out_state = out
+                new_message = out_message if isinstance(out_message, dict) else message
+                new_state = out_state if isinstance(out_state, dict) else base_state
+                return new_message, new_state
+        return message, base_state
+
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:  # type: ignore[override]
         fn = self._get_impl_method("get_actions", FeaturePlugin)
         if fn is not None:
@@ -1020,11 +1134,7 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
                 context,
                 (state,),
             )
-            return (
-                out
-                if isinstance(out, dict)
-                else {"native_messages": list(native_messages)}
-            )
+            return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
         return {"native_messages": list(native_messages)}
 
     def get_completions(  # type: ignore[override]
@@ -1156,11 +1266,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         if fn is None:
             return ToolInteropContribution()
         out = fn(state)
-        return (
-            out
-            if isinstance(out, ToolInteropContribution)
-            else ToolInteropContribution()
-        )
+        return out if isinstance(out, ToolInteropContribution) else ToolInteropContribution()
 
     def can_handle_tool_call(  # type: ignore[override]
         self,
