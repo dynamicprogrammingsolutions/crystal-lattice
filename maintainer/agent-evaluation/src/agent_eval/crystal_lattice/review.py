@@ -26,6 +26,7 @@ from typing import Any, Mapping
 
 from agent_eval.result_packages import (
     CAPTURED,
+    INHERITED,
     RECONSTRUCTED,
     UNAVAILABLE,
     apply_replacements,
@@ -256,9 +257,7 @@ def _normalize_inherited_prefix(
         raise ValueError("inherited_prefix length must be a non-negative int")
     return {
         "length": length,
-        "availability": _as_availability(
-            record, default=availability(CAPTURED)
-        ),
+        "availability": _as_availability(record, default=availability(CAPTURED)),
     }
 
 
@@ -270,6 +269,7 @@ def _as_availability(
     if isinstance(value, Mapping) and value.get("state") in (
         CAPTURED,
         RECONSTRUCTED,
+        INHERITED,
         UNAVAILABLE,
     ):
         return dict(value)
@@ -288,9 +288,7 @@ def _project_instructions(
             continue
         metadata = message.get("metadata")
         compiled = (
-            metadata.get("compiled_content")
-            if isinstance(metadata, Mapping)
-            else None
+            metadata.get("compiled_content") if isinstance(metadata, Mapping) else None
         )
         if isinstance(compiled, str) and compiled.strip():
             captured.append(("session.compiled_content", compiled))

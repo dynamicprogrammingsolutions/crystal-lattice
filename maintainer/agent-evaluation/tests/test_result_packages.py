@@ -128,9 +128,7 @@ def _collect(package_dir: Path, *, replace: bool = False) -> Path:
 def test_collect_writes_records_and_manifest(tmp_path: Path) -> None:
     package_dir = _collect(tmp_path / "package")
 
-    manifest = json.loads(
-        (package_dir / "manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["schema_version"] == 1
     assert manifest["generator_version"] == "unit-test-v1"
     assert manifest["identity"]["dataset_id"] == "unit-1"
@@ -417,13 +415,22 @@ def test_availability_validates_states() -> None:
         "state": "reconstructed",
         "verified": True,
     }
+    assert availability("inherited", detail="from the parent run") == {
+        "state": "inherited",
+        "detail": "from the parent run",
+    }
     assert availability("unavailable", detail="gone") == {
         "state": "unavailable",
         "detail": "gone",
     }
     with pytest.raises(ValueError, match="unknown availability state"):
         availability("guessed")
-    assert AVAILABILITY_STATES == ("captured", "reconstructed", "unavailable")
+    assert AVAILABILITY_STATES == (
+        "captured",
+        "reconstructed",
+        "inherited",
+        "unavailable",
+    )
 
 
 def test_path_replacements_round_trip() -> None:

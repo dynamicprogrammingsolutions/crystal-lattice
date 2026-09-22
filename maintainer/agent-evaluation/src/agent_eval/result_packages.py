@@ -42,8 +42,9 @@ MANIFEST_SCHEMA_VERSION = 1
 
 CAPTURED = "captured"
 RECONSTRUCTED = "reconstructed"
+INHERITED = "inherited"
 UNAVAILABLE = "unavailable"
-AVAILABILITY_STATES = (CAPTURED, RECONSTRUCTED, UNAVAILABLE)
+AVAILABILITY_STATES = (CAPTURED, RECONSTRUCTED, INHERITED, UNAVAILABLE)
 
 
 def sha256_text(text: str) -> str:
@@ -269,9 +270,7 @@ def render_result_package(
             "sha256": sha256_text(view.content),
             "bytes": len(view.content.encode("utf-8")),
         }
-    records.manifest["files"]["generated"] = dict(
-        sorted(generated.items())
-    )
+    records.manifest["files"]["generated"] = dict(sorted(generated.items()))
     _write_manifest(records.package_dir, records.manifest)
     return written
 
@@ -536,7 +535,9 @@ def _cost_row(
         "provider": run.get("provider"),
         "model": run.get("model"),
         "reasoning_effort": run.get("reasoning_effort"),
-        "input_tokens": usage.get("input_tokens") if isinstance(usage, Mapping) else None,
+        "input_tokens": (
+            usage.get("input_tokens") if isinstance(usage, Mapping) else None
+        ),
         "cached_input_tokens": (
             usage.get("cached_input_tokens") if isinstance(usage, Mapping) else None
         ),
@@ -548,7 +549,9 @@ def _cost_row(
         "cache_write_tokens": (
             usage.get("cache_write_tokens") if isinstance(usage, Mapping) else None
         ),
-        "output_tokens": usage.get("output_tokens") if isinstance(usage, Mapping) else None,
+        "output_tokens": (
+            usage.get("output_tokens") if isinstance(usage, Mapping) else None
+        ),
         "reasoning_tokens": (
             usage.get("reasoning_tokens") if isinstance(usage, Mapping) else None
         ),
@@ -628,9 +631,11 @@ def _validate_runs(runs: Sequence[Mapping[str, object]]) -> list[dict[str, Any]]
 
 
 def _check_relative_path(relative_path: str) -> None:
-    if not relative_path or relative_path.startswith("/") or ".." in Path(
-        relative_path
-    ).parts:
+    if (
+        not relative_path
+        or relative_path.startswith("/")
+        or ".." in Path(relative_path).parts
+    ):
         raise ValueError(f"unsafe package path: {relative_path}")
     if re.search(r"[\x00-\x1f]", relative_path):
         raise ValueError(f"unsafe package path: {relative_path}")

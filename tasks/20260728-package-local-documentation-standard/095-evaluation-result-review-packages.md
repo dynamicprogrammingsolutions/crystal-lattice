@@ -487,6 +487,14 @@ from fixture ownership, and remove the old fixture result copies.
   self-contained packages without cross-references.
 - [x] Regenerate both packages under the approved layout and re-verify parity,
   determinism, checks, and secret safety.
+- [x] Review round 2 (user-approved September 23, 2026): continuation runs
+  reference the producer's system message as `inherited`; `matrix.md` gains
+  per-assessment detail and per-scenario breakdown tables; the scenarios
+  definitions export gains `shared/` (configs, system messages, all
+  workspace-added files) and per-stage `input.md` files with canonical
+  handoff copies, generated per guidance bundle.
+- [x] Regenerate both packages and the scenarios export for review round 2 and
+  re-verify parity, determinism, checks, and secret safety.
 - [ ] Update evaluation indexes, reports, running guidance, and package docs.
 - [ ] Replace completed-result suite fixtures with synthetic test data.
 - [ ] Remove the old task-guidance fixture result copies after parity and link
@@ -693,3 +701,56 @@ from fixture ownership, and remove the old fixture result copies.
   cost totals are unchanged ($1.6482838 b1, $1.7769892 b0, 46 runs each).
   One pre-existing test (`test_frozen_candidate_datasets_are_complete`) is
   CWD-sensitive and passes from the repository root.
+
+- Review round 2 (September 23, 2026), user-approved after reviewing the v3
+  packages: (a) same-agent continuations inherit the producer's compiled
+  system message instead of staying unavailable — the framework gained the
+  `inherited` availability state (result-packages constants, review
+  projection acceptance, one test), and `_collect_run` falls back to the
+  producer's instructions record when the continuation's own session retains
+  no text; (b) `aggregate.json` gained `assessment_details` (18 task-creation
+  and 9 handoff rows with per-dimension status/score and results paths) and
+  `matrix.md` gained a task-creation detail table, a handoff detail table,
+  and a per-scenario table linking every cell directory and assessment
+  rendering — each cohort row is now the visible average of its detail rows,
+  and every detail row links both its judgment rendering and the run or
+  stage directory it is about (producer cell for task-creation rows;
+  plan-retain, plan-omit, control, or continuation for handoff rows);
+  (c) `extract-scenarios` became the full input-definitions export:
+  `shared/configs` (5 sanitized effective configs), `shared/system-messages`
+  (7 provider+hash messages compiled through the production system-message
+  action on temporary factory workspaces), `shared/included-files` (all
+  files the factories add beyond the repository checkout: 6 fixture project
+  sets, per-family guidance compilation with documentation and lock, the
+  assessor README stub), per-stage `input.md` pages in the session-header
+  format (models, tools, delivered instructions, config, workspace revision,
+  fixture upstream and revision, included-file links, prompt and target
+  links), and canonical handoff copies under `handoffs/`. The command takes
+  `--bundle` (default `maintainer/guidance/current`) and replaces the output
+  tree wholesale so renamed content leaves no stale files.
+- Two accuracy bugs found and fixed during round 2: the assessor runs pass
+  `include_tasks=False` in their request overrides, but both the package
+  config views and the export compiled the assessor message and config with
+  the default `True` — the assessor system message wrongly embedded the
+  TASKS section and `glm-assessor-max.json` misstated `include_tasks`. Both
+  packages and the export now record the assessor settings faithfully.
+- Verification for round 2: package parity 0 problems (all detail values and
+  handoff fields against the frozen records by identity, matrix rows and
+  link targets, inherited path and hash equal to the producer's per cell,
+  assessor config `include_tasks` false); export content 0 problems
+  (fixture bytes against `fixture_files()`, guidance outputs and
+  documentation against `compile_guidance`, locks against the compilation
+  lock with repository-relative path normalization, handoff bytes against
+  the suite sources, shared configs and system messages byte-identical to
+  the b0 package — the current bundle's subject guidance is unchanged since
+  the b0 runs — all markdown links resolve inside the export, no
+  cross-references to `results/`, no machine or home paths); byte-identical
+  regeneration of both packages and the export; package checks pass; secret
+  scan over the export finds no credential values (67 `<redacted>`
+  placeholders in config views); 148 agent-evaluation tests and 60 suite
+  tests pass; pyright reports the same 9 pre-existing errors as at HEAD
+  with zero new ones. The export is 169 files, 988 KB. A pre-existing
+  cross-suite test-isolation quirk appears when
+  `tests/` and `suites/task_guidance` run in one pytest process
+  (11 crystal-lattice driver tests fail in the combined run, pass in
+  isolation and in their own suite); both suites pass separately.

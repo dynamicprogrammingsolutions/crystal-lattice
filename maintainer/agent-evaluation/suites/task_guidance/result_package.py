@@ -19,11 +19,15 @@ messages are named by provider and content hash. Only the manifest, run
 records, the aggregate status record, configs, and the report configuration
 are machine-readable.
 
-The scenario definitions (targets, prompts, and the fixed prompt templates)
-are exported separately by ``extract-scenarios`` into the ``scenarios/``
-documentation tree; git tracks their evolution between evaluations while each
-result package freezes its own copies. The two exports do not reference each
-other.
+The scenario definitions export is written separately by ``extract-scenarios``
+into the ``scenarios/`` documentation tree: reviewed targets, exact producer
+prompts, fixed prompt templates, the shared delivery material (sanitized
+effective configs, compiled system messages, and every file added to the
+workspaces beyond the repository checkout), and one ``input.md`` per stage and
+assessment. The export is generated from one guidance bundle at a time; git
+tracks its evolution between evaluations while each result package freezes its
+own copies of the material it was produced with. The two exports do not
+reference each other.
 
 Commands:
 
@@ -42,6 +46,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -72,9 +77,21 @@ from agent_eval.result_packages import (  # noqa: E402
     render_result_package,
     sha256_text,
 )
+from maintainer.guidance import (  # noqa: E402
+    bundle_section_path,
+    compile_guidance,
+)
 
 from .artifacts import record_paths  # noqa: E402
-from .fixtures import TaskGuidanceWorkspaceFactory  # noqa: E402
+from .fixtures import (  # noqa: E402
+    BASE_REVISION,
+    COMMON_GITIGNORE,
+    DEFAULT_BUNDLE,
+    GUIDANCE_TARGET_ROOT,
+    AssessmentWorkspaceFactory,
+    TaskGuidanceWorkspaceFactory,
+    fixture_files,
+)
 from .handoff_semantic import HANDOFF_ASSESSMENT_PROMPT_TEMPLATE  # noqa: E402
 from .handoffs import (  # noqa: E402
     PLAN_PROMPT,
@@ -96,6 +113,7 @@ from .scenarios import SCENARIOS  # noqa: E402
 from .semantic import (  # noqa: E402
     QUALITY_DIMENSIONS,
     TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE,
+    expected_producer_cells,
 )
 
 SUITE_ROOT = PACKAGE_ROOT / "suites" / "task_guidance"
@@ -118,7 +136,7 @@ DEFAULT_SCENARIOS_ROOT = (
     / "scenarios"
 )
 REPORT_CONFIG_SOURCE = SUITE_ROOT / "result_report_config.toml"
-GENERATOR_VERSION = "task-guidance-result-package-v3"
+GENERATOR_VERSION = "task-guidance-result-package-v4"
 
 PRODUCER_RECORD = "task-guidance-producer.json"
 HANDOFF_RECORD = "task-guidance-handoff-plan.json"
@@ -186,30 +204,58 @@ def _link(target: str, page: str) -> str:
     return relpath(target, _dirname(page))
 
 
-def extract_scenarios(*, output_dir: Path) -> Path:
+NEGATIVE_CONTROL_SCENARIO = "tg02-fastapi-pagination-handoff"
+# Mirrors the negative-control expectation in results.py: only this scenario
+# runs the incomplete-handoff control stage.
+
+
+def extract_scenarios(*, output_dir: Path, bundle: Path, artifact_root: Path) -> Path:
     """Write the scenario definitions export from the suite sources.
 
-    The export holds the evaluation's scenario definitions — reviewed
-    targets, exact producer prompts, and the fixed prompt templates — in a
-    form meant for human review. Scenario definitions may change between
-    evaluations; git tracks the evolution of this tree while each result
-    package freezes its own copies of the material it was produced with.
+    The export holds the evaluation's input definitions: reviewed targets,
+    exact producer prompts, fixed prompt templates, the shared delivery
+    material (sanitized effective configs, compiled system messages, and
+    every file added to the workspaces beyond the repository checkout), and
+    one ``input.md`` per stage and assessment describing what that stage
+    feeds the model. The export is generated from one guidance bundle at a
+    time; git tracks the tree's evolution between evaluations while each
+    result package freezes its own copies of the material it was produced
+    with. The two exports do not reference each other.
     """
 
     files: list[tuple[str, str]] = []
-    files.append(
+    files.extend(_template_export_files())
+    files.extend(_included_files_exports(bundle=bundle))
+    delivery = _compile_definitions_delivery(bundle=bundle, artifact_root=artifact_root)
+    files.extend(delivery["files"])
+    for scenario in SCENARIOS:
+        files.extend(_scenario_export_files(scenario, delivery, bundle=bundle))
+    files.append(("index.md", _scenarios_index_text(bundle=bundle)))
+
+    # The export is fully generated: replace any previous state wholesale so
+    # renamed content never leaves stale files behind.
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    for relative, content in sorted(files):
+        target = output_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    return output_dir
+
+
+def _template_export_files() -> list[tuple[str, str]]:
+    return [
         (
             "templates/handoff-plan-prompt.md",
             _generated_note(
                 "Fixed instruction sent to a fresh planning agent together with"
                 " a task file; asks for the Draft implementation plan without"
-                " modifying files."
+                " modifying files. The same prompt is the new user turn of"
+                " the same-agent continuation stage."
             )
             + PLAN_PROMPT
             + "\n",
-        )
-    )
-    files.append(
+        ),
         (
             "templates/task-creation-assessment-prompt.md",
             _generated_note(
@@ -219,9 +265,7 @@ def extract_scenarios(*, output_dir: Path) -> Path:
                 " $prompt, $records_json."
             )
             + TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE.template,
-        )
-    )
-    files.append(
+        ),
         (
             "templates/handoff-assessment-prompt.md",
             _generated_note(
@@ -230,38 +274,508 @@ def extract_scenarios(*, output_dir: Path) -> Path:
                 " $placeholders: $scenario_id, $target_json, $records_json."
             )
             + HANDOFF_ASSESSMENT_PROMPT_TEMPLATE.template,
-        )
-    )
+        ),
+    ]
+
+
+def _included_files_exports(*, bundle: Path) -> list[tuple[str, str]]:
+    """Export every file the workspace factories add beyond the checkout.
+
+    The repository checkout itself is never included; the stage inputs
+    record its revision instead. Fixture project files, the guidance
+    compilation, the documentation section, the compilation lock, and the
+    assessor workspace stub are all included.
+    """
+
+    files: list[tuple[str, str]] = []
     for scenario in SCENARIOS:
-        scenario_id = scenario.scenario_id
+        fixture = {
+            ".gitignore": COMMON_GITIGNORE,
+            **fixture_files(scenario.fixture_id),
+        }
+        for relative, content in sorted(fixture.items()):
+            files.append(
+                (
+                    f"shared/included-files/fixtures/{scenario.fixture_id}"
+                    f"/{relative}",
+                    content.rstrip() + "\n",
+                )
+            )
+    for family in sorted({scenario.project_family for scenario in SCENARIOS}):
+        compilation = compile_guidance(
+            bundle=bundle,
+            target=GUIDANCE_TARGET_ROOT / family,
+            repository_root=REPOSITORY_ROOT,
+        )
+        for relative, content in sorted(compilation.outputs.items()):
+            files.append(
+                (
+                    f"shared/included-files/guidance/{family}/{relative}",
+                    content.decode("utf-8"),
+                )
+            )
+        documentation = bundle_section_path(
+            bundle=bundle,
+            section="documentation",
+            repository_root=REPOSITORY_ROOT,
+        )
         files.append(
             (
-                f"{scenario_id}/target.md",
-                f"# Reviewed target — {scenario_id}\n\n"
-                + "\n".join(_target_markdown(scenario.target)).rstrip()
-                + "\n",
+                f"shared/included-files/guidance/{family}"
+                "/docs/development/documentation.md",
+                documentation.read_text(encoding="utf-8"),
             )
         )
-        files.append((f"{scenario_id}/prompt.md", scenario.prompt.rstrip() + "\n"))
+        lock = dict(compilation.lock)
+        # The production lock records absolute bundle and target paths; the
+        # committed export normalizes them to repository-relative paths.
+        for section, source in (
+            ("bundle", bundle),
+            ("target", GUIDANCE_TARGET_ROOT / family),
+        ):
+            value = lock.get(section)
+            if isinstance(value, dict) and "path" in value:
+                lock[section] = {
+                    **value,
+                    "path": str(source.resolve().relative_to(REPOSITORY_ROOT)),
+                }
+        files.append(
+            (
+                f"shared/included-files/guidance/{family}/.guidance-lock.json",
+                json.dumps(lock, indent=2, sort_keys=True) + "\n",
+            )
+        )
+    files.append(
+        (
+            "shared/included-files/assessment/README.md",
+            "# Task-guidance semantic assessment\n",
+        )
+    )
+    return files
 
+
+def _compile_definitions_delivery(
+    *,
+    bundle: Path,
+    artifact_root: Path,
+) -> dict[str, Any]:
+    """Compile the shared configs, system messages, and tool sets.
+
+    One workspace per project family is prepared with the production
+    factory and the delivered system message is compiled through the
+    production system-message action — deterministically, without any
+    model request. Machine-specific workspace paths are normalized exactly
+    like the result packages normalize them.
+    """
+
+    system_messages = _SystemMessageStore()
+    configs = _ConfigStore()
+    messages: dict[tuple[str, str], str] = {}
+    tools: dict[str, list[str]] = {}
+    workspaces: dict[str, Path] = {}
+    replacements: dict[str, dict[str, str]] = {}
+    compiled_record = {
+        "state": "compiled",
+        "detail": (
+            "compiled from the current suite sources and the selected"
+            " guidance bundle"
+        ),
+    }
+    families = sorted({scenario.project_family for scenario in SCENARIOS})
+    family_scenario = {scenario.project_family: scenario for scenario in SCENARIOS}
+    efforts: dict[str, set[str]] = {}
+    for scenario in SCENARIOS:
+        for provider, effort in expected_producer_cells(scenario):
+            efforts.setdefault(provider, set()).add(effort)
+    for family in families:
+        scenario = family_scenario[family]
+        factory = TaskGuidanceWorkspaceFactory(scenario=scenario, bundle=bundle)
+        providers = sorted(
+            {provider for provider, _ in expected_producer_cells(scenario)}
+        )
+        for provider in providers:
+            profile = PROFILES[provider]
+            with tempfile.TemporaryDirectory() as tmp:
+                # Resolve symlinks (macOS /var → /private/var) so the
+                # normalization map matches the path the environment
+                # embeds into the compiled message.
+                workspace = (Path(tmp) / "workspace").resolve()
+                factory(workspace)
+                compiled = _compile_system_message_for_workspace(
+                    profile=profile,
+                    effort=sorted(efforts[provider])[0],
+                    bundle=bundle,
+                    workspace=workspace,
+                    artifact_root=artifact_root,
+                    run_label=f"definitions-{provider}-{family}",
+                )
+            if compiled is None:
+                raise RuntimeError(
+                    f"system-message compilation returned no content for"
+                    f" {provider} in family {family}"
+                )
+            body, active_tools = compiled
+            message_replacements = _path_replacements(workspace)
+            record = system_messages.add(
+                key=provider,
+                text=apply_replacements(body, message_replacements),
+                original_sha256=sha256_text(body),
+                availability_record=compiled_record,
+                source="compiled-from-suite-sources",
+            )
+            messages[(provider, family)] = record["path"]
+            tools[provider] = active_tools
+            workspaces[provider] = workspace
+            replacements[provider] = message_replacements
+
+    assessor_factory = AssessmentWorkspaceFactory()
+    with tempfile.TemporaryDirectory() as tmp:
+        assessor_workspace = (Path(tmp) / "workspace").resolve()
+        assessor_factory(assessor_workspace)
+        compiled = _compile_system_message_for_workspace(
+            profile=PROFILES["glm"],
+            effort="max",
+            bundle=bundle,
+            workspace=assessor_workspace,
+            artifact_root=artifact_root,
+            run_label="definitions-assessor",
+            include_tasks=False,
+        )
+    if compiled is None:
+        raise RuntimeError("assessor system-message compilation returned no content")
+    assessor_body, assessor_tools = compiled
+    assessor_replacements = _path_replacements(assessor_workspace)
+    assessor_record = system_messages.add(
+        key="glm-assessor",
+        text=apply_replacements(assessor_body, assessor_replacements),
+        original_sha256=sha256_text(assessor_body),
+        availability_record=compiled_record,
+        source="compiled-from-suite-sources",
+    )
+    tools["assessor"] = assessor_tools
+
+    config_paths: dict[str, str] = {}
+    for provider in sorted(workspaces):
+        profile = PROFILES[provider]
+        for effort in sorted(efforts[provider]):
+            key = f"{provider}-{effort}"
+            config_paths[key] = configs.add(
+                key,
+                _effective_config_view(
+                    profile=profile,
+                    effort=effort,
+                    workspace=workspaces[provider],
+                    artifact_root=artifact_root,
+                    replacements=replacements[provider],
+                ),
+            )
+    config_paths["glm-assessor-max"] = configs.add(
+        "glm-assessor-max",
+        _effective_config_view(
+            profile=PROFILES["glm"],
+            effort="max",
+            workspace=assessor_workspace,
+            artifact_root=artifact_root,
+            replacements=assessor_replacements,
+            include_tasks=False,
+        ),
+    )
+    files = [(file.relative_path, file.content) for file in system_messages.files()]
+    files += [(file.relative_path, file.content) for file in configs.files()]
+    return {
+        "files": files,
+        "messages": messages,
+        "assessor_message": assessor_record["path"],
+        "tools": tools,
+        "config_paths": config_paths,
+    }
+
+
+def _scenario_export_files(
+    scenario, delivery: Mapping[str, Any], *, bundle: Path
+) -> list[tuple[str, str]]:
+    scenario_id = scenario.scenario_id
+    files: list[tuple[str, str]] = [
+        (
+            f"{scenario_id}/target.md",
+            f"# Reviewed target — {scenario_id}\n\n"
+            + "\n".join(_target_markdown(scenario.target)).rstrip()
+            + "\n",
+        ),
+        (f"{scenario_id}/prompt.md", scenario.prompt.rstrip() + "\n"),
+    ]
+    if scenario.category == "handoff":
+        variants = ["retain", "omit"]
+        if scenario_id == NEGATIVE_CONTROL_SCENARIO:
+            variants.append("incomplete")
+        for variant in variants:
+            source = CanonicalHandoffWorkspaceFactory(
+                scenario=scenario, variant=variant, bundle=bundle
+            ).source_path
+            files.append(
+                (
+                    f"{scenario_id}/handoffs/{variant}.md",
+                    source.read_text(encoding="utf-8"),
+                )
+            )
+    files.append(
+        (
+            f"{scenario_id}/task-creation/input.md",
+            _stage_input_markdown(
+                scenario,
+                delivery,
+                stage="task-creation",
+                page=f"{scenario_id}/task-creation/input.md",
+                intro=(
+                    "The producer stage asks the model to turn the natural"
+                    " request into task files in the prepared workspace."
+                ),
+                extra=[
+                    "- Prompt: [prompt.md](../prompt.md)",
+                    "- Reviewed target: [target.md](../target.md)",
+                ],
+            ),
+        )
+    )
+    if scenario.category == "handoff":
+        for variant, stage, note in (
+            (
+                "retain",
+                "plan-retain",
+                "The fresh planning stage hands the retained-Draft canonical"
+                " handoff task file to a new agent and asks for the"
+                " implementation plan.",
+            ),
+            (
+                "omit",
+                "plan-omit",
+                "The fresh planning stage hands the Draft-omitted canonical"
+                " handoff task file to a new agent and asks for the"
+                " implementation plan.",
+            ),
+        ):
+            files.append(
+                (
+                    f"{scenario_id}/{stage}/input.md",
+                    _stage_input_markdown(
+                        scenario,
+                        delivery,
+                        stage=stage,
+                        page=f"{scenario_id}/{stage}/input.md",
+                        intro=note,
+                        extra=[
+                            "- Canonical handoff task file:"
+                            f" [../handoffs/{variant}.md]"
+                            f"(../handoffs/{variant}.md) — written to"
+                            " `tasks/` in the workspace",
+                            "- Prompt:"
+                            " [handoff-plan-prompt.md]"
+                            "(../../templates/handoff-plan-prompt.md)",
+                            "- Reviewed target: [target.md](../target.md)",
+                        ],
+                    ),
+                )
+            )
+        files.append(
+            (
+                f"{scenario_id}/continuation/input.md",
+                _stage_input_markdown(
+                    scenario,
+                    delivery,
+                    stage="continuation",
+                    page=f"{scenario_id}/continuation/input.md",
+                    intro=(
+                        "The same-agent continuation adds the plan prompt as"
+                        " a new user turn to the inherited producer session;"
+                        " the workspace and the delivered instructions are"
+                        " the producer run's."
+                    ),
+                    extra=[
+                        "- Inherits: the producer run's session and"
+                        " workspace; the delivered instructions are the"
+                        " producer's compiled system message",
+                        "- New user turn:"
+                        " [handoff-plan-prompt.md]"
+                        "(../../templates/handoff-plan-prompt.md)",
+                        "- Reviewed target: [target.md](../target.md)",
+                    ],
+                ),
+            )
+        )
+        if scenario_id == NEGATIVE_CONTROL_SCENARIO:
+            files.append(
+                (
+                    f"{scenario_id}/control/input.md",
+                    _stage_input_markdown(
+                        scenario,
+                        delivery,
+                        stage="control",
+                        page=f"{scenario_id}/control/input.md",
+                        intro=(
+                            "The negative control hands the intentionally"
+                            " incomplete canonical handoff task file to a"
+                            " fresh agent; a sound plan must flag the gaps"
+                            " instead of inventing scope."
+                        ),
+                        extra=[
+                            "- Canonical handoff task file:"
+                            " [../handoffs/incomplete.md]"
+                            "(../handoffs/incomplete.md) — written to"
+                            " `tasks/` in the workspace",
+                            "- Prompt:"
+                            " [handoff-plan-prompt.md]"
+                            "(../../templates/handoff-plan-prompt.md)",
+                            "- Reviewed target: [target.md](../target.md)",
+                        ],
+                    ),
+                )
+            )
+    assessments = [("task-creation", "task-creation")]
+    if scenario.category == "handoff":
+        assessments.append(("handoff", "handoff"))
+    for name, template in assessments:
+        template_note = (
+            "task-creation-assessment-prompt.md"
+            if name == "task-creation"
+            else "handoff-assessment-prompt.md"
+        )
+        files.append(
+            (
+                f"{scenario_id}/assessment/{name}/input.md",
+                _assessment_input_markdown(
+                    scenario,
+                    delivery,
+                    name=name,
+                    page=f"{scenario_id}/assessment/{name}/input.md",
+                    template_note=template_note,
+                ),
+            )
+        )
+    return files
+
+
+def _stage_input_markdown(
+    scenario,
+    delivery: Mapping[str, Any],
+    *,
+    stage: str,
+    page: str,
+    intro: str,
+    extra: Sequence[str],
+) -> str:
+    """Render one stage input page in the session-header format."""
+
+    scenario_id = scenario.scenario_id
+    cells = expected_producer_cells(scenario)
+    models = " · ".join(
+        f"{PROFILES[provider].model} ({provider} {effort})"
+        for provider, effort in cells
+    )
+    instructions = " · ".join(
+        f"[{provider}]"
+        f"({_link(delivery['messages'][(provider, scenario.project_family)], page)})"
+        for provider, _ in cells
+    )
+    config_links = " · ".join(
+        f"[{provider}-{effort}]"
+        f"({_link(delivery['config_paths'][f'{provider}-{effort}'], page)})"
+        for provider, effort in cells
+    )
+    tools = " · ".join(
+        f"{provider}: {', '.join(delivery['tools'][provider])}" for provider, _ in cells
+    )
+    project = scenario.target.get("project") or {}
+    lines = [
+        f"# Input — {scenario_id} · {stage}",
+        "",
+        intro,
+        "",
+        f"- Models: {models}",
+        f"- Tools: {tools}",
+        f"- Delivered instructions: {instructions}",
+        f"- Config: {config_links}",
+        "- Workspace: this repository's history at"
+        f" `{BASE_REVISION}` (checkout content not included); the producer"
+        " working tree is replaced by the files below",
+        "- Fixture project:"
+        f" {project.get('name', 'unknown')} —"
+        f" {project.get('upstream', 'unknown')}"
+        f" @ `{project.get('revision', 'unknown')}`"
+        f" → [fixture files]({_link(f'shared/included-files/fixtures/{scenario.fixture_id}', page)})",
+        "- Guidance:"
+        f" [AGENTS.md, documentation, lock]({_link(f'shared/included-files/guidance/{scenario.project_family}', page)})",
+        *extra,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _assessment_input_markdown(
+    scenario,
+    delivery: Mapping[str, Any],
+    *,
+    name: str,
+    page: str,
+    template_note: str,
+) -> str:
+    """Render one assessment input page in the session-header format."""
+
+    scenario_id = scenario.scenario_id
+    assessor = PROFILES["glm"]
+    lines = [
+        f"# Input — {scenario_id} · {name} assessment",
+        "",
+        "The assessor judges the scenario's runs against the reviewed"
+        " target. Per-evaluation records are substituted into the prompt"
+        " template's $placeholders; the exact prompts and responses live in"
+        " the result packages.",
+        "",
+        f"- Assessor: {assessor.model} (glm max)",
+        f"- Tools: {', '.join(delivery['tools']['assessor'])}",
+        "- Delivered instructions:"
+        f" [glm-assessor]({_link(delivery['assessor_message'], page)})",
+        "- Config:"
+        f" [glm-assessor-max]({_link(delivery['config_paths']['glm-assessor-max'], page)})",
+        "- Workspace: this repository's history at"
+        f" `{BASE_REVISION}` plus a"
+        f" [README stub]({_link('shared/included-files/assessment/README.md', page)})",
+        f"- Prompt template: [{template_note}](../../../templates/{template_note})",
+        "- Reviewed target: [target.md](../../target.md)",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _scenarios_index_text(*, bundle: Path) -> str:
     lines = [
         "# Task-guidance evaluation scenarios",
         "",
-        "Scenario definitions for the task-guidance evaluation suite,"
-        " generated from the suite sources in"
+        "Scenario definitions and stage inputs for the task-guidance"
+        " evaluation suite, generated from the suite sources in"
         " `maintainer/agent-evaluation/suites/task_guidance/`"
-        " (`result_package.py extract-scenarios`).",
+        " (`result_package.py extract-scenarios`) with the guidance bundle"
+        f" `{bundle.relative_to(REPOSITORY_ROOT)}`.",
         "",
         "These definitions may change between evaluations; git tracks their"
         " evolution here while each result package under `../results/`"
         " freezes its own copies of the material it was produced with.",
+        "",
+        "## Shared inputs",
+        "",
+        "| Material | Contents |",
+        "|---|---|",
+        "| [configs](shared/configs/) | sanitized effective configurations"
+        " per profile |",
+        "| [system-messages](shared/system-messages/) | compiled delivered"
+        " instructions per provider and project family |",
+        "| [included-files](shared/included-files/) | every file added to"
+        " the workspaces: fixture projects, guidance compilation,"
+        " assessor stub |",
         "",
         "## Prompt templates",
         "",
         "| Template | Used by |",
         "|---|---|",
         "| [handoff-plan-prompt.md](templates/handoff-plan-prompt.md) |"
-        " fresh planning agents in handoff scenarios |",
+        " fresh planning agents and same-agent continuations |",
         "| [task-creation-assessment-prompt.md]"
         "(templates/task-creation-assessment-prompt.md) |"
         " task-creation semantic assessor |",
@@ -271,23 +785,33 @@ def extract_scenarios(*, output_dir: Path) -> Path:
         "",
         "## Scenarios",
         "",
-        "| Scenario | Reviewed target | Producer prompt |",
-        "|---|---|---|",
+        "| Scenario | Reviewed target | Producer prompt | Stage inputs |",
+        "|---|---|---|---|",
     ]
     for scenario in SCENARIOS:
         scenario_id = scenario.scenario_id
+        stages = ["task-creation"]
+        if scenario.category == "handoff":
+            stages.extend(["plan-retain", "plan-omit", "continuation"])
+            if scenario_id == NEGATIVE_CONTROL_SCENARIO:
+                stages.append("control")
+        stage_links = " · ".join(
+            f"[{stage}]({scenario_id}/{stage}/input.md)" for stage in stages
+        )
+        assessment_links = [
+            f"[task-creation]({scenario_id}/assessment/task-creation/input.md)"
+        ]
+        if scenario.category == "handoff":
+            assessment_links.append(
+                f"[handoff]({scenario_id}/assessment/handoff/input.md)"
+            )
         lines.append(
             f"| `{scenario_id}`"
             f" | [target]({scenario_id}/target.md)"
-            f" | [prompt]({scenario_id}/prompt.md) |"
+            f" | [prompt]({scenario_id}/prompt.md)"
+            f" | {stage_links} · assessments: {' · '.join(assessment_links)} |"
         )
-    files.append(("index.md", "\n".join(lines) + "\n"))
-
-    for relative, content in sorted(files):
-        target = output_dir / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-    return output_dir
+    return "\n".join(lines) + "\n"
 
 
 def _generated_note(note: str) -> str:
@@ -329,6 +853,7 @@ def collect(
                     "attempts": frozen["attempts"],
                     "status": frozen["status"],
                     "semantic_quality": frozen["semantic_quality"],
+                    "assessment_details": _assessment_details(frozen),
                     "invalid_records": [
                         {"group": group, "record": record}
                         for group in (
@@ -678,7 +1203,7 @@ def _collect_cell(
 
     producer = _find(frozen["producer_records"], scenario_id, profile, effort)
     producer_run_dir = discovery[f"producer_records:{scenario_id}:{profile}:{effort}"]
-    _collect_run(
+    _, producer_instructions = _collect_run(
         KIND_TASK_CREATION,
         producer,
         subdir=None,
@@ -761,6 +1286,7 @@ def _collect_cell(
             task_files=same_agent.get("task_files") or {},
             lineage=True,
             reconstruct=False,
+            inherited_instructions=producer_instructions,
         )
 
     negative = _find_variant(
@@ -853,7 +1379,9 @@ def _collect_run(
     reconstruct: bool = True,
     system_message_key: str | None = None,
     config_key: str | None = None,
-) -> dict[str, Any]:
+    inherited_instructions: Mapping[str, Any] | None = None,
+    config_include_tasks: bool = True,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     run_prefix = cell_prefix if subdir is None else f"{cell_prefix}/{subdir}"
     run_id = run_dir.name
     session_path = run_dir / "raw" / "environment" / "crystal-lattice-session.json"
@@ -922,6 +1450,27 @@ def _collect_run(
         replacements=replacements,
         reconstruct=reconstruct,
     )
+    if (
+        instructions["text"] is None
+        and inherited_instructions is not None
+        and inherited_instructions.get("text") is not None
+    ):
+        # A same-agent continuation inherits the producer's session, so its
+        # delivered instructions are the producer's compiled system message
+        # even though the continuation's own saved session retained no text.
+        producer_state = inherited_instructions["availability"]["state"]
+        instructions = {
+            "text": inherited_instructions["text"],
+            "original_sha256": inherited_instructions["original_sha256"],
+            "availability": availability(
+                "inherited",
+                detail=(
+                    "inherited from the cell's producer run, whose delivered"
+                    f" instructions are {producer_state}"
+                ),
+            ),
+            "source": "inherited-from-producer-run",
+        }
     system_message = (
         system_messages.add(
             key=system_message_key or profile.name,
@@ -941,6 +1490,7 @@ def _collect_run(
             workspace=workspace,
             artifact_root=artifact_root,
             replacements=replacements,
+            include_tasks=config_include_tasks,
         ),
     )
 
@@ -998,8 +1548,7 @@ def _collect_run(
                 content=render_session_markdown(
                     review,
                     title=(
-                        f"{scenario.scenario_id} · {kind} ·"
-                        f" {profile.name} {effort}"
+                        f"{scenario.scenario_id} · {kind} ·" f" {profile.name} {effort}"
                     ),
                     context=context,
                 ),
@@ -1057,7 +1606,7 @@ def _collect_run(
             content=render_json_text(run_record),
         )
     )
-    return run_record
+    return run_record, instructions
 
 
 def _stage_instructions(
@@ -1127,12 +1676,13 @@ def _stage_instructions(
                 "source": "recompiled-from-preserved-sources",
             }
     detail = (
-        "saved session retains no system message and no delivery hash was"
-        " recorded"
+        "saved session retains no system message and no delivery hash was" " recorded"
         if not expected_hash
-        else "reconstruction was not run for this stage"
-        if not reconstruct
-        else "reconstruction failed or was not applicable"
+        else (
+            "reconstruction was not run for this stage"
+            if not reconstruct
+            else "reconstruction failed or was not applicable"
+        )
     )
     return {
         "text": None,
@@ -1167,75 +1717,110 @@ def _reconstruct_compiled_message(
         created = factory(workspace)
         if created != workspace:
             return None
-        runtime_config = _runtime_config_root(
-            bundle=dataset.bundle, artifact_root=artifact_root
-        )
-        projected = _project_config_for_profile(
-            runtime_config / "config.json",
-            artifact_root=artifact_root,
+        compiled = _compile_system_message_for_workspace(
             profile=profile,
+            effort=effort,
+            bundle=dataset.bundle,
+            workspace=workspace,
+            artifact_root=artifact_root,
+            run_label=f"reconstruct-{run_dir.name}",
         )
-        environment = WorkspaceAwareEnvironment.from_config(
-            projected,
-            environment={
-                "CONFIG_DIR": str(runtime_config),
-                "CHATGPT_TEST_STATE_DIR": str(
-                    Path(
-                        os.getenv(
-                            "CHATGPT_TEST_STATE_DIR",
-                            str(Path.home() / ".crystal"),
-                        )
-                    ).expanduser()
-                ),
-                "BUILTIN_PLUGINS": str(REPOSITORY_ROOT / "plugins"),
-                "PIP_CONSTRAINT": str(
-                    PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
-                ),
-                "OLLAMA_OPENAI_BASE_URL": os.getenv(
-                    "OLLAMA_OPENAI_BASE_URL", "http://localhost:11434/v1"
-                ),
-            },
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            from agent_eval.services import (
-                ArtifactWriter,
-                EvidenceJournal,
-                RunServices,
-            )
-
-            services = RunServices(
-                run_id=f"reconstruct-{run_dir.name}",
-                name="reconstruct",
-                artifact_dir=Path(tmp),
-                workspace=workspace,
-                parent=None,
-                evidence=EvidenceJournal(),
-                artifacts=ArtifactWriter(Path(tmp) / "artifacts"),
-            )
-            with environment.open(
-                services=services, workspace=workspace, parent_snapshot=None
-            ) as context:
-                context.start(profile.agent_id)
-                context.config.update(
-                    profile.request_overrides(workspace, reasoning_effort=effort)
-                )
-                _reload_context_with_defaults(context)
-                effective = context.effective_config()
-                _, result = context.core.execute_session_action(
-                    context.session,
-                    effective,
-                    plugin_id="system_message",
-                    action_id="show_compiled_system_message",
-                    params={},
-                )
-                body = result.get("display", {}).get("body")
-                if not isinstance(body, str):
-                    return None
-                return body
+        return None if compiled is None else compiled[0]
     except Exception:
         return None
     finally:
         factory.cleanup(workspace)
+
+
+def _compile_system_message_for_workspace(
+    *,
+    profile,
+    effort: str,
+    bundle: Path,
+    workspace: Path,
+    artifact_root: Path,
+    run_label: str,
+    include_tasks: bool = True,
+) -> tuple[str, list[str]] | None:
+    """Compile the delivered system message for one prepared workspace.
+
+    Runs the production system-message action inside the projected runtime
+    environment — no model request is made. Returns the compiled message and
+    the active tool names; raises on failure so callers decide policy.
+    """
+
+    runtime_config = _runtime_config_root(bundle=bundle, artifact_root=artifact_root)
+    projected = _project_config_for_profile(
+        runtime_config / "config.json",
+        artifact_root=artifact_root,
+        profile=profile,
+    )
+    environment = WorkspaceAwareEnvironment.from_config(
+        projected,
+        environment={
+            "CONFIG_DIR": str(runtime_config),
+            "CHATGPT_TEST_STATE_DIR": str(
+                Path(
+                    os.getenv(
+                        "CHATGPT_TEST_STATE_DIR",
+                        str(Path.home() / ".crystal"),
+                    )
+                ).expanduser()
+            ),
+            "BUILTIN_PLUGINS": str(REPOSITORY_ROOT / "plugins"),
+            "PIP_CONSTRAINT": str(PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"),
+            "OLLAMA_OPENAI_BASE_URL": os.getenv(
+                "OLLAMA_OPENAI_BASE_URL", "http://localhost:11434/v1"
+            ),
+        },
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        from agent_eval.services import (
+            ArtifactWriter,
+            EvidenceJournal,
+            RunServices,
+        )
+
+        services = RunServices(
+            run_id=run_label,
+            name="compile",
+            artifact_dir=Path(tmp),
+            workspace=workspace,
+            parent=None,
+            evidence=EvidenceJournal(),
+            artifacts=ArtifactWriter(Path(tmp) / "artifacts"),
+        )
+        with environment.open(
+            services=services, workspace=workspace, parent_snapshot=None
+        ) as context:
+            context.start(profile.agent_id)
+            context.config.update(
+                profile.request_overrides(
+                    workspace,
+                    reasoning_effort=effort,
+                    include_tasks=include_tasks,
+                )
+            )
+            _reload_context_with_defaults(context)
+            effective = context.effective_config()
+            _, result = context.core.execute_session_action(
+                context.session,
+                effective,
+                plugin_id="system_message",
+                action_id="show_compiled_system_message",
+                params={},
+            )
+            body = result.get("display", {}).get("body")
+            if not isinstance(body, str):
+                return None
+            active = context.core.get_plugins_for_config(effective)
+            tools = [
+                str(tool)
+                for tool in (
+                    active.get("tools", []) if isinstance(active, Mapping) else []
+                )
+            ]
+            return body, tools
 
 
 def _effective_config_view(
@@ -1245,6 +1830,7 @@ def _effective_config_view(
     workspace: Path,
     artifact_root: Path,
     replacements: Mapping[str, str],
+    include_tasks: bool = True,
 ) -> dict[str, Any]:
     projected_path = artifact_root / "projected-config" / f"{profile.name}-v1.json"
     projected = (
@@ -1252,7 +1838,9 @@ def _effective_config_view(
         if projected_path.is_file()
         else {}
     )
-    overrides = profile.request_overrides(workspace, reasoning_effort=effort)
+    overrides = profile.request_overrides(
+        workspace, reasoning_effort=effort, include_tasks=include_tasks
+    )
     return project_effective_config_view(
         {
             "agent_id": profile.agent_id,
@@ -1369,7 +1957,7 @@ def _collect_assessment_record(
     run_prefix = f"scenarios/{scenario_id}/assessment/{name}"
     profile = PROFILES["glm"]
     effort = "max"
-    run_record = _collect_run(
+    run_record, _ = _collect_run(
         f"{name}-assessment",
         record,
         subdir=None,
@@ -1389,6 +1977,7 @@ def _collect_assessment_record(
         reconstruct=False,
         system_message_key="glm-assessor",
         config_key=f"glm-assessor-{effort}",
+        config_include_tasks=False,
     )
     results_page = f"{run_prefix}/results.md"
     files.append(
@@ -1569,9 +2158,7 @@ def _judgment_markdown(assessment: Mapping[str, Any]) -> list[str]:
         for occurrence in item.get("occurrences") or ():
             paths = ", ".join(f"`{path}`" for path in occurrence.get("task_paths", ()))
             suffix = f" ({paths})" if paths else ""
-            lines.append(
-                f"- **{dimension}**: {occurrence.get('description')}{suffix}"
-            )
+            lines.append(f"- **{dimension}**: {occurrence.get('description')}{suffix}")
     missing = assessment.get("missing_outcomes") or []
     if missing:
         lines.append(
@@ -1644,6 +2231,113 @@ def _yes_no(value: Any) -> str:
     return "yes" if value else "no"
 
 
+def _handoff_stage_dir(*, variant: Any, stage: Any) -> str | None:
+    """Map one handoff judgment to the stage directory it is about."""
+
+    if stage == "same-agent":
+        return "continuation"
+    return {
+        "retain": "plan-retain",
+        "omit": "plan-omit",
+        "incomplete": "control",
+    }.get(variant)
+
+
+def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Project per-assessment judgment details for the matrix views.
+
+    The cohort aggregates explain *which* assessments produced them; these
+    rows carry the individual judgment values, the path of the readable
+    rendering, and the run or stage directory each judgment is about.
+    """
+
+    task_creation: list[dict[str, Any]] = []
+    for record in frozen.get("semantic_records", ()):
+        scenario_id = record.get("scenario_id")
+        for assessment in (record.get("assessment") or {}).get("assessments", ()):
+            if not isinstance(assessment, Mapping):
+                continue
+            producer = assessment.get("producer") or {}
+            metrics = assessment.get("quality_metrics") or {}
+            cell = f"{producer.get('profile')}-{producer.get('reasoning_effort')}"
+            task_creation.append(
+                {
+                    "kind": "task-creation",
+                    "scenario_id": scenario_id,
+                    "profile": producer.get("profile"),
+                    "reasoning_effort": producer.get("reasoning_effort"),
+                    "overall_success_percentage": assessment.get(
+                        "overall_success_percentage"
+                    ),
+                    "dimensions": {
+                        name: {
+                            "status": (metrics.get(name) or {}).get("status"),
+                            "score": (metrics.get(name) or {}).get("score"),
+                        }
+                        for name in QUALITY_DIMENSIONS
+                    },
+                    "run_path": f"scenarios/{scenario_id}/{cell}",
+                    "results_path": (
+                        f"scenarios/{scenario_id}"
+                        "/assessment/task-creation/results.md"
+                    ),
+                }
+            )
+    handoff: list[dict[str, Any]] = []
+    for record in frozen.get("handoff_semantic_records", ()):
+        scenario_id = record.get("scenario_id")
+        for assessment in (record.get("assessment") or {}).get("assessments", ()):
+            if not isinstance(assessment, Mapping):
+                continue
+            producer = assessment.get("producer") or {}
+            cell = f"{producer.get('profile')}-{producer.get('reasoning_effort')}"
+            stage_dir = _handoff_stage_dir(
+                variant=assessment.get("variant"), stage=assessment.get("stage")
+            )
+            run_path = (
+                f"scenarios/{scenario_id}/{cell}/{stage_dir}"
+                if stage_dir
+                else f"scenarios/{scenario_id}/{cell}"
+            )
+            handoff.append(
+                {
+                    "kind": "handoff",
+                    "scenario_id": scenario_id,
+                    "variant": assessment.get("variant"),
+                    "stage": assessment.get("stage"),
+                    "profile": producer.get("profile"),
+                    "reasoning_effort": producer.get("reasoning_effort"),
+                    "handoff_quality_score": assessment.get("handoff_quality_score"),
+                    "plan_coverage": assessment.get("plan_coverage"),
+                    "task_self_contained": assessment.get("task_self_contained"),
+                    "broad_rediscovery": assessment.get("broad_rediscovery"),
+                    "documentation_boundary": assessment.get("documentation_boundary"),
+                    "testing_boundary": assessment.get("testing_boundary"),
+                    "run_path": run_path,
+                    "results_path": (
+                        f"scenarios/{scenario_id}/assessment/handoff/results.md"
+                    ),
+                }
+            )
+    task_creation.sort(
+        key=lambda row: (
+            row["scenario_id"] or "",
+            row["profile"] or "",
+            row["reasoning_effort"] or "",
+        )
+    )
+    handoff.sort(
+        key=lambda row: (
+            row["scenario_id"] or "",
+            row["variant"] or "",
+            row["stage"] or "",
+            row["profile"] or "",
+            row["reasoning_effort"] or "",
+        )
+    )
+    return task_creation + handoff
+
+
 def _build_index_views(records: PackageRecords) -> list[GeneratedView]:
     aggregate = records.collected_json("aggregate.json")
     identity = dict(records.identity)
@@ -1686,8 +2380,9 @@ def _build_index_views(records: PackageRecords) -> list[GeneratedView]:
             "- Historical GLM runs saved no provider usage metadata; their"
             " usage and estimated cost remain unknown.",
             "- GPT same-agent continuation runs recorded no compiled-message"
-            " hash, so their delivered instructions stay unavailable rather"
-            " than reconstructed without verification.",
+            " hash; their delivered instructions are inherited from the"
+            " producer run's verified message instead of reconstructed"
+            " independently.",
             "- Session transcripts omit full tool-result content and"
             " encrypted reasoning; concise failure excerpts are retained.",
         ]
@@ -1696,12 +2391,12 @@ def _build_index_views(records: PackageRecords) -> list[GeneratedView]:
         GeneratedView(relative_path="index.md", content="\n".join(lines) + "\n"),
         GeneratedView(
             relative_path="matrix.md",
-            content=_matrix_markdown(aggregate),
+            content=_matrix_markdown(records, aggregate),
         ),
     ]
 
 
-def _matrix_markdown(aggregate: Mapping[str, Any]) -> str:
+def _matrix_markdown(records: PackageRecords, aggregate: Mapping[str, Any]) -> str:
     """Render the status matrix from the committed aggregate record."""
 
     groups: dict[str, list[Mapping[str, Any]]] = {
@@ -1713,7 +2408,7 @@ def _matrix_markdown(aggregate: Mapping[str, Any]) -> str:
         group = entry.get("group")
         if group in groups:
             groups[group].append(entry["record"])
-    return render_summary(
+    summary = render_summary(
         {
             "label": aggregate["label"],
             "attempts": aggregate["attempts"],
@@ -1722,11 +2417,144 @@ def _matrix_markdown(aggregate: Mapping[str, Any]) -> str:
             "producer_records": groups["producer_records"],
             "handoff_records": groups["handoff_records"],
             "same_agent_records": groups["same_agent_records"],
-            "provider_blocker_records": aggregate.get(
-                "provider_blocker_records", []
-            ),
+            "provider_blocker_records": aggregate.get("provider_blocker_records", []),
         }
     )
+    sections = [summary.rstrip()]
+    sections.extend(_matrix_detail_sections(aggregate))
+    sections.extend(_per_scenario_section(records))
+    return "\n\n".join(sections) + "\n"
+
+
+def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
+    """Explain every cohort row: one detail row per individual judgment."""
+
+    details = aggregate.get("assessment_details", ())
+    task_rows = [row for row in details if row.get("kind") == "task-creation"]
+    handoff_rows = [row for row in details if row.get("kind") == "handoff"]
+    sections: list[str] = []
+    if task_rows:
+        header = (
+            "| Scenario | Producer | Overall | Fragmentation | Phase-only |"
+            " Layer split | Evidence reownership | Dependency safety |"
+            " Production crossing | Run | Judgment |"
+        )
+        lines = [
+            "## Task-creation semantic detail",
+            "",
+            "One row per judgment. Each cohort row above is the average of"
+            " its rows here; dimension cells read `status (score)`.",
+            "",
+            header,
+            "|---|---|---:|---|---|---|---|---|---|---|---|",
+        ]
+        for row in task_rows:
+            producer = f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip()
+            dimensions = " | ".join(
+                _dimension_cell(row.get("dimensions", {}).get(name))
+                for name in QUALITY_DIMENSIONS
+            )
+            overall = row.get("overall_success_percentage")
+            overall_text = "—" if overall is None else f"{overall:g}"
+            run_path = row.get("run_path") or ""
+            run_link = (
+                f"[{run_path.rstrip('/').rsplit('/', 1)[-1]}]"
+                f"({_link(run_path, 'matrix.md')})"
+                if run_path
+                else "—"
+            )
+            lines.append(
+                f"| `{row.get('scenario_id')}` | {producer} | {overall_text}"
+                f" | {dimensions} | {run_link} |"
+                f" [results]({_link(row['results_path'], 'matrix.md')}) |"
+            )
+        sections.append("\n".join(lines))
+    if handoff_rows:
+        lines = [
+            "## Handoff semantic detail",
+            "",
+            "One row per judgment, across plan variants and stages.",
+            "",
+            "| Scenario | Variant | Stage | Producer | Handoff quality |"
+            " Plan coverage | Self-contained | Broad rediscovery |"
+            " Documentation | Testing | Run | Judgment |",
+            "|---|---|---|---|---:|---|---|---|---|---|---|---|",
+        ]
+        for row in handoff_rows:
+            producer = f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip()
+            score = row.get("handoff_quality_score")
+            score_text = "—" if score is None else f"{score}"
+            run_path = row.get("run_path") or ""
+            run_link = (
+                f"[{run_path.rstrip('/').rsplit('/', 1)[-1]}]"
+                f"({_link(run_path, 'matrix.md')})"
+                if run_path
+                else "—"
+            )
+            lines.append(
+                f"| `{row.get('scenario_id')}` | {row.get('variant')}"
+                f" | {row.get('stage')} | {producer} | {score_text}"
+                f" | {row.get('plan_coverage')}"
+                f" | {_yes_no(row.get('task_self_contained'))}"
+                f" | {_yes_no(row.get('broad_rediscovery'))}"
+                f" | {row.get('documentation_boundary')}"
+                f" | {row.get('testing_boundary')} | {run_link} |"
+                f" [results]({_link(row['results_path'], 'matrix.md')}) |"
+            )
+        sections.append("\n".join(lines))
+    return sections
+
+
+def _dimension_cell(metric: Mapping[str, Any] | None) -> str:
+    if not metric:
+        return "—"
+    status = metric.get("status")
+    score = metric.get("score")
+    if status is None:
+        return "—"
+    return f"{status} ({score})" if score is not None else str(status)
+
+
+def _per_scenario_section(records: PackageRecords) -> list[str]:
+    """Link every scenario's cells and assessment renderings."""
+
+    cells: dict[str, set[str]] = {}
+    assessments: dict[str, set[str]] = {}
+    for path in records.collected_paths:
+        parts = path.split("/")
+        if len(parts) == 4 and parts[0] == "scenarios" and parts[3] == "run.json":
+            if parts[2] != "assessment":
+                cells.setdefault(parts[1], set()).add(parts[2])
+        elif (
+            len(parts) == 5
+            and parts[0] == "scenarios"
+            and parts[2] == "assessment"
+            and parts[4] == "results.md"
+        ):
+            assessments.setdefault(parts[1], set()).add(parts[3])
+    if not cells and not assessments:
+        return []
+    lines = [
+        "## Per-scenario results",
+        "",
+        "| Scenario | Cells | Task-creation judgment | Handoff judgment |",
+        "|---|---|---|---|",
+    ]
+    for scenario_id in sorted(set(cells) | set(assessments)):
+        cell_links = " · ".join(
+            f"[{cell}](scenarios/{scenario_id}/{cell}/index.md)"
+            for cell in sorted(cells.get(scenario_id, ()))
+        )
+        assessment_links = {
+            name: f"[results](scenarios/{scenario_id}/assessment/{name}/results.md)"
+            for name in sorted(assessments.get(scenario_id, ()))
+        }
+        lines.append(
+            f"| `{scenario_id}` | {cell_links or '—'}"
+            f" | {assessment_links.get('task-creation', '—')}"
+            f" | {assessment_links.get('handoff', '—')} |"
+        )
+    return ["\n".join(lines)]
 
 
 def _build_case_views(records: PackageRecords) -> list[GeneratedView]:
@@ -1879,9 +2707,7 @@ def _cell_views(
         path = f"scenarios/{scenario_id}/assessment/{name}/results.md"
         if path in records.collected_paths:
             lines.append(f"- [{title}]({_link(path, page)})")
-    return [
-        GeneratedView(relative_path=page, content="\n".join(lines) + "\n")
-    ]
+    return [GeneratedView(relative_path=page, content="\n".join(lines) + "\n")]
 
 
 def _subdir_for(kind: str) -> str:
@@ -1900,10 +2726,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     scenarios_parser = commands.add_parser(
         "extract-scenarios",
         help="write the scenario definitions export (targets, prompts,"
-        " prompt templates)",
+        " templates, shared inputs, stage inputs)",
+    )
+    scenarios_parser.add_argument("--output", type=Path, default=DEFAULT_SCENARIOS_ROOT)
+    scenarios_parser.add_argument(
+        "--bundle",
+        type=Path,
+        default=DEFAULT_BUNDLE,
+        help="guidance bundle the shared inputs are generated from",
     )
     scenarios_parser.add_argument(
-        "--output", type=Path, default=DEFAULT_SCENARIOS_ROOT
+        "--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT
     )
 
     collect_parser = commands.add_parser(
@@ -1935,7 +2768,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     if args.command == "extract-scenarios":
-        output = extract_scenarios(output_dir=args.output.expanduser().resolve())
+        output = extract_scenarios(
+            output_dir=args.output.expanduser().resolve(),
+            bundle=args.bundle.expanduser().resolve(),
+            artifact_root=args.artifact_root.expanduser().resolve(),
+        )
         print(output)
         return 0
     if args.command == "collect":
