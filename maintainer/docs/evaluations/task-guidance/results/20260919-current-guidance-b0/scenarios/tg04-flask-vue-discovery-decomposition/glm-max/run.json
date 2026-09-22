@@ -1,0 +1,26 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260919T153657.620350Z-task-guidance-tg04-flask-vue-discovery-decomposition-max-3ecbd698",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "f5519f3e5ad31940fc426cdab0830d0fb65367980610b5436b0e66e514a15005",
+    "original_sha256": "c6cc3e82b44bcb8af10fa33d437646a28c0fd131045171270eb31f7213d00895",
+    "path": "shared/system-messages/glm-f5519f3e5ad3.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-books-page-discovery/000-main.md",
+    "task-files/tasks/20260919-books-page-discovery/010-server-discovery-query.md",
+    "task-files/tasks/20260919-books-page-discovery/020-books-page-discovery-controls.md",
+    "task-files/tasks/20260919-books-page-discovery/030-url-discovery-state.md"
+  ],
+  "valid": true
+}

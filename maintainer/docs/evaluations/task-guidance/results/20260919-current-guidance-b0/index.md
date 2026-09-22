@@ -15,12 +15,12 @@ This package preserves the completed evaluation's reviewed inputs, model outputs
 
 ## Scenarios
 
-- [`tg01-eleventy-archive-handoff`](cases/tg01-eleventy-archive-handoff/index.md)
-- [`tg02-fastapi-pagination-handoff`](cases/tg02-fastapi-pagination-handoff/index.md)
-- [`tg03-flask-vue-refresh-handoff`](cases/tg03-flask-vue-refresh-handoff/index.md)
-- [`tg04-flask-vue-discovery-decomposition`](cases/tg04-flask-vue-discovery-decomposition/index.md)
-- [`tg05-fastapi-multi-consumer-decomposition`](cases/tg05-fastapi-multi-consumer-decomposition/index.md)
-- [`tg06-eleventy-author-migration-decomposition`](cases/tg06-eleventy-author-migration-decomposition/index.md)
+- [`tg01-eleventy-archive-handoff`](scenarios/tg01-eleventy-archive-handoff/index.md)
+- [`tg02-fastapi-pagination-handoff`](scenarios/tg02-fastapi-pagination-handoff/index.md)
+- [`tg03-flask-vue-refresh-handoff`](scenarios/tg03-flask-vue-refresh-handoff/index.md)
+- [`tg04-flask-vue-discovery-decomposition`](scenarios/tg04-flask-vue-discovery-decomposition/index.md)
+- [`tg05-fastapi-multi-consumer-decomposition`](scenarios/tg05-fastapi-multi-consumer-decomposition/index.md)
+- [`tg06-eleventy-author-migration-decomposition`](scenarios/tg06-eleventy-author-migration-decomposition/index.md)
 
 ## Known limitations
 

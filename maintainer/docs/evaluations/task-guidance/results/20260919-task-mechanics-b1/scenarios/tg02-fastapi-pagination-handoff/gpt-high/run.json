@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260919T223250.587663Z-task-guidance-tg02-fastapi-pagination-handoff-high-efad6140",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "900ec1942094e0d0ac855fa2ec5e5147821acc754854908ab60c5918285f61fd",
+    "original_sha256": "225db8cce15d016d1c40ae305118464e4d3ab8efb732432711977b7a902e9a0a",
+    "path": "shared/system-messages/gpt-900ec1942094.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260920-notes-pagination.md"
+  ],
+  "valid": true
+}
