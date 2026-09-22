@@ -6,17 +6,29 @@ result package using the shared ``agent_eval.result_packages`` support and the
 Crystal Lattice review projection. Collection never invokes a producer,
 handoff, continuation, or assessor model.
 
-The package is review-first. Each run directory holds a concise full-session
-Markdown transcript (prompt and response included verbatim as conversation
-turns), the generated task files, and one slim ``run.json`` metadata record.
-Each scenario holds the exact assessor prompt and one readable rendering of
-the assessment results. Shared directories hold the full sanitized effective
-config and the compiled system messages, each committed once and referenced
-by every run. Only the manifest, run records, the aggregate status record,
-configs, and the report configuration are machine-readable.
+The package is review-first and self-contained. Each run directory — subject
+runs and assessor runs alike — holds a concise full-session Markdown
+transcript (prompt and response included verbatim as conversation turns, with
+header links to the effective config and delivered instructions), the generated
+task files, and one slim ``run.json`` metadata record. Assessor run
+directories additionally hold ``results.md``, the readable rendering of the
+judgments. Each scenario holds a self-contained copy of its reviewed target.
+Shared directories hold the full sanitized effective configs and the compiled
+system messages, each committed once and referenced by every run; system
+messages are named by provider and content hash. Only the manifest, run
+records, the aggregate status record, configs, and the report configuration
+are machine-readable.
+
+The scenario definitions (targets, prompts, and the fixed prompt templates)
+are exported separately by ``extract-scenarios`` into the ``scenarios/``
+documentation tree; git tracks their evolution between evaluations while each
+result package freezes its own copies. The two exports do not reference each
+other.
 
 Commands:
 
+- ``extract-scenarios`` writes the scenario definitions export from the suite
+  sources;
 - ``collect`` writes the committed package records from the frozen dataset
   and raw runs, reconstructing GPT system messages from the preserved runtime
   sources with SHA-256 verification;
@@ -63,7 +75,11 @@ from agent_eval.result_packages import (  # noqa: E402
 
 from .artifacts import record_paths  # noqa: E402
 from .fixtures import TaskGuidanceWorkspaceFactory  # noqa: E402
-from .handoffs import CanonicalHandoffWorkspaceFactory  # noqa: E402
+from .handoff_semantic import HANDOFF_ASSESSMENT_PROMPT_TEMPLATE  # noqa: E402
+from .handoffs import (  # noqa: E402
+    PLAN_PROMPT,
+    CanonicalHandoffWorkspaceFactory,
+)
 from .results import (  # noqa: E402
     _handoff_identity,
     _producer_identity,
@@ -77,7 +93,10 @@ from .runner import (  # noqa: E402
     _runtime_config_root,
 )
 from .scenarios import SCENARIOS  # noqa: E402
-from .semantic import QUALITY_DIMENSIONS  # noqa: E402
+from .semantic import (  # noqa: E402
+    QUALITY_DIMENSIONS,
+    TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE,
+)
 
 SUITE_ROOT = PACKAGE_ROOT / "suites" / "task_guidance"
 DEFAULT_ARTIFACT_ROOT = REPOSITORY_ROOT / "tmp" / "agent-evaluation" / "task-guidance"
@@ -90,8 +109,16 @@ DEFAULT_PACKAGES_ROOT = (
     / "task-guidance"
     / "results"
 )
+DEFAULT_SCENARIOS_ROOT = (
+    REPOSITORY_ROOT
+    / "maintainer"
+    / "docs"
+    / "evaluations"
+    / "task-guidance"
+    / "scenarios"
+)
 REPORT_CONFIG_SOURCE = SUITE_ROOT / "result_report_config.toml"
-GENERATOR_VERSION = "task-guidance-result-package-v2"
+GENERATOR_VERSION = "task-guidance-result-package-v3"
 
 PRODUCER_RECORD = "task-guidance-producer.json"
 HANDOFF_RECORD = "task-guidance-handoff-plan.json"
@@ -157,6 +184,114 @@ def _dirname(path: str) -> str:
 
 def _link(target: str, page: str) -> str:
     return relpath(target, _dirname(page))
+
+
+def extract_scenarios(*, output_dir: Path) -> Path:
+    """Write the scenario definitions export from the suite sources.
+
+    The export holds the evaluation's scenario definitions — reviewed
+    targets, exact producer prompts, and the fixed prompt templates — in a
+    form meant for human review. Scenario definitions may change between
+    evaluations; git tracks the evolution of this tree while each result
+    package freezes its own copies of the material it was produced with.
+    """
+
+    files: list[tuple[str, str]] = []
+    files.append(
+        (
+            "templates/handoff-plan-prompt.md",
+            _generated_note(
+                "Fixed instruction sent to a fresh planning agent together with"
+                " a task file; asks for the Draft implementation plan without"
+                " modifying files."
+            )
+            + PLAN_PROMPT
+            + "\n",
+        )
+    )
+    files.append(
+        (
+            "templates/task-creation-assessment-prompt.md",
+            _generated_note(
+                "Fixed instruction part of the task-creation semantic"
+                " assessment prompt. Per-evaluation material is substituted"
+                " into the $placeholders: $scenario_id, $target_json,"
+                " $prompt, $records_json."
+            )
+            + TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE.template,
+        )
+    )
+    files.append(
+        (
+            "templates/handoff-assessment-prompt.md",
+            _generated_note(
+                "Fixed instruction part of the handoff semantic assessment"
+                " prompt. Per-evaluation material is substituted into the"
+                " $placeholders: $scenario_id, $target_json, $records_json."
+            )
+            + HANDOFF_ASSESSMENT_PROMPT_TEMPLATE.template,
+        )
+    )
+    for scenario in SCENARIOS:
+        scenario_id = scenario.scenario_id
+        files.append(
+            (
+                f"{scenario_id}/target.md",
+                f"# Reviewed target — {scenario_id}\n\n"
+                + "\n".join(_target_markdown(scenario.target)).rstrip()
+                + "\n",
+            )
+        )
+        files.append((f"{scenario_id}/prompt.md", scenario.prompt.rstrip() + "\n"))
+
+    lines = [
+        "# Task-guidance evaluation scenarios",
+        "",
+        "Scenario definitions for the task-guidance evaluation suite,"
+        " generated from the suite sources in"
+        " `maintainer/agent-evaluation/suites/task_guidance/`"
+        " (`result_package.py extract-scenarios`).",
+        "",
+        "These definitions may change between evaluations; git tracks their"
+        " evolution here while each result package under `../results/`"
+        " freezes its own copies of the material it was produced with.",
+        "",
+        "## Prompt templates",
+        "",
+        "| Template | Used by |",
+        "|---|---|",
+        "| [handoff-plan-prompt.md](templates/handoff-plan-prompt.md) |"
+        " fresh planning agents in handoff scenarios |",
+        "| [task-creation-assessment-prompt.md]"
+        "(templates/task-creation-assessment-prompt.md) |"
+        " task-creation semantic assessor |",
+        "| [handoff-assessment-prompt.md]"
+        "(templates/handoff-assessment-prompt.md) |"
+        " handoff semantic assessor |",
+        "",
+        "## Scenarios",
+        "",
+        "| Scenario | Reviewed target | Producer prompt |",
+        "|---|---|---|",
+    ]
+    for scenario in SCENARIOS:
+        scenario_id = scenario.scenario_id
+        lines.append(
+            f"| `{scenario_id}`"
+            f" | [target]({scenario_id}/target.md)"
+            f" | [prompt]({scenario_id}/prompt.md) |"
+        )
+    files.append(("index.md", "\n".join(lines) + "\n"))
+
+    for relative, content in sorted(files):
+        target = output_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    return output_dir
+
+
+def _generated_note(note: str) -> str:
+    return f"<!-- {note} -->\n\n"
 
 
 def collect(
@@ -464,6 +599,17 @@ def _collect_scenario(
     files: list[CollectedFile],
 ) -> None:
     scenario_id = scenario.scenario_id
+    target = _record_for(frozen["producer_records"], scenario_id)["target"]
+    files.append(
+        CollectedFile(
+            relative_path=f"scenarios/{scenario_id}/target.md",
+            content=(
+                f"# Reviewed target — {scenario_id}\n\n"
+                + "\n".join(_target_markdown(target)).rstrip()
+                + "\n"
+            ),
+        )
+    )
     cells = _cells_for(frozen, scenario_id)
     for cell_key in sorted(cells):
         profile, effort = cell_key.split("-", 1)
@@ -527,7 +673,7 @@ def _collect_cell(
     files: list[CollectedFile],
 ) -> None:
     scenario_id = scenario.scenario_id
-    cell_prefix = f"cases/{scenario_id}/{cell_key}"
+    cell_prefix = f"scenarios/{scenario_id}/{cell_key}"
     model_profile = PROFILES[profile]
 
     producer = _find(frozen["producer_records"], scenario_id, profile, effort)
@@ -705,7 +851,9 @@ def _collect_run(
     task_files: Mapping[str, str],
     lineage: bool = False,
     reconstruct: bool = True,
-) -> None:
+    system_message_key: str | None = None,
+    config_key: str | None = None,
+) -> dict[str, Any]:
     run_prefix = cell_prefix if subdir is None else f"{cell_prefix}/{subdir}"
     run_id = run_dir.name
     session_path = run_dir / "raw" / "environment" / "crystal-lattice-session.json"
@@ -776,7 +924,7 @@ def _collect_run(
     )
     system_message = (
         system_messages.add(
-            key=f"{profile.name}-{effort}",
+            key=system_message_key or profile.name,
             text=instructions["text"],
             original_sha256=instructions["original_sha256"],
             availability_record=instructions["availability"],
@@ -786,7 +934,7 @@ def _collect_run(
         else {"availability": instructions["availability"], "source": None}
     )
     config_path = configs.add(
-        f"{profile.name}-{effort}",
+        config_key or f"{profile.name}-{effort}",
         _effective_config_view(
             profile=profile,
             effort=effort,
@@ -819,9 +967,10 @@ def _collect_run(
     if review is not None:
         session_page = f"{run_prefix}/session.md"
         instructions_state = instructions["availability"]["state"]
+        instructions_label = system_message_key or f"{profile.name}-{effort}"
         if system_message.get("path"):
             instructions_note = (
-                f"[{profile.name}-{effort}]"
+                f"[{instructions_label}]"
                 f"({_link(system_message['path'], session_page)})"
                 f" — {instructions_state}"
                 f" (original SHA-256 `{system_message['original_sha256'][:16]}…`)"
@@ -840,7 +989,8 @@ def _collect_run(
             context["Tools"] = tools
         context["Delivered instructions"] = instructions_note
         context["Config"] = (
-            f"[{profile.name}-{effort}]({_link(config_path, session_page)})"
+            f"[{config_key or f'{profile.name}-{effort}'}]"
+            f"({_link(config_path, session_page)})"
         )
         files.append(
             CollectedFile(
@@ -886,8 +1036,6 @@ def _collect_run(
     run_record: dict[str, Any] = {
         "run_id": run_id,
         "kind": kind,
-        "valid": record.get("valid"),
-        "invalid_reasons": record.get("invalid_reasons", []),
         "provider": profile.name,
         "model": profile.model,
         "reasoning_effort": effort,
@@ -895,6 +1043,9 @@ def _collect_run(
         "config": config_path,
         "task_files": exported_task_files,
     }
+    if "valid" in record or record.get("invalid_reasons"):
+        run_record["valid"] = record.get("valid")
+        run_record["invalid_reasons"] = record.get("invalid_reasons", [])
     if lineage:
         run_record["lineage"] = {
             "parent_run_id": parent_run_id,
@@ -906,6 +1057,7 @@ def _collect_run(
             content=render_json_text(run_record),
         )
     )
+    return run_record
 
 
 def _stage_instructions(
@@ -1142,43 +1294,35 @@ def _collect_assessment(
     files: list[CollectedFile],
 ) -> None:
     scenario_id = scenario.scenario_id
-    prefix = f"cases/{scenario_id}/assessment"
-    target = _record_for(frozen["producer_records"], scenario_id)["target"]
     semantic = _semantic_for(frozen["semantic_records"], scenario_id)
     if semantic is not None:
-        run_dir = discovery[f"semantic_records:{scenario_id}"]
         _collect_assessment_record(
-            prefix,
             name="task-creation",
             title="Task-creation semantic assessment",
             record=semantic,
-            target=target,
-            run_dir=run_dir,
+            run_dir=discovery[f"semantic_records:{scenario_id}"],
+            scenario=scenario,
             dataset=dataset,
             artifact_root=artifact_root,
             system_messages=system_messages,
             configs=configs,
             runs=runs,
             files=files,
-            scenario=scenario,
         )
     handoff_semantic = _semantic_for(frozen["handoff_semantic_records"], scenario_id)
     if handoff_semantic is not None:
-        run_dir = discovery[f"handoff_semantic_records:{scenario_id}"]
         _collect_assessment_record(
-            prefix,
             name="handoff",
             title="Handoff semantic assessment",
             record=handoff_semantic,
-            target=target,
-            run_dir=run_dir,
+            run_dir=discovery[f"handoff_semantic_records:{scenario_id}"],
+            scenario=scenario,
             dataset=dataset,
             artifact_root=artifact_root,
             system_messages=system_messages,
             configs=configs,
             runs=runs,
             files=files,
-            scenario=scenario,
         )
 
 
@@ -1201,95 +1345,66 @@ def _semantic_for(
 
 
 def _collect_assessment_record(
-    prefix: str,
     *,
     name: str,
     title: str,
     record: Mapping[str, Any],
-    target: Mapping[str, Any],
     run_dir: Path,
+    scenario,
     dataset: DatasetSpec,
     artifact_root: Path,
     system_messages: _SystemMessageStore,
     configs: _ConfigStore,
     runs: list[dict[str, Any]],
     files: list[CollectedFile],
-    scenario,
 ) -> None:
-    session_path = run_dir / "raw" / "environment" / "crystal-lattice-session.json"
-    session = (
-        json.loads(session_path.read_text(encoding="utf-8"))
-        if session_path.is_file()
-        else None
-    )
-    prompt = None
-    if session is not None:
-        for message in session.get("messages", []):
-            if message.get("role") == "user" and prompt is None:
-                prompt = message.get("content")
-    if prompt is not None:
-        files.append(
-            CollectedFile(
-                relative_path=f"{prefix}/{name}-prompt.md",
-                content=str(prompt),
-            )
-        )
+    """Collect one assessor run with the same shape as a subject run.
 
+    The assessor run directory holds ``run.json`` and the full session
+    transcript (exact prompt and raw response) exactly like a subject run,
+    plus ``results.md`` — the readable rendering of the judgments.
+    """
+
+    scenario_id = scenario.scenario_id
+    run_prefix = f"scenarios/{scenario_id}/assessment/{name}"
     profile = PROFILES["glm"]
     effort = "max"
-    result_summary = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
-    workspace = Path(str(result_summary["workspace"]))
-    replacements = _path_replacements(workspace)
-    instructions = _stage_instructions(
+    run_record = _collect_run(
+        f"{name}-assessment",
         record,
-        session=session,
-        profile=profile,
-        effort=effort,
+        subdir=None,
+        run_dir=run_dir,
         scenario=scenario,
         dataset=dataset,
+        profile=profile,
+        effort=effort,
         factory=None,
-        workspace=workspace,
-        run_dir=run_dir,
         artifact_root=artifact_root,
-        replacements=replacements,
+        system_messages=system_messages,
+        configs=configs,
+        runs=runs,
+        files=files,
+        cell_prefix=run_prefix,
+        task_files={},
         reconstruct=False,
+        system_message_key="glm-assessor",
+        config_key=f"glm-assessor-{effort}",
     )
-    system_message = (
-        system_messages.add(
-            key="glm-assessor-max",
-            text=instructions["text"],
-            original_sha256=instructions["original_sha256"],
-            availability_record=instructions["availability"],
-            source=instructions["source"],
-        )
-        if instructions["text"] is not None
-        else {"availability": instructions["availability"], "source": None}
-    )
-    config_path = configs.add(
-        "glm-assessor-max",
-        _effective_config_view(
-            profile=profile,
-            effort=effort,
-            workspace=workspace,
-            artifact_root=artifact_root,
-            replacements=replacements,
-        ),
-    )
-
-    results_page = f"{prefix}/{name}-results.md"
+    results_page = f"{run_prefix}/results.md"
     files.append(
         CollectedFile(
             relative_path=results_page,
             content=_assessment_results_markdown(
                 title=title,
+                kind=name,
                 record=record,
-                target=target,
+                target_path=f"scenarios/{scenario_id}/target.md",
                 assessor={
-                    "run_id": run_dir.name,
-                    "model": profile.model,
-                    "reasoning_effort": effort,
-                    "config_path": config_path,
-                    "system_message": system_message,
+                    "run_id": run_record["run_id"],
+                    "model": run_record["model"],
+                    "reasoning_effort": run_record["reasoning_effort"],
+                    "config_path": run_record["config"],
+                    "system_message": run_record["system_message"],
                 },
                 page=results_page,
                 rubric_note=(
@@ -1307,30 +1422,14 @@ def _collect_assessment_record(
             ),
         )
     )
-    runs.append(
-        {
-            "run_id": run_dir.name,
-            "label": f"{scenario.scenario_id} {name} glm {effort}",
-            "provider": "glm",
-            "model": profile.model,
-            "reasoning_effort": effort,
-            "usage": {
-                "availability": availability(
-                    "unavailable",
-                    detail="saved session contains no provider usage metadata",
-                )
-            },
-            "kind": f"{name}-assessment",
-            "scenario_id": scenario.scenario_id,
-        }
-    )
 
 
 def _assessment_results_markdown(
     *,
     title: str,
+    kind: str,
     record: Mapping[str, Any],
-    target: Mapping[str, Any],
+    target_path: str,
     assessor: Mapping[str, Any],
     page: str,
     rubric_note: str,
@@ -1354,11 +1453,23 @@ def _assessment_results_markdown(
     else:
         state = (system_message.get("availability") or {}).get("state")
         lines.append(f"- Assessor system message: **{state}**")
-    lines.extend([rubric_note, "", "## Reviewed target", ""])
-    lines.extend(_target_markdown(target))
-    lines.extend(["", "## Judgments", ""])
+    lines.extend(
+        [
+            "- Full transcript: [session.md](session.md) — includes the exact"
+            " prompt and the raw response",
+            f"- Reviewed target: [{target_path.split('/')[-2]}]"
+            f"({_link(target_path, page)})",
+            rubric_note,
+            "",
+            "## Judgments",
+            "",
+        ]
+    )
     for assessment in (record.get("assessment") or {}).get("assessments", ()):
-        if "handoff_quality_score" in assessment:
+        # The judgment schema follows the assessment kind, not field presence:
+        # task-creation responses legitimately carry a handoff_quality_score
+        # field because the prompt's JSON shape includes it.
+        if kind == "handoff":
             lines.extend(_handoff_judgment_markdown(assessment))
         else:
             lines.extend(_judgment_markdown(assessment))
@@ -1562,11 +1673,11 @@ def _build_index_views(records: PackageRecords) -> list[GeneratedView]:
         {
             path.split("/")[1]
             for path in records.collected_paths
-            if path.startswith("cases/")
+            if path.startswith("scenarios/")
         }
     )
     for scenario_id in scenario_ids:
-        lines.append(f"- [`{scenario_id}`](cases/{scenario_id}/index.md)")
+        lines.append(f"- [`{scenario_id}`](scenarios/{scenario_id}/index.md)")
     lines.extend(
         [
             "",
@@ -1624,7 +1735,7 @@ def _build_case_views(records: PackageRecords) -> list[GeneratedView]:
         {
             path.split("/")[1]
             for path in records.collected_paths
-            if path.startswith("cases/")
+            if path.startswith("scenarios/")
         }
     )
     for scenario_id in scenario_ids:
@@ -1633,9 +1744,11 @@ def _build_case_views(records: PackageRecords) -> list[GeneratedView]:
 
 
 def _scenario_views(records: PackageRecords, scenario_id: str) -> list[GeneratedView]:
-    prefix = f"cases/{scenario_id}"
+    prefix = f"scenarios/{scenario_id}"
     lines = [
         f"# Scenario `{scenario_id}`",
+        "",
+        "- [Reviewed target](target.md)",
         "",
         "## Cells",
         "",
@@ -1660,9 +1773,12 @@ def _scenario_views(records: PackageRecords, scenario_id: str) -> list[Generated
         ("task-creation", "Task-creation semantic assessment"),
         ("handoff", "Handoff semantic assessment"),
     ):
-        if f"{prefix}/assessment/{name}-results.md" in records.collected_paths:
-            lines.append(f"- [{title}](assessment/{name}-results.md)")
-            lines.append(f"  - [Exact assessor prompt](assessment/{name}-prompt.md)")
+        if f"{prefix}/assessment/{name}/results.md" in records.collected_paths:
+            lines.append(f"- [{title}](assessment/{name}/results.md)")
+            lines.append(
+                f"  - [Assessor session](assessment/{name}/session.md) —"
+                " exact prompt and raw response"
+            )
     views = [
         GeneratedView(
             relative_path=f"{prefix}/index.md",
@@ -1677,7 +1793,7 @@ def _scenario_views(records: PackageRecords, scenario_id: str) -> list[Generated
 def _cell_runs(
     records: PackageRecords, scenario_id: str, cell_key: str
 ) -> list[dict[str, Any]]:
-    prefix = f"cases/{scenario_id}/{cell_key}"
+    prefix = f"scenarios/{scenario_id}/{cell_key}"
     run_paths = [
         path
         for path in records.collected_paths
@@ -1701,8 +1817,8 @@ def _cell_runs(
 def _cell_views(
     records: PackageRecords, scenario_id: str, cell_key: str
 ) -> list[GeneratedView]:
-    page = f"cases/{scenario_id}/{cell_key}/index.md"
-    prefix = f"cases/{scenario_id}/{cell_key}"
+    page = f"scenarios/{scenario_id}/{cell_key}/index.md"
+    prefix = f"scenarios/{scenario_id}/{cell_key}"
     runs = _cell_runs(records, scenario_id, cell_key)
     producer = runs[0] if runs else {}
     lines = [
@@ -1760,7 +1876,7 @@ def _cell_views(
         ("task-creation", "Task-creation semantic results"),
         ("handoff", "Handoff semantic results"),
     ):
-        path = f"cases/{scenario_id}/assessment/{name}-results.md"
+        path = f"scenarios/{scenario_id}/assessment/{name}/results.md"
         if path in records.collected_paths:
             lines.append(f"- [{title}]({_link(path, page)})")
     return [
@@ -1780,6 +1896,15 @@ def _subdir_for(kind: str) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+
+    scenarios_parser = commands.add_parser(
+        "extract-scenarios",
+        help="write the scenario definitions export (targets, prompts,"
+        " prompt templates)",
+    )
+    scenarios_parser.add_argument(
+        "--output", type=Path, default=DEFAULT_SCENARIOS_ROOT
+    )
 
     collect_parser = commands.add_parser(
         "collect", help="collect a durable result package"
@@ -1809,6 +1934,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     check_parser.add_argument("--package", type=Path, required=True)
 
     args = parser.parse_args(argv)
+    if args.command == "extract-scenarios":
+        output = extract_scenarios(output_dir=args.output.expanduser().resolve())
+        print(output)
+        return 0
     if args.command == "collect":
         dataset = DATASETS[args.dataset]
         frozen = args.frozen or dataset.frozen_results

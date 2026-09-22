@@ -239,35 +239,67 @@ the generic `agent_eval` kernel.
   `projected-config/`, and the guidance sources have not changed since the
   runs, so hash-verified reconstruction of GPT system messages is plausible.
 
-## Proposed result package
+## Approved result and scenario layout
+
+September 22, 2026: after reviewing both generated packages, the user approved
+a structure revision with two separate exports. The word "case" is dropped
+entirely in favor of the suite's own vocabulary ("scenario", "cell").
 
 ```text
-maintainer/docs/evaluations/task-guidance/results/
-└── 20260919-task-mechanics-b1/
-    ├── index.md
-    ├── manifest.json
-    ├── matrix.md
-    ├── matrix.json
-    ├── costs.md
-    ├── costs.csv
-    ├── report-config.toml
-    ├── shared/
-    │   ├── configs/
-    │   └── system-messages/
-    └── cases/
-        └── <scenario-id>/
+maintainer/docs/evaluations/task-guidance/
+├── scenarios/                                # definitions export (extract-scenarios)
+│   ├── index.md
+│   ├── templates/                            # suite-level prompt templates
+│   │   ├── handoff-plan-prompt.md
+│   │   ├── task-creation-assessment-prompt.md
+│   │   └── handoff-assessment-prompt.md
+│   └── <scenario-id>/
+│       ├── target.md                         # readable reviewed target
+│       └── prompt.md                         # exact producer prompt
+│
+└── results/
+    └── <evaluation>/
+        ├── index.md  matrix.md  costs.md  costs.csv
+        ├── manifest.json  aggregate.json  report-config.toml
+        ├── shared/
+        │   ├── configs/                      # <profile>-<effort>.json, glm-assessor-max.json
+        │   └── system-messages/              # <provider>-<sha>.md, glm-assessor-<sha>.md
+        └── scenarios/<scenario-id>/
+            ├── target.md                     # self-contained copy (duplicated from
+            │                                 #   scenarios/ export by design)
             ├── index.md
-            └── <model-effort>/
-                ├── index.md
-                ├── cell.json
-                ├── input/
-                ├── stages/
-                └── assessment/
+            ├── assessment/
+            │   ├── task-creation/            # assessor runs, same shape as cell runs
+            │   │   ├── run.json
+            │   │   ├── session.md            # exact prompt + raw response transcript
+            │   │   └── results.md            # readable judgment rendering
+            │   └── handoff/{run.json, session.md, results.md}
+            └── <cell>/
+                ├── index.md  run.json  session.md  task-files/
+                └── plan-retain/  plan-omit/  continuation/  control/
 ```
 
-The suite adapter determines the contents and names under `stages/`. A
-task-creation run may export task files; a future plan-to-task evaluation may
-export separate plan, task-creation, and fresh-agent-plan stages.
+Approved decisions for this revision:
+
+- The two exports are fully independent: packages are self-contained and do
+  not cross-reference the scenarios export. The only natural cross-reference
+  (the reviewed target next to judgments) is resolved by an in-package
+  `target.md` copy; every prompt already sits verbatim in its session
+  transcript. The manifest keeps covering in-package files only.
+- Scenario definitions may change between evaluations; git tracks their
+  evolution in the scenarios export while each package freezes its own copies.
+- System messages are named `<provider>-<content-sha>.md` (assessor:
+  `glm-assessor-<sha>.md`) — no effort component, because the compiled message
+  never depends on effort (12 files per package collapse to 7). Configs keep
+  `<profile>-<effort>.json` because they genuinely differ by effort.
+- Assessment runs get the same structure as subject runs: `run.json` plus a
+  full `session.md` transcript (header with config and system-message links,
+  exact prompt as the user turn, raw JSON response as the assistant turn,
+  usage line) with `results.md` as the readable rendering. Separate
+  `*-prompt.md` files and the `assessment_result/` split are dropped.
+- The continuation prompt template is not extracted to the scenarios export
+  (the instruction is visible in each continuation session); the results
+  package index does not link to the scenarios export.
 
 ## Open questions
 
@@ -443,12 +475,18 @@ from fixture ownership, and remove the old fixture result copies.
 - [x] Implement the task-guidance result adapter and report configuration.
 - [x] Export the representative GPT-xhigh book-discovery cell (human review
   pending).
-- [ ] Adjust the package schema/config after human review.
+- [x] Adjust the package schema/config after human review.
 - [x] Generate the complete task-mechanics candidate package without model
   requests.
 - [x] Generate the current-guidance package with the same structure.
 - [x] Verify task files, selected identities, scores, prompts, and run-level
   usage/cost against saved records.
+- [x] Restructure to the approved scenarios/results layout: extract the
+  scenarios definitions export, profile-hash system-message naming,
+  assessment runs with session transcripts, in-package target copies, and
+  self-contained packages without cross-references.
+- [x] Regenerate both packages under the approved layout and re-verify parity,
+  determinism, checks, and secret safety.
 - [ ] Update evaluation indexes, reports, running guidance, and package docs.
 - [ ] Replace completed-result suite fixtures with synthetic test data.
 - [ ] Remove the old task-guidance fixture result copies after parity and link
@@ -602,3 +640,56 @@ from fixture ownership, and remove the old fixture result copies.
   task-creation assessments (handoff quality score, plan coverage, lost and
   invented facts, rediscovery and boundary judgments). The results renderer
   now dispatches per schema with its own rubric note.
+- September 22, 2026 (structure revision, user-approved): after reviewing the
+  generated packages the user requested and approved the scenarios/results
+  layout recorded above. Sharing analysis that shaped it: configs, targets,
+  producer prompts, assessor system message, and assessor prompt templates are
+  byte-identical between b0 and b1; compiled subject system messages differ
+  between the evaluations (the guidance bundle is the evaluated variable) and
+  never depend on effort (12 files per package held only 6 distinct contents).
+  The user confirmed the raw assessor response stays in the assessment
+  session transcript, the continuation template is not extracted, and package
+  indexes do not link to the scenarios export. The two milestone commits
+  (`a1b0b0c0` implementation, `f92f2e55` packages) predate this revision;
+  the restructure supersedes the committed package layout.
+- Implemented the approved restructure (generator version
+  `task-guidance-result-package-v3`). The two assessment prompt builders were
+  refactored into `string.Template` constants plus substitution builders;
+  byte-identity was proven by rendering all 18 prompts (both datasets, both
+  assessment kinds) before and after the refactor and diffing against the
+  committed v2 prompt files (9/9 b1 prompts matched the builders exactly once
+  the negative-control records were included in the handoff input). The new
+  `extract-scenarios` command writes the scenarios definitions export (16
+  files, 68 KB) from the suite sources; `collect` now uses the
+  `scenarios/<scenario>/` layout, profile+hash system-message names (7 files
+  per package instead of 13), assessor runs collected through the same run
+  path as subject runs (`run.json` + full `session.md` transcript with config
+  and system-message links, plus `results.md`), and per-scenario in-package
+  `target.md` copies; the separate assessment prompt files and the embedded
+  target rendering are gone.
+- Bug found and fixed during re-verification: the v2 results renderer
+  dispatched judgment schemas by field presence (`handoff_quality_score in
+  assessment`), but every task-creation response legitimately carries that
+  field because the prompt's JSON shape includes it — so all 12 committed
+  v2 task-creation results pages were misrendered with the handoff judgment
+  renderer and lost their dimension tables, occurrence lists, and overall
+  headings. The renderer now dispatches on the explicit assessment kind, and
+  the v3 packages render the six-dimension tables correctly. The earlier v2
+  parity check had compared headings too weakly to catch this; the new
+  verification asserts the exact heading and every dimension row against the
+  frozen records.
+- Verification for the restructured packages: parity 0 problems (run
+  inventory per kind, run ids, verbatim prompts and responses in all subject
+  and assessor transcripts against the raw sessions, task-file bytes,
+  task-creation judgment headings plus all six dimension rows and occurrence
+  descriptions, handoff judgment headings, invalid-record surfacing, package
+  target copies against the frozen targets, scenarios export against the
+  suite definitions, 7 profile-prefixed system-message files, no stale
+  `cases/` paths); byte-identical end-to-end re-collection of b1; package
+  checks pass on both; secret scan over 482 files finds no credential values
+  (70 `<redacted>` placeholders; home-directory paths occur only in
+  model-produced text kept verbatim, matching the already-committed frozen
+  datasets); 148 agent-evaluation tests and 60 suite tests pass; captured
+  cost totals are unchanged ($1.6482838 b1, $1.7769892 b0, 46 runs each).
+  One pre-existing test (`test_frozen_candidate_datasets_are_complete`) is
+  CWD-sensitive and passes from the repository root.
