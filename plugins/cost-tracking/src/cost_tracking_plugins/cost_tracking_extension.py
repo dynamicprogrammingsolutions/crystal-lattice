@@ -116,24 +116,42 @@ class CostTrackingExtension(ProviderExtensionPlugin):
         context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         _ = context
+        mode = config.get("total_usage_breakdown") if isinstance(config, dict) else None
+        if mode not in ("none", "totals", "averages"):
+            mode = "none"
+
+        # The config element is always contributed (like the duration
+        # plugin's "Show duration" setting) so the choice stays editable in
+        # the UI even when the status bar elements are gated off.
+        elements: List[Dict[str, Any]] = [
+            {
+                "ui_type": "config",
+                "type": "select",
+                "key": "total_usage_breakdown",
+                "label": "Total usage breakdown",
+                "description": (
+                    "Show the session cost breakdown as separate status " "bar fields."
+                ),
+                "options": [
+                    {"value": "none", "label": "None"},
+                    {"value": "totals", "label": "Totals"},
+                    {"value": "averages", "label": "Averages"},
+                ],
+                "default": mode,
+            }
+        ]
+
         if isinstance(config, dict) and config.get("show_cost_status_total") is False:
-            return []
+            return elements
 
         # The total footer element is unchanged and always first; the
         # platform renders status bar elements in this list order.
-        elements: List[Dict[str, Any]] = [
+        elements.append(
             self._status_bar_element(
                 "metadata.cost_session_total_formatted", "Total: {{data}}"
             )
-        ]
-
-        mode = config.get("total_usage_breakdown") if isinstance(config, dict) else None
-        if mode not in ("totals", "averages"):
-            return elements
-
-        requests_element = self._status_bar_element(
-            "metadata.cost_session_requests_formatted", "requests: {{data}}"
         )
+
         if mode == "totals":
             elements.extend(
                 self._status_bar_element(
@@ -142,9 +160,17 @@ class CostTrackingExtension(ProviderExtensionPlugin):
                 )
                 for key, label in self._BREAKDOWN_ITEM_LABELS
             )
-            elements.append(requests_element)
-        else:
-            elements.append(requests_element)
+            elements.append(
+                self._status_bar_element(
+                    "metadata.cost_session_requests_formatted", "requests: {{data}}"
+                )
+            )
+        elif mode == "averages":
+            elements.append(
+                self._status_bar_element(
+                    "metadata.cost_session_requests_formatted", "requests: {{data}}"
+                )
+            )
             elements.append(
                 self._status_bar_element(
                     "metadata.cost_session_average_cost_formatted",

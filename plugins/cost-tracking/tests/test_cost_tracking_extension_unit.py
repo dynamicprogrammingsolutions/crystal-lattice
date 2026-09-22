@@ -107,15 +107,42 @@ def _breakdown_element(data_path: str, template: str) -> Dict[str, Any]:
     }
 
 
+def _config_element(default: str = "none") -> Dict[str, Any]:
+    return {
+        "ui_type": "config",
+        "type": "select",
+        "key": "total_usage_breakdown",
+        "label": "Total usage breakdown",
+        "description": (
+            "Show the session cost breakdown as separate status bar fields."
+        ),
+        "options": [
+            {"value": "none", "label": "None"},
+            {"value": "totals", "label": "Totals"},
+            {"value": "averages", "label": "Averages"},
+        ],
+        "default": default,
+    }
+
+
 def test_status_bar_element_and_gate() -> None:
     ext = CostTrackingExtension()
 
-    # Default (none) keeps the total footer unchanged.
-    assert ext.get_ui_elements(config={}) == [_total_element()]
+    # The config element is always contributed; default (none) keeps the
+    # total footer unchanged.
+    assert ext.get_ui_elements(config={}) == [_config_element(), _total_element()]
     assert ext.get_ui_elements(config={"total_usage_breakdown": "none"}) == [
-        _total_element()
+        _config_element(),
+        _total_element(),
     ]
-    assert ext.get_ui_elements(config={"show_cost_status_total": False}) == []
+    # Gating the status bar keeps the config setting editable in the UI.
+    assert ext.get_ui_elements(config={"show_cost_status_total": False}) == [
+        _config_element()
+    ]
+    # The config element's default reflects the current choice.
+    assert ext.get_ui_elements(config={"total_usage_breakdown": "averages"})[0] == (
+        _config_element(default="averages")
+    )
 
 
 def test_status_bar_elements_totals_choice() -> None:
@@ -123,6 +150,7 @@ def test_status_bar_elements_totals_choice() -> None:
 
     elements = ext.get_ui_elements(config={"total_usage_breakdown": "totals"})
     assert elements == [
+        _config_element(default="totals"),
         _total_element(),
         _breakdown_element(
             "metadata.cost_session_input_cost_formatted", "input: {{data}}"
@@ -148,6 +176,7 @@ def test_status_bar_elements_averages_choice() -> None:
 
     elements = ext.get_ui_elements(config={"total_usage_breakdown": "averages"})
     assert elements == [
+        _config_element(default="averages"),
         _total_element(),
         _breakdown_element(
             "metadata.cost_session_requests_formatted", "requests: {{data}}"

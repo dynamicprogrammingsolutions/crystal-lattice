@@ -809,6 +809,16 @@ Tracking: the original combined-string implementation is commit
 `75bd9ed8` ("Add cost breakdown footer and report depth"); this correction
 is the follow-up commit on top of it.
 
+Addendum (config UI element): the "Total usage breakdown" choice is also
+exposed as a config UI element (`ui_type: config`, `type: select`, key
+`total_usage_breakdown`, options None/Totals/Averages, default reflecting
+the current config), following the duration plugin's "Show duration"
+pattern — the config element is always contributed so the setting stays
+editable even when `show_cost_status_total` gates the status bar elements
+off. The core extracts config elements from the status bar flow, so
+rendering is unaffected. Covered by the element unit tests (shape, default
+reflection, gate behavior); suite 64 passed, ruff/black/pyright clean.
+
 The manual ChatGPT suites were not re-run for the correction: the stamp
 changes are additive renames of cost-tracking metadata those suites do not
 assert, and the ChatGPT breakdown path itself is unchanged (covered by

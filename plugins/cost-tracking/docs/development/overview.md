@@ -103,6 +103,12 @@ elements in list order; each element carries an `exists` condition, so
 items without recorded data simply do not render (a provider that reports
 only a total cost shows just the total, requests, and average).
 
+The choice is exposed as a config UI element (`type: select`, key
+`total_usage_breakdown`, label "Total usage breakdown") like the duration
+plugin's "Show duration" setting; the core extracts config elements from
+the status bar flow, and the element stays editable even when
+`show_cost_status_total` gates the status bar off.
+
 Both variants are always stored in message metadata as separate raw and
 formatted fields, regardless of the config choice (the choice only
 controls display):
