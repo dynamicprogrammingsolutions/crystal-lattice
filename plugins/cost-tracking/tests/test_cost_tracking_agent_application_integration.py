@@ -181,11 +181,19 @@ def _assert_cost_tracking(
         buckets[expected_bucket]["total_cost"]
     )
 
-    # The per-item cost breakdown reaches the footer metadata and the store.
-    assert metadata.get("cost_session_breakdown_formatted", "").startswith("Total: $")
+    # The per-item cost breakdown reaches the metadata as separate raw and
+    # formatted fields (totals and averages) and the store.
     assert metadata.get("cost_session_input_cost", 0.0) > 0.0
+    assert metadata.get("cost_session_input_cost_formatted", "").startswith("$")
+    assert metadata.get("cost_session_input_cost_avg", 0.0) > 0.0
+    assert metadata.get("cost_session_input_cost_avg_formatted", "").startswith("$")
     assert metadata.get("cost_session_cached_cost", 0.0) > 0.0
+    assert metadata.get("cost_session_cached_cost_formatted", "").startswith("$")
     assert metadata.get("cost_session_output_cost", 0.0) > 0.0
+    assert metadata.get("cost_session_output_cost_formatted", "").startswith("$")
+    assert metadata.get("cost_session_average_cost", 0.0) > 0.0
+    assert metadata.get("cost_session_requests_formatted") == "1"
+    assert "cost_session_breakdown_formatted" not in metadata
     assert session_totals["input_cost"] == pytest.approx(
         metadata["cost_session_input_cost"]
     )

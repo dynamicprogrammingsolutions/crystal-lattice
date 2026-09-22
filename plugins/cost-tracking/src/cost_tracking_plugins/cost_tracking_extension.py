@@ -65,15 +65,20 @@ class CostTrackingExtension(ProviderExtensionPlugin):
                     "status bar."
                 ),
             },
-            "cost_status_breakdown": {
+            "total_usage_breakdown": {
                 "type": "string",
                 "required": False,
-                "default": "totals",
+                "default": "none",
+                "label": "Total usage breakdown",
+                "options": ["none", "totals", "averages"],
                 "description": (
-                    "Footer cost breakdown mode: 'totals' shows per-item "
-                    "cost totals (input, cached input, cache write, output) "
-                    "with the request count; 'averages' shows per-request "
-                    "average item costs. Items without data are skipped."
+                    "Show the session cost breakdown as separate status "
+                    "bar fields: 'none' keeps only the total footer, "
+                    "'totals' shows per-item cost totals (input, cached "
+                    "input, cache write, output) with the request count, "
+                    "'averages' shows per-request average item costs. "
+                    "Items without data are skipped. Both variants are "
+                    "always stored in message metadata."
                 ),
             },
             "track_cost_tracking_summary_csv": {
@@ -96,6 +101,15 @@ class CostTrackingExtension(ProviderExtensionPlugin):
             },
         }
 
+    @classmethod
+    def _status_bar_element(cls, data_path: str, template: str) -> Dict[str, Any]:
+        return {
+            "ui_type": "status_bar",
+            "data": data_path,
+            "template": template,
+            "condition": {"path": data_path, "exists": True},
+        }
+
     def get_ui_elements(
         self,
         config: Optional[Dict[str, Any]] = None,
@@ -104,17 +118,47 @@ class CostTrackingExtension(ProviderExtensionPlugin):
         _ = context
         if isinstance(config, dict) and config.get("show_cost_status_total") is False:
             return []
-        return [
-            {
-                "ui_type": "status_bar",
-                "data": "metadata.cost_session_breakdown_formatted",
-                "template": "{{data}}",
-                "condition": {
-                    "path": "metadata.cost_session_breakdown_formatted",
-                    "exists": True,
-                },
-            }
+
+        # The total footer element is unchanged and always first; the
+        # platform renders status bar elements in this list order.
+        elements: List[Dict[str, Any]] = [
+            self._status_bar_element(
+                "metadata.cost_session_total_formatted", "Total: {{data}}"
+            )
         ]
+
+        mode = config.get("total_usage_breakdown") if isinstance(config, dict) else None
+        if mode not in ("totals", "averages"):
+            return elements
+
+        requests_element = self._status_bar_element(
+            "metadata.cost_session_requests_formatted", "requests: {{data}}"
+        )
+        if mode == "totals":
+            elements.extend(
+                self._status_bar_element(
+                    f"metadata.cost_session_{key}_cost_formatted",
+                    f"{label}: {{{{data}}}}",
+                )
+                for key, label in self._BREAKDOWN_ITEM_LABELS
+            )
+            elements.append(requests_element)
+        else:
+            elements.append(requests_element)
+            elements.append(
+                self._status_bar_element(
+                    "metadata.cost_session_average_cost_formatted",
+                    "average: {{data}}",
+                )
+            )
+            elements.extend(
+                self._status_bar_element(
+                    f"metadata.cost_session_{key}_cost_avg_formatted",
+                    f"{label}: {{{{data}}}}",
+                )
+                for key, label in self._BREAKDOWN_ITEM_LABELS
+            )
+        return elements
 
     # ------------------------------------------------------------------
     # Request pipeline
@@ -421,7 +465,6 @@ class CostTrackingExtension(ProviderExtensionPlugin):
                 totals,
                 request_count=request_count,
                 total_cost=total_cost,
-                config=config if isinstance(config, dict) else None,
             )
         )
         return metadata
@@ -440,47 +483,33 @@ class CostTrackingExtension(ProviderExtensionPlugin):
         *,
         request_count: int,
         total_cost: float,
-        config: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """Build the per-item cost stamps and formatted footer string.
+        """Build the per-item cost stamps.
 
-        Both modes include every applicable item (input, cached input,
-        cache write, output); items with no recorded data are skipped. The
-        ``cost_status_breakdown`` config key selects the mode:
-        ``"averages"`` shows per-request average item costs, anything
-        else (default) shows item totals.
+        Both totals and per-request averages are stamped as separate raw
+        and formatted fields, always (the ``total_usage_breakdown`` config
+        key only selects which UI elements display them). Every applicable
+        item is included (input, cached input, cache write, output); items
+        with no recorded data are skipped.
         """
 
-        mode = "totals"
-        if (
-            isinstance(config, dict)
-            and config.get("cost_status_breakdown") == "averages"
-        ):
-            mode = "averages"
-
-        items: List[tuple] = []
         metadata: Dict[str, Any] = {}
-        divisor = request_count if mode == "averages" else 1
-        for key, label in cls._BREAKDOWN_ITEM_LABELS:
+        for key, _label in cls._BREAKDOWN_ITEM_LABELS:
             raw = totals.get(f"{key}_cost")
             if not isinstance(raw, (int, float)) or raw <= 0:
                 continue
-            value = float(raw) / divisor if divisor else 0.0
-            items.append((label, value))
-            metadata[f"cost_session_{key}_cost"] = float(raw)
-            if mode == "averages":
-                metadata[f"cost_session_{key}_cost_avg"] = value
+            value = float(raw)
+            average = value / request_count if request_count else 0.0
+            metadata[f"cost_session_{key}_cost"] = value
+            metadata[f"cost_session_{key}_cost_formatted"] = f"${value:.6f}"
+            metadata[f"cost_session_{key}_cost_avg"] = average
+            metadata[f"cost_session_{key}_cost_avg_formatted"] = f"${average:.6f}"
 
-        parts: List[str] = [f"Total: ${total_cost:.6f}"]
-        if mode == "averages":
-            parts.append(f"requests: {request_count:,}")
-            average = total_cost / request_count if request_count else 0.0
-            metadata["cost_session_average_cost"] = average
-            parts.append(f"average: ${average:.6f}")
-        parts.extend(f"{label}: ${value:.6f}" for label, value in items)
-        if mode == "totals":
-            parts.append(f"requests: {request_count:,}")
-        metadata["cost_session_breakdown_formatted"] = " · ".join(parts)
+        if request_count > 0:
+            metadata["cost_session_requests_formatted"] = f"{request_count:,}"
+            average_total = total_cost / request_count
+            metadata["cost_session_average_cost"] = average_total
+            metadata["cost_session_average_cost_formatted"] = f"${average_total:.6f}"
         return metadata
 
     @staticmethod

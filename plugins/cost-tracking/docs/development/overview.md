@@ -81,32 +81,45 @@ bucket is always defined by the provider that emits the capability tag:
 
 ## Footer total and cost breakdown
 
-The extension contributes a `status_bar` UI element rendering
-`metadata.cost_session_breakdown_formatted` — the cost total, request
-count, and per-item cost breakdown for the current workspace + session id,
-aggregated from the store on every request. This replaces the retired
-stateless per-message cumulative totals. Session totals are factual history
-and are not affected by reset markers.
+The extension contributes `status_bar` UI elements for the current
+workspace + session id, aggregated from the store on every request. Session
+totals are factual history and are not affected by reset markers.
 
-Two modes, selected with the `cost_status_breakdown` config key:
+The total footer is always contributed and unchanged:
+`Total: {{data}}` rendering `metadata.cost_session_total_formatted`.
 
-- `totals` (default): `Total: $0.000355 · input: $0.000014 · cached
-  input: $0.000003 · cache write: $0.000010 · output: $0.000339 ·
-  requests: 1`
-- `averages`: `Total: $0.000358 · requests: 1 · average: $0.000358 ·
-  input: $0.000001 · cached input: $0.000005 · output: $0.000352`
+The breakdown items are separate fields with separate UI elements. The
+`total_usage_breakdown` config key ("Total usage breakdown") selects which
+elements are contributed:
 
-Both modes include every applicable item (input, cached input, cache write,
-output); items with no recorded data are skipped, so a provider that
-reports only a total cost renders just `Total: … · requests: N`. Stamped
-metadata fields: `cost_session_total(_formatted)`, `cost_session_requests`,
-`cost_session_average_cost`, and per item `cost_session_<item>_cost`
-(plus `_avg` in averages mode). Per-item costs come from the provider's
-`usage_cost_breakdown` metadata: `openai_responses` computes them from
-the pricing snapshot or the manual ChatGPT table (with estimated cached
-tokens), and the reference provider from `token_rates` (including an
-optional `cache_write` rate; cache-write cost is skipped when the endpoint
-does not report cache-write tokens or no rate is configured).
+- `none` (default): only the total footer.
+- `totals`: total, then one element per item — `input:`, `cached input:`,
+  `cache write:`, `output:` — then `requests:`.
+- `averages`: total, then `requests:`, `average:`, then one element per
+  item average — `input:`, `cached input:`, `cache write:`, `output:`.
+
+Elements are emitted in that order and the platform renders status bar
+elements in list order; each element carries an `exists` condition, so
+items without recorded data simply do not render (a provider that reports
+only a total cost shows just the total, requests, and average).
+
+Both variants are always stored in message metadata as separate raw and
+formatted fields, regardless of the config choice (the choice only
+controls display):
+
+- `cost_session_total(_formatted)`, `cost_session_requests`,
+  `cost_session_requests_formatted`,
+  `cost_session_average_cost(_formatted)`
+- per item (`input`, `cached`, `cache_write`, `output`):
+  `cost_session_<item>_cost(_formatted)` and
+  `cost_session_<item>_cost_avg(_formatted)`
+
+Per-item costs come from the provider's `usage_cost_breakdown` metadata:
+`openai_responses` computes them from the pricing snapshot or the manual
+ChatGPT table (with estimated cached tokens), and the reference provider
+from `token_rates` (including an optional `cache_write` rate; cache-write
+cost is skipped when the endpoint does not report cache-write tokens or
+no rate is configured).
 
 ## Actions
 
@@ -128,8 +141,9 @@ Extension config keys:
 - `cost_tracking_db_path` (string, optional): store path override.
 - `show_cost_status_total` (boolean, default `true`): contribute the
   status-bar session total.
-- `cost_status_breakdown` (string, default `"totals"`): footer breakdown
-  mode — `"totals"` or `"averages"`.
+- `total_usage_breakdown` (string, default `"none"`, label "Total usage
+  breakdown"): which breakdown status-bar elements to contribute —
+  `"none"`, `"totals"`, or `"averages"`.
 - `track_cost_tracking_summary_csv` (boolean, default `true`): append the
   summary CSV rows.
 - `cost_tracking_summary_csv_path` (string, optional): summary CSV path

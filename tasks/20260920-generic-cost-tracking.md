@@ -746,13 +746,13 @@ separate UI elements; the platform renders and orders them.
 ### Task checklist
 
 - [x] Confirm the open questions.
-- [ ] Rework `_breakdown_metadata` (always-stamped raw+formatted pairs).
-- [ ] Rework `get_ui_elements` (unchanged total first; per-choice elements).
-- [ ] Replace the config schema key.
-- [ ] Update unit, element, schema, and integration tests.
-- [ ] Lint (ruff/black), pyright, cost-tracking suite; re-run the
+- [x] Rework `_breakdown_metadata` (always-stamped raw+formatted pairs).
+- [x] Rework `get_ui_elements` (unchanged total first; per-choice elements).
+- [x] Replace the config schema key.
+- [x] Update unit, element, schema, and integration tests.
+- [x] Lint (ruff/black), pyright, cost-tracking suite; re-run the
       openai_responses and reference provider suites.
-- [ ] Update docs; record completion notes.
+- [x] Update docs; record completion notes.
 
 ### Requirement verification
 
@@ -769,3 +769,47 @@ separate UI elements; the platform renders and orders them.
 
 - The manual ChatGPT suites assert footer metadata; re-run if the stamp
   changes affect them (additive renames only expected).
+
+
+## Checkpoint 2 correction completion notes
+
+Outcome: delivered and verified. The total footer is unchanged; breakdown
+items are separate raw+formatted metadata fields (totals and averages both
+always stamped); the `total_usage_breakdown` UI config ("Total usage
+breakdown", choices none/totals/averages, default none) selects which
+status-bar elements are contributed, in fixed list order that the platform
+renders.
+
+Requirement evidence:
+
+- Stamp boundary: `test_breakdown_stamps_totals_and_averages_fields`
+  asserts the complete raw+formatted field set is stamped even with the
+  config at `none`; `test_breakdown_skips_unavailable_items` asserts item
+  fields are absent without breakdown data while session-level fields
+  remain; `test_breakdown_averages_divide_by_request_count` covers
+  multi-request sums and averages.
+- Element boundary: `test_status_bar_element_and_gate` (default/none keeps
+  only the unchanged total element; gate returns []),
+  `test_status_bar_elements_totals_choice` (6 elements in order),
+  `test_status_bar_elements_averages_choice` (7 elements in order).
+- Config schema: `test_config_schema_defaults` asserts the key, label,
+  default `none`, and options.
+- Public path: integration test (both stream modes) asserts the separate
+  formatted fields on the final assistant message and the absence of the
+  removed combined string.
+- Suites: cost-tracking 64 passed; openai_responses 481 passed; reference
+  provider 113 passed; ruff/black clean; pyright clean on the plugin.
+- Real-endpoint check (ollama, `glm-5.2:cloud`): `none` renders only
+  `Total: $0.000289`; `totals` renders `Total: … input: … cached input: …
+  output: … requests: 1` (6 elements, cache write skipped — no data);
+  `averages` renders `Total: … requests: 1 average: … input: … cached
+  input: … output: …` (7 elements).
+
+Tracking: the original combined-string implementation is commit
+`75bd9ed8` ("Add cost breakdown footer and report depth"); this correction
+is the follow-up commit on top of it.
+
+The manual ChatGPT suites were not re-run for the correction: the stamp
+changes are additive renames of cost-tracking metadata those suites do not
+assert, and the ChatGPT breakdown path itself is unchanged (covered by
+the openai_responses unit tests).
