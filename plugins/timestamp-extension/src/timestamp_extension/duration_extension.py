@@ -1,6 +1,7 @@
 """Duration feature.
 
-Measures wall-clock timestamps and elapsed duration for each provider request.
+Measures wall-clock timestamps and elapsed duration for each provider request
+and each tool call.
 
 Behavior:
 - Captures a start timestamp in :meth:`initialize_request`.
@@ -16,6 +17,13 @@ Behavior:
       point plus the current request duration.
     * "Turn duration" is only surfaced on assistant messages that do not
       include tool calls.
+- Measures per-tool-call duration in :meth:`finalize_tool_call` from the
+  framework-provided context facts (``started_at``/``finished_at``, wall and
+  monotonic) and stamps it on the tool-result message metadata. The
+  per-turn tool duration ("tool turn") sums tool-result durations since the
+  last turn separator plus the current call, scanned from the session
+  history available in the tool-call context. The framework never computes
+  durations; this plugin owns the measurement.
 """
 
 from __future__ import annotations
@@ -62,7 +70,9 @@ def _has_tool_calls(native_msg: Dict[str, Any]) -> bool:
     return False
 
 
-def _sum_assistant_durations_since_turn_start(native_history: List[Dict[str, Any]]) -> int:
+def _sum_assistant_durations_since_turn_start(
+    native_history: List[Dict[str, Any]],
+) -> int:
     """Return cumulative assistant duration since the last turn separator."""
 
     last_sep_idx = -1
@@ -89,6 +99,60 @@ def _sum_assistant_durations_since_turn_start(native_history: List[Dict[str, Any
             continue
         duration_ms = internal_md.get("duration_ms")
         if isinstance(duration_ms, (int, float)):
+            try:
+                total_ms += int(duration_ms)
+            except Exception:
+                pass
+
+    return total_ms
+
+
+def _core_message_has_tool_calls(core_msg: Dict[str, Any]) -> bool:
+    """Return whether a core message dict carries tool calls."""
+    tool_calls = core_msg.get("tool_calls")
+    if isinstance(tool_calls, list) and tool_calls:
+        return True
+    metadata = core_msg.get("metadata") or {}
+    if isinstance(metadata, dict):
+        md_tool_calls = metadata.get("tool_calls")
+        if isinstance(md_tool_calls, list) and md_tool_calls:
+            return True
+    return False
+
+
+def _sum_tool_durations_since_turn_start(session_messages: List[Dict[str, Any]]) -> int:
+    """Return cumulative tool-result duration since the last turn separator.
+
+    Scans core session messages: the turn resets after the most recent
+    user/system message or assistant message with no tool calls. Only
+    ``role == "tool"`` messages contribute, so assistant LLM durations
+    never leak into the tool turn.
+    """
+
+    last_sep_idx = -1
+    for idx, msg in enumerate(session_messages):
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role")
+        if role in ("user", "system"):
+            last_sep_idx = idx
+            continue
+        if role == "assistant" and not _core_message_has_tool_calls(msg):
+            last_sep_idx = idx
+
+    total_ms = 0
+    for idx, msg in enumerate(session_messages):
+        if not isinstance(msg, dict):
+            continue
+        if idx <= last_sep_idx:
+            continue
+        if msg.get("role") != "tool":
+            continue
+        metadata = msg.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            continue
+        duration_ms = metadata.get("duration_ms")
+        if isinstance(duration_ms, (int, float)) and not isinstance(duration_ms, bool):
             try:
                 total_ms += int(duration_ms)
             except Exception:
@@ -138,7 +202,9 @@ class DurationExtension(FeaturePlugin):
             if not isinstance(internal_md, dict):
                 continue
             duration_ms = internal_md.get("duration_ms")
-            if isinstance(duration_ms, (int, float)) and not isinstance(duration_ms, bool):
+            if isinstance(duration_ms, (int, float)) and not isinstance(
+                duration_ms, bool
+            ):
                 try:
                     total_ms += int(duration_ms)
                 except Exception:
@@ -146,7 +212,9 @@ class DurationExtension(FeaturePlugin):
         return total_ms
 
     @classmethod
-    def _base_turn_duration_ms(cls, native_history: List[Dict[str, Any]], current_msg: Dict[str, Any]) -> int:
+    def _base_turn_duration_ms(
+        cls, native_history: List[Dict[str, Any]], current_msg: Dict[str, Any]
+    ) -> int:
         turn_id = cls._turn_id(current_msg)
         if turn_id is not None:
             return cls._sum_durations_for_turn(native_history, turn_id)
@@ -198,7 +266,9 @@ class DurationExtension(FeaturePlugin):
         return native_msg.get("role") == "assistant"
 
     @classmethod
-    def _select_duration_owner_index(cls, final_messages: List[Dict[str, Any]]) -> Optional[int]:
+    def _select_duration_owner_index(
+        cls, final_messages: List[Dict[str, Any]]
+    ) -> Optional[int]:
         if not final_messages:
             return None
 
@@ -280,6 +350,11 @@ class DurationExtension(FeaturePlugin):
                         "data": "metadata.turn_tps_formatted",
                         "template": "turn TPS: {{data}}",
                     },
+                    {
+                        "ui_type": "message_footer",
+                        "data": "metadata.turn_tool_duration_formatted",
+                        "template": "tool turn: {{data}}",
+                    },
                 ]
             )
 
@@ -293,6 +368,77 @@ class DurationExtension(FeaturePlugin):
             "duration_started_at_mono": time.monotonic(),
         }
         return list(native_messages), {**state, self._STATE_KEY: timing}
+
+    def finalize_tool_call(
+        self,
+        tool_message: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Stamp per-call and per-turn tool duration on the tool message.
+
+        The measurement is owned by this plugin: the framework provides only
+        raw facts in the context (``started_at``/``finished_at`` wall and
+        monotonic timestamps, captured around execution). Without valid facts
+        the message is returned unchanged — no fabricated values.
+
+        The per-turn tool duration ("tool turn") sums tool-result durations
+        from the session history available in the context (only
+        ``role == "tool"`` messages since the last turn separator) plus the
+        current call. Without a session in the context, only the per-call
+        fields are stamped.
+        """
+        ctx = context if isinstance(context, dict) else {}
+
+        started_at_mono = ctx.get("started_at_mono")
+        finished_at_mono = ctx.get("finished_at_mono")
+        if not isinstance(started_at_mono, (int, float)) or isinstance(
+            started_at_mono, bool
+        ):
+            return tool_message, state
+        if not isinstance(finished_at_mono, (int, float)) or isinstance(
+            finished_at_mono, bool
+        ):
+            return tool_message, state
+
+        started_at = ctx.get("started_at")
+        finished_at = ctx.get("finished_at")
+        if not isinstance(started_at, str) or not started_at:
+            return tool_message, state
+        if not isinstance(finished_at, str) or not finished_at:
+            return tool_message, state
+
+        try:
+            duration_ms = max(
+                0, int((float(finished_at_mono) - float(started_at_mono)) * 1000)
+            )
+        except Exception:
+            return tool_message, state
+
+        metadata = tool_message.get("metadata")
+        merged: Dict[str, Any] = dict(metadata) if isinstance(metadata, dict) else {}
+        merged.update(
+            {
+                "duration_started_at": started_at,
+                "duration_finished_at": finished_at,
+                "duration_ms": duration_ms,
+                "duration_formatted": _format_duration_ms(duration_ms),
+            }
+        )
+
+        session = ctx.get("session")
+        session_messages = (
+            session.get("messages") if isinstance(session, dict) else None
+        )
+        if isinstance(session_messages, list):
+            turn_tool_ms = (
+                _sum_tool_durations_since_turn_start(session_messages) + duration_ms
+            )
+            merged["turn_tool_duration_ms"] = turn_tool_ms
+            merged["turn_tool_duration_formatted"] = _format_duration_ms(turn_tool_ms)
+
+        return {**tool_message, "metadata": merged}, state
 
     def finalize(
         self,
@@ -338,7 +484,9 @@ class DurationExtension(FeaturePlugin):
             if not isinstance(internal_md, dict):
                 internal_md = {}
 
-            base_turn_ms = self._base_turn_duration_ms(history_before_current, native_msg)
+            base_turn_ms = self._base_turn_duration_ms(
+                history_before_current, native_msg
+            )
             turn_duration_ms = base_turn_ms + duration_ms
             turn_duration_formatted = _format_duration_ms(turn_duration_ms)
 
@@ -360,7 +508,9 @@ class DurationExtension(FeaturePlugin):
             return {**native_msg, "_metadata": merged_md}
 
         stamped_finals = list(final_messages)
-        if owner_rel_idx is not None and isinstance(stamped_finals[owner_rel_idx], dict):
+        if owner_rel_idx is not None and isinstance(
+            stamped_finals[owner_rel_idx], dict
+        ):
             stamped_finals[owner_rel_idx] = _stamp_owner(stamped_finals[owner_rel_idx])
 
         if not native_messages or len(stamped_finals) > len(native_messages):
@@ -391,6 +541,8 @@ class DurationExtension(FeaturePlugin):
             "turn_duration_formatted",
             "turn_tps",
             "turn_tps_formatted",
+            "turn_tool_duration_ms",
+            "turn_tool_duration_formatted",
         )
 
         def _merge_duration_metadata(
@@ -403,7 +555,6 @@ class DurationExtension(FeaturePlugin):
             )
 
             chosen_internal: Optional[Dict[str, Any]] = None
-            chosen_native: Optional[Dict[str, Any]] = None
             for native in native_candidates:
                 if not isinstance(native, dict):
                     continue
@@ -412,7 +563,6 @@ class DurationExtension(FeaturePlugin):
                     continue
                 if any(key in internal_md for key in duration_keys + turn_keys):
                     chosen_internal = internal_md
-                    chosen_native = native
 
             if not isinstance(chosen_internal, dict):
                 return {**core_msg, "metadata": core_md}
