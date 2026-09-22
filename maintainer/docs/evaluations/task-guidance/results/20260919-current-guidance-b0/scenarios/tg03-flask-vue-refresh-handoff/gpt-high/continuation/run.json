@@ -20,10 +20,13 @@
   "run_id": "20260919T204923.984784Z-task-guidance-tg03-flask-vue-refresh-handoff-high-ea808e2f",
   "system_message": {
     "availability": {
-      "detail": "saved session retains no system message and no delivery hash was recorded",
-      "state": "unavailable"
+      "detail": "inherited from the cell's producer run, whose delivered instructions are reconstructed",
+      "state": "inherited"
     },
-    "source": null
+    "normalized_sha256": "3fa4f6af31fbe5b5b90cbcf18a54ed1ce82be82f887a61e11aeaca559491aee0",
+    "original_sha256": "be27d3af18337e641047412b6b442c01824e27018c1694280260e5fa00e456c2",
+    "path": "shared/system-messages/gpt-3fa4f6af31fb.md",
+    "source": "inherited-from-producer-run"
   },
   "task_files": [],
   "valid": false

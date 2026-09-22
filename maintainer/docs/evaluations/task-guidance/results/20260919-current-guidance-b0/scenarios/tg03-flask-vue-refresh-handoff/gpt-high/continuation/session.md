@@ -2,7 +2,7 @@
 
 - Run: `20260919T204923.984784Z-task-guidance-tg03-flask-vue-refresh-handoff-high-ea808e2f`
 - Model: gpt-5.6-luna (effort high)
-- Delivered instructions: **unavailable**
+- Delivered instructions: [gpt-high](../../../../shared/system-messages/gpt-3fa4f6af31fb.md) — inherited (original SHA-256 `be27d3af18337e64…`)
 - Config: [gpt-high](../../../../shared/configs/gpt-high.json)
 - Activity: 12 messages · 7 tool calls · 7 tool results
 - Usage: unknown — inherited prefix length unknown; per-run usage cannot be bounded

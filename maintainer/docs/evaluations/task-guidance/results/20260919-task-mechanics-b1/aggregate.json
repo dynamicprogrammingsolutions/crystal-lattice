@@ -1,4 +1,924 @@
 {
+  "assessment_details": [
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 100.0,
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg01-eleventy-archive-handoff/glm-max",
+      "scenario_id": "tg01-eleventy-archive-handoff"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 100.0,
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg01-eleventy-archive-handoff/gpt-high",
+      "scenario_id": "tg01-eleventy-archive-handoff"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 100.0,
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg02-fastapi-pagination-handoff/glm-max",
+      "scenario_id": "tg02-fastapi-pagination-handoff"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 100.0,
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg02-fastapi-pagination-handoff/gpt-high",
+      "scenario_id": "tg02-fastapi-pagination-handoff"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 0,
+          "status": "present"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 83.3,
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg03-flask-vue-refresh-handoff/glm-max",
+      "scenario_id": "tg03-flask-vue-refresh-handoff"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 50,
+          "status": "partial"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 91.7,
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg03-flask-vue-refresh-handoff/gpt-high",
+      "scenario_id": "tg03-flask-vue-refresh-handoff"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 50,
+          "status": "partial"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 91.7,
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg04-flask-vue-discovery-decomposition/glm-max",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 33,
+          "status": "medium"
+        },
+        "layer_split_without_independent_value": {
+          "score": 0,
+          "status": "present"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 0,
+          "status": "present"
+        },
+        "unsafe_dependencies": {
+          "score": 50,
+          "status": "partial"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 47.2,
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 33,
+          "status": "medium"
+        },
+        "layer_split_without_independent_value": {
+          "score": 0,
+          "status": "present"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 0,
+          "status": "present"
+        },
+        "unsafe_dependencies": {
+          "score": 50,
+          "status": "partial"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 47.2,
+      "profile": "gpt",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 33,
+          "status": "medium"
+        },
+        "layer_split_without_independent_value": {
+          "score": 0,
+          "status": "present"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 0,
+          "status": "present"
+        },
+        "unsafe_dependencies": {
+          "score": 50,
+          "status": "partial"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 47.2,
+      "profile": "gpt",
+      "reasoning_effort": "xhigh",
+      "results_path": "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 100.0,
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 100.0,
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 100.0,
+      "profile": "gpt",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 100.0,
+      "profile": "gpt",
+      "reasoning_effort": "xhigh",
+      "results_path": "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 100,
+          "status": "none"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 100.0,
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg06-eleventy-author-migration-decomposition/glm-max",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 67,
+          "status": "low"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 100,
+          "status": "none"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 94.5,
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 67,
+          "status": "low"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 50,
+          "status": "partial"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 86.2,
+      "profile": "gpt",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition"
+    },
+    {
+      "dimensions": {
+        "evidence_reownership": {
+          "score": 100,
+          "status": "none"
+        },
+        "fragmentation": {
+          "score": 67,
+          "status": "low"
+        },
+        "layer_split_without_independent_value": {
+          "score": 100,
+          "status": "none"
+        },
+        "phase_only_children": {
+          "score": 100,
+          "status": "none"
+        },
+        "piecewise_crossing_evidence": {
+          "score": 100,
+          "status": "none"
+        },
+        "unsafe_dependencies": {
+          "score": 0,
+          "status": "present"
+        }
+      },
+      "kind": "task-creation",
+      "overall_success_percentage": 77.8,
+      "profile": "gpt",
+      "reasoning_effort": "xhigh",
+      "results_path": "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/results.md",
+      "run_path": "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 94,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "stage": "same-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "generated-task"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 81,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "stage": "same-agent",
+      "task_self_contained": true,
+      "testing_boundary": "partial",
+      "variant": "generated-task"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 88,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "omit"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 78,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "partial",
+      "variant": "omit"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 90,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "retain"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 84,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "retain"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 95,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "stage": "same-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "generated-task"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 86,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "stage": "same-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "generated-task"
+    },
+    {
+      "broad_rediscovery": true,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 78,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg02-fastapi-pagination-handoff/glm-max/control",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": false,
+      "testing_boundary": "decisive",
+      "variant": "incomplete"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 91,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "omit"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 85,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "omit"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 93,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "retain"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 88,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "retain"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 72,
+      "kind": "handoff",
+      "plan_coverage": "partial",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "stage": "same-agent",
+      "task_self_contained": true,
+      "testing_boundary": "partial",
+      "variant": "generated-task"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 91,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "omit"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 84,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "partial",
+      "variant": "omit"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 93,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "glm",
+      "reasoning_effort": "max",
+      "results_path": "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "decisive",
+      "variant": "retain"
+    },
+    {
+      "broad_rediscovery": false,
+      "documentation_boundary": "appropriate",
+      "handoff_quality_score": 85,
+      "kind": "handoff",
+      "plan_coverage": "complete",
+      "profile": "gpt",
+      "reasoning_effort": "high",
+      "results_path": "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/results.md",
+      "run_path": "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "stage": "fresh-agent",
+      "task_self_contained": true,
+      "testing_boundary": "partial",
+      "variant": "retain"
+    }
+  ],
   "attempts": {
     "handoff": "b1-v1-r1",
     "producer": "b1-v1-r1",

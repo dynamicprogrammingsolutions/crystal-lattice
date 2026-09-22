@@ -1,0 +1,902 @@
+{
+  "agent_id": "codex-openai",
+  "model": "gpt-5.6-luna",
+  "projected_config": {
+    "agents": {
+      "codex-openai": {
+        "auth_mode": "<redacted>",
+        "chatgpt_credentials_path": "<redacted>",
+        "mixin_refs": [
+          "codex_developer_message",
+          "codex_mcp_defaults"
+        ],
+        "model": "gpt-5.4-mini",
+        "plugins": [
+          "path:${env:BUILTIN_PLUGINS}/codex-tools"
+        ],
+        "provider": "openai",
+        "shell_tool_mode": "auto"
+      }
+    },
+    "application": {
+      "application_config": {
+        "editable_env_keys": [
+          "OPENROUTER_API_KEY",
+          "ANTHROPIC_API_KEY",
+          "OPENAI_API_KEY",
+          "FIREWORKS_API_KEY",
+          "ZAI_API_KEY"
+        ],
+        "env_file": "${env:CONFIG_DIR}/.env",
+        "provider_env_keys": {
+          "anthropic": "ANTHROPIC_API_KEY",
+          "fireworks": "FIREWORKS_API_KEY",
+          "openai": "OPENAI_API_KEY",
+          "openrouter": "OPENROUTER_API_KEY",
+          "openrouter_image_generation": "OPENROUTER_API_KEY",
+          "zai": "ZAI_API_KEY"
+        }
+      },
+      "chatgpt_auth": "<redacted>",
+      "cloud_agent": {
+        "config_assets": {
+          "exclude": [
+            ".env",
+            ".env.*",
+            ".plugin_cache",
+            "logs",
+            "sessions",
+            "auth",
+            "state"
+          ],
+          "include_config_dir": true,
+          "include_excluded": [],
+          "max_top_level_entry_bytes": 104857600
+        },
+        "container_profiles": {
+          "default-runtime": {
+            "context": [
+              {
+                "source": "${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/Dockerfile",
+                "target": "Dockerfile"
+              },
+              {
+                "source": "${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/runtime.py",
+                "target": "runtime.py"
+              },
+              {
+                "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/python_lib",
+                "target": "python_lib"
+              },
+              {
+                "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/cloud-runtime-plugin-bundle",
+                "target": "cloud-runtime-plugin-bundle"
+              },
+              {
+                "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/plugin_sources",
+                "target": "plugin_sources"
+              }
+            ],
+            "dockerfile": "Dockerfile",
+            "image": "cloud-agent-runtime:latest",
+            "label": "Default Crystal Lattice cloud agent runtime",
+            "mode": "dockerfile"
+          }
+        },
+        "default_container_profile": "default-runtime",
+        "default_sync_down_profile": "working-tree-patch",
+        "default_transfer_up_profile": "working-tree-current-state",
+        "managed_ssh": {
+          "adapter_script": null,
+          "extra_rsync_args": [],
+          "rsync_path": "rsync",
+          "ssh_path": "ssh"
+        },
+        "orchestrator_token": "<redacted>",
+        "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
+        "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
+        "runtime_env": {
+          "env_files": [],
+          "exclude": [
+            "CLOUD_ORCHESTRATOR_URL",
+            "CLOUD_ORCHESTRATOR_TOKEN",
+            "SERVER_HOST",
+            "SERVER_PORT",
+            "BRIDGE_URL",
+            "BRIDGE_LOCAL_HTTP_BASE",
+            "OPENAI_BASE_URL",
+            "CONFIG_DIR",
+            "BUILTIN_PLUGINS",
+            "PLUGIN_CACHE_DIR"
+          ],
+          "include": [],
+          "include_config_env": true
+        },
+        "startup_poll_timeout_seconds": 300,
+        "sync_down_profiles": {
+          "branch-import": {
+            "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_export_script",
+            "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_mark_synced_script",
+            "compatible_transfer_up_profiles": [
+              "working-tree-current-state-branch",
+              "clean-head"
+            ],
+            "label": "Import committed cloud branch with optional safety snapshots",
+            "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/local_apply_script"
+          },
+          "working-tree-patch": {
+            "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_export_script",
+            "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_mark_synced_script",
+            "compatible_transfer_up_profiles": [
+              "working-tree-current-state"
+            ],
+            "label": "Apply cloud patch to current worktree",
+            "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/local_apply_script"
+          }
+        },
+        "transfer_method": "managed_ssh",
+        "transfer_up_profiles": {
+          "clean-head": {
+            "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/cloud_setup_script",
+            "compatible_sync_down_profiles": [
+              "branch-import"
+            ],
+            "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+            "label": "Clean committed HEAD",
+            "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+            "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/local_transfer_script",
+            "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud"
+          },
+          "working-tree-current-state": {
+            "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/cloud_setup_script",
+            "compatible_sync_down_profiles": [
+              "working-tree-patch"
+            ],
+            "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+            "label": "Working tree current state",
+            "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+            "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/local_transfer_script",
+            "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud"
+          },
+          "working-tree-current-state-branch": {
+            "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state-branch/cloud_setup_script",
+            "compatible_sync_down_profiles": [
+              "branch-import"
+            ],
+            "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+            "label": "Working tree current state with branch export",
+            "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+            "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state-branch/local_transfer_script",
+            "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud"
+          }
+        },
+        "workspace_dir": "."
+      },
+      "generate_title_max_messages": 999,
+      "generate_title_settings_overrides": {
+        "model": "openai/gpt-5-mini",
+        "reasoningEffort": "low"
+      },
+      "notifications": {
+        "history_limit": 500,
+        "store": {
+          "path": "${env:CONFIG_DIR}/application-notifications.sqlite3",
+          "type": "sqlite"
+        }
+      },
+      "session_actions": {
+        "allow_delete": true
+      },
+      "session_status_show_in_session_list_footer": true,
+      "summarize_range_prompt": "Provide a detailed but concise summary of our conversation above. Focus on information that would be helpful for continuing the conversation, including what we did, what we're doing, which files we're working on, and what we're going to do next.",
+      "summarize_range_settings_overrides": {
+        "reasoningEffort": "medium"
+      },
+      "terminal_startup_help": "summary",
+      "tool_output_char_limit": 2000,
+      "tool_output_line_limit": 20,
+      "tool_output_live_one_line": false,
+      "tool_output_short_one_line": true
+    },
+    "mixins": {
+      "claude_anthropic_model_variants": {
+        "$variants": [
+          {
+            "$when": {
+              "model": {
+                "$matches": "^claude-(?:haiku|sonnet|opus)-4-5(?:$|-\\d{8}$)"
+              }
+            },
+            "anthropic_reasoning_budget_tokens": 1024,
+            "anthropic_reasoning_mode": "manual"
+          },
+          {
+            "$when": {
+              "model": {
+                "$matches": "^claude-(?:sonnet|opus)-4-5(?:$|-\\d{8}$)"
+              }
+            },
+            "beta_headers": [
+              "interleaved-thinking-2025-05-14"
+            ]
+          },
+          {
+            "$when": {
+              "model": {
+                "$matches": "^claude-opus-4-5(?:$|-\\d{8}$)"
+              }
+            },
+            "anthropic_reasoning_effort": "high"
+          },
+          {
+            "$when": {
+              "model": {
+                "$matches": "^claude-(?:(?:sonnet|opus)-4-6|sonnet-5|opus-4-(?:7|8)|opus-5|(?:fable|mythos)-5|mythos-preview)$"
+              }
+            },
+            "anthropic_reasoning_display": "summarized",
+            "anthropic_reasoning_effort": "high",
+            "anthropic_reasoning_mode": "adaptive",
+            "betas": [
+              "context-management-2025-06-27"
+            ],
+            "request_options": {
+              "context_management": {
+                "edits": [
+                  {
+                    "keep": "all",
+                    "type": "clear_thinking_20251015"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "claude_bash_permissive": {
+        "$merge": {
+          "deep": [
+            "system_message"
+          ],
+          "default": "shallow"
+        },
+        "bash_cwd_persistence": true,
+        "bash_include_cwd_in_result": false,
+        "bash_permissive_cd_guidance": true,
+        "system_message": {
+          "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+        }
+      },
+      "claude_bash_permissive_no_persistence": {
+        "$merge": {
+          "deep": [
+            "system_message"
+          ],
+          "default": "shallow"
+        },
+        "bash_cwd_persistence": false,
+        "bash_include_cwd_in_result": false,
+        "bash_permissive_cd_guidance": true,
+        "system_message": {
+          "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+        }
+      },
+      "claude_bash_permissive_visible": {
+        "$merge": {
+          "deep": [
+            "system_message"
+          ],
+          "default": "shallow"
+        },
+        "bash_cwd_persistence": true,
+        "bash_include_cwd_in_result": true,
+        "bash_permissive_cd_guidance": true,
+        "system_message": {
+          "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+        }
+      },
+      "claude_bash_upstream_parity": {
+        "$merge": {
+          "deep": [
+            "system_message"
+          ],
+          "default": "shallow"
+        },
+        "bash_cwd_persistence": true,
+        "bash_include_cwd_in_result": false,
+        "bash_permissive_cd_guidance": false,
+        "system_message": {
+          "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+        }
+      },
+      "claude_mcp_defaults": {
+        "mcp_enabled": false,
+        "mcp_fail_on_startup_error": false,
+        "mcp_reuse_runtime": true,
+        "mcp_servers": {
+          "filesystem": {
+            "args": [
+              "-y",
+              "@modelcontextprotocol/server-filesystem",
+              "${env:WORKING_DIR}"
+            ],
+            "command": "npx",
+            "cwd": "${env:WORKING_DIR}",
+            "enabled": false,
+            "startup_timeout_seconds": 30,
+            "tool_timeout_seconds": 30,
+            "transport": "stdio"
+          }
+        }
+      },
+      "claude_system_message": {
+        "system_message": {
+          "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
+          "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+          "variables": {
+            "AGENTS_SECTION": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
+            },
+            "CONTEXT_MANAGEMENT": {
+              "files": [
+                "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/context-management.md"
+              ]
+            },
+            "ENVIRONMENT_SECTION": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_claude_environment_section.py"
+            },
+            "INTRODUCTION": {
+              "files": [
+                "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/introduction.md"
+              ]
+            },
+            "MEMORY": {
+              "files": [
+                "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/memory.md"
+              ]
+            },
+            "TASKS": {
+              "condition": {
+                "inline_code": "include_tasks()"
+              },
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+              "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}"
+            },
+            "TONE_AND_STYLE": {
+              "files": [
+                "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tone-and-style.md"
+              ]
+            },
+            "TOOL_USAGE": {
+              "files": [
+                "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage.md"
+              ]
+            },
+            "TOOL_USAGE_PERMISSIVE_CD": {
+              "files": [
+                "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd.md"
+              ]
+            },
+            "TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE": {
+              "files": [
+                "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd-no-persistence.md"
+              ]
+            },
+            "WORKFLOW": {
+              "files": [
+                "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/workflow.md"
+              ]
+            }
+          }
+        },
+        "system_message_enabled": true
+      },
+      "cloud_script_author_codex_message": {
+        "system_message": {
+          "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
+          "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou create Crystal Lattice cloud-agent project hooks and optional project config.\n\nRead and follow the bundled authoring guide before writing files:\n`{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}`\n\nUse the bundled default profile scripts as examples:\n`{{CLOUD_AGENT_DEFAULT_PROFILES_PATH}}`\n\nUse AGENTS.md, README files, package manifests, lockfiles, and tests to infer the project's fresh-checkout setup and validation command. If runtime image changes are needed, follow the guide's container profile section. Do not print secrets.\n\nBefore your final response, run cheap syntax and JSON checks for generated files. Run `crystal-lattice validate-cloud --workspace-dir <project>` when Docker is available and practical.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}",
+          "variables": {
+            "CLOUD_AGENT_DEFAULT_PROFILES_PATH": {
+              "text": "${env:CONFIG_DIR}/cloud-agent/profiles"
+            },
+            "CLOUD_SCRIPT_AUTHORING_GUIDE_PATH": {
+              "text": "${env:BUILTIN_PLUGINS}/cloud-agent-app/docs/cloud-script-authoring.md"
+            },
+            "CODEX_DEVELOPER_MESSAGE": {
+              "inline_code": "select_codex_developer_message()"
+            },
+            "CODEX_ENVIRONMENT_CONTEXT": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+            },
+            "CODEX_PROJECT_INSTRUCTIONS": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+            },
+            "TASKS": {
+              "condition": {
+                "inline_code": "include_tasks()"
+              },
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+              "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}"
+            }
+          }
+        },
+        "system_message_enabled": true
+      },
+      "codex_developer_message": {
+        "codex_developer_messages": [
+          {
+            "model_regex": "^(openai/)?gpt-5\\.6-sol$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.6-terra$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-terra/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.6-luna$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-luna/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.5$",
+            "personality": "default",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.5$",
+            "personality": "friendly",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_friendly.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.5$",
+            "personality": "pragmatic",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_pragmatic.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.4$",
+            "personality": "default",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.4$",
+            "personality": "friendly",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_friendly.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.4$",
+            "personality": "pragmatic",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_pragmatic.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.3-codex$",
+            "personality": "default",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.3-codex/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.3-codex$",
+            "personality": "friendly",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.3-codex/instructions_friendly.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.3-codex$",
+            "personality": "pragmatic",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.3-codex/instructions_pragmatic.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.2-codex$",
+            "personality": "default",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2-codex/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.2-codex$",
+            "personality": "friendly",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2-codex/instructions_friendly.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.2-codex$",
+            "personality": "pragmatic",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2-codex/instructions_pragmatic.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.1-codex$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.1-codex/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.2$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.1$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.1/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5/instructions_default.md}"
+          },
+          {
+            "model_regex": ".*",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5/instructions_default.md}"
+          }
+        ],
+        "codex_personality": "default",
+        "skills_enabled": true,
+        "skills_follow_symlinks": false,
+        "skills_max_dirs_per_root": 2000,
+        "skills_max_scan_depth": 6,
+        "skills_roots": [
+          ".agents/skills"
+        ],
+        "system_message": {
+          "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
+          "template": "${file:${env:CONFIG_DIR}/system_messages/codex/template.md}",
+          "variables": {
+            "CODEX_DEVELOPER_MESSAGE": {
+              "inline_code": "select_codex_developer_message()"
+            },
+            "CODEX_ENVIRONMENT_CONTEXT": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+            },
+            "CODEX_PROJECT_INSTRUCTIONS": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+            },
+            "CODEX_SKILLS_SECTION": {
+              "text": ""
+            },
+            "TASKS": {
+              "condition": {
+                "inline_code": "include_tasks()"
+              },
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+              "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}"
+            }
+          }
+        },
+        "system_message_enabled": true
+      },
+      "codex_mcp_defaults": {
+        "mcp_enabled": false,
+        "mcp_fail_on_startup_error": false,
+        "mcp_reuse_runtime": true,
+        "mcp_servers": {
+          "filesystem": {
+            "args": [
+              "-y",
+              "@modelcontextprotocol/server-filesystem",
+              "${env:WORKING_DIR}"
+            ],
+            "command": "npx",
+            "cwd": "${env:WORKING_DIR}",
+            "enabled": false,
+            "startup_timeout_seconds": 30,
+            "tool_timeout_seconds": 30,
+            "transport": "stdio"
+          }
+        }
+      },
+      "gemini_system_message": {
+        "system_message": {
+          "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+          "template": "{{PREAMBLE}}\n\n{{CORE_MANDATES}}\n\n{{WORKFLOW_SECTION}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{CONTEXT_FILES_SECTION}}\n\n{{TASKS}}",
+          "variables": {
+            "CONTEXT_FILES_SECTION": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
+            },
+            "CORE_MANDATES": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/gemini/core-mandates.md"
+              ]
+            },
+            "GIT_SECTION": {
+              "condition": {
+                "inline_code": "is_git_repo()"
+              },
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/gemini/git-section.md"
+              ]
+            },
+            "OPERATIONAL_GUIDELINES": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/gemini/operational-guidelines.md"
+              ]
+            },
+            "PREAMBLE": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/gemini/preamble.md"
+              ]
+            },
+            "TASKS": {
+              "condition": {
+                "inline_code": "include_tasks()"
+              },
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+              "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}"
+            },
+            "WORKFLOW_SECTION": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/gemini/workflow-section.md"
+              ]
+            }
+          }
+        },
+        "system_message_enabled": true
+      },
+      "grok_system_message": {
+        "system_message": {
+          "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+          "template": "{{INTRODUCTION}}\n\n{{AVAILABLE_TOOLS_SECTION}}\n\n{{TOOL_USAGE_RULES}}\n\n{{WORKFLOW_AND_RESPONSE_GUIDANCE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{WORKING_DIRECTORY_LINE}}",
+          "variables": {
+            "AGENTS_SECTION": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
+            },
+            "AVAILABLE_TOOLS_SECTION": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/grok/available-tools-section.md"
+              ]
+            },
+            "INTRODUCTION": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/grok/introduction.md"
+              ]
+            },
+            "TASKS": {
+              "condition": {
+                "inline_code": "include_tasks()"
+              },
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+              "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}"
+            },
+            "TOOL_USAGE_RULES": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/grok/tool-usage-rules.md"
+              ]
+            },
+            "WORKFLOW_AND_RESPONSE_GUIDANCE": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/grok/response-guidelines.md"
+              ]
+            },
+            "WORKING_DIRECTORY_LINE": {
+              "inline_code": "f'Current working directory: {cwd}'"
+            }
+          }
+        },
+        "system_message_enabled": true
+      },
+      "kimi_system_message": {
+        "system_message": {
+          "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+          "template": "{{INTRODUCTION}}\n\n{{PROMPT_AND_TOOL_USE}}\n\n{{GENERAL_GUIDELINES_FOR_CODING}}\n\n{{GENERAL_GUIDELINES_FOR_RESEARCH_AND_DATA_PROCESSING}}\n\n{{WORKING_ENVIRONMENT_SECTION}}\n\n{{PROJECT_INFORMATION_SECTION}}\n\n{{TASKS}}\n\n{{ULTIMATE_REMINDERS}}",
+          "variables": {
+            "GENERAL_GUIDELINES_FOR_CODING": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/kimi/general-guidelines-for-coding.md"
+              ]
+            },
+            "GENERAL_GUIDELINES_FOR_RESEARCH_AND_DATA_PROCESSING": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/kimi/general-guidelines-for-research-and-data-processing.md"
+              ]
+            },
+            "INTRODUCTION": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/kimi/introduction.md"
+              ]
+            },
+            "PROJECT_INFORMATION_SECTION": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_kimi_project_information_section.py"
+            },
+            "PROMPT_AND_TOOL_USE": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/kimi/prompt-and-tool-use.md"
+              ]
+            },
+            "TASKS": {
+              "condition": {
+                "inline_code": "include_tasks()"
+              },
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+              "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}"
+            },
+            "ULTIMATE_REMINDERS": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/kimi/ultimate-reminders.md"
+              ]
+            },
+            "WORKING_ENVIRONMENT_SECTION": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_kimi_working_environment_section.py"
+            }
+          }
+        },
+        "system_message_enabled": true
+      },
+      "provider_defaults": {
+        "allowed_paths": [
+          ".",
+          ".."
+        ],
+        "enable_reasoning": true,
+        "max_file_size": 5242880,
+        "max_output_chars": 10000,
+        "reasoning_effort": "medium",
+        "timeout": 300,
+        "working_directory": "."
+      },
+      "qwen_system_message": {
+        "system_message": {
+          "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+          "template": "{{INTRODUCTION_AND_CORE_MANDATES}}\n\n{{PRIMARY_WORKFLOWS}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+          "variables": {
+            "AGENTS_SECTION": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
+            },
+            "GIT_SECTION": {
+              "condition": {
+                "inline_code": "is_git_repo()"
+              },
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/qwen/git-section.md"
+              ]
+            },
+            "INTRODUCTION_AND_CORE_MANDATES": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/qwen/introduction-and-core-mandates.md"
+              ]
+            },
+            "OPERATIONAL_GUIDELINES": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/qwen/operational-guidelines.md"
+              ]
+            },
+            "PRIMARY_WORKFLOWS": {
+              "files": [
+                "${env:CONFIG_DIR}/system_messages/qwen/primary-workflows.md"
+              ]
+            },
+            "TASKS": {
+              "condition": {
+                "inline_code": "include_tasks()"
+              },
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+              "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}"
+            }
+          }
+        },
+        "system_message_enabled": true
+      }
+    },
+    "plugin_cache_dir": "~/Dev/Mine/ai-agent-platform-worktrees/20260728-documentation-guide-rewrite/tmp/agent-evaluation/task-guidance/plugin-cache/gpt/v1",
+    "plugins": [
+      "plugins.tool_gating_feature.ToolGatingFeature",
+      "path:${env:BUILTIN_PLUGINS}/feature-request-options",
+      "path:${env:BUILTIN_PLUGINS}/feature-system-message",
+      "path:${env:BUILTIN_PLUGINS}/chatgpt-auth-app",
+      "path:${env:BUILTIN_PLUGINS}/openai_responses",
+      "path:${env:BUILTIN_PLUGINS}/codex-tools"
+    ],
+    "providers": {
+      "anthropic": {
+        "api_key": "<redacted>",
+        "auth_mode": "<redacted>",
+        "base_url": "https://api.anthropic.com",
+        "capabilities": {
+          "anthropic_reasoning_controls": true,
+          "prompt_caching": true
+        },
+        "mixin_refs": [
+          "provider_defaults"
+        ],
+        "provider": "anthropic"
+      },
+      "fireworks": {
+        "api_key": "<redacted>",
+        "base_url": "https://api.fireworks.ai/inference/v1",
+        "min_request_interval_seconds": 1,
+        "mixin_refs": [
+          "provider_defaults"
+        ],
+        "model": "fireworks/gpt-oss-20b",
+        "provider": "reference_openai_compatible",
+        "rate_limit_retry_delays_seconds": [
+          1,
+          2,
+          4
+        ],
+        "reasoning_field": "reasoning_content"
+      },
+      "ollama": {
+        "base_url": "http://localhost:11434/v1",
+        "mixin_refs": [
+          "provider_defaults"
+        ],
+        "model": "qwen3:0.6b",
+        "provider": "reference_openai_compatible",
+        "reasoning_field": "reasoning"
+      },
+      "openai": {
+        "allowed_paths": [
+          ".",
+          "..",
+          "${env:CONFIG_DIR}"
+        ],
+        "api_key": "<redacted>",
+        "auth_mode": "<redacted>",
+        "base_url": "https://api.openai.com/v1",
+        "enable_fast_mode": false,
+        "enable_flex_processing": true,
+        "enable_prompt_cache_retention_24h": true,
+        "mixin_refs": [
+          "provider_defaults"
+        ],
+        "provider": "openai_responses",
+        "reasoning_summary": "detailed",
+        "show_estimated_cached_tokens": true,
+        "show_openai_auth_mode": "<redacted>",
+        "strip_leading_system_or_developer_message": true,
+        "system_message_as_instructions": true
+      },
+      "openrouter": {
+        "api_key": "<redacted>",
+        "base_url": "https://openrouter.ai/api/v1",
+        "mixin_refs": [
+          "provider_defaults"
+        ],
+        "provider": "openrouter"
+      },
+      "openrouter_image_generation": {
+        "api_key": "<redacted>",
+        "aspect_ratio": "1:1",
+        "base_url": "https://openrouter.ai/api/v1",
+        "mixin_refs": [
+          "provider_defaults"
+        ],
+        "model": "black-forest-labs/flux.2-klein-4b",
+        "provider": "openrouter_image_generation",
+        "timeout": 180
+      },
+      "zai": {
+        "api_key": "<redacted>",
+        "base_url": "https://api.z.ai/api/paas/v4",
+        "endpoint_options": {
+          "Coding": "https://api.z.ai/api/coding/paas/v4",
+          "General": "https://api.z.ai/api/paas/v4"
+        },
+        "mixin_refs": [
+          "provider_defaults"
+        ],
+        "model": "glm-4.5-air",
+        "provider": "reference_openai_compatible",
+        "retry_on_status": {
+          "500": [
+            0,
+            5,
+            30
+          ]
+        },
+        "retry_on_timeout": [
+          0,
+          5,
+          30
+        ]
+      }
+    }
+  },
+  "reasoning_effort": "high",
+  "request_overrides": {
+    "allowed_paths": [
+      "<workspace>"
+    ],
+    "auth_mode": "<redacted>",
+    "chatgpt_credentials_path": "<redacted>",
+    "include_tasks": true,
+    "mcp_enabled": false,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "reasoning_summary": "detailed",
+    "skills_enabled": false,
+    "web_search_enabled": false,
+    "working_directory": "<workspace>"
+  }
+}

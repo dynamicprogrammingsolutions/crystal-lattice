@@ -1,0 +1,65 @@
+{
+  "bundle": {
+    "git": {
+      "dirty": false,
+      "revision": "a5a393723f906e61106da15d7fa9d1b89baeeb21"
+    },
+    "id": "current",
+    "path": "maintainer/guidance/current"
+  },
+  "compilation_sha256": "9802a9130ce15e651a5fbe95ee8cd2467d7078073c78a361df611a210f8cfd06",
+  "compiler_version": "2",
+  "inputs": [
+    {
+      "path": "bundle.toml",
+      "role": "bundle",
+      "sha256": "56fd33439037a7c33b9880d84ef18b664a14a9767459f168d559943fa2867475"
+    },
+    {
+      "path": "sections/documentation.md",
+      "role": "bundle",
+      "sha256": "a3362c0ce5b8f1d08c0e43b1eb96076ebbf1ff5d7653668d944d3ac7d8f92e38"
+    },
+    {
+      "path": "sections/requirements.md",
+      "role": "bundle",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "sections/testing-strategy.md",
+      "role": "bundle",
+      "sha256": "553970e009dd30ba09469238b3386bc95195754b2e3c761a681cec0a8d830717"
+    },
+    {
+      "path": "AGENTS.md.in",
+      "role": "target",
+      "sha256": "6f17864d4952af2efb4d2115f8f44009a7e6d1891727eede4fed71e7d445222c"
+    },
+    {
+      "path": "sections/project-context.md",
+      "role": "target",
+      "sha256": "fcf4beffb9e944b61d8f342916632393ac21b3427706c1c4ebdbf52df9661237"
+    },
+    {
+      "path": "target.toml",
+      "role": "target",
+      "sha256": "48ed0f9542baf8d631b91906f9d617be3b0ed6ee8426e69ebfb66db138a8cfed"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "1a8f6bfd120b66f728e11c1c9b02e3b467a522990f147e3e15b8e5fe58da2e30"
+    }
+  ],
+  "schema_version": 1,
+  "target": {
+    "git": {
+      "dirty": false,
+      "revision": "a5a393723f906e61106da15d7fa9d1b89baeeb21"
+    },
+    "id": "task-guidance-flask-vue",
+    "kind": "fixture",
+    "path": "maintainer/agent-evaluation/suites/task_guidance/fixtures/guidance/flask-vue"
+  }
+}

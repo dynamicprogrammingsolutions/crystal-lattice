@@ -18,7 +18,7 @@
 
 - [Session](continuation/session.md) — includes the prompt and response
 - Task file [`20260919-notes-pagination.md`](continuation/task-files/tasks/20260919-notes-pagination.md)
-- Delivered instructions: **unavailable**
+- [Delivered instructions](../../../shared/system-messages/gpt-dde65e8c3443.md) — inherited (original SHA-256 `1684023995147a73…`)
 - [Effective config](../../../shared/configs/gpt-high.json)
 - Continuation parent run: `20260919T204923.089005Z-task-guidance-tg02-fastapi-pagination-handoff-high-449d07a5`
 

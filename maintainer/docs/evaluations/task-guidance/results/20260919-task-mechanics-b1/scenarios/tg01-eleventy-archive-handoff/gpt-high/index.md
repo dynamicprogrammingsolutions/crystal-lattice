@@ -15,7 +15,7 @@
 
 - [Session](continuation/session.md) — includes the prompt and response
 - Task file [`20260920-blog-archive-pagination.md`](continuation/task-files/tasks/20260920-blog-archive-pagination.md)
-- Delivered instructions: **unavailable**
+- [Delivered instructions](../../../shared/system-messages/gpt-c45a9def3e33.md) — inherited (original SHA-256 `6880ce525e97dea1…`)
 - [Effective config](../../../shared/configs/gpt-high.json)
 - Continuation parent run: `20260919T224157.363681Z-task-guidance-tg01-eleventy-archive-handoff-high-3430e1ca`
 

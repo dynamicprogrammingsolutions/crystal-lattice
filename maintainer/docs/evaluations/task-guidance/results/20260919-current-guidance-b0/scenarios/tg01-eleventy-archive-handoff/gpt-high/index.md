@@ -19,7 +19,7 @@
 - Task file [`020-accessible-archive-navigation.md`](continuation/task-files/tasks/20260919-blog-archive-pagination/020-accessible-archive-navigation.md)
 - Task file [`030-regression-coverage.md`](continuation/task-files/tasks/20260919-blog-archive-pagination/030-regression-coverage.md)
 - Task file [`040-pagination-documentation.md`](continuation/task-files/tasks/20260919-blog-archive-pagination/040-pagination-documentation.md)
-- Delivered instructions: **unavailable**
+- [Delivered instructions](../../../shared/system-messages/gpt-337f21950e81.md) — inherited (original SHA-256 `8a0d2b22848f650c…`)
 - [Effective config](../../../shared/configs/gpt-high.json)
 - Continuation parent run: `20260919T204625.395268Z-task-guidance-tg01-eleventy-archive-handoff-high-acc45cb2`
 

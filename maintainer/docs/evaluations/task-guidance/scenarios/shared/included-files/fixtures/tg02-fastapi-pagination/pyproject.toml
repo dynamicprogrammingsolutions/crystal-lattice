@@ -1,0 +1,9 @@
+[project]
+name = "task-guidance-fastapi-fixture"
+version = "0.1.0"
+dependencies = [
+  "databases[sqlite]",
+  "fastapi",
+  "httpx",
+  "sqlalchemy",
+]

@@ -2,7 +2,7 @@
 
 - Run: `20260919T205218.467665Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-df8f3a3b`
 - Model: gpt-5.6-luna (effort high)
-- Delivered instructions: **unavailable**
+- Delivered instructions: [gpt-high](../../../../shared/system-messages/gpt-dde65e8c3443.md) — inherited (original SHA-256 `1684023995147a73…`)
 - Config: [gpt-high](../../../../shared/configs/gpt-high.json)
 - Activity: 24 messages · 13 tool calls · 13 tool results
 - Usage: 34,568 input · 32,522 cached (estimated) · 817 output · provider cost $0.0102002

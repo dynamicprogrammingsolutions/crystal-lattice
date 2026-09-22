@@ -14,7 +14,7 @@
 ### `continuation` (invalid)
 
 - [Session](continuation/session.md) — includes the prompt and response
-- Delivered instructions: **unavailable**
+- [Delivered instructions](../../../shared/system-messages/gpt-a9b1cb646367.md) — inherited (original SHA-256 `4d10f4c44f87eac2…`)
 - [Effective config](../../../shared/configs/gpt-high.json)
 - Continuation parent run: `None`
 - Invalid because: parent task creation produced no task files

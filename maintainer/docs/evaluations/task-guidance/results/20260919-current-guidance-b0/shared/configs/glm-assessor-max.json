@@ -898,7 +898,7 @@
     "allowed_paths": [
       "<workspace>"
     ],
-    "include_tasks": true,
+    "include_tasks": false,
     "mcp_enabled": false,
     "model": "glm-5.3-flash:cloud",
     "request_options": {

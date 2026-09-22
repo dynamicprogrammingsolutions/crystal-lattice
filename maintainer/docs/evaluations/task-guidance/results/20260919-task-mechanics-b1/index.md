@@ -25,5 +25,5 @@ This package preserves the completed evaluation's reviewed inputs, model outputs
 ## Known limitations
 
 - Historical GLM runs saved no provider usage metadata; their usage and estimated cost remain unknown.
-- GPT same-agent continuation runs recorded no compiled-message hash, so their delivered instructions stay unavailable rather than reconstructed without verification.
+- GPT same-agent continuation runs recorded no compiled-message hash; their delivered instructions are inherited from the producer run's verified message instead of reconstructed independently.
 - Session transcripts omit full tool-result content and encrypted reasoning; concise failure excerpts are retained.

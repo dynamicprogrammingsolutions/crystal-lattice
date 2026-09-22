@@ -1,0 +1,65 @@
+{
+  "bundle": {
+    "git": {
+      "dirty": false,
+      "revision": "a5a393723f906e61106da15d7fa9d1b89baeeb21"
+    },
+    "id": "current",
+    "path": "maintainer/guidance/current"
+  },
+  "compilation_sha256": "d69735cc87ec720d775e788d6c51ee62dc6d3ebea6350edb5a4ede107910468b",
+  "compiler_version": "2",
+  "inputs": [
+    {
+      "path": "bundle.toml",
+      "role": "bundle",
+      "sha256": "56fd33439037a7c33b9880d84ef18b664a14a9767459f168d559943fa2867475"
+    },
+    {
+      "path": "sections/documentation.md",
+      "role": "bundle",
+      "sha256": "a3362c0ce5b8f1d08c0e43b1eb96076ebbf1ff5d7653668d944d3ac7d8f92e38"
+    },
+    {
+      "path": "sections/requirements.md",
+      "role": "bundle",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "sections/testing-strategy.md",
+      "role": "bundle",
+      "sha256": "553970e009dd30ba09469238b3386bc95195754b2e3c761a681cec0a8d830717"
+    },
+    {
+      "path": "AGENTS.md.in",
+      "role": "target",
+      "sha256": "6f17864d4952af2efb4d2115f8f44009a7e6d1891727eede4fed71e7d445222c"
+    },
+    {
+      "path": "sections/project-context.md",
+      "role": "target",
+      "sha256": "f2107fb64dad34efddce70c1eb0cfc84c56324d18220fd577aabaa943e5d7576"
+    },
+    {
+      "path": "target.toml",
+      "role": "target",
+      "sha256": "061ab467d562dcc8031754753d44626c8b986519836c54316ab10d0842b7d708"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "fe995f99ef7ccbd9bab86353cf8a95f5136a798aa2cc574e2ed83cfedca00b60"
+    }
+  ],
+  "schema_version": 1,
+  "target": {
+    "git": {
+      "dirty": false,
+      "revision": "a5a393723f906e61106da15d7fa9d1b89baeeb21"
+    },
+    "id": "task-guidance-fastapi",
+    "kind": "fixture",
+    "path": "maintainer/agent-evaluation/suites/task_guidance/fixtures/guidance/fastapi"
+  }
+}

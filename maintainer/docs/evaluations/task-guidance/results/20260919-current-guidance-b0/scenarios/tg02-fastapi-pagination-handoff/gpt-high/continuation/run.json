@@ -18,10 +18,13 @@
   "run_id": "20260919T205218.467665Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-df8f3a3b",
   "system_message": {
     "availability": {
-      "detail": "saved session retains no system message and no delivery hash was recorded",
-      "state": "unavailable"
+      "detail": "inherited from the cell's producer run, whose delivered instructions are reconstructed",
+      "state": "inherited"
     },
-    "source": null
+    "normalized_sha256": "dde65e8c34438b7e813268354f8035500d02c4d0eaa27d4a5559f5fea5adb8bf",
+    "original_sha256": "1684023995147a73320e3c7cb10f7e5b2e15aa53239b5bebba2249b5a53667b3",
+    "path": "shared/system-messages/gpt-dde65e8c3443.md",
+    "source": "inherited-from-producer-run"
   },
   "task_files": [
     "task-files/tasks/20260919-notes-pagination.md"

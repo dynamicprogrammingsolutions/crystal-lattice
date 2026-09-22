@@ -2,13 +2,13 @@
   "files": {
     "collected": {
       "aggregate.json": {
-        "bytes": 17495,
+        "bytes": 46790,
         "provenance": {
           "path": "maintainer/agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b0_results.json",
           "sha256": "be748c9af9d19d852a5139cc95d483b194e89f89f71f51277948dea11a422a62",
           "source": "frozen consolidated dataset"
         },
-        "sha256": "b970b6e19b0ce2d530c7fce32491afea7a5118126b4c940cef6180198080e5bb"
+        "sha256": "5f9ba3f96b04e2023b20d0357878077577493fbc534bf9156233b2e8a22a7b8d"
       },
       "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md": {
         "bytes": 7613,
@@ -101,14 +101,14 @@
         "sha256": "f2b7327b1871473c88bebe8a8be38d306872c883e4fabeaa18365547c7580ff0"
       },
       "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/run.json": {
-        "bytes": 1246,
+        "bytes": 1524,
         "provenance": null,
-        "sha256": "8b305f1092f255597663e220ef4fce8d0fe12296d4a072b0deb44a6d4d491170"
+        "sha256": "f66a714cccaabcb0cc814181597e3e796d341918e8b0419c4c86309474938002"
       },
       "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/session.md": {
-        "bytes": 6990,
+        "bytes": 7096,
         "provenance": null,
-        "sha256": "7ac521eb4df3b2ca9b38d26026dba06d35e6ae516398e9f1d3e58f957d653420"
+        "sha256": "87320203388ef741d442f8d4fc8e4b74394563c9b411f729c0b1c885746d875a"
       },
       "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/task-files/tasks/20260919-blog-archive-pagination/000-main.md": {
         "bytes": 7867,
@@ -291,14 +291,14 @@
         "sha256": "31f9962bd35e727bc64ff297faa2a82bdffdaeee6ec5182c382fdcc2e275961d"
       },
       "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/run.json": {
-        "bytes": 873,
+        "bytes": 1151,
         "provenance": null,
-        "sha256": "23fa5c6dc35d279481f45917717ff164b33b0fbf7e84366fdf20aa4fc5530bc8"
+        "sha256": "fe4090fd9b7c26a6bede7e552e4c63f70eff0f441ac98d7155e0a242d921affc"
       },
       "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/session.md": {
-        "bytes": 4170,
+        "bytes": 4276,
         "provenance": null,
-        "sha256": "36a2ecc6795d3baf9de3d7567515a73336bbc4c79986b92205f8cb0b3044a254"
+        "sha256": "53590d1e4ba69f2d70e99fda671ba4f7b292cbc2cc4848b8de91cf11feb4e300"
       },
       "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/task-files/tasks/20260919-notes-pagination.md": {
         "bytes": 6899,
@@ -461,14 +461,14 @@
         "sha256": "926cbf1aaa89013cfcf191e98a8fc25e275e73e0b8c4398d5efb9f3e34b6a924"
       },
       "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/run.json": {
-        "bytes": 780,
+        "bytes": 1058,
         "provenance": null,
-        "sha256": "01d87560b16a1cc455cfa5c8cbccd0cfe23c5782323577e847255ac81c05dcf3"
+        "sha256": "3e2bf71f603b42c2b4c9cf61ca439fc8d109c24f5b49d88a39e5e08cbb2c4968"
       },
       "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/session.md": {
-        "bytes": 4111,
+        "bytes": 4217,
         "provenance": null,
-        "sha256": "df75d4abccbf8e0be71402ae0048809378c589abb661ec88f8d712587aa52e8b"
+        "sha256": "40680a29ed52032fea44bb558e9c6636f51b487a396d67040172c3daaea50359"
       },
       "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/run.json": {
         "bytes": 904,
@@ -1016,9 +1016,9 @@
         "sha256": "2cd448c6c996fdd069ec20c498031a99808eee4ece2472ac31d993481e24b4db"
       },
       "shared/configs/glm-assessor-max.json": {
-        "bytes": 35249,
+        "bytes": 35250,
         "provenance": null,
-        "sha256": "0b620b56c4764a90920fdf3ae7b6b0066b7c5b7972f12610d62ea281856ca733"
+        "sha256": "5aef002612443066495d5cdb41c0ad62a8376dbaae67b81e89cd4ec239a8a4dc"
       },
       "shared/configs/glm-max.json": {
         "bytes": 35249,
@@ -1086,20 +1086,20 @@
         "sha256": "916868936b0de0c577c5790037bdcb94a82e6481d9558fc8bb35678c20318354"
       },
       "index.md": {
-        "bytes": 1634,
-        "sha256": "5c16c1f7d6bb00c14415b1d3dfdadc3e8c11e43772e56a7608cfb8e8197e4b37"
+        "bytes": 1661,
+        "sha256": "ad4c12c04048613f679cb0e176749cb5044aed895029350a6729b9bd95014698"
       },
       "matrix.md": {
-        "bytes": 1411,
-        "sha256": "5f7ea6605cf72e90550100a9a1ccaf415484320462733ac804e3b964ec799a3b"
+        "bytes": 15432,
+        "sha256": "bf8e9197a637f5b1eecb5be961426d963b925398165b936e4efcad54e1f5213b"
       },
       "scenarios/tg01-eleventy-archive-handoff/glm-max/index.md": {
         "bytes": 2053,
         "sha256": "1cb737256446445150c192bcce15dfc78af4c21641854416ce296700d7ce9683"
       },
       "scenarios/tg01-eleventy-archive-handoff/gpt-high/index.md": {
-        "bytes": 2529,
-        "sha256": "385466cd8c115cfca258102a26dc710b1bde89f3e0a804e3aadbfa3457efb9ec"
+        "bytes": 2622,
+        "sha256": "7e4f89760c2fe0b208a0e02b47537c94ad8cffe86d374d3e26e2661fdc930eb8"
       },
       "scenarios/tg01-eleventy-archive-handoff/index.md": {
         "bytes": 642,
@@ -1110,8 +1110,8 @@
         "sha256": "ff8c47f972bb839e17de2deeed48f9d8105b43cb4d94e023a9e31764973cef49"
       },
       "scenarios/tg02-fastapi-pagination-handoff/gpt-high/index.md": {
-        "bytes": 2238,
-        "sha256": "868e05fc245f49a26e35b3366926dabc9631efeb9791c949ea65162bb2209cf3"
+        "bytes": 2331,
+        "sha256": "ca5ed32266b1d4a78d6a46141643e7c42fc5040a004a8287b86399a45284ae85"
       },
       "scenarios/tg02-fastapi-pagination-handoff/index.md": {
         "bytes": 655,
@@ -1122,8 +1122,8 @@
         "sha256": "1da030537a00fbc962363a7572a097d5fb7e6d1f13492989575ee67b2591ed96"
       },
       "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/index.md": {
-        "bytes": 1848,
-        "sha256": "afd844e9a051b69012990d665cd7687b68876580f6011051ad10d5e153dd5b9a"
+        "bytes": 1941,
+        "sha256": "c014995e3e04f0bc6a7bb8c02966274cc6dfc002fca3ef07f3df7af3fca92892"
       },
       "scenarios/tg03-flask-vue-refresh-handoff/index.md": {
         "bytes": 643,
@@ -1191,7 +1191,7 @@
       }
     }
   },
-  "generator_version": "task-guidance-result-package-v3",
+  "generator_version": "task-guidance-result-package-v4",
   "identity": {
     "attempts": {
       "handoff": "b0-v5-r1",

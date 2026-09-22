@@ -2,7 +2,7 @@
 
 - Run: `20260919T205048.828517Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-270dd363`
 - Model: gpt-5.6-luna (effort high)
-- Delivered instructions: **unavailable**
+- Delivered instructions: [gpt-high](../../../../shared/system-messages/gpt-337f21950e81.md) — inherited (original SHA-256 `8a0d2b22848f650c…`)
 - Config: [gpt-high](../../../../shared/configs/gpt-high.json)
 - Activity: 29 messages · 17 tool calls · 17 tool results
 - Usage: 51,524 input · 46,471 cached (estimated) · 1,882 output · provider cost $0.0209921
