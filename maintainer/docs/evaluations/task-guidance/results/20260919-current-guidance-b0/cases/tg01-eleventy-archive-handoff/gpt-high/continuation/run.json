@@ -1,0 +1,34 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "continuation",
+  "lineage": {
+    "inherited_prefix": {
+      "availability": {
+        "detail": "bounded by the parent run's saved session",
+        "state": "captured"
+      },
+      "length": 23
+    },
+    "parent_run_id": "20260919T204625.395268Z-task-guidance-tg01-eleventy-archive-handoff-high-acc45cb2"
+  },
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260919T205048.828517Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-270dd363",
+  "system_message": {
+    "availability": {
+      "detail": "saved session retains no system message and no delivery hash was recorded",
+      "state": "unavailable"
+    },
+    "source": null
+  },
+  "task_files": [
+    "task-files/tasks/20260919-blog-archive-pagination/000-main.md",
+    "task-files/tasks/20260919-blog-archive-pagination/010-archive-pagination-generation.md",
+    "task-files/tasks/20260919-blog-archive-pagination/020-accessible-archive-navigation.md",
+    "task-files/tasks/20260919-blog-archive-pagination/030-regression-coverage.md",
+    "task-files/tasks/20260919-blog-archive-pagination/040-pagination-documentation.md"
+  ],
+  "valid": true
+}

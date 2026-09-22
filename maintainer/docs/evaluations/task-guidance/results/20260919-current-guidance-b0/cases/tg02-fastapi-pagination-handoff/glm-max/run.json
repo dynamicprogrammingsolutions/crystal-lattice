@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260919T153654.141668Z-task-guidance-tg02-fastapi-pagination-handoff-max-a5d7b8c7",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "24bb7ea9fdf995627657c73ebe5ca70b571eb0ad9c07949dc8daeba8df81af34",
+    "original_sha256": "cb6ea1128be7cd66f49e1c54b045581ab9e5246731694ea71ec49a2617dfbeb8",
+    "path": "shared/system-messages/glm-max-24bb7ea9fdf9.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-notes-list-pagination.md"
+  ],
+  "valid": true
+}

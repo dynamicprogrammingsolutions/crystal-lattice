@@ -1,0 +1,575 @@
+{
+  "attempts": {
+    "handoff": "b1-v1-r1",
+    "producer": "b1-v1-r1",
+    "semantic": "b1-metrics1"
+  },
+  "dataset_id": "task-guidance-b1-20260919",
+  "invalid_records": [
+    {
+      "group": "same_agent_records",
+      "record": {
+        "continuation_tool_metrics": {
+          "list": 0,
+          "mutation": 0,
+          "other": 0,
+          "read": 0,
+          "search": 0,
+          "shell": 0,
+          "total": 0
+        },
+        "dataset_id": "task-guidance-b1-20260919",
+        "invalid_reasons": [
+          "parent task creation produced no task files"
+        ],
+        "producer": {
+          "model": "gpt-5.6-luna",
+          "profile": "gpt",
+          "reasoning_effort": "high"
+        },
+        "response": "",
+        "run_attempt": "b1-v1-r1",
+        "scenario_id": "tg03-flask-vue-refresh-handoff",
+        "schema_version": 1,
+        "target": {
+          "acceptable_alternatives": [
+            "Add, update, and delete may be grouped as variants of one refresh outcome."
+          ],
+          "acceptable_partition_sizes": [
+            1
+          ],
+          "approved_outcomes": [
+            {
+              "id": "REFRESH-1",
+              "outcome": "All/Read/Unread selection remains active after add, update, and delete refreshes."
+            },
+            {
+              "id": "REFRESH-2",
+              "outcome": "Mutation refreshes use the selected filter through the production client transport and Flask route."
+            },
+            {
+              "id": "REFRESH-3",
+              "outcome": "The visible active choice, table results, and empty state match the refreshed response."
+            },
+            {
+              "id": "REFRESH-4",
+              "outcome": "Existing CRUD success, response shape, and unfiltered behavior remain compatible."
+            }
+          ],
+          "category": "handoff",
+          "coherent_deliverables": [
+            {
+              "dependencies": [],
+              "id": "REFRESH-DELIVERY",
+              "independent_value": "Frontend state, transport, server request, rendering, and regression evidence must all land before the bug is fixed.",
+              "outcomes": [
+                "REFRESH-1",
+                "REFRESH-2",
+                "REFRESH-3",
+                "REFRESH-4"
+              ],
+              "title": "Fix selected-filter refresh behavior"
+            }
+          ],
+          "fragmentation_examples": [
+            "Frontend, backend, component-test, API-test, integration-test, and documentation subtasks would split one inseparable bug fix."
+          ],
+          "handoff": {
+            "fresh_agent_plan": "A fresh agent reconstructs one cohesive cross-layer fix and groups CRUD refresh variants.",
+            "omit_plan": "Preserve the observed regression, source pointers, state owner, and public response constraints without the proposed shared fetch-path solution.",
+            "retain_plan": "Preserve the selected-state owner, refresh call paths, compatibility constraints, and real crossing."
+          },
+          "important_crossings": [
+            "Vue selection and mutation refresh use the production transport and Flask HTTP route before rendering results."
+          ],
+          "open_questions": [],
+          "overpacking_examples": [],
+          "project": {
+            "fixture_id": "tg03-flask-vue-refresh",
+            "kind": "user-facing full-stack application",
+            "name": "Flask-Vue CRUD",
+            "revision": "be91da59a10d07384537c2f76f4505eb344d1682",
+            "upstream": "https://github.com/testdrivenio/flask-vue-crud"
+          },
+          "scenario_id": "tg03-flask-vue-refresh-handoff",
+          "schema_version": 1,
+          "task_summary": "Keep one cross-layer regression cohesive and preserve its production transport boundary.",
+          "title": "Flask/Vue selected-filter refresh handoff"
+        },
+        "task_creation_tool_metrics": {
+          "list": 0,
+          "mutation": 0,
+          "other": 0,
+          "read": 0,
+          "search": 0,
+          "shell": 5,
+          "total": 5
+        },
+        "task_files": {},
+        "valid": false
+      }
+    }
+  ],
+  "label": "task-mechanics candidate",
+  "provider_blocker_records": [],
+  "schema_version": 1,
+  "semantic_quality": {
+    "cohorts": {
+      "all": {
+        "assessment_count": 18,
+        "dimensions": {
+          "evidence_reownership": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 18
+            }
+          },
+          "fragmentation": {
+            "affected_assessments": 6,
+            "average_score": 83.3,
+            "occurrence_count": 6,
+            "status_counts": {
+              "low": 3,
+              "medium": 3,
+              "none": 12
+            }
+          },
+          "layer_split_without_independent_value": {
+            "affected_assessments": 3,
+            "average_score": 83.3,
+            "occurrence_count": 6,
+            "status_counts": {
+              "none": 15,
+              "present": 3
+            }
+          },
+          "phase_only_children": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 18
+            }
+          },
+          "piecewise_crossing_evidence": {
+            "affected_assessments": 5,
+            "average_score": 75.0,
+            "occurrence_count": 5,
+            "status_counts": {
+              "none": 13,
+              "partial": 1,
+              "present": 4
+            }
+          },
+          "unsafe_dependencies": {
+            "affected_assessments": 6,
+            "average_score": 80.6,
+            "occurrence_count": 6,
+            "status_counts": {
+              "none": 12,
+              "partial": 5,
+              "present": 1
+            }
+          }
+        },
+        "overall_success_percentage": 87.0
+      },
+      "glm": {
+        "assessment_count": 6,
+        "dimensions": {
+          "evidence_reownership": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "fragmentation": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "layer_split_without_independent_value": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "phase_only_children": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "piecewise_crossing_evidence": {
+            "affected_assessments": 1,
+            "average_score": 83.3,
+            "occurrence_count": 1,
+            "status_counts": {
+              "none": 5,
+              "present": 1
+            }
+          },
+          "unsafe_dependencies": {
+            "affected_assessments": 1,
+            "average_score": 91.7,
+            "occurrence_count": 1,
+            "status_counts": {
+              "none": 5,
+              "partial": 1
+            }
+          }
+        },
+        "overall_success_percentage": 95.8
+      },
+      "glm:max": {
+        "assessment_count": 6,
+        "dimensions": {
+          "evidence_reownership": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "fragmentation": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "layer_split_without_independent_value": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "phase_only_children": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "piecewise_crossing_evidence": {
+            "affected_assessments": 1,
+            "average_score": 83.3,
+            "occurrence_count": 1,
+            "status_counts": {
+              "none": 5,
+              "present": 1
+            }
+          },
+          "unsafe_dependencies": {
+            "affected_assessments": 1,
+            "average_score": 91.7,
+            "occurrence_count": 1,
+            "status_counts": {
+              "none": 5,
+              "partial": 1
+            }
+          }
+        },
+        "overall_success_percentage": 95.8
+      },
+      "gpt": {
+        "assessment_count": 12,
+        "dimensions": {
+          "evidence_reownership": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 12
+            }
+          },
+          "fragmentation": {
+            "affected_assessments": 6,
+            "average_score": 75.0,
+            "occurrence_count": 6,
+            "status_counts": {
+              "low": 3,
+              "medium": 3,
+              "none": 6
+            }
+          },
+          "layer_split_without_independent_value": {
+            "affected_assessments": 3,
+            "average_score": 75.0,
+            "occurrence_count": 6,
+            "status_counts": {
+              "none": 9,
+              "present": 3
+            }
+          },
+          "phase_only_children": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 12
+            }
+          },
+          "piecewise_crossing_evidence": {
+            "affected_assessments": 4,
+            "average_score": 70.8,
+            "occurrence_count": 4,
+            "status_counts": {
+              "none": 8,
+              "partial": 1,
+              "present": 3
+            }
+          },
+          "unsafe_dependencies": {
+            "affected_assessments": 5,
+            "average_score": 75.0,
+            "occurrence_count": 5,
+            "status_counts": {
+              "none": 7,
+              "partial": 4,
+              "present": 1
+            }
+          }
+        },
+        "overall_success_percentage": 82.6
+      },
+      "gpt:high": {
+        "assessment_count": 6,
+        "dimensions": {
+          "evidence_reownership": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "fragmentation": {
+            "affected_assessments": 2,
+            "average_score": 83.3,
+            "occurrence_count": 2,
+            "status_counts": {
+              "low": 1,
+              "medium": 1,
+              "none": 4
+            }
+          },
+          "layer_split_without_independent_value": {
+            "affected_assessments": 1,
+            "average_score": 83.3,
+            "occurrence_count": 2,
+            "status_counts": {
+              "none": 5,
+              "present": 1
+            }
+          },
+          "phase_only_children": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 6
+            }
+          },
+          "piecewise_crossing_evidence": {
+            "affected_assessments": 2,
+            "average_score": 75.0,
+            "occurrence_count": 2,
+            "status_counts": {
+              "none": 4,
+              "partial": 1,
+              "present": 1
+            }
+          },
+          "unsafe_dependencies": {
+            "affected_assessments": 1,
+            "average_score": 91.7,
+            "occurrence_count": 1,
+            "status_counts": {
+              "none": 5,
+              "partial": 1
+            }
+          }
+        },
+        "overall_success_percentage": 88.9
+      },
+      "gpt:max": {
+        "assessment_count": 3,
+        "dimensions": {
+          "evidence_reownership": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 3
+            }
+          },
+          "fragmentation": {
+            "affected_assessments": 2,
+            "average_score": 66.7,
+            "occurrence_count": 2,
+            "status_counts": {
+              "low": 1,
+              "medium": 1,
+              "none": 1
+            }
+          },
+          "layer_split_without_independent_value": {
+            "affected_assessments": 1,
+            "average_score": 66.7,
+            "occurrence_count": 2,
+            "status_counts": {
+              "none": 2,
+              "present": 1
+            }
+          },
+          "phase_only_children": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 3
+            }
+          },
+          "piecewise_crossing_evidence": {
+            "affected_assessments": 1,
+            "average_score": 66.7,
+            "occurrence_count": 1,
+            "status_counts": {
+              "none": 2,
+              "present": 1
+            }
+          },
+          "unsafe_dependencies": {
+            "affected_assessments": 2,
+            "average_score": 66.7,
+            "occurrence_count": 2,
+            "status_counts": {
+              "none": 1,
+              "partial": 2
+            }
+          }
+        },
+        "overall_success_percentage": 77.8
+      },
+      "gpt:xhigh": {
+        "assessment_count": 3,
+        "dimensions": {
+          "evidence_reownership": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 3
+            }
+          },
+          "fragmentation": {
+            "affected_assessments": 2,
+            "average_score": 66.7,
+            "occurrence_count": 2,
+            "status_counts": {
+              "low": 1,
+              "medium": 1,
+              "none": 1
+            }
+          },
+          "layer_split_without_independent_value": {
+            "affected_assessments": 1,
+            "average_score": 66.7,
+            "occurrence_count": 2,
+            "status_counts": {
+              "none": 2,
+              "present": 1
+            }
+          },
+          "phase_only_children": {
+            "affected_assessments": 0,
+            "average_score": 100.0,
+            "occurrence_count": 0,
+            "status_counts": {
+              "none": 3
+            }
+          },
+          "piecewise_crossing_evidence": {
+            "affected_assessments": 1,
+            "average_score": 66.7,
+            "occurrence_count": 1,
+            "status_counts": {
+              "none": 2,
+              "present": 1
+            }
+          },
+          "unsafe_dependencies": {
+            "affected_assessments": 2,
+            "average_score": 50.0,
+            "occurrence_count": 2,
+            "status_counts": {
+              "none": 1,
+              "partial": 1,
+              "present": 1
+            }
+          }
+        },
+        "overall_success_percentage": 75.0
+      }
+    }
+  },
+  "status": {
+    "handoff_semantics": {
+      "expected": 3,
+      "missing": [],
+      "present": 3
+    },
+    "handoffs": {
+      "expected": 12,
+      "invalid": 0,
+      "missing": [],
+      "present": 12,
+      "valid": 12
+    },
+    "negative_controls": {
+      "expected": 1,
+      "missing": [],
+      "present": 1
+    },
+    "producers": {
+      "expected": 18,
+      "invalid": 0,
+      "missing": [],
+      "present": 18,
+      "valid": 18
+    },
+    "provider_blockers": {
+      "identities": [],
+      "present": 0
+    },
+    "same_agent": {
+      "expected": 6,
+      "invalid": 1,
+      "missing": [],
+      "present": 6,
+      "valid": 5
+    },
+    "semantics": {
+      "expected": 6,
+      "missing": [],
+      "present": 6
+    }
+  }
+}

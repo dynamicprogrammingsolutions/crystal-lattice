@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260919T182034.793032Z-task-guidance-tg01-eleventy-archive-handoff-max-83edbcde",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "0fb23262b06d0571a29f9a52b8c84a8f3e98535aa798ec324a22724193373125",
+    "original_sha256": "847dd4886db8c90f8c386495b478a00272dc14d22391a9d97367e3741213425f",
+    "path": "shared/system-messages/glm-max-0fb23262b06d.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-eleventy-blog-archive-pagination.md"
+  ],
+  "valid": true
+}

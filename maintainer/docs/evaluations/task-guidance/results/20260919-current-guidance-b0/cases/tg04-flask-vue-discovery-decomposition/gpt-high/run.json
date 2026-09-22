@@ -1,0 +1,27 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260919T200518.630726Z-task-guidance-tg04-flask-vue-discovery-decomposition-high-b5ca99e5",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "3fa4f6af31fbe5b5b90cbcf18a54ed1ce82be82f887a61e11aeaca559491aee0",
+    "original_sha256": "d2b60a5d85dc5f76d0b1fe699324044faf6dec46c684f0df6664901a65952450",
+    "path": "shared/system-messages/gpt-high-3fa4f6af31fb.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-books-discovery/000-main.md",
+    "task-files/tasks/20260919-books-discovery/010-server-discovery-contract.md",
+    "task-files/tasks/20260919-books-discovery/020-client-discovery-state.md",
+    "task-files/tasks/20260919-books-discovery/030-integration-and-regression-evidence.md"
+  ],
+  "valid": true
+}
