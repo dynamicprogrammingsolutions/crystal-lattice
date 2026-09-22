@@ -3,6 +3,10 @@ import { fireEvent, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import type { ActionDisplayPayload } from '@crystal-lattice/frontend-sdk';
+import {
+  DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+  MarkdownDisplayPreferencesProvider,
+} from '@crystal-lattice/frontend-rn-components';
 
 import ActionDisplayCard from '../src/components/ActionDisplayCard';
 import { renderWithMobileProviders } from '../src/testUtils/renderWithMobileProviders';
@@ -119,4 +123,29 @@ test('action display card dismiss action closes without backend follow-up', () =
 
   expect(onDismiss).toHaveBeenCalledTimes(1);
   expect(onFollowupAction).not.toHaveBeenCalled();
+});
+
+test('markdown action displays follow the configured markdown renderer', () => {
+  const rendered = renderWithMobileProviders(
+    <MarkdownDisplayPreferencesProvider
+      value={{
+        ...DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+        markdownRenderer: 'react-native-enriched-markdown',
+      }}
+    >
+      <ActionDisplayCard
+        display={{
+          format: 'markdown',
+          title: 'Rendered result',
+          body: 'Hello **configured** renderer.',
+        }}
+      />
+    </MarkdownDisplayPreferencesProvider>,
+  );
+
+  expect(
+    rendered.UNSAFE_root.findAll(
+      (node) => String(node.type) === 'EnrichedMarkdownText',
+    ),
+  ).toHaveLength(1);
 });

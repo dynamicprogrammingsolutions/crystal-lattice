@@ -6,11 +6,11 @@ possible native selectable-markdown renderer across the mobile and macOS apps.
 
 ## Requirements checklist
 
-- [ ] Mobile exposes markdown-renderer and code-block-renderer choices alongside
+- [x] Mobile exposes markdown-renderer and code-block-renderer choices alongside
       the existing markdown typography settings; `react-native-markdown-display`
       is the stable default and the currently active enriched renderer is a
       secondary choice labeled explicitly `(experimental)`.
-- [ ] Renderer choices are persisted, normalized from older saved settings, and
+- [x] Renderer choices are persisted, normalized from older saved settings, and
       honored by all in-scope markdown surfaces, with the selectable native code
       renderer used wherever its platform implementation is verified.
 - [ ] The `react-native-markdown-display` path renders supported TeX formulas
@@ -122,7 +122,7 @@ possible native selectable-markdown renderer across the mobile and macOS apps.
 
 ## Subtasks
 
-- [ ] `tasks/20260918-markdown-renderers-selectable-text/010-configurable-renderers.md`
+- [x] `tasks/20260918-markdown-renderers-selectable-text/010-configurable-renderers.md`
 - [ ] `tasks/20260918-markdown-renderers-selectable-text/020-math-formula-rendering.md`
 - [ ] `tasks/20260918-markdown-renderers-selectable-text/030-selectable-markdown-and-desktop-scroll.md`
 - [ ] `tasks/20260918-markdown-renderers-selectable-text/040-universal-selectable-code-block.md`
@@ -200,7 +200,7 @@ are added to an approved plan.
 
 - [ ] Resolve the outcome-changing questions in this main task and affected
       subtasks.
-- [ ] Complete and verify configurable renderer preferences.
+- [x] Complete and verify configurable renderer preferences.
 - [ ] Correct desktop wheel routing and add selectable RNMD prose.
 - [ ] Verify Android and implement/verify macOS selectable code.
 - [ ] Complete the math parser/rendering spike and implement the approved math

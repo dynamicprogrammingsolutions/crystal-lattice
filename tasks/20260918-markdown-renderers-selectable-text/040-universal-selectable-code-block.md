@@ -62,6 +62,17 @@ prove dragging a selection range or invoking the native selection menu.
 Android is therefore feasible and implemented, but not yet accepted at the
 same interaction level as iOS.
 
+Detox verification on September 19, 2026 exposed a blocking Fabric measurement
+bug before interaction testing could begin. When `wrapLines={false}`, Fabric
+omits the optional false prop from the measurement `ReadableMap`, while
+`SelectableCodeBlockViewManager.measure` calls
+`props.getBoolean("wrapLines")` without first checking `hasKey`. Android throws
+`NoSuchKeyException: wrapLines` and crashes during application launch. The
+native manager should treat an absent key as false. Subtask 010 therefore keeps
+selectable-native as the requested default but marks Android unsupported and
+uses syntax-highlighter as its effective fallback until this fix passes native
+verification.
+
 ### macOS
 
 There is no macOS backend:

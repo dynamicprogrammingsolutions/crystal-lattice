@@ -171,6 +171,8 @@ function DesktopRootInner({
         initialMarkdownHeaderSize ??
           DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.headerSize,
       ),
+      markdownRenderer: 'react-native-markdown-display',
+      codeBlockRenderer: 'syntax-highlighter',
     });
   const theme = useMemo(
     () =>

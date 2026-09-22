@@ -1,27 +1,15 @@
 import React, { useCallback, useMemo } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, View } from 'react-native';
 import { EnrichedMarkdownText, type MarkdownStyle } from 'react-native-enriched-markdown';
-import SyntaxHighlighter from 'react-native-syntax-highlighter';
-import * as hljsStyles from 'react-syntax-highlighter/styles/hljs';
 import {
   deriveMarkdownTypography,
   useMarkdownDisplayPreferences,
+  type CodeBlockRendererId,
 } from '@crystal-lattice/frontend-rn-components';
 import { useTheme } from '../theme';
 import type { MarkdownMessageVariant } from './MarkdownMessageContent';
-import SelectableCodeBlock from './SelectableCodeBlock';
+import ConfiguredCodeBlock from './ConfiguredCodeBlock';
 import { splitMarkdownIntoSegments, type MarkdownSegment } from './markdownSegments';
-
-type CodeBlockRenderingMode =
-  | 'syntax-highlighter'
-  | 'enriched-markdown'
-  | 'selectable-code-block';
-
-const CODE_BLOCK_RENDERING_MODE: CodeBlockRenderingMode = 'selectable-code-block';
-
-function getCodeBlockRenderingMode(): CodeBlockRenderingMode {
-  return CODE_BLOCK_RENDERING_MODE;
-}
 
 const LIST_STYLE_TUNING = {
   marginTop: 2,
@@ -43,83 +31,21 @@ const LIST_STYLE_TUNING = {
 export interface SelectableMarkdownMessageContentProps {
   text: string;
   variant?: MarkdownMessageVariant;
+  codeBlockRenderer?: CodeBlockRendererId;
 }
-
-interface SyntaxHighlightedCodeBlockProps {
-  language: string;
-  code: string;
-}
-
-const SyntaxHighlightedCodeBlock: React.FC<SyntaxHighlightedCodeBlockProps> = ({
-  language,
-  code,
-}) => {
-  const theme = useTheme();
-  const isDarkCodeBlock = theme.codeBlockBg !== '#FFFFFF';
-
-  const codeBlockInnerStyle = useMemo(
-    () => ({
-      ...styles.codeBlockInner,
-      fontSize: theme.typography.fontSize.code,
-    }),
-    [theme.typography.fontSize.code],
-  );
-
-  return (
-    <View
-      style={[
-        styles.codeBlockOuter,
-        {
-          backgroundColor: theme.codeBlockBg,
-          borderColor: theme.border,
-        },
-      ]}
-      testID="selectable-markdown-code-block"
-    >
-      <ScrollView
-        horizontal
-        style={styles.codeBlockScrollHorizontal}
-        contentContainerStyle={styles.codeBlockScrollHorizontalContent}
-        showsHorizontalScrollIndicator
-      >
-        <SyntaxHighlighter
-          language={language}
-          style={
-            (isDarkCodeBlock
-              ? (hljsStyles as any).atomOneDark
-              : (hljsStyles as any).atomOneLight) as any
-          }
-          highlighter="hljs"
-          fontFamily="Courier"
-          fontSize={theme.typography.fontSize.code}
-          lineHeight={theme.typography.lineHeight.code}
-          customStyle={codeBlockInnerStyle}
-          PreTag={View as any}
-          CodeTag={Text as any}
-        >
-          {code}
-        </SyntaxHighlighter>
-      </ScrollView>
-    </View>
-  );
-};
 
 const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageContentProps> = ({
   text,
-  variant,
+  codeBlockRenderer = 'selectable-native',
 }) => {
   const theme = useTheme();
   const { preferences } = useMarkdownDisplayPreferences();
-  const codeBlockRenderingMode = getCodeBlockRenderingMode();
   const displayPreferenceKey =
     `${preferences.baseFontSize}:${preferences.headerSize}`;
-  const segments = useMemo<MarkdownSegment[]>(() => {
-    if (codeBlockRenderingMode !== 'enriched-markdown') {
-      return splitMarkdownIntoSegments(text);
-    }
-
-    return text ? [{ type: 'markdown', markdown: text }] : [];
-  }, [codeBlockRenderingMode, text]);
+  const segments = useMemo<MarkdownSegment[]>(
+    () => splitMarkdownIntoSegments(text),
+    [text],
+  );
 
   const markdownStyle = useMemo<MarkdownStyle>(() => {
     const baseTextColor = theme.text;
@@ -248,28 +174,14 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
 
   const renderSegment = (segment: MarkdownSegment, index: number) => {
     if (segment.type === 'code') {
-      if (codeBlockRenderingMode === 'syntax-highlighter') {
-        return (
-          <SyntaxHighlightedCodeBlock
-            key={`code-${index}`}
-            language={segment.language}
-            code={segment.content}
-          />
-        );
-      }
-
-      if (codeBlockRenderingMode === 'selectable-code-block') {
-        return (
-          <SelectableCodeBlock
-            key={`code-${index}`}
-            language={segment.language}
-            code={segment.content}
-            variant={variant}
-          />
-        );
-      }
-
-      return null;
+      return (
+        <ConfiguredCodeBlock
+          key={`code-${index}`}
+          renderer={codeBlockRenderer}
+          language={segment.language}
+          code={segment.content}
+        />
+      );
     }
 
     return (
@@ -288,28 +200,5 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
 
   return <View>{segments.map(renderSegment)}</View>;
 };
-
-const styles = StyleSheet.create({
-  codeBlockOuter: {
-    marginTop: 4,
-    marginBottom: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  codeBlockScrollHorizontal: {
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
-  codeBlockScrollHorizontalContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  codeBlockInner: {
-    backgroundColor: 'transparent',
-    padding: 0,
-    margin: 0,
-  },
-});
 
 export default React.memo(SelectableMarkdownMessageContent);

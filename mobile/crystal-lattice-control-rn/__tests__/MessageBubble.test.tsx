@@ -4,8 +4,10 @@ import { StyleSheet } from 'react-native';
 import {
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   MARKDOWN_BASE_FONT_SIZES,
+  MarkdownDisplayPreferencesProvider,
   applyDisplayTypographyPreset,
   deriveMarkdownTypography,
+  type MarkdownDisplayPreferences,
 } from '@crystal-lattice/frontend-rn-components';
 
 import MessageBubble, {
@@ -27,15 +29,29 @@ jest.mock('../src/theme', () => {
 
 
 function renderMessageBubble(message: any, extraProps: Record<string, any> = {}) {
+  return renderMessageBubbleWithPreferences(
+    message,
+    DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+    extraProps,
+  );
+}
+
+function renderMessageBubbleWithPreferences(
+  message: any,
+  preferences: MarkdownDisplayPreferences,
+  extraProps: Record<string, any> = {},
+) {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
       <ThemeProvider theme={lightTheme}>
+        <MarkdownDisplayPreferencesProvider value={preferences}>
         <MessageBubble
           index={0}
           message={message}
           {...extraProps}
         />
+        </MarkdownDisplayPreferencesProvider>
       </ThemeProvider>
     );
   });
@@ -49,10 +65,14 @@ function updateMessageBubble(
   ReactTestRenderer.act(() => {
     renderer.update(
       <ThemeProvider theme={lightTheme}>
+        <MarkdownDisplayPreferencesProvider
+          value={DEFAULT_MARKDOWN_DISPLAY_PREFERENCES}
+        >
         <MessageBubble
           index={0}
           message={message}
         />
+        </MarkdownDisplayPreferencesProvider>
       </ThemeProvider>
     );
   });
@@ -185,12 +205,18 @@ test('message attachment preview opens a stable attachment snapshot', () => {
 });
 
 
-test('user markdown mode renders selectable enriched markdown prose by default', () => {
-  const renderer = renderMessageBubble({
-    role: 'user',
-    content: 'Hello **selectable** user.',
-    metadata: {},
-  });
+test('user markdown mode can render selectable enriched markdown prose', () => {
+  const renderer = renderMessageBubbleWithPreferences(
+    {
+      role: 'user',
+      content: 'Hello **selectable** user.',
+      metadata: {},
+    },
+    {
+      ...DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+      markdownRenderer: 'react-native-enriched-markdown',
+    },
+  );
 
   const enrichedMarkdown = renderer.root.find((node) => String(node.type) === 'EnrichedMarkdownText');
 
@@ -241,11 +267,17 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   const markdownTypography = deriveMarkdownTypography(
     DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   );
-  const renderer = renderMessageBubble({
-    role: 'assistant',
-    content: 'Hello **selectable** [world](https://example.com).',
-    metadata: {},
-  });
+  const renderer = renderMessageBubbleWithPreferences(
+    {
+      role: 'assistant',
+      content: 'Hello **selectable** [world](https://example.com).',
+      metadata: {},
+    },
+    {
+      ...DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+      markdownRenderer: 'react-native-enriched-markdown',
+    },
+  );
 
   const enrichedMarkdown = renderer.root.find((node) => String(node.type) === 'EnrichedMarkdownText');
 
@@ -353,23 +385,31 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
 
 
 test('assistant markdown mode can render fenced code blocks through selectable native code blocks', () => {
-  const renderer = renderMessageBubble({
-    role: 'assistant',
-    content: [
-      'Intro paragraph.',
-      '',
-      '```ts',
-      'const value = 1;',
-      '```',
-      '',
-      'Outro paragraph.',
-    ].join('\n'),
-    metadata: {},
-  });
+  const renderer = renderMessageBubbleWithPreferences(
+    {
+      role: 'assistant',
+      content: [
+        'Intro paragraph.',
+        '',
+        '```ts',
+        'const value = 1;',
+        '```',
+        '',
+        'Outro paragraph.',
+      ].join('\n'),
+      metadata: {},
+    },
+    {
+      ...DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+      markdownRenderer: 'react-native-enriched-markdown',
+      codeBlockRenderer: 'selectable-native',
+    },
+  );
 
   const enrichedMarkdown = renderer.root.findAll((node) => String(node.type) === 'EnrichedMarkdownText');
   const selectableCodeBlocks = renderer.root.findAll((node) => (
-    String(node.type) === 'View' && node.props.testID === 'selectable-markdown-code-block'
+    String(node.type) === 'View' &&
+    node.props.testID === 'markdown-code-renderer-selectable-native'
   ));
   const selectableCodeBlockViews = renderer.root.findAll((node) => String(node.type) === 'SelectableCodeBlockView');
   const selectableTextViews = renderer.root.findAll((node) => String(node.type) === 'SelectableTextView');

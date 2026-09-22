@@ -51,24 +51,33 @@ export {
 } from "./sessionRequestStatus";
 
 export type {
+  CodeBlockRendererId,
   MarkdownBaseFontSize,
   MarkdownDisplayPreferences,
   MarkdownDisplayPreferencesProviderProps,
   MarkdownHeaderSize,
+  MarkdownRendererCapabilities,
+  MarkdownRendererId,
   MarkdownTypography,
+  ResolvedMarkdownRendererPreferences,
 } from "./markdownDisplayPreferences";
 export {
+  CODE_BLOCK_RENDERER_OPTIONS,
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   DISPLAY_TYPOGRAPHY_PRESETS,
   MARKDOWN_BASE_FONT_SIZES,
   MARKDOWN_BASE_FONT_SIZE_OPTIONS,
   MARKDOWN_HEADER_SIZE_OPTIONS,
+  MARKDOWN_RENDERER_OPTIONS,
   MarkdownDisplayPreferencesProvider,
   applyDisplayTypographyPreset,
   deriveMarkdownTypography,
+  normalizeCodeBlockRendererId,
   normalizeMarkdownBaseFontSize,
   normalizeMarkdownDisplayPreferences,
   normalizeMarkdownHeaderSize,
+  normalizeMarkdownRendererId,
+  resolveMarkdownRendererPreferences,
   useMarkdownDisplayPreferences,
 } from "./markdownDisplayPreferences";
 

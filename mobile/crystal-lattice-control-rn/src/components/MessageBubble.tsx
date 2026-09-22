@@ -14,7 +14,7 @@ import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
 import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
-import SelectableMarkdownMessageContent from './SelectableMarkdownMessageContent';
+import ConfiguredMarkdownMessageContent from './ConfiguredMarkdownMessageContent';
 import SelectablePlainText from './SelectablePlainText';
 import { AttachmentThumbnailStrip } from './AttachmentThumbnailStrip';
 import {
@@ -189,7 +189,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
               style={[styles.contentText, styles.userContentText, styles.rawReadonlyInput]}
             />
           ) : (
-            <SelectableMarkdownMessageContent
+            <ConfiguredMarkdownMessageContent
               text={content}
               variant="user"
             />
@@ -690,7 +690,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
               style={[styles.contentText, styles.rawReadonlyInput]}
             />
           ) : (
-            <SelectableMarkdownMessageContent
+            <ConfiguredMarkdownMessageContent
               text={content}
               variant="assistant"
             />
