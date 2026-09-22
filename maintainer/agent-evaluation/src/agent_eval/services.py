@@ -15,7 +15,7 @@ from typing import Any, Callable, Mapping, TypeVar
 ProjectionT = TypeVar("ProjectionT")
 
 _SENSITIVE_KEY = re.compile(
-    r"(?:^|[_-])(auth|credential|password|secret|token|api[_-]?key)(?:$|[_-])",
+    r"(?:^|[_-])(auth|credentials?|password|secret|token|api[_-]?key)(?:$|[_-])",
     re.IGNORECASE,
 )
 

@@ -435,18 +435,19 @@ from fixture ownership, and remove the old fixture result copies.
   framework provenance requirement.
 - [x] Add Crystal Lattice and task-guidance requirements to their owning
   specifications.
-- [ ] Define the result-package manifest, availability, redaction, usage,
+- [x] Define the result-package manifest, availability, redaction, usage,
   cost, and suite-adapter contracts without a generic session schema.
-- [ ] Define the reusable Crystal Lattice review projection.
-- [ ] Implement collection, rendering, and deterministic check support.
+- [x] Define the reusable Crystal Lattice review projection.
+- [x] Implement collection, rendering, and deterministic check support.
 - [ ] Add synthetic unit/integration fixtures for package generation.
-- [ ] Implement the task-guidance result adapter and report configuration.
-- [ ] Export and review the representative GPT-xhigh book-discovery cell.
+- [x] Implement the task-guidance result adapter and report configuration.
+- [x] Export the representative GPT-xhigh book-discovery cell (human review
+  pending).
 - [ ] Adjust the package schema/config after human review.
-- [ ] Generate the complete task-mechanics candidate package without model
+- [x] Generate the complete task-mechanics candidate package without model
   requests.
-- [ ] Generate the current-guidance package with the same structure.
-- [ ] Verify task files, selected identities, scores, prompts, and run-level
+- [x] Generate the current-guidance package with the same structure.
+- [x] Verify task files, selected identities, scores, prompts, and run-level
   usage/cost against saved records.
 - [ ] Update evaluation indexes, reports, running guidance, and package docs.
 - [ ] Replace completed-result suite fixtures with synthetic test data.
@@ -464,7 +465,7 @@ from fixture ownership, and remove the old fixture result copies.
 | Task-dependent stages | Synthetic coverage and the task-guidance adapter export different stage shapes without changing the generic schema. |
 | Inputs and configuration | Representative subject and assessment cells expose system message, prompt, target, effective config, tools, fixture/guidance provenance, and availability classification. |
 | Outputs and sessions | The Crystal Lattice projection and representative cell expose assistant responses, generated task files, lean session commentary/tool calls, concise failures, and no full tool results or encrypted reasoning. |
-| Semantic review | The exact assessment prompt/response, concise rubric, parsed result, assessor config, and subject links agree with the saved semantic record. |
+| Semantic review | The exact assessment prompt and a complete readable rendering of the response's judgments (rubric, assessor context, reviewed target, scores, occurrences, reasons, subject links) agree with the saved semantic record. |
 | Usage and cost | One row per run reports available token categories and one configured-price cost; estimated cached input is used; missing GLM usage remains unknown; continuation history is not double-counted. |
 | Historical migration | Both task-guidance packages reproduce current selected identities, generated task text, outcome coverage, issue metrics, and invalid/retry status without model requests. |
 | Ownership migration | Completed evaluation records no longer live under suite fixtures; deterministic suite tests use synthetic result data and maintained links resolve. |
@@ -495,3 +496,109 @@ from fixture ownership, and remove the old fixture result copies.
   table copies the gpt-5.6-luna standard-tier rates from the maintained
   OpenAI pricing snapshot fetched 2026-07-18. Implementation began after
   approval.
+- Implemented `agent_eval.result_packages` (collect/render/check, manifest,
+  availability states, redaction, path-normalization bookkeeping, pinned-price
+  cost presentation) with 17 deterministic tests, and the Crystal Lattice
+  review projection (`agent_eval.crystal_lattice.review`) with 8 tests.
+  The projection was validated against real saved GLM and GPT sessions
+  (12–20x size reduction, exact usage extraction).
+- Verified the cost formula reproduces the provider-reported cost exactly:
+  the plugin substitutes its turn-aware estimated cached tokens into the
+  cost calculation, so the projection extracts `usage_estimated_cached_tokens`
+  as the cached bucket. Sampled producer run: pinned-table estimate
+  $0.0789112 == provider-reported cumulative cost.
+- Verified every run has a distinct compiled-message hash because the
+  compiled message embeds the run's absolute workspace path. GPT
+  reconstruction therefore recreates the pristine fixture workspace at its
+  original recorded path (guarded: the target must be `<run-dir>/workspace`
+  and the run directory must still contain `result.json`), recompiles through
+  the production `show_compiled_system_message` action with the preserved
+  runtime-config sources, verifies the SHA-256 against the recorded
+  `delivery.compiled_sha256`, and removes the workspace again. Proven on a
+  real GPT producer run with an exact hash match.
+- Incident, September 21, 2026: a reconstruction probe passed a run directory
+  itself (not its `workspace` child) to the git workspace factory, whose
+  target semantics delete the target directory. The raw directory for GPT
+  tg01-high producer run `20260919T200213.745556Z-…-9de6e1e9` was overwritten.
+  It was restored from the run cache entry
+  `0d36cefda408dd00394db59d8813c860a8a6474cbf23817eb92ebf3d003db3c6`
+  (session, observation, untracked task files) and the frozen b0 dataset
+  (producer record), with a `restored_note` in its rebuilt `result.json`.
+  Permanently lost for that one run: the raw workspace diff/status capture,
+  `raw/evidence.json`, `result.md`, and the generated record summary — all
+  non-essential or derivable. The adapter now guards workspace recreation
+  explicitly.
+- Extended the shared sensitive-key redaction in `agent_eval.services` to
+  match plural `credentials` keys (`chatgpt_credentials_path` was previously
+  retained in sanitized config views).
+- Model-produced content (prompts, responses, task files, frozen semantic
+  records) is committed byte-identical to the frozen records for parity;
+  path normalization applies to projected review material (session reviews,
+  effective-config views, compiled system messages). Model responses may
+  therefore still contain the absolute workspace paths the model itself
+  wrote, as the already-committed frozen datasets do.
+- The representative GPT-xhigh book-discovery cell was exported to
+  `tmp/result-package-review/20260919-task-mechanics-b1` and awaits human
+  review at the Phase 4 gate. Its system message is reconstructed-verified,
+  its pinned-table cost ($0.1182246) matches the provider-reported cost
+  exactly, and its package check passes.
+- September 21, 2026 (review gate outcome): the user reviewed the
+  representative cell and approved a flatter, review-first package redesign.
+  Approved decisions:
+  - Keep the full sanitized effective config, committed once per
+    profile/effort and shared across runs.
+  - Keep the exact full assessor prompt.
+  - Replace the JSON session review with a concise full-session Markdown
+    transcript (`session.md`) that includes the prompt and response
+    verbatim as user/assistant turns; drop separate prompt/response files
+    and the session JSON.
+  - Replace the raw assessor response and judgment records with one
+    readable `assessment/results.md` that folds in the rubric, assessor
+    context, the reviewed target, per-cell judgments with reasons, and
+    excluded records.
+  - Drop cell.json, stage.json delivery blocks, per-file provenance
+    boilerplate, aggregate summary text, matrix.json, and the assessor
+    session review; keep one slim `run.json` per run (identity, kind,
+    validity, model/effort, system-message reference with availability,
+    config reference, task-file list, lineage).
+  - Flatten run directories: the producer run sits directly in the cell
+    directory; additional runs use `plan-retain/`, `plan-omit/`,
+    `continuation/`, and `control/` subdirectories. The stage vocabulary
+    survives only as `kind` in run.json.
+  - Machine-readable material is limited to manifest.json (registry and
+    usage/cost inventory), run.json, aggregate.json (matrix source),
+    configs, and report-config.toml.
+  Two documentation revisions follow from this: the result-packages
+  technical spec gains a clarification that collected source records may
+  themselves be human-readable while the deterministic-regeneration
+  guarantee applies to generated views, and this task's acceptance table
+  now reads "exact assessment prompt and a complete readable rendering of
+  the response's judgments" for semantic review.
+- The redesigned adapter (generator version
+  `task-guidance-result-package-v2`) was implemented and both complete
+  packages were generated under
+  `maintainer/docs/evaluations/task-guidance/results/`:
+  `20260919-current-guidance-b0` (2.8 MB, 235 files) and
+  `20260919-task-mechanics-b1` (2.6 MB, 213 files). Each holds 46 runs
+  (18 producers, 12 handoffs, 6 continuations, 1 control, 9 assessments);
+  system messages are 16 captured, 18 reconstructed-verified, and 3
+  unavailable (the GPT continuations without a recorded delivery hash).
+  Captured provider-reported cost totals $1.7770 (b0) and $1.6483 (b1);
+  the pinned-table estimates match the provider-reported per-run costs.
+- Verification completed for both packages: full parity against the frozen
+  datasets (selected identities, task-file bytes, verbatim prompts and
+  responses inside session transcripts, judgment headings and dimension
+  rows, invalid-record surfacing), byte-identical end-to-end re-collection
+  (b1 re-collected to a temporary directory and diffed), package check
+  passing, zero secret-scan findings, and no reasoning content or full
+  tool results in transcripts.
+- During parity verification a projection bug was found and fixed: path
+  normalization had been applied to user and assistant message text,
+  breaking verbatim parity with the frozen responses. Model-produced text
+  is now preserved verbatim in transcripts; normalization applies only to
+  projected material (delivered instructions, tool-call arguments, failure
+  excerpts). A regression test covers this.
+- Handoff semantic assessments use a different judgment schema than
+  task-creation assessments (handoff quality score, plan coverage, lost and
+  invented facts, rediscovery and boundary judgments). The results renderer
+  now dispatches per schema with its own rubric note.

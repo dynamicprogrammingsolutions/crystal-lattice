@@ -59,6 +59,13 @@ These records identify:
 Human-readable pages, tables, and machine comparison views are generated from
 those committed records. Generated views are not independent sources of truth.
 
+Collected source records may themselves be human-readable — for example a
+concise full-session transcript or a readable rendering of assessment
+results. Such records are sources of truth for later rendering, not
+generated views: the deterministic-regeneration guarantee applies to the
+generated views, while collected records are preserved as committed
+history.
+
 The exact directory and file names are repository decisions. The structure
 must keep the package understandable without temporary run directories and
 must make generated files distinguishable from collected source records.
