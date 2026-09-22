@@ -1,5 +1,5 @@
 """
-PROJECT_PLAN Example 2: Streaming with Low-Level API
+Example 6: Streaming with the low-level API and Ollama.
 Configured to call a local Ollama OpenAI-compatible endpoint.
 
 Environment variables (optional):

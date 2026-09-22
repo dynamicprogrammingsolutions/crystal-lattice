@@ -41,11 +41,8 @@ directory already on your `PATH`, preferring an existing installation,
 with instructions for setting `BIN_DIR` instead of installing an undiscoverable
 command.
 
-Users who prefer Python packaging can use:
-
-```bash
-pipx install crystal-lattice-cli
-```
+The Python packages are not currently published to PyPI. For development from
+a source checkout, use the editable-install instructions later in this README.
 
 More installation details are in [application/python/README.md](application/python/README.md).
 
@@ -382,9 +379,11 @@ Contributor references:
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [Application and terminal feature development](application/python/docs/development/terminal-and-http-features.md)
-- [docs/api/core-sdk.md](docs/api/core-sdk.md)
-- [TYPES_AND_PROTOCOLS.md](TYPES_AND_PROTOCOLS.md)
-- [EXAMPLES.md](EXAMPLES.md)
+- [Core Python documentation](core/python/docs/index.md)
+- [Core SDK guide](core/python/docs/core-sdk.md)
+- [Core types and plugin protocols](core/python/docs/types-and-protocols.md)
+- [Application events](core/python/docs/events.md)
+- [Tested Core examples](core/python/docs/examples.md)
 
 ## Architecture Overview
 
@@ -510,7 +509,7 @@ print(replies[-1]["content"])
 ## Examples And Recipes
 
 Examples live under `core/python/examples` and are catalogued in
-[EXAMPLES.md](EXAMPLES.md). Highlights include echo providers, provider
+[the generated examples guide](core/python/docs/examples.md). Highlights include echo providers, provider
 extensions, feature plugins, file tools, streaming, app-layer flows, and
 OpenRouter/Ollama examples.
 
@@ -533,9 +532,11 @@ python docs_site/scripts/prepare_mkdocs_site.py
 Key docs:
 
 - [Development documentation](docs/development/index.md)
-- [Documentation and specification guide](docs/development/documentation.md)
-- [Crystal Lattice documentation conventions](docs/development/crystal-lattice-documentation.md)
-- [docs/api/core-sdk.md](docs/api/core-sdk.md)
+- [Reusable development standards](docs/development/standards/index.md)
+- [Crystal Lattice repository policy](docs/development/repository/index.md)
+- [Core Python documentation](core/python/docs/index.md)
+- [Core SDK guide](core/python/docs/core-sdk.md)
+- [Application events](core/python/docs/events.md)
 - [plugins/docs/index.md](plugins/docs/index.md)
 - [plugins/docs/overview.md](plugins/docs/overview.md) - general plugin-system overview
 - [docs/reference/agent_core](docs/reference/agent_core)
@@ -577,7 +578,7 @@ python scripts/generate_examples_md.py
 ## Status And Version
 
 - Core package: `agent-core` 0.3.0
-- Terminal CLI package: `crystal-lattice-cli` 0.1.1 (`crystal-lattice` command)
+- Terminal CLI package: `crystal-lattice-cli` 0.1.4 (`crystal-lattice` command)
 
 See `core/python/pyproject.toml`, `application/python/pyproject.toml`, and the
 source files for the most up-to-date behavior.

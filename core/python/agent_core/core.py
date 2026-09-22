@@ -1,52 +1,9 @@
-"""
-Core SDK for the AI Agent Platform.
+"""Core SDK for the AI Agent Platform.
 
-Functional architecture: AgentCore stores only the processing pipeline (plugins via wrappers),
-all transformations are pure functions that take session/config and return new objects.
-
-Examples:
-    Basic non-streaming usage:
-
-    ```python
-    from agent_core import AgentCore
-    from plugins.openai_provider import OpenAICompatibleProvider
-
-    core = AgentCore()
-    core.register_provider(OpenAICompatibleProvider)
-
-    session = core.create_session()
-    session = core.add_message(session, "user", "Hello!")
-
-    config = {
-        "provider": "openai_compatible",
-        "model": "gpt-4o",
-        "base_url": "https://api.openai.com/v1",
-        "api_key": "sk-...",
-    }
-    session, finals = core.send_request(session, config)
-    print(finals[-1]["content"])  # Assistant reply
-    ```
-
-    Streaming usage:
-
-    ```python
-    for chunk in core.send_request_stream(session, config):
-        if chunk["type"] == "partial":
-            print(chunk["message"]["content"], end="", flush=True)
-        elif chunk["type"] == "final":
-            session = chunk["session"]
-            print("\n[Done]")
-    ```
-
-    Tool schemas and execution:
-
-    ```python
-    tool_schemas = core.get_tool_schemas(config)
-    # Execute tool calls the model asked for (application loop)
-    tool_results = core.execute_tool_calls(tool_calls, config)
-    for msg in tool_results:
-        session = core.add_message(session, msg["role"], msg["content"], msg.get("metadata"))
-    ```
+``AgentCore`` owns registered plugin wrappers and Core-local caches.
+Conversation operations accept explicit sessions/configuration and return new
+conversation values. Request and tool methods may perform provider, tool, or
+preparation I/O.
 """
 
 from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple, Set
@@ -77,11 +34,12 @@ _PreparedToolState = Tuple[ToolWrapper, Dict[str, Any], Optional[Dict[str, Any]]
 
 
 class AgentCore:
-    """Stateless processing pipeline for AI Agent Platform.
+    """Provider and plugin processing pipeline.
 
-    Stores registered plugin wrappers (processing logic), not runtime state.
-    All methods are pure functions that take session/config as parameters.
-    The application layer manages sessions and configuration.
+    The instance stores registered wrappers plus model, dependency, tag, and
+    prepared-tool caches. Applications manage durable sessions and
+    configuration. Session transformations return new values; request and tool
+    methods may perform external I/O.
     """
 
     # -------- Integrity helpers --------
@@ -721,7 +679,7 @@ class AgentCore:
         context: Optional[Dict[str, Any]] = None,
         tool_result: Optional[Dict[str, Any]] = None,
     ) -> Session:
-        """Add a message to the session (pure function).
+        """Add a message and return an updated session.
 
         When session.metadata contains provider-native history (native_messages)
         and a provider is registered, converts the newly added message to
@@ -822,7 +780,7 @@ class AgentCore:
         *,
         context: Optional[Dict[str, Any]] = None,
     ) -> Session:
-        """Modify the content of an existing message (pure function).
+        """Modify message content and return an updated session.
 
         Only `system`, `user`, and `assistant` messages are supported. The
         message role and metadata remain unchanged. When provider-native
@@ -2983,19 +2941,11 @@ class AgentCore:
         """Get flattened config schema from all registered plugins.
 
         Returns:
-            List of config entry descriptors. Each element is a
-            dictionary that includes:
-
-            - ``"key"``: the top-level config key.
-            - ``"plugin"``: the contributing plugin's id/name
-              (provider, extension, feature, or tool).
-            - Any additional metadata provided by the plugin
-              (for example, ``"type"``, ``"default"``,
-              ``"required"``, ``"description"``).
-
-            Multiple plugins may contribute entries for the same
-            ``"key"``; each contribution is represented as a separate
-            element in the returned list.
+            Config entry descriptors. Every dictionary contains ``"key"`` and
+            the contributing ``"plugin"`` ID plus metadata supplied by that
+            plugin, such as ``"type"``, ``"default"``, ``"required"``, or
+            ``"description"``. Multiple plugins can contribute separate
+            entries for the same key.
         """
         entries: List[Dict[str, Any]] = []
 

@@ -15,7 +15,7 @@ Prepare the Crystal Lattice Control React Native iOS app for TestFlight registra
 - [x] `tasks/20260614-ios-testflight-github-fastlane/070-fastlane-ios-testflight.md`
 - [x] `tasks/20260614-ios-testflight-github-fastlane/080-github-actions-ios-cd.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md`
-- [ ] `tasks/20260614-ios-testflight-github-fastlane/090-first-testflight-dry-run.md`
+- [x] `tasks/20260614-ios-testflight-github-fastlane/090-first-testflight-dry-run.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/100-external-testflight-readiness.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/110-deployment-runbook.md`
 

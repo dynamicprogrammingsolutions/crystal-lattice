@@ -112,6 +112,24 @@ def main() -> None:
             name="Crystal Lattice Docs",
             exact=True,
         ).wait_for()
+        privacy_link = docs_page.get_by_role(
+            "link",
+            name="Privacy Policy",
+            exact=True,
+        )
+        if privacy_link.count() != 1:
+            raise AssertionError("docs footer must expose one Privacy Policy link")
+        expected_privacy_url = urljoin(landing_url, "privacy")
+        if privacy_link.get_attribute("href") != expected_privacy_url:
+            raise AssertionError(
+                "docs Privacy Policy link is "
+                f"{privacy_link.get_attribute('href')!r}, expected {expected_privacy_url!r}"
+            )
+        privacy_response = context.request.get(expected_privacy_url)
+        if not privacy_response.ok:
+            raise AssertionError(
+                f"Privacy Policy failed: {privacy_response.status} {expected_privacy_url}"
+            )
         if docs_page.get_by_role(
             "link",
             name="Package documentation",
@@ -172,7 +190,7 @@ def main() -> None:
         require_success(docs_page, urljoin(packages_url, core_href))
         docs_page.get_by_role(
             "heading",
-            name="AI Agent Platform - Core SDK (Python)",
+            name="Core Python documentation",
             exact=True,
         ).wait_for()
         if docs_page.locator(

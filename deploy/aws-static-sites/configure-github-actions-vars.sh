@@ -12,6 +12,9 @@ ROLE_STACK_NAME=""
 ROLE_ARN=""
 SITE_URL=""
 DOCS_URL=""
+UMAMI_SCRIPT_URL=""
+UMAMI_LANDING_ID=""
+UMAMI_DOCS_ID=""
 DRY_RUN=0
 
 usage() {
@@ -33,6 +36,9 @@ Options:
   --region REGION              AWS region. Default: us-east-1.
   --site-url URL               PUBLIC_CRYSTAL_LATTICE_SITE_URL value.
   --docs-url URL               PUBLIC_CRYSTAL_LATTICE_DOCS_URL value.
+  --umami-script-url URL       Public self-hosted Umami tracker URL.
+  --umami-landing-id UUID      Umami website ID for crystallattice.dev.
+  --umami-docs-id UUID         Umami website ID for docs.crystallattice.dev.
   --dry-run                    Print gh commands without mutating GitHub.
   --help, -h                   Show this help.
 
@@ -59,6 +65,9 @@ while [ "$#" -gt 0 ]; do
     --region) REGION="$2"; shift 2 ;;
     --site-url) SITE_URL="$2"; shift 2 ;;
     --docs-url) DOCS_URL="$2"; shift 2 ;;
+    --umami-script-url) UMAMI_SCRIPT_URL="$2"; shift 2 ;;
+    --umami-landing-id) UMAMI_LANDING_ID="$2"; shift 2 ;;
+    --umami-docs-id) UMAMI_DOCS_ID="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -69,6 +78,22 @@ case "$PROFILE" in
   test|prod) ;;
   *) echo "Unsupported profile: $PROFILE" >&2; exit 2 ;;
 esac
+
+UUID_PATTERN='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+if [ -n "$UMAMI_SCRIPT_URL" ] || [ -n "$UMAMI_LANDING_ID" ] || [ -n "$UMAMI_DOCS_ID" ]; then
+  if [ "$UMAMI_SCRIPT_URL" != "https://stats.dynamicprogrammingsolutions.com/insight.js" ]; then
+    echo "The Umami script URL must use the approved self-hosted tracker." >&2
+    exit 2
+  fi
+  if ! [[ "$UMAMI_LANDING_ID" =~ $UUID_PATTERN ]] || ! [[ "$UMAMI_DOCS_ID" =~ $UUID_PATTERN ]]; then
+    echo "Both Umami website IDs must be valid UUIDs." >&2
+    exit 2
+  fi
+  if [ "$UMAMI_LANDING_ID" = "$UMAMI_DOCS_ID" ]; then
+    echo "Landing and docs must use distinct Umami website IDs." >&2
+    exit 2
+  fi
+fi
 
 if [ "$PROFILE" = "prod" ]; then
   STATIC_STACK_NAME="${STATIC_STACK_NAME:-crystal-lattice-static-sites-prod}"
@@ -140,6 +165,15 @@ set_variable LANDING_CLOUDFRONT_DISTRIBUTION_ID "$landing_distribution_id"
 set_variable DOCS_CLOUDFRONT_DISTRIBUTION_ID "$docs_distribution_id"
 set_variable PUBLIC_CRYSTAL_LATTICE_SITE_URL "$SITE_URL"
 set_variable PUBLIC_CRYSTAL_LATTICE_DOCS_URL "$DOCS_URL"
+if [ -n "$UMAMI_SCRIPT_URL" ] || [ -n "$UMAMI_LANDING_ID" ] || [ -n "$UMAMI_DOCS_ID" ]; then
+  if [ -z "$UMAMI_SCRIPT_URL" ] || [ -z "$UMAMI_LANDING_ID" ] || [ -z "$UMAMI_DOCS_ID" ]; then
+    echo "All three Umami options must be provided together." >&2
+    exit 2
+  fi
+  set_variable PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL "$UMAMI_SCRIPT_URL"
+  set_variable PUBLIC_CRYSTAL_LATTICE_UMAMI_LANDING_ID "$UMAMI_LANDING_ID"
+  set_variable PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID "$UMAMI_DOCS_ID"
+fi
 run_gh secret set AWS_ROLE_TO_ASSUME --repo "$REPO" --body "$ROLE_ARN"
 
 echo "Configured GitHub Actions deployment settings for $REPO ($PROFILE)."

@@ -1,0 +1,25 @@
+<section id="analytics-opt-out" class="pb-24" aria-labelledby="analytics-opt-out-heading">
+  <div class="mx-auto max-w-[680px] px-6">
+    <div class="border-t border-line pt-10" data-analytics-opt-out>
+      <h2 id="analytics-opt-out-heading" class="mb-3 text-[1.0625rem] font-semibold text-fg-2">
+        Analytics preference
+      </h2>
+      <p class="mb-4 text-[0.9375rem] leading-[1.7] text-fg-4">
+        You can disable the privacy-minimized website analytics in this browser.
+        The preference is stored only in this browser and may be removed if you
+        clear its site data. Do Not Track remains authoritative when enabled.
+      </p>
+      <p class="mb-4 text-sm text-fg-5" data-analytics-status aria-live="polite">
+        Checking your analytics preference…
+      </p>
+      <button
+        type="button"
+        class="rounded-md border border-line-strong px-4 py-2 text-sm font-semibold text-fg-2 transition-colors hover:border-accent-soft hover:text-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+        aria-pressed="false"
+      >
+        Disable analytics
+      </button>
+    </div>
+  </div>
+</section>
+<script is:inline defer src="/assets/js/analytics-opt-out.js"></script>

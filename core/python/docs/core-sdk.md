@@ -1,70 +1,66 @@
-# Core SDK API Reference
+# Core SDK guide
 
 ## Overview
 
-The Crystal Lattice Core SDK provides a **functional**, modular interface for building conversational AI applications with any LLM provider through an extensible plugin system.
+The Crystal Lattice Core SDK provides a modular interface for building
+conversational applications with different model providers through an
+extensible plugin system.
 
-**Key Principles:**
-- **Functional Architecture**: Immutable data structures, pure functions
-- **State Management**: Provider wrapper maintains a single shared state per request; extensions/features update it; tools manage their own state
-- **Typed Interfaces**: Specialized wrappers for each plugin type (provider, feature, tool, extension)
-- **Extensible**: Provider extensions for hot-path processing and stateless message transforms
+This hand-written guide covers selected workflows and public methods. It is not
+an exhaustive member listing. Use the
+[generated AgentCore reference](/reference/agent_core/core/) for
+complete signatures and the
+[types and protocols overview](types-and-protocols.md) for the data and plugin
+model.
+
+Key principles:
+
+- **Immutable conversation values:** operations return new `Session` and
+  `Message` values; nested lists and dictionaries are treated as immutable by
+  convention.
+- **Explicit request inputs:** applications pass sessions and configuration
+  into request operations.
+- **Managed runtime state:** provider, extension, and feature state is scoped
+  to request processing; tools own separate state, and `AgentCore` maintains
+  registered wrappers and caches.
+- **Extensible processing:** providers, extensions, features, and tools have
+  distinct request-path responsibilities.
 
 ## Installation
 
+From a repository checkout:
+
 ```bash
-pip install agent-core
+python -m pip install -e "core/python"
 ```
 
 ## Quick Start
 
-```python
-from agent_core import AgentCore
-from plugins.openai_provider import OpenAICompatibleProvider
-
-# Initialize core (stateless pipeline)
-core = AgentCore()
-
-# Register provider
-core.register_provider(OpenAICompatibleProvider)
-
-# Application manages config
-config = {
-    "provider": "openai_compatible",
-    "model": "gpt-4o",
-    "api_key": "sk-...",
-}
-
-# Create session (immutable)
-session = core.create_session()
-
-# Add messages (returns new session)
-session = core.add_message(session, "user", "Hello!")
-
-# Send request (returns new session + response)
-session, messages = core.send_request(session, config)
-print(messages[-1]["content"])
-```
+Follow the [credential-free Core quickstart](quickstart.md) for an executable
+first request and its expected output.
 
 ---
 
 ## AgentCore
 
-Stateless processing pipeline for Crystal Lattice.
+Provider and plugin processing pipeline for Crystal Lattice.
 
 **Architecture:**
-- Stores plugin adapters (not state)
-- All methods are pure functions
-- Takes session/config as parameters
-- Returns new objects (immutable)
+
+- Stores registered plugin wrappers and Core-local caches.
+- Accepts sessions and request configuration explicitly.
+- Returns new conversation values rather than mutating the input session.
+- Performs provider/tool I/O in request and tool-execution methods.
 
 ### Constructor
 
 ```python
-AgentCore()
+AgentCore(model_cache: Optional[ModelDiscoveryCache] = None)
 ```
 
-Initialize core with empty plugin pipeline.
+Initialize Core with an empty plugin pipeline. Passing the same
+`ModelDiscoveryCache` to multiple instances shares provider model-discovery
+results; dependency, tag, and prepared-tool caches remain Core-local.
 
 **Example:**
 ```python
@@ -171,6 +167,8 @@ modify_message(
     index: int,
     content: str,
     config: Dict[str, Any] | None = None,
+    *,
+    context: Dict[str, Any] | None = None,
 ) -> Session
 ```
 
@@ -226,11 +224,15 @@ session = core.create_session(session_id="user-123")
 ```python
 send_request(
     session: Session,
-    config: Dict[str, Any]
+    config: Dict[str, Any],
+    *,
+    request_id: str | None = None,
+    cancellation: Any | None = None,
+    context: Dict[str, Any] | None = None,
 ) -> Tuple[Session, List[Dict[str, Any]]]
 ```
 
-Send request and return new session with response (pure function).
+Send a provider request and return a new session with its final messages.
 
 **Parameters:**
 - `session` (Session): Current session
@@ -255,7 +257,11 @@ print(messages[-1]["content"])
 ```python
 send_request_stream(
     session: Session,
-    config: Dict[str, Any]
+    config: Dict[str, Any],
+    *,
+    request_id: str | None = None,
+    cancellation: Any | None = None,
+    context: Dict[str, Any] | None = None,
 ) -> Iterator[Dict[str, Any]]  # yields {"type": "partial"|"final", ...}
 ```
 
@@ -285,7 +291,11 @@ for chunk in core.send_request_stream(session, config):
 ```python
 async send_request_stream_async(
     session: Session,
-    config: Dict[str, Any]
+    config: Dict[str, Any],
+    *,
+    request_id: str | None = None,
+    cancellation: Any | None = None,
+    context: Dict[str, Any] | None = None,
 ) -> AsyncIterator[Dict[str, Any]]
 ```
 
@@ -347,8 +357,10 @@ get_ui_schema(config: Dict[str, Any]) -> List[Dict[str, Any]]
 
 Get combined (flattened) UI schema for the effective config.
 
-The core computes capability `tags` and available `models` for the given
-config and passes them to plugins via `get_ui_elements(config, tags, models)`.
+The core computes capability tags, model descriptors, available tools, and
+effective tools for the given config and passes them through the canonical
+`get_ui_elements(config, context=None)` hook. Adapters continue to support
+older hook signatures.
 
 Each element in the returned list is a dictionary that describes a UI
 element contributed by a provider, extension, feature, or tool. The
@@ -371,9 +383,8 @@ Plugins may include a `ui_type` field to classify elements:
   last assistant message in a session. The element shape generally
   mirrors `"message_footer"` entries (for example,
   `{ "ui_type": "status_bar", "data": "metadata.total_cost", "template": "Total: {{data}}" }`).
-- `"action"` (reserved): intended for future actionable UI elements.
-  The core does not assign special semantics to this value, and no
-  built-in applications currently interpret it.
+- Other `ui_type` values remain application-defined; Core flattens them
+  without assigning presentation semantics.
 
 The core annotates each element with a `plugin` field (when absent)
 naming the contributing plugin and preserves the relative order of all
@@ -475,7 +486,12 @@ schemas = core.get_tool_schemas(config)
 #### execute_tool_calls
 
 ```python
-execute_tool_calls(tool_calls: List[Dict[str, Any]], config: Dict[str, Any]) -> List[Dict[str, Any]]
+execute_tool_calls(
+    tool_calls: List[Dict[str, Any]],
+    config: Dict[str, Any],
+    *,
+    context: Dict[str, Any] | None = None,
+) -> List[Dict[str, Any]]
 ```
 
 Execute a batch of tool calls via registered tool plugins and return core "tool" messages.
@@ -612,6 +628,7 @@ execute_lifecycle_actions(
     session: Session,
     config: Dict[str, Any],
     trigger: str,
+    *,
     context: Optional[Dict[str, Any]] = None
 ) -> Tuple[Session, List[Dict[str, Any]]]
 ```
@@ -707,15 +724,21 @@ session = core.import_session(data)
 
 ### Message
 
-Immutable message structure.
+Frozen message value. Nested metadata, multipart content, and tool-result
+containers are treated as immutable by convention.
 
 ```python
 @dataclass(frozen=True)
 class Message:
     role: MessageRole  # "system" | "user" | "assistant" | "tool"
-    content: str
+    content: Any
     metadata: Optional[Dict[str, Any]] = None
+    multipart_content: Optional[List[Dict[str, Any]]] = None
+    tool_result: Optional[Dict[str, Any]] = None
 ```
+
+Dictionary serialization uses `multipartContent` and `toolResult` for the last
+two fields.
 
 **Methods:**
 - `to_dict() -> Dict[str, Any]`: Convert to dictionary
@@ -737,7 +760,8 @@ msg = Message(
 
 ### Session
 
-Immutable session data structure (pure data container).
+Frozen session value. The nested message list and metadata dictionary are
+treated as immutable by convention.
 
 ```python
 @dataclass(frozen=True)
@@ -788,11 +812,20 @@ Specialized wrappers and defaulting adapters provide typed, intuitive interfaces
 
 In the Python SDK these adapters supply sensible defaults for many conversion and lifecycle hooks when plugin classes omit them, so plugin authors can implement only the subset of methods they actually need.
 
-Note: Methods remain stateless (pure) and use explicit state parameters. Plugin instances are short‑lived (per request) and should not hold durable mutable state. The provider wrapper discards shared state after each request. Tools manage their own state dicts passed in/out explicitly.
+Plugin methods use explicit state parameters, and plugin instances are
+short-lived per request rather than durable state stores. Providers,
+extensions, and features share provider-wrapper state during a request. Tools
+manage separate state dictionaries. Hook implementations may perform I/O where
+their contracts permit it.
 
 ---
 
 ## Complete Examples
+
+These examples illustrate composition. Names such as `ThinkingExtension`,
+`CitationExtension`, `WebSearchFeature`, and `FileReaderTool` are placeholders
+for registered plugin classes. Use the [tested examples](examples.md) for
+complete runnable implementations.
 
 ### Basic Chat Application
 
@@ -824,7 +857,7 @@ while True:
     # Functional updates
     session = core.add_message(session, "user", user_input)
     session, messages = core.send_request(session, config)
-    print(f"Assistant: {response['content']}")
+    print(f"Assistant: {messages[-1]['content']}")
 ```
 
 ### Streaming with Progress
@@ -944,11 +977,13 @@ asyncio.run(chat())
 
 ---
 
-## Functional Architecture
+## Data and state model
 
 ### Immutability
 
-All data structures are frozen dataclasses:
+Core conversation types are frozen dataclasses. Their nested lists and
+dictionaries remain ordinary Python containers and must be treated as
+immutable by convention:
 
 ```python
 # Messages are immutable
@@ -966,28 +1001,24 @@ new_session = Session(
 )
 ```
 
-### Pure Functions
+### Immutable session updates
 
-Core methods are pure (same input → same output):
+Session transformations return new values and leave their input session
+unchanged. Provider responses are external I/O and are not guaranteed to be
+deterministic:
 
 ```python
-session = core.create_session()
-session = core.add_message(session, "user", "Hello")
+session = core.create_session("example")
+updated = core.add_message(session, "user", "Hello")
 
-# Same inputs work consistently
-result1 = core.send_request(session, config)
-result2 = core.send_request(session, config)
-
-# Both produce same results (compare last message)
-assert result1[1][-1]["content"] == result2[1][-1]["content"]
-
-# Original session unchanged
-assert len(session.messages) == 1
+assert len(session.messages) == 0
+assert len(updated.messages) == 1
 ```
 
 ### Explicit State
 
-No hidden state - everything passed explicitly:
+Sessions and request configuration are passed explicitly. Registered plugin
+wrappers and Core-local caches remain owned by the `AgentCore` instance:
 
 ```python
 # Config passed explicitly (not stored in core)
@@ -1042,10 +1073,6 @@ except RuntimeError as e:
 
 ---
 
-## Version
-
-Current version: `0.3.0` (Functional Architecture with Plugin Wrappers + Discovery)
-
 ## License
 
-MIT License
+Apache License 2.0. See <https://www.apache.org/licenses/LICENSE-2.0>.

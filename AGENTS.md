@@ -105,13 +105,16 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - Do not place new plugins here without explicit user consent.
 
 **Docs & scripts**
-- Root: `ARCHITECTURE.md`, `TYPES_AND_PROTOCOLS.md`, `EXAMPLES.md`.
+- Root: `ARCHITECTURE.md` and cross-package documentation entry points.
+- Core package docs: `core/python/docs/index.md`,
+  `core/python/docs/core-sdk.md`, `core/python/docs/events.md`,
+  `core/python/docs/types-and-protocols.md`, and generated
+  `core/python/docs/examples.md`.
 - Development hub: `docs/development/index.md`.
-- Documentation and specification guide: `docs/development/documentation.md`.
-- Crystal Lattice documentation conventions:
-  `docs/development/crystal-lattice-documentation.md`.
-- Guidance-maintenance specifications: `maintainer/specifications/`.
-- API docs: `docs/api/core-sdk.md`, `docs/reference/agent_core/*`.
+- Reusable standards: `docs/development/standards/index.md`.
+- Crystal Lattice repository policy: `docs/development/repository/index.md`.
+- Standards-maintenance specifications: `maintainer/specifications/`.
+- Generated Core API reference: `docs/reference/agent_core/*`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
 - General plugin overview: `plugins/docs/overview.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
@@ -374,13 +377,13 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - Changing an intended target:
   - Update its specification first and update requirements as implementation,
     verification, and documentation progress.
-- During the initial documentation migration, current legacy pages such as
-  `TYPES_AND_PROTOCOLS.md`, `docs/api/core-sdk.md`,
-  `docs/reference/agent_core/*` and
-  `application/python/README.md` remain valid until their owning subtasks move
-  them.
+- Current hand-written Core SDK, event, type/protocol, and examples
+  documentation lives under `core/python/docs/`. Generated Core reference
+  snapshots remain under `docs/reference/agent_core/` until their owning
+  reference-normalization task completes.
 - Changing examples or adding new ones:
-  - Update example code + tests, then regenerate `EXAMPLES.md`.
+  - Update example code + tests, then regenerate
+    `core/python/docs/examples.md`.
 
 Treat tests, type hints, and documentation updates as part of “done” for any substantive change.
 
