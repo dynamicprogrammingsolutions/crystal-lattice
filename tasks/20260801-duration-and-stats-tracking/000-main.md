@@ -1,5 +1,7 @@
 # Duration and Stats Tracking Enhancements
 
+> **SUPERSEDED by `tasks/20260922-duration-and-human-time-tracking/000-main.md`** (2026-09-22). This task and its subtasks 010–070 are taken over by the new task, which applies the store-backed cost-tracking method to session duration, tool call duration, and human time. Kept for reference; the solutions here are not authoritative. See the new task's "Dropped from the superseded 20260801 task" section for what was replaced and why.
+
 Enhance duration tracking to cover tool calls and human time, add frontend-reported usage telemetry, and revise session/project/user-level stats storage to use dedicated metadata keys and configurable directories instead of last-message stamping.
 
 ## Requirements checklist
