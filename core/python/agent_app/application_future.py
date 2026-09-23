@@ -2842,6 +2842,14 @@ class AgentApplication:
         the contributing plugin. Optional config/tags/models are passed
         through so plugins can return config-aware UI. Additional context is
         delivered through the shared application context channel.
+
+        Every element carries a numeric ``order`` and the returned list is
+        sorted by it (stable). An element may set an explicit ``order``; when
+        absent the application layer stamps an app-plugin band default
+        (``5000 + position * 10`` per plugin, in registration order). The
+        scale matches the core's kind bands (provider 1000, extension 2000,
+        feature 3000, tool 4000), so explicit orders can position elements
+        relative to core-contributed elements.
         """
 
         safe_config: Dict[str, Any] = dict(config or {})
@@ -2862,19 +2870,24 @@ class AgentApplication:
         )
 
         elements: List[Dict[str, Any]] = []
-        for plugin_id, wrapper in self._app_plugins.items():
+        for plugin_position, (plugin_id, wrapper) in enumerate(
+            self._app_plugins.items()
+        ):
+            default_order = 5000 + (plugin_position + 1) * 10
             for raw_element in wrapper.get_ui_elements(
                 config=safe_config,
                 context=application_context,
             ):
                 if not isinstance(raw_element, dict):
                     continue
-                if "plugin" in raw_element and isinstance(raw_element["plugin"], str):
-                    elements.append(raw_element)
-                else:
-                    element = dict(raw_element)
+                element = dict(raw_element)
+                if not (isinstance(element.get("plugin"), str) and element["plugin"]):
                     element["plugin"] = plugin_id
-                    elements.append(element)
+                order = element.get("order")
+                if not isinstance(order, (int, float)) or isinstance(order, bool):
+                    element["order"] = default_order
+                elements.append(element)
+        elements.sort(key=lambda entry: entry.get("order", 0))
         return elements
 
     @staticmethod

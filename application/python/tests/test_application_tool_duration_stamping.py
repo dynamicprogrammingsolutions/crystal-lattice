@@ -2,10 +2,11 @@
 
 Exercises the realistic public flow: an ``AgentApplication`` request whose
 session tail carries pending tool calls runs the tool loop, and the
-``DurationExtension`` feature stamps per-call and per-turn tool duration on
-the tool-result messages through the ``finalize_tool_call`` hook. The stamps
-must flow to frontends through the existing tool events and survive a
-session reload (provider-native history round-trip).
+``DurationExtension`` feature stamps per-call duration on the tool-result
+messages through the ``finalize_tool_call`` hook and the per-turn tool
+total ("turn tool duration") on the assistant message via ``finalize``.
+The stamps must flow to frontends through the existing tool events and
+survive a session reload (provider-native history round-trip).
 """
 
 from __future__ import annotations
@@ -87,6 +88,10 @@ def _tool_messages(session: Session) -> List[Any]:
     return [m for m in session.messages if getattr(m, "role", None) == "tool"]
 
 
+def _assistant_messages(session: Session) -> List[Any]:
+    return [m for m in session.messages if getattr(m, "role", None) == "assistant"]
+
+
 def test_tool_duration_stamped_on_checkpoint_session_and_survives_reload(
     tmp_path: Path,
 ) -> None:
@@ -118,8 +123,18 @@ def test_tool_duration_stamped_on_checkpoint_session_and_survives_reload(
     assert metadata["duration_formatted"]
     assert isinstance(metadata.get("duration_started_at"), str)
     assert isinstance(metadata.get("duration_finished_at"), str)
-    # Single call in the turn: the tool turn equals the call duration.
-    assert metadata.get("turn_tool_duration_ms") == metadata["duration_ms"]
+    # The per-turn tool total lives on the assistant message, not on the
+    # tool-result message.
+    assert "turn_tool_duration_ms" not in metadata
+
+    assistant_msgs = _assistant_messages(final_session)
+    assert assistant_msgs
+    assistant_md = assistant_msgs[-1].metadata or {}
+    assert assistant_md.get("turn_tool_duration_ms") == metadata["duration_ms"]
+    assert (
+        assistant_md.get("turn_tool_duration_formatted")
+        == metadata["duration_formatted"]
+    )
 
     # The stamps survive a save + reload (native-history round-trip).
     app.save_session(final_session)
@@ -130,8 +145,12 @@ def test_tool_duration_stamped_on_checkpoint_session_and_survives_reload(
     assert reloaded_tool_msgs
     reloaded_md = reloaded_tool_msgs[-1].metadata or {}
     assert reloaded_md.get("duration_ms") == metadata["duration_ms"]
-    assert reloaded_md.get("turn_tool_duration_ms") == metadata["turn_tool_duration_ms"]
     assert reloaded_md.get("duration_formatted") == metadata["duration_formatted"]
+    reloaded_assistant_md = _assistant_messages(reloaded)[-1].metadata or {}
+    assert (
+        reloaded_assistant_md.get("turn_tool_duration_ms")
+        == assistant_md["turn_tool_duration_ms"]
+    )
 
 
 def test_tool_duration_flows_through_streaming_tool_events(
@@ -205,9 +224,10 @@ def test_multiple_tool_calls_accumulate_turn_tool_duration(
     second_md = tool_msgs[1].metadata or {}
     assert isinstance(first_md.get("duration_ms"), int)
     assert isinstance(second_md.get("duration_ms"), int)
-    # The second call's tool turn is the sum of both calls' durations.
+    # The turn tool total on the final assistant message is the sum of
+    # both calls' durations.
+    assistant_md = _assistant_messages(final_session)[-1].metadata or {}
     assert (
-        second_md.get("turn_tool_duration_ms")
+        assistant_md.get("turn_tool_duration_ms")
         == first_md["duration_ms"] + second_md["duration_ms"]
     )
-    assert first_md.get("turn_tool_duration_ms") == first_md["duration_ms"]

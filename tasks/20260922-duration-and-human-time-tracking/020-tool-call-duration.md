@@ -243,3 +243,40 @@ with 010), session LLM duration store (010), human time telemetry (030),
 cross-subtask documentation pass (040). The pre-existing
 `test_claude_system_message_helpers` failure (stale TASKS v5 assertion) was
 reported to the user and left for the task-guidance owner.
+
+## Post-completion follow-up
+
+Approved follow-up (2026-09-22, same session): two refinements.
+
+1. **UI element ordering moved into the core/app layers.** Every UI element
+   now carries an effective `order` stamped by the owner: explicit numeric
+   `order` wins, else a kind-and-position default (provider 1000,
+   extension 2000, feature 3000, tool 4000, app plugin 5000; Nth plugin in
+   a band defaults to `band + N*10`). `AgentCore.get_ui_schema` and
+   `AgentApplication.get_application_ui_schema` return stable-sorted
+   lists, so frontends need no sorting of their own (existing frontend
+   `(order ?? 0)` sorts are idempotent). Tests:
+   `core/python/tests/test_ui_schema_ordering.py` (6) and
+   `core/python/tests/test_application_ui_schema_ordering.py` (2).
+   Contract documented in `plugins/docs/ui-elements.md`.
+2. **Turn tool duration relocated to the assistant message.** The
+   per-turn tool total is now stamped by `DurationExtension.finalize` on
+   the assistant owner message (native-history scan, `role == "tool"`
+   only, same turn separators; absent for turns without tool results),
+   rendered as `turn tool duration:` after `turn duration:`. Tool-result
+   messages carry only their per-call `duration:` (the `tool turn:`
+   footer and tool-message turn fields were removed; the dead
+   core-message scan helpers were deleted). Unit tests reworked
+   (8 new/changed), integration tests updated (accumulation asserted on
+   the assistant message).
+
+Verification: core 569, application 422 (+1 known pre-existing failure),
+timestamp-extension 26, provider suites 729 (openai_responses +
+reference + openrouter), frontend-sdk 343, frontend-rn-components 73;
+ruff/black clean; pyright introduces no new findings. One visible
+consequence flagged to the user: mobile composer config-toggle menu
+entries previously defaulted to order 10 (top of the menu) and now carry
+their core-stamped order (1000s+), so they render after the composer
+builtins (order 100-120); previously-unordered backend actions keep
+their position (the shared menu model sorts missing order last, and
+1000s+ still sorts after local 0-120 items).

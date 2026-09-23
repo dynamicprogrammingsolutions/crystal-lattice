@@ -490,123 +490,14 @@ def test_finalize_tool_call_returns_message_unchanged_without_facts() -> None:
     assert stamped == message
 
 
-def test_finalize_tool_call_accumulates_turn_tool_duration() -> None:
+def test_finalize_tool_call_stamps_only_per_call_fields() -> None:
     ext = DurationExtension()
     session_messages = [
         {"role": "user", "content": "hi"},
-        {
-            "role": "assistant",
-            "content": "need tool",
-            "metadata": {"tool_calls": [{"id": "c1", "function": {"name": "add"}}]},
-        },
         {
             "role": "tool",
             "content": "r1",
             "metadata": {"tool_call_id": "c1", "duration_ms": 1200},
-        },
-        {
-            "role": "assistant",
-            "content": "more",
-            "metadata": {"tool_calls": [{"id": "c2", "function": {"name": "add"}}]},
-        },
-        {
-            "role": "tool",
-            "content": "r2",
-            "metadata": {"tool_call_id": "c2", "duration_ms": 300},
-        },
-    ]
-    message = {
-        "role": "tool",
-        "content": "r3",
-        "metadata": {"tool_call_id": "call_cur"},
-    }
-
-    stamped, _state = ext.finalize_tool_call(
-        message, {}, context=_tool_call_context(session_messages)
-    )
-
-    md = stamped.get("metadata") or {}
-    assert md.get("duration_ms") == 500
-    assert md.get("turn_tool_duration_ms") == 1200 + 300 + 500
-    assert md.get("turn_tool_duration_formatted") == "2s"
-
-
-def test_finalize_tool_call_turn_resets_after_user_message() -> None:
-    ext = DurationExtension()
-    session_messages = [
-        {
-            "role": "tool",
-            "content": "old turn result",
-            "metadata": {"tool_call_id": "c0", "duration_ms": 9999},
-        },
-        {"role": "user", "content": "new turn"},
-        {
-            "role": "assistant",
-            "content": "need tool",
-            "metadata": {"tool_calls": [{"id": "c1", "function": {"name": "add"}}]},
-        },
-    ]
-    message = {
-        "role": "tool",
-        "content": "r1",
-        "metadata": {"tool_call_id": "call_cur"},
-    }
-
-    stamped, _state = ext.finalize_tool_call(
-        message, {}, context=_tool_call_context(session_messages)
-    )
-
-    md = stamped.get("metadata") or {}
-    assert md.get("turn_tool_duration_ms") == 500
-
-
-def test_finalize_tool_call_turn_resets_after_terminal_assistant() -> None:
-    ext = DurationExtension()
-    session_messages = [
-        {
-            "role": "tool",
-            "content": "old turn result",
-            "metadata": {"tool_call_id": "c0", "duration_ms": 9999},
-        },
-        # Assistant without tool calls ends the turn.
-        {"role": "assistant", "content": "done", "metadata": {}},
-        {
-            "role": "assistant",
-            "content": "need tool",
-            "metadata": {"tool_calls": [{"id": "c1", "function": {"name": "add"}}]},
-        },
-    ]
-    message = {
-        "role": "tool",
-        "content": "r1",
-        "metadata": {"tool_call_id": "call_cur"},
-    }
-
-    stamped, _state = ext.finalize_tool_call(
-        message, {}, context=_tool_call_context(session_messages)
-    )
-
-    md = stamped.get("metadata") or {}
-    assert md.get("turn_tool_duration_ms") == 500
-
-
-def test_finalize_tool_call_ignores_assistant_durations_in_turn_scan() -> None:
-    ext = DurationExtension()
-    session_messages = [
-        {"role": "user", "content": "hi"},
-        {
-            "role": "assistant",
-            "content": "thinking",
-            # Assistant LLM durations must not leak into the tool turn.
-            "metadata": {
-                "tool_calls": [{"id": "c1", "function": {"name": "add"}}],
-                "duration_ms": 4000,
-            },
-        },
-        {
-            "role": "tool",
-            "content": "r1",
-            "metadata": {"tool_call_id": "c1", "duration_ms": 200},
         },
     ]
     message = {
@@ -620,49 +511,140 @@ def test_finalize_tool_call_ignores_assistant_durations_in_turn_scan() -> None:
     )
 
     md = stamped.get("metadata") or {}
-    assert md.get("turn_tool_duration_ms") == 200 + 500
+    assert md.get("duration_ms") == 500
+    # The per-turn tool total lives on the assistant message, not on the
+    # tool-result message.
+    assert "turn_tool_duration_ms" not in md
+    assert "turn_tool_duration_formatted" not in md
 
 
-def test_finalize_tool_call_skips_malformed_history_durations() -> None:
-    ext = DurationExtension()
-    session_messages = [
-        {"role": "user", "content": "hi"},
-        {
-            "role": "tool",
-            "content": "bad",
-            "metadata": {"tool_call_id": "c1", "duration_ms": "not-a-number"},
-        },
-        {
-            "role": "tool",
-            "content": "good",
-            "metadata": {"tool_call_id": "c2", "duration_ms": 250},
-        },
-    ]
-    message = {
-        "role": "tool",
-        "content": "r3",
-        "metadata": {"tool_call_id": "call_cur"},
+def _assistant_finalize_with_tool_history(
+    tool_durations_ms: list[int],
+    *,
+    separator: str | None = None,
+    assistant_llm_duration_ms: int | None = None,
+) -> Dict[str, Any]:
+    """Run finalize for one assistant final over a native history.
+
+    The history contains, per entry in ``tool_durations_ms``, an assistant
+    message with tool calls followed by a tool result carrying that
+    duration. ``separator`` inserts a user message before the tools when
+    given (to model a turn boundary).
+    """
+
+    native_history: list[Dict[str, Any]] = [{"role": "user", "content": "hi"}]
+    if separator == "user":
+        native_history.append({"role": "user", "content": "new turn"})
+    if separator == "assistant":
+        native_history.append({"role": "assistant", "content": "done", "_metadata": {}})
+    for idx, duration_ms in enumerate(tool_durations_ms):
+        native_history.append(
+            {
+                "role": "assistant",
+                "content": f"call {idx}",
+                "tool_calls": [{"id": f"c{idx}", "function": {"name": "add"}}],
+                "_metadata": {"tool_calls": [{"id": f"c{idx}"}]},
+            }
+        )
+        native_history.append(
+            {
+                "role": "tool",
+                "content": f"r{idx}",
+                "_metadata": {"duration_ms": duration_ms},
+            }
+        )
+    if assistant_llm_duration_ms is not None:
+        # An assistant LLM duration must not leak into the tool turn.
+        native_history.append(
+            {
+                "role": "assistant",
+                "content": "thinking",
+                "tool_calls": [{"id": "cx", "function": {"name": "add"}}],
+                "_metadata": {
+                    "tool_calls": [{"id": "cx"}],
+                    "duration_ms": assistant_llm_duration_ms,
+                },
+            }
+        )
+
+    # The provider-native history passed to finalize includes the final
+    # assistant message at its tail; history_before_current excludes it.
+    final_message = {"role": "assistant", "content": "done", "_metadata": {}}
+    native_history.append(dict(final_message))
+
+    final_messages = [final_message]
+    state: Dict[str, Any] = {
+        "_duration_extension": {
+            "duration_started_at": "2024-01-01T00:00:00+00:00",
+            "duration_started_at_mono": 10.0,
+        }
     }
-
-    stamped, _state = ext.finalize_tool_call(
-        message, {}, context=_tool_call_context(session_messages)
+    ext = DurationExtension()
+    stamped_finals, _stamped_history, _state = ext.finalize(
+        final_messages, native_history, state
     )
-
-    md = stamped.get("metadata") or {}
-    assert md.get("turn_tool_duration_ms") == 250 + 500
+    return stamped_finals[-1].get("_metadata") or {}
 
 
-def test_ui_elements_include_tool_turn_footer() -> None:
+def test_finalize_stamps_turn_tool_duration_on_assistant() -> None:
+    md = _assistant_finalize_with_tool_history([1200, 300])
+
+    assert md.get("turn_tool_duration_ms") == 1500
+    assert md.get("turn_tool_duration_formatted") == "1.5s"
+
+
+def test_finalize_turn_tool_duration_resets_after_user_message() -> None:
+    md = _assistant_finalize_with_tool_history(
+        [500], separator="user", assistant_llm_duration_ms=None
+    )
+    # Only the tool after the user separator counts.
+    assert md.get("turn_tool_duration_ms") == 500
+
+
+def test_finalize_turn_tool_duration_resets_after_terminal_assistant() -> None:
+    md = _assistant_finalize_with_tool_history([500], separator="assistant")
+    assert md.get("turn_tool_duration_ms") == 500
+
+
+def test_finalize_turn_tool_duration_ignores_assistant_llm_durations() -> None:
+    md = _assistant_finalize_with_tool_history([200], assistant_llm_duration_ms=4000)
+    assert md.get("turn_tool_duration_ms") == 200
+
+
+def test_finalize_turn_tool_duration_without_tools_is_absent() -> None:
+    md = _assistant_finalize_with_tool_history([])
+    # No tool calls in the turn: no turn tool duration stamp (no 0ms noise).
+    assert "turn_tool_duration_ms" not in md
+    assert "turn_tool_duration_formatted" not in md
+
+
+def test_finalize_turn_tool_duration_skips_malformed_values() -> None:
+    md = _assistant_finalize_with_tool_history([250, "not-a-number"])
+    assert md.get("turn_tool_duration_ms") == 250
+
+
+def test_ui_elements_footer_order() -> None:
     ext = DurationExtension()
     elements = ext.get_ui_elements(config=None)
-    footers = {
+    footers = [
         (el.get("data"), el.get("template"))
         for el in elements
         if el.get("ui_type") == "message_footer"
-    }
-    # The per-call duration footer now also renders on tool messages.
+    ]
+    # The per-call duration footer also renders on tool messages.
     assert ("metadata.duration_formatted", "duration: {{data}}") in footers
-    assert ("metadata.turn_tool_duration_formatted", "tool turn: {{data}}") in footers
+    # The turn tool total renders on assistant messages, after turn duration.
+    assert (
+        "metadata.turn_tool_duration_formatted",
+        "turn tool duration: {{data}}",
+    ) in footers
+    # The rendered order is the element list order.
+    assert footers == [
+        ("metadata.duration_formatted", "duration: {{data}}"),
+        ("metadata.turn_duration_formatted", "turn duration: {{data}}"),
+        ("metadata.turn_tool_duration_formatted", "turn tool duration: {{data}}"),
+        ("metadata.turn_tps_formatted", "turn TPS: {{data}}"),
+    ]
 
     disabled = ext.get_ui_elements(config={"duration_extension_show_duration": False})
     assert not any(el.get("ui_type") == "message_footer" for el in disabled)

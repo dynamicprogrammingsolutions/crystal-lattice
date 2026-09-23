@@ -31,14 +31,19 @@ providers are affected equally.
   `finalize_tool_call` from the framework-provided context facts
   (`started_at`/`finished_at`, wall and monotonic). The framework provides
   only raw timestamps; this plugin owns the measurement.
-- Adds per-turn cumulative `tool turn` duration: the sum of tool-result
-  durations since the last turn separator (a user/system message or an
-  assistant message without tool calls) plus the current call, scanned from
-  the session history available in the tool-call context. Assistant LLM
-  durations never leak into the tool turn.
-- Message footers (`duration:`, `turn duration:`, `turn TPS:`,
-  `tool turn:`) are gated by the `duration_extension_show_duration`
-  config flag.
+- Adds per-turn cumulative `turn tool duration` on the assistant message:
+  the sum of tool-result durations since the last turn separator (a
+  user/system message or an assistant message without tool calls), scanned
+  from the provider-native history. Tool messages carry only their own
+  per-call duration; the turn total lives on the assistant message and is
+  absent for turns without tool calls. Assistant LLM durations never leak
+  into the tool turn.
+- Message footers render in this order on assistant messages:
+  `duration:`, `turn duration:`, `turn tool duration:`, `turn TPS:`
+  (tool messages show only `duration:`). All footers are gated by the
+  `duration_extension_show_duration` config flag. Element ordering across
+  plugins follows the UI element `order` contract (see
+  `plugins/docs/ui-elements.md`).
 
 ## License
 
