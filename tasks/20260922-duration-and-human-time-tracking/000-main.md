@@ -7,9 +7,9 @@ This task takes over `tasks/20260801-duration-and-stats-tracking/000-main.md` (s
 ## Requirements checklist
 
 - [x] The framework provides a general plugin act-point around tool calls (execution-scoped hooks plus an append-scoped hook) with context-carried facts, and the timestamp plugin's `to_native_messages` append workaround is retired (subtask 020 — completed 2026-09-22).
-- [x] Per-tool-call and per-turn tool duration are stamped on tool-result messages by the duration measurement plugin, without a store (subtask 020 — completed 2026-09-22).
-- [ ] Session LLM duration is tracked per session in a SQLite store with the cost-tracking method, replacing the history-scan session total from the dropped worktree branch (subtask 010).
-- [ ] Tool call duration rows are recorded in the same store, and store-backed LLM + tool session totals surface through config-selected status-bar elements and the report action (subtasks 010 and 025).
+- [x] Per-tool-call duration is stamped on tool-result messages and per-turn tool duration on the turn's assistant owner message by the duration measurement plugin, without a store (subtask 020 — completed 2026-09-22; turn total relocated to the assistant message by the approved follow-up).
+- [x] Session LLM duration is tracked per session in a SQLite store with the cost-tracking method, replacing the history-scan session total from the dropped worktree branch (subtask 010 — completed 2026-09-23).
+- [x] Tool call duration rows are recorded in the same store, and store-backed LLM + tool session totals surface through config-selected status-bar elements and the report action (subtasks 010 and 025 — completed 2026-09-23).
 - [ ] Human time (review + composition) is tracked from frontend telemetry events recorded into the same store, with ingestion via a plugin-defined action; human time surfaces through the report action only, without message stamping (subtask 030).
 - [ ] Documentation and config schemas cover the new plugin, fields, and any new framework contract (subtask 040).
 
@@ -30,13 +30,13 @@ Approved by the user on 2026-09-22 after the three-item review:
 
 - SUPERSEDES `tasks/20260801-duration-and-stats-tracking/000-main.md` and its subtasks 010–070 (kept for reference; solutions re-evaluated, most replaced by the store method).
 - References `tasks/20260920-generic-cost-tracking.md` as implementation base (completed; not a dependency — the implemented solution is the suitable baseline).
-- SUPERSEDES the worktree branch `task/20260910-duration-session-total` (worktree `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/20260910-duration-session-total`, commits `a50dbd75`, `57a4cad9`, `2e7fb801`). Keep the worktree for reference until subtask 010 lands, then remove it.
+- SUPERSEDES the worktree branch `task/20260910-duration-session-total` (worktree `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/20260910-duration-session-total`, commits `a50dbd75`, `57a4cad9`, `2e7fb801`). The worktree was removed 2026-09-23 after subtask 010 landed (salvage complete; the branch history remains in git).
 
 ## Subtasks
 
-- [ ] `tasks/20260922-duration-and-human-time-tracking/010-session-duration-store.md`
+- [x] `tasks/20260922-duration-and-human-time-tracking/010-session-duration-store.md` (completed 2026-09-23)
 - [x] `tasks/20260922-duration-and-human-time-tracking/020-tool-call-duration.md` (completed 2026-09-22)
-- [ ] `tasks/20260922-duration-and-human-time-tracking/025-tool-duration-store-totals.md`
+- [x] `tasks/20260922-duration-and-human-time-tracking/025-tool-duration-store-totals.md` (completed 2026-09-23)
 - [ ] `tasks/20260922-duration-and-human-time-tracking/030-human-time-telemetry.md`
 - [ ] `tasks/20260922-duration-and-human-time-tracking/040-docs.md`
 

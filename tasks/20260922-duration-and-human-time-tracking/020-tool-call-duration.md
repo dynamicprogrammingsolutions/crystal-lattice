@@ -6,16 +6,16 @@ Add the general framework act-point around tool calls (execution-scoped `prepare
 
 ## Requirements checklist
 
-- [ ] Tool call duration measurement is owned by a plugin; the framework does not compute durations, stamp duration fields onto tool messages, or record tool stats.
-- [ ] The framework provides a general way for plugins to act around tool calls, not only after LLM responses; expanding the existing prepare/finalize contracts is the chosen shape.
-- [ ] The tool-call prepare hook lets plugins transform the tool call before execution (sanitizing and interception are planned use-cases); the framework re-inspects the transformed call before executing it.
-- [ ] Provider (LLM) call contexts carry the same raw started/finished timestamp facts as tool-call contexts, for symmetry; plugins own the measurement in both scopes.
-- [ ] Framework-provided facts (e.g. execution timestamps, tool call descriptors) reach plugins via context; the framework does not modify tool messages directly on the plugins' behalf.
-- [ ] The new mechanism replaces the `TimestampExtension` single-message `to_native_messages` append workaround (append-time stamping migrates to the new hook).
-- [ ] Per-tool-call duration is stamped on the corresponding tool-result message metadata by the duration measurement plugin and flows to frontends through the existing tool events (`tool_partial` end, `tool_results`).
-- [ ] Per-turn tool call duration (sum of tool-call durations within the current turn) is stamped on tool-result message metadata, computed from the session history available in the tool-call context — no store required.
-- [ ] Existing LLM duration fields and semantics remain unchanged; tool call duration uses separate fields, not merged into LLM duration.
-- [ ] The mechanism works for all providers and all tool plugins without per-tool changes, in streaming and non-streaming requests.
+- [x] Tool call duration measurement is owned by a plugin; the framework does not compute durations, stamp duration fields onto tool messages, or record tool stats.
+- [x] The framework provides a general way for plugins to act around tool calls, not only after LLM responses; expanding the existing prepare/finalize contracts is the chosen shape.
+- [x] The tool-call prepare hook lets plugins transform the tool call before execution (sanitizing and interception are planned use-cases); the framework re-inspects the transformed call before executing it.
+- [x] Provider (LLM) call contexts carry the same raw started/finished timestamp facts as tool-call contexts, for symmetry; plugins own the measurement in both scopes.
+- [x] Framework-provided facts (e.g. execution timestamps, tool call descriptors) reach plugins via context; the framework does not modify tool messages directly on the plugins' behalf.
+- [x] The new mechanism replaces the `TimestampExtension` single-message `to_native_messages` append workaround (append-time stamping migrates to the new hook).
+- [x] Per-tool-call duration is stamped on the corresponding tool-result message metadata by the duration measurement plugin and flows to frontends through the existing tool events (`tool_partial` end, `tool_results`).
+- [x] Per-turn tool call duration (sum of tool-call durations within the current turn) is stamped on the turn's assistant owner message metadata by the duration measurement plugin, computed from the session history — no store required. (Originally specified on tool-result messages; relocated to the assistant owner by the approved post-completion follow-up, where it renders as `turn tool duration:` after `turn duration:`.)
+- [x] Existing LLM duration fields and semantics remain unchanged; tool call duration uses separate fields, not merged into LLM duration.
+- [x] The mechanism works for all providers and all tool plugins without per-tool changes, in streaming and non-streaming requests.
 
 ## Supporting details
 
