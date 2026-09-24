@@ -168,6 +168,14 @@ retains the completed requirement/testing candidate history and corrected
 default-runner matrix. Their remaining staged-workflow and decomposition scope
 is split into this task.
 
+Task 100 restructured the suite this task runs on. Future confirmation
+runs use the new commands: the configuration-derived live matrix under
+`suites/task_guidance/evaluation/` selected with `-m agent_eval` and
+`-k`, run options `--label`/`--fresh`/`--samples`, the `freeze`
+consolidation command, and `result_package collect --frozen <path>
+--output <dir>`. See
+`suites/task_guidance/docs/running-and-calibration.md`.
+
 The task does not own implementation or completion-stage agent workflows until
 task creation and planning handoffs are stable. It does not make detailed
 guidance pages mandatory or select a final placement architecture before

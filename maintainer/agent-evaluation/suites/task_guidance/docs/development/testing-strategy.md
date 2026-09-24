@@ -11,6 +11,32 @@ retained for a practical baseline with focused important-crossing,
 plan-preservation, and fresh generated-task handoff confirmation.
 Placement comparisons have not started.
 
+## Run model and test layout
+
+The suite splits its tests by nature:
+
+- `tests/` holds the deterministic machinery tests: configuration
+  well-formedness and consumer derivation, runner assembly over the
+  shared run-model layer, per-subject assessment contracts, package
+  adapter behavior, collection checks, and naming cleanup. A bare pytest
+  run collects only these.
+- `evaluation/` holds the live matrix: one parametrized driver per
+  catalog stage, gated by the `agent_eval` marker and derived from the
+  configuration manifest. `-k` slices it by scenario, producer, effort,
+  or variant; `--label`, `--fresh`, and `--samples` control execution.
+
+Runs execute through the shared run-model layer. Request identity is
+structural; the run label is provenance. An unchanged request replays
+from the execution cache; `--fresh` re-executes deliberately;
+`--samples N` produces genuine variance samples under one label; a
+provider-error value is not cached and retries naturally. The freeze
+selects the latest valid record per cell, or every sample of the listed
+labels.
+
+The framework's fixture mini-evaluation and Crystal Lattice
+mini-evaluation prove these mechanics end-to-end in short-running
+tests; the suite's own tests verify only the suite-specific assembly.
+
 ## Risks
 
 The suite targets these failure classes:
@@ -147,6 +173,13 @@ Code maps statuses to deterministic scores and computes an equal-weight
 success percentage. Aggregate results show per-dimension scores, affected
 assessment counts, occurrence counts, and total success for all records, each
 provider, and each provider/effort cohort.
+
+Each assessment request judges one subject — one sample of one producer
+or handoff cell — under a neutral subject label that hides the producer
+identity, validity, and tool metrics. Stage and variant labels stay in
+the handoff material where the rubric interprets them. The saved record
+keeps the subject-to-producer mapping and the sample index; a case whose
+subjects are all invalid skips with the recorded reasons.
 
 Use reviewed semantic targets. Do not require exact wording.
 

@@ -503,12 +503,12 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   (chunk 5, test-first).
 - [x] Remove the package dataset registry; support both assessment schemas
   and per-cell sample rendering (chunk 6, test-first).
-- [ ] Rewrite the affected documentation; complete the naming cleanup
+- [x] Rewrite the affected documentation; complete the naming cleanup
   (chunk 7, test-first).
-- [ ] Pass targeted deterministic verification and package regeneration
+- [x] Pass targeted deterministic verification and package regeneration
   parity (no full-suite reruns).
 - [ ] Run the live sentinel verification (needs approval and credentials).
-- [ ] Update requirement ledgers and append completion notes.
+- [x] Update requirement ledgers and append completion notes.
 
 ### Requirement verification
 
@@ -863,3 +863,72 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   `check` byte-identically; the scenarios export regenerates with only
   the two intended assessment-prompt template diffs (plus the
   pre-existing guidance-lock revision stamps); ruff/black clean.
+- September 24, 2026 — chunks 7+8 (shot 3). Chunk 7, test-first:
+  `tests/test_no_evaluation_stage_names.py` written first — it pins the
+  absence of the historical evaluation names (b0/b1 attempt names, old
+  stage markers), confines the deleted parameter environment variables
+  to the legacy-inertness collection test, and confines the legacy
+  attempt vocabulary to the compatibility adapters (results.py,
+  result_package.py) and the tests that construct legacy-shape fixtures;
+  the remaining fixture values were replaced with synthetic ones and
+  freeze.py's docstring reworded. Documentation: running-and-calibration.md
+  rewritten to the new command set (layout, live matrix slicing, run
+  options, identity/labels, freeze, collect); the reproduction guide's
+  command sections rewritten (env selection, per-cell and matrix
+  reproduction, per-subject assessments, freeze + `collect --frozen`);
+  new framework page `docs/run-model.md` linked from the documentation
+  map; the suite specification gained the configuration-declared stage
+  model and per-subject delivery sections; the testing strategy gained
+  the run-model/test-layout section; both doc indexes updated; task 090
+  gained the new-commands cross-reference. Requirement ledger:
+  TGEVAL-018–TGEVAL-021 added (configuration-declared matrix, run-model
+  consumption, per-subject assessment, registry-free adapter), and
+  TGEVAL-011's evidence notes both assessment schemas.
+- Chunk 8 deterministic verification: suite 144 passed / 74 live
+  deselected; framework 181 passed from the repository root; both
+  committed packages pass `check` byte-identically; the scenarios
+  export regenerates byte-identically (only the pre-existing
+  guidance-lock revision stamps move, committed state restored);
+  `--collect-only -m agent_eval` lists exactly the 74-case matrix;
+  ruff/black clean. The live GLM sentinel remains the only open item and
+  needs explicit approval and credentials.
+## Completion Notes
+
+- Outcome: the task-guidance suite is restructured onto the reusable
+  run-model layer with a configuration-declared matrix, per-subject
+  assessments, and a registry-free package adapter. All deterministic
+  scope is implemented, tested, and documented. The only open item is
+  the live GLM sentinel, which needs explicit approval and credentials.
+- Requirement evidence: run-model layer and labels (framework
+  mini-evaluations plus `tests/test_runner_assembly.py`);
+  configuration-declared matrix (`tests/test_configuration.py`,
+  `evaluation/matrix.py`, `tests/test_collection.py`); per-subject
+  assessment (`tests/test_per_subject_assessment.py` plus the
+  evaluation drivers); package adapter (`tests/test_package_adapter.py`
+  plus both committed-package `check` runs, byte-identical);
+  prior-evidence compatibility (legacy attempts read as labels;
+  committed packages regenerate byte-identically); naming cleanup
+  (`tests/test_no_evaluation_stage_names.py`). Suite requirement rows
+  TGEVAL-018–TGEVAL-021 record the new behavior with their evidence.
+- Verification performed: suite 144 passed / 74 live deselected;
+  framework 181 passed from the repository root; both committed packages
+  pass `check` byte-identically; the scenarios export regenerates
+  byte-identically apart from the pre-existing guidance-lock revision
+  stamps; `--collect-only -m agent_eval` lists exactly the 74-case
+  configuration-derived matrix; ruff and black clean on all changed
+  files (pre-existing formatting drift in untouched files left alone).
+- Verification blocked: the live sentinel (one GLM producer plus one
+  per-subject assessment through the new path into a throwaway package)
+  was not run — it is the only planned model spend and requires explicit
+  approval and credentials.
+- Plan deviations: the live matrix lives under `evaluation/` rather
+  than `tests/` (user-directed layout amendment); the render_summary
+  row titles stay historical because renaming them would break
+  byte-identical regeneration of the committed packages; the naming
+  cleanup confines — rather than removes — the legacy attempt vocabulary
+  to the compatibility adapters and their fixtures, because the
+  historical data-format field names are part of readable prior
+  evidence.
+- Unresolved or deferred: the live sentinel (above); task 090's
+  practical-baseline confirmation and promotion run on the restructured
+  suite and are owned by task 090.

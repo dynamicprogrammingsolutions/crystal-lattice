@@ -35,8 +35,8 @@ def _batched_semantic_record() -> dict:
     return {
         "schema_version": 1,
         "scenario_id": HANDOFF_SCENARIO_ID,
-        "producer_attempt": "b0-v5-r1",
-        "semantic_attempt": "b0-metrics1",
+        "producer_attempt": "hist-r1",
+        "semantic_attempt": "hist-m1",
         "assessment": {
             "schema_version": 2,
             "scenario_id": HANDOFF_SCENARIO_ID,
@@ -67,9 +67,9 @@ def _batched_handoff_record() -> dict:
     return {
         "schema_version": 1,
         "scenario_id": HANDOFF_SCENARIO_ID,
-        "producer_attempt": "b0-v5-r1",
-        "handoff_attempt": "b0-v5-r1",
-        "semantic_attempt": "b0-metrics1",
+        "producer_attempt": "hist-r1",
+        "handoff_attempt": "hist-r1",
+        "semantic_attempt": "hist-m1",
         "fresh_records": [],
         "same_agent_records": [],
         "assessment": {

@@ -24,6 +24,20 @@ wording, filename preference, or raw checkbox totals.
 
 ## Stage model
 
+### Configuration-declared stages
+
+One configuration manifest declares every category, scenario, agent,
+model, effort, stage, and assessment cell. The stage catalog derives from
+it; the live matrix parametrizes from it; the consolidation expectations
+derive from it. No environment variable selects cells.
+
+The suite executes through the shared run-model layer: request identity
+is structural (stage, agent, model, scenario, effort, variant, workspace
+fingerprint, target and prompt hashes, parent identity for
+continuations), run labels are provenance only, and consolidation
+selects the latest valid record per cell or every sample of the listed
+labels.
+
 ### Independent stages
 
 The primary matrices use one reviewed canonical input for each stage:
@@ -181,6 +195,18 @@ for the complete cohort, each provider, and each provider/effort combination.
 
 Mechanical findings and semantic assessment remain separate.
 
+### Per-subject delivery
+
+Each assessment request judges exactly one subject — one sample of one
+producer or handoff cell — under a neutral subject label. The prompt
+material carries the produced work only: no producer identity, validity
+flag, or tool metrics. Stage and variant labels stay in the handoff
+material where the rubric interprets them. The response schema echoes no
+producer; the saved record keeps the subject-to-producer mapping and the
+sample index, so a judgment stays attributable without ever being
+anchored. A case whose subjects are all invalid skips with the recorded
+reasons instead of failing the batch.
+
 ## Investigation-efficiency evidence
 
 Efficiency is interpreted only for plans that meet the semantic target.
@@ -254,8 +280,10 @@ support and the Crystal Lattice environment's reusable review projection.
 
 The task-guidance adapter owns:
 
-- selection of producer, handoff, continuation, control, and assessment runs;
-- scenario, profile, effort, attempt, and stage identity;
+- selection of producer, handoff, continuation, control, and assessment
+  runs by run label (the historical per-stage run selections stay
+  readable);
+- scenario, profile, effort, run-label, and stage identity;
 - relationships between plans, task files, continuations, and assessments;
 - generated task files and assistant responses;
 - reviewed targets, semantic dimensions, occurrences, and scores;

@@ -11,6 +11,7 @@ src/agent_eval/
 ├── workspace.py         workspace preparation and Git helper
 ├── cache.py             locked atomic local cache
 ├── artifacts.py         canonical/raw rendering
+├── runner/              run model: identity, labels, samples, consolidation
 └── crystal_lattice/
     ├── environment.py   AgentApplication lifecycle
     ├── context.py       evaluation-author context

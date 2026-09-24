@@ -30,6 +30,13 @@ Completed evaluations are preserved as regenerable result packages under
 datasets no longer live in suite fixtures; deterministic package behavior is
 covered by synthetic data in `test_result_package.py`.
 
+The live matrix is parametrized from one configuration manifest — every
+scenario, agent, model, effort, stage, and assessment cell — and executes
+through the shared run-model layer (structural request identity, run labels
+as provenance, cache-aware execution, label-based consolidation). The
+deterministic machinery tests live under `tests/`; the live evaluation
+drivers under `evaluation/` are gated by the `agent_eval` marker.
+
 The suite is a consumer of `agent_eval`. Generic kernel and Crystal Lattice
 environment behavior remain owned by the package specifications under
 `maintainer/agent-evaluation/docs/development/specifications/`.

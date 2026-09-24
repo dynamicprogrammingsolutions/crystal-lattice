@@ -3,7 +3,7 @@
 The CLI is generic: it takes the artifact root, the run labels to freeze
 (latest label per cell by default), the dataset identity, and the guidance
 bundle whose compilation hash is recorded as provenance. Stage-specific
-attempt arguments are gone — one run label covers every stage of one
+run-selection arguments are gone — one run label covers every stage of one
 invocation.
 """
 

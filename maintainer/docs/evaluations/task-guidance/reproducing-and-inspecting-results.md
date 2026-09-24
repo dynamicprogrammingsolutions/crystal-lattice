@@ -40,15 +40,16 @@ machine.
 | [Stage B0 — Current-guidance baseline](test-plan.md#stage-b0--current-guidance-baseline) | `task-guidance-b0-20260919` | `b0-v5-r1` | `b0-metrics1` | [20260919-current-guidance-b0](results/20260919-current-guidance-b0/index.md) |
 | [Stage B1 — Task-mechanics candidate](test-plan.md#stage-b1--task-mechanics-candidate) v1 | `task-guidance-b1-20260919` | `b1-v1-r1` | `b1-metrics1` | [20260919-task-mechanics-b1](results/20260919-task-mechanics-b1/index.md) |
 
-The dataset identifies the intended result set. The run attempt selects
-producer, handoff, or continuation records. The semantic attempt selects the
-assessment pass. `AGENT_EVAL_CACHE_NONCE` may force a retry while retaining the
-same canonical run attempt; consolidation selects the latest matching record
-for each identity.
+The dataset identifies the intended result set. The completed stages were
+recorded under historical per-stage run selections, which the freeze and
+package adapters still read; current runs record one run label per
+invocation instead. `--fresh` re-executes a request deliberately while
+keeping the same identity; consolidation selects the latest valid record
+for each cell by default, or every sample of the listed labels.
 
-Do not rerun a frozen canonical attempt into the main raw-result directory
-unless the intent is to replace an invalid cell. For independent reproduction,
-use a separate artifact root.
+Do not rerun a completed evaluation's selection into the main raw-result
+directory unless the intent is to replace an invalid cell. For independent
+reproduction, use a separate artifact root and a fresh run label.
 
 ## Prerequisites
 
@@ -75,191 +76,122 @@ ruff check maintainer/agent-evaluation/suites/task_guidance
 
 ## Select the evaluation
 
-Use a separate raw-result directory when reproducing completed evidence:
+Use a separate raw-result directory when reproducing completed evidence,
+and select the guidance bundle the evaluation ran with:
 
 ```bash
 export AGENT_EVAL_ARTIFACT_ROOT="$PWD/tmp/agent-evaluation/task-guidance-reproduction"
-```
-
-For
-[Stage B1 — Task-mechanics candidate](test-plan.md#stage-b1--task-mechanics-candidate)
-v1:
-
-```bash
-export AGENT_EVAL_GUIDANCE_BUNDLE="$PWD/maintainer/guidance/candidates/task-mechanics-b1"
-export AGENT_EVAL_TASK_DATASET_ID="task-guidance-b1-20260919"
-export AGENT_EVAL_TASK_GUIDANCE_RUN_ATTEMPT="b1-v1-r1"
-export AGENT_EVAL_TASK_HANDOFF_RUN_ATTEMPT="b1-v1-r1"
-export AGENT_EVAL_TASK_GUIDANCE_SEMANTIC_ATTEMPT="b1-metrics1"
-```
-
-For
-[Stage B0 — Current-guidance baseline](test-plan.md#stage-b0--current-guidance-baseline):
-
-```bash
 export AGENT_EVAL_GUIDANCE_BUNDLE="$PWD/maintainer/guidance/current"
-export AGENT_EVAL_TASK_DATASET_ID="task-guidance-b0-20260919"
-export AGENT_EVAL_TASK_GUIDANCE_RUN_ATTEMPT="b0-v5-r1"
-export AGENT_EVAL_TASK_HANDOFF_RUN_ATTEMPT="b0-v5-r1"
-export AGENT_EVAL_TASK_GUIDANCE_SEMANTIC_ATTEMPT="b0-metrics1"
 ```
 
-These variables make the following commands short and keep the selected
-guidance, dataset, and attempts visible.
+Use `maintainer/guidance/candidates/task-mechanics-b1` to reproduce
+[Stage B1 — Task-mechanics candidate](test-plan.md#stage-b1--task-mechanics-candidate)
+v1. These variables make the following commands short and keep the
+selected guidance visible; every other selection is a pytest flag.
 
 ## Reproduce one task-creation cell
 
 This example reproduces the GPT-5.6-luna xhigh result for the Flask/Vue book
-discovery case:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_ALLOW_HOSTED=1 \
-AGENT_EVAL_PROFILE=gpt \
-AGENT_EVAL_TASK_SCENARIO=tg04-flask-vue-discovery-decomposition \
-AGENT_EVAL_TASK_EFFORT=xhigh \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_baseline_producers.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-Add `AGENT_EVAL_CACHE_NONCE=review-1` when a genuinely new response is needed
-instead of a compatible cached run.
-
-## Reproduce the producer matrix
-
-Run all GLM-max producer cells:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_baseline_producers.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-Run all GPT high/xhigh/max producer cells:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_ALLOW_HOSTED=1 \
-AGENT_EVAL_PROFILE=gpt \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_baseline_producers.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-The completed evaluations used independent scenario/effort processes, with up
-to eight concurrent processes per provider. Parallel execution is only an
-optimization: split the focused command by `AGENT_EVAL_TASK_SCENARIO` and
-`AGENT_EVAL_TASK_EFFORT`, redirect each process to its own log, and keep the
-common variables above unchanged.
-
-Before parallel execution, warm or validate each provider serially. Earlier
-calibration found that two providers simultaneously building the same local
-plugin package could race.
-
-## Reproduce handoff and continuation evidence
-
-Fresh-agent retain/omit plans run for GLM:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_handoff_plans.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-Run the same file with GPT:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_ALLOW_HOSTED=1 \
-AGENT_EVAL_PROFILE=gpt \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_handoff_plans.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-Same-agent continuation uses the equivalent commands with
-`test_same_agent_continuation.py`. For example, run the GLM cells with:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_same_agent_continuation.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-Run the GPT cells by adding `AGENT_EVAL_ALLOW_HOSTED=1` and setting
-`AGENT_EVAL_PROFILE=gpt`.
-
-The incomplete-handoff negative control uses GLM:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_negative_control.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-## Reproduce semantic assessment
-
-Clear focused producer filters before assessing a complete matrix:
-
-```bash
-unset AGENT_EVAL_TASK_SCENARIO AGENT_EVAL_TASK_EFFORT
-```
-
-Task-creation semantic assessment uses GLM:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_semantic_assessment.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_semantic -q
-```
-
-Handoff semantic assessment:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_handoff_semantic_assessment.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_semantic -q
-```
-
-Set `AGENT_EVAL_TASK_ALLOW_PARTIAL=1` only for explicitly labeled calibration
-or blocked-provider analysis. A partial semantic pass does not complete a
-stage.
-
-## Consolidate and collect the result package
-
-The `freeze_b0` module is the consolidation command for both completed
-stages. It reads the raw run records under the artifact root and writes one
-consolidated dataset JSON plus a Markdown status summary. Its default output
-lives under `<artifact-root>/consolidated/<dataset-id>.json`; pass `--output`
-to place it elsewhere.
-
-For
-[Stage B1 — Task-mechanics candidate](test-plan.md#stage-b1--task-mechanics-candidate)
-v1:
+discovery case. Give the invocation a run label so the freeze can select
+it:
 
 ```bash
 (cd maintainer/agent-evaluation && \
-  python -m suites.task_guidance.freeze_b0 \
+  pytest suites/task_guidance/evaluation/test_task_creation.py \
+    -m agent_eval -k "tg04-flask-vue-discovery-decomposition and gpt and xhigh" \
+    --label reproduction-1 -q)
+```
+
+Add `--fresh` when a genuinely new response is needed instead of a
+compatible cached run.
+
+## Reproduce the producer matrix
+
+Run every GLM producer cell:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  pytest suites/task_guidance/evaluation/test_task_creation.py \
+    -m agent_eval -k glm --label reproduction-1 -q)
+```
+
+Run every producer cell of every declared agent:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  pytest suites/task_guidance/evaluation/test_task_creation.py \
+    -m agent_eval --label reproduction-1 -q)
+```
+
+Parallel execution is only an optimization: split the focused command by
+`-k` (scenario, producer, effort), redirect each process to its own log,
+and give each process the same run label. Before parallel execution, warm
+or validate each provider serially. Earlier calibration found that two
+providers simultaneously building the same local plugin package could
+race.
+
+## Reproduce handoff and continuation evidence
+
+Fresh-agent retain/omit plans, same-agent continuations, and the
+incomplete-handoff negative control are separate stage files, all sliced
+the same way:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  pytest suites/task_guidance/evaluation/test_handoff_plan.py \
+    -m agent_eval -k glm --label reproduction-1 -q)
+
+(cd maintainer/agent-evaluation && \
+  pytest suites/task_guidance/evaluation/test_continuation.py \
+    -m agent_eval -k glm --label reproduction-1 -q)
+
+(cd maintainer/agent-evaluation && \
+  pytest suites/task_guidance/evaluation/test_negative_control.py \
+    -m agent_eval --label reproduction-1 -q)
+```
+
+Continuations require their producer cells under the same label first;
+the continuation driver continues from each recorded parent sample.
+
+## Reproduce the assessments
+
+The assessments judge one subject per request — every sample of every
+producer or handoff cell — under a neutral subject label that hides the
+producer identity, validity, and tool metrics. They read the producer
+and handoff records recorded under the run label and skip with the
+recorded reasons when a subject cell is missing or invalid:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  pytest suites/task_guidance/evaluation/test_task_creation_assessment.py \
+    -m agent_eval --label reproduction-1 -q)
+
+(cd maintainer/agent-evaluation && \
+  pytest suites/task_guidance/evaluation/test_handoff_assessment.py \
+    -m agent_eval --label reproduction-1 -q)
+```
+
+Run the assessments only after the cells they judge exist under the same
+run label. A skipped assessment case records its reason in the report; a
+partial assessment pass does not complete a stage.
+
+## Consolidate and collect the result package
+
+The `freeze` module is the consolidation command. It reads the raw run
+records under the artifact root and writes one consolidated dataset JSON
+plus a Markdown status summary. Without `--labels` it selects the latest
+valid record per cell; with `--labels` it selects every sample of the
+listed invocations:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  python -m suites.task_guidance.freeze \
     --artifact-root "$AGENT_EVAL_ARTIFACT_ROOT" \
-    --producer-attempt "$AGENT_EVAL_TASK_GUIDANCE_RUN_ATTEMPT" \
-    --handoff-attempt "$AGENT_EVAL_TASK_HANDOFF_RUN_ATTEMPT" \
-    --semantic-attempt "$AGENT_EVAL_TASK_GUIDANCE_SEMANTIC_ATTEMPT" \
-    --dataset-id "$AGENT_EVAL_TASK_DATASET_ID" \
-    --label "task-mechanics candidate" \
-    --output "$AGENT_EVAL_ARTIFACT_ROOT/consolidated/task_guidance_b1_results.json")
+    --labels reproduction-1 \
+    --dataset-id "task-guidance-reproduction" \
+    --label "reproduction" \
+    --bundle "$AGENT_EVAL_GUIDANCE_BUNDLE" \
+    --output "$AGENT_EVAL_ARTIFACT_ROOT/consolidated/reproduction.json")
 ```
 
 The command generates:
@@ -273,17 +205,17 @@ model request:
 ```bash
 (cd maintainer/agent-evaluation && \
   python -m suites.task_guidance.result_package collect \
-    --dataset b1 \
     --artifact-root "$AGENT_EVAL_ARTIFACT_ROOT" \
-    --frozen "$AGENT_EVAL_ARTIFACT_ROOT/consolidated/task_guidance_b1_results.json" \
-    --output ../docs/evaluations/task-guidance/results/20260919-task-mechanics-b1)
+    --frozen "$AGENT_EVAL_ARTIFACT_ROOT/consolidated/reproduction.json" \
+    --output ../docs/evaluations/task-guidance/results/reproduction)
 ```
 
-`--dataset` selects the evaluation identity (attempts, guidance bundle,
-package name); `--frozen` selects the consolidated dataset JSON; `--cells`
-collects a partial package for selected `scenario:profile:effort` cells;
-`--no-reconstruction` skips GPT compiled-message reconstruction. Collection
-ends with the package check, so a collected package always passes `check`.
+The dataset identity — id, human label, run selection, and guidance
+bundle — is read from the frozen dataset; the package name is the output
+directory name. `--cells` collects a partial package for selected
+`scenario:profile:effort` cells; `--no-reconstruction` skips GPT
+compiled-message reconstruction. Collection ends with the package check,
+so a collected package always passes `check`.
 
 Regenerate the human views of a committed package after changing the report
 configuration, and verify a package at any time:

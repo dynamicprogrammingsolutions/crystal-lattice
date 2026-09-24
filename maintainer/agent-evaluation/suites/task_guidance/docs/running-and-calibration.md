@@ -1,13 +1,19 @@
 # Running and calibrating the task-guidance suite
 
-The migrated human-operated CLI is available at:
+The suite is a pytest-parametrized live evaluation driven by one
+configuration manifest. Every live case — which scenarios run, which
+model and effort produce them, which agent judges each stage — derives
+from `configuration.json` and the stage catalog; no environment variable
+selects cells or changes collection.
+
+The human-operated CLI is still available for imported planning sessions:
 
 ```bash
 python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py --help
 ```
 
-See [Current CLI workflow](legacy-cli.md) for its existing Codex handoff
-scenario. The evaluator for
+See [Current CLI workflow](legacy-cli.md) for its Codex handoff scenario.
+The evaluator for
 [Stage B0 — Current-guidance baseline](../../../../docs/evaluations/task-guidance/test-plan.md#stage-b0--current-guidance-baseline)
 and candidate v1 for
 [Stage B1 — Task-mechanics candidate](../../../../docs/evaluations/task-guidance/test-plan.md#stage-b1--task-mechanics-candidate)
@@ -20,116 +26,117 @@ Use
 for completed result identities, concise reproduction commands, raw-run
 locations, report generation, and cell-level task-file inspection.
 
-Run deterministic suite coverage:
+## Layout
+
+- `evaluation/` — the live matrix: one parametrized driver file per
+  catalog stage, collected by pytest and gated by the `agent_eval`
+  marker. `matrix.py` derives every case from the configuration.
+- `tests/` — deterministic tests of the suite machinery; a bare pytest
+  run collects no live evaluation.
+- `docs/development/` — the suite specification, requirements, and
+  testing strategy.
+
+## Deterministic coverage
 
 ```bash
 (cd maintainer/agent-evaluation && pytest suites/task_guidance -q)
 ruff check maintainer/agent-evaluation/suites/task_guidance
 ```
 
-Run one current-guidance baseline producer profile:
+## Running the live matrix
 
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-AGENT_EVAL_TASK_GUIDANCE_RUN_ATTEMPT=b0-v5-r1 \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_baseline_producers.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-Set `AGENT_EVAL_TASK_SCENARIO` to one scenario ID for a focused run. ChatGPT
-also requires `AGENT_EVAL_ALLOW_HOSTED=1`.
-
-Retry one model-effort cell without repeating successful cells:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_ALLOW_HOSTED=1 \
-AGENT_EVAL_PROFILE=gpt \
-AGENT_EVAL_TASK_SCENARIO=tg04-flask-vue-discovery-decomposition \
-AGENT_EVAL_TASK_EFFORT=max \
-AGENT_EVAL_CACHE_NONCE=retry1 \
-AGENT_EVAL_TASK_GUIDANCE_RUN_ATTEMPT=b0-v5-r1 \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_baseline_producers.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-`AGENT_EVAL_CACHE_NONCE` changes only the execution cache identity. The
-canonical run-attempt value remains unchanged, so the latest valid record for
-that model/effort cell replaces the earlier invalid retry target during
-consolidation.
-
-Run a partial GLM semantic pass only when missing/invalid provider cells have
-been separately recorded:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-AGENT_EVAL_TASK_GUIDANCE_RUN_ATTEMPT=b0-v5-r1 \
-AGENT_EVAL_TASK_GUIDANCE_SEMANTIC_ATTEMPT=b0-metrics1 \
-AGENT_EVAL_TASK_ALLOW_PARTIAL=1 \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_semantic_assessment.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_semantic -q
-```
-
-Partial assessment does not satisfy the complete matrix requirement.
-
-Run fresh-agent retained/omitted plans for one bounded scenario:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-AGENT_EVAL_TASK_SCENARIO=tg02-fastapi-pagination-handoff \
-AGENT_EVAL_TASK_HANDOFF_RUN_ATTEMPT=b0-v5-r1 \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_handoff_plans.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-Run its same-agent continuation and incomplete negative control:
-
-```bash
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-AGENT_EVAL_TASK_SCENARIO=tg02-fastapi-pagination-handoff \
-AGENT_EVAL_TASK_GUIDANCE_RUN_ATTEMPT=b0-v5-r1 \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_same_agent_continuation.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-
-AGENT_EVAL_RUN_REAL=1 \
-AGENT_EVAL_PROFILE=glm \
-AGENT_EVAL_TASK_HANDOFF_RUN_ATTEMPT=b0-v5-r1 \
-pytest maintainer/agent-evaluation/suites/task_guidance/test_negative_control.py \
-  -c maintainer/agent-evaluation/pyproject.toml \
-  -m task_guidance_baseline -q
-```
-
-Freeze the selected attempts:
+Every live command needs `-m agent_eval`; the repository-wide pytest
+configuration deselects live evaluation otherwise. The full matrix on
+the current configuration is one command with no run parameters:
 
 ```bash
 (cd maintainer/agent-evaluation && \
-  python -m suites.task_guidance.freeze_b0 \
-    --producer-attempt b0-v5-r1 \
-    --handoff-attempt b0-v5-r1 \
-    --semantic-attempt b0-metrics1)
+  pytest suites/task_guidance -m agent_eval -q)
 ```
 
-The consolidated dataset is written under
-`tmp/agent-evaluation/task-guidance/consolidated/<dataset-id>.json` by default;
-pass `--output` to place it elsewhere. Collect the durable result package
-from a consolidated dataset with
-`python -m suites.task_guidance.result_package collect --dataset <key>
---frozen <consolidated.json>`; see
-[Reproducing and inspecting results](../../../../docs/evaluations/task-guidance/reproducing-and-inspecting-results.md)
-for the full package workflow.
+Slice the matrix with `-k` and the stage markers:
 
-Record discovery reads only `profile/runs/run-id/records/` paths, so semantic
-workers may run in parallel without traversing workspaces being cleaned up by
-other processes. Use at most eight concurrent processes per provider.
+```bash
+pytest suites/task_guidance/evaluation -m agent_eval -k glm -q
+pytest suites/task_guidance/evaluation -m agent_eval \
+  -k tg02-fastapi-pagination-handoff -q
+pytest suites/task_guidance/evaluation -m "agent_eval and handoff_plan" -q
+```
+
+The stage markers are `task_creation`, `handoff_plan`, `continuation`,
+`negative_control`, `task_creation_assessment`, and `handoff_assessment`.
+Assessment cases are parametrized per subject cell — one case per
+(scenario, producer cell) for task-creation judgments and one case per
+fresh plan, same-agent continuation, or negative control for handoff
+judgments — and every sample of a cell is assessed.
+
+Run options (registered by `evaluation/conftest.py`):
+
+- `--label LABEL` — the run label recorded as provenance for every
+  executed request. One invocation uses one label; the freeze selects a
+  whole invocation with it. Unset, a label is generated.
+- `--fresh` — re-execute every request even when a compatible cached run
+  exists.
+- `--samples N` — execute each request N times as variance samples.
+
+## How runs are identified and cached
+
+Request identity is structural: the suite composes it from the stage,
+agent and model, scenario, reasoning effort, variant, workspace
+fingerprint, reviewed-target hash, prompt hash, and — for
+continuations — the parent run's identity. Run labels are provenance
+only: they never enter the cache key, so relabeling an unchanged request
+replays it from the execution cache instead of re-executing.
+
+An unchanged request replays from the cache (recorded as a cache hit in
+the run's provenance). `--fresh` re-executes deliberately. `--samples N`
+executes N genuine runs under one label. Provider-error values are not
+cached and re-execute naturally on a later invocation.
+
+## Freezing a dataset
+
+The freeze adapter consolidates raw run records into one dataset JSON
+plus a Markdown status summary:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  python -m suites.task_guidance.freeze \
+    --labels <run-label> \
+    --dataset-id <dataset-id> \
+    --label "<human description>" \
+    --bundle <guidance bundle path> \
+    --output <path.json>)
+```
+
+Without `--labels` the freeze selects the latest valid record per cell;
+with `--labels` it selects every sample of the listed invocations. The
+frozen dataset records the run selection, the guidance bundle
+provenance, per-cell selection counts, and the flat record lists.
+
+## Collecting the result package
+
+```bash
+(cd maintainer/agent-evaluation && \
+  python -m suites.task_guidance.result_package collect \
+    --frozen <consolidated.json> \
+    --output <package directory>)
+```
+
+The dataset identity — id, human label, run selection, and guidance
+bundle — is read from the frozen dataset; the package name is the output
+directory name. `--cells` collects a partial package for selected
+`scenario:profile:effort` cells; `--no-reconstruction` skips GPT
+compiled-message reconstruction. Collection ends with the package check,
+so a collected package always passes `check`.
+
+## Record discovery and parallelism
+
+Record discovery reads only `profile/runs/run-id/records/` paths, so
+workers may run in parallel without traversing workspaces being cleaned
+up by other processes. Slice by `-k` (scenario, producer, variant) and
+redirect each process to its own log; keep at most eight concurrent
+processes per provider, and warm or validate each provider serially
+before parallel execution.
 
 ## Sequence
 
@@ -159,7 +166,7 @@ other processes. Use at most eight concurrent processes per provider.
 
 ## Identities
 
-Cache and evidence identity will include:
+Cache and evidence identity includes:
 
 - project and pinned revision;
 - scenario contract and canonical stage input;
@@ -168,18 +175,20 @@ Cache and evidence identity will include:
 - instruction delivery;
 - model and effort;
 - stage prompt;
-- run attempt.
+- the parent run's identity, for continuations.
 
-Retries keep the canonical dataset identity and use a separate run-attempt key.
-The frozen attempts are `b0-v5-r1` for producers/handoffs and
-`b0-metrics1` for semantic assessment.
+Run labels record which invocation produced a record; they are provenance
+for selection and reporting, not part of the identity. The completed
+stages were recorded under their historical per-stage run selections,
+which the freeze and package adapters still read.
 
 ## Upstream gates
 
-Semantic assessment starts only from structurally valid producer records.
-Pairwise review starts only from structurally valid semantic records.
-Behavioral assertion failures remain evidence and do not block downstream
-interpretation.
+Assessment starts only from structurally valid subject records; a case
+whose subjects are all invalid skips with the recorded reasons instead
+of failing the batch. Pairwise review starts only from structurally
+valid assessment records. Behavioral assertion failures remain evidence
+and do not block downstream interpretation.
 
 ## Calibration
 
@@ -199,16 +208,3 @@ not created until the practical task-mechanics baseline receives focused
 confirmation and explicit approval.
 Human-facing plans, test descriptions, and results are under
 `maintainer/docs/evaluations/task-guidance/`.
-
-## Migrated workflow
-
-The package-owned CLI currently preserves:
-
-- imported planning sessions;
-- retain-plan and omit-plan forks;
-- deterministic assertions;
-- empirical review;
-- review-bundle generation.
-
-Historical records remain readable by the migrated assertion and bundle
-commands.

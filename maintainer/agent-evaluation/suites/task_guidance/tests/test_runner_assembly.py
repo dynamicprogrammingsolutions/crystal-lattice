@@ -546,7 +546,7 @@ def test_consolidation_still_reads_legacy_attempt_records(
         STAGES["task-creation"].record,
         {
             **_producer_record(response="legacy"),
-            "run_attempt": "b0-v5-r1",
+            "run_attempt": "legacy-r1",
         },
         modified=1000.0,
     )

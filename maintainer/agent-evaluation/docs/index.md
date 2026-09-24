@@ -87,6 +87,9 @@ Use these pages according to the work you are doing:
 - [Continuation and cache](continuation-and-cache.md): understand the
   difference between snapshots, continuations, and cache hits, then reuse
   conversation and repository state safely.
+- [Run model](run-model.md): understand the reusable layer above the
+  kernel — request identity, run labels, samples, and the consolidation
+  core — and how evaluation suites consume it.
 - [Artifacts and evidence](artifacts-and-evidence.md): understand what evidence
   is, how it becomes canonical/raw artifacts or projections, and how to select
   compact AI and human review inputs.
