@@ -507,7 +507,7 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   (chunk 7, test-first).
 - [x] Pass targeted deterministic verification and package regeneration
   parity (no full-suite reruns).
-- [ ] Run the live sentinel verification (needs approval and credentials).
+- [x] Run the live sentinel verification (needs approval and credentials).
 - [x] Update requirement ledgers and append completion notes.
 
 ### Requirement verification
@@ -932,3 +932,66 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
 - Unresolved or deferred: the live sentinel (above); task 090's
   practical-baseline confirmation and promotion run on the restructured
   suite and are owned by task 090.
+
+## Post-completion follow-up
+
+- September 24, 2026 — the live sentinel verification ran with user
+  approval. The GLM agent executed via the local ollama provider as
+  declared in the runtime configuration (`glm-5.3-flash:cloud` served
+  by ollama; no hosted credentials involved). In a fresh throwaway
+  artifact root under `tmp/agent-evaluation/task-guidance-sentinel`:
+  one GLM producer cell (tg01, max effort, label `task100-sentinel`)
+  passed in 6:06 through the run-model layer — provenance sibling
+  recorded the label, `cache_hit: false`, the structural identity hash,
+  and no legacy `run_attempt` field; its per-subject assessment passed
+  in 1:01 — a real single-subject judgment that parsed and validated
+  against the new schema with the subject mapping in the record and no
+  producer echo; `freeze --labels task100-sentinel` selected the one
+  cell; registry-free `collect --frozen --cells` produced a throwaway
+  package that passes `check`, with the judgment rendered as a
+  per-sample row. This supersedes the "verification blocked" note above:
+  the live sentinel is complete and the task has no open items.
+- September 24, 2026 — follow-up (user-approved): raw run directories
+  accumulate one directory per executed request and nothing pruned them.
+  Added `suites/task_guidance/prune_runs.py` — a dry-run-by-default CLI
+  that classifies every run directory by the consolidation semantics and
+  removes what no freeze or collection can select again: run directories
+  whose labels are not kept, superseded legacy records (latest per cell
+  and label retained), and managed cache replays (kept only when a cell
+  has no genuine sample). Run directories without readable records are
+  kept and reported (in flight or broken). `--cache --execute` also
+  clears the execution cache. Six tests in
+  `tests/test_prune_runs.py` cover the retention rule; the naming test's
+  compatibility-owner allowlist gained the prune module and its tests
+  (they read the legacy `run_attempt` field). The running guide gained a
+  "Cleaning up run directories" section. Dry run against the real
+  artifact root with `--keep-labels b0-v5-r1,b1-v1-r1`: 20 run
+  directories (131.7 MB) removable plus a 565 MB dead execution cache;
+  84 run directories kept; 38 record-less interrupted runs reported as
+  unclassified and kept.
+- September 24, 2026 — follow-up fix: `python -m
+  suites.task_guidance.prune_runs` failed in a clean virtual environment
+  with `ModuleNotFoundError: No module named 'agent_eval'` — the CLI
+  modules import the src-layout package, which `python -m` does not put
+  on the path (only pytest does, via its `pythonpath` setting).
+  `result_package.py` already self-bootstraps the repository root and
+  `src/`; `freeze.py` and `prune_runs.py` gained the same bootstrap, so
+  every suite CLI now runs plainly after the documented editable
+  installs of the local `core/python` and `application/python` packages
+  (installed into the worktree virtual environment). The running
+  guide's prune commands dropped their PYTHONPATH prefixes. Suite 151
+  passed / 74 deselected; ruff/black clean.
+- September 24, 2026 (later) — a real regression surfaced during the
+  user's b0/b1 assessment reproduction: unchanged requests re-executed
+  on every invocation instead of replaying from the execution cache.
+  Root cause: `_commit_fixture` committed the prepared workspaces with
+  the ambient timestamp, so identical workspace content got a different
+  commit SHA per invocation; that SHA is the workspace revision, which
+  enters the workspace fingerprint — a component of both the cache key
+  (all stages) and the producer identity. Fixed by pinning the commit's
+  author/committer dates (the revision is now a function of workspace
+  content only), with the regression test
+  `tests/test_fixtures.py::test_fixture_commit_is_deterministic`
+  written first. Cache entries written before the fix are keyed to the
+  old nondeterministic revisions and do not replay; the first rerun
+  after the fix executes once more, then replays.

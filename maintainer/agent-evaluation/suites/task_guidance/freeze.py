@@ -11,18 +11,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Sequence
 
-from maintainer.guidance import compile_guidance
+PACKAGE_ROOT = Path(__file__).resolve().parents[2]
+REPOSITORY_ROOT = PACKAGE_ROOT.parents[1]
+for import_root in (REPOSITORY_ROOT, PACKAGE_ROOT / "src"):
+    if str(import_root) not in sys.path:
+        sys.path.insert(0, str(import_root))
 
-from .configuration import (
+from maintainer.guidance import compile_guidance  # noqa: E402
+
+from .configuration import (  # noqa: E402
     DEFAULT_ARTIFACT_ROOT,
     GUIDANCE_TARGET,
     REPOSITORY_ROOT,
     selected_bundle,
 )
-from .results import consolidate_results, render_summary
+from .results import consolidate_results, render_summary  # noqa: E402
 
 
 def main(argv: Sequence[str] | None = None) -> int:

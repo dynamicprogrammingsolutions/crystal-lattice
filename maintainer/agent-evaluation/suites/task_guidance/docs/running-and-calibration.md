@@ -138,6 +138,32 @@ redirect each process to its own log; keep at most eight concurrent
 processes per provider, and warm or validate each provider serially
 before parallel execution.
 
+## Cleaning up run directories
+
+Raw run directories accumulate one directory per executed request under
+`<artifact-root>/<profile>/runs/`. The prune command classifies them by
+the consolidation semantics and removes what no freeze or collection can
+select again:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  python -m suites.task_guidance.prune_runs \
+    --keep-labels <label-a>,<label-b>)          # dry run: report only
+
+(cd maintainer/agent-evaluation && \
+  python -m suites.task_guidance.prune_runs \
+    --keep-labels <label-a>,<label-b> --cache --execute)
+```
+
+A run directory is kept when one of its records is selected for the kept
+labels: every genuine managed sample (records with a `run-model.json`
+provenance sibling), or — when a cell has only cache replays — its
+replays; for legacy records the latest per cell and label. Run
+directories without readable records are kept and reported (they may be
+in flight or broken). `--cache` clears the execution cache, so kept
+requests re-execute on their next invocation. Run the prune while no
+live evaluation is executing.
+
 ## Sequence
 
 1. Validate the reviewed scenario contracts and canonical plans. Completed.

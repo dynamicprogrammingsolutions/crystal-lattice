@@ -49,6 +49,8 @@ DELETED_ENV_VARS = (
 ATTEMPT_VOCABULARY_OWNERS = {
     "results.py",
     "result_package.py",
+    "prune_runs.py",
+    "test_prune_runs.py",
     "test_results.py",
     "test_result_package.py",
     "test_package_adapter.py",
