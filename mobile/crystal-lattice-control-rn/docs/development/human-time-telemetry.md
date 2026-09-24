@@ -63,17 +63,43 @@ surfaces in the chat status bar (`Human time: …`) after the next request
 finalizes. See `plugins/duration-tracking/docs/development/overview.md`
 for the ingestion contract.
 
-## E2E coverage
+## End-to-end verification
 
-`e2e/humanTimeTelemetry.e2e.test.ts` runs the real app against a spawned
-real backend (echo provider + the duration-tracking plugin):
+Human time uses two touching verification tiers. Stored SQLite span rows
+are their shared boundary.
+
+The real-backend Jest tier starts a server with the deterministic stream,
+timestamp, and duration-tracking plugins. It seeds deterministic spans
+into the real frontend cache and uploads them through
+`RestAgentBackend`/`FetchTransport`. It verifies cache draining, stored
+session totals surfacing on the next request, request-id retry dedup, and
+definitive-failure retention:
 
 ```bash
+npm run test:integration -- \
+  --runTestsByPath __integration__/humanTimeSpanUpload.realBackend.integration.test.ts
+```
+
+The focused Detox tier proves collection. It launches the real release
+app without harness arguments, spawns the same real backend in a
+hermetic workspace, connects through the production manual-address
+flow, and enables tracking through the real settings UI. Composer typing
+and sending exercise session activity; a real Sessions-list drag and row
+tap exercise session-less activity. The host then queries the plugin's
+SQLite store and requires positive-duration rows for both the UI-created
+session and `session_id: null`.
+
+Build a current release app when production mobile sources have changed,
+then run the focused suite:
+
+```bash
+npm run detox:build:ios
 npm run detox:test:human-time:ios
+
+npm run detox:build:android
 npm run detox:test:human-time:android   # prepares the emulator first
 ```
 
-The suite spawns its own server (the frontend-sdk integration harness)
-with a hermetic workspace, connects through the production manual-address
-flow, enables tracking through the real settings UI, and asserts both the
-status-bar total (happy path) and the warning banner (unknown plugin id).
+The frontend-sdk backend harness resolves Python from `PYTHON`, then the
+repository `.venv`, then `python`. The local timestamp and
+duration-tracking plugin checkouts must be loadable by that interpreter.

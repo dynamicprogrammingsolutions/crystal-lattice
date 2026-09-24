@@ -26,14 +26,14 @@ Dropped by the 2026-09-24 simplification (superseding earlier approved requireme
 
 ### Frontend (mobile app) requirements — scope added 2026-09-24
 
-- [ ] The frontend collects activity and turns it into actual durations: an activity burst opens a span, inactivity closes it (from = first activity, to = last activity); spans carry the session id of the screen the user was active on, or null for session-less surfaces (e.g. the session list).
-- [ ] The frontend stores spans in its cache and they are not lost until successfully uploaded: spans persist across app restarts, and failed uploads retain every span for retry.
-- [ ] Each upload batch carries a request id that stays stable across retries of that batch (server-side request-id dedup makes retries idempotent); a new batch gets a new id.
-- [ ] Uploads are efficient and non-conflicting: spans upload in batches (not per span), defer while the connection is busy (including waiting for idle when a connection first opens), and flush after user inactivity and after collected spans age past a limit.
-- [ ] A frontend setting — in the global settings surface, alongside the font-size choices — opts the user in to time tracking, and a frontend-owned configuration right under it names the telemetry plugin id (defaulting to the plugin name), because users own the plugins they enable (user decision, 2026-09-24).
-- [ ] If time tracking is enabled but the plugin is not enabled or not working (the upload action fails definitively), the app warns the user once through the standard notification display developed for plugin-emitted notifications (the top orange warning banner, not a popup); transient failures retry silently (user decision, 2026-09-24).
-- [ ] The frontend uploads through the existing `executeAction` path.
-- [ ] Desktop and terminal collectors remain follow-up consumers of the same contract (explicit exclusion).
+- [x] The frontend collects activity and turns it into actual durations: an activity burst opens a span, inactivity closes it (from = first activity, to = last activity); spans carry the session id of the screen the user was active on, or null for session-less surfaces (e.g. the session list).
+- [x] The frontend stores spans in its cache and they are not lost until successfully uploaded: spans persist across app restarts, and failed uploads retain every span for retry.
+- [x] Each upload batch carries a request id that stays stable across retries of that batch (server-side request-id dedup makes retries idempotent); a new batch gets a new id.
+- [x] Uploads are efficient and non-conflicting: spans upload in batches (not per span), defer while the connection is busy (including waiting for idle when a connection first opens), and flush after user inactivity and after collected spans age past a limit.
+- [x] A frontend setting — in the global settings surface, alongside the font-size choices — opts the user in to time tracking, and a frontend-owned configuration right under it names the telemetry plugin id (defaulting to the plugin name), because users own the plugins they enable (user decision, 2026-09-24).
+- [x] If time tracking is enabled but the plugin is not enabled or not working (the upload action fails definitively), the app warns the user once through the standard notification display developed for plugin-emitted notifications (the top orange warning banner, not a popup); transient failures retry silently (user decision, 2026-09-24).
+- [x] The frontend uploads through the existing `executeAction` path.
+- [x] Desktop and terminal collectors remain follow-up consumers of the same contract (explicit exclusion).
 
 ## Supporting details
 
@@ -339,8 +339,8 @@ New `e2e/humanTimeTelemetry.e2e.test.ts` + `detox:test:human-time:ios` / `detox:
 - [x] Chunk 2: uploader/scheduler (red/green — 11 tests; batched drain with per-batch content-derived request ids stable across retries, busy/disabled/no-connection deferral, definitive 404/400 classification with one-shot warning hook, transient retention, close-debounce coalescing, max-age check, per-connection targeting, exact action shape)
 - [x] Chunk 3: opt-in + plugin config + warning (red/green — 6 tests; `timeTrackingEnabled`/`timeTrackingPluginId` in MobileGlobalPreferences with normalize + defaults, HomeWorkspace setters + persistence, GlobalSettingsModal toggle + telemetry-plugin rows, warning banner envelope via the standard display pipeline with a stable display id; full mobile suite 239 green)
 - [x] Chunk 4: span collectors + app wiring (red/green — 5 provider tests: gating by the toggle, activity→span→inactivity close→debounced upload with the exact action shape, null-session attribution, connection-open busy deferral with idle retry, one-time warning banner on definitive failure with span retention; collectors wired: composer typing + transcript scroll + send in SessionChatScreen, list scroll + row taps in SessionsScreen; provider mounted in ConnectedRoot with running-status/active-request busy derivation; full mobile suite 244 green, tsc clean)
-- [ ] Chunk 5: e2e Detox (real app + real server + real plugin) — SPLIT (user, 2026-09-24): the jest integration half landed here (`__integration__/humanTimeSpanUpload.realBackend.integration.test.ts`, 3 tests green: upload + finalize surfacing from stored entries, request-id retry dedup, definitive-failure classification + retention); the Detox half moved to `tasks/20260922-duration-and-human-time-tracking/031-human-time-detox-e2e.md` (handed to another agent)
-- [ ] Chunk 6: docs + mobile suite sweep
+- [x] Chunk 5: two-tier real-backend verification — COMPLETED VIA `tasks/20260922-duration-and-human-time-tracking/031-human-time-detox-e2e.md` (2026-09-24): the Jest integration tier is 3/3 green for upload → server → plugin → stored-total surfacing, retry dedup, and definitive-failure retention; the focused iOS Detox tier is green for real typing/sending and Sessions-list activity → positive session/session-less SQLite rows. The current Android APKs built, but the configured AVD blocked before assertions in Espresso root-view/ANR handling; 031 records the exact environment failure as allowed by its requirement.
+- [x] Chunk 6: docs + mobile suite sweep — mobile telemetry development page and README aligned to the two-tier design; 246 unit tests, focused integration 3/3, and `tsc --noEmit` green.
 
 ### Requirement verification
 
@@ -350,14 +350,14 @@ New `e2e/humanTimeTelemetry.e2e.test.ts` + `detox:test:human-time:ios` / `detox:
 | Spans stored at the frontend, not lost until successfully uploaded | Tier 3 cache tests (restart survival, remove-only-after-confirm); uploader failure test retains spans |
 | Upload efficient (batched) and non-conflicting | Tier 3 uploader tests (batch cap, drain loop, busy deferral, idle-first-open); the e2e exercises the natural flush path |
 | Opt-in toggle + frontend-owned telemetry-plugin config next to font sizes | Tier 2 settings tests (render, persist, gate); e2e enables tracking through the real settings UI |
-| One-time orange-banner warning on definitive plugin failure | Tier 2 warning tests (once, not on transient failures, re-armed on setting change); e2e warning-path case |
-| Uploads via `executeAction` with a request id stable across retries | Tier 3 uploader tests (action shape, `request_id`, `actionOwner`); e2e happy path uploads to the real plugin; request-id dedup proven by Phase A store tests |
-| Session-less activity (e.g. session-list scrolling) tracked with null session id | Tier 2 tracker tests; store unit tests (Phase A) keep those rows out of per-session totals |
+| One-time orange-banner warning on definitive plugin failure | Tier 2 warning tests (once, not on transient failures, re-armed on setting change) + real-backend Jest definitive-failure classification/retention |
+| Uploads via `executeAction` with a request id stable across retries | Tier 3 uploader tests (action shape, `request_id`, `actionOwner`) + real-backend Jest retry dedup + focused Detox upload into the real plugin store |
+| Session-less activity (e.g. session-list scrolling) tracked with null session id | Tier 2 tracker tests + focused iOS Detox positive-duration `session_id: null` SQLite assertion |
 | Desktop/terminal remain follow-up consumers | Scope statement; no desktop/terminal files in the change set |
 
 ### Additional implementation verification
 
-- The e2e happy-path test is the feature's cross-boundary validation (app UI → SDK transport → HTTP server → plugin store → footer/report → app UI) per the repo's testing principle — the jest `__integration__` realBackend tier is not duplicated for this feature; the e2e Detox test owns it.
+- The two tiers touch at the real SQLite store: focused Detox proves app UI → collector/cache/uploader → HTTP action → plugin rows; the real-backend Jest tier starts from deterministic cached spans and proves transport → server → plugin rows → next-request metadata surfacing. Neither tier substitutes a mocked backend for its claimed boundary.
 - Collection never blocks the UI: storage appends are fire-and-forget; the uploader runs off the render path.
 - The mobile suite's existing tests stay green (no regressions in SessionChatScreen/GlobalSettingsModal behavior); the new e2e file follows the suite's launch-harness and platform-quirk conventions.
 

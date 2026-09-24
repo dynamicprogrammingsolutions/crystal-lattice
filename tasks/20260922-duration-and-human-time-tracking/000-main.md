@@ -38,6 +38,7 @@ Approved by the user on 2026-09-22 after the three-item review:
 - [x] `tasks/20260922-duration-and-human-time-tracking/020-tool-call-duration.md` (completed 2026-09-22)
 - [x] `tasks/20260922-duration-and-human-time-tracking/025-tool-duration-store-totals.md` (completed 2026-09-23)
 - [ ] `tasks/20260922-duration-and-human-time-tracking/030-human-time-telemetry.md`
+- [x] `tasks/20260922-duration-and-human-time-tracking/031-human-time-detox-e2e.md` (completed 2026-09-24; Android environment blocker recorded)
 - [ ] `tasks/20260922-duration-and-human-time-tracking/040-docs.md`
 
 ## Supporting details

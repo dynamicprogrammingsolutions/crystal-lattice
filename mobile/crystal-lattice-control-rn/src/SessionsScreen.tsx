@@ -1135,6 +1135,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       )}
 
       <FlatList
+        testID="sessions-list"
         style={styles.list}
         data={filteredSessions}
         keyExtractor={(item) => item.session_id}
