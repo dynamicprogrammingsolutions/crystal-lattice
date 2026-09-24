@@ -100,6 +100,24 @@ generic consolidation and package CLIs; no evaluation-stage names in code.
   provider-failure retry, freeze, aggregation) against a deterministic echo
   provider in short-running tests. An optional local-Ollama variant of the
   same fixture may cover one real-provider path.
+- [x] A crystal-lattice mini-evaluation exercises the same run-model
+  mechanism through the real crystal-lattice runtime: a deliberately small
+  workspace under evaluation whose AGENTS.md carries the evaluated guidance
+  candidate, and a strict division of provider labor — the deterministic
+  echo agent answers everything that needs only a simple response (the
+  no-tool producer scenario and every per-subject assessment), while the
+  two local Ollama models (`qwen3.5:0.8b` and `qwen3:0.6b` via the
+  reference openai-compatible provider) own every tool call, producing the
+  file-writing scenarios through the real tool loop with the core
+  read/write tools; the two models form the model axis of the matrix, the
+  deterministic default-path tests verify labels, natural provider-failure
+  retry, guidance-change cache miss, fresh re-execution, and consolidation
+  end-to-end, and at least two `agent_eval`-marked live tests cover the
+  Ollama matrix (production, validity derivation from workspace state,
+  assessment, and reporting).
+  (Amendment approved September 24, 2026: echo owns every simple response —
+  the no-tool producer scenario and all per-subject assessments; the two
+  local Ollama models own every tool call; at least two live tests.)
 
 ### Assessment redesign
 
@@ -410,6 +428,7 @@ in the framework's `tests/` directory.
 | # | Chunk | Own tests | First failing assertions | Targeted runs |
 |---|---|---|---|---|
 | 1 | Run-model layer | Framework fixture mini-evaluation (fixture package + `tests/test_run_model*.py`, `tests/test_consolidation*.py`) + publish-predicate tests in `tests/test_kernel.py` | Fixture scenario end-to-end with the echo provider: labels recorded and absent from identity; provider-failure injection not cached and retried naturally; `--fresh` re-executes; `--samples N` executes N times; guidance change misses; multi-label freeze aggregates per-cell mean and spread with per-sample provenance; single-label selection unchanged; legacy attempt fields accepted as labels | New fixture tests + framework `tests/test_cache.py`, `tests/test_kernel.py` |
+| 1b | Crystal-lattice mini-evaluation (approved amendment) | `tests/fixtures/crystal_mini_scenario.py` + `tests/test_crystal_mini_evaluation.py` (deterministic) + `tests/test_crystal_mini_ollama.py` (`agent_eval`+`ollama` marked) | The real runtime runs the whole mechanism: the echo agent produces the no-tool scenario and assesses every subject (scripted verdicts, one subject per request); a scripted provider failure retries naturally under the same identity; a changed AGENTS.md guidance candidate misses the cache; a second label replays unchanged cells and fresh re-executes one; consolidation aggregates labels with completeness against configuration-derived cells; at least two live tests run both qwen models through the real tool loop (`write_file`/`read_file`), derive validity from the workspace state, assess the subjects, and report the mini dataset | New tests + `tests/test_crystal_lattice.py`, `tests/fixtures/crystal_plugins.py` consumers |
 | 2 | Configuration module | Suite `tests/test_configuration.py` | Verified through the configuration: every cell references a declared agent and a valid scenario category; every effort is declared for its agent; runner, semantic, and results derive identical expectations from it; no literal duplication | New file + runner, semantic, results tests |
 | 3 | Suite integration | Suite `tests/test_runner_assembly.py` | Runner composes layer identities from configuration; freeze and results delegate to the consolidation core; bundle provenance recorded | New file + runner, results, freeze tests |
 | 4 | Suite migration | Suite `tests/test_collection.py` | `--collect-only` lists exactly the configuration-derived matrix; bare pytest collects no live tests; legacy env vars do not change collection; `-k` slices select cells | New file + moved stage tests via `-k` |
@@ -453,8 +472,13 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
 - [x] Resolve the run-label/cache/sampling mechanism (decision 3, September
   24, 2026).
 - [x] Approve this execution plan (September 24, 2026).
-- [ ] Extract the run-model layer with the fixture mini-evaluation (chunk 1,
+- [x] Extract the run-model layer with the fixture mini-evaluation (chunk 1,
   test-first).
+- [x] Build the crystal-lattice mini-evaluation: fixture workspace with the
+  guidance candidate, echo agent for simple responses (no-tool produce and
+  all assessments), both qwen Ollama models for every tool call,
+  deterministic mechanism tests, and at least two `agent_eval`-marked live
+  tests (chunk 1b amendment, approved September 24, 2026).
 - [ ] Add the configuration module with verify-through-configuration tests
   (chunk 2, test-first).
 - [ ] Integrate the suite: runner assembly, thin freeze/results adapters
@@ -477,7 +501,7 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
 
 | Requirement group | Acceptance evidence |
 |---|---|
-| Reusable run-model layer | The layer lives in `src/agent_eval/`, imports no suite code, and contains no evaluation-stage names (import test plus grep); the fixture mini-evaluation runs the whole mechanism end-to-end with the echo provider in short-running tests; the suite consumes it through thin adapters. |
+| Reusable run-model layer | The layer lives in `src/agent_eval/`, imports no suite code, and contains no evaluation-stage names (import test plus grep); the fixture mini-evaluation runs the whole mechanism end-to-end with the echo provider in short-running tests; the crystal-lattice mini-evaluation runs the same mechanism through the real runtime (deterministic echo path plus `agent_eval`-marked Ollama tool-loop tests); the suite consumes it through thin adapters. |
 | Run labels and cache | The fixture mini-evaluation proves: the label never changes the cache key; an unchanged request replays from cache visibly; a changed guidance compilation misses; a provider-error value is not cached and re-executes on rerun (exception failures already excluded); `--fresh` re-executes a successful request. |
 | Multi-sample aggregation | The fixture scenario's multi-label freeze produces per-cell mean and spread with per-sample provenance; single-sample and historical datasets are unchanged and readable. |
 | Single-source configuration | Deterministic tests verify through the configuration — well-formedness and consumer derivation — with no duplicated literal matrices; grep finds no duplicated cell matrices. |
@@ -497,3 +521,98 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
 - Keep credentials and authentication state out of all artifacts.
 - Run the generic `agent_eval`, task-guidance suite, documentation-link, and
   guidance-compiler tests affected by the migration.
+
+## Implementation Notes
+
+- September 24, 2026 — chunk 1 (run-model layer) completed test-first:
+  tests were written first and failed on the missing module, then the
+  smallest implementation turned them green.
+- The layer is the `src/agent_eval/runner/` subpackage: `labels.py`
+  (auto label per invocation), `identity.py` (`request_identity` — takes
+  no label argument, so provenance is structurally excluded from the cache
+  key), `model.py` (`RunModel` with `run`/`run_samples`, fresh semantics,
+  and the `publish_when_no_provider_errors` helper), and
+  `consolidation.py` (record scanning, label resolution, cell selection,
+  sample aggregation, completeness).
+- Kernel hooks: `AgentEval.run` gained `cache_read` (skip the cache read
+  but still publish — the mechanism behind `fresh` and `run_samples`) and
+  `cache_publish` (publication predicate; provider-error values stay out
+  of the cache and retry naturally). The public-signature test was updated
+  for both parameters.
+- Provenance record: every run writes `records/run-model.json`
+  (label, identity, cache_hit, sample_index, run_id). Label resolution in
+  consolidation: record `run_label` → sibling `run-model.json` → legacy
+  `run_attempt`. Managed records keep every genuine execution as a sample
+  and drop cache-replay duplicates; legacy records keep the latest record
+  per cell and label (historical behavior).
+- Fixture mini-evaluation: `tests/fixtures/run_model_scenario.py` — echo
+  provider with injectable provider failures, per-agent environments, and
+  a `MiniHarness` built on `RunModel`. Sharing environments across
+  harnesses continues the echo counters, emulating model nondeterminism
+  across invocations. New tests: `tests/test_run_model.py`,
+  `tests/test_consolidation.py`, `tests/test_run_model_scenario.py`, plus
+  kernel predicate/read tests in `tests/test_kernel.py` — 45 tests, all
+  green in under a second; framework `tests/` green (175 passed); suites
+  still collect cleanly against the changed kernel.
+- The optional local-Ollama variant of the fixture was deferred: the echo
+  fixture covers the mechanism and the approved GLM sentinel covers the
+  real-provider path. Adding it later is an additive marked test.
+  (Superseded September 24, 2026 by the approved chunk 1b amendment below.)
+- September 24, 2026 — chunk 1b (crystal-lattice mini-evaluation) completed
+  test-first per the approved amendment: deterministic tests were written
+  first and failed on the missing fixture module, then the smallest
+  implementation turned them green.
+- Provider labor is divided as approved: the echo agent (fixture
+  `EvaluationProvider`, extended with a `raise_error` mode) owns every
+  simple response — the `mini-answer` producer scenario and all
+  per-subject assessments with scripted `VERDICT:` responses — while both
+  local Ollama models (`qwen3.5:0.8b`, `qwen3:0.6b` via the reference
+  openai-compatible provider, `path:`-loaded with the shared plugin cache)
+  own every tool call, producing `mini-task`/`mini-fix` through the real
+  tool loop with the core `FileReaderTool`/`FileWriterTool` scoped to the
+  run workspace by request overrides.
+- The guidance candidate is the workspace `AGENTS.md`; a new fixture
+  `GuidanceSystemMessage` feature plugin (minimal mirror of the real
+  system-message feature) injects it as the leading provider-native system
+  message from the per-request `guidance_file` override, and its sha256 is
+  an identity component, so a guidance change misses the cache.
+- `tests/fixtures/crystal_mini_scenario.py` holds the fixture workspace
+  factory (AGENTS.md, `tasks/seed.md`, `src/app.py` with the planted
+  defect), the agent/scenario configuration, validity derivation from
+  workspace state, the `MiniCrystalHarness` over `RunModel`, and the mini
+  freeze adapter (`freeze_mini_dataset`/`render_mini_report`) over the
+  consolidation core.
+- Deterministic tests (`tests/test_crystal_mini_evaluation.py`, 5 tests,
+  <1 s): guidance-feature injection unit test; full lifecycle
+  produce→assess→freeze with provenance and report; provider-failure
+  natural retry (the tool loop converts a raised provider error into a
+  completed run with error messages, so the value is not cached and the
+  same identity re-executes); guidance-change miss; second-label replay
+  plus fresh re-execution with two-label aggregation (deterministic echo:
+  spread 0.0) and latest-label default selection.
+- Live tests (`tests/test_crystal_mini_ollama.py`, `agent_eval`+`ollama`
+  markers, 2 tests): both qwen models × both tool scenarios through the
+  real tool loop — completed, no provider errors, tool loop engaged,
+  validity derivation self-consistent with the workspace (model
+  capability is reported, not asserted); and the produce→assess→freeze
+  lifecycle with a cached replay (real production replays without a
+  second model call). Both passed against local Ollama (~2 min including
+  the one-time plugin install).
+- Observed live behavior worth knowing: the small models engage the tool
+  loop but often fail the tasks — absolute paths rejected by
+  `allowed_paths`, or the created file not following the guidance rule
+  (which reaches them only via the delivered AGENTS.md system message,
+  by design). The scenario prompts gained a relative-path hint (tool
+  mechanics, not the guidance rule); after it, `qwen3:0.6b` creates the
+  task file. Validity honestly reports these outcomes with reasons.
+- `pyproject.toml` gained the `ollama` marker. Framework `tests/` green
+  (180 passed, 2 live deselected; the one failure is the known
+  pre-existing CWD-sensitive `test_requirement_quality.py`, which passes
+  from the repository root); suites still collect 63/254 unchanged.
+- Cache carryover confirmed by implementation: nothing to migrate — old
+  entries keyed with the attempt and nonce simply miss under the new
+  identity, so the first live run re-executes once, as decided.
+- Pre-existing quirks (not caused by this chunk, left untouched):
+  `tests/test_requirement_quality.py` resolves repo-root-relative paths and
+  must run from the repository root; `eval.py` and `tests/test_kernel.py`
+  carry pre-existing black formatting drift outside the changed lines.
