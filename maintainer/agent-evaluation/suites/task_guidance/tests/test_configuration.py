@@ -46,7 +46,7 @@ from ..configuration import (
     selected_bundle,
     stage_config,
 )
-from ..handoff_semantic import load_handoff_records
+from ..handoff_semantic import load_handoff_subjects
 from ..results import consolidate_results
 from ..scenarios import SCENARIOS, scenario_by_id
 from ..stages import STAGES
@@ -428,19 +428,23 @@ def test_handoff_semantic_expected_records_match_the_configuration(
         ),
     )
 
+    designation_variant = designation["variant"]
     for scenario, expected_negative in ((control, 1), (other, 0)):
-        fresh, same = load_handoff_records(
+        subjects = load_handoff_subjects(
             tmp_path,
             scenario=scenario,
             labels=None,
             allow_partial=False,
         )
         cells = producer_cells(scenario.category)
+        variants = plan_variants(scenario.category)
         assert (
-            len(fresh)
-            == len(plan_variants(scenario.category)) * len(cells) + expected_negative
+            len(subjects) == len(variants) * len(cells) + len(cells) + expected_negative
         )
-        assert len(same) == len(cells)
+        negative_subjects = [
+            subject for subject in subjects if subject.variant == designation_variant
+        ]
+        assert len(negative_subjects) == expected_negative
 
 
 # --- Single-source ownership ----------------------------------------------

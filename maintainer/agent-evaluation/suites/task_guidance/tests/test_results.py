@@ -50,7 +50,9 @@ def test_consolidation_separates_invalid_and_missing_records(
         0,
         1,
     }
-    assert value["status"]["handoff_semantics"]["expected"] == 3
+    # Per-subject handoff assessments: fresh plans per variant and cell,
+    # same-agent continuations per cell, plus the designated control.
+    assert value["status"]["handoff_semantics"]["expected"] == 19
     assert value["status"]["negative_controls"]["expected"] == 1
     assert value["status"]["provider_blockers"]["present"] == 1
     assert "provider limit" in render_summary(value)

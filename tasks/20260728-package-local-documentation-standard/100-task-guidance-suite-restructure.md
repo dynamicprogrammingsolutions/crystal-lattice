@@ -499,9 +499,9 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   catalog's declared workspace origin and parent linkage — deferred from
   the chunk 2 rework), rename markers, delete parameter env vars
   and gates (chunk 4, test-first).
-- [ ] Implement the per-subject assessment prompts, records, and tests
+- [x] Implement the per-subject assessment prompts, records, and tests
   (chunk 5, test-first).
-- [ ] Remove the package dataset registry; support both assessment schemas
+- [x] Remove the package dataset registry; support both assessment schemas
   and per-cell sample rendering (chunk 6, test-first).
 - [ ] Rewrite the affected documentation; complete the naming cleanup
   (chunk 7, test-first).
@@ -814,3 +814,52 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   bare-pytest check. Verified: `tests/` alone 122 passed;
   `evaluation/` alone collects exactly the 46-case matrix with the
   `--label`/`--fresh`/`--samples` options registered.
+- September 24, 2026 — chunks 5+6 (shot 2), test-first:
+  `tests/test_per_subject_assessment.py` (14 tests) written first, then
+  `tests/test_package_adapter.py`.
+- Chunk 5 — per-subject assessment. `semantic.py`: schema 3 responses
+  (single `assessment`, no producer echo — the validator rejects a
+  `producer` key or a batch), per-subject prompt carrying only the
+  produced work (response, task files, task tree — no producer identity,
+  validity, or tool metrics), `ProducerSubject` +
+  `load_producer_subjects` (every sample of a cell is one subject;
+  `cells` limits one case's expected cells), `subjects_block_reason`
+  (blocked only when every subject is invalid, listing the recorded
+  reasons), `assessment_record` keeping the subject-to-producer mapping,
+  and `assessment_subject_identity` for consolidation. `handoff_semantic.py`:
+  schema 2 with stage/variant echo validated against the subject
+  (variant/stage labels stay — the rubric interprets them);
+  `HandoffSubject` + `load_handoff_subjects` covering fresh plans per
+  variant, same-agent continuations (keyed by the variant-less
+  continuation identity), and the designated control, with a `selection`
+  filter for one case's subject; `handoff_assessment_record`. The
+  evaluation drivers parametrize per subject cell: task-creation
+  assessments are scenario × producer cell (18 cases), handoff
+  assessments are scenario × (variant × cell + same-agent cells +
+  control) (19 cases); each sample gets its own request (sample index in
+  the test id) and its own record; missing upstreams and all-invalid
+  subjects skip with the recorded reasons. `results.py` selects
+  assessments by subject identity, expects per-subject cells, and
+  aggregates cohort quality from the per-subject records. The live
+  matrix is now 74 cases.
+- Chunk 6 — package adapter. The `DATASETS` registry is gone:
+  `collect` reads dataset id, label, run selection, and bundle from the
+  frozen dataset file (`--frozen` + required `--output` + optional
+  `--bundle` override; the package name is the output directory name).
+  Discovery is label-based for both shapes (`_run_labels` +
+  `_record_label` resolving the `records/run-model.json` sibling, then
+  the legacy `run_attempt` field); per-subject assessment runs map to
+  per-subject discovery keys. Rendering supports both schemas:
+  `_iter_judgments` feeds the matrix detail rows (sample column when
+  any judgment carries a sample index), the results pages (per-subject
+  sections with subject + sample headings), and the index selection
+  lines (attempts for historical aggregates, run labels for new ones).
+  Per-subject collection gathers one assessor run per subject record
+  under `assessment/{name}/s{index}/` with one shared results page.
+  Historical batched rendering is byte-identical: both committed
+  packages pass `check` after the rework.
+- Shot 2 verification: suite 141 passed / 74 live deselected; framework
+  181 passed from the repository root; both committed packages pass
+  `check` byte-identically; the scenarios export regenerates with only
+  the two intended assessment-prompt template diffs (plus the
+  pre-existing guidance-lock revision stamps); ruff/black clean.

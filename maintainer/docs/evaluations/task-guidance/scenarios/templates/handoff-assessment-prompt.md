@@ -1,7 +1,8 @@
-<!-- Fixed instruction part of the handoff semantic assessment prompt. Per-evaluation material is substituted into the $placeholders: $scenario_id, $target_json, $records_json. -->
+<!-- Fixed instruction part of the handoff semantic assessment prompt. Per-evaluation material is substituted into the $placeholders: $scenario_id, $target_json, $subject_json. -->
 
-Assess whether each task handoff and resulting plan would let another agent
-continue correctly without the original conversation or broad rediscovery.
+Assess whether this task handoff and the resulting plan would let another
+agent continue correctly without the original conversation or broad
+rediscovery.
 
 Use the reviewed target as the authority. Judge the task and plan together:
 requirements and approved conditions, verified facts and source pointers,
@@ -27,26 +28,23 @@ assess the result rather than assuming failure from the label.
 Return JSON only:
 
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "scenario_id": "$scenario_id",
-  "assessments": [
-    {
-      "stage": "fresh-agent|same-agent",
-      "variant": "retain|omit|incomplete|generated-task",
-      "producer": {"profile": "glm|gpt", "reasoning_effort": "..."},
-      "plan_coverage": "complete|partial|poor",
-      "missing_outcomes": ["OUTCOME-ID"],
-      "lost_facts_or_decisions": ["description"],
-      "invented_scope_or_decisions": ["description"],
-      "testing_boundary": "decisive|partial|poor",
-      "documentation_boundary": "appropriate|partial|poor",
-      "task_self_contained": true,
-      "broad_rediscovery": true,
-      "handoff_quality_score": 0,
-      "efficiency_interpretation": "concise evidence-based interpretation",
-      "summary": "concise evidence-based interpretation"
-    }
-  ]
+  "assessment": {
+    "stage": "fresh-agent|same-agent",
+    "variant": "retain|omit|incomplete|generated-task",
+    "plan_coverage": "complete|partial|poor",
+    "missing_outcomes": ["OUTCOME-ID"],
+    "lost_facts_or_decisions": ["description"],
+    "invented_scope_or_decisions": ["description"],
+    "testing_boundary": "decisive|partial|poor",
+    "documentation_boundary": "appropriate|partial|poor",
+    "task_self_contained": true,
+    "broad_rediscovery": true,
+    "handoff_quality_score": 0,
+    "efficiency_interpretation": "concise evidence-based interpretation",
+    "summary": "concise evidence-based interpretation"
+  }
 }
 
 Scores are integers from 0 through 100. `broad_rediscovery` is true only when
@@ -57,6 +55,6 @@ Reviewed target:
 
 $target_json
 
-Handoff and plan records:
+Subject material:
 
-$records_json
+$subject_json

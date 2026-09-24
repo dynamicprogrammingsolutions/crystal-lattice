@@ -120,9 +120,5 @@ def test_k_slices_select_cells() -> None:
         == one_scenario
     )
 
-    retain_only = {
-        f"test_handoff_plan[{case.id}]"
-        for case in handoff_plan_cases()
-        if case.variant == "retain"
-    }
+    retain_only = {test_id for test_id in _expected_ids() if "-retain-" in test_id}
     assert _collect("-m", "agent_eval", "-k", "retain") == retain_only

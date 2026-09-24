@@ -1,9 +1,9 @@
-<!-- Fixed instruction part of the task-creation semantic assessment prompt. Per-evaluation material is substituted into the $placeholders: $scenario_id, $target_json, $prompt, $records_json. -->
+<!-- Fixed instruction part of the task-creation semantic assessment prompt. Per-evaluation material is substituted into the $placeholders: $scenario_id, $target_json, $prompt, $subject_json. -->
 
-Assess task-guidance behavior for one fixed scenario across several producer
-profiles. Use the reviewed target, not raw task count, as the authority.
+Assess the task set produced for one fixed scenario. Use the reviewed
+target, not raw task count, as the authority.
 
-Judge whether each task set preserves approved outcomes and partitions work
+Judge whether the task set preserves approved outcomes and partitions work
 into coherent deliverables. A technical layer is a valid separate task only
 when completion leaves an independently usable, acceptable, deferable, owned,
 or reviewable result. Identify subtasks that are merely phases or layer
@@ -53,72 +53,69 @@ evaluator derives them deterministically from these statuses.
 Return JSON only with this shape:
 
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "scenario_id": "$scenario_id",
-  "assessments": [
-    {
-      "producer": {"profile": "glm|gpt", "reasoning_effort": "..."},
-      "outcome_coverage": "complete|partial|poor",
-      "missing_outcomes": ["OUTCOME-ID"],
-      "added_obligations": ["description"],
-      "semantic_deliverable_count": 0,
-      "actual_task_count": 0,
-      "deliverable_mappings": [
-        {
-          "deliverable_id": "target id",
-          "task_paths": ["tasks/..."],
-          "coverage": "complete|partial|missing",
-          "coherence": "coherent|fragmented|overpacked",
-          "reason": "short evidence"
-        }
-      ],
-      "mergeable_groups": [
-        {"task_paths": ["tasks/..."], "reason": "why these are one deliverable"}
-      ],
-      "unmatched_tasks": ["tasks/..."],
-      "overpacked_tasks": ["tasks/..."],
-      "valid_layer_boundaries": ["tasks/..."],
-      "automatic_layer_fragments": ["tasks/..."],
-      "dependency_issues": ["description"],
-      "crossing_ownership": "complete|partial|missing",
-      "fragmentation_severity": "none|low|medium|high",
-      "fragmentation_ratio": 0.0,
-      "quality_metrics": {
-        "fragmentation": {
-          "status": "none|low|medium|high",
-          "occurrences": [
-            {
-              "task_paths": ["tasks/..."],
-              "description": "concrete occurrence"
-            }
-          ]
-        },
-        "phase_only_children": {
-          "status": "none|partial|present",
-          "occurrences": []
-        },
-        "layer_split_without_independent_value": {
-          "status": "none|partial|present",
-          "occurrences": []
-        },
-        "evidence_reownership": {
-          "status": "none|partial|present",
-          "occurrences": []
-        },
-        "unsafe_dependencies": {
-          "status": "none|partial|present",
-          "occurrences": []
-        },
-        "piecewise_crossing_evidence": {
-          "status": "none|partial|present",
-          "occurrences": []
-        }
+  "assessment": {
+    "outcome_coverage": "complete|partial|poor",
+    "missing_outcomes": ["OUTCOME-ID"],
+    "added_obligations": ["description"],
+    "semantic_deliverable_count": 0,
+    "actual_task_count": 0,
+    "deliverable_mappings": [
+      {
+        "deliverable_id": "target id",
+        "task_paths": ["tasks/..."],
+        "coverage": "complete|partial|missing",
+        "coherence": "coherent|fragmented|overpacked",
+        "reason": "short evidence"
+      }
+    ],
+    "mergeable_groups": [
+      {"task_paths": ["tasks/..."], "reason": "why these are one deliverable"}
+    ],
+    "unmatched_tasks": ["tasks/..."],
+    "overpacked_tasks": ["tasks/..."],
+    "valid_layer_boundaries": ["tasks/..."],
+    "automatic_layer_fragments": ["tasks/..."],
+    "dependency_issues": ["description"],
+    "crossing_ownership": "complete|partial|missing",
+    "fragmentation_severity": "none|low|medium|high",
+    "fragmentation_ratio": 0.0,
+    "quality_metrics": {
+      "fragmentation": {
+        "status": "none|low|medium|high",
+        "occurrences": [
+          {
+            "task_paths": ["tasks/..."],
+            "description": "concrete occurrence"
+          }
+        ]
       },
-      "partition_quality_score": 0,
-      "handoff_quality_score": 0,
-      "summary": "concise evidence-based interpretation"
-    }
-  ]
+      "phase_only_children": {
+        "status": "none|partial|present",
+        "occurrences": []
+      },
+      "layer_split_without_independent_value": {
+        "status": "none|partial|present",
+        "occurrences": []
+      },
+      "evidence_reownership": {
+        "status": "none|partial|present",
+        "occurrences": []
+      },
+      "unsafe_dependencies": {
+        "status": "none|partial|present",
+        "occurrences": []
+      },
+      "piecewise_crossing_evidence": {
+        "status": "none|partial|present",
+        "occurrences": []
+      }
+    },
+    "partition_quality_score": 0,
+    "handoff_quality_score": 0,
+    "summary": "concise evidence-based interpretation"
+  }
 }
 
 Scores are integers from 0 through 100. `fragmentation_ratio` is actual task
@@ -133,6 +130,6 @@ Natural user request:
 
 $prompt
 
-Producer records:
+Subject material:
 
-$records_json
+$subject_json

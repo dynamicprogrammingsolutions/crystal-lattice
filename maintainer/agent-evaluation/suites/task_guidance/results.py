@@ -17,10 +17,12 @@ from .configuration import (
     plan_variants,
     producer_cells,
 )
+from .handoff_semantic import handoff_assessment_subject_identity
 from .scenarios import SCENARIOS
 from .semantic import (
     QUALITY_DIMENSIONS,
     aggregate_quality_metrics,
+    assessment_subject_identity,
     continuation_cell_identity,
     expected_producer_cells,
     handoff_cell_identity,
@@ -78,13 +80,13 @@ def consolidate_results(
     semantics = select_cell_records(
         artifact_root,
         record_name=STAGES["task-creation-assessment"].record,
-        cell_identity=scenario_cell_identity,
+        cell_identity=assessment_subject_identity,
         labels=labels,
     )
     handoff_semantics = select_cell_records(
         artifact_root,
         record_name=STAGES["handoff-assessment"].record,
-        cell_identity=scenario_cell_identity,
+        cell_identity=handoff_assessment_subject_identity,
         labels=labels,
     )
     negative_controls = select_cell_records(
@@ -117,11 +119,28 @@ def consolidate_results(
         for profile, effort in producer_cells(scenario.category)
     }
     expected_semantics = {
-        scenario.scenario_id
+        f"{scenario.scenario_id}:{profile}:{effort}"
         for scenario in _scenarios_with_stage("task-creation-assessment")
+        for profile, effort in producer_cells(scenario.category)
     }
     expected_handoff_semantics = {
-        scenario.scenario_id for scenario in _scenarios_with_stage("handoff-assessment")
+        *(
+            f"{scenario.scenario_id}:{variant}:{profile}:{effort}"
+            for scenario in _scenarios_with_stage("handoff-assessment")
+            for variant in plan_variants(scenario.category)
+            for profile, effort in producer_cells(scenario.category)
+        ),
+        *(
+            f"{scenario.scenario_id}:generated-task:{profile}:{effort}"
+            for scenario in _scenarios_with_stage("handoff-assessment")
+            if "continuation" in CATEGORIES[scenario.category]["stages"]
+            for profile, effort in producer_cells(scenario.category)
+        ),
+        *(
+            f"{control['scenario']}:{control['variant']}:"
+            f"{control['agent']}:{control['effort']}"
+            for control in negative_control_designations()
+        ),
     }
     expected_negative_controls = {
         control["scenario"] for control in negative_control_designations()
@@ -337,19 +356,19 @@ def _values(cells: Mapping[str, tuple[Any, ...]]) -> list[dict[str, Any]]:
 def _semantic_quality(
     semantic_records: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    assessments = [
-        assessment
+    """Cohort quality over the per-subject assessment records."""
+
+    subjects = [
+        (record.get("subject") or {}, record.get("assessment"))
         for record in semantic_records
-        for assessment in record.get("assessment", {}).get("assessments", ())
-        if isinstance(assessment, dict)
+        if isinstance(record.get("assessment"), dict)
     ]
     groups: dict[str, list[dict[str, Any]]] = {
-        "all": assessments,
+        "all": [assessment for _, assessment in subjects],
     }
-    for assessment in assessments:
-        producer = assessment.get("producer", {})
-        profile = str(producer.get("profile"))
-        effort = str(producer.get("reasoning_effort"))
+    for subject, assessment in subjects:
+        profile = str(subject.get("profile"))
+        effort = str(subject.get("reasoning_effort"))
         groups.setdefault(profile, []).append(assessment)
         groups.setdefault(f"{profile}:{effort}", []).append(assessment)
     return {

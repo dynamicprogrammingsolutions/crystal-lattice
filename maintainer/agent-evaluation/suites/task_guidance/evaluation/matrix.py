@@ -13,7 +13,6 @@ from dataclasses import dataclass
 
 from ..configuration import (
     CATEGORIES,
-    assessment_cell,
     negative_control,
     plan_variants,
     producer_cells,
@@ -29,6 +28,7 @@ class CellCase:
     effort: str
     variant: str | None = None
     category: str = ""
+    stage: str = ""
 
 
 def _scenarios_with(stage: str) -> list:
@@ -114,36 +114,85 @@ def negative_control_cases() -> tuple[CellCase, ...]:
 
 
 def task_creation_assessment_cases() -> tuple[CellCase, ...]:
-    """One case per assessed scenario, judged by the stage's declared agent."""
+    """One case per assessed subject cell, judged by the declared agent.
+
+    The subjects are the scenario's producer cells; the judging agent
+    comes from the stage's declared assessment cell.
+    """
 
     cases = []
     for scenario in _scenarios_with("task-creation-assessment"):
-        agent, effort = assessment_cell(scenario.category, "task-creation-assessment")
-        cases.append(
-            CellCase(
-                id=f"{scenario.scenario_id}-{agent}-{effort}",
-                scenario_id=scenario.scenario_id,
-                agent=agent,
-                effort=effort,
-                category=scenario.category,
+        for subject_agent, subject_effort in producer_cells(scenario.category):
+            cases.append(
+                CellCase(
+                    id=f"{scenario.scenario_id}-{subject_agent}-{subject_effort}",
+                    scenario_id=scenario.scenario_id,
+                    agent=subject_agent,
+                    effort=subject_effort,
+                    category=scenario.category,
+                    stage="task-creation-assessment",
+                )
             )
-        )
     return tuple(cases)
 
 
 def handoff_assessment_cases() -> tuple[CellCase, ...]:
-    """One case per handoff-assessed scenario, judged by the declared agent."""
+    """One case per assessed handoff subject, judged by the declared agent.
+
+    The subjects are the fresh-agent plans per variant, the same-agent
+    continuations, and the designated negative control.
+    """
 
     cases = []
     for scenario in _scenarios_with("handoff-assessment"):
-        agent, effort = assessment_cell(scenario.category, "handoff-assessment")
-        cases.append(
-            CellCase(
-                id=f"{scenario.scenario_id}-{agent}-{effort}",
-                scenario_id=scenario.scenario_id,
-                agent=agent,
-                effort=effort,
-                category=scenario.category,
+        cells = producer_cells(scenario.category)
+        has_continuation = "continuation" in CATEGORIES[scenario.category]["stages"]
+        for variant in plan_variants(scenario.category):
+            for subject_agent, subject_effort in cells:
+                cases.append(
+                    CellCase(
+                        id=(
+                            f"{scenario.scenario_id}-{variant}-"
+                            f"{subject_agent}-{subject_effort}"
+                        ),
+                        scenario_id=scenario.scenario_id,
+                        agent=subject_agent,
+                        effort=subject_effort,
+                        variant=variant,
+                        category=scenario.category,
+                        stage="handoff-assessment",
+                    )
+                )
+        if has_continuation:
+            for subject_agent, subject_effort in cells:
+                cases.append(
+                    CellCase(
+                        id=(
+                            f"{scenario.scenario_id}-generated-task-"
+                            f"{subject_agent}-{subject_effort}"
+                        ),
+                        scenario_id=scenario.scenario_id,
+                        agent=subject_agent,
+                        effort=subject_effort,
+                        variant="generated-task",
+                        category=scenario.category,
+                        stage="handoff-assessment",
+                    )
+                )
+        control = negative_control(scenario.category)
+        if control is not None and control["scenario"] == scenario.scenario_id:
+            cases.append(
+                CellCase(
+                    id=(
+                        f"{control['scenario']}-{control['variant']}-"
+                        f"{control['agent']}-{control['effort']}"
+                    ),
+                    scenario_id=control["scenario"],
+                    agent=control["agent"],
+                    effort=control["effort"],
+                    variant=control["variant"],
+                    category=scenario.category,
+                    stage="handoff-assessment",
+                )
             )
-        )
     return tuple(cases)

@@ -1,29 +1,30 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
 from ..scenarios import scenario_by_id
 from ..semantic import (
+    SEMANTIC_SCHEMA_VERSION,
     aggregate_quality_metrics,
-    expected_producer_cells,
     normalize_semantic_assessment,
     parse_semantic_response,
-    producer_cells_from_records,
+    semantic_prompt,
     semantic_summary,
     validate_semantic_assessment,
 )
 
 
-def _assessment(profile: str, effort: str) -> dict[str, object]:
-    return {
-        "producer": {"profile": profile, "reasoning_effort": effort},
+SCENARIO = scenario_by_id("tg04-flask-vue-discovery-decomposition")
+
+
+def _assessment(**overrides: object) -> dict[str, object]:
+    value: dict[str, object] = {
         "outcome_coverage": "complete",
         "missing_outcomes": [],
         "added_obligations": [],
-        "semantic_deliverable_count": 4,
+        "semantic_deliverable_count": 2,
         "actual_task_count": 8,
         "deliverable_mappings": [],
         "mergeable_groups": [],
@@ -46,26 +47,14 @@ def _assessment(profile: str, effort: str) -> dict[str, object]:
                     }
                 ],
             },
-            "phase_only_children": {
-                "status": "none",
-                "score": 100,
-                "occurrences": [],
-            },
+            "phase_only_children": {"status": "none", "score": 100, "occurrences": []},
             "layer_split_without_independent_value": {
                 "status": "none",
                 "score": 100,
                 "occurrences": [],
             },
-            "evidence_reownership": {
-                "status": "none",
-                "score": 100,
-                "occurrences": [],
-            },
-            "unsafe_dependencies": {
-                "status": "none",
-                "score": 100,
-                "occurrences": [],
-            },
+            "evidence_reownership": {"status": "none", "score": 100, "occurrences": []},
+            "unsafe_dependencies": {"status": "none", "score": 100, "occurrences": []},
             "piecewise_crossing_evidence": {
                 "status": "none",
                 "score": 100,
@@ -77,129 +66,81 @@ def _assessment(profile: str, effort: str) -> dict[str, object]:
         "handoff_quality_score": 80,
         "summary": "Complete but fragmented.",
     }
+    value.update(overrides)
+    return value
 
 
-def test_parse_and_validate_semantic_assessment() -> None:
-    scenario = scenario_by_id("tg04-flask-vue-discovery-decomposition")
-    cells = expected_producer_cells(scenario)
-    value = {
-        "schema_version": 2,
-        "scenario_id": scenario.scenario_id,
-        "assessments": [_assessment(profile, effort) for profile, effort in cells],
-    }
-
-    parsed = parse_semantic_response("```json\n" + json.dumps(value) + "\n```")
-    validate_semantic_assessment(
-        parsed,
-        scenario=scenario,
-        expected_cells=cells,
-    )
-
-    summary = semantic_summary(parsed)
-    assert summary["assessment_count"] == 4
-    assert summary["fragmentation"] == {"medium": 4}
-    assert summary["quality_metrics"]["overall_success_percentage"] == 88.8
-    assert summary["quality_metrics"]["dimensions"]["fragmentation"] == {
-        "average_score": 33.0,
-        "affected_assessments": 4,
-        "occurrence_count": 4,
-        "status_counts": {"medium": 4},
-    }
-    assert summary["average_partition_quality"] == 70.0
-    assert (
-        producer_cells_from_records(
-            [
-                {
-                    "producer": {
-                        "profile": profile,
-                        "reasoning_effort": effort,
-                    }
-                }
-                for profile, effort in cells
-            ]
-        )
-        == cells
-    )
-
-
-def test_semantic_normalization_excludes_coordinating_parent() -> None:
-    value = {
-        "assessments": [
-            {
-                **_assessment("glm", "max"),
-                "actual_task_count": 3,
-                "semantic_deliverable_count": 2,
-                "unmatched_tasks": ["tasks/demo/000-main.md"],
-            }
-        ]
-    }
-    record = {
+def _subject_record() -> dict[str, object]:
+    return {
         "producer": {"profile": "glm", "reasoning_effort": "max"},
+        "valid": True,
+        "response": "produced the task set",
         "task_files": {
             "tasks/demo/000-main.md": "# Main\n",
             "tasks/demo/010-one.md": "# One\n",
             "tasks/demo/020-two.md": "# Two\n",
         },
+        "task_tree": {"implementation_task_count": 2},
+        "tool_metrics": {"total": 4},
     }
 
-    normalized = normalize_semantic_assessment(value, records=[record])
-    assessment = normalized["assessments"][0]
 
+def test_parse_normalize_and_validate_one_subject_judgment() -> None:
+    value = {
+        "schema_version": SEMANTIC_SCHEMA_VERSION,
+        "scenario_id": SCENARIO.scenario_id,
+        "assessment": _assessment(),
+    }
+
+    parsed = parse_semantic_response("```json\n" + json.dumps(value) + "\n```")
+    normalized = normalize_semantic_assessment(parsed, record=_subject_record())
+    validate_semantic_assessment(normalized, scenario=SCENARIO)
+
+    assessment = normalized["assessment"]
     assert assessment["actual_task_count"] == 2
     assert assessment["fragmentation_ratio"] == 1.0
     assert assessment["unmatched_tasks"] == []
-    assert assessment["quality_metrics"]["fragmentation"]["score"] == 33
-    assert assessment["overall_success_percentage"] == 88.8
+    summary = semantic_summary(assessment)
+    assert summary["partition_quality_score"] == 70
+    assert summary["fragmentation_severity"] == "medium"
+    assert summary["quality_dimensions"]["fragmentation"] == "medium"
 
 
-def test_semantic_validation_rejects_missing_producer() -> None:
-    scenario = scenario_by_id("tg01-eleventy-archive-handoff")
+def test_semantic_validation_rejects_a_mismatched_scenario() -> None:
     value = {
-        "schema_version": 2,
-        "scenario_id": scenario.scenario_id,
-        "assessments": [_assessment("glm", "max")],
+        "schema_version": SEMANTIC_SCHEMA_VERSION,
+        "scenario_id": "not-the-scenario",
+        "assessment": _assessment(),
     }
 
-    with pytest.raises(ValueError, match="producers do not match"):
-        validate_semantic_assessment(
-            value,
-            scenario=scenario,
-            expected_cells=expected_producer_cells(scenario),
-        )
+    with pytest.raises(ValueError, match="scenario_id"):
+        validate_semantic_assessment(value, scenario=SCENARIO)
 
 
-def test_partial_producer_loading_is_explicit(tmp_path: Path) -> None:
-    scenario = scenario_by_id("tg01-eleventy-archive-handoff")
-    record = {
-        "scenario_id": scenario.scenario_id,
-        "run_attempt": "r1",
-        "producer": {"profile": "glm", "reasoning_effort": "max"},
-        "valid": True,
+def test_semantic_validation_rejects_invalid_scores() -> None:
+    value = {
+        "schema_version": SEMANTIC_SCHEMA_VERSION,
+        "scenario_id": SCENARIO.scenario_id,
+        "assessment": _assessment(partition_quality_score=101),
     }
-    path = tmp_path / "glm" / "records" / "task-guidance-producer.json"
-    path.parent.mkdir(parents=True)
-    path.write_text(json.dumps(record), encoding="utf-8")
 
-    from ..semantic import load_producer_records
+    with pytest.raises(ValueError, match="partition_quality_score"):
+        validate_semantic_assessment(value, scenario=SCENARIO)
 
-    with pytest.raises(FileNotFoundError):
-        load_producer_records(
-            tmp_path,
-            scenario=scenario,
-            labels=["r1"],
-        )
-    loaded = load_producer_records(
-        tmp_path,
-        scenario=scenario,
-        labels=["r1"],
-        allow_partial=True,
-    )
-    assert loaded == [record]
+
+def test_semantic_prompt_material_is_the_produced_work_only() -> None:
+    prompt = semantic_prompt(SCENARIO, _subject_record())
+
+    assert "tasks/demo/010-one.md" in prompt
+    assert "produced the task set" in prompt
+    assert '"profile"' not in prompt
+    assert '"tool_metrics"' not in prompt
+    assert '"valid"' not in prompt
 
 
 def test_quality_aggregation_groups_occurrences_and_scores() -> None:
-    first = _assessment("glm", "max")
-    second = _assessment("gpt", "high")
+    first = _assessment()
+    second = _assessment()
     second["quality_metrics"]["phase_only_children"] = {
         "status": "present",
         "score": 0,
@@ -225,9 +166,10 @@ def test_quality_aggregation_groups_occurrences_and_scores() -> None:
 
 
 def test_partial_crossing_may_be_a_material_piecewise_issue() -> None:
-    scenario = scenario_by_id("tg01-eleventy-archive-handoff")
-    assessment = _assessment("glm", "max")
-    assessment["crossing_ownership"] = "partial"
+    assessment = _assessment(
+        crossing_ownership="partial",
+        overall_success_percentage=72.2,
+    )
     assessment["quality_metrics"]["piecewise_crossing_evidence"] = {
         "status": "present",
         "score": 0,
@@ -238,15 +180,10 @@ def test_partial_crossing_may_be_a_material_piecewise_issue() -> None:
             }
         ],
     }
-    assessment["overall_success_percentage"] = 72.2
     value = {
-        "schema_version": 2,
-        "scenario_id": scenario.scenario_id,
-        "assessments": [assessment, _assessment("gpt", "high")],
+        "schema_version": SEMANTIC_SCHEMA_VERSION,
+        "scenario_id": SCENARIO.scenario_id,
+        "assessment": assessment,
     }
 
-    validate_semantic_assessment(
-        value,
-        scenario=scenario,
-        expected_cells=expected_producer_cells(scenario),
-    )
+    validate_semantic_assessment(value, scenario=SCENARIO)

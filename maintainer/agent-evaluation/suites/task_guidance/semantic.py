@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from string import Template
 from typing import Any, Mapping, Sequence
@@ -14,7 +15,8 @@ from .scenarios import TaskGuidanceScenario
 from .stages import STAGES
 
 
-SEMANTIC_SCHEMA_VERSION = 2
+SEMANTIC_SCHEMA_VERSION = 3
+SEMANTIC_RECORD_VERSION = 2
 QUALITY_DIMENSIONS = (
     "fragmentation",
     "phase_only_children",
@@ -78,40 +80,95 @@ def scenario_cell_identity(value: Mapping[str, Any]) -> str:
     return str(value.get("scenario_id"))
 
 
-def _latest_sample(samples: Sequence[Any]) -> Any:
-    return max(samples, key=lambda record: (record.sample_index, record.modified))
+def assessment_subject_identity(value: Mapping[str, Any]) -> str:
+    """The cell identity of one per-subject assessment record."""
+
+    subject = value.get("subject") or {}
+    return (
+        f"{value.get('scenario_id')}:{subject.get('profile')}:"
+        f"{subject.get('reasoning_effort')}"
+    )
 
 
-def load_producer_records(
+@dataclass(frozen=True)
+class ProducerSubject:
+    """One produced task set: a sample of one producer cell."""
+
+    scenario_id: str
+    profile: str
+    effort: str
+    sample_index: int
+    record: Mapping[str, Any]
+
+
+def load_producer_subjects(
     artifact_root: Path,
     *,
     scenario: TaskGuidanceScenario,
     labels: Sequence[str] | None,
     allow_partial: bool = False,
-) -> list[dict[str, Any]]:
-    """The scenario's producer records under the given run labels.
+    cells: Sequence[tuple[str, str]] | None = None,
+) -> list[ProducerSubject]:
+    """The scenario's producer subjects under the given run labels.
 
-    Selection delegates to the consolidation core; each cell contributes
-    its latest sample. Without ``labels`` the latest label of each cell
-    is selected.
+    Selection delegates to the consolidation core; every sample of a cell
+    is one subject. ``cells`` limits the expected cells (one assessment
+    case owns one cell); without it every declared cell is expected.
     """
 
-    cells = select_cell_records(
+    selected = select_cell_records(
         artifact_root,
         record_name=STAGES["task-creation"].record,
         cell_identity=producer_cell_identity,
         labels=labels,
     )
     expected = [
-        f"{scenario.scenario_id}:{agent}:{effort}"
+        (agent, effort)
         for agent, effort in expected_producer_cells(scenario)
+        if cells is None or (agent, effort) in set(cells)
     ]
-    missing = [key for key in expected if key not in cells]
+    missing = [
+        f"{scenario.scenario_id}:{agent}:{effort}"
+        for agent, effort in expected
+        if f"{scenario.scenario_id}:{agent}:{effort}" not in selected
+    ]
     if missing and not allow_partial:
         raise FileNotFoundError(
             f"missing producer records for {scenario.scenario_id}: {missing}"
         )
-    return [_latest_sample(cells[key]).value for key in expected if key in cells]
+    subjects: list[ProducerSubject] = []
+    for agent, effort in expected:
+        key = f"{scenario.scenario_id}:{agent}:{effort}"
+        for record in sorted(selected.get(key, ()), key=lambda item: item.sample_index):
+            subjects.append(
+                ProducerSubject(
+                    scenario_id=scenario.scenario_id,
+                    profile=agent,
+                    effort=effort,
+                    sample_index=record.sample_index,
+                    record=record.value,
+                )
+            )
+    return subjects
+
+
+def subjects_block_reason(subjects: Sequence[ProducerSubject]) -> str | None:
+    """Why an assessment case cannot run; ``None`` when it can.
+
+    A case is blocked only when every subject is invalid (or none
+    exists); the reason lists each subject's recorded invalid reasons.
+    """
+
+    if any(subject.record.get("valid") is True for subject in subjects):
+        return None
+    if not subjects:
+        return "no producer subjects were found for the cell"
+    entries = [
+        f"{subject.profile}:{subject.effort} sample {subject.sample_index}: "
+        f"{subject.record.get('invalid_reasons')!r}"
+        for subject in subjects
+    ]
+    return "no valid producer subjects — " + "; ".join(entries)
 
 
 # The fixed instruction part of the assessment prompt. Per-evaluation
@@ -119,10 +176,10 @@ def load_producer_records(
 # is extracted verbatim into the scenarios export.
 TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE = Template(
     """\
-Assess task-guidance behavior for one fixed scenario across several producer
-profiles. Use the reviewed target, not raw task count, as the authority.
+Assess the task set produced for one fixed scenario. Use the reviewed
+target, not raw task count, as the authority.
 
-Judge whether each task set preserves approved outcomes and partitions work
+Judge whether the task set preserves approved outcomes and partitions work
 into coherent deliverables. A technical layer is a valid separate task only
 when completion leaves an independently usable, acceptable, deferable, owned,
 or reviewable result. Identify subtasks that are merely phases or layer
@@ -172,72 +229,69 @@ evaluator derives them deterministically from these statuses.
 Return JSON only with this shape:
 
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "scenario_id": "$scenario_id",
-  "assessments": [
-    {
-      "producer": {"profile": "glm|gpt", "reasoning_effort": "..."},
-      "outcome_coverage": "complete|partial|poor",
-      "missing_outcomes": ["OUTCOME-ID"],
-      "added_obligations": ["description"],
-      "semantic_deliverable_count": 0,
-      "actual_task_count": 0,
-      "deliverable_mappings": [
-        {
-          "deliverable_id": "target id",
-          "task_paths": ["tasks/..."],
-          "coverage": "complete|partial|missing",
-          "coherence": "coherent|fragmented|overpacked",
-          "reason": "short evidence"
-        }
-      ],
-      "mergeable_groups": [
-        {"task_paths": ["tasks/..."], "reason": "why these are one deliverable"}
-      ],
-      "unmatched_tasks": ["tasks/..."],
-      "overpacked_tasks": ["tasks/..."],
-      "valid_layer_boundaries": ["tasks/..."],
-      "automatic_layer_fragments": ["tasks/..."],
-      "dependency_issues": ["description"],
-      "crossing_ownership": "complete|partial|missing",
-      "fragmentation_severity": "none|low|medium|high",
-      "fragmentation_ratio": 0.0,
-      "quality_metrics": {
-        "fragmentation": {
-          "status": "none|low|medium|high",
-          "occurrences": [
-            {
-              "task_paths": ["tasks/..."],
-              "description": "concrete occurrence"
-            }
-          ]
-        },
-        "phase_only_children": {
-          "status": "none|partial|present",
-          "occurrences": []
-        },
-        "layer_split_without_independent_value": {
-          "status": "none|partial|present",
-          "occurrences": []
-        },
-        "evidence_reownership": {
-          "status": "none|partial|present",
-          "occurrences": []
-        },
-        "unsafe_dependencies": {
-          "status": "none|partial|present",
-          "occurrences": []
-        },
-        "piecewise_crossing_evidence": {
-          "status": "none|partial|present",
-          "occurrences": []
-        }
+  "assessment": {
+    "outcome_coverage": "complete|partial|poor",
+    "missing_outcomes": ["OUTCOME-ID"],
+    "added_obligations": ["description"],
+    "semantic_deliverable_count": 0,
+    "actual_task_count": 0,
+    "deliverable_mappings": [
+      {
+        "deliverable_id": "target id",
+        "task_paths": ["tasks/..."],
+        "coverage": "complete|partial|missing",
+        "coherence": "coherent|fragmented|overpacked",
+        "reason": "short evidence"
+      }
+    ],
+    "mergeable_groups": [
+      {"task_paths": ["tasks/..."], "reason": "why these are one deliverable"}
+    ],
+    "unmatched_tasks": ["tasks/..."],
+    "overpacked_tasks": ["tasks/..."],
+    "valid_layer_boundaries": ["tasks/..."],
+    "automatic_layer_fragments": ["tasks/..."],
+    "dependency_issues": ["description"],
+    "crossing_ownership": "complete|partial|missing",
+    "fragmentation_severity": "none|low|medium|high",
+    "fragmentation_ratio": 0.0,
+    "quality_metrics": {
+      "fragmentation": {
+        "status": "none|low|medium|high",
+        "occurrences": [
+          {
+            "task_paths": ["tasks/..."],
+            "description": "concrete occurrence"
+          }
+        ]
       },
-      "partition_quality_score": 0,
-      "handoff_quality_score": 0,
-      "summary": "concise evidence-based interpretation"
-    }
-  ]
+      "phase_only_children": {
+        "status": "none|partial|present",
+        "occurrences": []
+      },
+      "layer_split_without_independent_value": {
+        "status": "none|partial|present",
+        "occurrences": []
+      },
+      "evidence_reownership": {
+        "status": "none|partial|present",
+        "occurrences": []
+      },
+      "unsafe_dependencies": {
+        "status": "none|partial|present",
+        "occurrences": []
+      },
+      "piecewise_crossing_evidence": {
+        "status": "none|partial|present",
+        "occurrences": []
+      }
+    },
+    "partition_quality_score": 0,
+    "handoff_quality_score": 0,
+    "summary": "concise evidence-based interpretation"
+  }
 }
 
 Scores are integers from 0 through 100. `fragmentation_ratio` is actual task
@@ -252,104 +306,69 @@ Natural user request:
 
 $prompt
 
-Producer records:
+Subject material:
 
-$records_json
+$subject_json
 """
 )
 
 
 def semantic_prompt(
     scenario: TaskGuidanceScenario,
-    records: list[dict[str, Any]],
+    record: Mapping[str, Any],
 ) -> str:
-    invalid = [record for record in records if record.get("valid") is not True]
-    if invalid:
-        raise ValueError("semantic prompt accepts only valid producer records")
-    compact_records = [
-        {
-            "producer": record["producer"],
-            "valid": record["valid"],
-            "invalid_reasons": record["invalid_reasons"],
-            "response": record["response"],
-            "task_files": record["task_files"],
-            "task_tree": record["task_tree"],
-            "tool_metrics": record["tool_metrics"],
-        }
-        for record in records
-    ]
+    """One per-subject assessment prompt.
+
+    The subject material carries the produced work only — no producer
+    identity, validity, or tool metrics — so the judgment cannot anchor
+    on who produced it or whether the run was flagged.
+    """
+
+    if record.get("valid") is not True:
+        raise ValueError("semantic prompt accepts only a valid subject record")
+    subject_material = {
+        "response": record["response"],
+        "task_files": record["task_files"],
+        "task_tree": record["task_tree"],
+    }
     return TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE.substitute(
         scenario_id=scenario.scenario_id,
         target_json=json.dumps(scenario.target, indent=2, sort_keys=True),
         prompt=scenario.prompt,
-        records_json=json.dumps(compact_records, indent=2, sort_keys=True),
+        subject_json=json.dumps(subject_material, indent=2, sort_keys=True),
     )
-
-
-def producer_cells_from_records(
-    records: list[dict[str, Any]],
-) -> tuple[tuple[str, str], ...]:
-    values: list[tuple[str, str]] = []
-    for record in records:
-        producer = record.get("producer")
-        if not isinstance(producer, dict):
-            raise ValueError("producer record has no producer object")
-        profile = producer.get("profile")
-        effort = producer.get("reasoning_effort")
-        if not isinstance(profile, str) or not isinstance(effort, str):
-            raise ValueError("producer identity is incomplete")
-        values.append((profile, effort))
-    return tuple(values)
 
 
 def normalize_semantic_assessment(
     value: dict[str, Any],
     *,
-    records: list[dict[str, Any]],
+    record: Mapping[str, Any],
 ) -> dict[str, Any]:
-    by_identity = {
-        (
-            str(record["producer"]["profile"]),
-            str(record["producer"]["reasoning_effort"]),
-        ): record
-        for record in records
-    }
-    assessments = value.get("assessments")
-    if not isinstance(assessments, list):
-        return value
-    for assessment in assessments:
-        if not isinstance(assessment, dict):
-            continue
-        producer = assessment.get("producer")
-        if not isinstance(producer, dict):
-            continue
-        identity = (
-            str(producer.get("profile")),
-            str(producer.get("reasoning_effort")),
-        )
-        record = by_identity.get(identity)
-        if record is None:
-            continue
-        from .topology import task_tree
+    """Fill the derived fields of one single-subject judgment."""
 
-        tree = task_tree(record["task_files"])
-        implementation_count = int(tree["implementation_task_count"])
-        assessment["actual_task_count"] = implementation_count
-        coordinating = set(tree["coordinating_files"])
-        unmatched = assessment.get("unmatched_tasks")
-        if isinstance(unmatched, list):
-            assessment["unmatched_tasks"] = [
-                path for path in unmatched if path not in coordinating
-            ]
-        semantic_count = assessment.get("semantic_deliverable_count")
-        if isinstance(semantic_count, int) and semantic_count > 0:
-            assessment["fragmentation_ratio"] = round(
-                implementation_count / semantic_count,
-                3,
-            )
-        else:
-            assessment["fragmentation_ratio"] = 0.0
-        _normalize_quality_metrics(assessment)
+    assessment = value.get("assessment")
+    if not isinstance(assessment, dict):
+        return value
+    from .topology import task_tree
+
+    tree = task_tree(record["task_files"])
+    implementation_count = int(tree["implementation_task_count"])
+    assessment["actual_task_count"] = implementation_count
+    coordinating = set(tree["coordinating_files"])
+    unmatched = assessment.get("unmatched_tasks")
+    if isinstance(unmatched, list):
+        assessment["unmatched_tasks"] = [
+            path for path in unmatched if path not in coordinating
+        ]
+    semantic_count = assessment.get("semantic_deliverable_count")
+    if isinstance(semantic_count, int) and semantic_count > 0:
+        assessment["fragmentation_ratio"] = round(
+            implementation_count / semantic_count,
+            3,
+        )
+    else:
+        assessment["fragmentation_ratio"] = 0.0
+    _normalize_quality_metrics(assessment)
     return value
 
 
@@ -379,104 +398,102 @@ def validate_semantic_assessment(
     value: Mapping[str, Any],
     *,
     scenario: TaskGuidanceScenario,
-    expected_cells: tuple[tuple[str, str], ...],
 ) -> None:
     if value.get("schema_version") != SEMANTIC_SCHEMA_VERSION:
         raise ValueError(f"semantic schema_version must be {SEMANTIC_SCHEMA_VERSION}")
     if value.get("scenario_id") != scenario.scenario_id:
         raise ValueError("semantic scenario_id does not match")
-    assessments = value.get("assessments")
-    if not isinstance(assessments, list):
-        raise ValueError("semantic assessments must be a list")
-    observed: set[tuple[str, str]] = set()
-    for assessment in assessments:
-        if not isinstance(assessment, dict):
-            raise ValueError("semantic assessment entry must be an object")
-        producer = assessment.get("producer")
-        if not isinstance(producer, dict):
-            raise ValueError("semantic producer must be an object")
-        key = (
-            str(producer.get("profile")),
-            str(producer.get("reasoning_effort")),
-        )
-        if key in observed:
-            raise ValueError(f"duplicate semantic producer: {key}")
-        observed.add(key)
-        _choice(
-            assessment,
-            "outcome_coverage",
-            {"complete", "partial", "poor"},
-        )
-        _choice(
-            assessment,
-            "crossing_ownership",
-            {"complete", "partial", "missing"},
-        )
-        _choice(
-            assessment,
-            "fragmentation_severity",
-            {"none", "low", "medium", "high"},
-        )
-        _validate_quality_metrics(assessment)
-        for key_name in (
-            "missing_outcomes",
-            "added_obligations",
-            "deliverable_mappings",
-            "mergeable_groups",
-            "unmatched_tasks",
-            "overpacked_tasks",
-            "valid_layer_boundaries",
-            "automatic_layer_fragments",
-            "dependency_issues",
-        ):
-            if not isinstance(assessment.get(key_name), list):
-                raise ValueError(f"semantic {key_name} must be a list")
-        for score_name in (
-            "partition_quality_score",
-            "handoff_quality_score",
-        ):
-            score = assessment.get(score_name)
-            if not isinstance(score, int) or not 0 <= score <= 100:
-                raise ValueError(f"semantic {score_name} must be 0..100")
-        ratio = assessment.get("fragmentation_ratio")
-        if not isinstance(ratio, (int, float)) or ratio < 0:
-            raise ValueError("fragmentation_ratio must be non-negative")
-        for count_name in (
-            "semantic_deliverable_count",
-            "actual_task_count",
-        ):
-            count = assessment.get(count_name)
-            if not isinstance(count, int) or count < 0:
-                raise ValueError(f"semantic {count_name} must be non-negative")
-        if not isinstance(assessment.get("summary"), str):
-            raise ValueError("semantic summary must be a string")
-    if observed != set(expected_cells):
-        raise ValueError(
-            f"semantic producers do not match: {observed!r} != "
-            f"{set(expected_cells)!r}"
-        )
+    assessment = value.get("assessment")
+    if not isinstance(assessment, Mapping):
+        raise ValueError("semantic assessment must be an object")
+    if "producer" in assessment or "assessments" in value:
+        raise ValueError("semantic response must not echo producer identity or a batch")
+    _choice(
+        assessment,
+        "outcome_coverage",
+        {"complete", "partial", "poor"},
+    )
+    _choice(
+        assessment,
+        "crossing_ownership",
+        {"complete", "partial", "missing"},
+    )
+    _choice(
+        assessment,
+        "fragmentation_severity",
+        {"none", "low", "medium", "high"},
+    )
+    _validate_quality_metrics(assessment)
+    for key_name in (
+        "missing_outcomes",
+        "added_obligations",
+        "deliverable_mappings",
+        "mergeable_groups",
+        "unmatched_tasks",
+        "overpacked_tasks",
+        "valid_layer_boundaries",
+        "automatic_layer_fragments",
+        "dependency_issues",
+    ):
+        if not isinstance(assessment.get(key_name), list):
+            raise ValueError(f"semantic {key_name} must be a list")
+    for score_name in (
+        "partition_quality_score",
+        "handoff_quality_score",
+    ):
+        score = assessment.get(score_name)
+        if not isinstance(score, int) or not 0 <= score <= 100:
+            raise ValueError(f"semantic {score_name} must be 0..100")
+    ratio = assessment.get("fragmentation_ratio")
+    if not isinstance(ratio, (int, float)) or ratio < 0:
+        raise ValueError("fragmentation_ratio must be non-negative")
+    for count_name in (
+        "semantic_deliverable_count",
+        "actual_task_count",
+    ):
+        count = assessment.get(count_name)
+        if not isinstance(count, int) or count < 0:
+            raise ValueError(f"semantic {count_name} must be non-negative")
+    if not isinstance(assessment.get("summary"), str):
+        raise ValueError("semantic summary must be a string")
 
 
-def semantic_summary(value: Mapping[str, Any]) -> dict[str, Any]:
-    assessments = value["assessments"]
-    assert isinstance(assessments, list)
-    severities = Counter(str(item["fragmentation_severity"]) for item in assessments)
-    coverage = Counter(str(item["outcome_coverage"]) for item in assessments)
+def semantic_summary(assessment: Mapping[str, Any]) -> dict[str, Any]:
+    """The per-subject summary recorded next to one judgment."""
+
     return {
-        "assessment_count": len(assessments),
-        "coverage": dict(coverage),
-        "fragmentation": dict(severities),
-        "quality_metrics": aggregate_quality_metrics(assessments),
-        "average_partition_quality": round(
-            sum(int(item["partition_quality_score"]) for item in assessments)
-            / len(assessments),
-            1,
-        ),
-        "average_handoff_quality": round(
-            sum(int(item["handoff_quality_score"]) for item in assessments)
-            / len(assessments),
-            1,
-        ),
+        "partition_quality_score": int(assessment["partition_quality_score"]),
+        "handoff_quality_score": int(assessment["handoff_quality_score"]),
+        "outcome_coverage": str(assessment["outcome_coverage"]),
+        "fragmentation_severity": str(assessment["fragmentation_severity"]),
+        "quality_dimensions": {
+            name: str(assessment["quality_metrics"][name]["status"])
+            for name in QUALITY_DIMENSIONS
+        },
+    }
+
+
+def assessment_record(
+    scenario: TaskGuidanceScenario,
+    subject: ProducerSubject,
+    assessment: Mapping[str, Any],
+) -> dict[str, Any]:
+    """The saved per-subject assessment record.
+
+    The prompt never reveals the producer; the record keeps the
+    subject-to-producer mapping so the judgment stays attributable.
+    """
+
+    return {
+        "schema_version": SEMANTIC_RECORD_VERSION,
+        "scenario_id": scenario.scenario_id,
+        "subject": {
+            "profile": subject.profile,
+            "reasoning_effort": subject.effort,
+            "sample_index": subject.sample_index,
+        },
+        "assessment": assessment,
+        "summary": semantic_summary(assessment),
     }
 
 

@@ -49,7 +49,6 @@ import os
 import shutil
 import sys
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from posixpath import relpath
 from typing import Any, Iterable, Mapping, Sequence
@@ -88,7 +87,6 @@ from .configuration import (  # noqa: E402
     CATEGORIES,
     DEFAULT_ARTIFACT_ROOT,
     DEFAULT_BUNDLE,
-    PACKAGES_ROOT,
     SCENARIOS_ROOT,
     agent_config_file,
     assessment_cell,
@@ -144,46 +142,6 @@ KIND_CONTINUATION = "continuation"
 KIND_CONTROL = "control"
 
 
-@dataclass(frozen=True)
-class DatasetSpec:
-    key: str
-    dataset_id: str
-    label: str
-    package_name: str
-    producer_attempt: str
-    handoff_attempt: str
-    semantic_attempt: str
-    bundle: Path
-
-
-DATASETS: dict[str, DatasetSpec] = {
-    "b0": DatasetSpec(
-        key="b0",
-        dataset_id="task-guidance-b0-20260919",
-        label="current-guidance baseline",
-        package_name="20260919-current-guidance-b0",
-        producer_attempt="b0-v5-r1",
-        handoff_attempt="b0-v5-r1",
-        semantic_attempt="b0-metrics1",
-        bundle=REPOSITORY_ROOT / "maintainer" / "guidance" / "current",
-    ),
-    "b1": DatasetSpec(
-        key="b1",
-        dataset_id="task-guidance-b1-20260919",
-        label="task-mechanics candidate",
-        package_name="20260919-task-mechanics-b1",
-        producer_attempt="b1-v1-r1",
-        handoff_attempt="b1-v1-r1",
-        semantic_attempt="b1-metrics1",
-        bundle=REPOSITORY_ROOT
-        / "maintainer"
-        / "guidance"
-        / "candidates"
-        / "task-mechanics-b1",
-    ),
-}
-
-
 def _dirname(path: str) -> str:
     return str(PurePosixPath(path).parent)
 
@@ -197,18 +155,48 @@ NEGATIVE_CONTROL_SCENARIO = negative_control("handoff")["scenario"]
 # scenario runs the incomplete-handoff control stage.
 
 
-def _frozen_attempts(frozen: Mapping[str, Any]) -> Any:
-    """The recorded run selection of a frozen dataset (both shapes).
+def _run_labels(frozen: Mapping[str, Any]) -> set[str]:
+    """The run selection recorded by a frozen dataset (both shapes).
 
     Historical datasets record per-stage attempts; datasets frozen by the
-    current ``freeze`` adapter record run labels. The package structure is
-    reworked with the dataset-registry removal; this reader keeps both
-    shapes flowing until then.
+    current ``freeze`` adapter record run labels. Discovery matches a
+    run when its resolved label is in this set.
     """
 
-    if "attempts" in frozen:
-        return frozen["attempts"]
-    return {"labels": list(frozen.get("labels") or [])}
+    labels = frozen.get("labels")
+    if isinstance(labels, list):
+        return {str(item) for item in labels}
+    attempts = frozen.get("attempts")
+    if isinstance(attempts, Mapping):
+        return {str(item) for item in attempts.values()}
+    raise ValueError("frozen dataset records neither labels nor attempts")
+
+
+def _resolve_bundle(
+    frozen: Mapping[str, Any],
+    bundle: Path | None,
+) -> Path:
+    """The guidance bundle of a collection: explicit override, then the
+    bundle provenance recorded by the freeze adapter."""
+
+    if bundle is not None:
+        return bundle
+    provenance = frozen.get("bundle")
+    if isinstance(provenance, Mapping) and provenance.get("path"):
+        return Path(str(provenance["path"]))
+    raise ValueError(
+        "no guidance bundle: pass --bundle or freeze with bundle provenance"
+    )
+
+
+def _selection_fields(frozen: Mapping[str, Any]) -> dict[str, Any]:
+    """The run-selection provenance fields of a frozen dataset (both shapes)."""
+
+    if isinstance(frozen.get("labels"), list):
+        return {"labels": list(frozen["labels"])}
+    if isinstance(frozen.get("attempts"), Mapping):
+        return {"attempts": dict(frozen["attempts"])}
+    raise ValueError("frozen dataset records neither labels nor attempts")
 
 
 def extract_scenarios(*, output_dir: Path, bundle: Path, artifact_root: Path) -> Path:
@@ -264,7 +252,7 @@ def _template_export_files() -> list[tuple[str, str]]:
                 "Fixed instruction part of the task-creation semantic"
                 " assessment prompt. Per-evaluation material is substituted"
                 " into the $placeholders: $scenario_id, $target_json,"
-                " $prompt, $records_json."
+                " $prompt, $subject_json."
             )
             + TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE.template,
         ),
@@ -273,7 +261,7 @@ def _template_export_files() -> list[tuple[str, str]]:
             _generated_note(
                 "Fixed instruction part of the handoff semantic assessment"
                 " prompt. Per-evaluation material is substituted into the"
-                " $placeholders: $scenario_id, $target_json, $records_json."
+                " $placeholders: $scenario_id, $target_json, $subject_json."
             )
             + HANDOFF_ASSESSMENT_PROMPT_TEMPLATE.template,
         ),
@@ -828,24 +816,25 @@ def _generated_note(note: str) -> str:
 
 
 def collect(
-    dataset: DatasetSpec,
     *,
     package_dir: Path,
     artifact_root: Path,
     frozen_path: Path,
     cells: Sequence[str] | None = None,
     reconstruct: bool = True,
+    bundle: Path | None = None,
 ) -> Path:
-    """Collect one durable result package without any model request."""
+    """Collect one durable result package without any model request.
+
+    The dataset identity — id, label, run selection, and guidance bundle
+    — is read from the frozen dataset file; the package name is the
+    output directory name.
+    """
 
     frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
-    if frozen.get("dataset_id") != dataset.dataset_id:
-        raise ValueError(
-            f"frozen dataset {frozen.get('dataset_id')!r} does not match"
-            f" dataset {dataset.key!r} ({dataset.dataset_id!r})"
-        )
+    resolved_bundle = _resolve_bundle(frozen, bundle)
     selected_cells = _parse_cells(cells)
-    discovery = _discover_runs(dataset, artifact_root, frozen)
+    discovery = _discover_runs(artifact_root, frozen)
     files: list[CollectedFile] = []
     runs: list[dict[str, Any]] = []
     system_messages = _SystemMessageStore()
@@ -859,8 +848,7 @@ def collect(
                     "schema_version": 1,
                     "dataset_id": frozen["dataset_id"],
                     "label": frozen["label"],
-                    "labels": frozen.get("labels"),
-                    "attempts": frozen.get("attempts"),
+                    **_selection_fields(frozen),
                     "status": frozen["status"],
                     "semantic_quality": frozen["semantic_quality"],
                     "assessment_details": _assessment_details(frozen),
@@ -894,7 +882,7 @@ def collect(
             continue
         _collect_scenario(
             scenario,
-            dataset=dataset,
+            bundle=resolved_bundle,
             frozen=frozen,
             discovery=discovery,
             artifact_root=artifact_root,
@@ -909,11 +897,11 @@ def collect(
     files.extend(system_messages.files())
     files.extend(configs.files())
     identity = {
-        "name": dataset.package_name,
+        "name": package_dir.name,
         "label": frozen["label"],
         "dataset_id": frozen["dataset_id"],
         "suite": "task-guidance",
-        "attempts": _frozen_attempts(frozen),
+        **_selection_fields(frozen),
         "scenario_count": len(
             {scenario.scenario_id for scenario in SCENARIOS}
             if selected_cells is None
@@ -964,13 +952,34 @@ def _parse_cells(cells: Sequence[str] | None) -> list[tuple[str, str, str]] | No
     return parsed
 
 
+def _record_label(path: Path, value: Mapping[str, Any]) -> Any:
+    """The run label of one raw record (sibling provenance, then legacy)."""
+
+    sibling = path.parent / "run-model.json"
+    if sibling.exists():
+        try:
+            provenance = json.loads(sibling.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            provenance = {}
+        if isinstance(provenance, dict):
+            label = provenance.get("label")
+            if isinstance(label, str) and label:
+                return label
+    return value.get("run_attempt")
+
+
 def _discover_runs(
-    dataset: DatasetSpec,
     artifact_root: Path,
     frozen: Mapping[str, Any],
 ) -> dict[str, Path]:
-    """Map each frozen record identity to its raw run directory."""
+    """Map each frozen record identity to its raw run directory.
 
+    A raw run matches when its resolved label — the run-model sibling's
+    label for current records, the legacy ``run_attempt`` field for
+    historical ones — is part of the frozen dataset's run selection.
+    """
+
+    labels = _run_labels(frozen)
     mapping: dict[str, Path] = {}
     groups = (
         (PRODUCER_RECORD, "producer_records", producer_cell_identity),
@@ -994,9 +1003,8 @@ def _discover_runs(
                 continue
             if not isinstance(value, dict):
                 continue
-            attempt = value.get("run_attempt")
             if (
-                attempt not in (dataset.producer_attempt, dataset.handoff_attempt)
+                _record_label(path, value) not in labels
                 or identity_of(value) not in wanted
             ):
                 continue
@@ -1010,27 +1018,15 @@ def _discover_runs(
                     f"no raw run found for {record_name} identity {key!r}"
                 )
             mapping[f"{group}:{key}"] = selected[key][1]
-    for group, record_name, predicate in (
-        (
-            "semantic_records",
-            SEMANTIC_RECORD,
-            lambda value: (
-                value.get("producer_attempt") == dataset.producer_attempt,
-                value.get("semantic_attempt") == dataset.semantic_attempt,
-            ),
-        ),
-        (
-            "handoff_semantic_records",
-            HANDOFF_SEMANTIC_RECORD,
-            lambda value: (
-                value.get("producer_attempt") == dataset.producer_attempt,
-                value.get("handoff_attempt") == dataset.handoff_attempt,
-                value.get("semantic_attempt") == dataset.semantic_attempt,
-            ),
-        ),
+    for group, record_name in (
+        ("semantic_records", SEMANTIC_RECORD),
+        ("handoff_semantic_records", HANDOFF_SEMANTIC_RECORD),
     ):
         for record in frozen.get(group, ()):
             scenario_id = record.get("scenario_id")
+            subject = record.get("subject")
+            if not isinstance(subject, Mapping):
+                subject = None
             selected_path: Path | None = None
             latest = -1.0
             for path in record_paths(artifact_root, record_name):
@@ -1041,9 +1037,23 @@ def _discover_runs(
                 if (
                     not isinstance(value, dict)
                     or value.get("scenario_id") != scenario_id
-                    or not all(predicate(value))
+                    or _record_label(path, value) not in labels
                 ):
                     continue
+                if subject is not None:
+                    raw_subject = value.get("subject")
+                    if not isinstance(raw_subject, Mapping):
+                        continue
+                    if (
+                        raw_subject.get("profile"),
+                        raw_subject.get("reasoning_effort"),
+                        raw_subject.get("sample_index"),
+                    ) != (
+                        subject.get("profile"),
+                        subject.get("reasoning_effort"),
+                        subject.get("sample_index"),
+                    ):
+                        continue
                 modified = path.stat().st_mtime
                 if modified > latest:
                     latest = modified
@@ -1052,7 +1062,13 @@ def _discover_runs(
                 raise FileNotFoundError(
                     f"no raw run found for {record_name} scenario {scenario_id!r}"
                 )
-            mapping[f"{group}:{scenario_id}"] = selected_path
+            if subject is not None:
+                mapping[
+                    f"{group}:{scenario_id}:{subject.get('profile')}:"
+                    f"{subject.get('reasoning_effort')}:s{subject.get('sample_index')}"
+                ] = selected_path
+            else:
+                mapping[f"{group}:{scenario_id}"] = selected_path
     return mapping
 
 
@@ -1131,7 +1147,7 @@ class _ConfigStore:
 def _collect_scenario(
     scenario,
     *,
-    dataset: DatasetSpec,
+    bundle: Path,
     frozen: Mapping[str, Any],
     discovery: Mapping[str, Path],
     artifact_root: Path,
@@ -1167,7 +1183,7 @@ def _collect_scenario(
             cell_key,
             profile=profile,
             effort=effort,
-            dataset=dataset,
+            bundle=bundle,
             frozen=frozen,
             discovery=discovery,
             artifact_root=artifact_root,
@@ -1179,7 +1195,7 @@ def _collect_scenario(
         )
     _collect_assessment(
         scenario,
-        dataset=dataset,
+        bundle=bundle,
         frozen=frozen,
         discovery=discovery,
         artifact_root=artifact_root,
@@ -1206,7 +1222,7 @@ def _collect_cell(
     *,
     profile: str,
     effort: str,
-    dataset: DatasetSpec,
+    bundle: Path,
     frozen: Mapping[str, Any],
     discovery: Mapping[str, Path],
     artifact_root: Path,
@@ -1227,10 +1243,10 @@ def _collect_cell(
         subdir=None,
         run_dir=producer_run_dir,
         scenario=scenario,
-        dataset=dataset,
+        bundle=bundle,
         profile=profile,
         effort=effort,
-        factory=TaskGuidanceWorkspaceFactory(scenario=scenario, bundle=dataset.bundle),
+        factory=TaskGuidanceWorkspaceFactory(scenario=scenario, bundle=bundle),
         artifact_root=artifact_root,
         system_messages=system_messages,
         configs=configs,
@@ -1259,13 +1275,13 @@ def _collect_cell(
             subdir=subdir,
             run_dir=handoff_run_dir,
             scenario=scenario,
-            dataset=dataset,
+            bundle=bundle,
             profile=profile,
             effort=effort,
             factory=CanonicalHandoffWorkspaceFactory(
                 scenario=scenario,
                 variant=variant,
-                bundle=dataset.bundle,
+                bundle=bundle,
             ),
             artifact_root=artifact_root,
             system_messages=system_messages,
@@ -1288,12 +1304,12 @@ def _collect_cell(
             subdir="continuation",
             run_dir=same_agent_run_dir,
             scenario=scenario,
-            dataset=dataset,
+            bundle=bundle,
             profile=profile,
             effort=effort,
             factory=TaskGuidanceWorkspaceFactory(
                 scenario=scenario,
-                bundle=dataset.bundle,
+                bundle=bundle,
             ),
             artifact_root=artifact_root,
             system_messages=system_messages,
@@ -1320,13 +1336,13 @@ def _collect_cell(
             subdir="control",
             run_dir=negative_run_dir,
             scenario=scenario,
-            dataset=dataset,
+            bundle=bundle,
             profile=profile,
             effort=effort,
             factory=CanonicalHandoffWorkspaceFactory(
                 scenario=scenario,
                 variant="incomplete",
-                bundle=dataset.bundle,
+                bundle=bundle,
             ),
             artifact_root=artifact_root,
             system_messages=system_messages,
@@ -1382,7 +1398,7 @@ def _collect_run(
     subdir: str | None,
     run_dir: Path,
     scenario,
-    dataset: DatasetSpec,
+    bundle: Path,
     profile,
     effort: str,
     factory,
@@ -1460,7 +1476,7 @@ def _collect_run(
         profile=profile,
         effort=effort,
         scenario=scenario,
-        dataset=dataset,
+        bundle=bundle,
         factory=factory,
         workspace=workspace,
         run_dir=run_dir,
@@ -1632,7 +1648,7 @@ def _stage_instructions(
     profile,
     effort: str,
     scenario,
-    dataset: DatasetSpec,
+    bundle: Path,
     factory,
     workspace: Path,
     run_dir: Path,
@@ -1666,7 +1682,7 @@ def _stage_instructions(
         body = _reconstruct_compiled_message(
             agent_name=profile,
             effort=effort,
-            dataset=dataset,
+            bundle=bundle,
             factory=factory,
             workspace=workspace,
             run_dir=run_dir,
@@ -1712,7 +1728,7 @@ def _reconstruct_compiled_message(
     *,
     agent_name: str,
     effort: str,
-    dataset: DatasetSpec,
+    bundle: Path,
     factory,
     workspace: Path,
     run_dir: Path,
@@ -1736,7 +1752,7 @@ def _reconstruct_compiled_message(
         compiled = _compile_system_message_for_workspace(
             agent_name=agent_name,
             effort=effort,
-            bundle=dataset.bundle,
+            bundle=bundle,
             workspace=workspace,
             artifact_root=artifact_root,
             run_label=f"reconstruct-{run_dir.name}",
@@ -1896,7 +1912,7 @@ def _path_replacements(workspace: Path) -> dict[str, str]:
 def _collect_assessment(
     scenario,
     *,
-    dataset: DatasetSpec,
+    bundle: Path,
     frozen: Mapping[str, Any],
     discovery: Mapping[str, Path],
     artifact_root: Path,
@@ -1906,36 +1922,142 @@ def _collect_assessment(
     files: list[CollectedFile],
 ) -> None:
     scenario_id = scenario.scenario_id
-    semantic = _semantic_for(frozen["semantic_records"], scenario_id)
-    if semantic is not None:
-        _collect_assessment_record(
-            name="task-creation",
-            title="Task-creation semantic assessment",
-            record=semantic,
-            run_dir=discovery[f"semantic_records:{scenario_id}"],
+    for name, group, title in (
+        (
+            "task-creation",
+            "semantic_records",
+            "Task-creation semantic assessment",
+        ),
+        ("handoff", "handoff_semantic_records", "Handoff semantic assessment"),
+    ):
+        records = [
+            record
+            for record in frozen.get(group, ())
+            if isinstance(record, Mapping) and record.get("scenario_id") == scenario_id
+        ]
+        if not records:
+            continue
+        if all(isinstance(record.get("subject"), Mapping) for record in records):
+            _collect_per_subject_assessment(
+                name=name,
+                title=title,
+                group=group,
+                records=records,
+                scenario=scenario,
+                bundle=bundle,
+                discovery=discovery,
+                artifact_root=artifact_root,
+                system_messages=system_messages,
+                configs=configs,
+                runs=runs,
+                files=files,
+            )
+        else:
+            _collect_assessment_record(
+                name=name,
+                title=title,
+                record=records[0],
+                run_dir=discovery[f"{group}:{scenario_id}"],
+                scenario=scenario,
+                bundle=bundle,
+                artifact_root=artifact_root,
+                system_messages=system_messages,
+                configs=configs,
+                runs=runs,
+                files=files,
+            )
+
+
+def _collect_per_subject_assessment(
+    *,
+    name: str,
+    title: str,
+    group: str,
+    records: Sequence[Mapping[str, Any]],
+    scenario,
+    bundle: Path,
+    discovery: Mapping[str, Path],
+    artifact_root: Path,
+    system_messages: _SystemMessageStore,
+    configs: _ConfigStore,
+    runs: list[dict[str, Any]],
+    files: list[CollectedFile],
+) -> None:
+    """Collect one assessor run per subject, one shared results page.
+
+    Every sample of every subject cell is its own assessment request, so
+    each record collects its own run directory; the results page lists
+    all judgments with their subject and sample.
+    """
+
+    scenario_id = scenario.scenario_id
+    run_prefix = f"scenarios/{scenario_id}/assessment/{name}"
+    assessor_name, effort = assessment_cell("handoff", f"{name}-assessment")
+    first_run_record: dict[str, Any] | None = None
+    for record in records:
+        subject = record["subject"]
+        sample_index = subject.get("sample_index")
+        run_dir = discovery[
+            f"{group}:{scenario_id}:{subject.get('profile')}:"
+            f"{subject.get('reasoning_effort')}:s{sample_index}"
+        ]
+        run_record, _ = _collect_run(
+            f"{name}-assessment-s{sample_index}",
+            record,
+            subdir=None,
+            run_dir=run_dir,
             scenario=scenario,
-            dataset=dataset,
+            bundle=bundle,
+            profile=assessor_name,
+            effort=effort,
+            factory=None,
             artifact_root=artifact_root,
             system_messages=system_messages,
             configs=configs,
             runs=runs,
             files=files,
+            cell_prefix=f"{run_prefix}/s{sample_index}",
+            task_files={},
+            reconstruct=False,
+            system_message_key=f"{assessor_name}-assessor",
+            config_key=f"{assessor_name}-assessor-{effort}",
+            config_include_tasks=False,
         )
-    handoff_semantic = _semantic_for(frozen["handoff_semantic_records"], scenario_id)
-    if handoff_semantic is not None:
-        _collect_assessment_record(
-            name="handoff",
-            title="Handoff semantic assessment",
-            record=handoff_semantic,
-            run_dir=discovery[f"handoff_semantic_records:{scenario_id}"],
-            scenario=scenario,
-            dataset=dataset,
-            artifact_root=artifact_root,
-            system_messages=system_messages,
-            configs=configs,
-            runs=runs,
-            files=files,
+        if first_run_record is None:
+            first_run_record = run_record
+    assert first_run_record is not None
+    results_page = f"{run_prefix}/results.md"
+    files.append(
+        CollectedFile(
+            relative_path=results_page,
+            content=_assessment_results_markdown(
+                title=title,
+                kind=name,
+                records=records,
+                target_path=f"scenarios/{scenario_id}/target.md",
+                assessor={
+                    "run_id": first_run_record["run_id"],
+                    "model": first_run_record["model"],
+                    "reasoning_effort": first_run_record["reasoning_effort"],
+                    "config_path": first_run_record["config"],
+                    "system_message": first_run_record["system_message"],
+                },
+                page=results_page,
+                rubric_note=(
+                    "- Rubric: fragmentation uses none/low/medium/high mapped"
+                    " to 100/67/33/0; every other dimension uses"
+                    " none/partial/present mapped to 100/50/0. An"
+                    " assessment's overall success is the equal-weight"
+                    " average of the six dimension scores."
+                    if name == "task-creation"
+                    else "- Rubric: the assessor scores handoff quality 0-100"
+                    " from plan coverage, lost facts, invented scope,"
+                    " rediscovery breadth, documentation and testing"
+                    " boundaries, and whether the plan is self-contained."
+                ),
+            ),
         )
+    )
 
 
 def _record_for(
@@ -1963,7 +2085,7 @@ def _collect_assessment_record(
     record: Mapping[str, Any],
     run_dir: Path,
     scenario,
-    dataset: DatasetSpec,
+    bundle: Path,
     artifact_root: Path,
     system_messages: _SystemMessageStore,
     configs: _ConfigStore,
@@ -1986,7 +2108,7 @@ def _collect_assessment_record(
         subdir=None,
         run_dir=run_dir,
         scenario=scenario,
-        dataset=dataset,
+        bundle=bundle,
         profile=assessor_name,
         effort=effort,
         factory=None,
@@ -2009,7 +2131,7 @@ def _collect_assessment_record(
             content=_assessment_results_markdown(
                 title=title,
                 kind=name,
-                record=record,
+                records=[record],
                 target_path=f"scenarios/{scenario_id}/target.md",
                 assessor={
                     "run_id": run_record["run_id"],
@@ -2040,7 +2162,7 @@ def _assessment_results_markdown(
     *,
     title: str,
     kind: str,
-    record: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
     target_path: str,
     assessor: Mapping[str, Any],
     page: str,
@@ -2077,26 +2199,42 @@ def _assessment_results_markdown(
             "",
         ]
     )
-    for assessment in (record.get("assessment") or {}).get("assessments", ()):
-        # The judgment schema follows the assessment kind, not field presence:
-        # task-creation responses legitimately carry a handoff_quality_score
-        # field because the prompt's JSON shape includes it.
-        if kind == "handoff":
-            lines.extend(_handoff_judgment_markdown(assessment))
-        else:
-            lines.extend(_judgment_markdown(assessment))
-        lines.append("")
-    invalid = record.get("invalid_producer_records") or []
-    if invalid:
-        lines.extend(["## Excluded records", ""])
-        for item in invalid:
-            producer = item.get("producer") or {}
-            reasons = "; ".join(str(r) for r in item.get("invalid_reasons", ()))
-            lines.append(
-                f"- {producer.get('profile')} {producer.get('reasoning_effort')}:"
-                f" {reasons}"
-            )
-        lines.append("")
+    for record in records:
+        for profile, effort, sample_index, assessment in _iter_judgments(record):
+            # The judgment schema follows the assessment kind, not field
+            # presence: task-creation responses legitimately carry a
+            # handoff_quality_score field because the prompt's JSON shape
+            # includes it.
+            if kind == "handoff":
+                lines.extend(
+                    _handoff_judgment_markdown(
+                        assessment,
+                        profile=profile,
+                        effort=effort,
+                        sample_index=sample_index,
+                    )
+                )
+            else:
+                lines.extend(
+                    _judgment_markdown(
+                        assessment,
+                        profile=profile,
+                        effort=effort,
+                        sample_index=sample_index,
+                    )
+                )
+            lines.append("")
+        invalid = record.get("invalid_producer_records") or []
+        if invalid:
+            lines.extend(["## Excluded records", ""])
+            for item in invalid:
+                producer = item.get("producer") or {}
+                reasons = "; ".join(str(r) for r in item.get("invalid_reasons", ()))
+                lines.append(
+                    f"- {producer.get('profile')}"
+                    f" {producer.get('reasoning_effort')}: {reasons}"
+                )
+            lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -2155,12 +2293,24 @@ def _target_markdown(target: Mapping[str, Any]) -> list[str]:
     return lines
 
 
-def _judgment_markdown(assessment: Mapping[str, Any]) -> list[str]:
+def _judgment_markdown(
+    assessment: Mapping[str, Any],
+    *,
+    profile: Any = None,
+    effort: Any = None,
+    sample_index: int | None = None,
+) -> list[str]:
     producer = assessment.get("producer") or {}
     metrics = assessment.get("quality_metrics") or {}
+    heading = (
+        f"### {profile or producer.get('profile')}"
+        f" · {effort or producer.get('reasoning_effort')}"
+        f" — overall {assessment.get('overall_success_percentage')}"
+    )
+    if sample_index is not None:
+        heading += f" (sample {sample_index})"
     lines = [
-        f"### {producer.get('profile')} · {producer.get('reasoning_effort')}"
-        f" — overall {assessment.get('overall_success_percentage')}",
+        heading,
         "",
         f"{assessment.get('actual_task_count')} tasks ·"
         f" {assessment.get('semantic_deliverable_count')} semantic deliverables ·"
@@ -2216,12 +2366,24 @@ def _judgment_markdown(assessment: Mapping[str, Any]) -> list[str]:
     return lines
 
 
-def _handoff_judgment_markdown(assessment: Mapping[str, Any]) -> list[str]:
+def _handoff_judgment_markdown(
+    assessment: Mapping[str, Any],
+    *,
+    profile: Any = None,
+    effort: Any = None,
+    sample_index: int | None = None,
+) -> list[str]:
     producer = assessment.get("producer") or {}
-    lines = [
-        f"### {producer.get('profile')} · {producer.get('reasoning_effort')}"
+    heading = (
+        f"### {profile or producer.get('profile')}"
+        f" · {effort or producer.get('reasoning_effort')}"
         f" ({assessment.get('variant')}, {assessment.get('stage')})"
-        f" — handoff quality {assessment.get('handoff_quality_score')}",
+        f" — handoff quality {assessment.get('handoff_quality_score')}"
+    )
+    if sample_index is not None:
+        heading += f" (sample {sample_index})"
+    lines = [
+        heading,
         "",
         f"- Plan coverage: {assessment.get('plan_coverage')}"
         f" · Documentation boundary: {assessment.get('documentation_boundary')}"
@@ -2266,6 +2428,41 @@ def _handoff_stage_dir(*, variant: Any, stage: Any) -> str | None:
     }.get(variant)
 
 
+def _iter_judgments(
+    record: Mapping[str, Any],
+) -> Iterable[tuple[Any, Any, int | None, Mapping[str, Any]]]:
+    """Yield (profile, effort, sample_index, judgment) for both schemas.
+
+    Historical batched records carry a list of judgments, each echoing
+    its producer; per-subject records carry one judgment with the
+    subject mapping held by the record.
+    """
+
+    assessment = record.get("assessment")
+    if not isinstance(assessment, Mapping):
+        return
+    batch = assessment.get("assessments")
+    if isinstance(batch, list):
+        for judgment in batch:
+            if not isinstance(judgment, Mapping):
+                continue
+            producer = judgment.get("producer") or {}
+            yield (
+                producer.get("profile"),
+                producer.get("reasoning_effort"),
+                None,
+                judgment,
+            )
+        return
+    subject = record.get("subject") or {}
+    yield (
+        subject.get("profile"),
+        subject.get("reasoning_effort"),
+        subject.get("sample_index"),
+        assessment,
+    )
+
+
 def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Project per-assessment judgment details for the matrix views.
 
@@ -2277,18 +2474,16 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
     task_creation: list[dict[str, Any]] = []
     for record in frozen.get("semantic_records", ()):
         scenario_id = record.get("scenario_id")
-        for assessment in (record.get("assessment") or {}).get("assessments", ()):
-            if not isinstance(assessment, Mapping):
-                continue
-            producer = assessment.get("producer") or {}
+        for profile, effort, sample_index, assessment in _iter_judgments(record):
             metrics = assessment.get("quality_metrics") or {}
-            cell = f"{producer.get('profile')}-{producer.get('reasoning_effort')}"
+            cell = f"{profile}-{effort}"
             task_creation.append(
                 {
                     "kind": "task-creation",
                     "scenario_id": scenario_id,
-                    "profile": producer.get("profile"),
-                    "reasoning_effort": producer.get("reasoning_effort"),
+                    "profile": profile,
+                    "reasoning_effort": effort,
+                    "sample_index": sample_index,
                     "overall_success_percentage": assessment.get(
                         "overall_success_percentage"
                     ),
@@ -2309,11 +2504,8 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
     handoff: list[dict[str, Any]] = []
     for record in frozen.get("handoff_semantic_records", ()):
         scenario_id = record.get("scenario_id")
-        for assessment in (record.get("assessment") or {}).get("assessments", ()):
-            if not isinstance(assessment, Mapping):
-                continue
-            producer = assessment.get("producer") or {}
-            cell = f"{producer.get('profile')}-{producer.get('reasoning_effort')}"
+        for profile, effort, sample_index, assessment in _iter_judgments(record):
+            cell = f"{profile}-{effort}"
             stage_dir = _handoff_stage_dir(
                 variant=assessment.get("variant"), stage=assessment.get("stage")
             )
@@ -2328,8 +2520,9 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "scenario_id": scenario_id,
                     "variant": assessment.get("variant"),
                     "stage": assessment.get("stage"),
-                    "profile": producer.get("profile"),
-                    "reasoning_effort": producer.get("reasoning_effort"),
+                    "profile": profile,
+                    "reasoning_effort": effort,
+                    "sample_index": sample_index,
                     "handoff_quality_score": assessment.get("handoff_quality_score"),
                     "plan_coverage": assessment.get("plan_coverage"),
                     "task_self_contained": assessment.get("task_self_contained"),
@@ -2368,24 +2561,38 @@ def _build_index_views(records: PackageRecords) -> list[GeneratedView]:
         f"# {identity.get('label', 'Task-guidance evaluation')} result package",
         "",
         f"- Dataset: `{identity.get('dataset_id')}`",
-        f"- Producer attempt: `{aggregate['attempts']['producer']}`",
-        f"- Handoff attempt: `{aggregate['attempts']['handoff']}`",
-        f"- Semantic attempt: `{aggregate['attempts']['semantic']}`",
-        "",
-        "This package preserves the completed evaluation's reviewed inputs,"
-        " model outputs, execution context, semantic assessments, and usage"
-        " evidence. Every navigation, matrix, and cost view regenerates"
-        " deterministically from the committed records.",
-        "",
-        "## Navigation",
-        "",
-        "- [Quality matrix](matrix.md) — status and semantic dimensions.",
-        "- [Usage and estimated cost](costs.md) — one row per run.",
-        "- [Scenario cells and assessments](#scenarios) below.",
-        "",
-        "## Scenarios",
-        "",
     ]
+    selection = _selection_fields(aggregate)
+    if "attempts" in selection:
+        lines.extend(
+            [
+                f"- Producer attempt: `{aggregate['attempts']['producer']}`",
+                f"- Handoff attempt: `{aggregate['attempts']['handoff']}`",
+                f"- Semantic attempt: `{aggregate['attempts']['semantic']}`",
+            ]
+        )
+    else:
+        lines.append(
+            "- Run labels: " + ", ".join(f"`{item}`" for item in selection["labels"])
+        )
+    lines.extend(
+        [
+            "",
+            "This package preserves the completed evaluation's reviewed inputs,"
+            " model outputs, execution context, semantic assessments, and usage"
+            " evidence. Every navigation, matrix, and cost view regenerates"
+            " deterministically from the committed records.",
+            "",
+            "## Navigation",
+            "",
+            "- [Quality matrix](matrix.md) — status and semantic dimensions.",
+            "- [Usage and estimated cost](costs.md) — one row per run.",
+            "- [Scenario cells and assessments](#scenarios) below.",
+            "",
+            "## Scenarios",
+            "",
+        ]
+    )
     scenario_ids = sorted(
         {
             path.split("/")[1]
@@ -2456,12 +2663,17 @@ def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
     details = aggregate.get("assessment_details", ())
     task_rows = [row for row in details if row.get("kind") == "task-creation"]
     handoff_rows = [row for row in details if row.get("kind") == "handoff"]
+    has_samples = any(
+        row.get("sample_index") is not None for row in (*task_rows, *handoff_rows)
+    )
+    sample_header = " Sample |" if has_samples else ""
+    sample_rule = "---|" if has_samples else ""
     sections: list[str] = []
     if task_rows:
         header = (
             "| Scenario | Producer | Overall | Fragmentation | Phase-only |"
             " Layer split | Evidence reownership | Dependency safety |"
-            " Production crossing | Run | Judgment |"
+            " Production crossing | Run | Judgment |" + sample_header
         )
         lines = [
             "## Task-creation semantic detail",
@@ -2470,7 +2682,7 @@ def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
             " its rows here; dimension cells read `status (score)`.",
             "",
             header,
-            "|---|---|---:|---|---|---|---|---|---|---|---|",
+            "|---|---|---:|---|---|---|---|---|---|---|---|" + sample_rule,
         ]
         for row in task_rows:
             producer = f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip()
@@ -2487,10 +2699,11 @@ def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
                 if run_path
                 else "—"
             )
+            sample_cell = f" s{row.get('sample_index')} |" if has_samples else ""
             lines.append(
                 f"| `{row.get('scenario_id')}` | {producer} | {overall_text}"
                 f" | {dimensions} | {run_link} |"
-                f" [results]({_link(row['results_path'], 'matrix.md')}) |"
+                f" [results]({_link(row['results_path'], 'matrix.md')}) |" + sample_cell
             )
         sections.append("\n".join(lines))
     if handoff_rows:
@@ -2501,8 +2714,8 @@ def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
             "",
             "| Scenario | Variant | Stage | Producer | Handoff quality |"
             " Plan coverage | Self-contained | Broad rediscovery |"
-            " Documentation | Testing | Run | Judgment |",
-            "|---|---|---|---|---:|---|---|---|---|---|---|---|",
+            " Documentation | Testing | Run | Judgment |" + sample_header,
+            "|---|---|---|---|---:|---|---|---|---|---|---|---|" + sample_rule,
         ]
         for row in handoff_rows:
             producer = f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip()
@@ -2515,6 +2728,7 @@ def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
                 if run_path
                 else "—"
             )
+            sample_cell = f" s{row.get('sample_index')} |" if has_samples else ""
             lines.append(
                 f"| `{row.get('scenario_id')}` | {row.get('variant')}"
                 f" | {row.get('stage')} | {producer} | {score_text}"
@@ -2523,7 +2737,7 @@ def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
                 f" | {_yes_no(row.get('broad_rediscovery'))}"
                 f" | {row.get('documentation_boundary')}"
                 f" | {row.get('testing_boundary')} | {run_link} |"
-                f" [results]({_link(row['results_path'], 'matrix.md')}) |"
+                f" [results]({_link(row['results_path'], 'matrix.md')}) |" + sample_cell
             )
         sections.append("\n".join(lines))
     return sections
@@ -2766,7 +2980,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     collect_parser = commands.add_parser(
         "collect", help="collect a durable result package"
     )
-    collect_parser.add_argument("--dataset", choices=sorted(DATASETS), required=True)
     collect_parser.add_argument(
         "--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT
     )
@@ -2779,7 +2992,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             " evaluations no longer live in suite fixtures"
         ),
     )
-    collect_parser.add_argument("--output", type=Path, default=None)
+    collect_parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="package directory to write; its name is the package name",
+    )
+    collect_parser.add_argument(
+        "--bundle",
+        type=Path,
+        default=None,
+        help=(
+            "guidance bundle used for workspace reconstruction; defaults to"
+            " the bundle recorded in the frozen dataset"
+        ),
+    )
     collect_parser.add_argument(
         "--cells",
         nargs="*",
@@ -2808,15 +3035,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(output)
         return 0
     if args.command == "collect":
-        dataset = DATASETS[args.dataset]
-        output = args.output or PACKAGES_ROOT / dataset.package_name
         package = collect(
-            dataset,
-            package_dir=output,
+            package_dir=args.output.expanduser().resolve(),
             artifact_root=args.artifact_root.expanduser().resolve(),
             frozen_path=args.frozen.expanduser().resolve(),
             cells=args.cells,
             reconstruct=not args.no_reconstruction,
+            bundle=args.bundle.expanduser().resolve() if args.bundle else None,
         )
         print(package)
         return 0

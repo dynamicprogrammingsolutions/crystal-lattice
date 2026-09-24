@@ -23,7 +23,6 @@ from ..configuration import DEFAULT_BUNDLE
 from ..fixtures import FIXTURE_VERSION, fixture_sha256
 from ..result_package import (
     QUALITY_DIMENSIONS,
-    DatasetSpec,
     _build_case_views,
     _build_index_views,
     collect,
@@ -31,16 +30,13 @@ from ..result_package import (
 from ..scenarios import SCENARIOS
 from ..topology import task_tree
 
-SYNTHETIC_DATASET = DatasetSpec(
-    key="synthetic",
-    dataset_id="task-guidance-synthetic",
-    label="synthetic package fixture",
-    package_name="synthetic-package",
-    producer_attempt="syn-r1",
-    handoff_attempt="syn-r1",
-    semantic_attempt="syn-m1",
-    bundle=DEFAULT_BUNDLE,
-)
+SYNTHETIC_DATASET_ID = "task-guidance-synthetic"
+SYNTHETIC_LABEL = "synthetic package fixture"
+SYNTHETIC_ATTEMPTS = {
+    "producer": "syn-r1",
+    "handoff": "syn-r1",
+    "semantic": "syn-m1",
+}
 HANDOFF_SCENARIO_ID = "tg02-fastapi-pagination-handoff"
 DECOMPOSITION_SCENARIO_ID = "tg04-flask-vue-discovery-decomposition"
 SYNTHETIC_CELLS = (
@@ -107,6 +103,9 @@ def _session(
     return {"session_id": f"session-{run_id}", "messages": messages, "metadata": {}}
 
 
+SYNTHETIC_RUN_LABEL = "syn-r1"
+
+
 def _write_run(
     root: Path,
     *,
@@ -132,6 +131,22 @@ def _write_run(
     )
     (run_dir / "records" / record_name).write_text(
         json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    (run_dir / "records" / "run-model.json").write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "label": SYNTHETIC_RUN_LABEL,
+                "identity": f"identity-{run_id}",
+                "cache_hit": False,
+                "sample_index": 0,
+                "run_id": run_id,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
     )
     (run_dir / "raw" / "environment" / "crystal-lattice-session.json").write_text(
         json.dumps(session, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -181,7 +196,7 @@ def _producer_record(
     task_files = {f"tasks/synthetic-{scenario_id}.md": task_file}
     return {
         "schema_version": 1,
-        "dataset_id": SYNTHETIC_DATASET.dataset_id,
+        "dataset_id": SYNTHETIC_DATASET_ID,
         "scenario_id": scenario_id,
         "category": scenario.category,
         "project": scenario.target["project"],
@@ -197,7 +212,7 @@ def _producer_record(
             "model": "glm-5.3-flash:cloud",
             "reasoning_effort": "max",
         },
-        "run_attempt": SYNTHETIC_DATASET.producer_attempt,
+        "run_attempt": SYNTHETIC_ATTEMPTS["producer"],
         "changed_paths": sorted(task_files),
         "task_files": task_files,
         "task_tree": task_tree(task_files),
@@ -218,7 +233,7 @@ def _handoff_record(scenario_id: str, *, variant: str, response: str) -> dict[st
     }
     return {
         "schema_version": 1,
-        "dataset_id": SYNTHETIC_DATASET.dataset_id,
+        "dataset_id": SYNTHETIC_DATASET_ID,
         "scenario_id": scenario_id,
         "variant": variant,
         "target": scenario.target,
@@ -228,7 +243,7 @@ def _handoff_record(scenario_id: str, *, variant: str, response: str) -> dict[st
             "model": "glm-5.3-flash:cloud",
             "reasoning_effort": "max",
         },
-        "run_attempt": SYNTHETIC_DATASET.handoff_attempt,
+        "run_attempt": SYNTHETIC_ATTEMPTS["handoff"],
         "task_files": task_files,
         "tool_metrics": _tool_metrics(),
         "delivery": _delivery("synthetic compiled guidance"),
@@ -242,7 +257,7 @@ def _continuation_record(scenario_id: str, *, response: str) -> dict[str, Any]:
     scenario = _scenario(scenario_id)
     return {
         "schema_version": 1,
-        "dataset_id": SYNTHETIC_DATASET.dataset_id,
+        "dataset_id": SYNTHETIC_DATASET_ID,
         "scenario_id": scenario_id,
         "target": scenario.target,
         "producer": {
@@ -250,7 +265,7 @@ def _continuation_record(scenario_id: str, *, response: str) -> dict[str, Any]:
             "model": "glm-5.3-flash:cloud",
             "reasoning_effort": "max",
         },
-        "run_attempt": SYNTHETIC_DATASET.producer_attempt,
+        "run_attempt": SYNTHETIC_ATTEMPTS["producer"],
         "task_files": {
             f"tasks/synthetic-{scenario_id}.md": (
                 "# Synthetic continuation task\n\nContinues the plan.\n"
@@ -267,7 +282,7 @@ def _continuation_record(scenario_id: str, *, response: str) -> dict[str, Any]:
 def _control_record(scenario_id: str, *, response: str) -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "dataset_id": SYNTHETIC_DATASET.dataset_id,
+        "dataset_id": SYNTHETIC_DATASET_ID,
         "scenario_id": scenario_id,
         "variant": "incomplete",
         "producer": {
@@ -275,7 +290,7 @@ def _control_record(scenario_id: str, *, response: str) -> dict[str, Any]:
             "model": "glm-5.3-flash:cloud",
             "reasoning_effort": "max",
         },
-        "run_attempt": SYNTHETIC_DATASET.handoff_attempt,
+        "run_attempt": SYNTHETIC_ATTEMPTS["handoff"],
         "task_files": {
             f"tasks/synthetic-{scenario_id}-incomplete.md": (
                 "# Incomplete handoff\n\nAdd pagination somehow.\n"
@@ -355,10 +370,10 @@ def _semantic_record(
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "dataset_id": SYNTHETIC_DATASET.dataset_id,
+        "dataset_id": SYNTHETIC_DATASET_ID,
         "scenario_id": scenario_id,
-        "producer_attempt": SYNTHETIC_DATASET.producer_attempt,
-        "semantic_attempt": SYNTHETIC_DATASET.semantic_attempt,
+        "producer_attempt": SYNTHETIC_ATTEMPTS["producer"],
+        "semantic_attempt": SYNTHETIC_ATTEMPTS["semantic"],
         "producer_records": [producer_record],
         "invalid_producer_records": [],
         "assessment": {
@@ -382,11 +397,11 @@ def _handoff_semantic_record(
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "dataset_id": SYNTHETIC_DATASET.dataset_id,
+        "dataset_id": SYNTHETIC_DATASET_ID,
         "scenario_id": scenario_id,
-        "producer_attempt": SYNTHETIC_DATASET.producer_attempt,
-        "handoff_attempt": SYNTHETIC_DATASET.handoff_attempt,
-        "semantic_attempt": SYNTHETIC_DATASET.semantic_attempt,
+        "producer_attempt": SYNTHETIC_ATTEMPTS["producer"],
+        "handoff_attempt": SYNTHETIC_ATTEMPTS["handoff"],
+        "semantic_attempt": SYNTHETIC_ATTEMPTS["semantic"],
         "fresh_records": fresh_records,
         "same_agent_records": [same_agent_record],
         "assessment": {
@@ -431,13 +446,9 @@ def _synthetic_frozen(
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "dataset_id": SYNTHETIC_DATASET.dataset_id,
-        "label": SYNTHETIC_DATASET.label,
-        "attempts": {
-            "producer": SYNTHETIC_DATASET.producer_attempt,
-            "handoff": SYNTHETIC_DATASET.handoff_attempt,
-            "semantic": SYNTHETIC_DATASET.semantic_attempt,
-        },
+        "dataset_id": SYNTHETIC_DATASET_ID,
+        "label": SYNTHETIC_LABEL,
+        "attempts": dict(SYNTHETIC_ATTEMPTS),
         "status": {
             "producers": {
                 "expected": len(producer_records),
@@ -682,35 +693,51 @@ def _build_synthetic_evaluation(root: Path) -> dict[str, Path]:
     frozen_path.write_text(
         json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    return {"artifact_root": artifact_root, "frozen_path": frozen_path}
+    return {
+        "artifact_root": artifact_root,
+        "frozen_path": frozen_path,
+        "frozen": frozen,
+        "producer_records": [handoff_producer, decomposition_producer],
+        "handoff_records": [retain, omit],
+        "continuation_record": continuation,
+        "control_record": control,
+        "semantic_records": semantic_records,
+        "handoff_semantic_record": handoff_semantic_record,
+        "bundle": DEFAULT_BUNDLE,
+    }
 
 
 def _collect_synthetic(root: Path, *, name: str = "package") -> Path:
     paths = _build_synthetic_evaluation(root)
     package_dir = root / name
     collect(
-        SYNTHETIC_DATASET,
         package_dir=package_dir,
         artifact_root=paths["artifact_root"],
         frozen_path=paths["frozen_path"],
         cells=list(SYNTHETIC_CELLS),
+        bundle=DEFAULT_BUNDLE,
     )
     return package_dir
 
 
 def _collect_twice(root: Path) -> tuple[Path, Path]:
-    """Collect the same synthetic evaluation into two package directories."""
+    """Collect the same synthetic evaluation into two package directories.
+
+    Both directories share the leaf name: the package name is the output
+    directory name, so differently named directories would legitimately
+    produce different manifests.
+    """
 
     paths = _build_synthetic_evaluation(root)
     packages = []
-    for name in ("package-1", "package-2"):
-        package_dir = root / name
+    for parent in ("first", "second"):
+        package_dir = root / parent / "package"
         collect(
-            SYNTHETIC_DATASET,
             package_dir=package_dir,
             artifact_root=paths["artifact_root"],
             frozen_path=paths["frozen_path"],
             cells=list(SYNTHETIC_CELLS),
+            bundle=DEFAULT_BUNDLE,
         )
         packages.append(package_dir)
     return packages[0], packages[1]
@@ -899,11 +926,11 @@ def test_collect_reports_missing_raw_run(tmp_path: Path) -> None:
 
     try:
         collect(
-            SYNTHETIC_DATASET,
             package_dir=tmp_path / "package",
             artifact_root=paths["artifact_root"],
             frozen_path=paths["frozen_path"],
             cells=list(SYNTHETIC_CELLS),
+            bundle=DEFAULT_BUNDLE,
         )
     except FileNotFoundError as error:
         assert "task-guidance-negative-control.json" in str(error)
