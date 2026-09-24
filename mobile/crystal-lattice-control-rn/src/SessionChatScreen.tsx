@@ -138,6 +138,7 @@ import {
   MobileDisplayHost,
   useNotificationDismissalCache,
 } from "./components/GlobalDisplayLayer";
+import { useHumanTimeTelemetry } from "./humanTimeTelemetry/HumanTimeTelemetryProvider";
 import AttachmentViewerHost from "./components/AttachmentViewerHost";
 import type { DebugTimelineEntry } from "./debugTimeline";
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from "./messageActions";
@@ -496,6 +497,7 @@ const ChatTranscript = React.memo(
                   <SelectablePlainText
                     text={statusBarParts.join("   ")}
                     style={styles.statusBarText}
+                    testID="session-status-bar"
                   />
                 </View>
               );
@@ -606,6 +608,7 @@ type ChatComposerProps = {
   isActive: boolean;
   renderPinnedComposerAction?: (params: any) => React.ReactNode | undefined;
   onSend: (text: string) => Promise<boolean>;
+  onUserActivity?: () => void;
 };
 
 const ChatComposer = React.memo(
@@ -634,6 +637,7 @@ const ChatComposer = React.memo(
       isActive,
       renderPinnedComposerAction,
       onSend,
+      onUserActivity,
     },
     ref
   ) {
@@ -663,8 +667,9 @@ const ChatComposer = React.memo(
         composeTextRef.current = text;
         setComposeText(text);
         onDraftTextChange(text);
+        onUserActivity?.();
       },
-      [onDraftTextChange]
+      [onDraftTextChange, onUserActivity]
     );
     const attachmentsDisabled =
       !!selectedSnapshotId || attachmentActionInProgress;
@@ -853,6 +858,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
+  const { recordActivity: recordHumanTimeActivity } = useHumanTimeTelemetry();
+  const recordSessionActivity = useCallback(
+    () => recordHumanTimeActivity(sessionId),
+    [recordHumanTimeActivity, sessionId]
+  );
   const {
     hydrated: homeWorkspaceHydrated,
     isWatched,
@@ -3469,6 +3479,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   ]);
 
   const handleSend = async (draftText: string): Promise<boolean> => {
+    recordSessionActivity();
     if (selectedSnapshotId) {
       Alert.alert(
         "Read-only snapshot",
@@ -4544,8 +4555,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     (state: InvertedTranscriptScrollState) => {
       bottomGapPxRef.current = state.bottomGapPx;
       pinnedToBottomRef.current = state.pinnedToBottom;
+      recordSessionActivity();
     },
-    []
+    [recordSessionActivity]
   );
 
   const firstLoadedMessageIndex =
@@ -4837,6 +4849,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 onPress={handleBack}
                 accessibilityRole="button"
                 accessibilityLabel="Back to sessions"
+                testID="messages-back-to-sessions"
               >
                 <Icon name="arrow-left" size={22} color={theme.primary} />
               </TouchableOpacity>
@@ -5143,6 +5156,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           isActive={isActive}
           renderPinnedComposerAction={renderPinnedComposerSessionAction}
           onSend={handleSend}
+          onUserActivity={recordSessionActivity}
         />
 
         <ComposerAttachmentsManageModal

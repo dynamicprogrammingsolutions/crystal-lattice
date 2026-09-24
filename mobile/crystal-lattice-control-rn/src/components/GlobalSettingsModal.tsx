@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   CODE_BLOCK_RENDERER_OPTIONS,
   MARKDOWN_BASE_FONT_SIZE_OPTIONS,
@@ -16,7 +16,10 @@ import OptionsPickerModal, { type OptionItem } from './OptionsPickerModal';
 import PanelModalFrame from './PanelModalFrame';
 import { useTheme, type Theme } from '../theme';
 import { useHomeWorkspace } from '../HomeWorkspaceContext';
-import type { RecentSessionsWindow } from '../homeWorkspaceState';
+import {
+  DEFAULT_TIME_TRACKING_PLUGIN_ID,
+  type RecentSessionsWindow,
+} from '../homeWorkspaceState';
 import { resolveMobileMarkdownRendererPreferences } from '../markdownRendererPreferences';
 
 interface GlobalSettingsModalProps {
@@ -73,7 +76,14 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { preferences, setPreferences } = useMarkdownDisplayPreferences();
-  const { recentSessionsWindow, setRecentSessionsWindow } = useHomeWorkspace();
+  const {
+    recentSessionsWindow,
+    setRecentSessionsWindow,
+    timeTrackingEnabled,
+    timeTrackingPluginId,
+    setTimeTrackingEnabled,
+    setTimeTrackingPluginId,
+  } = useHomeWorkspace();
   const [picker, setPicker] = useState<SettingsPicker | null>(null);
   const options = optionItems(picker);
   const resolvedRenderers =
@@ -249,6 +259,31 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
             </Text>
           </TouchableOpacity>
         </View>
+        <View style={styles.settingRow}>
+          <Text style={styles.label}>Time tracking</Text>
+          <Switch
+            testID="global-settings-time-tracking-toggle"
+            accessibilityLabel="Time tracking"
+            value={timeTrackingEnabled}
+            onValueChange={(value) => setTimeTrackingEnabled(value)}
+          />
+        </View>
+        <View style={styles.settingRow}>
+          <Text style={styles.label}>Telemetry plugin</Text>
+          <TextInput
+            testID="global-settings-telemetry-plugin-input"
+            accessibilityLabel="Telemetry plugin"
+            style={styles.pluginInput}
+            value={timeTrackingPluginId}
+            onChangeText={(value) =>
+              setTimeTrackingPluginId(
+                value.trim() || DEFAULT_TIME_TRACKING_PLUGIN_ID,
+              )
+            }
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
     </PanelModalFrame>
   );
 };
@@ -285,6 +320,20 @@ const createStyles = (theme: Theme) =>
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
       textAlign: 'center',
+    },
+    pluginInput: {
+      minWidth: 120,
+      maxWidth: '62%',
+      flexShrink: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      backgroundColor: theme.surfaceAlt,
+      color: theme.text,
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
     },
     fallbackText: {
       color: theme.textSecondary,

@@ -28,6 +28,7 @@ import { useHomeWorkspace } from './HomeWorkspaceContext';
 import { deriveHomeSessionCollections } from './homeWorkspaceState';
 import { MobileConnectionSessionStatusReader } from './connectionSessionStatusReader';
 import { useSessionRequestStatuses } from './useSessionRequestStatuses';
+import { HumanTimeTelemetryProvider } from './humanTimeTelemetry/HumanTimeTelemetryProvider';
 import EmbeddedRuntimeSettingsModal from './embeddedRuntime/EmbeddedRuntimeSettingsModal';
 import type { EmbeddedRuntimePublicConfiguration } from './embeddedRuntime/embeddedPythonRuntime';
 
@@ -180,6 +181,26 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     onMissingSessionIds: handleMissingSessionIds,
   });
 
+  // Human time telemetry defers uploads while the active connection has
+  // in-flight request work (a running status or an active request id).
+  const isConnectionBusy = useMemo(() => {
+    if (!activeConnectionId) return false;
+    const statuses = statusesByConnection[activeConnectionId];
+    if (
+      statuses &&
+      Object.values(statuses).some((status) => status.state === 'running')
+    ) {
+      return true;
+    }
+    const bySession = messagesCache[activeConnectionId];
+    if (bySession) {
+      for (const entry of Object.values(bySession)) {
+        if (entry.activeRequestId) return true;
+      }
+    }
+    return false;
+  }, [activeConnectionId, messagesCache, statusesByConnection]);
+
   useEffect(() => {
     if (!homeWorkspaceHydrated || connectionsLoading) return;
     const savedConnectionIds = new Set(connections.map((connection) => connection.id));
@@ -258,6 +279,11 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         <GlobalDisplayLayer
           backend={backend}
           connectionId={activeConnectionId}
+        >
+        <HumanTimeTelemetryProvider
+          backend={backend}
+          connectionId={activeConnectionId}
+          isBusy={isConnectionBusy}
         >
         <View style={styles.contentArea} testID="connected-root-content">
         <View
@@ -514,6 +540,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           )}
         </View>
         </View>
+        </HumanTimeTelemetryProvider>
         </GlobalDisplayLayer>
       </ApplicationPluginsProvider>
 

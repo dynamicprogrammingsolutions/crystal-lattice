@@ -63,6 +63,7 @@ import {
   useSessionsController,
 } from "@crystal-lattice/frontend-sdk-react";
 import { useTheme, type Theme } from "./theme";
+import { useHumanTimeTelemetry } from "./humanTimeTelemetry/HumanTimeTelemetryProvider";
 import SessionSettingsModal from "./components/SessionSettingsModal";
 import ServerSettingsModal from "./components/ServerSettingsModal";
 import SessionPluginsModal from "./components/SessionPluginsModal";
@@ -176,6 +177,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { recordActivity: recordHumanTimeActivity } = useHumanTimeTelemetry();
+  const recordSessionlessActivity = useCallback(() => {
+    recordHumanTimeActivity(null);
+  }, [recordHumanTimeActivity]);
   const maxHeaderPinnedActions = getMobileHeaderMaxPinnedActions(windowWidth);
   const actionDialogFieldRenderers =
     useMobileApplicationActionDialogFieldRenderers();
@@ -343,18 +348,21 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         label: "Server settings",
         iconName: "settings",
         kind: "builtin",
+        testID: "sessions-header-action-server-settings",
       },
       {
         key: "refreshSessions",
         label: "Refresh sessions",
         iconName: "refresh-cw",
         kind: "builtin",
+        testID: "sessions-header-action-refresh",
       },
       {
         key: "newSession",
         label: "New session",
         iconName: "plus",
         kind: "builtin",
+        testID: "sessions-header-action-new-session",
       },
       ...applicationActions.map((element) => ({
         key: applicationActionKey(element.plugin, element.id),
@@ -839,7 +847,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         key={s.session_id}
         style={styles.sessionItem}
         testID={`session-row-${s.session_id}`}
-        onPress={() => navigateToSession(s.session_id)}
+        onPress={() => {
+          recordSessionlessActivity();
+          navigateToSession(s.session_id);
+        }}
       >
         <View style={styles.sessionHeaderRow}>
           {headerLeadingAction ? (
@@ -1128,6 +1139,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         data={filteredSessions}
         keyExtractor={(item) => item.session_id}
         renderItem={({ item }) => renderSessionItem(item)}
+        onScroll={recordSessionlessActivity}
+        onScrollBeginDrag={recordSessionlessActivity}
       />
 
       <Modal

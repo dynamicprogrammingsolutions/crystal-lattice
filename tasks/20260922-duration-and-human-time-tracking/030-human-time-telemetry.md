@@ -260,7 +260,7 @@ Options for the telemetry discovery:
 
 ## Execution plan — Phase B: frontend collection and upload (mobile app)
 
-Status: Draft
+Status: Approved (user, 2026-09-25 — "proceed to the next step" after Phase A landed and was committed as 72bf88c8; execution starts at chunk 1. Direction: stop before the first XCTest run for desktop approval; Detox runs do not need confirmation.)
 
 Scope: the RN mobile app (`mobile/crystal-lattice-control-rn`) tracks user activity as spans (frontend-computed durations), buffers them durably, and uploads them in batches through the ingestion action landed in Phase A. Desktop and terminal collectors remain follow-up consumers of the same contract (explicit exclusion). Phase A lands and is tested first; this phase starts after the plugin stage is verified (user direction, 2026-09-24).
 
@@ -334,12 +334,12 @@ New `e2e/humanTimeTelemetry.e2e.test.ts` + `detox:test:human-time:ios` / `detox:
 ### Task checklist
 
 - [x] Discovery mechanism decision (user, 2026-09-24 — frontend-owned explicit config; recorded in both phases)
-- [ ] Phase A landed and verified (dependency)
-- [ ] Chunk 1: span tracker core + cache (red/green)
-- [ ] Chunk 2: uploader/scheduler
-- [ ] Chunk 3: opt-in + plugin config + warning
-- [ ] Chunk 4: span collectors + app wiring
-- [ ] Chunk 5: e2e Detox (real app + real server + real plugin)
+- [x] Phase A landed and verified (dependency) (committed as 72bf88c8)
+- [x] Chunk 1: span tracker core + cache (red/green — 16 tests; burst open/extend, inactivity close with from/to = first/last activity, surface switch, null-session attribution, zero-duration spans, dispose; per-connection AsyncStorage cache with serialized appends, remove-first-after-confirm, restart survival, malformed-state self-heal, 5000-span soft cap, storage-failure drop via injectable store)
+- [x] Chunk 2: uploader/scheduler (red/green — 11 tests; batched drain with per-batch content-derived request ids stable across retries, busy/disabled/no-connection deferral, definitive 404/400 classification with one-shot warning hook, transient retention, close-debounce coalescing, max-age check, per-connection targeting, exact action shape)
+- [x] Chunk 3: opt-in + plugin config + warning (red/green — 6 tests; `timeTrackingEnabled`/`timeTrackingPluginId` in MobileGlobalPreferences with normalize + defaults, HomeWorkspace setters + persistence, GlobalSettingsModal toggle + telemetry-plugin rows, warning banner envelope via the standard display pipeline with a stable display id; full mobile suite 239 green)
+- [x] Chunk 4: span collectors + app wiring (red/green — 5 provider tests: gating by the toggle, activity→span→inactivity close→debounced upload with the exact action shape, null-session attribution, connection-open busy deferral with idle retry, one-time warning banner on definitive failure with span retention; collectors wired: composer typing + transcript scroll + send in SessionChatScreen, list scroll + row taps in SessionsScreen; provider mounted in ConnectedRoot with running-status/active-request busy derivation; full mobile suite 244 green, tsc clean)
+- [ ] Chunk 5: e2e Detox (real app + real server + real plugin) — SPLIT (user, 2026-09-24): the jest integration half landed here (`__integration__/humanTimeSpanUpload.realBackend.integration.test.ts`, 3 tests green: upload + finalize surfacing from stored entries, request-id retry dedup, definitive-failure classification + retention); the Detox half moved to `tasks/20260922-duration-and-human-time-tracking/031-human-time-detox-e2e.md` (handed to another agent)
 - [ ] Chunk 6: docs + mobile suite sweep
 
 ### Requirement verification

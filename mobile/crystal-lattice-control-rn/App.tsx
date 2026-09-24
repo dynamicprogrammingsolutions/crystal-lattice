@@ -1260,6 +1260,7 @@ function App(): React.JSX.Element {
       ) : null}
       
       <TouchableOpacity
+        testID="connection-method-manual"
         style={[styles.button, styles.methodButton]}
         onPress={() => selectMethod('manual')}>
         <Text style={styles.buttonText}>Manual Address</Text>
@@ -1380,6 +1381,7 @@ function App(): React.JSX.Element {
       <Text style={styles.title}>Manual Connection</Text>
       
       <TextInput
+        testID="manual-host-input"
         style={styles.input}
         placeholder="Host (e.g., 192.168.1.100)"
         value={manualHost}
@@ -1387,8 +1389,9 @@ function App(): React.JSX.Element {
         autoCapitalize="none"
         autoCorrect={false}
       />
-      
+
       <TextInput
+        testID="manual-port-input"
         style={styles.input}
         placeholder="Port (e.g., 8080)"
         value={manualPort}
@@ -1397,6 +1400,7 @@ function App(): React.JSX.Element {
       />
 
       <TouchableOpacity
+        testID="manual-connect-button"
         style={[styles.button, styles.primaryButton]}
         onPress={connectManual}
         disabled={isLoading}>
