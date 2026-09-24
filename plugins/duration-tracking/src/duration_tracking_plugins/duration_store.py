@@ -1,9 +1,13 @@
 """SQLite store for the duration tracking plugin.
 
-The store records one row per measured provider request in
-``duration_requests``. The ``tool_durations`` table ships with the same
-schema so the tool-call recording (which the same package adds on the
-framework's ``finalize_tool_call`` seam) needs no migration. It supports
+The store records one row per measured provider call (LLM round) in
+``duration_requests``. Tool loops run one finalize per LLM round under a
+single request id, so rows are deduplicated by their measurement stamps
+(``duration_started_at``/``duration_finished_at``), not by request id —
+the same granularity the cost store uses with its per-response rows. The
+``tool_durations`` table ships with the same schema so the tool-call
+recording (which the same package adds on the framework's
+``finalize_tool_call`` seam) needs no migration. It supports
 the aggregations the plugin needs:
 
 - session totals filtered by (working_directory, session_id) for the
@@ -53,10 +57,20 @@ _SCHEMA_STATEMENTS = (
         duration_finished_at TEXT
     )
     """,
+    # Migration: the original unique index on request_id alone recorded
+    # only the first LLM round of tool-loop requests, because every
+    # round of one user request shares the same request id. Rounds are
+    # now keyed by their measurement stamps (unique per provider call),
+    # matching the cost store's one-row-per-response granularity.
     """
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_duration_requests_request_id
-    ON duration_requests(request_id)
-    WHERE request_id IS NOT NULL
+    DROP INDEX IF EXISTS idx_duration_requests_request_id
+    """,
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_duration_requests_round
+    ON duration_requests(
+        working_directory, session_id, duration_started_at, duration_finished_at
+    )
+    WHERE duration_started_at IS NOT NULL AND duration_finished_at IS NOT NULL
     """,
     """
     CREATE INDEX IF NOT EXISTS idx_duration_requests_session
@@ -176,13 +190,14 @@ def record_request_duration(
     duration_finished_at: Optional[str] = None,
     time: Optional[str] = None,
 ) -> bool:
-    """Record one measured provider request row.
+    """Record one measured provider call (LLM round) row.
 
-    Returns ``False`` when the request id was already recorded so
-    re-finalize and rebuild paths never duplicate rows. Rows without a
-    request id do not dedup (SQLite unique indexes treat NULLs as
-    distinct); callers that always carry a request context never hit
-    that case.
+    Rows dedup by (working_directory, session_id, duration_started_at,
+    duration_finished_at) so re-finalize and rebuild paths never
+    duplicate a round, while the later rounds of a tool-loop request
+    (same request id, different stamps) each get their own row. Rows
+    without measurement stamps do not dedup (SQLite unique indexes
+    treat NULLs as distinct).
     """
 
     values: Dict[str, Any] = {
@@ -211,7 +226,7 @@ def record_request_duration(
                 conn.commit()
                 return True
             except sqlite3.IntegrityError:
-                # Unique request id already recorded.
+                # Identical round (same session + stamps) already recorded.
                 conn.rollback()
                 return False
         finally:

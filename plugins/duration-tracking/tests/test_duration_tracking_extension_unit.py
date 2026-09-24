@@ -19,10 +19,16 @@ from duration_tracking_plugins.duration_tracking_extension import (
 )
 
 
-def _assistant_final(duration_ms: int = 1200, **md_overrides: Any) -> Dict[str, Any]:
+def _assistant_final(
+    duration_ms: int = 1200,
+    *,
+    started_at: str = "2026-01-01T00:00:00+00:00",
+    finished_at: str = "2026-01-01T00:00:01.200000+00:00",
+    **md_overrides: Any,
+) -> Dict[str, Any]:
     md: Dict[str, Any] = {
-        "duration_started_at": "2026-01-01T00:00:00+00:00",
-        "duration_finished_at": "2026-01-01T00:00:01.200000+00:00",
+        "duration_started_at": started_at,
+        "duration_finished_at": finished_at,
         "duration_ms": duration_ms,
         "duration_formatted": "1.2s",
         "turn_duration_ms": duration_ms,
@@ -143,7 +149,13 @@ def test_finalize_accumulates_totals_across_requests(tmp_path: Path) -> None:
     finals_one = [_assistant_final(1200)]
     _finalize(feature, finals_one, _native_history(finals_one), _state(db_path))
 
-    finals_two = [_assistant_final(300)]
+    finals_two = [
+        _assistant_final(
+            300,
+            started_at="2026-01-01T00:05:00+00:00",
+            finished_at="2026-01-01T00:05:00.300000+00:00",
+        )
+    ]
     new_finals, _, _ = _finalize(
         feature,
         finals_two,
@@ -176,13 +188,17 @@ def test_finalize_guard_skips_already_processed_finals(tmp_path: Path) -> None:
     assert _internal(again_finals[0]) == _internal(stamped_finals[0])
 
 
-def test_finalize_dedupes_by_request_id_via_unique_index(tmp_path: Path) -> None:
+def test_finalize_dedupes_identical_round_stamps_via_unique_index(
+    tmp_path: Path,
+) -> None:
+    """Fresh unstamped finals bypass the already-processed guard; only the
+    unique round key (session + measurement stamps) stops the duplicate
+    row when the same round is finalized again."""
+
     db_path = tmp_path / "durations.sqlite3"
     feature = DurationTrackingExtension()
     state = _state(db_path)
 
-    # Fresh unstamped finals bypass the already-processed guard; only the
-    # unique request id stops the duplicate row.
     finals_one = [_assistant_final(1200)]
     _finalize(feature, finals_one, _native_history(finals_one), state)
     finals_two = [_assistant_final(999)]
@@ -197,6 +213,45 @@ def test_finalize_dedupes_by_request_id_via_unique_index(tmp_path: Path) -> None
     assert _internal(new_finals[0])["duration_session_total"] == 1200
 
 
+def test_finalize_records_every_tool_loop_round_under_one_request_id(
+    tmp_path: Path,
+) -> None:
+    """Tool loops finalize once per LLM round under a single request id.
+
+    Every round must get its own store row (keyed by its measurement
+    stamps) so the session totals keep growing during the loop instead
+    of freezing at the first round's snapshot.
+    """
+
+    db_path = tmp_path / "durations.sqlite3"
+    feature = DurationTrackingExtension()
+    state = _state(db_path)
+
+    rounds = [
+        (1200, "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:01.200000+00:00"),
+        (300, "2026-01-01T00:00:05+00:00", "2026-01-01T00:00:05.300000+00:00"),
+        (450, "2026-01-01T00:00:10+00:00", "2026-01-01T00:00:10.450000+00:00"),
+    ]
+    new_finals: List[Dict[str, Any]] = []
+    for duration_ms, started_at, finished_at in rounds:
+        finals = [
+            _assistant_final(
+                duration_ms, started_at=started_at, finished_at=finished_at
+            )
+        ]
+        new_finals, _, _ = _finalize(feature, finals, _native_history(finals), state)
+
+    rows = _request_rows(db_path)
+    assert len(rows) == 3
+    assert [row["duration_ms"] for row in rows] == [1200, 300, 450]
+    # All three rounds share the request id; the stamps separate them.
+    assert {row["request_id"] for row in rows} == {"req-1"}
+
+    internal = _internal(new_finals[0])
+    assert internal["duration_session_total"] == 1950
+    assert internal["duration_session_requests"] == 3
+
+
 def test_finalize_appends_summary_csv_row(tmp_path: Path) -> None:
     import csv
 
@@ -204,7 +259,13 @@ def test_finalize_appends_summary_csv_row(tmp_path: Path) -> None:
     feature = DurationTrackingExtension()
     finals = [_assistant_final(1200)]
     _finalize(feature, finals, _native_history(finals), _state(db_path))
-    finals_two = [_assistant_final(300)]
+    finals_two = [
+        _assistant_final(
+            300,
+            started_at="2026-01-01T00:05:00+00:00",
+            finished_at="2026-01-01T00:05:00.300000+00:00",
+        )
+    ]
     _finalize(
         feature,
         finals_two,

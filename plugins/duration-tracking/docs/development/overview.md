@@ -4,12 +4,12 @@ Generic, provider-agnostic duration tracking for the Crystal Lattice
 platform.
 
 The timestamp extension's duration feature (`DurationExtension`,
-`plugins/timestamp-extension`) measures each provider request and stamps
+`plugins/timestamp-extension`) measures each provider call and stamps
 the duration facts (`duration_ms`, `duration_started_at`,
 `duration_finished_at`) onto the assistant owner message in
 provider-native `_metadata`. This plugin records one row per measured
-request into a SQLite store, feeds the chat status bar a store-backed
-session total, and exposes a report action.
+provider call (LLM round) into a SQLite store, feeds the chat status
+bar a store-backed session total, and exposes a report action.
 
 Measurement stays in the duration feature; the tracking plugin never
 measures time itself. It runs after the duration feature in the feature
@@ -19,7 +19,8 @@ in place.
 ## Components
 
 - `DurationTrackingExtension` (feature plugin, no capability tags — works
-  for every provider): records one row per measured request and one row
+  for every provider): records one row per measured provider call (LLM
+  round) and one row
   per executed tool call, and stamps the store-backed session totals
   into message metadata — LLM totals (`duration_session_total`,
   `duration_session_total_formatted`, `duration_session_requests`,
@@ -47,11 +48,17 @@ application-level one).
 
 Tables:
 
-- `duration_requests` — one row per measured provider request: `time`
-  (the request's `duration_finished_at` stamp), `session_id`,
-  `working_directory`, `model`, `request_id` (unique — re-finalize and
-  rebuild paths cannot duplicate rows), `duration_ms`,
-  `duration_started_at`, `duration_finished_at`.
+- `duration_requests` — one row per measured provider call (LLM round):
+  `time` (the round's `duration_finished_at` stamp), `session_id`,
+  `working_directory`, `model`, `request_id` (grouping key — all rounds
+  of a tool-loop request share it), `duration_ms`,
+  `duration_started_at`, `duration_finished_at`. The partial unique
+  index `(working_directory, session_id, duration_started_at,
+  duration_finished_at)` means "one row per round per session", so
+  re-finalize and rebuild paths cannot duplicate a round while every
+  round of a tool loop records; rows without measurement stamps do not
+  dedup. The count basis matches the cost store's per-response rows:
+  `requests:` counts LLM calls.
 - `tool_durations` — one row per executed tool call (recorded by the same
   package on the framework's `finalize_tool_call` seam): the request
   columns plus `tool_call_id`, `tool_name`, `tool_plugin`, and
@@ -72,11 +79,13 @@ request pipeline.
 
 ## Recording seams
 
-- **Request rows** — the feature's `finalize` scans the request's final
+- **Request rows** — the feature's `finalize` scans the round's final
   messages for the duration feature's full stamp triple
   (`duration_ms` plus both timestamps), records the row, and stamps the
   session totals onto the finals and the matching native-tail entries.
-  Requests without assistant finals (or with the duration feature
+  Finalize runs once per LLM round (tool loops share one request id
+  across rounds; the round stamps separate the rows). Requests without
+  assistant finals (or with the duration feature
   disabled) record nothing.
 - **Tool rows** — the feature's `finalize_tool_call` records from the
   per-call stamps on the tool-result message it receives in the chain;
@@ -119,6 +128,31 @@ load that session's resolved config (the same keying as the LLM/tool
 rows; unknown sessions skip); session-less spans use the
 `application.duration_tracking.working_directory` config value — without
 it they cannot be keyed and skip.
+
+### Frontend collection (mobile)
+
+The mobile app owns collection (see its
+`docs/development/human-time-telemetry.md` for module ownership):
+
+- **Opt-in.** Collection is off by default; the `Time tracking` toggle in
+  the app's global settings enables it. The telemetry plugin id is a
+  frontend-owned text setting next to the toggle (default
+  `duration_tracking_app`) — the frontend does not discover the plugin.
+- **Spans.** Composer typing, transcript scrolling, and sending record
+  activity on the open session; session-list scrolling and row taps record
+  session-less activity (`session_id: null`). An activity burst opens a
+  span; 30s of inactivity closes it; leaving the foreground closes the
+  open span.
+- **Retention and batching.** Spans persist in per-connection AsyncStorage
+  until the backend confirms the batch, so restarts and failed uploads do
+  not lose data. Uploads batch up to 100 spans per call with a
+  content-derived `request_id` (stable across retries, fresh per batch),
+  debounce 2s after a span closes, force-flush spans older than 5 minutes,
+  and defer while a request is running on that connection.
+- **Failure handling.** Transient failures retain the spans for retry.
+  Definitive failures (HTTP 404/400 — e.g. an unknown plugin id) retain the
+  spans too, and the app shows a one-time dismissible warning banner until
+  the setting changes.
 
 ### Deduplication and overlap rules
 
@@ -179,7 +213,7 @@ status-bar elements without affecting recording.
 A growing `duration-tracking-summary.csv` is appended beside the SQLite
 store (default enabled; `track_duration_tracking_summary_csv` gates it,
 `duration_tracking_summary_csv_path` overrides the location). One row is
-appended per freshly recorded request with the columns `time`,
+appended per freshly recorded LLM round with the columns `time`,
 `working_directory`, `session_id`, `model`, `duration`, and
 `session_total_duration` (the rolling session total, matching the
 status-bar semantics). Tool calls are not appended to the CSV; they live

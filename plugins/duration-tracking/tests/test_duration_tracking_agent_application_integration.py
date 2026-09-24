@@ -22,6 +22,9 @@ if str(ROOT) not in sys.path:
 CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
 
 import pytest  # noqa: E402
 
@@ -39,6 +42,7 @@ def _make_config(
     db_path: Path,
     *,
     provider_overrides: Dict[str, Any] | None = None,
+    provider_entry: str = "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
 ) -> Path:
     provider_config: Dict[str, Any] = {
         "provider": "echo_openai_like",
@@ -58,7 +62,7 @@ def _make_config(
             }
         },
         "plugins": [
-            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            provider_entry,
             "plugins.file_reader_tool.FileReaderTool",
             "timestamp_extension.duration_extension.DurationExtension",
             "duration_tracking_plugins.duration_tracking_extension.DurationTrackingExtension",
@@ -75,8 +79,14 @@ def _make_app(
     db_path: Path,
     *,
     provider_overrides: Dict[str, Any] | None = None,
+    provider_entry: str = "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
 ) -> AgentApplication:
-    config_path = _make_config(tmp_path, db_path, provider_overrides=provider_overrides)
+    config_path = _make_config(
+        tmp_path,
+        db_path,
+        provider_overrides=provider_overrides,
+        provider_entry=provider_entry,
+    )
     session_root = tmp_path / "sessions"
     return AgentApplication(
         str(config_path),
@@ -287,6 +297,60 @@ def test_tool_calling_request_records_llm_and_tool_rows(tmp_path: Path) -> None:
         assistant_md.get("tool_duration_session_total_formatted")
         == tool_md["duration_formatted"]
     )
+
+
+def test_tool_loop_records_every_llm_round(tmp_path: Path) -> None:
+    """A genuine multi-round tool loop records one LLM row per round.
+
+    The provider emits a tool call on its first response, the production
+    tool loop executes it, and the second LLM round answers. Both rounds
+    share one request id, so this regression-tests the original bug
+    where only the first round landed and the session totals froze at
+    its snapshot (footer total lower than the last turn duration).
+    """
+
+    db_path = tmp_path / "durations.sqlite3"
+    app = _make_app(
+        tmp_path,
+        db_path,
+        provider_entry="fixtures.tool_loop_echo_provider.ToolLoopEchoProvider",
+    )
+    core, base_config, session = app.create_session("default")
+
+    target = tmp_path / "hello.txt"
+    target.write_text("hello", encoding="utf-8")
+    session = _run_request(app, core, session, base_config)
+
+    # The loop actually ran: one tool message and two assistant messages
+    # (the tool-call round and the final answer round).
+    tool_msgs = _tool_messages(session)
+    assert len(tool_msgs) == 1
+    assistants = _assistant_messages(session)
+    assert len(assistants) == 2
+
+    # Every LLM round recorded its own row, all under the shared
+    # request id, keyed by the round's measurement stamps.
+    rows = _request_rows(db_path)
+    assert len(rows) == 2
+    assert len({row["request_id"] for row in rows}) == 1
+    assert rows[0]["request_id"]
+    assert rows[0]["session_id"] == session.session_id
+    assert rows[0]["working_directory"] == str(tmp_path)
+    assert rows[0]["duration_started_at"] != rows[1]["duration_started_at"]
+
+    assert len(_tool_rows(db_path)) == 1
+
+    # The final assistant message stamps store totals that include both
+    # rounds, so the session total can never fall below the turn total.
+    assistant_md = assistants[-1].metadata or {}
+    assert assistant_md.get("duration_session_requests") == 2
+    assert assistant_md.get("duration_session_total") == (
+        rows[0]["duration_ms"] + rows[1]["duration_ms"]
+    )
+    assert assistant_md.get("duration_session_total") >= assistant_md.get(
+        "turn_duration_ms", 0
+    )
+    assert assistant_md.get("tool_duration_session_calls") == 1
 
 
 def test_multiple_tool_calls_record_one_row_each(tmp_path: Path) -> None:

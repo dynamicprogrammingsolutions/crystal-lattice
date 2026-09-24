@@ -4,8 +4,9 @@ Generic, provider-agnostic duration tracking plugin for the Crystal Lattice
 platform.
 
 The timestamp extension's duration feature (`DurationExtension`) measures
-each provider request and stamps the duration facts onto the assistant
-owner message. This plugin records one row per measured request into a
+each provider call and stamps the duration facts onto the assistant
+owner message. This plugin records one row per measured provider call
+(LLM round) into a
 SQLite store under the Crystal data directory, renders the store-backed
 session total in the chat status bar (aggregated by workspace + session
 id), and exposes a session action for a duration report. Duration is
@@ -16,9 +17,12 @@ It also tracks **human time**: frontends report user-activity spans
 batches through the `record_human_time_spans` application action; the
 plugin dedups by request id, resolves range overlaps so no two stored rows
 ever overlap, and surfaces the per-session human time total in the status
-bar (`Human time: …`) and the report. See
+bar (`Human time: …`) and the report. The mobile app collects the spans
+behind an opt-in `Time tracking` toggle with a frontend-owned telemetry
+plugin id (default `duration_tracking_app`). See
 `docs/development/overview.md` for the store schema, recording seams,
-the human-time span contract, and configuration.
+the human-time span contract (including the frontend collection notes),
+and configuration.
 
 ## Development
 

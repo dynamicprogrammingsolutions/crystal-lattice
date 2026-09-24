@@ -2,25 +2,33 @@
 
 from __future__ import annotations
 
+import itertools
 import os
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, cast
 
 import pytest
 
 from duration_tracking_plugins import duration_store
 
 
+_stamp_seq = itertools.count()
+
+
 def _record(db_path: Path, **overrides):
+    # Each call gets unique measurement stamps by default so tests that
+    # record several rows behave like distinct LLM rounds; tests for
+    # the dedup contract pass explicit identical stamps.
+    index = next(_stamp_seq)
     params: Dict[str, Any] = {
         "session_id": "s1",
         "working_directory": "/tmp/ws",
         "model": "m",
         "request_id": None,
         "duration_ms": 1200,
-        "duration_started_at": "2026-01-01T00:00:00+00:00",
-        "duration_finished_at": "2026-01-01T00:00:01.200000+00:00",
+        "duration_started_at": f"2026-01-01T00:00:00.{index:06d}+00:00",
+        "duration_finished_at": f"2026-01-01T00:00:01.{index:06d}+00:00",
     }
     params.update(overrides)
     return duration_store.record_request_duration(db_path, **params)
@@ -89,9 +97,7 @@ def test_schema_creates_both_tables(tmp_path: Path) -> None:
         "duration_finished_at",
         "tool_error",
     }
-    assert "idx_duration_requests_request_id" in _table_indexes(
-        db_path, "duration_requests"
-    )
+    assert "idx_duration_requests_round" in _table_indexes(db_path, "duration_requests")
     assert "idx_tool_durations_call" in _table_indexes(db_path, "tool_durations")
 
 
@@ -108,11 +114,18 @@ def test_record_and_session_totals(tmp_path: Path) -> None:
     assert totals["total_ms"] == 1500
 
 
-def test_record_dedupes_by_request_id(tmp_path: Path) -> None:
+def test_record_dedupes_by_round_stamps(tmp_path: Path) -> None:
     db_path = tmp_path / "durations.sqlite3"
 
-    assert _record(db_path, request_id="r1") is True
-    assert _record(db_path, request_id="r1", duration_ms=999) is False
+    stamps = {
+        "duration_started_at": "2026-01-01T00:00:00.000000+00:00",
+        "duration_finished_at": "2026-01-01T00:00:01.000000+00:00",
+    }
+    assert _record(db_path, request_id="r1", **stamps) is True
+    # Same measurement stamps mean the same LLM round (re-finalize or
+    # rebuild path) and must not duplicate, whatever the request id.
+    assert _record(db_path, request_id="r1", duration_ms=999, **stamps) is False
+    assert _record(db_path, request_id="other-request", **stamps) is False
 
     totals = duration_store.session_totals(
         db_path, working_directory="/tmp/ws", session_id="s1"
@@ -121,16 +134,149 @@ def test_record_dedupes_by_request_id(tmp_path: Path) -> None:
     assert totals["total_ms"] == 1200
 
 
-def test_record_without_request_id_does_not_dedup(tmp_path: Path) -> None:
+def test_tool_loop_rounds_share_request_id_but_record_separately(
+    tmp_path: Path,
+) -> None:
+    """Every LLM round of a tool-loop request gets its own row.
+
+    Tool loops run one finalize per round under a single request id, so
+    the request id alone must not dedup (the original bug froze session
+    totals at the first round's snapshot).
+    """
+
     db_path = tmp_path / "durations.sqlite3"
 
-    assert _record(db_path, request_id=None) is True
-    assert _record(db_path, request_id=None) is True
+    assert (
+        _record(
+            db_path,
+            request_id="shared",
+            duration_ms=13933,
+            duration_started_at="2026-09-24T08:00:16.404522+00:00",
+            duration_finished_at="2026-09-24T08:00:30.337779+00:00",
+        )
+        is True
+    )
+    assert (
+        _record(
+            db_path,
+            request_id="shared",
+            duration_ms=5059,
+            duration_started_at="2026-09-24T08:00:30.766194+00:00",
+            duration_finished_at="2026-09-24T08:00:35.825752+00:00",
+        )
+        is True
+    )
+    assert (
+        _record(
+            db_path,
+            request_id="shared",
+            duration_ms=3317,
+            duration_started_at="2026-09-24T08:00:36.422513+00:00",
+            duration_finished_at="2026-09-24T08:00:39.739942+00:00",
+        )
+        is True
+    )
+
+    totals = duration_store.session_totals(
+        db_path, working_directory="/tmp/ws", session_id="s1"
+    )
+    assert totals["request_count"] == 3
+    assert totals["total_ms"] == 13933 + 5059 + 3317
+
+
+def test_record_without_stamps_does_not_dedup(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+
+    assert (
+        _record(
+            db_path,
+            request_id="r1",
+            duration_started_at=None,
+            duration_finished_at=None,
+        )
+        is True
+    )
+    assert (
+        _record(
+            db_path,
+            request_id="r2",
+            duration_started_at=None,
+            duration_finished_at=None,
+        )
+        is True
+    )
 
     totals = duration_store.session_totals(
         db_path, working_directory="/tmp/ws", session_id="s1"
     )
     assert totals["request_count"] == 2
+
+
+def test_schema_migrates_legacy_request_id_index(tmp_path: Path) -> None:
+    """Databases created with the original global request-id index migrate.
+
+    The legacy index recorded only the first LLM round of tool-loop
+    requests; the first store call after the upgrade drops it and keys
+    rounds by their measurement stamps, keeping existing rows.
+    """
+
+    db_path = tmp_path / "durations.sqlite3"
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE duration_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                time TEXT NOT NULL,
+                session_id TEXT,
+                working_directory TEXT,
+                model TEXT,
+                request_id TEXT,
+                duration_ms INTEGER,
+                duration_started_at TEXT,
+                duration_finished_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX idx_duration_requests_request_id "
+            "ON duration_requests(request_id) WHERE request_id IS NOT NULL"
+        )
+        conn.execute(
+            "INSERT INTO duration_requests (time, session_id, working_directory, "
+            "model, request_id, duration_ms, duration_started_at, duration_finished_at) "
+            "VALUES ('2026-09-24T08:00:30.337779+00:00', 's1', '/tmp/ws', 'm', "
+            "'legacy-1', 13933, '2026-09-24T08:00:16.404522+00:00', "
+            "'2026-09-24T08:00:30.337779+00:00')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Any public store function migrates the schema in place.
+    duration_store.session_totals(db_path, working_directory="/tmp/ws", session_id="s1")
+
+    indexes = _table_indexes(db_path, "duration_requests")
+    assert "idx_duration_requests_request_id" not in indexes
+    assert "idx_duration_requests_round" in indexes
+
+    # The legacy row survives and later rounds of the same request id
+    # now record alongside it.
+    assert (
+        _record(
+            db_path,
+            request_id="legacy-1",
+            duration_ms=5059,
+            duration_started_at="2026-09-24T08:00:30.766194+00:00",
+            duration_finished_at="2026-09-24T08:00:35.825752+00:00",
+        )
+        is True
+    )
+    totals = duration_store.session_totals(
+        db_path, working_directory="/tmp/ws", session_id="s1"
+    )
+    assert totals["request_count"] == 2
+    assert totals["total_ms"] == 13933 + 5059
 
 
 def test_session_totals_filter_by_workspace_and_session(tmp_path: Path) -> None:
@@ -682,7 +828,7 @@ def _record_spans(
     spans: List[Any],
     *,
     request_id: str = "req-1",
-    working_directory: str = "/tmp/ws",
+    working_directory: Optional[str] = "/tmp/ws",
 ):
     return duration_store.record_human_time_spans(
         db_path,
@@ -1111,7 +1257,10 @@ def test_human_time_invalid_request_id_or_spans_raise(tmp_path: Path) -> None:
         )
     with pytest.raises(ValueError):
         duration_store.record_human_time_spans(
-            db_path, working_directory="/tmp/ws", request_id="r", spans={"a": 1}
+            db_path,
+            working_directory="/tmp/ws",
+            request_id="r",
+            spans=cast(List[Any], {"a": 1}),
         )
     with pytest.raises(ValueError):
         duration_store.record_human_time_spans(
