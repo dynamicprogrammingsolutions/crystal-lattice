@@ -19,7 +19,7 @@ import pytest
 
 from .. import (
     fixtures,
-    freeze_b0,
+    freeze,
     handoff_semantic,
     result_package,
     results,
@@ -254,25 +254,6 @@ def test_semantic_expectations_derive_from_the_configuration() -> None:
         )
 
 
-def test_selected_agent_comes_from_the_configuration(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent_name = next(iter(AGENTS))
-    monkeypatch.setenv("AGENT_EVAL_PROFILE", agent_name)
-
-    assert runner.selected_agent() == agent_name
-
-
-def test_selected_agent_rejects_unknown_agents(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("AGENT_EVAL_PROFILE", "no-such-agent")
-
-    with pytest.raises(ValueError) as excinfo:
-        runner.selected_agent()
-    assert all(name in str(excinfo.value) for name in AGENTS)
-
-
 def _write_record(
     root: Path,
     agent: str,
@@ -356,12 +337,7 @@ def test_results_expected_sets_match_the_configuration(tmp_path: Path) -> None:
             ),
         )
 
-    value = consolidate_results(
-        tmp_path,
-        producer_attempt="r1",
-        handoff_attempt="r1",
-        semantic_attempt="r1",
-    )
+    value = consolidate_results(tmp_path)
     status = value["status"]
 
     expected_producers = sum(
@@ -456,8 +432,7 @@ def test_handoff_semantic_expected_records_match_the_configuration(
         fresh, same = load_handoff_records(
             tmp_path,
             scenario=scenario,
-            handoff_attempt="h1",
-            producer_attempt="p1",
+            labels=None,
             allow_partial=False,
         )
         cells = producer_cells(scenario.category)
@@ -473,7 +448,7 @@ def test_handoff_semantic_expected_records_match_the_configuration(
 
 CONSUMER_MODULES = (
     fixtures,
-    freeze_b0,
+    freeze,
     handoff_semantic,
     result_package,
     results,

@@ -3,30 +3,26 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .configuration import AGENTS, selected_bundle
-from .fixtures import TaskGuidanceWorkspaceFactory
-from .runner import (
+from ..configuration import AGENTS, SUITE_ROOT, selected_bundle
+from ..fixtures import TaskGuidanceWorkspaceFactory
+from ..runner import (
     RUNNER_VERSION,
     TaskGuidanceHarness,
     _runtime_config_root,
     request_overrides,
     tool_metrics,
 )
-from .scenarios import scenario_by_id
-from .stages import STAGES
+from ..scenarios import scenario_by_id
+from ..stages import STAGES
 
 
 def test_pinned_runtime_configs_pin_the_standard_tool_families() -> None:
-    glm = json.loads(
-        (Path(__file__).parent / AGENTS["glm"]["config"]).read_text(encoding="utf-8")
-    )
+    glm = json.loads((SUITE_ROOT / AGENTS["glm"]["config"]).read_text(encoding="utf-8"))
     assert any("/claude-tools" in item for item in glm["plugins"])
     assert not any("/codex-tools" in item for item in glm["plugins"])
     assert glm["agents"][AGENTS["glm"]["agent_id"]]["model"] == AGENTS["glm"]["model"]
 
-    gpt = json.loads(
-        (Path(__file__).parent / AGENTS["gpt"]["config"]).read_text(encoding="utf-8")
-    )
+    gpt = json.loads((SUITE_ROOT / AGENTS["gpt"]["config"]).read_text(encoding="utf-8"))
     assert any("/codex-tools" in item for item in gpt["plugins"])
     assert not any("/claude-tools" in item for item in gpt["plugins"])
     assert gpt["agents"][AGENTS["gpt"]["agent_id"]]["model"] == AGENTS["gpt"]["model"]
@@ -119,7 +115,7 @@ def test_harness_builds_from_the_pinned_fixture(
 def test_agent_config_file_applies_the_artifact_plugin_cache(
     tmp_path: Path,
 ) -> None:
-    from .configuration import agent_config_file
+    from ..configuration import agent_config_file
 
     path = agent_config_file("glm", artifact_root=tmp_path, version=RUNNER_VERSION)
     config = json.loads(path.read_text(encoding="utf-8"))
@@ -127,7 +123,7 @@ def test_agent_config_file_applies_the_artifact_plugin_cache(
         tmp_path / "plugin-cache" / "glm" / RUNNER_VERSION
     )
     fixture = json.loads(
-        (Path(__file__).parent / AGENTS["glm"]["config"]).read_text(encoding="utf-8")
+        (SUITE_ROOT / AGENTS["glm"]["config"]).read_text(encoding="utf-8")
     )
     assert config["agents"] == fixture["agents"]
     assert config["plugins"] == fixture["plugins"]

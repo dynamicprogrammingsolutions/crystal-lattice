@@ -4,15 +4,9 @@ import re
 from pathlib import Path
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
-REVIEW_ROOT = (
-    REPOSITORY_ROOT
-    / "maintainer"
-    / "docs"
-    / "evaluations"
-    / "task-guidance"
-)
-SUITE_ROOT = Path(__file__).resolve().parent
+REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
+REVIEW_ROOT = REPOSITORY_ROOT / "maintainer" / "docs" / "evaluations" / "task-guidance"
+SUITE_ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION_ROOT = (
     REPOSITORY_ROOT
     / "maintainer"
@@ -44,9 +38,7 @@ def test_review_document_set_is_complete() -> None:
     }
 
     assert expected <= {path.name for path in REVIEW_ROOT.glob("*.md")}
-    assert not REVIEW_ROOT.joinpath(
-        "20260919-current-guidance-glm-b0.md"
-    ).exists()
+    assert not REVIEW_ROOT.joinpath("20260919-current-guidance-glm-b0.md").exists()
 
 
 def _reviewed_documents() -> tuple[Path, ...]:

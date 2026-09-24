@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 
@@ -15,10 +14,3 @@ def record_paths(artifact_root: Path, record_name: str) -> tuple[Path, ...]:
     ):
         values.update(artifact_root.glob(pattern))
     return tuple(sorted(values))
-
-
-def selected_dataset_id() -> str:
-    return os.getenv(
-        "AGENT_EVAL_TASK_DATASET_ID",
-        "task-guidance-b0-20260919",
-    ).strip()

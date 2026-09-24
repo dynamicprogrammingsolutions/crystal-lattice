@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .topology import task_tree
+from ..topology import task_tree
 
 
 def test_task_tree_records_parent_dependencies_and_phase_names() -> None:
@@ -43,9 +43,7 @@ Status: Draft
     assert tree["task_directory_count"] == 1
     assert tree["all_parent_links_resolve"] is True
     assert tree["all_dependencies_resolve"] is True
-    assert tree["phase_named_files"] == [
-        "tasks/demo/010-backend-implementation.md"
-    ]
+    assert tree["phase_named_files"] == ["tasks/demo/010-backend-implementation.md"]
     child = tree["files"][1]
     assert child["requirement_count"] == 1
     assert child["plan_status"] == "Draft"

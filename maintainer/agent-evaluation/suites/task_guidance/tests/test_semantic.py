@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from .scenarios import scenario_by_id
-from .semantic import (
+from ..scenarios import scenario_by_id
+from ..semantic import (
     aggregate_quality_metrics,
     expected_producer_cells,
     normalize_semantic_assessment,
@@ -180,18 +180,18 @@ def test_partial_producer_loading_is_explicit(tmp_path: Path) -> None:
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps(record), encoding="utf-8")
 
-    from .semantic import load_producer_records
+    from ..semantic import load_producer_records
 
     with pytest.raises(FileNotFoundError):
         load_producer_records(
             tmp_path,
             scenario=scenario,
-            run_attempt="r1",
+            labels=["r1"],
         )
     loaded = load_producer_records(
         tmp_path,
         scenario=scenario,
-        run_attempt="r1",
+        labels=["r1"],
         allow_partial=True,
     )
     assert loaded == [record]

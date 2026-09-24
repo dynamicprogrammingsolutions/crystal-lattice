@@ -108,11 +108,7 @@ from .handoffs import (  # noqa: E402
     PLAN_PROMPT,
     CanonicalHandoffWorkspaceFactory,
 )
-from .results import (  # noqa: E402
-    _handoff_identity,
-    _producer_identity,
-    render_summary,
-)
+from .results import render_summary  # noqa: E402
 from .runner import (  # noqa: E402
     RUNNER_VERSION,
     WorkspaceAwareEnvironment,
@@ -125,6 +121,8 @@ from .semantic import (  # noqa: E402
     QUALITY_DIMENSIONS,
     TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE,
     expected_producer_cells,
+    handoff_cell_identity,
+    producer_cell_identity,
 )
 from .stages import STAGES  # noqa: E402
 
@@ -197,6 +195,20 @@ def _link(target: str, page: str) -> str:
 NEGATIVE_CONTROL_SCENARIO = negative_control("handoff")["scenario"]
 # Mirrors the negative-control designation in the configuration: only this
 # scenario runs the incomplete-handoff control stage.
+
+
+def _frozen_attempts(frozen: Mapping[str, Any]) -> Any:
+    """The recorded run selection of a frozen dataset (both shapes).
+
+    Historical datasets record per-stage attempts; datasets frozen by the
+    current ``freeze`` adapter record run labels. The package structure is
+    reworked with the dataset-registry removal; this reader keeps both
+    shapes flowing until then.
+    """
+
+    if "attempts" in frozen:
+        return frozen["attempts"]
+    return {"labels": list(frozen.get("labels") or [])}
 
 
 def extract_scenarios(*, output_dir: Path, bundle: Path, artifact_root: Path) -> Path:
@@ -847,7 +859,8 @@ def collect(
                     "schema_version": 1,
                     "dataset_id": frozen["dataset_id"],
                     "label": frozen["label"],
-                    "attempts": frozen["attempts"],
+                    "labels": frozen.get("labels"),
+                    "attempts": frozen.get("attempts"),
                     "status": frozen["status"],
                     "semantic_quality": frozen["semantic_quality"],
                     "assessment_details": _assessment_details(frozen),
@@ -900,7 +913,7 @@ def collect(
         "label": frozen["label"],
         "dataset_id": frozen["dataset_id"],
         "suite": "task-guidance",
-        "attempts": frozen["attempts"],
+        "attempts": _frozen_attempts(frozen),
         "scenario_count": len(
             {scenario.scenario_id for scenario in SCENARIOS}
             if selected_cells is None
@@ -960,10 +973,10 @@ def _discover_runs(
 
     mapping: dict[str, Path] = {}
     groups = (
-        (PRODUCER_RECORD, "producer_records", _producer_identity),
-        (HANDOFF_RECORD, "handoff_records", _handoff_identity),
-        (SAME_AGENT_RECORD, "same_agent_records", _producer_identity),
-        (NEGATIVE_CONTROL_RECORD, "negative_control_records", _handoff_identity),
+        (PRODUCER_RECORD, "producer_records", producer_cell_identity),
+        (HANDOFF_RECORD, "handoff_records", handoff_cell_identity),
+        (SAME_AGENT_RECORD, "same_agent_records", producer_cell_identity),
+        (NEGATIVE_CONTROL_RECORD, "negative_control_records", handoff_cell_identity),
     )
     for record_name, group, identity_of in groups:
         wanted = {
@@ -2421,7 +2434,8 @@ def _matrix_markdown(records: PackageRecords, aggregate: Mapping[str, Any]) -> s
     summary = render_summary(
         {
             "label": aggregate["label"],
-            "attempts": aggregate["attempts"],
+            "labels": aggregate.get("labels"),
+            "attempts": aggregate.get("attempts"),
             "status": aggregate["status"],
             "semantic_quality": aggregate["semantic_quality"],
             "producer_records": groups["producer_records"],
@@ -2761,7 +2775,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         required=True,
         help=(
-            "consolidated dataset JSON produced by freeze_b0; the completed"
+            "consolidated dataset JSON produced by freeze; the completed"
             " evaluations no longer live in suite fixtures"
         ),
     )

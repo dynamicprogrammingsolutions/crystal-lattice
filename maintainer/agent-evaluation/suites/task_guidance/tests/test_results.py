@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .results import consolidate_results, render_summary
+from ..results import consolidate_results, render_summary
 
 
 def _write_record(root: Path, name: str, value: dict[str, object]) -> None:
@@ -40,20 +40,16 @@ def test_consolidation_separates_invalid_and_missing_records(
         },
     )
 
-    value = consolidate_results(
-        tmp_path,
-        producer_attempt="r1",
-        handoff_attempt="r1",
-        semantic_attempt="r1",
-    )
+    value = consolidate_results(tmp_path, labels=["r1"])
 
     status = value["status"]["producers"]
     assert status["valid"] == 1
     assert status["invalid"] == 1
     assert status["present"] == 2
-    assert value["producer_records"][0]["task_tree"][
-        "implementation_task_count"
-    ] in {0, 1}
+    assert value["producer_records"][0]["task_tree"]["implementation_task_count"] in {
+        0,
+        1,
+    }
     assert value["status"]["handoff_semantics"]["expected"] == 3
     assert value["status"]["negative_controls"]["expected"] == 1
     assert value["status"]["provider_blockers"]["present"] == 1

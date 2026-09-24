@@ -4,11 +4,17 @@ import json
 import re
 from pathlib import Path
 from string import Template
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
-from .artifacts import record_paths
+from agent_eval.runner import select_cell_records
+
 from .configuration import negative_control, plan_variants, producer_cells
 from .scenarios import TaskGuidanceScenario
+from .semantic import (
+    continuation_cell_identity,
+    handoff_cell_identity,
+    _latest_sample,
+)
 from .stages import STAGES
 
 
@@ -16,47 +22,59 @@ def load_handoff_records(
     artifact_root: Path,
     *,
     scenario: TaskGuidanceScenario,
-    handoff_attempt: str,
-    producer_attempt: str,
+    labels: Sequence[str] | None,
     allow_partial: bool,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    fresh = _latest(
-        artifact_root,
-        STAGES["handoff-plan"].record,
-        predicate=lambda value: (
-            value.get("scenario_id") == scenario.scenario_id
-            and value.get("run_attempt") == handoff_attempt
+    """The scenario's handoff records under the given run labels.
+
+    Selection delegates to the consolidation core; each cell contributes
+    its latest sample. Returns the fresh-agent plans plus the negative
+    control, and the same-agent continuations.
+    """
+
+    fresh = _scenario_cells(
+        select_cell_records(
+            artifact_root,
+            record_name=STAGES["handoff-plan"].record,
+            cell_identity=handoff_cell_identity,
+            labels=labels,
         ),
-        identity=lambda value: (f"{value.get('variant')}:{_producer_identity(value)}"),
+        scenario.scenario_id,
     )
-    same = _latest(
-        artifact_root,
-        STAGES["continuation"].record,
-        predicate=lambda value: (
-            value.get("scenario_id") == scenario.scenario_id
-            and value.get("run_attempt") == producer_attempt
+    same = _scenario_cells(
+        select_cell_records(
+            artifact_root,
+            record_name=STAGES["continuation"].record,
+            cell_identity=continuation_cell_identity,
+            labels=labels,
         ),
-        identity=_producer_identity,
+        scenario.scenario_id,
     )
-    negative = _latest(
-        artifact_root,
-        STAGES["negative-control"].record,
-        predicate=lambda value: (
-            value.get("scenario_id") == scenario.scenario_id
-            and value.get("run_attempt") == handoff_attempt
+    negative = _scenario_cells(
+        select_cell_records(
+            artifact_root,
+            record_name=STAGES["negative-control"].record,
+            cell_identity=handoff_cell_identity,
+            labels=labels,
         ),
-        identity=_producer_identity,
+        scenario.scenario_id,
     )
     handoff_cells = producer_cells(scenario.category)
     expected_fresh = {
-        f"{variant}:{profile}:{effort}"
+        f"{scenario.scenario_id}:{variant}:{profile}:{effort}"
         for variant in plan_variants(scenario.category)
         for profile, effort in handoff_cells
     }
-    expected_same = {f"{profile}:{effort}" for profile, effort in handoff_cells}
+    expected_same = {
+        f"{scenario.scenario_id}:{profile}:{effort}"
+        for profile, effort in handoff_cells
+    }
     control = negative_control(scenario.category)
     expected_negative = (
-        {f"{control['agent']}:{control['effort']}"}
+        {
+            f"{control['scenario']}:{control['variant']}:"
+            f"{control['agent']}:{control['effort']}"
+        }
         if control is not None and scenario.scenario_id == control["scenario"]
         else set()
     )
@@ -69,7 +87,18 @@ def load_handoff_records(
         raise FileNotFoundError(
             f"missing handoff records for {scenario.scenario_id}: {missing}"
         )
-    return [*fresh.values(), *negative.values()], list(same.values())
+    fresh_records = [_latest_sample(fresh[key]).value for key in sorted(fresh)]
+    negative_records = [_latest_sample(negative[key]).value for key in sorted(negative)]
+    same_records = [_latest_sample(same[key]).value for key in sorted(same)]
+    return [*fresh_records, *negative_records], same_records
+
+
+def _scenario_cells(
+    cells: Mapping[str, tuple[Any, ...]],
+    scenario_id: str,
+) -> dict[str, tuple[Any, ...]]:
+    prefix = f"{scenario_id}:"
+    return {key: records for key, records in cells.items() if key.startswith(prefix)}
 
 
 # The fixed instruction part of the assessment prompt. Per-evaluation
@@ -263,34 +292,6 @@ def validate_handoff_semantic(
         for key in ("efficiency_interpretation", "summary"):
             if not isinstance(item.get(key), str):
                 raise ValueError(f"handoff {key} must be a string")
-
-
-def _latest(
-    root: Path,
-    record_name: str,
-    *,
-    predicate,
-    identity,
-) -> dict[str, dict[str, Any]]:
-    selected: dict[str, tuple[float, dict[str, Any]]] = {}
-    for path in record_paths(root, record_name):
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(value, dict) or not predicate(value):
-            continue
-        key = identity(value)
-        modified = path.stat().st_mtime
-        if key not in selected or modified > selected[key][0]:
-            selected[key] = (modified, value)
-    return {key: item[1] for key, item in selected.items()}
-
-
-def _producer_identity(value: Mapping[str, Any]) -> str:
-    producer = value.get("producer")
-    producer = producer if isinstance(producer, Mapping) else {}
-    return f"{producer.get('profile')}:{producer.get('reasoning_effort')}"
 
 
 def _choice(value: Mapping[str, Any], key: str, choices: set[str]) -> None:

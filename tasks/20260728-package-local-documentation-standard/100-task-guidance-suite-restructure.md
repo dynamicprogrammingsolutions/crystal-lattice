@@ -491,9 +491,9 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   tests (chunk 1b amendment, approved September 24, 2026).
 - [x] Add the configuration module with verify-through-configuration tests
   (chunk 2, test-first).
-- [ ] Integrate the suite: runner assembly, thin freeze/results adapters
+- [x] Integrate the suite: runner assembly, thin freeze/results adapters
   over the consolidation core (chunk 3, test-first).
-- [ ] Move tests into `tests/`, add the conftest wired to the layer,
+- [x] Move tests into `tests/`, add the conftest wired to the layer,
   parametrize the live stages from the configuration manifest and stage
   catalog (including echo-path stage-mechanics tests asserting the
   catalog's declared workspace origin and parent linkage — deferred from
@@ -730,3 +730,87 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   run each stage through the real kernel asserting the catalog's declared
   workspace origin and parent linkage; the harness currently has no
   driver-injection point, which belongs with the test-migration work.
+- September 24, 2026 — chunks 3+4 (suite integration + migration) completed
+  test-first in one shot, as approved.
+- Chunk 3: `tests/test_runner_assembly.py` written first (14 tests, failed
+  on the missing pieces), then the runner became assembly over the
+  run-model layer. The harness owns one labeled `RunModel`; four
+  module-level identity functions (`task_creation_identity`,
+  `handoff_plan_identity`, `continuation_identity`, `assessment_identity`)
+  compose through the layer's `request_identity` — labels are structurally
+  absent, the continuation's identity carries the parent's identity (read
+  from the parent's `run-model.json` provenance), and the hand-built cache
+  keys with `RUNNER_VERSION` strings and `AGENT_EVAL_CACHE_NONCE` are gone.
+  Stage methods take `fresh`/`samples` and return tuples of runs;
+  `_execute` maps one sample to cache-aware `RunModel.run` and multiple
+  samples to `run_samples` (always genuine executions).
+- `results.py` became a thin adapter over the consolidation core:
+  `select_cell_records` per stage (labels select cells — latest label per
+  cell by default, every sample of listed labels), `completeness` for the
+  assessment statuses, provider blockers derived from a second
+  selection pass keyed by provider identity. The frozen dataset is
+  schema 2: `labels` replaces per-stage `attempts`, `bundle` records
+  path + compilation sha, `selection` carries the per-cell label counts,
+  and the flat record lists hold every selected sample (single-sample
+  datasets are unchanged). `freeze_b0.py` → `freeze.py` with generic CLI
+  (`--labels`, `--dataset-id`, `--label`, `--bundle`, `--output`) that
+  compiles the bundle for provenance and prints the selection.
+- Chunk 4: every test file moved into `suites/task_guidance/tests/`
+  (legacy-file tests keep their own `sys.path` anchors, now pointing at
+  the suite root). `conftest.py` provides `--label`/`--fresh`/`--samples`
+  and session-cached per-agent harnesses sharing one invocation label;
+  `matrix.py` derives the live matrix from the manifest and catalog. The
+  six live tests are stage-named (`test_task_creation`, `test_handoff_plan`,
+  `test_continuation`, `test_negative_control`,
+  `test_task_creation_assessment`, `test_handoff_assessment`) with
+  `-k`-friendly case ids; stage markers renamed to the catalog
+  (`task_creation`, `handoff_plan`, `continuation`, `negative_control`,
+  `task_creation_assessment`, `handoff_assessment`) and registered in
+  pyproject. Deleted: `selected_agent()`, `selected_dataset_id()`,
+  the `AGENT_EVAL_MAX_EVENTS` knob, and every parameter env var/gate
+  (`AGENT_EVAL_PROFILE`, `AGENT_EVAL_TASK_*`, `AGENT_EVAL_RUN_REAL`,
+  `AGENT_EVAL_ALLOW_HOSTED`, `AGENT_EVAL_CACHE_NONCE`). The assessment
+  loaders (`semantic.load_producer_records`,
+  `handoff_semantic.load_handoff_records`) now take `labels` and delegate
+  selection to the core; record-identity formatters consolidated in
+  `semantic.py` (`producer_cell_identity` etc.) and shared with
+  `results.py`/`result_package.py`. New records carry no attempt or
+  dataset fields — the `run-model.json` sibling is the provenance.
+- The deferred stage-mechanics coverage landed as
+  `test_stage_executor_matches_the_catalog_workspace_and_parentage`
+  (parametrized over the catalog): each stage's executor is run through
+  the real harness with only the model boundary faked, asserting the
+  declared workspace origin (factory type per `workspace` kind, the
+  parent's workspace for `continuation`) and parentage (`continue_from`
+  only for continuation; the negative control plans from the designated
+  incomplete variant). The full kernel mechanics stay proven by the
+  mini-evaluation; the suite harness pins real agents, so no echo agent
+  was added to the manifest.
+- One regression caught by the package checks and fixed: the new
+  `render_summary` read only `labels`, so the committed packages'
+  historical aggregates (per-stage `attempts`) stopped regenerating
+  `matrix.md` byte-identically. `render_summary` now renders both shapes
+  (labels list, historical attempts dict, or latest-per-cell), and
+  `collect` passes the frozen dataset's selection through verbatim.
+- `tests/test_collection.py` verifies through subprocess collection:
+  `-m agent_eval` collects exactly the 46-case configuration matrix
+  (18 producers + 12 plans + 6 continuations + 1 control + 6 + 3
+  assessments), bare pytest collects no live tests, the ten legacy env
+  vars do not change collection, and `-k` slices (`glm`, one scenario,
+  `retain`) select exactly the matching cases.
+- Verification: suite 122 passed / 46 live deselected; framework 181
+  passed from the repository root; both committed packages pass `check`
+  byte-identically; the scenarios export regenerates content-identically
+  (only the pre-existing git-revision stamp movement in the guidance
+  locks, committed state restored); ruff/black clean.
+- September 24, 2026 — layout amendment (user-directed): the live matrix
+  is not a test of the suite machinery, so it no longer lives under
+  `tests/`. The six stage drivers, the run-options `conftest.py`, and
+  `matrix.py` moved to `suites/task_guidance/evaluation/` (a package,
+  still pytest-collected and `agent_eval`-gated — run commands are
+  unchanged, only the location). `tests/` now holds only the
+  deterministic machinery tests; `test_collection.py` targets
+  `evaluation/` for the matrix checks and the whole suite for the
+  bare-pytest check. Verified: `tests/` alone 122 passed;
+  `evaluation/` alone collects exactly the 46-case matrix with the
+  `--label`/`--fresh`/`--samples` options registered.

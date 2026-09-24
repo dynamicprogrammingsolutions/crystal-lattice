@@ -19,17 +19,17 @@ from agent_eval.result_packages import (
     render_result_package,
 )
 
-from .configuration import DEFAULT_BUNDLE
-from .fixtures import FIXTURE_VERSION, fixture_sha256
-from .result_package import (
+from ..configuration import DEFAULT_BUNDLE
+from ..fixtures import FIXTURE_VERSION, fixture_sha256
+from ..result_package import (
     QUALITY_DIMENSIONS,
     DatasetSpec,
     _build_case_views,
     _build_index_views,
     collect,
 )
-from .scenarios import SCENARIOS
-from .topology import task_tree
+from ..scenarios import SCENARIOS
+from ..topology import task_tree
 
 SYNTHETIC_DATASET = DatasetSpec(
     key="synthetic",

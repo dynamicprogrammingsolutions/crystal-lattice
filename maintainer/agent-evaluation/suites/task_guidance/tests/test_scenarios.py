@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .scenarios import SCENARIOS, scenario_by_id
+from ..scenarios import SCENARIOS, scenario_by_id
 
 
 def test_scenario_contracts_are_complete_and_unique() -> None:

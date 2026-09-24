@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Sequence
 
-from .artifacts import record_paths
+from agent_eval.runner import (
+    completeness,
+    render_selection,
+    select_cell_records,
+)
+
 from .configuration import (
     AGENTS,
     CATEGORIES,
@@ -17,7 +21,11 @@ from .scenarios import SCENARIOS
 from .semantic import (
     QUALITY_DIMENSIONS,
     aggregate_quality_metrics,
+    continuation_cell_identity,
     expected_producer_cells,
+    handoff_cell_identity,
+    producer_cell_identity,
+    scenario_cell_identity,
 )
 from .stages import STAGES
 from .topology import task_tree
@@ -36,66 +44,60 @@ def _scenarios_with_stage(stage: str) -> list:
 def consolidate_results(
     artifact_root: Path,
     *,
-    producer_attempt: str,
-    handoff_attempt: str,
-    semantic_attempt: str,
+    labels: Sequence[str] | None = None,
     dataset_id: str = "task-guidance-b0-20260919",
     label: str = "current-guidance baseline",
+    bundle: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    producers = _latest_records(
+    """Freeze the consolidated records of one completed evaluation.
+
+    Selection delegates to the consolidation core: without ``labels`` every
+    cell contributes its latest run label; with ``labels`` every record of
+    the listed labels becomes one sample of its cell. Expected sets derive
+    from the configuration manifest and the scenario data.
+    """
+
+    producers = select_cell_records(
         artifact_root,
         record_name=STAGES["task-creation"].record,
-        identity=_producer_identity,
-        predicate=lambda value: value.get("run_attempt") == producer_attempt,
+        cell_identity=producer_cell_identity,
+        labels=labels,
     )
-    handoffs = _latest_records(
+    handoffs = select_cell_records(
         artifact_root,
         record_name=STAGES["handoff-plan"].record,
-        identity=_handoff_identity,
-        predicate=lambda value: value.get("run_attempt") == handoff_attempt,
+        cell_identity=handoff_cell_identity,
+        labels=labels,
     )
-    continuations = _latest_records(
+    continuations = select_cell_records(
         artifact_root,
         record_name=STAGES["continuation"].record,
-        identity=_continuation_identity,
-        predicate=lambda value: value.get("run_attempt") == producer_attempt,
+        cell_identity=continuation_cell_identity,
+        labels=labels,
     )
-    semantics = _latest_records(
+    semantics = select_cell_records(
         artifact_root,
         record_name=STAGES["task-creation-assessment"].record,
-        identity=lambda value: str(value.get("scenario_id")),
-        predicate=lambda value: (
-            value.get("producer_attempt") == producer_attempt
-            and value.get("semantic_attempt") == semantic_attempt
-        ),
+        cell_identity=scenario_cell_identity,
+        labels=labels,
     )
-    handoff_semantics = _latest_records(
+    handoff_semantics = select_cell_records(
         artifact_root,
         record_name=STAGES["handoff-assessment"].record,
-        identity=lambda value: str(value.get("scenario_id")),
-        predicate=lambda value: (
-            value.get("producer_attempt") == producer_attempt
-            and value.get("handoff_attempt") == handoff_attempt
-            and value.get("semantic_attempt") == semantic_attempt
-        ),
+        cell_identity=scenario_cell_identity,
+        labels=labels,
     )
-    negative_controls = _latest_records(
+    negative_controls = select_cell_records(
         artifact_root,
         record_name=STAGES["negative-control"].record,
-        identity=lambda value: str(value.get("scenario_id")),
-        predicate=lambda value: value.get("run_attempt") == handoff_attempt,
+        cell_identity=scenario_cell_identity,
+        labels=labels,
     )
-    provider_blockers = _latest_records(
+    provider_cells = select_cell_records(
         artifact_root,
         record_name=STAGES["task-creation"].record,
-        identity=_provider_identity,
-        predicate=lambda value: (
-            value.get("valid") is False
-            and any(
-                "provider errors" in str(reason)
-                for reason in value.get("invalid_reasons", ())
-            )
-        ),
+        cell_identity=_provider_identity,
+        labels=labels,
     )
 
     expected_producers = {
@@ -124,37 +126,43 @@ def consolidate_results(
     expected_negative_controls = {
         control["scenario"] for control in negative_control_designations()
     }
+
     producer_values = [
         {
-            **record,
-            "task_tree": task_tree(record.get("task_files", {})),
+            **record.value,
+            "task_tree": task_tree(record.value.get("task_files", {})),
         }
-        for record in producers.values()
+        for samples in producers.values()
+        for record in samples
     ]
-    handoff_values = list(handoffs.values())
-    continuation_values = list(continuations.values())
-    semantic_values = list(semantics.values())
-    handoff_semantic_values = list(handoff_semantics.values())
-    negative_control_values = list(negative_controls.values())
+    handoff_values = _values(handoffs)
+    continuation_values = _values(continuations)
+    semantic_values = _values(semantics)
+    handoff_semantic_values = _values(handoff_semantics)
+    negative_control_values = _values(negative_controls)
     valid_provider_identities = {
-        _provider_identity(record)
-        for record in producer_values
-        if record.get("valid") is True
+        cell
+        for cell, samples in provider_cells.items()
+        if any(record.value.get("valid") is True for record in samples)
     }
     provider_blocker_values = [
-        record
-        for identity, record in provider_blockers.items()
-        if identity not in valid_provider_identities
+        record.value
+        for cell, samples in provider_cells.items()
+        if cell not in valid_provider_identities
+        for record in samples
+        if record.value.get("valid") is False
+        and any(
+            "provider errors" in str(reason)
+            for reason in record.value.get("invalid_reasons", ())
+        )
     ]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "dataset_id": dataset_id,
         "label": label,
-        "attempts": {
-            "producer": producer_attempt,
-            "handoff": handoff_attempt,
-            "semantic": semantic_attempt,
-        },
+        "labels": list(labels) if labels is not None else None,
+        "bundle": dict(bundle) if bundle is not None else None,
+        "selection": render_selection(producers),
         "producer_records": producer_values,
         "handoff_records": handoff_values,
         "same_agent_records": continuation_values,
@@ -179,21 +187,15 @@ def consolidate_results(
                 continuations,
                 valid_key="valid",
             ),
-            "semantics": {
-                "expected": len(expected_semantics),
-                "present": len(semantics),
-                "missing": sorted(expected_semantics - set(semantics)),
-            },
-            "handoff_semantics": {
-                "expected": len(expected_handoff_semantics),
-                "present": len(handoff_semantics),
-                "missing": sorted(expected_handoff_semantics - set(handoff_semantics)),
-            },
-            "negative_controls": {
-                "expected": len(expected_negative_controls),
-                "present": len(negative_controls),
-                "missing": sorted(expected_negative_controls - set(negative_controls)),
-            },
+            "semantics": completeness(expected_semantics, semantics),
+            "handoff_semantics": completeness(
+                expected_handoff_semantics,
+                handoff_semantics,
+            ),
+            "negative_controls": completeness(
+                expected_negative_controls,
+                negative_controls,
+            ),
             "provider_blockers": {
                 "present": len(provider_blocker_values),
                 "identities": sorted(
@@ -206,16 +208,32 @@ def consolidate_results(
 
 def render_summary(value: dict[str, Any]) -> str:
     status = value["status"]
+    labels = value.get("labels")
+    attempts = value.get("attempts")
     lines = [
         f"# Task-guidance {value['label']} status",
         "",
-        f"- Producer attempt: `{value['attempts']['producer']}`",
-        f"- Handoff attempt: `{value['attempts']['handoff']}`",
-        f"- Semantic attempt: `{value['attempts']['semantic']}`",
-        "",
-        "| Stage | Expected | Present | Valid | Invalid | Missing |",
-        "|---|---:|---:|---:|---:|---:|",
     ]
+    if labels:
+        lines.append("- Labels: " + ", ".join(f"`{item}`" for item in labels))
+    elif isinstance(attempts, Mapping):
+        # Historical frozen datasets record per-stage attempts.
+        lines.extend(
+            [
+                f"- Producer attempt: `{attempts['producer']}`",
+                f"- Handoff attempt: `{attempts['handoff']}`",
+                f"- Semantic attempt: `{attempts['semantic']}`",
+            ]
+        )
+    else:
+        lines.append("- Labels: latest per cell")
+    lines.extend(
+        [
+            "",
+            "| Stage | Expected | Present | Valid | Invalid | Missing |",
+            "|---|---:|---:|---:|---:|---:|",
+        ]
+    )
     for key, title in (
         ("producers", "Task creation"),
         ("handoffs", "Fresh-agent planning"),
@@ -262,9 +280,9 @@ def render_summary(value: dict[str, Any]) -> str:
         lines.extend(["", "## Invalid records", ""])
         for record in invalid:
             identity = (
-                _producer_identity(record)
+                producer_cell_identity(record)
                 if "variant" not in record
-                else _handoff_identity(record)
+                else handoff_cell_identity(record)
             )
             lines.append(
                 f"- `{identity}`: "
@@ -310,6 +328,10 @@ def render_summary(value: dict[str, Any]) -> str:
                 + " |"
             )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _values(cells: Mapping[str, tuple[Any, ...]]) -> list[dict[str, Any]]:
+    return [record.value for samples in cells.values() for record in samples]
 
 
 def _semantic_quality(
@@ -359,52 +381,6 @@ def _cohort_title(name: str) -> str:
     return name.upper()
 
 
-def _latest_records(
-    artifact_root: Path,
-    *,
-    record_name: str,
-    identity,
-    predicate,
-) -> dict[str, dict[str, Any]]:
-    selected: dict[str, tuple[float, dict[str, Any]]] = {}
-    for path in record_paths(artifact_root, record_name):
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(value, dict) or not predicate(value):
-            continue
-        key = identity(value)
-        modified = path.stat().st_mtime
-        if key not in selected or modified > selected[key][0]:
-            selected[key] = (modified, value)
-    return {key: item[1] for key, item in selected.items()}
-
-
-def _producer_identity(value: dict[str, Any]) -> str:
-    producer = value.get("producer") or {}
-    return (
-        f"{value.get('scenario_id')}:{producer.get('profile')}:"
-        f"{producer.get('reasoning_effort')}"
-    )
-
-
-def _handoff_identity(value: dict[str, Any]) -> str:
-    producer = value.get("producer") or {}
-    return (
-        f"{value.get('scenario_id')}:{value.get('variant')}:"
-        f"{producer.get('profile')}:{producer.get('reasoning_effort')}"
-    )
-
-
-def _continuation_identity(value: dict[str, Any]) -> str:
-    producer = value.get("producer") or {}
-    return (
-        f"{value.get('scenario_id')}:{producer.get('profile')}:"
-        f"{producer.get('reasoning_effort')}"
-    )
-
-
 def _provider_identity(value: dict[str, Any]) -> str:
     producer = value.get("producer") or {}
     return (
@@ -415,16 +391,27 @@ def _provider_identity(value: dict[str, Any]) -> str:
 
 def _status(
     expected: set[str],
-    observed: dict[str, dict[str, Any]],
+    cells: Mapping[str, tuple[Any, ...]],
     *,
     valid_key: str,
 ) -> dict[str, Any]:
-    valid = sum(record.get(valid_key) is True for record in observed.values())
-    invalid = sum(record.get(valid_key) is False for record in observed.values())
+    """Cell-level status: the latest sample of each cell carries validity."""
+
+    valid = 0
+    invalid = 0
+    for samples in cells.values():
+        representative = max(
+            samples,
+            key=lambda record: (record.sample_index, record.modified),
+        )
+        if representative.value.get(valid_key) is True:
+            valid += 1
+        elif representative.value.get(valid_key) is False:
+            invalid += 1
     return {
         "expected": len(expected),
-        "present": len(observed),
+        "present": len(cells),
         "valid": valid,
         "invalid": invalid,
-        "missing": sorted(expected - set(observed)),
+        "missing": sorted(set(expected) - set(cells)),
     }

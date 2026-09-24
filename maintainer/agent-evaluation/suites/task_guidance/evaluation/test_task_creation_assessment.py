@@ -1,16 +1,20 @@
+"""The live task-creation assessment matrix, parametrized from the configuration.
+
+One case per assessed scenario, judged by the stage's declared agent. The
+assessment loads the invocation's producer records under the run label
+and skips with the missing cells listed when a sliced run has not
+produced them.
+"""
+
 from __future__ import annotations
 
 import json
-import os
-from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
 
-from .artifacts import selected_dataset_id
-from .runner import TaskGuidanceHarness, selected_agent
-from .scenarios import SCENARIOS, TaskGuidanceScenario
-from .semantic import (
+from ..configuration import selected_artifact_root
+from ..scenarios import scenario_by_id
+from ..semantic import (
     load_producer_records,
     normalize_semantic_assessment,
     parse_semantic_response,
@@ -19,58 +23,36 @@ from .semantic import (
     semantic_summary,
     validate_semantic_assessment,
 )
+from ..stages import STAGES
+from .matrix import CellCase, task_creation_assessment_cases
 
 
-pytestmark = [pytest.mark.agent_eval, pytest.mark.task_guidance_semantic]
+pytestmark = [pytest.mark.agent_eval, pytest.mark.task_creation_assessment]
 
 
-@pytest.fixture(scope="session")
-def semantic_harness() -> Iterator[TaskGuidanceHarness]:
-    agent_name = selected_agent()
-    if agent_name != "glm":
-        pytest.skip("semantic assessment uses the GLM profile")
-    if os.getenv("AGENT_EVAL_RUN_REAL") != "1":
-        raise RuntimeError("set AGENT_EVAL_RUN_REAL=1 for semantic assessment")
-    harness = TaskGuidanceHarness(agent_name)
-    yield harness
-    harness.close()
-
-
-@pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda item: item.scenario_id)
+@pytest.mark.parametrize(
+    "case",
+    task_creation_assessment_cases(),
+    ids=lambda item: item.id,
+)
 @pytest.mark.requirements("TGEVAL-007", "TGEVAL-009", "TGEVAL-010", "DOCVAL-014")
-def test_task_guidance_b0_semantic_assessment(
-    semantic_harness: TaskGuidanceHarness,
-    scenario: TaskGuidanceScenario,
+def test_task_creation_assessment(
+    agent_harness,
+    run_label: str,
+    run_options: dict[str, object],
+    case: CellCase,
 ) -> None:
-    producer_attempt = os.getenv(
-        "AGENT_EVAL_TASK_GUIDANCE_RUN_ATTEMPT",
-        "default",
-    ).strip()
-    semantic_attempt = os.getenv(
-        "AGENT_EVAL_TASK_GUIDANCE_SEMANTIC_ATTEMPT",
-        "default",
-    ).strip()
-    artifact_root = Path(
-        os.getenv(
-            "AGENT_EVAL_ARTIFACT_ROOT",
-            str(
-                Path(__file__).resolve().parents[4]
-                / "tmp"
-                / "agent-evaluation"
-                / "task-guidance"
-            ),
+    scenario = scenario_by_id(case.scenario_id)
+    harness = agent_harness(case.agent)
+    try:
+        records = load_producer_records(
+            selected_artifact_root(),
+            scenario=scenario,
+            labels=[run_label],
+            allow_partial=False,
         )
-    ).expanduser()
-    records = load_producer_records(
-        artifact_root,
-        scenario=scenario,
-        run_attempt=producer_attempt,
-        allow_partial=os.getenv(
-            "AGENT_EVAL_TASK_ALLOW_PARTIAL",
-            "",
-        ).strip()
-        == "1",
-    )
+    except FileNotFoundError as error:
+        pytest.skip(f"missing upstream records under label {run_label!r}: {error}")
     valid_records = [record for record in records if record.get("valid") is True]
     invalid_records = [record for record in records if record.get("valid") is not True]
     if not valid_records:
@@ -79,12 +61,23 @@ def test_task_guidance_b0_semantic_assessment(
             f"{[record.get('invalid_reasons') for record in invalid_records]!r}"
         )
     prompt = semantic_prompt(scenario, valid_records)
-    run = semantic_harness.run_assessment(
+    runs = harness.run_assessment(
         test_id=f"task-guidance-semantic-{scenario.scenario_id}",
         prompt=prompt,
-        reasoning_effort="max",
-        cache_variant=f"{producer_attempt}:{semantic_attempt}",
+        reasoning_effort=case.effort,
+        fresh=bool(run_options["fresh"]),
+        samples=int(run_options["samples"]),
     )
+    for run in runs:
+        _record_assessment_run(scenario, run, valid_records, invalid_records)
+
+
+def _record_assessment_run(
+    scenario,
+    run,
+    valid_records: list,
+    invalid_records: list,
+) -> None:
     if run.value is None:
         raise AssertionError(f"semantic run produced no value: {run.error!r}")
     if run.error is not None or not run.value.completed or run.value.errors:
@@ -104,13 +97,10 @@ def test_task_guidance_b0_semantic_assessment(
     )
     summary = semantic_summary(value)
     run.record(
-        "task-guidance-semantic.json",
+        STAGES["task-creation-assessment"].record,
         {
             "schema_version": 1,
-            "dataset_id": selected_dataset_id(),
             "scenario_id": scenario.scenario_id,
-            "producer_attempt": producer_attempt,
-            "semantic_attempt": semantic_attempt,
             "producer_records": valid_records,
             "invalid_producer_records": invalid_records,
             "assessment": value,

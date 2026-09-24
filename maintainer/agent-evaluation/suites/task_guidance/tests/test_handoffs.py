@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from .configuration import selected_bundle
-from .handoffs import CanonicalHandoffWorkspaceFactory
-from .scenarios import SCENARIOS
+from ..configuration import selected_bundle
+from ..handoffs import CanonicalHandoffWorkspaceFactory
+from ..scenarios import SCENARIOS
 
 
 def test_bounded_scenarios_have_retain_and_omit_handoffs() -> None:

@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 
 
-HERE = Path(__file__).resolve().parent
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+SUITE_ROOT = Path(__file__).resolve().parents[1]
+if str(SUITE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SUITE_ROOT))
 
 from prepare_review_bundle import (  # noqa: E402
     prepare_review_bundle,
@@ -43,9 +43,7 @@ def test_render_messages_counts_tool_calls_between_visible_messages() -> None:
                 "role": "assistant",
                 "content": "",
                 "metadata": {
-                    "tool_calls": [
-                        {"function": {"name": "Read", "arguments": "{}"}}
-                    ]
+                    "tool_calls": [{"function": {"name": "Read", "arguments": "{}"}}]
                 },
             },
             {"role": "tool", "content": "result"},
@@ -125,9 +123,7 @@ def test_prepare_review_bundle_uses_saved_artifacts(tmp_path: Path) -> None:
         run_dir,
         tmp_path / "review",
     )
-    case_output = (
-        output / "cases" / "create-task-after-plan" / "demo-model"
-    )
+    case_output = output / "cases" / "create-task-after-plan" / "demo-model"
 
     assert output.joinpath("README.md").is_file()
     assert output.joinpath("TASKS.md").read_text(encoding="utf-8") == guidance
@@ -135,13 +131,9 @@ def test_prepare_review_bundle_uses_saved_artifacts(tmp_path: Path) -> None:
         encoding="utf-8"
     )
     assert (
-        case_output.joinpath("compiled-system-message.md").read_text(
-            encoding="utf-8"
-        )
+        case_output.joinpath("compiled-system-message.md").read_text(encoding="utf-8")
         == "Full compiled prompt.\n"
     )
-    assertions = case_output.joinpath("assertions.md").read_text(
-        encoding="utf-8"
-    )
+    assertions = case_output.joinpath("assertions.md").read_text(encoding="utf-8")
     assert "| PASS |" in assertions
     assert "| FAIL |" not in assertions

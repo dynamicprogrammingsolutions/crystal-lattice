@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 
-from .handoff_semantic import (
+from ..handoff_semantic import (
     parse_handoff_semantic,
     validate_handoff_semantic,
 )
-from .scenarios import scenario_by_id
+from ..scenarios import scenario_by_id
 
 
 def test_handoff_semantic_schema() -> None:
@@ -37,9 +37,7 @@ def test_handoff_semantic_schema() -> None:
         ],
     }
 
-    parsed = parse_handoff_semantic(
-        "```json\n" + json.dumps(value) + "\n```"
-    )
+    parsed = parse_handoff_semantic("```json\n" + json.dumps(value) + "\n```")
     validate_handoff_semantic(
         parsed,
         scenario=scenario,

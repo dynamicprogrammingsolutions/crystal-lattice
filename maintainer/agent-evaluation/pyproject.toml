@@ -47,8 +47,12 @@ markers = [
   "root_requirement_testing: root Requirements and Testing guidance producers",
   "requirement_semantic: structured semantic requirement and testing-plan evaluator",
   "root_guidance_quality: pairwise overall-quality comparison for root guidance",
-  "task_guidance_baseline: task handoff and decomposition producer baseline",
-  "task_guidance_semantic: structured task handoff and decomposition assessment",
+  "task_creation: live task-creation producer stage",
+  "handoff_plan: live fresh-agent planning stage",
+  "continuation: live same-agent continuation stage",
+  "negative_control: live incomplete-handoff negative control",
+  "task_creation_assessment: live task-creation assessment stage",
+  "handoff_assessment: live handoff assessment stage",
   "requirements(*ids): requirement identifiers covered by an acceptance test",
 ]
 

@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 
 
-HERE = Path(__file__).resolve().parent
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+SUITE_ROOT = Path(__file__).resolve().parents[1]
+if str(SUITE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SUITE_ROOT))
 
 from harness import (  # noqa: E402
     MutationBudget,
@@ -339,8 +339,7 @@ def test_task_creation_rejects_inferred_execution_approval() -> None:
 
     assert_no_execution_approval("Created the requested task file.")
     assert_no_execution_approval(
-        "You asked for the task file only, not to track the plan as "
-        "Draft/Approved."
+        "You asked for the task file only, not to track the plan as " "Draft/Approved."
     )
 
 
@@ -386,9 +385,7 @@ def test_mutation_budget_applies_to_rebuilt_core_instances() -> None:
     }
 
     try:
-        assert list(
-            FakeCore().iter_tool_messages([apply_patch_call], {}, context=None)
-        )
+        assert list(FakeCore().iter_tool_messages([apply_patch_call], {}, context=None))
         with pytest.raises(RuntimeError, match="mutation-call limit exceeded"):
             list(FakeCore().iter_tool_messages([apply_patch_call], {}, context=None))
     finally:

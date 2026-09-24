@@ -5,9 +5,10 @@ import re
 from collections import Counter
 from pathlib import Path
 from string import Template
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
-from .artifacts import record_paths
+from agent_eval.runner import select_cell_records
+
 from .configuration import producer_cells
 from .scenarios import TaskGuidanceScenario
 from .stages import STAGES
@@ -41,46 +42,76 @@ def expected_producer_cells(
     return producer_cells(scenario.category)
 
 
+def producer_cell_identity(value: Mapping[str, Any]) -> str:
+    """The cell identity of one task-creation record."""
+
+    producer = value.get("producer") or {}
+    return (
+        f"{value.get('scenario_id')}:{producer.get('profile')}:"
+        f"{producer.get('reasoning_effort')}"
+    )
+
+
+def handoff_cell_identity(value: Mapping[str, Any]) -> str:
+    """The cell identity of one handoff-plan or negative-control record."""
+
+    producer = value.get("producer") or {}
+    return (
+        f"{value.get('scenario_id')}:{value.get('variant')}:"
+        f"{producer.get('profile')}:{producer.get('reasoning_effort')}"
+    )
+
+
+def continuation_cell_identity(value: Mapping[str, Any]) -> str:
+    """The cell identity of one continuation record."""
+
+    producer = value.get("producer") or {}
+    return (
+        f"{value.get('scenario_id')}:{producer.get('profile')}:"
+        f"{producer.get('reasoning_effort')}"
+    )
+
+
+def scenario_cell_identity(value: Mapping[str, Any]) -> str:
+    """The cell identity of one assessment record (one per scenario)."""
+
+    return str(value.get("scenario_id"))
+
+
+def _latest_sample(samples: Sequence[Any]) -> Any:
+    return max(samples, key=lambda record: (record.sample_index, record.modified))
+
+
 def load_producer_records(
     artifact_root: Path,
     *,
     scenario: TaskGuidanceScenario,
-    run_attempt: str,
+    labels: Sequence[str] | None,
     allow_partial: bool = False,
 ) -> list[dict[str, Any]]:
-    selected: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
-    for path in record_paths(
+    """The scenario's producer records under the given run labels.
+
+    Selection delegates to the consolidation core; each cell contributes
+    its latest sample. Without ``labels`` the latest label of each cell
+    is selected.
+    """
+
+    cells = select_cell_records(
         artifact_root,
-        STAGES["task-creation"].record,
-    ):
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(value, dict):
-            continue
-        if value.get("scenario_id") != scenario.scenario_id:
-            continue
-        if value.get("run_attempt") != run_attempt:
-            continue
-        producer = value.get("producer")
-        if not isinstance(producer, dict):
-            continue
-        profile = producer.get("profile")
-        effort = producer.get("reasoning_effort")
-        if not isinstance(profile, str) or not isinstance(effort, str):
-            continue
-        key = (profile, effort)
-        modified = path.stat().st_mtime
-        if key not in selected or modified > selected[key][0]:
-            selected[key] = (modified, value)
-    expected = expected_producer_cells(scenario)
-    missing = [key for key in expected if key not in selected]
+        record_name=STAGES["task-creation"].record,
+        cell_identity=producer_cell_identity,
+        labels=labels,
+    )
+    expected = [
+        f"{scenario.scenario_id}:{agent}:{effort}"
+        for agent, effort in expected_producer_cells(scenario)
+    ]
+    missing = [key for key in expected if key not in cells]
     if missing and not allow_partial:
         raise FileNotFoundError(
             f"missing producer records for {scenario.scenario_id}: {missing}"
         )
-    return [selected[key][1] for key in expected if key in selected]
+    return [_latest_sample(cells[key]).value for key in expected if key in cells]
 
 
 # The fixed instruction part of the assessment prompt. Per-evaluation

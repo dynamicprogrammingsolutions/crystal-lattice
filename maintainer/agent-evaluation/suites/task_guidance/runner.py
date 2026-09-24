@@ -14,6 +14,7 @@ from agent_eval.crystal_lattice import (
     CrystalLatticeContext,
     CrystalLatticeEnvironment,
 )
+from agent_eval.runner import RunModel, request_identity
 from agent_eval.services import RunServices
 from maintainer.guidance import compile_guidance
 
@@ -41,6 +42,119 @@ DEFAULT_CONFIG_ROOT = (
 )
 PLUGIN_RUNTIME_CONSTRAINTS = PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
 RUNNER_VERSION = "v1"
+IDENTITY_NAMESPACE = "task-guidance"
+
+
+def task_creation_identity(
+    *,
+    agent_name: str,
+    scenario: TaskGuidanceScenario,
+    reasoning_effort: str,
+    workspace_fingerprint: object,
+    target_sha256: str,
+) -> str:
+    """The cache identity of one task-creation request."""
+
+    return request_identity(
+        namespace=IDENTITY_NAMESPACE,
+        version=RUNNER_VERSION,
+        components={
+            "stage": "task-creation",
+            "agent": agent_name,
+            "model": AGENTS[agent_name]["model"],
+            "scenario": scenario.scenario_id,
+            "effort": reasoning_effort,
+            "workspace_fingerprint": workspace_fingerprint,
+            "target_sha256": target_sha256,
+        },
+    )
+
+
+def handoff_plan_identity(
+    *,
+    agent_name: str,
+    scenario: TaskGuidanceScenario,
+    variant: str,
+    reasoning_effort: str,
+    workspace_fingerprint: object,
+) -> str:
+    """The cache identity of one fresh-agent planning request."""
+
+    return request_identity(
+        namespace=IDENTITY_NAMESPACE,
+        version=RUNNER_VERSION,
+        components={
+            "stage": "handoff-plan",
+            "agent": agent_name,
+            "model": AGENTS[agent_name]["model"],
+            "scenario": scenario.scenario_id,
+            "variant": variant,
+            "effort": reasoning_effort,
+            "workspace_fingerprint": workspace_fingerprint,
+        },
+    )
+
+
+def continuation_identity(
+    *,
+    agent_name: str,
+    scenario: TaskGuidanceScenario,
+    reasoning_effort: str,
+    parent_identity: str,
+) -> str:
+    """The cache identity of one same-agent continuation request.
+
+    The parent's identity is a component, so a re-produced task-creation
+    run invalidates the continuation cache even though the continuation
+    request material itself is unchanged.
+    """
+
+    return request_identity(
+        namespace=IDENTITY_NAMESPACE,
+        version=RUNNER_VERSION,
+        components={
+            "stage": "continuation",
+            "agent": agent_name,
+            "model": AGENTS[agent_name]["model"],
+            "scenario": scenario.scenario_id,
+            "effort": reasoning_effort,
+            "parent_identity": parent_identity,
+        },
+    )
+
+
+def assessment_identity(
+    *,
+    agent_name: str,
+    test_id: str,
+    prompt: str,
+    reasoning_effort: str,
+) -> str:
+    """The cache identity of one assessment request."""
+
+    return request_identity(
+        namespace=IDENTITY_NAMESPACE,
+        version=RUNNER_VERSION,
+        components={
+            "stage": "assessment",
+            "agent": agent_name,
+            "model": AGENTS[agent_name]["model"],
+            "test_id": test_id,
+            "effort": reasoning_effort,
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        },
+    )
+
+
+def run_identity(run: Run[object]) -> str:
+    """The recorded request identity of one executed run."""
+
+    provenance = run.artifact_dir / "records" / "run-model.json"
+    value = json.loads(provenance.read_text(encoding="utf-8"))
+    identity = value.get("identity")
+    if not isinstance(identity, str) or not identity:
+        raise ValueError(f"run {run.run_id!r} has no recorded identity")
+    return identity
 
 
 @dataclass(frozen=True)
@@ -124,6 +238,7 @@ class TaskGuidanceHarness:
         agent_name: str,
         *,
         bundle: Path | None = None,
+        label: str | None = None,
     ) -> None:
         self.agent_name = agent_name
         self.agent = AGENTS[agent_name]
@@ -167,6 +282,7 @@ class TaskGuidanceHarness:
             artifact_root=artifact_root / agent_name,
             cache_root=artifact_root / "cache" / agent_name,
         )
+        self.model = RunModel(self.evaluation, label=label)
 
     def close(self) -> None:
         self.evaluation.close()
@@ -176,28 +292,31 @@ class TaskGuidanceHarness:
         *,
         scenario: TaskGuidanceScenario,
         reasoning_effort: str,
-        cache_variant: str,
-    ) -> Run[TaskRunValue]:
+        fresh: bool = False,
+        samples: int = 1,
+    ) -> tuple[Run[TaskRunValue], ...]:
         workspace = TaskGuidanceWorkspaceFactory(
             scenario=scenario,
             bundle=self.bundle,
         )
-        target_hash = hashlib.sha256(scenario.target_path.read_bytes()).hexdigest()
-        cache_key = (
-            f"task-guidance:{RUNNER_VERSION}:{self.agent_name}:"
-            f"{self.agent['model']}:{scenario.scenario_id}:{reasoning_effort}:"
-            f"{workspace.fingerprint()}:{target_hash}:{cache_variant}:"
-            f"{os.getenv('AGENT_EVAL_CACHE_NONCE', '').strip()}"
+        identity = task_creation_identity(
+            agent_name=self.agent_name,
+            scenario=scenario,
+            reasoning_effort=reasoning_effort,
+            workspace_fingerprint=workspace.fingerprint(),
+            target_sha256=hashlib.sha256(scenario.target_path.read_bytes()).hexdigest(),
         )
-        return self.evaluation.run(
+        return self._execute(
             f"task-guidance-{scenario.scenario_id}-{reasoning_effort}",
             lambda context: self._task_creation_turn(
                 context,
                 scenario=scenario,
                 reasoning_effort=reasoning_effort,
             ),
+            identity=identity,
             workspace=workspace,
-            cache_key=cache_key,
+            fresh=fresh,
+            samples=samples,
         )
 
     def run_assessment(
@@ -206,25 +325,26 @@ class TaskGuidanceHarness:
         test_id: str,
         prompt: str,
         reasoning_effort: str,
-        cache_variant: str,
-    ) -> Run[AssessmentRunValue]:
-        workspace = AssessmentWorkspaceFactory()
-        cache_key = (
-            f"task-guidance-assessment:{RUNNER_VERSION}:{self.agent_name}:"
-            f"{self.agent['model']}:{test_id}:{reasoning_effort}:"
-            f"{hashlib.sha256(prompt.encode('utf-8')).hexdigest()}:"
-            f"{cache_variant}:"
-            f"{os.getenv('AGENT_EVAL_CACHE_NONCE', '').strip()}"
+        fresh: bool = False,
+        samples: int = 1,
+    ) -> tuple[Run[AssessmentRunValue], ...]:
+        identity = assessment_identity(
+            agent_name=self.agent_name,
+            test_id=test_id,
+            prompt=prompt,
+            reasoning_effort=reasoning_effort,
         )
-        return self.evaluation.run(
+        return self._execute(
             test_id,
             lambda context: self._assessment_turn(
                 context,
                 prompt=prompt,
                 reasoning_effort=reasoning_effort,
             ),
-            workspace=workspace,
-            cache_key=cache_key,
+            identity=identity,
+            workspace=AssessmentWorkspaceFactory(),
+            fresh=fresh,
+            samples=samples,
         )
 
     def run_plan_from_handoff(
@@ -233,26 +353,31 @@ class TaskGuidanceHarness:
         scenario: TaskGuidanceScenario,
         variant: str,
         reasoning_effort: str,
-        cache_variant: str,
-    ) -> Run[PlanRunValue]:
+        fresh: bool = False,
+        samples: int = 1,
+    ) -> tuple[Run[PlanRunValue], ...]:
         workspace = CanonicalHandoffWorkspaceFactory(
             scenario=scenario,
             variant=variant,
             bundle=self.bundle,
         )
-        cache_key = (
-            f"task-guidance-handoff:{RUNNER_VERSION}:{self.agent_name}:"
-            f"{self.agent['model']}:{scenario.scenario_id}:{variant}:"
-            f"{reasoning_effort}:{workspace.fingerprint()}:{cache_variant}"
+        identity = handoff_plan_identity(
+            agent_name=self.agent_name,
+            scenario=scenario,
+            variant=variant,
+            reasoning_effort=reasoning_effort,
+            workspace_fingerprint=workspace.fingerprint(),
         )
-        return self.evaluation.run(
+        return self._execute(
             f"task-guidance-handoff-{scenario.scenario_id}-{variant}",
             lambda context: self._plan_turn(
                 context,
                 reasoning_effort=reasoning_effort,
             ),
+            identity=identity,
             workspace=workspace,
-            cache_key=cache_key,
+            fresh=fresh,
+            samples=samples,
         )
 
     def continue_same_agent_plan(
@@ -261,25 +386,37 @@ class TaskGuidanceHarness:
         parent: Run[TaskRunValue],
         scenario: TaskGuidanceScenario,
         reasoning_effort: str,
-    ) -> Run[PlanRunValue]:
+        fresh: bool = False,
+        samples: int = 1,
+    ) -> tuple[Run[PlanRunValue], ...]:
         if parent.workspace is None:
             raise ValueError("task-creation parent has no workspace")
-        return self.evaluation.run(
+        identity = continuation_identity(
+            agent_name=self.agent_name,
+            scenario=scenario,
+            reasoning_effort=reasoning_effort,
+            parent_identity=run_identity(parent),
+        )
+        return self._execute(
             f"task-guidance-same-agent-{scenario.scenario_id}",
             lambda context: self._plan_turn(
                 context,
                 reasoning_effort=reasoning_effort,
             ),
-            continue_from=parent,
+            identity=identity,
             workspace=parent.workspace,
+            continue_from=parent,
+            fresh=fresh,
+            samples=samples,
         )
 
     def run_negative_control(
         self,
         *,
         category: str,
-        cache_variant: str,
-    ) -> Run[PlanRunValue]:
+        fresh: bool = False,
+        samples: int = 1,
+    ) -> tuple[Run[PlanRunValue], ...]:
         """The designated negative-control run for one scenario category."""
 
         control = negative_control(category)
@@ -295,8 +432,46 @@ class TaskGuidanceHarness:
             scenario=scenario,
             variant=control["variant"],
             reasoning_effort=control["effort"],
-            cache_variant=cache_variant,
+            fresh=fresh,
+            samples=samples,
         )
+
+    def _execute(
+        self,
+        name: str,
+        program: object,
+        *,
+        identity: str,
+        workspace: object,
+        continue_from: Run[object] | None = None,
+        fresh: bool = False,
+        samples: int = 1,
+    ) -> tuple[Run[object], ...]:
+        """Execute one stage request through the run model.
+
+        A single sample is cache-aware (``fresh`` forces re-execution);
+        multiple samples are always genuine executions of the identical
+        request identity, recorded under the invocation's run label.
+        """
+
+        if samples > 1:
+            return self.model.run_samples(
+                name,
+                program,
+                identity=identity,
+                count=samples,
+                workspace=workspace,
+                continue_from=continue_from,
+            )
+        run = self.model.run(
+            name,
+            program,
+            identity=identity,
+            workspace=workspace,
+            continue_from=continue_from,
+            fresh=fresh,
+        )
+        return (run,)
 
     def _task_creation_turn(
         self,
@@ -342,10 +517,7 @@ class TaskGuidanceHarness:
         )
         context.services.record("task_guidance.delivery", delivery)
         context.add_message("user", scenario.prompt)
-        outcome = context.request(
-            stream=True,
-            max_events=_optional_int("AGENT_EVAL_MAX_EVENTS"),
-        )
+        outcome = context.request(stream=True)
         task_files = (
             {
                 str(path.relative_to(context.workspace)): path.read_text(
@@ -410,10 +582,7 @@ class TaskGuidanceHarness:
             },
         )
         context.add_message("user", prompt)
-        outcome = context.request(
-            stream=True,
-            max_events=_optional_int("AGENT_EVAL_MAX_EVENTS"),
-        )
+        outcome = context.request(stream=True)
         return AssessmentRunValue(
             prompt=prompt,
             response=outcome.final_response,
@@ -448,10 +617,7 @@ class TaskGuidanceHarness:
         )
         parent_message_count = len(context.session.messages)
         context.add_message("user", PLAN_PROMPT)
-        outcome = context.request(
-            stream=True,
-            max_events=_optional_int("AGENT_EVAL_MAX_EVENTS"),
-        )
+        outcome = context.request(stream=True)
         calls = tuple(
             call
             for call in collect_tool_calls(context.session)
@@ -474,17 +640,6 @@ class TaskGuidanceHarness:
             delivery=delivery,
             task_files=task_files,
         )
-
-
-def selected_agent() -> str:
-    """The agent the live matrix runs (``AGENT_EVAL_PROFILE``)."""
-
-    name = os.getenv("AGENT_EVAL_PROFILE", "").strip().lower()
-    if name not in AGENTS:
-        raise ValueError(
-            "AGENT_EVAL_PROFILE must be one of: " + ", ".join(sorted(AGENTS))
-        )
-    return name
 
 
 def request_overrides(
@@ -651,11 +806,6 @@ def _reload_context_with_defaults(context: CrystalLatticeContext) -> None:
         base_config=base_config,
         session=session,
     )
-
-
-def _optional_int(name: str) -> int | None:
-    raw = os.getenv(name, "").strip()
-    return int(raw) if raw else None
 
 
 def _workspace_task_files(workspace: Path) -> dict[str, str]:

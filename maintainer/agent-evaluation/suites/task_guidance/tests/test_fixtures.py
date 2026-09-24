@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from maintainer.guidance import compile_guidance
 
-from .configuration import selected_bundle
-from .fixtures import (
+from ..configuration import selected_bundle
+from ..fixtures import (
     GUIDANCE_TARGET_ROOT,
     REPOSITORY_ROOT,
     fixture_files,
     fixture_sha256,
 )
-from .scenarios import SCENARIOS
+from ..scenarios import SCENARIOS
 
 
 def test_every_scenario_has_a_nontrivial_fixed_fixture() -> None:

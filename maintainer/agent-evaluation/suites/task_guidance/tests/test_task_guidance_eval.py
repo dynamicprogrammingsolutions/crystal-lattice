@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 
-HERE = Path(__file__).resolve().parent
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+SUITE_ROOT = Path(__file__).resolve().parents[1]
+if str(SUITE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SUITE_ROOT))
 
 from prepare_review_bundle import evaluate_case  # noqa: E402
 from task_guidance_eval import (  # noqa: E402
@@ -333,8 +333,7 @@ No change.
     inclusion = next(
         result
         for result in results
-        if result.name
-        == "Task guidance is included only for the intended model turn"
+        if result.name == "Task guidance is included only for the intended model turn"
     )
     assert inclusion.status == "PASS"
 
@@ -594,17 +593,18 @@ Description.
     )
     assert (
         "implementation-specific robustness checks, when present, are kept "
-        "separate"
-        in normalized
+        "separate" in normalized
     )
     assert "substantive free-form body after status" in normalized
     assert (
         "important implementation decisions and open implementation questions "
-        "are collected immediately before documentation"
-        in normalized
+        "are collected immediately before documentation" in normalized
     )
     assert "requirement questions and decisions changing scope" in normalized
-    assert "human-facing sections are concise while supporting details preserve" in normalized
+    assert (
+        "human-facing sections are concise while supporting details preserve"
+        in normalized
+    )
     assert "Do not judge whether repository findings are correct" in normalized
     assert "whether the plan satisfies R1-R5" not in prompt
 
@@ -633,15 +633,14 @@ Existing tests document the current behavior.
         response="Created the requested handoff.",
     )
 
-    normalized = " ".join(
-        _review_prompt(case_dir=case_dir, metadata=metadata).split()
-    )
+    normalized = " ".join(_review_prompt(case_dir=case_dir, metadata=metadata).split())
 
     assert "because this is an omit-plan handoff" in normalized
     assert (
         "do not require requirement verification, planned tests, documentation, "
-        "implementation details"
-        in normalized
+        "implementation details" in normalized
     )
-    assert "do not penalize the handoff merely because separate verification" in normalized
+    assert (
+        "do not penalize the handoff merely because separate verification" in normalized
+    )
     assert "whether requirement verification maps each requirement" not in normalized
