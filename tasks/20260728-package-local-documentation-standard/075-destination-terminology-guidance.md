@@ -121,8 +121,8 @@ wording that is already present.
 
 ## Requirement questions
 
-None. Final candidate selection and promotion remain human decisions after the
-paired behavioral evidence is reviewed.
+None. On September 24, 2026, the user selected abstract-specific for promotion.
+Final human review of the promoted guidance remains outstanding.
 
 ## Scope and ownership
 
@@ -348,8 +348,9 @@ links, documentation preparation, and the normal MkDocs build.
   comparison because the two primary candidates expose both the prevention
   gains and the unresolved existing-wording authority gap.
 - Approved: Subtask 090 owns task-guidance placement and `TASKS-v7` changes.
-- Final wording selection and promotion remain open human decisions after
-  evidence is presented.
+- Approved September 24, 2026: promote abstract-specific unchanged rather than
+  create a hybrid with explicit-contexts-specific. Keep the candidate
+  directories as historical evaluation evidence.
 
 ### Documentation
 
@@ -392,7 +393,7 @@ No task-guidance source or bundled copy is planned to change in this subtask.
 - [x] Freeze valid producer and semantic records.
 - [x] Publish dated interpretation and update requirement evidence.
 - [x] Present final wording recommendation for human selection.
-- [ ] After explicit selection, promote and verify maintained guidance.
+- [x] After explicit selection, promote and verify maintained guidance.
 - [ ] Obtain final human review.
 
 ### Requirement verification
@@ -401,10 +402,10 @@ No task-guidance source or bundled copy is planned to change in this subtask.
 |---|---|
 | New-label prevention (`DOCGUIDE-008`) | Revised Test 13 and Tests 36–37 begin without the held-out label in the destination and demonstrate that source-local terminology is not introduced while exact and established terms remain intact. |
 | Existing-wording authority (`DOCGUIDE-009`) | Test 38 records no-mutation, reviewable body-first, and hard mutation boundaries, then uses calibrated semantic evidence to identify whether the response notices the concern, recommends a change, and asks focused confirmation. The September 20 matrix finds only two ideal responses and one true minor body-first/direct-question deviation. |
-| Portable recurring guidance (`DOCAGENT-002`) | Both Documentation candidates compile through the Crystal Lattice target; production-message inspection records exact source, output, role, occurrence, and tool-schema provenance. No candidate is selected for promotion. |
+| Portable recurring guidance (`DOCAGENT-002`) | The promoted Documentation source compiles through the Crystal Lattice target into `AGENTS.md`; the paired complete-guide target compiles into `docs/development/documentation.md`. Production-message inspection records exact source, output, role, occurrence, and tool-schema provenance. |
 | Crystal Lattice behavioral validation (`DOCVAL-015`) | Current and selected candidate runs use fixed scenarios with GLM high/max and GPT high/xhigh; dated interpretation preserves passing controls, failures, partial deviations, variance, and historical mapping. |
 | Suite producer and semantic contract (`DSEVAL-004`) | Producers pass common-runner, mutation-boundary, provenance, and completion gates before frozen records are accepted; the separate Test 38 judge validates its versioned schema and recorded repairs, and final severity combines both layers. The provisional deterministic label still needs a naming correction. |
-| Size and promotion restraint | Candidate source measurements meet the initial growth constraint, and no maintained current source changes before explicit human selection. |
+| Size and promotion restraint | Candidate source measurements meet the initial growth constraint. The maintained current source changes only after the user selected abstract-specific on September 24, 2026. |
 
 ### Additional implementation verification
 
@@ -530,3 +531,19 @@ No task-guidance source or bundled copy is planned to change in this subtask.
   - Ruff and Python compilation for the changed evaluation modules;
   - frozen-result JSON parsing and a zero-provider-error producer audit;
   - `git diff --check`.
+- September 24, 2026: The user selected abstract-specific unchanged for
+  promotion. Its portable Documentation section was merged into
+  `maintainer/guidance/current/sections/documentation.md`, and its complete
+  guide section was added as
+  `maintainer/guidance/current/sections/documentation-guide.md`. The current
+  Crystal Lattice and complete-guide targets were recompiled into `AGENTS.md`
+  and `docs/development/documentation.md`; `agents/TASKS-v7.md` remained
+  byte-identical.
+- September 24, 2026: Promotion verification passes:
+  - the current Crystal Lattice and complete-guide compiler checks;
+  - all 149 `maintainer/agent-evaluation/tests`;
+  - canonical `TASKS-v7` synchronization;
+  - documentation preparation and normal MkDocs build.
+  The concise-shape guard now permits the approved promoted envelope: 2,500
+  guide words, 350 root Documentation-section words, and 4,100 total reviewed
+  guidance words. The promoted source measures 2,488, 324, and 3,994 words.

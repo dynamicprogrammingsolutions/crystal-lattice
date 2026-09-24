@@ -136,9 +136,12 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 - Change generated documentation through its maintained source or generator.
   If generation is blocked, preserve the source boundary and report what
   remains.
-- Document verified facts discovered during the current work. Do not
-  reconstruct large unfamiliar areas merely to establish a documentation
-  baseline.
+- Choose file terms from behavior, not labels. Preserve established/requested
+  interface terms. If an edit encounters unexplained wording that may be
+  internal without cleanup authority, make no change to that file until the
+  user chooses removal, translation, or retention; explain concern and
+  recommend one choice. Example: an unexplained “Blue bundle” release heading
+  is not established merely by presence; `--dry-run` stays exact.
 - Before creating, moving, or materially restructuring documentation or
   specifications, read `docs/development/documentation.md`. A local factual
   correction does not require unrelated structure guidance.

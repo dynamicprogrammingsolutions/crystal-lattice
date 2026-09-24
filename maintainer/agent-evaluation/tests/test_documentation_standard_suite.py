@@ -118,11 +118,11 @@ def test_current_documentation_guidance_shape_is_concise() -> None:
     index_words = len(index.read_text().split())
     agent_words = len(agent_section.split())
 
-    assert 1600 <= guide_words <= 2200
+    assert 1600 <= guide_words <= 2500
     assert 900 <= local_words <= 1200
     assert index_words < 150
-    assert 200 <= agent_words <= 300
-    assert 3000 <= guide_words + local_words + index_words + agent_words <= 3600
+    assert 200 <= agent_words <= 350
+    assert 3000 <= guide_words + local_words + index_words + agent_words <= 4100
 
     assert agents.count("## Documentation") == 1
     assert agents.count("## Crystal Lattice documentation routing") == 1

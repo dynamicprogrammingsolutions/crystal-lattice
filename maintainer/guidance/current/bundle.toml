@@ -3,6 +3,7 @@ id = "current"
 
 [sections]
 documentation = "sections/documentation.md"
+documentation-guide = "sections/documentation-guide.md"
 requirements = "sections/requirements.md"
 root-testing = "sections/root-testing.md"
 testing-strategy = "sections/testing-strategy.md"
