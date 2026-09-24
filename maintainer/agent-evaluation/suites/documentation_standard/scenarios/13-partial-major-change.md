@@ -1,7 +1,7 @@
 # Partial major-change implementation
 
 Requirement coverage: `DOCGEN-002`, `DOCGEN-006`, `DOCREP-006`,
-`DOCVAL-007`–`DOCVAL-008`
+`DOCVAL-007`–`DOCVAL-008`, `DOCGUIDE-008`, `DOCVAL-015`, `DSEVAL-004`
 
 ## Normative traceability
 
@@ -89,11 +89,22 @@ internal Phase 3/SYNC/task context from leaking into consumer documentation.
 Absence of a new target version verifies that one clear target remains
 proportional.
 
+[DOCGUIDE-008](../../../../docs/development/specifications/documentation-guidance/requirements.md),
+[DOCVAL-015](../../../../docs/development/specifications/crystal-lattice-guidance-integration/requirements.md),
+and [DSEVAL-004](../docs/development/requirements.md) additionally require the
+initial user page to contain no progress label, the branch prompt to retain
+realistic phase pressure, and production-runner evidence that no phase
+organization is introduced into the final README.
+
 ## Setup
 
 Continue from
 [Seed 09: partial major-change investigation](seed-09-partial-major-change.md)
 with candidate guidance added.
+
+The initial README describes local change capture without using a phase,
+requirement, task, or target label. Phase terminology remains in internal
+specification, requirements, task, and prompt context.
 
 ## Exact user prompt
 

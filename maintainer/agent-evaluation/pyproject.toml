@@ -46,6 +46,8 @@ markers = [
   "root_requirement_testing: root Requirements and Testing guidance producers",
   "requirement_semantic: structured semantic requirement and testing-plan evaluator",
   "root_guidance_quality: pairwise overall-quality comparison for root guidance",
+  "destination_terminology: destination-appropriate terminology producer and semantic evaluation",
+  "destination_terminology_semantic: structured confirmation-before-cleanup evaluator",
   "requirements(*ids): requirement identifiers covered by an acceptance test",
 ]
 

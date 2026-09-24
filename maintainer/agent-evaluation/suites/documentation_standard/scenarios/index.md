@@ -15,6 +15,7 @@ These pages define maintained suite inputs, prompts, fixtures, and expected beha
 - [Seed 09: partial major-change investigation](seed-09-partial-major-change.md)
 - [Seed 10: requirement-scope investigation](seed-10-requirement-scope.md)
 - [Seed 11: testing-strategy investigation](seed-11-testing-strategy.md)
+- [Seed 12: status-label naming investigation](seed-12-status-label-naming.md)
 
 ## Scenarios
 
@@ -53,3 +54,6 @@ These pages define maintained suite inputs, prompts, fixtures, and expected beha
 - [Test 33: Eleventy archive-pagination requirement quality](33-eleventy-archive-pagination.md)
 - [Test 34: FastAPI notes-pagination requirement quality](34-fastapi-notes-pagination.md)
 - [Test 35: Flask/Vue book-filter requirement quality](35-flask-vue-book-filter.md)
+- [Test 36: source terms in specification records](36-source-terms-in-specification-records.md)
+- [Test 37: source terms in code and tests](37-source-terms-in-code-and-tests.md)
+- [Test 38: confirm existing terminology cleanup](38-confirm-existing-terminology-cleanup.md)

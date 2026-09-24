@@ -16,6 +16,12 @@ target adds package routes and maintainer entry points and compiles root
 `AGENTS.md`. The source path, compilation hash, and runtime delivery are
 recorded separately.
 
+Destination-terminology candidates extend the current bundle and override only
+the portable Documentation section. The documentation-guidance suite pairs
+each bundle candidate with a complete project-independent-guide input using the
+same candidate identity. Root output is compiled into temporary evaluation
+workspaces; complete generated roots are not maintained candidate sources.
+
 Canonical `agents/TASKS-v7.md` is synchronized byte-identically to the bundled
 application copy. Its content is delivered through the task-enabled developer
 message; it is not inferred from the filename.
@@ -83,6 +89,12 @@ The documentation-guidance suite is a consumer of the reusable evaluation
 framework. Scenario prompts and targets are suite inputs; frozen JSON is suite
 evidence; dated Markdown reports live under
 `maintainer/docs/evaluations/documentation-guidance/`.
+
+Destination-terminology acceptance uses the suite's common Crystal Lattice
+runner and normal system-message compilation. Direct injection may isolate a
+wording effect but is reported as diagnostic evidence rather than default-runner
+acceptance. New-label prevention and existing-wording cleanup use separate
+scenarios and result interpretation.
 
 The task-guidance suite target lives under
 `maintainer/agent-evaluation/suites/task_guidance/`. It owns staged task

@@ -785,7 +785,15 @@ def test_all_seed_and_consumer_prompts_are_extractable() -> None:
         headings = (
             ("## First exact user prompt", "## Second exact user prompt")
             if path.name.startswith("06-")
-            else ("## Exact user prompt",)
+            else (
+                (
+                    "## Task-number exact user prompt",
+                    "## Sequence-label exact user prompt",
+                    "## Evaluative-wording exact user prompt",
+                )
+                if path.name.startswith(("36-", "37-"))
+                else ("## Exact user prompt",)
+            )
         )
         for heading in headings:
             assert extract_blockquote(path, heading)
@@ -878,6 +886,18 @@ def test_seed_prompts_name_the_exact_bounded_fixture_paths() -> None:
             "packages/frontend-sdk/src/options.ts",
             "docs/development/specifications/option-delivery/index.md",
         ),
+        "seed-12-status-label-naming.md": (
+            "packages/status-labels/README.md",
+            "packages/status-labels/src/status_labels.py",
+            "packages/status-labels/tests/test_status_labels.py",
+            "packages/status-labels/docs/development/status-labels.md",
+            "packages/status-labels/docs/development/specifications/"
+            "status-labels/index.md",
+            "packages/status-labels/docs/development/specifications/"
+            "status-labels/technical-spec.md",
+            "packages/status-labels/docs/development/specifications/"
+            "status-labels/requirements.md",
+        ),
     }
     for filename, paths in required_paths.items():
         prompt = extract_blockquote(
@@ -899,6 +919,7 @@ def test_synthetic_fixtures_contain_expected_seed_sources(tmp_path: Path) -> Non
             "packages/label-utils/docs/development/specifications/"
             "label-normalization/technical-spec.md"
         ),
+        "status-labels": "packages/status-labels/src/status_labels.py",
         "sync-engine": "tasks/sync-v2.md",
         "requirement-scope": "tasks/offline-queue-batch-enqueue.md",
         "testing-strategy": (
@@ -922,6 +943,7 @@ def test_synthetic_python_fixture_baselines_are_runnable(tmp_path: Path) -> None
         "path-policy": "packages/path-policy/tests",
         "slug-utils": "packages/slug-utils/tests",
         "label-utils": "packages/label-utils/tests",
+        "status-labels": "packages/status-labels/tests",
         "sync-engine": "packages/sync-engine/tests",
     }
     for fixture_id, tests_path in package_paths.items():
@@ -953,7 +975,10 @@ def test_fixture_revision_participates_in_workspace_fingerprint() -> None:
     assert fixture_revision("slug-utils") == "v3"
     assert factory.fingerprint()["fixture_revision"] == "v3"
     assert fixture_revision("js-single-file-tool") == "v4"
-    assert fixture_revision("event-retry") == "v5"
+    assert fixture_revision("event-retry") == "v6"
+    assert fixture_revision("batch-sync") == "v3"
+    assert fixture_revision("status-labels") == "v3"
+    assert fixture_revision("sync-engine") == "v4"
     assert fixture_revision("requirement-scope") == "v1"
     assert fixture_revision("testing-strategy") == "v1"
 
@@ -1009,7 +1034,7 @@ def test_batch_single_decisions_variant_records_exact_layout(tmp_path: Path) -> 
     assert "one `decisions.md` file" in task
     assert "Do not create a" in task
     assert "`decisions/` directory" in task
-    assert fixture_revision("batch-sync") == "v2"
+    assert fixture_revision("batch-sync") == "v3"
 
 
 def test_fixture_commit_does_not_change_linked_repository_identity(

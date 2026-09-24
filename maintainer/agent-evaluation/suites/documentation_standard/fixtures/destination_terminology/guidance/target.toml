@@ -1,0 +1,18 @@
+format = 1
+id = "destination-terminology-guide"
+kind = "fixture"
+
+[outputs]
+"docs/development/documentation.md" = "docs/development/documentation.md.in"
+
+[slots.guide-prefix]
+source = "target"
+path = "sections/guide-prefix.md"
+
+[slots.documentation-guide]
+source = "bundle"
+section = "documentation-guide"
+
+[slots.guide-suffix]
+source = "target"
+path = "sections/guide-suffix.md"

@@ -58,6 +58,10 @@ Reusable Guidance Requirements:
   duplicating execution plans or delivery history.
 - [ ] Public user documentation and implementation/maintainer documentation
   describe current behavior and do not become inconsistent with committed code.
+- [ ] Maintained documentation, specifications, code, tests, and references use
+      terminology meaningful to their own role rather than automatically
+      inheriting source-local labels; cleanup of existing ambiguous wording is
+      confirmed when it is not already authorized.
 - [ ] Important acceptance and contract tests can reference requirement
   identifiers, while ordinary low-level tests are not required to carry them.
 - [ ] Testing guidance helps agents choose the cheapest reliable layer, cover
@@ -146,6 +150,7 @@ and the subtasks:
 | Meta-specification bootstrap and task mapping | `DOCMETA-001`–`DOCMETA-003` |
 | First documentation-guidance implementation and preserved behavior evidence | `DOCGEN-001`–`DOCGEN-010`, `DOCREP-001`–`DOCREP-007` |
 | Approved documentation-guide redesign | `DOCGUIDE-001`–`DOCGUIDE-006`, `DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010`–`DOCVAL-012` |
+| Destination terminology guidance | `DOCGUIDE-008`–`DOCGUIDE-009`, `DOCAGENT-002`, `DOCVAL-015`, `DSEVAL-004` |
 | Programmatic agent evaluation framework and Crystal Lattice environment | `AEVAL-001`–`AEVAL-019` |
 | Documentation-guidance evaluation suite | `AEVAL-016`, `AEVAL-020`–`AEVAL-022`, `DSEVAL-001`–`DSEVAL-003` |
 | Task-guidance handoff and decomposition evaluation | `TGEVAL-001`–`TGEVAL-010`, `DOCFLOW-007`–`DOCFLOW-009`, `DOCVAL-014` |
@@ -785,6 +790,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/071-guidance-source-compilation-migration.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/075-destination-terminology-guidance.md`
 - [x] `tasks/20260728-package-local-documentation-standard/080-maintainer-documentation-ownership-migration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 
@@ -839,7 +845,12 @@ The work is organized standards-first:
    general requirements/testing guide and synchronized task guidance. After
    human review, it separately verifies coherent single-task/subtask
    decomposition through its six baseline-first scenarios.
-10. Subtask 070 performs final verification after migration, contributor
+10. Subtask 075 evaluates destination-appropriate terminology on the current
+    compiler and production-runner architecture. It separates prevention from
+    existing-wording cleanup, preserves historical terminology evidence, and
+    presents a candidate for human selection without changing task-guidance
+    placement owned by Subtask 090.
+11. Subtask 070 performs final verification after migration, contributor
    workflow, and task-guidance alignment are complete.
 
 Existing content should be moved with minimal editorial changes. Verification
@@ -912,6 +923,8 @@ Required new or updated documentation includes:
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.
 - [ ] 071: Migrate agent-guidance sources, compilation, candidate selection,
   and corrected project-specific evaluation bases.
+- [ ] 075: Evaluate destination terminology, confirmation-before-cleanup, and
+  portable guidance candidates.
 - [ ] 090: Establish the task-guidance handoff/decomposition baseline and
   compare guidance placement.
 

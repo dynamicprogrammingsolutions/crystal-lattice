@@ -40,6 +40,32 @@ Semantic and pairwise stages require complete, repeat-pinned, deterministically
 valid upstream records. A finished process with failed findings does not
 authorize its dependent stage.
 
+## Destination-terminology evaluation
+
+Terminology evaluation uses separate scenarios for:
+
+- preventing labels or organization from entering a newly created or extended
+  destination;
+- responding when ambiguous terminology already exists and removal is not
+  explicitly authorized.
+
+Candidate root guidance is compiled from a maintained bundle overlay. The
+complete project-independent guide is supplied as a paired suite input with the
+same candidate identity. Acceptance uses the common Crystal Lattice runner;
+direct injection is retained only as explicitly labeled wording-isolation or
+historical evidence.
+
+The existing-wording scenario records the first assistant response. No
+workspace mutation before confirmation is the ideal outcome. Editing only the
+requested page's other content while preserving the disputed wording and then
+asking is retained as a minor ordering deviation; changing the disputed
+wording, making unrelated mutations, or deciding without confirmation remains
+a hard failure. A separate structured semantic evaluator assesses whether the
+response noticed the concern, explained it, recommended a change, requested
+focused confirmation, avoided a silent decision, and avoided a completion
+claim. Deterministic producer integrity and mutation-boundary classification,
+semantic severity, and human review remain independent evidence.
+
 ## Result boundaries
 
 Process completion is not semantic completion. A producer result is usable only

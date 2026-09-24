@@ -33,6 +33,14 @@ public choices. Testing guidance selects the least expensive reliable boundary,
 retains important real crossings, and avoids duplicated, combinatorial, or
 implementation-coupled checks.
 
+Maintained pages and records preserve required behavior without automatically
+turning wording or organization from a request, conversation, task, review, or
+another file into destination terminology. Exact requested and established
+terms remain stable; other names and explanations fit the destination's role,
+readers, and interfaces. Existing ambiguous wording is not silently removed
+when the active request has not authorized that cleanup: the concern is
+explained and confirmed separately.
+
 Portable repository-guidance sections reinforce only the concise rules that
 benefit ordinary work. Their source format does not claim an instruction
 priority; the consuming runtime documents how the compiled file is delivered.
@@ -48,6 +56,9 @@ priority; the consuming runtime documents how the compiled file is delivered.
   tracking.
 - Keep requirements necessary, approved, traceable, and proportionately
   grouped.
+- Keep maintained terminology and organization meaningful in the destination
+  without silently changing existing ambiguous wording outside the approved
+  scope.
 - Make testing decisive and proportionate at the cheapest reliable boundary.
 - Preserve audience, source-of-truth, validation, and generated-output
   boundaries when normal workflows are blocked.

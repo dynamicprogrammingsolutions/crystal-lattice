@@ -1,0 +1,9 @@
+format = 1
+id = "destination-terminology-abstract-specific"
+extends = "../../current"
+
+[sections]
+documentation-guide = "sections/documentation-guide.md"
+
+[overrides]
+documentation = "sections/documentation.md"

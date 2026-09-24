@@ -41,6 +41,8 @@ improvements from later experiments in guidance placement.
 - Provide human-led contribution and review guidance.
 - Validate reusable behavior through realistic Crystal Lattice evaluation while
   keeping interpreted results outside the specification.
+- Validate destination-appropriate terminology separately for newly introduced
+  labels and for cleanup of wording already present in maintained content.
 - Establish reviewed task-handoff and decomposition baselines before changing
   where generic Requirements and Testing guidance is delivered.
 - Compare slight TASKS reinforcement, centralized root guidance, and optional

@@ -24,7 +24,8 @@ packages/sync-engine/
 tasks/sync-v2.md
 ```
 
-Phase 1 is implemented and documented. Phase 2 is approved but not implemented.
+Phase 1 is implemented. Current user documentation describes local change
+capture without using a phase label. Phase 2 is approved but not implemented.
 The specification index has a temporary progress section linking the task and
 affected requirement IDs. Phase 3 remains future work.
 

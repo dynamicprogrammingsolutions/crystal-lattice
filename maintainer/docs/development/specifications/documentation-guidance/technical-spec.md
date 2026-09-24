@@ -24,6 +24,36 @@ Each substantive subject has one primary maintained source. Other pages link or
 summarize only what their reader needs. Generated output is changed through its
 maintained source or generator.
 
+## Destination terminology
+
+Requests, conversations, tasks, specifications, review comments, and existing
+files can define behavior and constraints without defining the names or
+organization used in another maintained destination.
+
+When creating or adding content:
+
+- preserve exact requested names and terminology established by the product,
+  public interface, or relevant domain;
+- otherwise use names and organization meaningful to the destination's role,
+  readers, and interfaces;
+- do not introduce source-local task numbers, sequencing labels, progress
+  groupings, evaluative adjectives, or unexplained record identifiers as
+  maintained terminology;
+- make cross-record references descriptive and complete;
+- pair requirement identifiers in source or tests with nearby text explaining
+  the behavior being traced.
+
+When a maintained file already contains terminology that appears to come from
+planning, tracking, or another internal context, this rule does not itself
+authorize removal. If the active request has not already authorized cleanup,
+the contributor explains the concern, recommends a destination-appropriate
+change, and asks one focused confirmation question before editing.
+
+User documentation remains self-contained and normally omits internal task and
+requirement identifiers. Developer documentation may link specifications and
+requirements but defines the terms needed to understand current implementation
+without requiring the linked record.
+
 ## Specification and requirements model
 
 A specification may lead implementation. Requirements carry stable IDs when
@@ -53,6 +83,10 @@ Portable sections contain complete Markdown headings and concise rules. They do
 not name repositories, packages, publication commands, or delivery roles. A
 project-owned target decides where they appear in a compiled file. Delivery and
 authority are documented separately from source compilation.
+
+The portable Documentation section contains the concise recurring terminology
+rule. The complete project-independent guide owns its explanations, examples,
+and file-role applications.
 
 ## Versioning and adoption
 

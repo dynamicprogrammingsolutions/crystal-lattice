@@ -51,12 +51,13 @@ FIXTURE_REVISIONS = {
     "js-single-file-tool": "v4",
     "report-export": "v3",
     "mobile-composer": "v1",
-    "event-retry": "v5",
-    "batch-sync": "v2",
+    "event-retry": "v6",
+    "batch-sync": "v3",
     "path-policy": "v3",
     "slug-utils": "v3",
     "label-utils": "v3",
-    "sync-engine": "v3",
+    "status-labels": "v3",
+    "sync-engine": "v4",
     "requirement-scope": "v1",
     "testing-strategy": "v1",
     "requirement-quality-batch": "v1",
@@ -174,6 +175,10 @@ PROFILES = {
     ),
 }
 
+SUPPORTED_REASONING_EFFORTS = frozenset(
+    {"low", "medium", "high", "xhigh", "max", "ultra"}
+)
+
 EVALUATION_TOOL_PLUGINS = (
     "plugins.file_reader_tool.FileReaderTool",
     "plugins.file_writer_tool.FileWriterTool",
@@ -199,6 +204,7 @@ class GuidanceSource:
     revision: str | None = None
     paths: tuple[str, ...] = CURRENT_GUIDANCE_PATHS
     content_overrides: tuple[tuple[str, bytes], ...] = ()
+    provenance: Mapping[str, object] | None = None
 
     def read_bytes(self, relative: str) -> bytes:
         for path, content in self.content_overrides:
@@ -252,6 +258,7 @@ class GuidanceSource:
                 path for path, _ in self.content_overrides
             ],
             "injection_version": GUIDANCE_INJECTION_VERSION,
+            "provenance": self.provenance,
         }
 
     def context_message(
@@ -905,7 +912,8 @@ class DocumentationEvaluationHarness:
                 f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}:"
                 f"{_sha256_text(json.dumps(instruction_paths))}:"
                 f"{effort_key}"
-                f"{cache_variant_suffix}"
+                f"{cache_variant_suffix}:{self.runner_mode}:"
+                f"{include_tasks}:{inspect_system_message}"
             )
         run = self.evaluation.run(
             test_id,
@@ -913,7 +921,9 @@ class DocumentationEvaluationHarness:
                 context,
                 prompt,
                 guidance=self.guidance,
-                inject_guidance=True,
+                inject_guidance=(
+                    self.runner_mode == RUNNER_DIRECT_INJECTION
+                ),
                 guidance_instruction_paths=guidance_instruction_paths,
                 reasoning_effort=reasoning_effort,
                 include_tasks=include_tasks,
@@ -1127,6 +1137,18 @@ def selected_profile() -> ModelProfile:
             "AGENT_EVAL_PROFILE must be one of: " + ", ".join(sorted(PROFILES))
         )
     return PROFILES[name]
+
+
+def selected_reasoning_effort() -> str | None:
+    value = os.getenv("AGENT_EVAL_REASONING_EFFORT", "").strip().lower()
+    if not value:
+        return None
+    if value not in SUPPORTED_REASONING_EFFORTS:
+        raise ValueError(
+            "AGENT_EVAL_REASONING_EFFORT must be one of: "
+            + ", ".join(sorted(SUPPORTED_REASONING_EFFORTS))
+        )
+    return value
 
 
 def candidate_guidance_source() -> GuidanceSource:
@@ -1560,6 +1582,8 @@ def apply_fixture(workspace: Path, fixture_id: str, branch_variant: str) -> None
         _fixture_slug_utils(workspace, branch_variant)
     elif fixture_id == "label-utils":
         _fixture_label_utils(workspace, branch_variant)
+    elif fixture_id == "status-labels":
+        _fixture_status_labels(workspace, branch_variant)
     elif fixture_id == "sync-engine":
         _fixture_sync_engine(workspace, branch_variant)
     elif fixture_id == "requirement-scope":
@@ -1753,8 +1777,22 @@ Create the specification only. Do not implement the UI.
 
 
 def _fixture_event_retry(workspace: Path, branch_variant: str) -> None:
-    if branch_variant != "base":
+    if branch_variant not in {
+        "base",
+        "existing-terminology-confirmation",
+    }:
         raise KeyError(f"unknown event-retry variant: {branch_variant}")
+    publishing = """# Publishing events
+
+Call `publish(event)`. Transient delivery failures are retried automatically.
+"""
+    if branch_variant == "existing-terminology-confirmation":
+        publishing = """# Publishing events
+
+## Release marker Birch
+
+Call `publish(event)`. Transient delivery failures are retried automatically.
+"""
     _write_synthetic_fixture(
         workspace,
         {
@@ -1772,10 +1810,7 @@ SDK for publishing events.
 
 - [Publishing events](publishing.md)
 """,
-            "packages/event-sdk/docs/publishing.md": """# Publishing events
-
-Call `publish(event)`. Transient delivery failures are retried automatically.
-""",
+            "packages/event-sdk/docs/publishing.md": publishing,
             "packages/event-sdk/src/events.py": """def retry_state(attempt, max_attempts=3):
     if attempt >= max_attempts:
         return "failed"
@@ -1848,7 +1883,13 @@ Defines request delivery, retryable transport errors, and idempotency keys.
 Defines durable record encoding, schema migration, and recovery boundaries.
 """,
     }
-    if branch_variant in {"approved-task", "approved-task-single-decisions"}:
+    if branch_variant in {
+        "approved-task",
+        "approved-task-single-decisions",
+        "terminology-task-number",
+        "terminology-sequence-label",
+        "terminology-evaluative-wording",
+    }:
         files["tasks/batch-offline-sync.md"] = """# Batch offline synchronization
 
 Status: Approved
@@ -1863,10 +1904,32 @@ Status: Approved
 
 Specification and requirements are authorized. Do not implement the protocol.
 """
-        if branch_variant == "approved-task-single-decisions":
+        if branch_variant in {
+            "approved-task-single-decisions",
+            "terminology-task-number",
+            "terminology-sequence-label",
+            "terminology-evaluative-wording",
+        }:
             files["tasks/batch-offline-sync.md"] += """
 Record material decisions in one `decisions.md` file. Do not create a
 `decisions/` directory or separate decision-record files.
+"""
+        if branch_variant == "terminology-task-number":
+            files["tasks/batch-offline-sync.md"] += """
+
+The conversation refers to this approved specification work as `Task 010`.
+"""
+        elif branch_variant == "terminology-sequence-label":
+            files["tasks/batch-offline-sync.md"] += """
+
+The conversation refers to this first approved specification delivery as
+`Stage A`.
+"""
+        elif branch_variant == "terminology-evaluative-wording":
+            files["tasks/batch-offline-sync.md"] += """
+
+The user described the requested specification as a useful, portable first
+version. The approved capability and requirements remain those listed above.
 """
     elif branch_variant != "base":
         raise KeyError(f"unknown batch-sync variant: {branch_variant}")
@@ -2010,6 +2073,97 @@ whitespace.
     )
 
 
+def _fixture_status_labels(workspace: Path, branch_variant: str) -> None:
+    files = {
+        ".gitignore": """__pycache__/
+*.pyc
+.pytest_cache/
+""",
+        "packages/status-labels/README.md": """# status-labels
+
+`is_terminal(status)` reports whether a status has finished.
+""",
+        "packages/status-labels/src/status_labels.py": """def is_terminal(status):
+    return status in {"done", "failed"}
+""",
+        "packages/status-labels/tests/conftest.py": SYNTHETIC_SRC_CONFTEST,
+        "packages/status-labels/tests/test_status_labels.py": """from status_labels import is_terminal
+
+
+def test_terminal_statuses():
+    assert is_terminal("done") is True
+    assert is_terminal("in_progress") is False
+""",
+        "packages/status-labels/docs/development/status-labels.md": """# Status-label implementation
+
+`is_terminal(status)` recognizes `done` and `failed` as terminal values.
+""",
+        "packages/status-labels/docs/development/specifications/status-labels/index.md": """# Status labels
+
+- [Technical specification](technical-spec.md)
+- [Requirements](requirements.md)
+""",
+        "packages/status-labels/docs/development/specifications/status-labels/technical-spec.md": """# Technical specification
+
+The package exposes a public callable that returns display labels for machine
+status values:
+
+- `in_progress` becomes `In progress`;
+- `done` becomes `Done`.
+
+The public behavior does not require a particular Python function name.
+Existing `is_terminal(status)` behavior remains compatible.
+Values without a defined display label raise `KeyError`.
+""",
+        "packages/status-labels/docs/development/specifications/status-labels/requirements.md": """# Requirements
+
+| ID | Requirement | Implementation | Verification | Documentation | Primary evidence |
+|---|---|---|---|---|---|
+| STATUS-001 | Terminal status detection remains available. | Implemented | Automated | Documented | `tests/test_status_labels.py::test_terminal_statuses` |
+| STATUS-002 | Machine status values have display labels. | Not started | Unverified | Pending | — |
+""",
+    }
+    task_variants = {
+        "terminology-task-number",
+        "terminology-sequence-label",
+        "terminology-evaluative-wording",
+    }
+    if branch_variant in task_variants:
+        files["tasks/status-label-formatting.md"] = """# Status label formatting
+
+Status: Approved
+
+## Requirements checklist
+
+- [ ] Implement the pending `STATUS-002` display-label behavior.
+- [ ] Preserve the established `is_terminal(status)` API and behavior.
+- [ ] Add focused tests and keep `STATUS-002` visible beside the assertion it
+      verifies.
+- [ ] Verify that a value without a defined display label raises `KeyError`.
+- [ ] Update requirement evidence and current developer documentation.
+- [ ] Leave the README and target specification unchanged.
+"""
+        if branch_variant == "terminology-task-number":
+            files["tasks/status-label-formatting.md"] += """
+
+The conversation refers to this approved change as `Task 010`.
+"""
+        elif branch_variant == "terminology-sequence-label":
+            files["tasks/status-label-formatting.md"] += """
+
+The conversation refers to this approved change as `Stage A`.
+"""
+        else:
+            files["tasks/status-label-formatting.md"] += """
+
+The user described this as a useful, portable status-label addition. The
+approved behavior remains the `STATUS-002` outcome above.
+"""
+    elif branch_variant != "base":
+        raise KeyError(f"unknown status-labels variant: {branch_variant}")
+    _write_synthetic_fixture(workspace, files)
+
+
 def _fixture_sync_engine(workspace: Path, branch_variant: str) -> None:
     if branch_variant != "base":
         raise KeyError(f"unknown sync-engine variant: {branch_variant}")
@@ -2022,7 +2176,7 @@ def _fixture_sync_engine(workspace: Path, branch_variant: str) -> None:
 """,
             "packages/sync-engine/README.md": """# sync-engine
 
-Sync v2 currently supports Phase 1 local change capture.
+Sync currently captures local changes.
 """,
             "packages/sync-engine/src/sync.py": """def capture_local(change):
     return {"captured": change}

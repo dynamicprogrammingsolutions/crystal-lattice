@@ -96,6 +96,80 @@ Test 27 uses a routing-only variation: root AGENTS guidance is injected while
 the two current guidance pages remain ordinary workspace files. Legacy Test 20
 retains the former four-page route for direct comparison only.
 
+## Run destination-terminology evaluation
+
+Destination-terminology producers use the common Crystal Lattice runner. Each
+selected variant supplies:
+
+- compiled workspace `AGENTS.md` from the current or candidate bundle;
+- the current or candidate complete project-independent guide;
+- unchanged Crystal Lattice routing and canonical task guidance sources;
+- exact root and guide provenance in the run record.
+
+Available variants are:
+
+```text
+current
+abstract-specific
+explicit-contexts-specific
+```
+
+Run the current GLM high-effort baseline:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_PROFILE=glm \
+AGENT_EVAL_REASONING_EFFORT=high \
+AGENT_EVAL_DESTINATION_TERMINOLOGY_VARIANT=current \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_destination_terminology.py \
+  -m "agent_eval and destination_terminology" -q
+```
+
+Replace the variant with `abstract-specific` or
+`explicit-contexts-specific` for candidate runs. For GPT, set
+`AGENT_EVAL_PROFILE=gpt` and `AGENT_EVAL_ALLOW_HOSTED=1`.
+
+Calibrate the separate confirmation-response evaluator first:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_DESTINATION_TERMINOLOGY_SEMANTIC_DATASET=anchors \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_destination_terminology_semantic_evaluator.py \
+  -m "agent_eval and destination_terminology_semantic" -q
+```
+
+After valid Test 38 producer records exist, assess selected records with:
+
+```bash
+AGENT_EVAL_RUN_REAL=1 \
+AGENT_EVAL_DESTINATION_TERMINOLOGY_SEMANTIC_DATASET=producers \
+AGENT_EVAL_DESTINATION_TERMINOLOGY_SEMANTIC_CANDIDATES=abstract-specific-glm-high,explicit-contexts-specific-glm-high \
+pytest \
+  maintainer/agent-evaluation/suites/documentation_standard/test_destination_terminology_semantic_evaluator.py \
+  -m "agent_eval and destination_terminology_semantic" -q
+```
+
+Use a fresh
+`AGENT_EVAL_DESTINATION_TERMINOLOGY_SEMANTIC_CACHE_VARIANT` when repeating the
+judge. The producer loader excludes records with failed deterministic findings.
+A producer semantic command may exit nonzero when a candidate response has a
+hard semantic failure. A valid structured semantic record is still preserved;
+do not reinterpret that candidate failure as an evaluator or provider failure.
+
+After the selected producer matrix, anchor calibration, and producer semantic
+assessment exist, freeze their compact review records:
+
+```bash
+PYTHONPATH=maintainer/agent-evaluation/src:maintainer/agent-evaluation:core/python:application/python \
+python -m suites.documentation_standard.freeze_destination_terminology_matrix
+```
+
+The [September 16 generic, specific, and robustness reports](../../../../docs/evaluations/documentation-guidance/index.md)
+remain historical direct-injection evidence. Active Tests 36–38 and revised
+Test 13 require production-runner evidence.
+
 ## Compiled Requirements and Testing calibration
 
 Guidance producers compile one selected bundle into the base owned by each

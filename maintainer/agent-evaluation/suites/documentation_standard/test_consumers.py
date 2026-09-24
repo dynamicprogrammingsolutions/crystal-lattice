@@ -46,17 +46,68 @@ def _raw_session(run) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
 
 
+def _message_metadata(message: dict[str, object]) -> dict[str, object]:
+    for key in ("metadata", "_metadata"):
+        value = message.get(key)
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def _message_tool_calls(message: dict[str, object]) -> list[dict[str, object]]:
+    value = message.get("tool_calls")
+    if not isinstance(value, list):
+        value = _message_metadata(message).get("tool_calls")
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _tool_call_details(
+    call: dict[str, object],
+) -> tuple[str, dict[str, object]]:
+    function = call.get("function")
+    function_value = function if isinstance(function, dict) else call
+    name = str(function_value.get("name", "")).lower()
+    raw_arguments = function_value.get("arguments")
+    if isinstance(raw_arguments, dict):
+        return name, raw_arguments
+    if isinstance(raw_arguments, str):
+        try:
+            parsed = json.loads(raw_arguments)
+        except json.JSONDecodeError:
+            return name, {"raw": raw_arguments}
+        if isinstance(parsed, dict):
+            return name, parsed
+    return name, {}
+
+
+def _tool_command_text(arguments: dict[str, object]) -> str:
+    value = arguments.get("command") or arguments.get("cmd")
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return " ".join(str(item) for item in value)
+    return ""
+
+
 def _tool_command_observed(run, needle: str) -> bool:
     needle = needle.lower()
     data = _raw_session(run)
     messages = data.get("messages")
     if isinstance(messages, list):
         for message in messages:
-            if not isinstance(message, dict) or message.get("role") != "tool":
+            if not isinstance(message, dict):
                 continue
-            metadata = message.get("metadata")
-            if not isinstance(metadata, dict):
+            for call in _message_tool_calls(message):
+                name, arguments = _tool_call_details(call)
+                if name in {"bash", "shell"} and needle in _tool_command_text(
+                    arguments
+                ).lower():
+                    return True
+            if message.get("role") != "tool":
                 continue
+            metadata = _message_metadata(message)
             display = metadata.get("display")
             if not isinstance(display, dict):
                 continue
@@ -70,8 +121,6 @@ def _tool_command_observed(run, needle: str) -> bool:
                 )
             ):
                 return True
-
-    native = data.get("metadata")
 
     def has_command(value: object) -> bool:
         if isinstance(value, dict):
@@ -88,7 +137,7 @@ def _tool_command_observed(run, needle: str) -> bool:
             return any(has_command(item) for item in value)
         return False
 
-    return has_command(native)
+    return has_command(data)
 
 
 def _raw_session_text(run) -> str:
@@ -158,13 +207,37 @@ def _first_mutation_tool_index(run) -> int | None:
         "cp ",
         "rm ",
     )
-    for index, message in enumerate(_tool_messages(run)):
-        metadata = message.get("metadata")
-        metadata_value = metadata if isinstance(metadata, dict) else {}
+    messages = _raw_session(run).get("messages")
+    if not isinstance(messages, list):
+        return None
+    for index, message in enumerate(messages):
+        if not isinstance(message, dict):
+            continue
+        for call in _message_tool_calls(message):
+            name, arguments = _tool_call_details(call)
+            if name in {
+                "apply_patch",
+                "edit",
+                "write",
+                "write_file",
+            }:
+                return index
+            if name in {"bash", "shell"}:
+                command = _tool_command_text(arguments).lower()
+                if any(marker in command for marker in mutation_shell_markers):
+                    return index
+        if message.get("role") != "tool":
+            continue
+        metadata_value = _message_metadata(message)
         tool_name = str(metadata_value.get("tool_name", "")).lower()
-        if tool_name in {"write_file", "apply_patch"}:
+        if tool_name in {
+            "apply_patch",
+            "edit",
+            "write",
+            "write_file",
+        }:
             return index
-        if tool_name != "shell":
+        if tool_name not in {"bash", "shell"}:
             continue
         display = metadata_value.get("display")
         display_value = display if isinstance(display, dict) else {}
@@ -180,7 +253,8 @@ def _complete_read_positions(
 ) -> dict[str, int | None]:
     if run.workspace is None:
         raise AssertionError("run has no workspace")
-    messages = _tool_messages(run)
+    raw_messages = _raw_session(run).get("messages")
+    messages = raw_messages if isinstance(raw_messages, list) else []
     positions: dict[str, int | None] = {}
     for relative in relative_paths:
         target = run.workspace / relative
@@ -188,12 +262,67 @@ def _complete_read_positions(
             positions[relative] = None
             continue
         expected = target.read_text(encoding="utf-8").strip()
+        line_count = len(target.read_text(encoding="utf-8").splitlines())
+        shell_ranges: list[tuple[int, int]] = []
         position = None
         for index, message in enumerate(messages):
-            metadata = message.get("metadata")
-            metadata_value = metadata if isinstance(metadata, dict) else {}
+            if not isinstance(message, dict):
+                continue
+            for call in _message_tool_calls(message):
+                name, arguments = _tool_call_details(call)
+                if name in {"read", "read_file"}:
+                    raw_path = arguments.get("file_path") or arguments.get("path")
+                    if not isinstance(raw_path, str):
+                        continue
+                    read_path = Path(raw_path)
+                    normalized_path = raw_path.replace("\\", "/")
+                    same_path = (
+                        read_path.resolve() == target.resolve()
+                        or normalized_path.endswith(relative)
+                    )
+                    partial = any(
+                        arguments.get(key) not in {None, 0}
+                        for key in ("limit", "offset")
+                    )
+                    if same_path and not partial:
+                        position = index
+                        break
+                    continue
+                if name not in {"bash", "shell"}:
+                    continue
+                command = _tool_command_text(arguments).replace("\\", "/")
+                if relative not in command:
+                    continue
+                if re.search(
+                    rf"(?:^|[;&|]\s*)cat\s+['\"]?{re.escape(relative)}"
+                    rf"['\"]?(?:\s|$)",
+                    command,
+                ):
+                    position = index
+                    break
+                for match in re.finditer(
+                    rf"sed\s+-n\s+['\"]?(\d+),(\d+)p['\"]?\s+"
+                    rf"['\"]?{re.escape(relative)}['\"]?",
+                    command,
+                ):
+                    shell_ranges.append(
+                        (int(match.group(1)), int(match.group(2)))
+                    )
+                covered = 0
+                for start, end in sorted(shell_ranges):
+                    if start > covered + 1:
+                        break
+                    covered = max(covered, end)
+                if line_count and covered >= line_count:
+                    position = index
+                    break
+            if position is not None:
+                break
+            if message.get("role") != "tool":
+                continue
+            metadata_value = _message_metadata(message)
             tool_name = str(metadata_value.get("tool_name", "")).lower()
-            if tool_name not in {"read_file", "shell"}:
+            if tool_name not in {"bash", "read", "read_file", "shell"}:
                 continue
             if expected and expected in str(message.get("content", "")):
                 position = index
