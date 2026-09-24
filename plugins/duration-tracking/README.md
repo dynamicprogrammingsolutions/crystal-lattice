@@ -11,8 +11,14 @@ session total in the chat status bar (aggregated by workspace + session
 id), and exposes a session action for a duration report. Duration is
 factual history: there are no reset windows.
 
-See `docs/development/overview.md` for the store schema, recording seams,
-and configuration.
+It also tracks **human time**: frontends report user-activity spans
+(`{session_id|null, from, to}` — the frontend computes the durations) in
+batches through the `record_human_time_spans` application action; the
+plugin dedups by request id, resolves range overlaps so no two stored rows
+ever overlap, and surfaces the per-session human time total in the status
+bar (`Human time: …`) and the report. See
+`docs/development/overview.md` for the store schema, recording seams,
+the human-time span contract, and configuration.
 
 ## Development
 

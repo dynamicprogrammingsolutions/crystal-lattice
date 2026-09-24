@@ -44,7 +44,11 @@ def _format_duration_ms(duration_ms: int) -> str:
 # Metadata keys promoted to public message metadata. The per-message
 # duration stamps (``duration_ms`` and friends) belong to the duration
 # feature; this plugin promotes only its own session-total keys.
-_SESSION_METADATA_PREFIXES = ("duration_session_", "tool_duration_session_")
+_SESSION_METADATA_PREFIXES = (
+    "duration_session_",
+    "tool_duration_session_",
+    "human_time_session_",
+)
 
 
 class DurationTrackingExtension(FeaturePlugin):
@@ -163,57 +167,75 @@ class DurationTrackingExtension(FeaturePlugin):
             isinstance(config, dict)
             and config.get("show_duration_status_total") is False
         ):
-            return elements
+            elements_before_human: List[Dict[str, Any]] = []
+        else:
+            elements_before_human = [
+                self._status_bar_element(
+                    "metadata.duration_session_total_formatted",
+                    "Total duration: {{data}}",
+                )
+            ]
+            elements.extend(elements_before_human)
 
-        elements.append(
-            self._status_bar_element(
-                "metadata.duration_session_total_formatted", "Total duration: {{data}}"
-            )
-        )
-
-        if mode == "totals":
+        # Human time has its own gate so the fields toggle independently.
+        if (
+            isinstance(config, dict)
+            and config.get("show_human_time_status_total") is False
+        ):
+            pass
+        else:
             elements.append(
                 self._status_bar_element(
-                    "metadata.duration_session_requests_formatted", "requests: {{data}}"
+                    "metadata.human_time_session_total_formatted",
+                    "Human time: {{data}}",
                 )
             )
-            elements.extend(
-                (
-                    self._status_bar_element(
-                        "metadata.tool_duration_session_total_formatted",
-                        "tools: {{data}}",
-                    ),
-                    self._status_bar_element(
-                        "metadata.tool_duration_session_calls_formatted",
-                        "tool calls: {{data}}",
-                    ),
-                )
-            )
-        elif mode == "averages":
-            elements.extend(
-                (
+
+        if elements_before_human:
+            if mode == "totals":
+                elements.append(
                     self._status_bar_element(
                         "metadata.duration_session_requests_formatted",
                         "requests: {{data}}",
-                    ),
-                    self._status_bar_element(
-                        "metadata.duration_session_average_formatted",
-                        "average: {{data}}",
-                    ),
-                    self._status_bar_element(
-                        "metadata.tool_duration_session_total_formatted",
-                        "tools: {{data}}",
-                    ),
-                    self._status_bar_element(
-                        "metadata.tool_duration_session_calls_formatted",
-                        "tool calls: {{data}}",
-                    ),
-                    self._status_bar_element(
-                        "metadata.tool_duration_session_average_formatted",
-                        "tool average: {{data}}",
-                    ),
+                    )
                 )
-            )
+                elements.extend(
+                    (
+                        self._status_bar_element(
+                            "metadata.tool_duration_session_total_formatted",
+                            "tools: {{data}}",
+                        ),
+                        self._status_bar_element(
+                            "metadata.tool_duration_session_calls_formatted",
+                            "tool calls: {{data}}",
+                        ),
+                    )
+                )
+            elif mode == "averages":
+                elements.extend(
+                    (
+                        self._status_bar_element(
+                            "metadata.duration_session_requests_formatted",
+                            "requests: {{data}}",
+                        ),
+                        self._status_bar_element(
+                            "metadata.duration_session_average_formatted",
+                            "average: {{data}}",
+                        ),
+                        self._status_bar_element(
+                            "metadata.tool_duration_session_total_formatted",
+                            "tools: {{data}}",
+                        ),
+                        self._status_bar_element(
+                            "metadata.tool_duration_session_calls_formatted",
+                            "tool calls: {{data}}",
+                        ),
+                        self._status_bar_element(
+                            "metadata.tool_duration_session_average_formatted",
+                            "tool average: {{data}}",
+                        ),
+                    )
+                )
         return elements
 
     # ------------------------------------------------------------------
@@ -545,6 +567,21 @@ class DurationTrackingExtension(FeaturePlugin):
             metadata["tool_duration_session_average"] = tool_average
             metadata["tool_duration_session_average_formatted"] = _format_duration_ms(
                 int(tool_average)
+            )
+
+        # Human time totals read the same store (subtask 030). Best-effort
+        # in its own boundary: a failure skips only these fields.
+        try:
+            human_totals = duration_store.human_time_session_totals(
+                db_path, working_directory=working_directory, session_id=session_id
+            )
+        except Exception:
+            human_totals = None
+        if human_totals is not None:
+            human_total_ms = int(human_totals.get("total_ms") or 0)
+            metadata["human_time_session_total"] = human_total_ms
+            metadata["human_time_session_total_formatted"] = _format_duration_ms(
+                human_total_ms
             )
         return metadata
 

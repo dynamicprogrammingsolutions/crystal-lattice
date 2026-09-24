@@ -24,15 +24,17 @@ in place.
   into message metadata — LLM totals (`duration_session_total`,
   `duration_session_total_formatted`, `duration_session_requests`,
   `duration_session_requests_formatted`, `duration_session_average`,
-  `duration_session_average_formatted`) and tool totals
+  `duration_session_average_formatted`), tool totals
   (`tool_duration_session_total`,
   `tool_duration_session_total_formatted`,
   `tool_duration_session_calls`,
   `tool_duration_session_calls_formatted`,
   `tool_duration_session_average`,
-  `tool_duration_session_average_formatted`).
+  `tool_duration_session_average_formatted`), and the human time total
+  (`human_time_session_total`, `human_time_session_total_formatted`).
 - `DurationTrackingAppPlugin` (application plugin): the session action
-  **Show duration report**.
+  **Show duration report** and the machine-facing
+  **`record_human_time_spans`** ingestion action.
 
 ## Store
 
@@ -57,6 +59,13 @@ Tables:
   `(working_directory, session_id, request_id, tool_call_id)` means "one
   row per call per request per session"; rows with a NULL key component
   do not dedup.
+- `human_time_spans` — one row per resolved user-activity span: `session_id`
+  (NULL for session-less activity), `working_directory`, `from_time`,
+  `to_time`, `duration_ms` (computed at ingestion as `to − from`), and
+  the originating `request_id`. No two rows ever overlap (see the human
+  time contract below).
+- `human_time_requests` — the request-id dedup gate: one row per processed
+  upload batch (`request_id`, `processed_at`).
 
 All writes are best-effort: failures are swallowed and never break the
 request pipeline.
@@ -73,16 +82,97 @@ request pipeline.
   per-call stamps on the tool-result message it receives in the chain;
   it reads only that message, never the session history.
 
+## Human time telemetry
+
+Frontends (the mobile app in scope; desktop and terminal are follow-up
+consumers of the same contract) track user activity and compute the actual
+durations: an activity burst opens a span, inactivity closes it (`from` =
+first activity, `to` = last activity — idle gaps never enter a span).
+Spans carry the session id of the surface the user was active on, or
+`null` for session-less activity (e.g. session-list scrolling).
+
+### Ingestion action
+
+One `executeAction` call per batch (cap: 1000 spans per call):
+
+```
+executeAction({
+  pluginId: "<telemetry plugin id>",   // the frontend's own setting,
+                                       // default "duration_tracking_app"
+  actionId: "record_human_time_spans",
+  actionOwner: "application",
+  inputs: {
+    request_id: "req-…",               // frontend-assigned; stable across
+                                       // retries of this batch
+    spans: [
+      { session_id: "s-…",  from: "2026-09-25T08:00:00Z", to: "2026-09-25T08:05:00Z" },
+      { session_id: null,   from: "2026-09-25T09:00:00Z", to: "2026-09-25T09:02:00Z" },
+    ],
+  },
+})
+```
+
+The action returns span-level counts
+(`recorded`, `merged`, `skipped`, `absorbed`, `duplicate`) and never
+mutates sessions. Working-directory resolution: spans with a session id
+load that session's resolved config (the same keying as the LLM/tool
+rows; unknown sessions skip); session-less spans use the
+`application.duration_tracking.working_directory` config value — without
+it they cannot be keyed and skip.
+
+### Deduplication and overlap rules
+
+Two separate mechanisms:
+
+- **Retry dedup is by request id, never by range.** Each batch carries a
+  frontend-assigned `request_id` that stays stable across retries of that
+  batch; a processed id returns `duplicate: true` without touching spans.
+- **No two stored rows ever overlap.** The first entry wins — an entry's
+  `to` (end) time is its priority timestamp, so an earlier-ending entry
+  beats a later one even when batches arrive out of order (ties keep the
+  existing row). A losing span is trimmed to its non-overlapping
+  remainders (possibly split into several entries; fully-covered spans
+  store nothing). Special cases: spans of the same session (equal session
+  ids, matched across working directories) merge into one union entry,
+  and a session-bearing entry always beats a session-less one regardless
+  of end times.
+
+Worked example (different sessions): existing 8:14–8:16 and 8:18–8:19, a
+new 8:15–8:20 stores as two entries, 8:16–8:18 and 8:19–8:20. If only
+8:18–8:19 has a session, it keeps its range and the two session-less
+entries merge around it (8:14–8:18 and 8:19–8:20).
+
+Because `duration_ms` is stored per row, reports are plain SUM
+aggregations over durations; date-based reports are a follow-up and will
+anchor on start or end time, never both.
+
+### Surfacing
+
+- The extension's `finalize` stamps `human_time_session_total` +
+  `human_time_session_total_formatted` onto the assistant message
+  metadata (in its own best-effort boundary — a store failure skips only
+  these fields), reading `human_time_session_totals` from the same store.
+  Like the other duration fields, the total updates at request finalize:
+  spans arriving between requests appear after the next request.
+- The `Human time: …` status-bar element renders
+  `metadata.human_time_session_total_formatted`, gated by its own
+  `show_human_time_status_total` config toggle (default on; independent
+  of `show_duration_status_total`).
+- The report action includes a `- Human time: …` line for the current
+  session, shown when spans were recorded.
+
 ## Status bar
 
 The `Total duration: …` element renders
-`metadata.duration_session_total_formatted`. The `duration_breakdown`
+`metadata.duration_session_total_formatted` and the `Human time: …`
+element renders `metadata.human_time_session_total_formatted` (its own
+`show_human_time_status_total` gate). The `duration_breakdown`
 config select (`none` / `totals` / `averages`) adds `requests:` and
 `average:` elements for the LLM totals plus `tools:`, `tool calls:`, and
 `tool average:` elements for the tool totals; all fields are always
 stored in message metadata and the config only selects which are
-displayed. The `show_duration_status_total` toggle gates the status-bar
-elements without affecting recording.
+displayed. The `show_duration_status_total` toggle gates the duration
+status-bar elements without affecting recording.
 
 ## Summary CSV
 
@@ -99,11 +189,11 @@ in the SQLite store and the report.
 
 The **Show duration report** session action renders the overall recorded
 duration, request count, and per-request average, plus the overall tool
-duration, tool call count, and tool average, and the top sessions and
-top projects by duration with a separate `Tools` column (project names
-resolve from `projects.json` under the Crystal data directory). Tool
-duration is never merged into the LLM total. Totals cover all recorded
-requests; there are no reset windows.
+duration, tool call count, and tool average, the current session's human
+time total, and the top sessions and top projects by duration with a
+separate `Tools` column (project names resolve from `projects.json` under
+the Crystal data directory). Tool duration is never merged into the LLM
+total. Totals cover all recorded requests; there are no reset windows.
 
 ## Tests
 

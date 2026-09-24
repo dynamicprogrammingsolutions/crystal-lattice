@@ -88,9 +88,32 @@ _SCHEMA_STATEMENTS = (
     CREATE INDEX IF NOT EXISTS idx_tool_durations_session
     ON tool_durations(working_directory, session_id)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS human_time_spans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT,
+        working_directory TEXT NOT NULL,
+        from_time TEXT NOT NULL,
+        to_time TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        request_id TEXT
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_human_time_spans_session
+    ON human_time_spans(working_directory, session_id)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS human_time_requests (
+        request_id TEXT PRIMARY KEY,
+        processed_at TEXT NOT NULL
+    )
+    """,
 )
 
 _write_lock = threading.Lock()
+
+HUMAN_TIME_SPANS_BATCH_CAP = 1000
 
 
 def utcnow_iso() -> str:
@@ -527,12 +550,386 @@ def top_projects(db_path: Path, *, limit: int = 5) -> List[Dict[str, Any]]:
         conn.close()
 
 
+# --- Human time spans (subtask 030) ---
+#
+# Contract (user, 2026-09-24/25): the frontend computes durations and sends
+# spans ``{session_id|null, from, to}``; each upload batch carries a
+# frontend-assigned request id used as the retry-dedup key (range overlap is
+# never the dedup mechanism). No two stored rows ever overlap: the first
+# entry wins — an entry's ``to`` (end) time is its priority timestamp, so
+# an earlier-ending entry beats a later one even when batches arrive out of
+# order (ties keep the existing row). Losing spans trim to their
+# non-overlapping remainders (possibly split into several entries; fully
+# covered spans store nothing). Special cases: spans with the same session
+# key (equal session ids, or both null) merge into one union entry, and a
+# session-bearing entry always beats a session-less one regardless of end
+# times. Reports are plain SUM aggregations over the stored durations.
+
+
+def _parse_span_timestamp(value: Any) -> Optional[datetime]:
+    """Parse a tolerant ISO-8601 timestamp; naive values are treated as UTC."""
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = value.strip()
+    if raw.endswith(("Z", "z")):
+        raw = raw[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _normalize_span_timestamp(value: datetime) -> str:
+    """Canonical storage form: uniform, lexicographically sortable."""
+
+    return value.astimezone(timezone.utc).isoformat(timespec="microseconds")
+
+
+def _span_duration_ms(from_time: str, to_time: str) -> int:
+    """Duration between two canonical stored timestamps."""
+
+    start = datetime.fromisoformat(from_time)
+    end = datetime.fromisoformat(to_time)
+    return int((end - start).total_seconds() * 1000)
+
+
+def _trim_ranges(ranges: List[tuple], cut_from: str, cut_to: str) -> List[tuple]:
+    """Remove ``[cut_from, cut_to]`` from a list of disjoint ranges."""
+
+    trimmed: List[tuple] = []
+    for start, end in ranges:
+        if start < cut_to and end > cut_from:
+            if start < cut_from:
+                trimmed.append((start, cut_from))
+            if cut_to < end:
+                trimmed.append((cut_to, end))
+        else:
+            trimmed.append((start, end))
+    return trimmed
+
+
+def _incoming_span_wins(
+    incoming_session_id: Optional[str],
+    incoming_to: str,
+    existing_session_id: Optional[str],
+    existing_to: str,
+) -> bool:
+    """Overlap priority: session-bearing beats session-less; earlier end wins."""
+
+    if incoming_session_id is not None and existing_session_id is None:
+        return True
+    if incoming_session_id is None and existing_session_id is not None:
+        return False
+    # Equal "sessionness" (both session-bearing with different sessions, or
+    # both session-less under different working directories): the earlier
+    # end time is the first entry and wins; ties keep the existing row.
+    return incoming_to < existing_to
+
+
+def _insert_span_row(
+    conn: sqlite3.Connection,
+    *,
+    session_id: Optional[str],
+    working_directory: str,
+    from_time: str,
+    to_time: str,
+    request_id: Optional[str],
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO human_time_spans
+            (session_id, working_directory, from_time, to_time,
+             duration_ms, request_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            session_id,
+            working_directory,
+            from_time,
+            to_time,
+            _span_duration_ms(from_time, to_time),
+            request_id,
+        ),
+    )
+
+
+def _apply_human_time_span(
+    conn: sqlite3.Connection,
+    span: Any,
+    batch_working_directory: Optional[str],
+    request_id: str,
+    counts: Dict[str, int],
+) -> None:
+    """Validate one span and resolve it into the overlap-free span table."""
+
+    if not isinstance(span, dict) or "session_id" not in span:
+        counts["skipped"] += 1
+        return
+    session_id = span["session_id"]
+    if session_id is not None and (not isinstance(session_id, str) or not session_id):
+        counts["skipped"] += 1
+        return
+    working_directory = span.get("working_directory", batch_working_directory)
+    if not isinstance(working_directory, str) or not working_directory:
+        counts["skipped"] += 1
+        return
+    start = _parse_span_timestamp(span.get("from"))
+    end = _parse_span_timestamp(span.get("to"))
+    if start is None or end is None or start > end:
+        counts["skipped"] += 1
+        return
+    from_time = _normalize_span_timestamp(start)
+    to_time = _normalize_span_timestamp(end)
+
+    # 1. Same-session rows that overlap or touch merge into one union
+    #    entry (loop defensively in case a chain expands the range).
+    #    Session identity is the session id: rows of the same session merge
+    #    even when earlier batches resolved a different working directory
+    #    (the merged entry consolidates under the incoming resolution).
+    #    Session-less rows merge only within the same working directory.
+    merged_any = False
+    while True:
+        if session_id is None:
+            cluster = conn.execute(
+                """
+                SELECT id, from_time, to_time FROM human_time_spans
+                WHERE working_directory = ? AND session_id IS NULL
+                  AND from_time <= ? AND to_time >= ?
+                """,
+                (working_directory, to_time, from_time),
+            ).fetchall()
+        else:
+            cluster = conn.execute(
+                """
+                SELECT id, from_time, to_time FROM human_time_spans
+                WHERE session_id IS ?
+                  AND from_time <= ? AND to_time >= ?
+                """,
+                (session_id, to_time, from_time),
+            ).fetchall()
+        if not cluster:
+            break
+        merged_any = True
+        from_time = min([from_time] + [row[1] for row in cluster])
+        to_time = max([to_time] + [row[2] for row in cluster])
+        conn.executemany(
+            "DELETE FROM human_time_spans WHERE id = ?",
+            [(row[0],) for row in cluster],
+        )
+    if merged_any:
+        counts["merged"] += 1
+
+    # 2. Compete with different-session rows that strictly overlap the
+    #    merged range; losers trim to their non-overlapping remainders.
+    pieces: List[tuple] = [(from_time, to_time)]
+    if session_id is None:
+        competitors = conn.execute(
+            """
+            SELECT id, session_id, working_directory, from_time, to_time, request_id
+            FROM human_time_spans
+            WHERE (session_id IS NOT NULL OR working_directory != ?)
+              AND from_time < ? AND to_time > ?
+            ORDER BY from_time, id
+            """,
+            (working_directory, to_time, from_time),
+        ).fetchall()
+    else:
+        competitors = conn.execute(
+            """
+            SELECT id, session_id, working_directory, from_time, to_time, request_id
+            FROM human_time_spans
+            WHERE session_id IS NOT ?
+              AND from_time < ? AND to_time > ?
+            ORDER BY from_time, id
+            """,
+            (session_id, to_time, from_time),
+        ).fetchall()
+    for row in competitors:
+        (
+            row_id,
+            row_session_id,
+            row_working_directory,
+            row_from,
+            row_to,
+            row_request_id,
+        ) = row
+        if not any(
+            piece_from < row_to and piece_to > row_from
+            for piece_from, piece_to in pieces
+        ):
+            continue
+        if _incoming_span_wins(session_id, to_time, row_session_id, row_to):
+            # The incoming entry wins: trim the existing row against the
+            # incoming entry's current pieces.
+            remainders: List[tuple] = [(row_from, row_to)]
+            for piece_from, piece_to in pieces:
+                remainders = _trim_ranges(remainders, piece_from, piece_to)
+            conn.execute("DELETE FROM human_time_spans WHERE id = ?", (row_id,))
+            for remainder_from, remainder_to in remainders:
+                _insert_span_row(
+                    conn,
+                    session_id=row_session_id,
+                    working_directory=row_working_directory,
+                    from_time=remainder_from,
+                    to_time=remainder_to,
+                    request_id=row_request_id,
+                )
+        else:
+            # The existing entry wins: trim the incoming pieces.
+            pieces = _trim_ranges(pieces, row_from, row_to)
+
+    # 3. Store whatever remains of the incoming entry.
+    if pieces:
+        for piece_from, piece_to in pieces:
+            _insert_span_row(
+                conn,
+                session_id=session_id,
+                working_directory=working_directory,
+                from_time=piece_from,
+                to_time=piece_to,
+                request_id=request_id,
+            )
+        counts["recorded"] += 1
+    else:
+        counts["absorbed"] += 1
+
+
+def record_human_time_spans(
+    db_path: Path,
+    *,
+    working_directory: Optional[str] = None,
+    request_id: Optional[str] = None,
+    spans: Optional[List[Any]] = None,
+) -> Dict[str, Any]:
+    """Record one frontend-reported human-time span batch.
+
+    Dedup is by ``request_id`` (frontend-assigned, stable across retries of
+    the same batch): a processed id returns ``duplicate`` without touching
+    spans. Each span is ``{session_id: str|null, from, to}`` with an optional
+    per-span ``working_directory`` overriding the batch-level value; the
+    plugin computes and stores ``duration_ms = to - from``. Overlaps resolve
+    so no two stored rows ever overlap (see the module notes above).
+
+    Span-level counts: ``recorded`` spans stored at least one row, ``merged``
+    spans merged with same-session-key rows, ``skipped`` invalid spans, and
+    ``absorbed`` valid spans fully covered by winning existing entries.
+
+    Raises ``ValueError`` for structurally invalid batches (missing request
+    id, non-list spans, more than ``HUMAN_TIME_SPANS_BATCH_CAP`` spans);
+    individual malformed spans skip with counts instead.
+    """
+
+    if not isinstance(request_id, str) or not request_id.strip():
+        raise ValueError("request_id must be a non-empty string")
+    if not isinstance(spans, list):
+        raise ValueError("spans must be a list")
+    if len(spans) > HUMAN_TIME_SPANS_BATCH_CAP:
+        raise ValueError(
+            f"spans batch exceeds the {HUMAN_TIME_SPANS_BATCH_CAP}-span cap"
+        )
+
+    counts: Dict[str, int] = {
+        "recorded": 0,
+        "merged": 0,
+        "skipped": 0,
+        "absorbed": 0,
+    }
+    with _write_lock:
+        conn = _connect(db_path)
+        try:
+            _ensure_schema(conn)
+            try:
+                already = conn.execute(
+                    "SELECT 1 FROM human_time_requests WHERE request_id = ?",
+                    (request_id,),
+                ).fetchone()
+                if already:
+                    conn.rollback()
+                    return {**counts, "duplicate": True}
+                conn.execute(
+                    "INSERT INTO human_time_requests (request_id, processed_at)"
+                    " VALUES (?, ?)",
+                    (request_id, utcnow_iso()),
+                )
+                for span in spans:
+                    _apply_human_time_span(
+                        conn, span, working_directory, request_id, counts
+                    )
+                conn.commit()
+                return {**counts, "duplicate": False}
+            except Exception:
+                conn.rollback()
+                raise
+        finally:
+            conn.close()
+
+
+def human_time_session_totals(
+    db_path: Path, *, working_directory: str, session_id: str
+) -> Dict[str, Any]:
+    """Return the human-time total and span count for one workspace session."""
+
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        row = conn.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(duration_ms), 0)
+            FROM human_time_spans
+            WHERE working_directory = ? AND session_id = ?
+            """,
+            (working_directory, session_id),
+        ).fetchone()
+        return {
+            "span_count": int(row[0]) if row else 0,
+            "total_ms": int(row[1]) if row else 0,
+        }
+    finally:
+        conn.close()
+
+
+def human_time_project_totals(
+    db_path: Path, *, working_directory: str
+) -> Dict[str, Any]:
+    """Return the human-time total over all spans of one working directory.
+
+    Includes session-less rows (e.g. session-list activity), which per-session
+    totals exclude; kept for future project-level reports.
+    """
+
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        row = conn.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(duration_ms), 0)
+            FROM human_time_spans
+            WHERE working_directory = ?
+            """,
+            (working_directory,),
+        ).fetchone()
+        return {
+            "span_count": int(row[0]) if row else 0,
+            "total_ms": int(row[1]) if row else 0,
+        }
+    finally:
+        conn.close()
+
+
 __all__ = [
     "DEFAULT_DURATION_DB_RELATIVE_PATH",
     "DEFAULT_DURATION_SUMMARY_CSV_FILENAME",
     "DURATION_SUMMARY_CSV_FIELDNAMES",
+    "HUMAN_TIME_SPANS_BATCH_CAP",
     "append_request_summary_csv",
+    "human_time_project_totals",
+    "human_time_session_totals",
     "overall_totals",
+    "record_human_time_spans",
     "record_request_duration",
     "record_tool_duration",
     "resolve_duration_db_path",

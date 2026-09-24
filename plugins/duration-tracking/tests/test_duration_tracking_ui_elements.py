@@ -36,11 +36,20 @@ def test_ui_elements_default_mode_shows_total_and_select() -> None:
         "averages",
     ]
 
-    assert _status_bar_paths(elements) == ["metadata.duration_session_total_formatted"]
+    assert _status_bar_paths(elements) == [
+        "metadata.duration_session_total_formatted",
+        "metadata.human_time_session_total_formatted",
+    ]
     total = elements[1]
     assert total["template"] == "Total duration: {{data}}"
     assert total["condition"] == {
         "path": "metadata.duration_session_total_formatted",
+        "exists": True,
+    }
+    human = elements[2]
+    assert human["template"] == "Human time: {{data}}"
+    assert human["condition"] == {
+        "path": "metadata.human_time_session_total_formatted",
         "exists": True,
     }
 
@@ -48,9 +57,18 @@ def test_ui_elements_default_mode_shows_total_and_select() -> None:
 def test_ui_elements_show_toggle_gates_status_bar_only() -> None:
     elements = _elements({"show_duration_status_total": False})
 
-    # The select stays editable even when the status bar is gated off.
+    # The select stays editable even when the status bar is gated off; the
+    # human time element has its own gate.
     assert elements[0]["ui_type"] == "config"
-    assert _status_bar_paths(elements) == []
+    assert _status_bar_paths(elements) == [
+        "metadata.human_time_session_total_formatted"
+    ]
+
+
+def test_ui_elements_human_time_toggle_gates_human_element_only() -> None:
+    elements = _elements({"show_human_time_status_total": False})
+
+    assert _status_bar_paths(elements) == ["metadata.duration_session_total_formatted"]
 
 
 def test_ui_elements_totals_mode_adds_requests() -> None:
@@ -58,18 +76,19 @@ def test_ui_elements_totals_mode_adds_requests() -> None:
 
     assert _status_bar_paths(elements) == [
         "metadata.duration_session_total_formatted",
+        "metadata.human_time_session_total_formatted",
         "metadata.duration_session_requests_formatted",
         "metadata.tool_duration_session_total_formatted",
         "metadata.tool_duration_session_calls_formatted",
     ]
-    requests_element = elements[2]
+    requests_element = elements[3]
     assert requests_element["template"] == "requests: {{data}}"
     assert requests_element["condition"] == {
         "path": "metadata.duration_session_requests_formatted",
         "exists": True,
     }
-    assert elements[3]["template"] == "tools: {{data}}"
-    assert elements[4]["template"] == "tool calls: {{data}}"
+    assert elements[4]["template"] == "tools: {{data}}"
+    assert elements[5]["template"] == "tool calls: {{data}}"
 
 
 def test_ui_elements_averages_mode_adds_averages_and_tools() -> None:
@@ -77,21 +96,25 @@ def test_ui_elements_averages_mode_adds_averages_and_tools() -> None:
 
     assert _status_bar_paths(elements) == [
         "metadata.duration_session_total_formatted",
+        "metadata.human_time_session_total_formatted",
         "metadata.duration_session_requests_formatted",
         "metadata.duration_session_average_formatted",
         "metadata.tool_duration_session_total_formatted",
         "metadata.tool_duration_session_calls_formatted",
         "metadata.tool_duration_session_average_formatted",
     ]
-    assert elements[2]["template"] == "requests: {{data}}"
-    assert elements[3]["template"] == "average: {{data}}"
-    assert elements[4]["template"] == "tools: {{data}}"
-    assert elements[5]["template"] == "tool calls: {{data}}"
-    assert elements[6]["template"] == "tool average: {{data}}"
+    assert elements[3]["template"] == "requests: {{data}}"
+    assert elements[4]["template"] == "average: {{data}}"
+    assert elements[5]["template"] == "tools: {{data}}"
+    assert elements[6]["template"] == "tool calls: {{data}}"
+    assert elements[7]["template"] == "tool average: {{data}}"
 
 
 def test_ui_elements_invalid_mode_falls_back_to_none() -> None:
     elements = _elements({"duration_breakdown": "bogus"})
 
-    assert _status_bar_paths(elements) == ["metadata.duration_session_total_formatted"]
+    assert _status_bar_paths(elements) == [
+        "metadata.duration_session_total_formatted",
+        "metadata.human_time_session_total_formatted",
+    ]
     assert elements[0]["default"] == "none"

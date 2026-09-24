@@ -701,3 +701,102 @@ def test_from_native_messages_passes_through_other_messages(
     assert projected[0] == messages[0]
     assert projected[1] == messages[1]
     assert projected[2] == messages[2]
+
+
+# --- Human time totals stamping (subtask 030) ---
+
+
+def test_finalize_stamps_human_time_totals_alongside_duration_totals(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="human-req-1",
+        spans=[
+            {
+                "session_id": "s1",
+                "from": "2026-09-25T08:00:00Z",
+                "to": "2026-09-25T08:05:00Z",
+            }
+        ],
+    )
+    feature = DurationTrackingExtension()
+    finals = [_assistant_final()]
+    native = _native_history(finals)
+
+    new_finals, _new_native, _ = _finalize(feature, finals, native, _state(db_path))
+
+    internal = _internal(new_finals[0])
+    # The duration totals stamp as before...
+    assert internal["duration_session_total"] == 1200
+    # ...and the human time session total stamps alongside them, read from
+    # the same store.
+    assert internal["human_time_session_total"] == 5 * 60 * 1000
+    assert internal["human_time_session_total_formatted"] == "5m"
+
+
+def test_finalize_stamps_zero_human_time_without_spans(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    feature = DurationTrackingExtension()
+    finals = [_assistant_final()]
+    native = _native_history(finals)
+
+    new_finals, _new_native, _ = _finalize(feature, finals, native, _state(db_path))
+
+    internal = _internal(new_finals[0])
+    assert internal["human_time_session_total"] == 0
+    assert internal["human_time_session_total_formatted"] == "0ms"
+
+
+def test_finalize_human_time_store_failure_skips_only_human_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    feature = DurationTrackingExtension()
+    finals = [_assistant_final()]
+    native = _native_history(finals)
+
+    def _boom(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("store unavailable")
+
+    monkeypatch.setattr(duration_store, "human_time_session_totals", _boom)
+    new_finals, _new_native, _ = _finalize(feature, finals, native, _state(db_path))
+
+    # Best-effort: the failure skips only the human fields; the duration
+    # totals still stamp and the request pipeline is unaffected.
+    internal = _internal(new_finals[0])
+    assert internal["duration_session_total"] == 1200
+    assert "human_time_session_total" not in internal
+    assert "human_time_session_total_formatted" not in internal
+
+
+def test_from_native_messages_projects_human_time_totals(tmp_path: Path) -> None:
+    native = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "duration_ms": 1200,
+                "duration_session_total": 1200,
+                "human_time_session_total": 300000,
+                "human_time_session_total_formatted": "5m",
+            },
+        },
+    ]
+    messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "metadata": {"native_indices": [0]},
+        }
+    ]
+
+    projected = DurationTrackingExtension().from_native_messages(native, messages)
+
+    metadata = projected[0]["metadata"]
+    assert metadata["human_time_session_total"] == 300000
+    assert metadata["human_time_session_total_formatted"] == "5m"
+    # Per-message duration stamps stay internal.
+    assert "duration_ms" not in metadata

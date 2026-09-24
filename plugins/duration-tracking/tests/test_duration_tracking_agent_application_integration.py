@@ -62,6 +62,7 @@ def _make_config(
             "plugins.file_reader_tool.FileReaderTool",
             "timestamp_extension.duration_extension.DurationExtension",
             "duration_tracking_plugins.duration_tracking_extension.DurationTrackingExtension",
+            "duration_tracking_plugins.duration_tracking_app_plugin.DurationTrackingAppPlugin",
         ],
     }
     config_path = tmp_path / "config_duration_tracking.json"
@@ -388,3 +389,143 @@ def test_tracking_independent_of_duration_footers(tmp_path: Path) -> None:
     assert "duration_ms" not in assistant_md or isinstance(
         assistant_md.get("duration_ms"), int
     )
+
+
+# --- Human time telemetry (subtask 030) ---
+
+
+def test_human_time_spans_ingest_through_public_action_path(
+    tmp_path: Path,
+) -> None:
+    """Spans flow through ``execute_application_action`` (the HTTP route's
+    entry): the session span resolves the session's config, the request id
+    dedups retries, overlaps merge, and ingestion never mutates sessions."""
+
+    db_path = tmp_path / "durations.sqlite3"
+    app = _make_app(tmp_path, db_path)
+    core, base_config, session = app.create_session("default")
+    session_id = session.session_id
+
+    result = app.execute_application_action(
+        "duration_tracking_app",
+        "record_human_time_spans",
+        {
+            "request_id": "frontend-req-1",
+            "spans": [
+                {
+                    "session_id": session_id,
+                    "from": "2026-09-25T08:00:00Z",
+                    "to": "2026-09-25T08:05:00Z",
+                },
+                {
+                    # Session-less span: no plugin-config working
+                    # directory, so it cannot be keyed and skips.
+                    "session_id": None,
+                    "from": "2026-09-25T09:00:00Z",
+                    "to": "2026-09-25T09:02:00Z",
+                },
+            ],
+        },
+    )
+    assert result == {
+        "recorded": 1,
+        "merged": 0,
+        "skipped": 1,
+        "absorbed": 0,
+        "duplicate": False,
+    }
+    totals = duration_store.human_time_session_totals(
+        db_path, working_directory=str(tmp_path), session_id=session_id
+    )
+    assert totals == {"span_count": 1, "total_ms": 5 * 60 * 1000}
+
+    # A retried batch (same request id) is recognized and skipped.
+    retry = app.execute_application_action(
+        "duration_tracking_app",
+        "record_human_time_spans",
+        {
+            "request_id": "frontend-req-1",
+            "spans": [
+                {
+                    "session_id": session_id,
+                    "from": "2026-09-25T10:00:00Z",
+                    "to": "2026-09-25T10:05:00Z",
+                }
+            ],
+        },
+    )
+    assert retry["duplicate"] is True
+    assert retry["recorded"] == 0
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory=str(tmp_path), session_id=session_id
+    ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
+
+    # A new batch with an overlapping same-session span merges into one.
+    merged = app.execute_application_action(
+        "duration_tracking_app",
+        "record_human_time_spans",
+        {
+            "request_id": "frontend-req-2",
+            "spans": [
+                {
+                    "session_id": session_id,
+                    "from": "2026-09-25T08:03:00Z",
+                    "to": "2026-09-25T08:08:00Z",
+                }
+            ],
+        },
+    )
+    assert merged["recorded"] == 1
+    assert merged["merged"] == 1
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory=str(tmp_path), session_id=session_id
+    ) == {"span_count": 1, "total_ms": 8 * 60 * 1000}
+
+    # Ingestion never mutates sessions (no save path).
+    loaded = app.load_session(session_id)
+    assert loaded is not None
+    _core2, _config2, reloaded = loaded
+    assert len(reloaded.messages) == len(session.messages)
+
+
+def test_human_time_totals_reach_assistant_metadata_and_report(
+    tmp_path: Path,
+) -> None:
+    """Ingested spans surface like the other duration fields: the footer
+    metadata on the next request and the report line."""
+
+    db_path = tmp_path / "durations.sqlite3"
+    app = _make_app(tmp_path, db_path)
+    core, base_config, session = app.create_session("default")
+
+    app.execute_application_action(
+        "duration_tracking_app",
+        "record_human_time_spans",
+        {
+            "request_id": "frontend-req-1",
+            "spans": [
+                {
+                    "session_id": session.session_id,
+                    "from": "2026-09-25T08:00:00Z",
+                    "to": "2026-09-25T08:05:00Z",
+                }
+            ],
+        },
+    )
+
+    session = _run_request(app, core, session, base_config)
+
+    # The store-backed human time total reaches the assistant message
+    # public metadata that the footer status-bar element renders.
+    assistant_md = _assistant_messages(session)[-1].metadata or {}
+    assert assistant_md.get("human_time_session_total") == 5 * 60 * 1000
+    assert assistant_md.get("human_time_session_total_formatted") == "5m"
+
+    # And the report action includes the per-session human time line.
+    report = app.execute_application_action(
+        "duration_tracking_app",
+        "show_duration_report",
+        {"session_id": session.session_id},
+    )
+    assert "- Human time: `5m`" in report["display"]["body"]
+    assert report["human_time"] == {"span_count": 1, "total_ms": 5 * 60 * 1000}

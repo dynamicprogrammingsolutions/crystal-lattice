@@ -643,3 +643,477 @@ def test_resolve_duration_db_path_falls_back_to_cwd(
     assert duration_store.resolve_duration_db_path(None) == (
         tmp_path / "duration-tracking" / "duration-tracking.sqlite3"
     )
+
+
+# --- Human time spans (subtask 030) ---
+#
+# Contract (user, 2026-09-24/25): the frontend computes durations and sends
+# spans {session_id|null, from, to}; each batch carries a request id for
+# retry dedup; no two stored rows ever overlap (first entry wins by end-time
+# priority; same-session spans merge; session-bearing beats session-less).
+
+
+def _z(hhmm: str) -> str:
+    """Input timestamp form (device clock, Z-suffixed)."""
+
+    return f"2026-09-25T{hhmm}:00Z"
+
+
+def _ts(hhmm: str) -> str:
+    """Canonical stored form for an input timestamp."""
+
+    return f"2026-09-25T{hhmm}:00.000000+00:00"
+
+
+def _minutes(hhmm: str) -> int:
+    hours, mins = hhmm.split(":")
+    return int(hours) * 60 + int(mins)
+
+
+def _span(session_id, start: str, end: str, working_directory=None):
+    span: Dict[str, Any] = {"session_id": session_id, "from": _z(start), "to": _z(end)}
+    if working_directory is not None:
+        span["working_directory"] = working_directory
+    return span
+
+
+def _record_spans(
+    db_path: Path,
+    spans: List[Any],
+    *,
+    request_id: str = "req-1",
+    working_directory: str = "/tmp/ws",
+):
+    return duration_store.record_human_time_spans(
+        db_path,
+        working_directory=working_directory,
+        request_id=request_id,
+        spans=spans,
+    )
+
+
+def _human_time_rows(db_path: Path) -> List[Dict[str, Any]]:
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.row_factory = sqlite3.Row
+        return [
+            dict(row)
+            for row in conn.execute(
+                "SELECT session_id, working_directory, from_time, to_time,"
+                " duration_ms, request_id FROM human_time_spans"
+                " ORDER BY from_time, id"
+            )
+        ]
+    finally:
+        conn.close()
+
+
+def _expected_span_row(
+    session_id,
+    start: str,
+    end: str,
+    *,
+    request_id: str,
+    working_directory: str = "/tmp/ws",
+) -> Dict[str, Any]:
+    return {
+        "session_id": session_id,
+        "working_directory": working_directory,
+        "from_time": _ts(start),
+        "to_time": _ts(end),
+        "duration_ms": (_minutes(end) - _minutes(start)) * 60 * 1000,
+        "request_id": request_id,
+    }
+
+
+def test_human_time_schema_creates_tables(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    result = _record_spans(db_path, [_span("s1", "08:00", "08:05")])
+    assert result == {
+        "recorded": 1,
+        "merged": 0,
+        "skipped": 0,
+        "absorbed": 0,
+        "duplicate": False,
+    }
+    assert _table_columns(db_path, "human_time_spans") == {
+        "id",
+        "session_id",
+        "working_directory",
+        "from_time",
+        "to_time",
+        "duration_ms",
+        "request_id",
+    }
+    assert _table_columns(db_path, "human_time_requests") == {
+        "request_id",
+        "processed_at",
+    }
+    assert "idx_human_time_spans_session" in _table_indexes(db_path, "human_time_spans")
+
+
+def test_human_time_spans_batch_and_totals(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    result = _record_spans(
+        db_path,
+        [
+            _span("s1", "08:00", "08:05"),
+            _span("s1", "08:10", "08:12"),
+            _span(None, "09:00", "09:03"),
+            _span("s2", "09:30", "09:31"),
+        ],
+    )
+    assert result["recorded"] == 4
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory="/tmp/ws", session_id="s1"
+    ) == {"span_count": 2, "total_ms": 7 * 60 * 1000}
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory="/tmp/ws", session_id="s2"
+    ) == {"span_count": 1, "total_ms": 60 * 1000}
+    assert duration_store.human_time_project_totals(
+        db_path, working_directory="/tmp/ws"
+    ) == {"span_count": 4, "total_ms": 11 * 60 * 1000}
+
+
+def test_human_time_project_totals_include_session_less(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(
+        db_path, [_span("s1", "08:00", "08:05"), _span(None, "09:00", "09:02")]
+    )
+    assert duration_store.human_time_project_totals(
+        db_path, working_directory="/tmp/ws"
+    ) == {"span_count": 2, "total_ms": 7 * 60 * 1000}
+    # Session totals exclude the session-less row.
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory="/tmp/ws", session_id="s1"
+    ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
+
+
+def test_human_time_spans_request_id_dedup(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span("s1", "08:00", "08:05")], request_id="r1")
+    # A retried request (same id) is skipped without touching spans.
+    result = _record_spans(db_path, [_span("s1", "08:20", "08:25")], request_id="r1")
+    assert result == {
+        "recorded": 0,
+        "merged": 0,
+        "skipped": 0,
+        "absorbed": 0,
+        "duplicate": True,
+    }
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("s1", "08:00", "08:05", request_id="r1")
+    ]
+    # A new request id applies.
+    result = _record_spans(db_path, [_span("s1", "08:20", "08:25")], request_id="r2")
+    assert result["duplicate"] is False
+    assert result["recorded"] == 1
+    assert len(_human_time_rows(db_path)) == 2
+
+
+def test_human_time_overlap_default_first_entry_wins(tmp_path: Path) -> None:
+    """The user's worked example: different sessions, the new span trims."""
+
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span("a", "08:14", "08:16")], request_id="r1")
+    _record_spans(db_path, [_span("b", "08:18", "08:19")], request_id="r2")
+    result = _record_spans(db_path, [_span("c", "08:15", "08:20")], request_id="r3")
+    assert result == {
+        "recorded": 1,
+        "merged": 0,
+        "skipped": 0,
+        "absorbed": 0,
+        "duplicate": False,
+    }
+    # The new span stores as two entries (8:16-8:18 and 8:19-8:20); the
+    # existing entries keep their ranges.
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("a", "08:14", "08:16", request_id="r1"),
+        _expected_span_row("c", "08:16", "08:18", request_id="r3"),
+        _expected_span_row("b", "08:18", "08:19", request_id="r2"),
+        _expected_span_row("c", "08:19", "08:20", request_id="r3"),
+    ]
+
+
+def test_human_time_overlap_session_wins_session_less_merges_around(
+    tmp_path: Path,
+) -> None:
+    """The user's worked example: only 8:18-8:19 has a session."""
+
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span(None, "08:14", "08:16")], request_id="r1")
+    _record_spans(db_path, [_span("x", "08:18", "08:19")], request_id="r2")
+    result = _record_spans(db_path, [_span(None, "08:15", "08:20")], request_id="r3")
+    assert result["recorded"] == 1
+    assert result["merged"] == 1
+    # The session-bearing row is kept separate with its range intact; the
+    # session-less entries merge into one union trimmed around it.
+    assert _human_time_rows(db_path) == [
+        _expected_span_row(None, "08:14", "08:18", request_id="r3"),
+        _expected_span_row("x", "08:18", "08:19", request_id="r2"),
+        _expected_span_row(None, "08:19", "08:20", request_id="r3"),
+    ]
+
+
+def test_human_time_same_session_merges_into_union(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span("s", "08:00", "08:10")], request_id="r1")
+    result = _record_spans(db_path, [_span("s", "08:05", "08:15")], request_id="r2")
+    assert result["recorded"] == 1
+    assert result["merged"] == 1
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("s", "08:00", "08:15", request_id="r2")
+    ]
+    # Touching same-session spans merge too.
+    result = _record_spans(db_path, [_span("s", "08:15", "08:20")], request_id="r3")
+    assert result["merged"] == 1
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("s", "08:00", "08:20", request_id="r3")
+    ]
+
+
+def test_human_time_end_time_priority_late_arrival_wins(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span("a", "09:00", "09:10")], request_id="r1")
+    # A later-uploaded batch whose span ends earlier is the first entry.
+    result = _record_spans(db_path, [_span("b", "08:00", "09:05")], request_id="r2")
+    assert result["recorded"] == 1
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("b", "08:00", "09:05", request_id="r2"),
+        _expected_span_row("a", "09:05", "09:10", request_id="r1"),
+    ]
+
+
+def test_human_time_end_time_tie_keeps_existing_row(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span("a", "08:00", "09:05")], request_id="r1")
+    # Equal end times: the existing entry wins; the new span is fully
+    # covered and stores nothing.
+    result = _record_spans(db_path, [_span("b", "08:30", "09:05")], request_id="r2")
+    assert result["recorded"] == 0
+    assert result["absorbed"] == 1
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("a", "08:00", "09:05", request_id="r1")
+    ]
+
+
+def test_human_time_session_beats_session_less_incoming(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span(None, "08:00", "08:30")], request_id="r1")
+    # The incoming session-bearing span wins; the session-less row trims.
+    result = _record_spans(db_path, [_span("s", "08:10", "08:20")], request_id="r2")
+    assert result["recorded"] == 1
+    assert _human_time_rows(db_path) == [
+        _expected_span_row(None, "08:00", "08:10", request_id="r1"),
+        _expected_span_row("s", "08:10", "08:20", request_id="r2"),
+        _expected_span_row(None, "08:20", "08:30", request_id="r1"),
+    ]
+
+
+def test_human_time_session_less_incoming_loses(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span(None, "08:40", "09:00")], request_id="r1")
+    # The incoming session-less span loses; it trims around the row.
+    result = _record_spans(db_path, [_span("t", "08:45", "08:55")], request_id="r2")
+    assert result["recorded"] == 1
+    assert _human_time_rows(db_path) == [
+        _expected_span_row(None, "08:40", "08:45", request_id="r1"),
+        _expected_span_row("t", "08:45", "08:55", request_id="r2"),
+        _expected_span_row(None, "08:55", "09:00", request_id="r1"),
+    ]
+
+
+def test_human_time_session_span_replaces_covered_session_less(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span(None, "08:02", "08:05")], request_id="r1")
+    result = _record_spans(db_path, [_span("s", "08:00", "08:10")], request_id="r2")
+    assert result["recorded"] == 1
+    # The covered session-less row stores no remainders.
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("s", "08:00", "08:10", request_id="r2")
+    ]
+
+
+def test_human_time_fully_covered_span_stores_nothing(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    # The session-bearing row wins, so the incoming session-less span is
+    # fully covered and stores nothing.
+    _record_spans(db_path, [_span("a", "08:00", "08:10")], request_id="r1")
+    result = _record_spans(db_path, [_span(None, "08:02", "08:08")], request_id="r2")
+    assert result["recorded"] == 0
+    assert result["absorbed"] == 1
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("a", "08:00", "08:10", request_id="r1")
+    ]
+
+
+def test_human_time_touching_different_sessions_stay_separate(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(db_path, [_span("a", "08:00", "08:10")], request_id="r1")
+    result = _record_spans(db_path, [_span("b", "08:10", "08:20")], request_id="r2")
+    assert result["recorded"] == 1
+    assert result["merged"] == 0
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("a", "08:00", "08:10", request_id="r1"),
+        _expected_span_row("b", "08:10", "08:20", request_id="r2"),
+    ]
+
+
+def test_human_time_zero_length_span_stored(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    result = _record_spans(db_path, [_span("s1", "08:00", "08:00")])
+    assert result["recorded"] == 1
+    rows = _human_time_rows(db_path)
+    assert rows[0]["duration_ms"] == 0
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory="/tmp/ws", session_id="s1"
+    ) == {"span_count": 1, "total_ms": 0}
+
+
+def test_human_time_span_working_directory_override(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    # One batch may mix sessions resolved under different working
+    # directories (per-span override over the batch-level value).
+    _record_spans(
+        db_path,
+        [
+            _span("s1", "08:00", "08:05"),
+            _span("s2", "08:10", "08:15", working_directory="/tmp/other"),
+        ],
+    )
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory="/tmp/ws", session_id="s1"
+    ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory="/tmp/other", session_id="s2"
+    ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
+
+
+def test_human_time_same_session_merges_across_working_directories(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    # Session identity is the session id: when a later batch resolves the
+    # same session under a different working directory, overlapping rows
+    # merge and consolidate under the incoming resolution.
+    _record_spans(
+        db_path,
+        [_span("s1", "08:00", "08:10")],
+        request_id="r1",
+        working_directory="/tmp/old-ws",
+    )
+    result = _record_spans(
+        db_path,
+        [_span("s1", "08:05", "08:15")],
+        request_id="r2",
+        working_directory="/tmp/new-ws",
+    )
+    assert result["recorded"] == 1
+    assert result["merged"] == 1
+    assert _human_time_rows(db_path) == [
+        _expected_span_row(
+            "s1", "08:00", "08:15", request_id="r2", working_directory="/tmp/new-ws"
+        )
+    ]
+
+
+def test_human_time_timestamp_forms_normalize(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(
+        db_path,
+        [
+            {
+                "session_id": "s1",
+                "from": "2026-09-25T10:00:00Z",
+                "to": "2026-09-25T10:01:00+00:00",
+            },
+            {
+                "session_id": "s2",
+                "from": "2026-09-25T11:00:00",
+                "to": "2026-09-25T11:02:30.500Z",
+            },
+        ],
+        request_id="r1",
+    )
+    rows = _human_time_rows(db_path)
+    assert rows[0]["from_time"] == "2026-09-25T10:00:00.000000+00:00"
+    assert rows[0]["to_time"] == "2026-09-25T10:01:00.000000+00:00"
+    assert rows[0]["duration_ms"] == 60 * 1000
+    # Naive timestamps are treated as UTC; fractional seconds survive.
+    assert rows[1]["from_time"] == "2026-09-25T11:00:00.000000+00:00"
+    assert rows[1]["to_time"] == "2026-09-25T11:02:30.500000+00:00"
+    assert rows[1]["duration_ms"] == 150500
+
+
+def test_human_time_skips_malformed_spans(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    result = _record_spans(
+        db_path,
+        [
+            _span("s1", "08:00", "08:05"),
+            "not-a-dict",
+            {"from": _z("08:00"), "to": _z("08:05")},  # missing session_id
+            _span(5, "08:00", "08:05"),  # invalid session id type
+            _span("s2", "not-a-date", "08:05"),  # unparseable from
+            _span("s2", "08:10", "08:05"),  # from after to
+            _span("s2", "08:00", "08:05", working_directory=""),  # empty wd
+            {"session_id": "s2", "to": _z("08:05")},  # missing from
+        ],
+    )
+    assert result == {
+        "recorded": 1,
+        "merged": 0,
+        "skipped": 7,
+        "absorbed": 0,
+        "duplicate": False,
+    }
+    assert _human_time_rows(db_path) == [
+        _expected_span_row("s1", "08:00", "08:05", request_id="req-1")
+    ]
+
+
+def test_human_time_span_without_working_directory_skipped(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    result = _record_spans(
+        db_path,
+        [_span("s1", "08:00", "08:05")],
+        working_directory=None,
+    )
+    assert result["skipped"] == 1
+    assert result["recorded"] == 0
+    assert _human_time_rows(db_path) == []
+
+
+def test_human_time_batch_cap(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    with pytest.raises(ValueError):
+        _record_spans(db_path, [_span("s", "08:00", "08:01") for _ in range(1001)])
+    # Exactly 1000 is allowed; identical same-session spans merge into one.
+    result = _record_spans(db_path, [_span("s", "08:00", "08:01") for _ in range(1000)])
+    assert result["recorded"] == 1000
+    assert result["merged"] == 999
+    assert len(_human_time_rows(db_path)) == 1
+
+
+def test_human_time_invalid_request_id_or_spans_raise(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    with pytest.raises(ValueError):
+        duration_store.record_human_time_spans(
+            db_path, working_directory="/tmp/ws", request_id="", spans=[]
+        )
+    with pytest.raises(ValueError):
+        duration_store.record_human_time_spans(
+            db_path, working_directory="/tmp/ws", request_id=None, spans=[]
+        )
+    with pytest.raises(ValueError):
+        duration_store.record_human_time_spans(
+            db_path, working_directory="/tmp/ws", request_id="r", spans={"a": 1}
+        )
+    with pytest.raises(ValueError):
+        duration_store.record_human_time_spans(
+            db_path, working_directory="/tmp/ws", request_id="r", spans=None
+        )
