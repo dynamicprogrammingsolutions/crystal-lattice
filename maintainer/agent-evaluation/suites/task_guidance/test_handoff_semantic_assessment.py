@@ -14,7 +14,7 @@ from .handoff_semantic import (
     parse_handoff_semantic,
     validate_handoff_semantic,
 )
-from .runner import TaskGuidanceHarness, selected_profile
+from .runner import TaskGuidanceHarness, selected_agent
 from .scenarios import SCENARIOS, TaskGuidanceScenario
 
 
@@ -28,12 +28,12 @@ HANDOFF_SCENARIOS = tuple(
 
 @pytest.fixture(scope="session")
 def handoff_semantic_harness() -> Iterator[TaskGuidanceHarness]:
-    profile = selected_profile()
-    if profile.name != "glm":
+    agent_name = selected_agent()
+    if agent_name != "glm":
         pytest.skip("handoff semantic assessment uses GLM")
     if os.getenv("AGENT_EVAL_RUN_REAL") != "1":
         raise RuntimeError("set AGENT_EVAL_RUN_REAL=1 for semantic assessment")
-    harness = TaskGuidanceHarness(profile)
+    harness = TaskGuidanceHarness(agent_name)
     yield harness
     harness.close()
 
@@ -60,10 +60,13 @@ def test_handoff_semantic_assessment(
         "AGENT_EVAL_TASK_GUIDANCE_SEMANTIC_ATTEMPT",
         "default",
     ).strip()
-    allow_partial = os.getenv(
-        "AGENT_EVAL_TASK_ALLOW_PARTIAL",
-        "",
-    ).strip() == "1"
+    allow_partial = (
+        os.getenv(
+            "AGENT_EVAL_TASK_ALLOW_PARTIAL",
+            "",
+        ).strip()
+        == "1"
+    )
     artifact_root = Path(
         os.getenv(
             "AGENT_EVAL_ARTIFACT_ROOT",
@@ -88,16 +91,12 @@ def test_handoff_semantic_assessment(
         test_id=f"task-guidance-handoff-semantic-{scenario.scenario_id}",
         prompt=prompt,
         reasoning_effort="max",
-        cache_variant=(
-            f"{producer_attempt}:{handoff_attempt}:{semantic_attempt}"
-        ),
+        cache_variant=(f"{producer_attempt}:{handoff_attempt}:{semantic_attempt}"),
     )
     if run.value is None or run.error is not None:
         raise AssertionError(f"handoff semantic run failed: {run.error!r}")
     if not run.value.completed or run.value.errors:
-        raise AssertionError(
-            f"handoff semantic provider errors: {run.value.errors!r}"
-        )
+        raise AssertionError(f"handoff semantic provider errors: {run.value.errors!r}")
     value = parse_handoff_semantic(run.value.response)
     validate_handoff_semantic(
         value,

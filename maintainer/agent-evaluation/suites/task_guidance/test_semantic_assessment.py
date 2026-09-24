@@ -8,13 +8,13 @@ from pathlib import Path
 import pytest
 
 from .artifacts import selected_dataset_id
-from .runner import TaskGuidanceHarness, selected_profile
+from .runner import TaskGuidanceHarness, selected_agent
 from .scenarios import SCENARIOS, TaskGuidanceScenario
 from .semantic import (
     load_producer_records,
     normalize_semantic_assessment,
     parse_semantic_response,
-    producer_cells,
+    producer_cells_from_records,
     semantic_prompt,
     semantic_summary,
     validate_semantic_assessment,
@@ -26,12 +26,12 @@ pytestmark = [pytest.mark.agent_eval, pytest.mark.task_guidance_semantic]
 
 @pytest.fixture(scope="session")
 def semantic_harness() -> Iterator[TaskGuidanceHarness]:
-    profile = selected_profile()
-    if profile.name != "glm":
+    agent_name = selected_agent()
+    if agent_name != "glm":
         pytest.skip("semantic assessment uses the GLM profile")
     if os.getenv("AGENT_EVAL_RUN_REAL") != "1":
         raise RuntimeError("set AGENT_EVAL_RUN_REAL=1 for semantic assessment")
-    harness = TaskGuidanceHarness(profile)
+    harness = TaskGuidanceHarness(agent_name)
     yield harness
     harness.close()
 
@@ -71,12 +71,8 @@ def test_task_guidance_b0_semantic_assessment(
         ).strip()
         == "1",
     )
-    valid_records = [
-        record for record in records if record.get("valid") is True
-    ]
-    invalid_records = [
-        record for record in records if record.get("valid") is not True
-    ]
+    valid_records = [record for record in records if record.get("valid") is True]
+    invalid_records = [record for record in records if record.get("valid") is not True]
     if not valid_records:
         raise AssertionError(
             f"no valid producers for {scenario.scenario_id}: "
@@ -100,7 +96,7 @@ def test_task_guidance_b0_semantic_assessment(
         parse_semantic_response(run.value.response),
         records=valid_records,
     )
-    cells = producer_cells(valid_records)
+    cells = producer_cells_from_records(valid_records)
     validate_semantic_assessment(
         value,
         scenario=scenario,

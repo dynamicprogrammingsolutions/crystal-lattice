@@ -19,7 +19,8 @@ from agent_eval.result_packages import (
     render_result_package,
 )
 
-from .fixtures import DEFAULT_BUNDLE, FIXTURE_VERSION, fixture_sha256
+from .configuration import DEFAULT_BUNDLE
+from .fixtures import FIXTURE_VERSION, fixture_sha256
 from .result_package import (
     QUALITY_DIMENSIONS,
     DatasetSpec,

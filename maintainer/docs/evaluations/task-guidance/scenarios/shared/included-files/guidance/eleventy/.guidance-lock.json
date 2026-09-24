@@ -2,7 +2,7 @@
   "bundle": {
     "git": {
       "dirty": false,
-      "revision": "a5a393723f906e61106da15d7fa9d1b89baeeb21"
+      "revision": "a24626196a6faafe9d7b14cbed93e29d056bc518"
     },
     "id": "current",
     "path": "maintainer/guidance/current"
@@ -56,7 +56,7 @@
   "target": {
     "git": {
       "dirty": false,
-      "revision": "a5a393723f906e61106da15d7fa9d1b89baeeb21"
+      "revision": "a24626196a6faafe9d7b14cbed93e29d056bc518"
     },
     "id": "task-guidance-eleventy",
     "kind": "fixture",

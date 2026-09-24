@@ -6,7 +6,7 @@ from collections.abc import Iterator
 import pytest
 
 from .artifacts import selected_dataset_id
-from .runner import PlanRunValue, TaskGuidanceHarness, TaskRunValue, selected_profile
+from .runner import PlanRunValue, TaskGuidanceHarness, TaskRunValue, selected_agent
 from .scenarios import SCENARIOS, TaskGuidanceScenario
 
 
@@ -21,12 +21,12 @@ CONTINUATION_CELLS = (("glm", "max"), ("gpt", "high"))
 
 @pytest.fixture(scope="session")
 def continuation_harness() -> Iterator[TaskGuidanceHarness]:
-    profile = selected_profile()
+    agent_name = selected_agent()
     if os.getenv("AGENT_EVAL_RUN_REAL") != "1":
         raise RuntimeError("set AGENT_EVAL_RUN_REAL=1 for continuation tests")
-    if profile.name == "gpt" and os.getenv("AGENT_EVAL_ALLOW_HOSTED") != "1":
+    if agent_name == "gpt" and os.getenv("AGENT_EVAL_ALLOW_HOSTED") != "1":
         raise RuntimeError("set AGENT_EVAL_ALLOW_HOSTED=1 for ChatGPT")
-    harness = TaskGuidanceHarness(profile)
+    harness = TaskGuidanceHarness(agent_name)
     yield harness
     harness.close()
 
@@ -48,7 +48,7 @@ def test_same_agent_continues_from_generated_task(
     producer_profile: str,
     reasoning_effort: str,
 ) -> None:
-    if continuation_harness.profile.name != producer_profile:
+    if continuation_harness.agent_name != producer_profile:
         pytest.skip(f"run with AGENT_EVAL_PROFILE={producer_profile}")
     selected = os.getenv("AGENT_EVAL_TASK_SCENARIO", "").strip()
     if selected and scenario.scenario_id != selected:
@@ -91,7 +91,7 @@ def test_same_agent_continues_from_generated_task(
                 "scenario_id": scenario.scenario_id,
                 "producer": {
                     "profile": producer_profile,
-                    "model": continuation_harness.profile.model,
+                    "model": continuation_harness.agent["model"],
                     "reasoning_effort": reasoning_effort,
                 },
                 "run_attempt": attempt,
@@ -135,7 +135,7 @@ def test_same_agent_continues_from_generated_task(
         "scenario_id": scenario.scenario_id,
         "producer": {
             "profile": producer_profile,
-            "model": continuation_harness.profile.model,
+            "model": continuation_harness.agent["model"],
             "reasoning_effort": reasoning_effort,
         },
         "run_attempt": attempt,

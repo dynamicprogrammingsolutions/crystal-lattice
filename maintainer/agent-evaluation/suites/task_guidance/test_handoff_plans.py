@@ -7,7 +7,7 @@ from collections.abc import Iterator
 import pytest
 
 from .artifacts import selected_dataset_id
-from .runner import PlanRunValue, TaskGuidanceHarness, selected_profile
+from .runner import PlanRunValue, TaskGuidanceHarness, selected_agent
 from .scenarios import SCENARIOS, TaskGuidanceScenario
 
 
@@ -22,12 +22,12 @@ HANDOFF_CELLS = (("glm", "max"), ("gpt", "high"))
 
 @pytest.fixture(scope="session")
 def handoff_harness() -> Iterator[TaskGuidanceHarness]:
-    profile = selected_profile()
+    agent_name = selected_agent()
     if os.getenv("AGENT_EVAL_RUN_REAL") != "1":
         raise RuntimeError("set AGENT_EVAL_RUN_REAL=1 for handoff planning")
-    if profile.name == "gpt" and os.getenv("AGENT_EVAL_ALLOW_HOSTED") != "1":
+    if agent_name == "gpt" and os.getenv("AGENT_EVAL_ALLOW_HOSTED") != "1":
         raise RuntimeError("set AGENT_EVAL_ALLOW_HOSTED=1 for ChatGPT")
-    harness = TaskGuidanceHarness(profile)
+    harness = TaskGuidanceHarness(agent_name)
     yield harness
     harness.close()
 
@@ -57,7 +57,7 @@ def test_fresh_agent_plans_from_canonical_handoff(
     reasoning_effort: str,
     variant: str,
 ) -> None:
-    if handoff_harness.profile.name != producer_profile:
+    if handoff_harness.agent_name != producer_profile:
         pytest.skip(f"run with AGENT_EVAL_PROFILE={producer_profile}")
     selected = os.getenv("AGENT_EVAL_TASK_SCENARIO", "").strip()
     if selected and scenario.scenario_id != selected:
@@ -91,13 +91,11 @@ def test_fresh_agent_plans_from_canonical_handoff(
         "variant": variant,
         "producer": {
             "profile": producer_profile,
-            "model": handoff_harness.profile.model,
+            "model": handoff_harness.agent["model"],
             "reasoning_effort": reasoning_effort,
         },
         "run_attempt": attempt,
-        "target_sha256": hashlib.sha256(
-            scenario.target_path.read_bytes()
-        ).hexdigest(),
+        "target_sha256": hashlib.sha256(scenario.target_path.read_bytes()).hexdigest(),
         "target": scenario.target,
         "response": value.response,
         "tool_metrics": value.tool_metrics,

@@ -11,9 +11,10 @@ import pytest
 from .runner import (
     TaskGuidanceHarness,
     TaskRunValue,
-    selected_profile,
+    selected_agent,
 )
 from .artifacts import selected_dataset_id
+from .configuration import AGENTS
 from .fixtures import FIXTURE_VERSION, fixture_sha256
 from .scenarios import SCENARIOS, TaskGuidanceScenario
 from .topology import task_tree
@@ -32,9 +33,9 @@ PRODUCER_CELLS = (
 
 @pytest.fixture(scope="session")
 def task_guidance_harness() -> Iterator[TaskGuidanceHarness]:
-    profile = selected_profile()
-    _enforce_real_model_gate(profile.name, profile.model)
-    harness = TaskGuidanceHarness(profile)
+    agent_name = selected_agent()
+    _enforce_real_model_gate(agent_name, AGENTS[agent_name]["model"])
+    harness = TaskGuidanceHarness(agent_name)
     yield harness
     harness.close()
 
@@ -60,7 +61,7 @@ def test_task_guidance_b0_producer(
     reasoning_effort: str,
     scenario_category: str,
 ) -> None:
-    if task_guidance_harness.profile.name != producer_profile:
+    if task_guidance_harness.agent_name != producer_profile:
         pytest.skip(f"run with AGENT_EVAL_PROFILE={producer_profile}")
     if scenario_category != "all" and scenario.category != scenario_category:
         pytest.skip(f"{reasoning_effort} is limited to {scenario_category}")
@@ -126,14 +127,12 @@ def test_task_guidance_b0_producer(
             "version": FIXTURE_VERSION,
             "sha256": fixture_sha256(scenario.fixture_id),
         },
-        "target_sha256": hashlib.sha256(
-            scenario.target_path.read_bytes()
-        ).hexdigest(),
+        "target_sha256": hashlib.sha256(scenario.target_path.read_bytes()).hexdigest(),
         "target": target,
         "prompt": scenario.prompt,
         "producer": {
             "profile": producer_profile,
-            "model": task_guidance_harness.profile.model,
+            "model": task_guidance_harness.agent["model"],
             "reasoning_effort": reasoning_effort,
         },
         "run_attempt": repeat_variant,

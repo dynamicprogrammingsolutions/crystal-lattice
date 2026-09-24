@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from .configuration import selected_bundle
 from .handoffs import CanonicalHandoffWorkspaceFactory
-from .fixtures import selected_bundle
 from .scenarios import SCENARIOS
 
 

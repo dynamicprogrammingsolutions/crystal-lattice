@@ -83,10 +83,21 @@ from maintainer.guidance import (  # noqa: E402
 )
 
 from .artifacts import record_paths  # noqa: E402
+from .configuration import (  # noqa: E402
+    AGENTS,
+    CATEGORIES,
+    DEFAULT_ARTIFACT_ROOT,
+    DEFAULT_BUNDLE,
+    PACKAGES_ROOT,
+    SCENARIOS_ROOT,
+    agent_config_file,
+    assessment_cell,
+    negative_control,
+    plan_variants,
+)
 from .fixtures import (  # noqa: E402
     BASE_REVISION,
     COMMON_GITIGNORE,
-    DEFAULT_BUNDLE,
     GUIDANCE_TARGET_ROOT,
     AssessmentWorkspaceFactory,
     TaskGuidanceWorkspaceFactory,
@@ -103,11 +114,11 @@ from .results import (  # noqa: E402
     render_summary,
 )
 from .runner import (  # noqa: E402
-    PROFILES,
+    RUNNER_VERSION,
     WorkspaceAwareEnvironment,
-    _project_config_for_profile,
     _reload_context_with_defaults,
     _runtime_config_root,
+    request_overrides,
 )
 from .scenarios import SCENARIOS  # noqa: E402
 from .semantic import (  # noqa: E402
@@ -115,34 +126,18 @@ from .semantic import (  # noqa: E402
     TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE,
     expected_producer_cells,
 )
+from .stages import STAGES  # noqa: E402
 
 SUITE_ROOT = PACKAGE_ROOT / "suites" / "task_guidance"
-DEFAULT_ARTIFACT_ROOT = REPOSITORY_ROOT / "tmp" / "agent-evaluation" / "task-guidance"
-DEFAULT_PACKAGES_ROOT = (
-    REPOSITORY_ROOT
-    / "maintainer"
-    / "docs"
-    / "evaluations"
-    / "task-guidance"
-    / "results"
-)
-DEFAULT_SCENARIOS_ROOT = (
-    REPOSITORY_ROOT
-    / "maintainer"
-    / "docs"
-    / "evaluations"
-    / "task-guidance"
-    / "scenarios"
-)
 REPORT_CONFIG_SOURCE = SUITE_ROOT / "result_report_config.toml"
 GENERATOR_VERSION = "task-guidance-result-package-v4"
 
-PRODUCER_RECORD = "task-guidance-producer.json"
-HANDOFF_RECORD = "task-guidance-handoff-plan.json"
-SAME_AGENT_RECORD = "task-guidance-same-agent-plan.json"
-NEGATIVE_CONTROL_RECORD = "task-guidance-negative-control.json"
-SEMANTIC_RECORD = "task-guidance-semantic.json"
-HANDOFF_SEMANTIC_RECORD = "task-guidance-handoff-semantic.json"
+PRODUCER_RECORD = STAGES["task-creation"].record
+HANDOFF_RECORD = STAGES["handoff-plan"].record
+SAME_AGENT_RECORD = STAGES["continuation"].record
+NEGATIVE_CONTROL_RECORD = STAGES["negative-control"].record
+SEMANTIC_RECORD = STAGES["task-creation-assessment"].record
+HANDOFF_SEMANTIC_RECORD = STAGES["handoff-assessment"].record
 
 KIND_TASK_CREATION = "task-creation"
 KIND_PLAN_RETAIN = "plan-retain"
@@ -199,9 +194,9 @@ def _link(target: str, page: str) -> str:
     return relpath(target, _dirname(page))
 
 
-NEGATIVE_CONTROL_SCENARIO = "tg02-fastapi-pagination-handoff"
-# Mirrors the negative-control expectation in results.py: only this scenario
-# runs the incomplete-handoff control stage.
+NEGATIVE_CONTROL_SCENARIO = negative_control("handoff")["scenario"]
+# Mirrors the negative-control designation in the configuration: only this
+# scenario runs the incomplete-handoff control stage.
 
 
 def extract_scenarios(*, output_dir: Path, bundle: Path, artifact_root: Path) -> Path:
@@ -389,7 +384,6 @@ def _compile_definitions_delivery(
             {provider for provider, _ in expected_producer_cells(scenario)}
         )
         for provider in providers:
-            profile = PROFILES[provider]
             with tempfile.TemporaryDirectory() as tmp:
                 # Resolve symlinks (macOS /var → /private/var) so the
                 # normalization map matches the path the environment
@@ -397,7 +391,7 @@ def _compile_definitions_delivery(
                 workspace = (Path(tmp) / "workspace").resolve()
                 factory(workspace)
                 compiled = _compile_system_message_for_workspace(
-                    profile=profile,
+                    agent_name=provider,
                     effort=sorted(efforts[provider])[0],
                     bundle=bundle,
                     workspace=workspace,
@@ -423,13 +417,16 @@ def _compile_definitions_delivery(
             workspaces[provider] = workspace
             replacements[provider] = message_replacements
 
+    assessor_name, assessor_effort = assessment_cell(
+        "handoff", "task-creation-assessment"
+    )
     assessor_factory = AssessmentWorkspaceFactory()
     with tempfile.TemporaryDirectory() as tmp:
         assessor_workspace = (Path(tmp) / "workspace").resolve()
         assessor_factory(assessor_workspace)
         compiled = _compile_system_message_for_workspace(
-            profile=PROFILES["glm"],
-            effort="max",
+            agent_name=assessor_name,
+            effort=assessor_effort,
             bundle=bundle,
             workspace=assessor_workspace,
             artifact_root=artifact_root,
@@ -441,7 +438,7 @@ def _compile_definitions_delivery(
     assessor_body, assessor_tools = compiled
     assessor_replacements = _path_replacements(assessor_workspace)
     assessor_record = system_messages.add(
-        key="glm-assessor",
+        key=f"{assessor_name}-assessor",
         text=apply_replacements(assessor_body, assessor_replacements),
         original_sha256=sha256_text(assessor_body),
         availability_record=compiled_record,
@@ -451,24 +448,23 @@ def _compile_definitions_delivery(
 
     config_paths: dict[str, str] = {}
     for provider in sorted(workspaces):
-        profile = PROFILES[provider]
         for effort in sorted(efforts[provider]):
             key = f"{provider}-{effort}"
             config_paths[key] = configs.add(
                 key,
                 _effective_config_view(
-                    profile=profile,
+                    agent_name=provider,
                     effort=effort,
                     workspace=workspaces[provider],
                     artifact_root=artifact_root,
                     replacements=replacements[provider],
                 ),
             )
-    config_paths["glm-assessor-max"] = configs.add(
-        "glm-assessor-max",
+    config_paths[f"{assessor_name}-assessor-{assessor_effort}"] = configs.add(
+        f"{assessor_name}-assessor-{assessor_effort}",
         _effective_config_view(
-            profile=PROFILES["glm"],
-            effort="max",
+            agent_name=assessor_name,
+            effort=assessor_effort,
             workspace=assessor_workspace,
             artifact_root=artifact_root,
             replacements=assessor_replacements,
@@ -499,10 +495,12 @@ def _scenario_export_files(
         ),
         (f"{scenario_id}/prompt.md", scenario.prompt.rstrip() + "\n"),
     ]
-    if scenario.category == "handoff":
-        variants = ["retain", "omit"]
+    if "handoff-plan" in CATEGORIES[scenario.category]["stages"]:
+        variants = list(plan_variants(scenario.category))
         if scenario_id == NEGATIVE_CONTROL_SCENARIO:
-            variants.append("incomplete")
+            control = negative_control(scenario.category)
+            assert control is not None
+            variants.append(control["variant"])
         for variant in variants:
             source = CanonicalHandoffWorkspaceFactory(
                 scenario=scenario, variant=variant, bundle=bundle
@@ -663,7 +661,7 @@ def _stage_input_markdown(
     scenario_id = scenario.scenario_id
     cells = expected_producer_cells(scenario)
     models = " · ".join(
-        f"{PROFILES[provider].model} ({provider} {effort})"
+        f"{AGENTS[provider]['model']} ({provider} {effort})"
         for provider, effort in cells
     )
     instructions = " · ".join(
@@ -715,7 +713,9 @@ def _assessment_input_markdown(
     """Render one assessment input page in the session-header format."""
 
     scenario_id = scenario.scenario_id
-    assessor = PROFILES["glm"]
+    assessor_name, assessor_effort = assessment_cell(
+        "handoff", "task-creation-assessment"
+    )
     lines = [
         f"# Input — {scenario_id} · {name} assessment",
         "",
@@ -724,12 +724,14 @@ def _assessment_input_markdown(
         " template's $placeholders; the exact prompts and responses live in"
         " the result packages.",
         "",
-        f"- Assessor: {assessor.model} (glm max)",
+        f"- Assessor: {AGENTS[assessor_name]['model']}"
+        f" ({assessor_name} {assessor_effort})",
         f"- Tools: {', '.join(delivery['tools']['assessor'])}",
         "- Delivered instructions:"
-        f" [glm-assessor]({_link(delivery['assessor_message'], page)})",
+        f" [{assessor_name}-assessor]({_link(delivery['assessor_message'], page)})",
         "- Config:"
-        f" [glm-assessor-max]({_link(delivery['config_paths']['glm-assessor-max'], page)})",
+        f" [{assessor_name}-assessor-{assessor_effort}]"
+        f"({_link(delivery['config_paths'][f'{assessor_name}-assessor-{assessor_effort}'], page)})",
         "- Workspace: this repository's history at"
         f" `{BASE_REVISION}` plus a"
         f" [README stub]({_link('shared/included-files/assessment/README.md', page)})",
@@ -1203,7 +1205,6 @@ def _collect_cell(
 ) -> None:
     scenario_id = scenario.scenario_id
     cell_prefix = f"scenarios/{scenario_id}/{cell_key}"
-    model_profile = PROFILES[profile]
 
     producer = _find(frozen["producer_records"], scenario_id, profile, effort)
     producer_run_dir = discovery[f"producer_records:{scenario_id}:{profile}:{effort}"]
@@ -1214,7 +1215,7 @@ def _collect_cell(
         run_dir=producer_run_dir,
         scenario=scenario,
         dataset=dataset,
-        profile=model_profile,
+        profile=profile,
         effort=effort,
         factory=TaskGuidanceWorkspaceFactory(scenario=scenario, bundle=dataset.bundle),
         artifact_root=artifact_root,
@@ -1246,7 +1247,7 @@ def _collect_cell(
             run_dir=handoff_run_dir,
             scenario=scenario,
             dataset=dataset,
-            profile=model_profile,
+            profile=profile,
             effort=effort,
             factory=CanonicalHandoffWorkspaceFactory(
                 scenario=scenario,
@@ -1275,7 +1276,7 @@ def _collect_cell(
             run_dir=same_agent_run_dir,
             scenario=scenario,
             dataset=dataset,
-            profile=model_profile,
+            profile=profile,
             effort=effort,
             factory=TaskGuidanceWorkspaceFactory(
                 scenario=scenario,
@@ -1307,7 +1308,7 @@ def _collect_cell(
             run_dir=negative_run_dir,
             scenario=scenario,
             dataset=dataset,
-            profile=model_profile,
+            profile=profile,
             effort=effort,
             factory=CanonicalHandoffWorkspaceFactory(
                 scenario=scenario,
@@ -1477,7 +1478,7 @@ def _collect_run(
         }
     system_message = (
         system_messages.add(
-            key=system_message_key or profile.name,
+            key=system_message_key or profile,
             text=instructions["text"],
             original_sha256=instructions["original_sha256"],
             availability_record=instructions["availability"],
@@ -1487,9 +1488,9 @@ def _collect_run(
         else {"availability": instructions["availability"], "source": None}
     )
     config_path = configs.add(
-        config_key or f"{profile.name}-{effort}",
+        config_key or f"{profile}-{effort}",
         _effective_config_view(
-            profile=profile,
+            agent_name=profile,
             effort=effort,
             workspace=workspace,
             artifact_root=artifact_root,
@@ -1521,7 +1522,7 @@ def _collect_run(
     if review is not None:
         session_page = f"{run_prefix}/session.md"
         instructions_state = instructions["availability"]["state"]
-        instructions_label = system_message_key or f"{profile.name}-{effort}"
+        instructions_label = system_message_key or f"{profile}-{effort}"
         if system_message.get("path"):
             instructions_note = (
                 f"[{instructions_label}]"
@@ -1537,13 +1538,13 @@ def _collect_run(
         )
         context: dict[str, str] = {
             "Run": f"`{run_id}`",
-            "Model": f"{profile.model} (effort {effort})",
+            "Model": f"{AGENTS[profile]['model']} (effort {effort})",
         }
         if tools:
             context["Tools"] = tools
         context["Delivered instructions"] = instructions_note
         context["Config"] = (
-            f"[{config_key or f'{profile.name}-{effort}'}]"
+            f"[{config_key or f'{profile}-{effort}'}]"
             f"({_link(config_path, session_page)})"
         )
         files.append(
@@ -1551,9 +1552,7 @@ def _collect_run(
                 relative_path=session_page,
                 content=render_session_markdown(
                     review,
-                    title=(
-                        f"{scenario.scenario_id} · {kind} ·" f" {profile.name} {effort}"
-                    ),
+                    title=(f"{scenario.scenario_id} · {kind} ·" f" {profile} {effort}"),
                     context=context,
                 ),
             )
@@ -1577,9 +1576,9 @@ def _collect_run(
     runs.append(
         {
             "run_id": run_id,
-            "label": f"{scenario.scenario_id} {kind} {profile.name} {effort}",
-            "provider": profile.name,
-            "model": profile.model,
+            "label": f"{scenario.scenario_id} {kind} {profile} {effort}",
+            "provider": profile,
+            "model": AGENTS[profile]["model"],
             "reasoning_effort": effort,
             "usage": usage,
             "kind": kind,
@@ -1589,8 +1588,8 @@ def _collect_run(
     run_record: dict[str, Any] = {
         "run_id": run_id,
         "kind": kind,
-        "provider": profile.name,
-        "model": profile.model,
+        "provider": profile,
+        "model": AGENTS[profile]["model"],
         "reasoning_effort": effort,
         "system_message": system_message,
         "config": config_path,
@@ -1648,11 +1647,11 @@ def _stage_instructions(
     if (
         reconstruct
         and expected_hash
-        and profile.name == "gpt"
+        and profile == "gpt"
         and workspace == run_dir / "workspace"
     ):
         body = _reconstruct_compiled_message(
-            profile=profile,
+            agent_name=profile,
             effort=effort,
             dataset=dataset,
             factory=factory,
@@ -1698,7 +1697,7 @@ def _stage_instructions(
 
 def _reconstruct_compiled_message(
     *,
-    profile,
+    agent_name: str,
     effort: str,
     dataset: DatasetSpec,
     factory,
@@ -1722,7 +1721,7 @@ def _reconstruct_compiled_message(
         if created != workspace:
             return None
         compiled = _compile_system_message_for_workspace(
-            profile=profile,
+            agent_name=agent_name,
             effort=effort,
             bundle=dataset.bundle,
             workspace=workspace,
@@ -1738,7 +1737,7 @@ def _reconstruct_compiled_message(
 
 def _compile_system_message_for_workspace(
     *,
-    profile,
+    agent_name: str,
     effort: str,
     bundle: Path,
     workspace: Path,
@@ -1748,19 +1747,19 @@ def _compile_system_message_for_workspace(
 ) -> tuple[str, list[str]] | None:
     """Compile the delivered system message for one prepared workspace.
 
-    Runs the production system-message action inside the projected runtime
+    Runs the production system-message action inside the pinned runtime
     environment — no model request is made. Returns the compiled message and
     the active tool names; raises on failure so callers decide policy.
     """
 
     runtime_config = _runtime_config_root(bundle=bundle, artifact_root=artifact_root)
-    projected = _project_config_for_profile(
-        runtime_config / "config.json",
+    agent_config = agent_config_file(
+        agent_name,
         artifact_root=artifact_root,
-        profile=profile,
+        version=RUNNER_VERSION,
     )
     environment = WorkspaceAwareEnvironment.from_config(
-        projected,
+        agent_config,
         environment={
             "CONFIG_DIR": str(runtime_config),
             "CHATGPT_TEST_STATE_DIR": str(
@@ -1797,9 +1796,10 @@ def _compile_system_message_for_workspace(
         with environment.open(
             services=services, workspace=workspace, parent_snapshot=None
         ) as context:
-            context.start(profile.agent_id)
+            context.start(AGENTS[agent_name]["agent_id"])
             context.config.update(
-                profile.request_overrides(
+                request_overrides(
+                    agent_name,
                     workspace,
                     reasoning_effort=effort,
                     include_tasks=include_tasks,
@@ -1829,28 +1829,35 @@ def _compile_system_message_for_workspace(
 
 def _effective_config_view(
     *,
-    profile,
+    agent_name: str,
     effort: str,
     workspace: Path,
     artifact_root: Path,
     replacements: Mapping[str, str],
     include_tasks: bool = True,
 ) -> dict[str, Any]:
-    projected_path = artifact_root / "projected-config" / f"{profile.name}-v1.json"
-    projected = (
-        json.loads(projected_path.read_text(encoding="utf-8"))
-        if projected_path.is_file()
+    agent_config = agent_config_file(
+        agent_name,
+        artifact_root=artifact_root,
+        version=RUNNER_VERSION,
+    )
+    runtime_config = (
+        json.loads(agent_config.read_text(encoding="utf-8"))
+        if agent_config.is_file()
         else {}
     )
-    overrides = profile.request_overrides(
-        workspace, reasoning_effort=effort, include_tasks=include_tasks
+    overrides = request_overrides(
+        agent_name,
+        workspace,
+        reasoning_effort=effort,
+        include_tasks=include_tasks,
     )
     return project_effective_config_view(
         {
-            "agent_id": profile.agent_id,
-            "model": profile.model,
+            "agent_id": AGENTS[agent_name]["agent_id"],
+            "model": AGENTS[agent_name]["model"],
             "reasoning_effort": effort,
-            "projected_config": projected,
+            "runtime_config": runtime_config,
             "request_overrides": overrides,
         },
         path_replacements=replacements,
@@ -1959,8 +1966,7 @@ def _collect_assessment_record(
 
     scenario_id = scenario.scenario_id
     run_prefix = f"scenarios/{scenario_id}/assessment/{name}"
-    profile = PROFILES["glm"]
-    effort = "max"
+    assessor_name, effort = assessment_cell("handoff", "task-creation-assessment")
     run_record, _ = _collect_run(
         f"{name}-assessment",
         record,
@@ -1968,7 +1974,7 @@ def _collect_assessment_record(
         run_dir=run_dir,
         scenario=scenario,
         dataset=dataset,
-        profile=profile,
+        profile=assessor_name,
         effort=effort,
         factory=None,
         artifact_root=artifact_root,
@@ -1979,8 +1985,8 @@ def _collect_assessment_record(
         cell_prefix=run_prefix,
         task_files={},
         reconstruct=False,
-        system_message_key="glm-assessor",
-        config_key=f"glm-assessor-{effort}",
+        system_message_key=f"{assessor_name}-assessor",
+        config_key=f"{assessor_name}-assessor-{effort}",
         config_include_tasks=False,
     )
     results_page = f"{run_prefix}/results.md"
@@ -2732,7 +2738,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="write the scenario definitions export (targets, prompts,"
         " templates, shared inputs, stage inputs)",
     )
-    scenarios_parser.add_argument("--output", type=Path, default=DEFAULT_SCENARIOS_ROOT)
+    scenarios_parser.add_argument("--output", type=Path, default=SCENARIOS_ROOT)
     scenarios_parser.add_argument(
         "--bundle",
         type=Path,
@@ -2789,7 +2795,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "collect":
         dataset = DATASETS[args.dataset]
-        output = args.output or DEFAULT_PACKAGES_ROOT / dataset.package_name
+        output = args.output or PACKAGES_ROOT / dataset.package_name
         package = collect(
             dataset,
             package_dir=output,

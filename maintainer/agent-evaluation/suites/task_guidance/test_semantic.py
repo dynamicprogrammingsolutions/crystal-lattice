@@ -11,7 +11,7 @@ from .semantic import (
     expected_producer_cells,
     normalize_semantic_assessment,
     parse_semantic_response,
-    producer_cells,
+    producer_cells_from_records,
     semantic_summary,
     validate_semantic_assessment,
 )
@@ -88,9 +88,7 @@ def test_parse_and_validate_semantic_assessment() -> None:
         "assessments": [_assessment(profile, effort) for profile, effort in cells],
     }
 
-    parsed = parse_semantic_response(
-        "```json\n" + json.dumps(value) + "\n```"
-    )
+    parsed = parse_semantic_response("```json\n" + json.dumps(value) + "\n```")
     validate_semantic_assessment(
         parsed,
         scenario=scenario,
@@ -108,17 +106,20 @@ def test_parse_and_validate_semantic_assessment() -> None:
         "status_counts": {"medium": 4},
     }
     assert summary["average_partition_quality"] == 70.0
-    assert producer_cells(
-        [
-            {
-                "producer": {
-                    "profile": profile,
-                    "reasoning_effort": effort,
+    assert (
+        producer_cells_from_records(
+            [
+                {
+                    "producer": {
+                        "profile": profile,
+                        "reasoning_effort": effort,
+                    }
                 }
-            }
-            for profile, effort in cells
-        ]
-    ) == cells
+                for profile, effort in cells
+            ]
+        )
+        == cells
+    )
 
 
 def test_semantic_normalization_excludes_coordinating_parent() -> None:

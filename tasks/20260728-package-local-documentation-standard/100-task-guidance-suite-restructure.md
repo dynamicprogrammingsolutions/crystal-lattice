@@ -40,14 +40,24 @@ generic consolidation and package CLIs; no evaluation-stage names in code.
 
 ### Configuration and parametrization
 
-- [ ] One configuration module declares the agents (model, agent id, plugin
-  fragments, default effort), the producer cell matrix with scenario-category
-  restrictions, the assessor cell, and the default directories. Tests,
-  consolidation, and the result-package adapter derive every cell expectation
-  from this one file; no duplicated matrix definitions remain. Configuration
-  tests verify through the configuration — well-formedness (every cell
-  references a declared agent and a valid scenario category, every effort is
-  declared for its agent) and consumer derivation — never duplicated literal
+- [ ] One configuration manifest (`configuration.json`, loaded through a thin
+  loader module) declares the agents (model, agent id, declared efforts, and
+  pinned runtime-config fixture), the scenario categories with their
+  scenario lists, producer cell matrices, and stage lists (each stage's
+  inputs: plan variants, the negative-control designation, the judging
+  agent), and the default directories. The actual crystal-lattice runtime
+  configs are committed fixture files — the authentication method lives
+  only there. A fixed stage catalog (`stages.py`) defines what each stage
+  name means: the workspace a run starts from, the earlier stage whose
+  workspace and session prefix it shares, its expansion, its config schema,
+  its executor, and its record file. Tests, consolidation, and the
+  result-package adapter derive every expectation from the manifest and the
+  catalog; no duplicated matrix, stage, or record definitions remain.
+  Configuration tests verify through the manifest — well-formedness
+  (scenario membership matches the scenario data, every cell references a
+  declared agent and effort, stage names and config keys match the catalog,
+  the negative-control designation is well formed, fixtures pin exactly
+  their declared agent) and consumer derivation — never duplicated literal
   agent or matrix values.
 - [ ] Agent, model, and effort are pytest parameters generated from the
   configuration and scenario data, so collection contains only real cells.
@@ -479,12 +489,15 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   all assessments), both qwen Ollama models for every tool call,
   deterministic mechanism tests, and at least two `agent_eval`-marked live
   tests (chunk 1b amendment, approved September 24, 2026).
-- [ ] Add the configuration module with verify-through-configuration tests
+- [x] Add the configuration module with verify-through-configuration tests
   (chunk 2, test-first).
 - [ ] Integrate the suite: runner assembly, thin freeze/results adapters
   over the consolidation core (chunk 3, test-first).
 - [ ] Move tests into `tests/`, add the conftest wired to the layer,
-  parametrize the live stages, rename markers, delete parameter env vars
+  parametrize the live stages from the configuration manifest and stage
+  catalog (including echo-path stage-mechanics tests asserting the
+  catalog's declared workspace origin and parent linkage — deferred from
+  the chunk 2 rework), rename markers, delete parameter env vars
   and gates (chunk 4, test-first).
 - [ ] Implement the per-subject assessment prompts, records, and tests
   (chunk 5, test-first).
@@ -616,3 +629,104 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   `tests/test_requirement_quality.py` resolves repo-root-relative paths and
   must run from the repository root; `eval.py` and `tests/test_kernel.py`
   carry pre-existing black formatting drift outside the changed lines.
+- September 24, 2026 — chunk 2 (configuration module) completed test-first:
+  `suites/task_guidance/tests/test_configuration.py` was written first and
+  failed on the missing module, then the configuration and consumer
+  refactors turned it green.
+- `suites/task_guidance/configuration.py` is the single source: `AgentSpec`
+  agents (the moved `ModelProfile` plus declared `efforts` and the
+  `request_overrides` behavior), the `PRODUCER_CELLS` matrix with
+  scenario-category restrictions, `producer_cells(category)` /
+  `all_producer_cells()`, the assessor cell, the handoff variants, the
+  negative-control designation (scenario, cell, and variant), the five
+  default directories, and the env-resolving `selected_bundle()` /
+  `selected_artifact_root()` selectors.
+- Consumers derive from it: `runner.py` (agents, artifact root, guidance
+  target; `PROFILES`/`ModelProfile` deleted), `semantic.py`
+  (`expected_producer_cells` delegates; its records-extractor renamed to
+  `producer_cells_from_records` to free the canonical name),
+  `results.py` (expected sets, negative control, and the quality-cohort
+  display order/titles), `handoff_semantic.py` (fresh/same/negative
+  expectations), `result_package.py` (agents, assessor cell, negative
+  control, directories), `freeze_b0.py` (artifact root), and `fixtures.py`
+  (bundle selection moved out; path anchors imported from the
+  configuration).
+- The 20 configuration tests verify through the configuration only —
+  well-formedness (declared agents, real scenario categories, declared
+  efforts, uniqueness, distinct repository directories, env overrides) and
+  consumer derivation (behavioral: records written for exactly the
+  configuration-derived cells consolidate with nothing missing in
+  `results` and `handoff_semantic`; `selected_profile` returns the
+  configuration objects) — plus source scans proving no matrix literals
+  or directory definitions remain in the consumer modules.
+- Verification: suite 83 passed (63 baseline + 20 new), 52 live
+  deselected; both committed packages pass `check` byte-identically; the
+  scenarios export regenerates content-identically (only the git-revision
+  stamp in the guidance locks moves with each commit — pre-existing
+  behavior, committed state restored); ruff/black clean on all changed
+  files. The live test files still carry their own cell literals by
+  design — chunk 4 replaces them with configuration-derived
+  parametrization.
+- September 24, 2026 — chunk 2 reworked per user direction: the
+  Python-declared configuration became a JSON manifest plus pinned
+  runtime-config fixtures, with a fixed stage catalog. Design agreed over
+  several rounds: data lives in `configuration.json` (agents with their
+  fixtures, categories with scenario lists + per-category producer
+  matrices + stage maps with per-stage inputs), the actual
+  crystal-lattice configs are committed fixtures (the authentication
+  method lives only in the gpt fixture; credentials via
+  `${env:CHATGPT_TEST_STATE_DIR}`), and `stages.py` holds the catalog
+  (workspace origin, parent linkage, expansion, config schema, executor,
+  record) that the manifest selects from. The catalog stays in code —
+  every field references a code symbol, and a new stage kind always needs
+  its executor anyway; the config alone composes existing machinery.
+- `configuration.py` shrank to a loader: manifest accessors
+  (`producer_cells`, `plan_variants`, `assessment_cell`,
+  `negative_control`/`negative_control_designations`, `stage_config`),
+  directory/env selectors, and `agent_config_file()` (fixture +
+  artifact-local `plugin_cache_dir`, written under
+  `<artifact-root>/agent-config/`). Deleted: `AgentSpec`/`Cell`/
+  `ProducerCell`, the fragment-based `_project_config_for_profile`, and
+  auth/credentials from `request_overrides` (now a plain runner function
+  with only the glm/gpt effort-shape branch). `selected_profile()` became
+  `selected_agent()` (name string); the harness takes the agent name and
+  exposes `agent_name`/`agent`/`runtime_agent`; it gained
+  `run_negative_control()` reading the designation from the manifest.
+- Consolidation and the package adapter now derive through the stage
+  declarations: `results.py` expected sets come from
+  `_scenarios_with_stage(...)` (no `"handoff"` literal), record names come
+  from `STAGES[...].record` (also in `semantic.py`, `handoff_semantic.py`,
+  `result_package.py`), the assessor comes from the assessment stages'
+  declared cells (all assessment stages must share one cell — pinned by a
+  test), and the export's assessor keys derive from that cell.
+- Tests: `tests/test_configuration.py` rewritten for the manifest (24
+  tests: scenario membership pinned both ways against `scenarios.py`,
+  stage names/config schemas against the catalog, fixture consistency —
+  exactly the declared agent, suite model, auth only in the gpt fixture —
+  behavioral derivation through `results`/`handoff_semantic`, source
+  scans now also forbidding `ASSESSOR_CELL`/`HANDOFF_VARIANTS` and record
+  literals); new `tests/test_stages.py` (catalog internal consistency:
+  continuation is the only parent-sharing stage, unique records);
+  `test_runner.py` rewritten (fixture tool-family pinning,
+  `request_overrides` without auth, executor existence, harness
+  construction from the pinned fixture); live tests updated mechanically
+  to `selected_agent()`/`harness.agent` (their cell literals wait for
+  chunk 4).
+- One real bug found by the new tests and fixed: the rewritten loader
+  computed `REPOSITORY_ROOT` one level too high (`SUITE_ROOT.parents[4]`
+  instead of the file-level `parents[4]`); the directory-existence test
+  caught it immediately.
+- Verification after the rework: suite 100 passed, 52 live deselected
+  (unchanged collection); framework tests 181 passed from the repository
+  root; both committed packages still pass `check` byte-identically
+  (their config views are frozen collected files); the scenarios export
+  regenerates with the intended visible diff — `projected_config` renamed
+  to `runtime_config`, the fixture now carries the suite model in the
+  config itself, and gpt `request_overrides` no longer carries
+  `auth_mode`/`chatgpt_credentials_path` (auth provenance moved
+  config-side) — while compiled system messages and stage-input pages are
+  byte-identical; ruff/black clean.
+- Deferred to chunk 4 (noted there): echo-path stage-mechanics tests that
+  run each stage through the real kernel asserting the catalog's declared
+  workspace origin and parent linkage; the harness currently has no
+  driver-injection point, which belongs with the test-migration work.

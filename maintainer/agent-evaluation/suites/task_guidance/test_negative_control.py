@@ -6,7 +6,7 @@ from collections.abc import Iterator
 import pytest
 
 from .artifacts import selected_dataset_id
-from .runner import PlanRunValue, TaskGuidanceHarness, selected_profile
+from .runner import PlanRunValue, TaskGuidanceHarness, selected_agent
 from .scenarios import scenario_by_id
 
 
@@ -15,12 +15,12 @@ pytestmark = [pytest.mark.agent_eval, pytest.mark.task_guidance_baseline]
 
 @pytest.fixture(scope="session")
 def negative_control_harness() -> Iterator[TaskGuidanceHarness]:
-    profile = selected_profile()
-    if profile.name != "glm":
+    agent_name = selected_agent()
+    if agent_name != "glm":
         pytest.skip("initial negative control uses GLM")
     if os.getenv("AGENT_EVAL_RUN_REAL") != "1":
         raise RuntimeError("set AGENT_EVAL_RUN_REAL=1 for negative control")
-    harness = TaskGuidanceHarness(profile)
+    harness = TaskGuidanceHarness(agent_name)
     yield harness
     harness.close()
 
@@ -55,7 +55,7 @@ def test_incomplete_handoff_requires_more_reconstruction(
         "variant": "incomplete",
         "producer": {
             "profile": "glm",
-            "model": negative_control_harness.profile.model,
+            "model": negative_control_harness.agent["model"],
             "reasoning_effort": "max",
         },
         "run_attempt": attempt,

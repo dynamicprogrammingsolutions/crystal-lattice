@@ -8,7 +8,9 @@ from string import Template
 from typing import Any, Mapping
 
 from .artifacts import record_paths
+from .configuration import producer_cells
 from .scenarios import TaskGuidanceScenario
+from .stages import STAGES
 
 
 SEMANTIC_SCHEMA_VERSION = 2
@@ -36,10 +38,7 @@ ISSUE_SCORES = {
 def expected_producer_cells(
     scenario: TaskGuidanceScenario,
 ) -> tuple[tuple[str, str], ...]:
-    base = (("glm", "max"), ("gpt", "high"))
-    if scenario.category == "decomposition":
-        return (*base, ("gpt", "xhigh"), ("gpt", "max"))
-    return base
+    return producer_cells(scenario.category)
 
 
 def load_producer_records(
@@ -52,7 +51,7 @@ def load_producer_records(
     selected: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
     for path in record_paths(
         artifact_root,
-        "task-guidance-producer.json",
+        STAGES["task-creation"].record,
     ):
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -256,7 +255,7 @@ def semantic_prompt(
     )
 
 
-def producer_cells(
+def producer_cells_from_records(
     records: list[dict[str, Any]],
 ) -> tuple[tuple[str, str], ...]:
     values: list[tuple[str, str]] = []
@@ -352,9 +351,7 @@ def validate_semantic_assessment(
     expected_cells: tuple[tuple[str, str], ...],
 ) -> None:
     if value.get("schema_version") != SEMANTIC_SCHEMA_VERSION:
-        raise ValueError(
-            f"semantic schema_version must be {SEMANTIC_SCHEMA_VERSION}"
-        )
+        raise ValueError(f"semantic schema_version must be {SEMANTIC_SCHEMA_VERSION}")
     if value.get("scenario_id") != scenario.scenario_id:
         raise ValueError("semantic scenario_id does not match")
     assessments = value.get("assessments")
@@ -432,9 +429,7 @@ def validate_semantic_assessment(
 def semantic_summary(value: Mapping[str, Any]) -> dict[str, Any]:
     assessments = value["assessments"]
     assert isinstance(assessments, list)
-    severities = Counter(
-        str(item["fragmentation_severity"]) for item in assessments
-    )
+    severities = Counter(str(item["fragmentation_severity"]) for item in assessments)
     coverage = Counter(str(item["outcome_coverage"]) for item in assessments)
     return {
         "assessment_count": len(assessments),
@@ -465,10 +460,7 @@ def aggregate_quality_metrics(
         }
     dimensions: dict[str, Any] = {}
     for name in QUALITY_DIMENSIONS:
-        metrics = [
-            assessment["quality_metrics"][name]
-            for assessment in assessments
-        ]
+        metrics = [assessment["quality_metrics"][name] for assessment in assessments]
         status_counts = Counter(str(metric["status"]) for metric in metrics)
         dimensions[name] = {
             "average_score": round(
@@ -478,9 +470,7 @@ def aggregate_quality_metrics(
             "affected_assessments": sum(
                 1 for metric in metrics if metric["status"] != "none"
             ),
-            "occurrence_count": sum(
-                len(metric["occurrences"]) for metric in metrics
-            ),
+            "occurrence_count": sum(len(metric["occurrences"]) for metric in metrics),
             "status_counts": dict(status_counts),
         }
     return {
@@ -507,11 +497,7 @@ def _normalize_quality_metrics(assessment: dict[str, Any]) -> None:
         if not isinstance(metric, dict):
             continue
         status = metric.get("status")
-        mapping = (
-            FRAGMENTATION_SCORES
-            if name == "fragmentation"
-            else ISSUE_SCORES
-        )
+        mapping = FRAGMENTATION_SCORES if name == "fragmentation" else ISSUE_SCORES
         if status in mapping:
             metric["score"] = mapping[str(status)]
             scores.append(metric["score"])
@@ -535,11 +521,7 @@ def _validate_quality_metrics(assessment: Mapping[str, Any]) -> None:
         metric = values[name]
         if not isinstance(metric, Mapping):
             raise ValueError(f"semantic quality metric {name} must be an object")
-        scores = (
-            FRAGMENTATION_SCORES
-            if name == "fragmentation"
-            else ISSUE_SCORES
-        )
+        scores = FRAGMENTATION_SCORES if name == "fragmentation" else ISSUE_SCORES
         status = metric.get("status")
         if status not in scores:
             raise ValueError(
@@ -549,8 +531,7 @@ def _validate_quality_metrics(assessment: Mapping[str, Any]) -> None:
         expected_score = scores[str(status)]
         if metric.get("score") != expected_score:
             raise ValueError(
-                f"semantic quality metric {name} score must be "
-                f"{expected_score}"
+                f"semantic quality metric {name} score must be " f"{expected_score}"
             )
         occurrences = metric.get("occurrences")
         if not isinstance(occurrences, list):
@@ -573,10 +554,7 @@ def _validate_quality_metrics(assessment: Mapping[str, Any]) -> None:
                 raise ValueError(
                     f"semantic quality metric {name} description must be text"
                 )
-    if (
-        values["fragmentation"]["status"]
-        != assessment["fragmentation_severity"]
-    ):
+    if values["fragmentation"]["status"] != assessment["fragmentation_severity"]:
         raise ValueError(
             "semantic fragmentation metric must match fragmentation_severity"
         )
@@ -587,8 +565,7 @@ def _validate_quality_metrics(assessment: Mapping[str, Any]) -> None:
     )
     if assessment.get("overall_success_percentage") != expected_overall:
         raise ValueError(
-            "semantic overall_success_percentage must be "
-            f"{expected_overall}"
+            "semantic overall_success_percentage must be " f"{expected_overall}"
         )
 
 

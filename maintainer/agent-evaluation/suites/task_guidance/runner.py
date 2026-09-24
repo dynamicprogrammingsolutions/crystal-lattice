@@ -17,105 +17,30 @@ from agent_eval.crystal_lattice import (
 from agent_eval.services import RunServices
 from maintainer.guidance import compile_guidance
 
+from .configuration import (
+    AGENTS,
+    GUIDANCE_TARGET,
+    agent_config_file,
+    negative_control,
+    selected_artifact_root,
+    selected_bundle,
+)
 from .fixtures import (
     AssessmentWorkspaceFactory,
     REPOSITORY_ROOT,
     TaskGuidanceWorkspaceFactory,
-    selected_bundle,
 )
 from .harness import collect_tool_calls
 from .handoffs import CanonicalHandoffWorkspaceFactory, PLAN_PROMPT
-from .scenarios import TaskGuidanceScenario
+from .scenarios import TaskGuidanceScenario, scenario_by_id
 
 
 PACKAGE_ROOT = REPOSITORY_ROOT / "maintainer" / "agent-evaluation"
 DEFAULT_CONFIG_ROOT = (
-    REPOSITORY_ROOT
-    / "application"
-    / "python"
-    / "agent_terminal_app"
-    / "default_config"
-)
-CRYSTAL_LATTICE_TARGET = (
-    REPOSITORY_ROOT
-    / "maintainer"
-    / "guidance"
-    / "targets"
-    / "crystal-lattice"
+    REPOSITORY_ROOT / "application" / "python" / "agent_terminal_app" / "default_config"
 )
 PLUGIN_RUNTIME_CONSTRAINTS = PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
 RUNNER_VERSION = "v1"
-
-
-@dataclass(frozen=True)
-class ModelProfile:
-    name: str
-    agent_id: str
-    model: str
-    auth_mode: str | None
-    tool_fragment: str
-    provider_fragments: tuple[str, ...]
-
-    def request_overrides(
-        self,
-        workspace: Path,
-        *,
-        reasoning_effort: str,
-        include_tasks: bool = True,
-    ) -> dict[str, object]:
-        values: dict[str, object] = {
-            "model": self.model,
-            "working_directory": str(workspace),
-            "allowed_paths": [str(workspace)],
-            "include_tasks": include_tasks,
-            "skills_enabled": False,
-            "mcp_enabled": False,
-            "web_search_enabled": False,
-        }
-        if self.name == "glm":
-            values["request_options"] = {"reasoning_effort": reasoning_effort}
-        else:
-            values["reasoning_effort"] = reasoning_effort
-            values["reasoning_summary"] = "detailed"
-        if self.auth_mode is not None:
-            values["auth_mode"] = self.auth_mode
-        if self.name == "gpt":
-            state_root = Path(
-                os.getenv("CHATGPT_TEST_STATE_DIR", str(Path.home() / ".crystal"))
-            ).expanduser()
-            values["chatgpt_credentials_path"] = str(
-                state_root / "auth" / "chatgpt-auth.json"
-            )
-        return values
-
-
-PROFILES = {
-    "glm": ModelProfile(
-        name="glm",
-        agent_id="glm-ollama",
-        model="glm-5.3-flash:cloud",
-        auth_mode=None,
-        tool_fragment="/claude-tools",
-        provider_fragments=(
-            "/feature-request-options",
-            "/feature-system-message",
-            "/reference-openai-compatible-provider",
-        ),
-    ),
-    "gpt": ModelProfile(
-        name="gpt",
-        agent_id="codex-openai",
-        model="gpt-5.6-luna",
-        auth_mode="chatgpt",
-        tool_fragment="/codex-tools",
-        provider_fragments=(
-            "/feature-request-options",
-            "/feature-system-message",
-            "/openai_responses",
-            "/chatgpt-auth-app",
-        ),
-    ),
-}
 
 
 @dataclass(frozen=True)
@@ -196,34 +121,25 @@ class WorkspaceAwareEnvironment(CrystalLatticeEnvironment):
 class TaskGuidanceHarness:
     def __init__(
         self,
-        profile: ModelProfile,
+        agent_name: str,
         *,
         bundle: Path | None = None,
     ) -> None:
-        self.profile = profile
+        self.agent_name = agent_name
+        self.agent = AGENTS[agent_name]
         self.bundle = (bundle or selected_bundle()).resolve()
-        artifact_root = Path(
-            os.getenv(
-                "AGENT_EVAL_ARTIFACT_ROOT",
-                str(
-                    REPOSITORY_ROOT
-                    / "tmp"
-                    / "agent-evaluation"
-                    / "task-guidance"
-                ),
-            )
-        ).expanduser()
+        artifact_root = selected_artifact_root()
         runtime_config = _runtime_config_root(
             bundle=self.bundle,
             artifact_root=artifact_root,
         )
-        projected_config = _project_config_for_profile(
-            runtime_config / "config.json",
+        agent_config = agent_config_file(
+            agent_name,
             artifact_root=artifact_root,
-            profile=profile,
+            version=RUNNER_VERSION,
         )
         environment = WorkspaceAwareEnvironment.from_config(
-            projected_config,
+            agent_config,
             environment={
                 "CONFIG_DIR": str(runtime_config),
                 "CHATGPT_TEST_STATE_DIR": str(
@@ -243,10 +159,13 @@ class TaskGuidanceHarness:
             },
         )
         self.runtime_config = runtime_config
+        self.runtime_agent = json.loads(agent_config.read_text(encoding="utf-8"))[
+            "agents"
+        ][self.agent["agent_id"]]
         self.evaluation = AgentEval(
             default_environment=environment,
-            artifact_root=artifact_root / profile.name,
-            cache_root=artifact_root / "cache" / profile.name,
+            artifact_root=artifact_root / agent_name,
+            cache_root=artifact_root / "cache" / agent_name,
         )
 
     def close(self) -> None:
@@ -265,8 +184,8 @@ class TaskGuidanceHarness:
         )
         target_hash = hashlib.sha256(scenario.target_path.read_bytes()).hexdigest()
         cache_key = (
-            f"task-guidance:{RUNNER_VERSION}:{self.profile.name}:"
-            f"{self.profile.model}:{scenario.scenario_id}:{reasoning_effort}:"
+            f"task-guidance:{RUNNER_VERSION}:{self.agent_name}:"
+            f"{self.agent['model']}:{scenario.scenario_id}:{reasoning_effort}:"
             f"{workspace.fingerprint()}:{target_hash}:{cache_variant}:"
             f"{os.getenv('AGENT_EVAL_CACHE_NONCE', '').strip()}"
         )
@@ -291,8 +210,8 @@ class TaskGuidanceHarness:
     ) -> Run[AssessmentRunValue]:
         workspace = AssessmentWorkspaceFactory()
         cache_key = (
-            f"task-guidance-assessment:{RUNNER_VERSION}:{self.profile.name}:"
-            f"{self.profile.model}:{test_id}:{reasoning_effort}:"
+            f"task-guidance-assessment:{RUNNER_VERSION}:{self.agent_name}:"
+            f"{self.agent['model']}:{test_id}:{reasoning_effort}:"
             f"{hashlib.sha256(prompt.encode('utf-8')).hexdigest()}:"
             f"{cache_variant}:"
             f"{os.getenv('AGENT_EVAL_CACHE_NONCE', '').strip()}"
@@ -322,8 +241,8 @@ class TaskGuidanceHarness:
             bundle=self.bundle,
         )
         cache_key = (
-            f"task-guidance-handoff:{RUNNER_VERSION}:{self.profile.name}:"
-            f"{self.profile.model}:{scenario.scenario_id}:{variant}:"
+            f"task-guidance-handoff:{RUNNER_VERSION}:{self.agent_name}:"
+            f"{self.agent['model']}:{scenario.scenario_id}:{variant}:"
             f"{reasoning_effort}:{workspace.fingerprint()}:{cache_variant}"
         )
         return self.evaluation.run(
@@ -355,6 +274,30 @@ class TaskGuidanceHarness:
             workspace=parent.workspace,
         )
 
+    def run_negative_control(
+        self,
+        *,
+        category: str,
+        cache_variant: str,
+    ) -> Run[PlanRunValue]:
+        """The designated negative-control run for one scenario category."""
+
+        control = negative_control(category)
+        if control is None:
+            raise ValueError(f"category {category!r} declares no negative control")
+        if self.agent_name != control["agent"]:
+            raise ValueError(
+                f"negative control is designated for {control['agent']!r},"
+                f" not {self.agent_name!r}"
+            )
+        scenario = scenario_by_id(control["scenario"])
+        return self.run_plan_from_handoff(
+            scenario=scenario,
+            variant=control["variant"],
+            reasoning_effort=control["effort"],
+            cache_variant=cache_variant,
+        )
+
     def _task_creation_turn(
         self,
         context: CrystalLatticeContext,
@@ -365,9 +308,10 @@ class TaskGuidanceHarness:
         if context.workspace is None:
             raise ValueError("missing task-guidance workspace")
         if context.session_or_none is None:
-            context.start(self.profile.agent_id)
+            context.start(self.agent["agent_id"])
         context.config.update(
-            self.profile.request_overrides(
+            request_overrides(
+                self.agent_name,
                 context.workspace,
                 reasoning_effort=reasoning_effort,
             )
@@ -375,16 +319,16 @@ class TaskGuidanceHarness:
         _reload_context_with_defaults(context)
         delivery = compiled_delivery_evidence(
             context,
-            profile=self.profile,
+            agent_name=self.agent_name,
             runtime_config=self.runtime_config,
         )
         context.services.record(
             "task_guidance.profile",
             {
-                "name": self.profile.name,
-                "agent_id": self.profile.agent_id,
-                "model": self.profile.model,
-                "auth_mode": self.profile.auth_mode,
+                "name": self.agent_name,
+                "agent_id": self.agent["agent_id"],
+                "model": self.agent["model"],
+                "auth_mode": self.runtime_agent.get("auth_mode"),
                 "reasoning_effort": reasoning_effort,
             },
         )
@@ -402,13 +346,17 @@ class TaskGuidanceHarness:
             stream=True,
             max_events=_optional_int("AGENT_EVAL_MAX_EVENTS"),
         )
-        task_files = {
-            str(path.relative_to(context.workspace)): path.read_text(
-                encoding="utf-8",
-                errors="replace",
-            )
-            for path in sorted((context.workspace / "tasks").rglob("*.md"))
-        } if (context.workspace / "tasks").is_dir() else {}
+        task_files = (
+            {
+                str(path.relative_to(context.workspace)): path.read_text(
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                for path in sorted((context.workspace / "tasks").rglob("*.md"))
+            }
+            if (context.workspace / "tasks").is_dir()
+            else {}
+        )
         calls = tuple(collect_tool_calls(context.session))
         metrics = tool_metrics(calls)
         context.services.record("task_guidance.tool_metrics", metrics)
@@ -444,9 +392,10 @@ class TaskGuidanceHarness:
         if context.workspace is None:
             raise ValueError("missing assessment workspace")
         if context.session_or_none is None:
-            context.start(self.profile.agent_id)
+            context.start(self.agent["agent_id"])
         context.config.update(
-            self.profile.request_overrides(
+            request_overrides(
+                self.agent_name,
                 context.workspace,
                 reasoning_effort=reasoning_effort,
                 include_tasks=False,
@@ -455,8 +404,8 @@ class TaskGuidanceHarness:
         context.services.record(
             "task_guidance.assessment_profile",
             {
-                "name": self.profile.name,
-                "model": self.profile.model,
+                "name": self.agent_name,
+                "model": self.agent["model"],
                 "reasoning_effort": reasoning_effort,
             },
         )
@@ -483,9 +432,10 @@ class TaskGuidanceHarness:
         if context.workspace is None:
             raise ValueError("missing handoff workspace")
         if context.session_or_none is None:
-            context.start(self.profile.agent_id)
+            context.start(self.agent["agent_id"])
         context.config.update(
-            self.profile.request_overrides(
+            request_overrides(
+                self.agent_name,
                 context.workspace,
                 reasoning_effort=reasoning_effort,
             )
@@ -493,7 +443,7 @@ class TaskGuidanceHarness:
         _reload_context_with_defaults(context)
         delivery = compiled_delivery_evidence(
             context,
-            profile=self.profile,
+            agent_name=self.agent_name,
             runtime_config=self.runtime_config,
         )
         parent_message_count = len(context.session.messages)
@@ -526,19 +476,52 @@ class TaskGuidanceHarness:
         )
 
 
-def selected_profile() -> ModelProfile:
+def selected_agent() -> str:
+    """The agent the live matrix runs (``AGENT_EVAL_PROFILE``)."""
+
     name = os.getenv("AGENT_EVAL_PROFILE", "").strip().lower()
-    if name not in PROFILES:
+    if name not in AGENTS:
         raise ValueError(
-            "AGENT_EVAL_PROFILE must be one of: " + ", ".join(sorted(PROFILES))
+            "AGENT_EVAL_PROFILE must be one of: " + ", ".join(sorted(AGENTS))
         )
-    return PROFILES[name]
+    return name
+
+
+def request_overrides(
+    agent_name: str,
+    workspace: Path,
+    *,
+    reasoning_effort: str,
+    include_tasks: bool = True,
+) -> dict[str, object]:
+    """Per-request settings layered over the agent's pinned runtime config.
+
+    The runtime config fixture pins the plugin wiring and the
+    authentication method; only the model, the workspace, the guidance
+    toggles, and the reasoning-effort shape vary per request.
+    """
+
+    values: dict[str, object] = {
+        "model": AGENTS[agent_name]["model"],
+        "working_directory": str(workspace),
+        "allowed_paths": [str(workspace)],
+        "include_tasks": include_tasks,
+        "skills_enabled": False,
+        "mcp_enabled": False,
+        "web_search_enabled": False,
+    }
+    if agent_name == "glm":
+        values["request_options"] = {"reasoning_effort": reasoning_effort}
+    else:
+        values["reasoning_effort"] = reasoning_effort
+        values["reasoning_summary"] = "detailed"
+    return values
 
 
 def compiled_delivery_evidence(
     context: CrystalLatticeContext,
     *,
-    profile: ModelProfile,
+    agent_name: str,
     runtime_config: Path,
 ) -> dict[str, Any]:
     effective = cast(dict[str, Any], context.effective_config())
@@ -569,23 +552,27 @@ def compiled_delivery_evidence(
         function = schema.get("function")
         value = function if isinstance(function, dict) else schema
         parameters = value.get("parameters") or value.get("input_schema") or {}
-        properties = parameters.get("properties", {}) if isinstance(parameters, dict) else {}
+        properties = (
+            parameters.get("properties", {}) if isinstance(parameters, dict) else {}
+        )
         command = properties.get("command", {}) if isinstance(properties, dict) else {}
         tools.append(
             {
                 "name": value.get("name"),
-                "command_type": command.get("type") if isinstance(command, dict) else None,
+                "command_type": (
+                    command.get("type") if isinstance(command, dict) else None
+                ),
             }
         )
     expected_tool = (
         {"name": "shell", "command_type": "array"}
-        if profile.name == "gpt"
+        if agent_name == "gpt"
         else {"name": "Bash", "command_type": "string"}
     )
     return {
         "runner": "default-system-message",
-        "model_family": "codex" if profile.name == "gpt" else "claude",
-        "model": profile.model,
+        "model_family": "codex" if agent_name == "gpt" else "claude",
+        "model": AGENTS[agent_name]["model"],
         "include_tasks": True,
         "compiled_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
         "agents_sha256": hashlib.sha256(agents.read_bytes()).hexdigest(),
@@ -629,7 +616,7 @@ def tool_metrics(calls: tuple[Mapping[str, Any], ...]) -> dict[str, int]:
 def _runtime_config_root(*, bundle: Path, artifact_root: Path) -> Path:
     compilation = compile_guidance(
         bundle=bundle,
-        target=CRYSTAL_LATTICE_TARGET,
+        target=GUIDANCE_TARGET,
         repository_root=REPOSITORY_ROOT,
     )
     digest = str(compilation.lock["compilation_sha256"])
@@ -648,72 +635,6 @@ def _runtime_config_root(*, bundle: Path, artifact_root: Path) -> Path:
     task_path = target / "TASKS_v7.md"
     if not task_path.exists() or task_path.read_bytes() != tasks:
         task_path.write_bytes(tasks)
-    return target
-
-
-def _project_config_for_profile(
-    source: Path,
-    *,
-    artifact_root: Path,
-    profile: ModelProfile,
-) -> Path:
-    raw = json.loads(source.read_text(encoding="utf-8"))
-    agents = raw.get("agents")
-    plugins = raw.get("plugins")
-    if not isinstance(agents, dict) or not isinstance(plugins, list):
-        raise ValueError("default config is missing agents or plugins")
-    selected = agents.get(profile.agent_id)
-    if not isinstance(selected, dict):
-        raise KeyError(f"default config has no agent {profile.agent_id!r}")
-    fragments = (
-        profile.tool_fragment,
-        *profile.provider_fragments,
-    )
-    selected_plugins = [
-        item
-        for item in plugins
-        if isinstance(item, str)
-        and (
-            not item.startswith(("path:", "bash:", "node:"))
-            or any(fragment in item for fragment in fragments)
-        )
-    ]
-    for item in selected.get("plugins", []):
-        if isinstance(item, str) and any(
-            fragment in item for fragment in fragments
-        ) and item not in selected_plugins:
-            selected_plugins.append(item)
-    missing = [
-        fragment
-        for fragment in fragments
-        if not any(fragment in item for item in selected_plugins)
-    ]
-    if missing:
-        raise ValueError(f"default config is missing profile plugins: {missing}")
-    projected_agent = {**selected, "plugins": list(selected.get("plugins") or [])}
-    if profile.auth_mode is not None:
-        projected_agent["auth_mode"] = profile.auth_mode
-    if profile.name == "gpt":
-        state_root = Path(
-            os.getenv("CHATGPT_TEST_STATE_DIR", str(Path.home() / ".crystal"))
-        ).expanduser()
-        projected_agent["chatgpt_credentials_path"] = str(
-            state_root / "auth" / "chatgpt-auth.json"
-        )
-    projected = {
-        **raw,
-        "agents": {profile.agent_id: projected_agent},
-        "plugins": selected_plugins,
-        "plugin_cache_dir": str(
-            artifact_root / "plugin-cache" / profile.name / RUNNER_VERSION
-        ),
-    }
-    config_root = artifact_root / "projected-config"
-    config_root.mkdir(parents=True, exist_ok=True)
-    target = config_root / f"{profile.name}-{RUNNER_VERSION}.json"
-    rendered = json.dumps(projected, indent=2, sort_keys=True) + "\n"
-    if not target.exists() or target.read_text(encoding="utf-8") != rendered:
-        target.write_text(rendered, encoding="utf-8")
     return target
 
 

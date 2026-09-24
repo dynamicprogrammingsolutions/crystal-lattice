@@ -5,13 +5,32 @@ from pathlib import Path
 from typing import Any
 
 from .artifacts import record_paths
+from .configuration import (
+    AGENTS,
+    CATEGORIES,
+    all_producer_cells,
+    negative_control_designations,
+    plan_variants,
+    producer_cells,
+)
 from .scenarios import SCENARIOS
 from .semantic import (
     QUALITY_DIMENSIONS,
     aggregate_quality_metrics,
     expected_producer_cells,
 )
+from .stages import STAGES
 from .topology import task_tree
+
+
+def _scenarios_with_stage(stage: str) -> list:
+    """The scenarios whose category declares one stage."""
+
+    return [
+        scenario
+        for scenario in SCENARIOS
+        if stage in CATEGORIES[scenario.category]["stages"]
+    ]
 
 
 def consolidate_results(
@@ -25,25 +44,25 @@ def consolidate_results(
 ) -> dict[str, Any]:
     producers = _latest_records(
         artifact_root,
-        record_name="task-guidance-producer.json",
+        record_name=STAGES["task-creation"].record,
         identity=_producer_identity,
         predicate=lambda value: value.get("run_attempt") == producer_attempt,
     )
     handoffs = _latest_records(
         artifact_root,
-        record_name="task-guidance-handoff-plan.json",
+        record_name=STAGES["handoff-plan"].record,
         identity=_handoff_identity,
         predicate=lambda value: value.get("run_attempt") == handoff_attempt,
     )
     continuations = _latest_records(
         artifact_root,
-        record_name="task-guidance-same-agent-plan.json",
+        record_name=STAGES["continuation"].record,
         identity=_continuation_identity,
         predicate=lambda value: value.get("run_attempt") == producer_attempt,
     )
     semantics = _latest_records(
         artifact_root,
-        record_name="task-guidance-semantic.json",
+        record_name=STAGES["task-creation-assessment"].record,
         identity=lambda value: str(value.get("scenario_id")),
         predicate=lambda value: (
             value.get("producer_attempt") == producer_attempt
@@ -52,7 +71,7 @@ def consolidate_results(
     )
     handoff_semantics = _latest_records(
         artifact_root,
-        record_name="task-guidance-handoff-semantic.json",
+        record_name=STAGES["handoff-assessment"].record,
         identity=lambda value: str(value.get("scenario_id")),
         predicate=lambda value: (
             value.get("producer_attempt") == producer_attempt
@@ -62,13 +81,13 @@ def consolidate_results(
     )
     negative_controls = _latest_records(
         artifact_root,
-        record_name="task-guidance-negative-control.json",
+        record_name=STAGES["negative-control"].record,
         identity=lambda value: str(value.get("scenario_id")),
         predicate=lambda value: value.get("run_attempt") == handoff_attempt,
     )
     provider_blockers = _latest_records(
         artifact_root,
-        record_name="task-guidance-producer.json",
+        record_name=STAGES["task-creation"].record,
         identity=_provider_identity,
         predicate=lambda value: (
             value.get("valid") is False
@@ -86,24 +105,25 @@ def consolidate_results(
     }
     expected_handoffs = {
         f"{scenario.scenario_id}:{variant}:{profile}:{effort}"
-        for scenario in SCENARIOS
-        if scenario.category == "handoff"
-        for variant in ("retain", "omit")
-        for profile, effort in (("glm", "max"), ("gpt", "high"))
+        for scenario in _scenarios_with_stage("handoff-plan")
+        for variant in plan_variants(scenario.category)
+        for profile, effort in producer_cells(scenario.category)
     }
     expected_continuations = {
         f"{scenario.scenario_id}:{profile}:{effort}"
-        for scenario in SCENARIOS
-        if scenario.category == "handoff"
-        for profile, effort in (("glm", "max"), ("gpt", "high"))
+        for scenario in _scenarios_with_stage("continuation")
+        for profile, effort in producer_cells(scenario.category)
     }
-    expected_semantics = {scenario.scenario_id for scenario in SCENARIOS}
-    expected_handoff_semantics = {
+    expected_semantics = {
         scenario.scenario_id
-        for scenario in SCENARIOS
-        if scenario.category == "handoff"
+        for scenario in _scenarios_with_stage("task-creation-assessment")
     }
-    expected_negative_controls = {"tg02-fastapi-pagination-handoff"}
+    expected_handoff_semantics = {
+        scenario.scenario_id for scenario in _scenarios_with_stage("handoff-assessment")
+    }
+    expected_negative_controls = {
+        control["scenario"] for control in negative_control_designations()
+    }
     producer_values = [
         {
             **record,
@@ -167,22 +187,17 @@ def consolidate_results(
             "handoff_semantics": {
                 "expected": len(expected_handoff_semantics),
                 "present": len(handoff_semantics),
-                "missing": sorted(
-                    expected_handoff_semantics - set(handoff_semantics)
-                ),
+                "missing": sorted(expected_handoff_semantics - set(handoff_semantics)),
             },
             "negative_controls": {
                 "expected": len(expected_negative_controls),
                 "present": len(negative_controls),
-                "missing": sorted(
-                    expected_negative_controls - set(negative_controls)
-                ),
+                "missing": sorted(expected_negative_controls - set(negative_controls)),
             },
             "provider_blockers": {
                 "present": len(provider_blocker_values),
                 "identities": sorted(
-                    _provider_identity(record)
-                    for record in provider_blocker_values
+                    _provider_identity(record) for record in provider_blocker_values
                 ),
             },
         },
@@ -273,18 +288,13 @@ def render_summary(value: dict[str, Any]) -> str:
                 "| Cohort | Assessments | Overall success | "
                 + " | ".join(_quality_title(name) for name in QUALITY_DIMENSIONS)
                 + " |",
-                "|---|---:|---:|"
-                + "---:|" * len(QUALITY_DIMENSIONS),
+                "|---|---:|---:|" + "---:|" * len(QUALITY_DIMENSIONS),
             ]
         )
         for name in (
             "all",
-            "glm",
-            "gpt",
-            "glm:max",
-            "gpt:high",
-            "gpt:xhigh",
-            "gpt:max",
+            *AGENTS,
+            *(f"{agent}:{effort}" for agent, effort in all_producer_cells()),
         ):
             cohort = cohorts.get(name)
             if not cohort:
@@ -341,15 +351,12 @@ def _quality_title(name: str) -> str:
 
 
 def _cohort_title(name: str) -> str:
-    return {
-        "all": "All",
-        "glm": "GLM",
-        "gpt": "GPT",
-        "glm:max": "GLM max",
-        "gpt:high": "GPT high",
-        "gpt:xhigh": "GPT xhigh",
-        "gpt:max": "GPT max",
-    }.get(name, name)
+    if name == "all":
+        return "All"
+    if ":" in name:
+        agent, effort = name.split(":", 1)
+        return f"{agent.upper()} {effort}"
+    return name.upper()
 
 
 def _latest_records(

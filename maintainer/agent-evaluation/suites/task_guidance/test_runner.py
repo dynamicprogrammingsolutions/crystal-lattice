@@ -3,27 +3,40 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .fixtures import TaskGuidanceWorkspaceFactory, selected_bundle
+from .configuration import AGENTS, selected_bundle
+from .fixtures import TaskGuidanceWorkspaceFactory
 from .runner import (
-    PROFILES,
-    ModelProfile,
-    _project_config_for_profile,
+    RUNNER_VERSION,
+    TaskGuidanceHarness,
     _runtime_config_root,
+    request_overrides,
     tool_metrics,
 )
 from .scenarios import scenario_by_id
+from .stages import STAGES
 
 
-def test_profiles_use_standard_model_family_tools() -> None:
-    assert PROFILES["glm"].model == "glm-5.3-flash:cloud"
-    assert PROFILES["glm"].tool_fragment == "/claude-tools"
-    assert PROFILES["gpt"].model == "gpt-5.6-luna"
-    assert PROFILES["gpt"].tool_fragment == "/codex-tools"
+def test_pinned_runtime_configs_pin_the_standard_tool_families() -> None:
+    glm = json.loads(
+        (Path(__file__).parent / AGENTS["glm"]["config"]).read_text(encoding="utf-8")
+    )
+    assert any("/claude-tools" in item for item in glm["plugins"])
+    assert not any("/codex-tools" in item for item in glm["plugins"])
+    assert glm["agents"][AGENTS["glm"]["agent_id"]]["model"] == AGENTS["glm"]["model"]
+
+    gpt = json.loads(
+        (Path(__file__).parent / AGENTS["gpt"]["config"]).read_text(encoding="utf-8")
+    )
+    assert any("/codex-tools" in item for item in gpt["plugins"])
+    assert not any("/claude-tools" in item for item in gpt["plugins"])
+    assert gpt["agents"][AGENTS["gpt"]["agent_id"]]["model"] == AGENTS["gpt"]["model"]
+    # The authentication method is pinned by the fixture, not by code.
+    assert gpt["agents"][AGENTS["gpt"]["agent_id"]]["auth_mode"] == "chatgpt"
 
 
 def test_request_overrides_enable_canonical_task_guidance(tmp_path: Path) -> None:
-    profile = PROFILES["gpt"]
-    overrides = profile.request_overrides(
+    overrides = request_overrides(
+        "gpt",
         tmp_path,
         reasoning_effort="xhigh",
     )
@@ -31,8 +44,14 @@ def test_request_overrides_enable_canonical_task_guidance(tmp_path: Path) -> Non
     assert overrides["include_tasks"] is True
     assert overrides["working_directory"] == str(tmp_path)
     assert overrides["reasoning_effort"] == "xhigh"
+    assert "auth_mode" not in overrides
+    assert "chatgpt_credentials_path" not in overrides
 
-    assessment = profile.request_overrides(
+    glm = request_overrides("glm", tmp_path, reasoning_effort="max")
+    assert glm["request_options"] == {"reasoning_effort": "max"}
+
+    assessment = request_overrides(
+        "gpt",
         tmp_path,
         reasoning_effort="high",
         include_tasks=False,
@@ -61,47 +80,57 @@ def test_tool_metrics_separate_investigation_and_mutation_calls() -> None:
     }
 
 
-def test_model_profile_is_immutable() -> None:
-    profile = ModelProfile(
-        name="demo",
-        agent_id="demo",
-        model="demo",
-        auth_mode=None,
-        tool_fragment="/tool",
-        provider_fragments=(),
-    )
-
-    assert profile.model == "demo"
+def test_every_stage_executor_exists_on_the_harness() -> None:
+    for spec in STAGES.values():
+        assert hasattr(TaskGuidanceHarness, spec.executor), spec.executor
 
 
-def test_runtime_config_and_profile_projection_use_selected_tool_families(
-    tmp_path: Path,
-) -> None:
+def test_runtime_config_root_compiles_the_tasks_file(tmp_path: Path) -> None:
     runtime = _runtime_config_root(
         bundle=selected_bundle(),
         artifact_root=tmp_path,
     )
-    assert "Task Files and Subtasks" in runtime.joinpath(
-        "TASKS_v7.md"
-    ).read_text(encoding="utf-8")
-
-    glm_path = _project_config_for_profile(
-        runtime / "config.json",
-        artifact_root=tmp_path,
-        profile=PROFILES["glm"],
+    assert "Task Files and Subtasks" in runtime.joinpath("TASKS_v7.md").read_text(
+        encoding="utf-8"
     )
-    glm = json.loads(glm_path.read_text(encoding="utf-8"))
-    assert any("/claude-tools" in item for item in glm["plugins"])
-    assert not any("/codex-tools" in item for item in glm["plugins"])
 
-    gpt_path = _project_config_for_profile(
-        runtime / "config.json",
-        artifact_root=tmp_path,
-        profile=PROFILES["gpt"],
+
+def test_harness_builds_from_the_pinned_fixture(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AGENT_EVAL_ARTIFACT_ROOT", str(tmp_path))
+    harness = TaskGuidanceHarness("glm")
+    try:
+        assert harness.agent_name == "glm"
+        assert harness.agent["agent_id"] == "glm-ollama"
+        # The pinned fixture's agent entry, with the auth method it declares.
+        assert harness.runtime_agent["model"] == AGENTS["glm"]["model"]
+        assert "auth_mode" not in harness.runtime_agent
+        resolved = tmp_path / "agent-config" / f"glm-{RUNNER_VERSION}.json"
+        assert resolved.is_file()
+        assert json.loads(resolved.read_text(encoding="utf-8"))["plugin_cache_dir"] == (
+            str(tmp_path / "plugin-cache" / "glm" / RUNNER_VERSION)
+        )
+    finally:
+        harness.close()
+
+
+def test_agent_config_file_applies_the_artifact_plugin_cache(
+    tmp_path: Path,
+) -> None:
+    from .configuration import agent_config_file
+
+    path = agent_config_file("glm", artifact_root=tmp_path, version=RUNNER_VERSION)
+    config = json.loads(path.read_text(encoding="utf-8"))
+    assert config["plugin_cache_dir"] == str(
+        tmp_path / "plugin-cache" / "glm" / RUNNER_VERSION
     )
-    gpt = json.loads(gpt_path.read_text(encoding="utf-8"))
-    assert any("/codex-tools" in item for item in gpt["plugins"])
-    assert not any("/claude-tools" in item for item in gpt["plugins"])
+    fixture = json.loads(
+        (Path(__file__).parent / AGENTS["glm"]["config"]).read_text(encoding="utf-8")
+    )
+    assert config["agents"] == fixture["agents"]
+    assert config["plugins"] == fixture["plugins"]
 
 
 def test_workspace_factory_compiles_project_guidance(tmp_path: Path) -> None:

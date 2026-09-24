@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "agents": {
+    "glm": {
+      "agent_id": "glm-ollama",
+      "model": "glm-5.3-flash:cloud",
+      "efforts": ["max"],
+      "config": "fixtures/runtime/glm.json"
+    },
+    "gpt": {
+      "agent_id": "codex-openai",
+      "model": "gpt-5.6-luna",
+      "efforts": ["high", "xhigh", "max"],
+      "config": "fixtures/runtime/gpt.json"
+    }
+  },
+  "categories": {
+    "handoff": {
+      "scenarios": [
+        "tg01-eleventy-archive-handoff",
+        "tg02-fastapi-pagination-handoff",
+        "tg03-flask-vue-refresh-handoff"
+      ],
+      "producer_cells": [
+        {"agent": "glm", "effort": "max"},
+        {"agent": "gpt", "effort": "high"}
+      ],
+      "stages": {
+        "task-creation": {},
+        "handoff-plan": {"variants": ["retain", "omit"]},
+        "continuation": {},
+        "negative-control": {
+          "scenario": "tg02-fastapi-pagination-handoff",
+          "agent": "glm",
+          "effort": "max",
+          "variant": "incomplete"
+        },
+        "task-creation-assessment": {"agent": "glm", "effort": "max"},
+        "handoff-assessment": {"agent": "glm", "effort": "max"}
+      }
+    },
+    "decomposition": {
+      "scenarios": [
+        "tg04-flask-vue-discovery-decomposition",
+        "tg05-fastapi-multi-consumer-decomposition",
+        "tg06-eleventy-author-migration-decomposition"
+      ],
+      "producer_cells": [
+        {"agent": "glm", "effort": "max"},
+        {"agent": "gpt", "effort": "high"},
+        {"agent": "gpt", "effort": "xhigh"},
+        {"agent": "gpt", "effort": "max"}
+      ],
+      "stages": {
+        "task-creation": {},
+        "task-creation-assessment": {"agent": "glm", "effort": "max"}
+      }
+    }
+  },
+  "directories": {
+    "artifact_root": "tmp/agent-evaluation/task-guidance",
+    "guidance_bundle": "maintainer/guidance/current",
+    "guidance_target": "maintainer/guidance/targets/crystal-lattice",
+    "result_packages": "maintainer/docs/evaluations/task-guidance/results",
+    "scenario_export": "maintainer/docs/evaluations/task-guidance/scenarios"
+  }
+}

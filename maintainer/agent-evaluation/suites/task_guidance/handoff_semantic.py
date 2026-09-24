@@ -7,7 +7,9 @@ from string import Template
 from typing import Any, Mapping
 
 from .artifacts import record_paths
+from .configuration import negative_control, plan_variants, producer_cells
 from .scenarios import TaskGuidanceScenario
+from .stages import STAGES
 
 
 def load_handoff_records(
@@ -20,18 +22,16 @@ def load_handoff_records(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     fresh = _latest(
         artifact_root,
-        "task-guidance-handoff-plan.json",
+        STAGES["handoff-plan"].record,
         predicate=lambda value: (
             value.get("scenario_id") == scenario.scenario_id
             and value.get("run_attempt") == handoff_attempt
         ),
-        identity=lambda value: (
-            f"{value.get('variant')}:{_producer_identity(value)}"
-        ),
+        identity=lambda value: (f"{value.get('variant')}:{_producer_identity(value)}"),
     )
     same = _latest(
         artifact_root,
-        "task-guidance-same-agent-plan.json",
+        STAGES["continuation"].record,
         predicate=lambda value: (
             value.get("scenario_id") == scenario.scenario_id
             and value.get("run_attempt") == producer_attempt
@@ -40,31 +40,30 @@ def load_handoff_records(
     )
     negative = _latest(
         artifact_root,
-        "task-guidance-negative-control.json",
+        STAGES["negative-control"].record,
         predicate=lambda value: (
             value.get("scenario_id") == scenario.scenario_id
             and value.get("run_attempt") == handoff_attempt
         ),
         identity=_producer_identity,
     )
+    handoff_cells = producer_cells(scenario.category)
     expected_fresh = {
         f"{variant}:{profile}:{effort}"
-        for variant in ("retain", "omit")
-        for profile, effort in (("glm", "max"), ("gpt", "high"))
+        for variant in plan_variants(scenario.category)
+        for profile, effort in handoff_cells
     }
-    expected_same = {"glm:max", "gpt:high"}
+    expected_same = {f"{profile}:{effort}" for profile, effort in handoff_cells}
+    control = negative_control(scenario.category)
     expected_negative = (
-        {"glm:max"}
-        if scenario.scenario_id == "tg02-fastapi-pagination-handoff"
+        {f"{control['agent']}:{control['effort']}"}
+        if control is not None and scenario.scenario_id == control["scenario"]
         else set()
     )
     missing = [
         *(f"fresh:{item}" for item in sorted(expected_fresh - set(fresh))),
         *(f"same:{item}" for item in sorted(expected_same - set(same))),
-        *(
-            f"negative:{item}"
-            for item in sorted(expected_negative - set(negative))
-        ),
+        *(f"negative:{item}" for item in sorted(expected_negative - set(negative))),
     ]
     if missing and not allow_partial:
         raise FileNotFoundError(
@@ -172,9 +171,7 @@ def handoff_semantic_prompt(
                 "task_files": item["task_files"],
                 "plan_response": item["response"],
                 "tool_metrics": item["continuation_tool_metrics"],
-                "task_creation_tool_metrics": item[
-                    "task_creation_tool_metrics"
-                ],
+                "task_creation_tool_metrics": item["task_creation_tool_metrics"],
             }
         )
     if not records:
@@ -220,9 +217,7 @@ def validate_handoff_semantic(
         raise ValueError("handoff semantic scenario_id mismatch")
     assessments = value.get("assessments")
     if not isinstance(assessments, list) or len(assessments) != expected_count:
-        raise ValueError(
-            f"handoff semantic assessment count must be {expected_count}"
-        )
+        raise ValueError(f"handoff semantic assessment count must be {expected_count}")
     identities: set[tuple[str, str, str, str]] = set()
     for item in assessments:
         if not isinstance(item, dict):

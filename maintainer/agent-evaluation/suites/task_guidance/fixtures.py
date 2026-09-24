@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -16,14 +15,12 @@ from maintainer.guidance import (
     write_compilation,
 )
 
+from .configuration import PACKAGE_ROOT, REPOSITORY_ROOT
 from .scenarios import TaskGuidanceScenario
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
-PACKAGE_ROOT = REPOSITORY_ROOT / "maintainer" / "agent-evaluation"
 SUITE_ROOT = Path(__file__).resolve().parent
 GUIDANCE_TARGET_ROOT = SUITE_ROOT / "fixtures" / "guidance"
-DEFAULT_BUNDLE = REPOSITORY_ROOT / "maintainer" / "guidance" / "current"
 BASE_REVISION = "094cf20fc4075188cf76a48c77a1d29a36ff0a78"
 FIXTURE_VERSION = "v5"
 
@@ -34,11 +31,6 @@ __pycache__/
 node_modules/
 _site/
 """
-
-
-def selected_bundle() -> Path:
-    raw = os.getenv("AGENT_EVAL_GUIDANCE_BUNDLE", "").strip()
-    return Path(raw).expanduser().resolve() if raw else DEFAULT_BUNDLE
 
 
 @dataclass(frozen=True)
@@ -59,9 +51,7 @@ class TaskGuidanceWorkspaceFactory:
             "fixture_id": self.scenario.fixture_id,
             "fixture_version": FIXTURE_VERSION,
             "base_revision": self.revision,
-            "guidance_compilation_sha256": compilation.lock[
-                "compilation_sha256"
-            ],
+            "guidance_compilation_sha256": compilation.lock["compilation_sha256"],
         }
 
     def __call__(self, staging_dir: Path) -> Path:
@@ -79,9 +69,7 @@ class TaskGuidanceWorkspaceFactory:
             section="documentation",
             repository_root=REPOSITORY_ROOT,
         )
-        documentation_target = (
-            workspace / "docs" / "development" / "documentation.md"
-        )
+        documentation_target = workspace / "docs" / "development" / "documentation.md"
         documentation_target.parent.mkdir(parents=True, exist_ok=True)
         documentation_target.write_bytes(documentation_source.read_bytes())
         (workspace / ".guidance-lock.json").write_text(

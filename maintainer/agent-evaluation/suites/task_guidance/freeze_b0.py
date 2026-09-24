@@ -4,12 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
+from .configuration import DEFAULT_ARTIFACT_ROOT
 from .results import consolidate_results, render_summary
-
-
-SUITE_ROOT = Path(__file__).resolve().parent
-REPOSITORY_ROOT = SUITE_ROOT.parents[3]
-DEFAULT_ARTIFACT_ROOT = REPOSITORY_ROOT / "tmp" / "agent-evaluation" / "task-guidance"
 
 
 def main() -> int:

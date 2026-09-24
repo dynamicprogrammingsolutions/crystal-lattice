@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from maintainer.guidance import compile_guidance
 
+from .configuration import selected_bundle
 from .fixtures import (
     GUIDANCE_TARGET_ROOT,
     REPOSITORY_ROOT,
     fixture_files,
     fixture_sha256,
-    selected_bundle,
 )
 from .scenarios import SCENARIOS
 
@@ -47,12 +47,11 @@ def test_fixture_claims_have_corresponding_project_infrastructure() -> None:
 
     multi_consumer = fixture_files("tg05-fastapi-multi-consumer")
     assert "[project.scripts]" in multi_consumer["apps/notes_cli/pyproject.toml"]
-    assert "from_environment" in multi_consumer[
-        "packages/notes_client/notes_client/client.py"
-    ]
-    assert "def client" in multi_consumer[
-        "packages/notes_client/tests/conftest.py"
-    ]
+    assert (
+        "from_environment"
+        in multi_consumer["packages/notes_client/notes_client/client.py"]
+    )
+    assert "def client" in multi_consumer["packages/notes_client/tests/conftest.py"]
 
     eleventy = fixture_files("tg06-eleventy-author-migration")
     assert 'addFilter("head"' in eleventy["eleventy.config.js"]
