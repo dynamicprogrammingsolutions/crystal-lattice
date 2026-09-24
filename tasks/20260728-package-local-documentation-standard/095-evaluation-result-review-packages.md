@@ -471,7 +471,7 @@ from fixture ownership, and remove the old fixture result copies.
   cost, and suite-adapter contracts without a generic session schema.
 - [x] Define the reusable Crystal Lattice review projection.
 - [x] Implement collection, rendering, and deterministic check support.
-- [ ] Add synthetic unit/integration fixtures for package generation.
+- [x] Add synthetic unit/integration fixtures for package generation.
 - [x] Implement the task-guidance result adapter and report configuration.
 - [x] Export the representative GPT-xhigh book-discovery cell (human review
   pending).
@@ -495,11 +495,11 @@ from fixture ownership, and remove the old fixture result copies.
   handoff copies, generated per guidance bundle.
 - [x] Regenerate both packages and the scenarios export for review round 2 and
   re-verify parity, determinism, checks, and secret safety.
-- [ ] Update evaluation indexes, reports, running guidance, and package docs.
-- [ ] Replace completed-result suite fixtures with synthetic test data.
-- [ ] Remove the old task-guidance fixture result copies after parity and link
+- [x] Update evaluation indexes, reports, running guidance, and package docs.
+- [x] Replace completed-result suite fixtures with synthetic test data.
+- [x] Remove the old task-guidance fixture result copies after parity and link
   checks pass.
-- [ ] Record historical missing-data limitations and completion evidence.
+- [x] Record historical missing-data limitations and completion evidence.
 
 ### Requirement verification
 
@@ -754,3 +754,89 @@ from fixture ownership, and remove the old fixture result copies.
   `tests/` and `suites/task_guidance` run in one pytest process
   (11 crystal-lattice driver tests fail in the combined run, pass in
   isolation and in their own suite); both suites pass separately.
+
+- Completion round (September 23, 2026), user-approved "finish the 095":
+  - Synthetic package coverage: `test_result_package.py` builds one
+    synthetic evaluation (the tg02 handoff scenario and the tg04
+    decomposition scenario, one GLM-max cell, every stage kind: producer,
+    plan-retain, plan-omit, continuation, negative control, and both
+    assessment kinds) from hand-built frozen records plus synthetic raw run
+    directories with GLM-style sessions, and exercises the real collection,
+    Crystal Lattice projection, rendering, checking, and byte-identical
+    re-collection path. The continuation session retains no system message,
+    so the test also covers the `inherited` instruction availability and the
+    parent-bounded inherited prefix. A third test proves a missing raw run is
+    reported per record identity.
+  - Fixture ownership removed: `collect` now requires an explicit `--frozen`
+    consolidated-dataset path (the `DatasetSpec.frozen_results` fixture
+    default is gone), `freeze_b0` writes its consolidated dataset under
+    `<artifact-root>/consolidated/<dataset-id>.json` by default, and the four
+    completed-result fixture copies under
+    `suites/task_guidance/fixtures/results/` were deleted after re-proving
+    parity: both committed packages regenerate byte-for-byte from the frozen
+    datasets with explicit `--frozen` paths.
+  - One robustness fix surfaced by the synthetic tests: the aggregate
+    provenance previously required the frozen dataset to live inside the
+    repository; `_provenance_path` now records a repository-relative path
+    when one exists and the given path otherwise.
+  - One operational finding: an interrupted collect (SIGTERM during GPT
+    reconstruction) had left a partially built reconstruction workspace for
+    the b0 tg05 gpt-max run, which made its next collection skip
+    reconstruction and mark the system message unavailable. The leftover was
+    identified by timestamp (2026-09-23 versus the original 2026-09-19/20
+    run workspaces), removed, and parity restored. The 15 original September
+    run workspaces were left untouched.
+  - Documentation and navigation: the task-guidance evaluation index, the
+    maintainer evaluations index, both dated reports, the suite docs index,
+    the running-and-calibration guide, and task 090's durable-evidence links
+    now lead to the committed packages and the scenarios export; the
+    reproducing guide's command-heavy inspection section (jq extraction, raw
+    run discovery) was rewritten into package navigation with the
+    reproduction commands retained, and the superseded
+    `inspect_result` proposal was removed.
+  - Requirement ledgers updated to Implemented/Verified with evidence:
+    `ERPKG-001`–`ERPKG-006`, `CLEVAL-001`–`CLEVAL-004`, and
+    `TGEVAL-012`–`TGEVAL-017`; the result-packages and Crystal Lattice
+    technical specifications now name the `inherited` availability state,
+    and the suite specification records the completed migration and the
+    scenario input-definitions export.
+  - Verification: 148 agent-evaluation tests and 63 suite tests pass (the
+    suite gained the 3 synthetic package tests); both committed packages
+    pass `check` after fixture removal; all relative links in the updated
+    pages resolve; ruff and black pass on the changed files; the
+    CWD-sensitive `test_frozen_candidate_datasets_are_complete`
+    (documentation_standard fixtures, unrelated to this change) passes from
+    the repository root as before.
+
+## Completion Notes
+
+- Outcome: the reusable result-package system is complete. Both completed
+  task-guidance evaluations are preserved as self-contained, regenerable
+  packages under `maintainer/docs/evaluations/task-guidance/results/`, the
+  scenario input definitions live under
+  `maintainer/docs/evaluations/task-guidance/scenarios/`, completed
+  evaluation datasets no longer serve as suite test fixtures, and every
+  navigation entry point leads maintainers to the durable results.
+- Requirement evidence: `ERPKG-001`–`006` (shared package support),
+  `CLEVAL-001`–`004` (Crystal Lattice review projection), and
+  `TGEVAL-012`–`017` (task-guidance adapter, navigation, migration) are
+  implemented, verified, and documented in their owning ledgers. Human review
+  gates were passed at the representative-cell review and the two
+  user-approved package review rounds.
+- Verification performed: byte-identical regeneration of both packages from
+  the frozen datasets (parity 0 problems before fixture removal; package
+  `check` passing after), byte-identical determinism of the synthetic
+  collect/render/check round trip, secret scans with no credential values,
+  full test suites green (148 + 63), and link checks over every updated
+  navigation page.
+- Historical limitations preserved in the package indexes: GLM runs saved no
+  provider usage metadata (usage and cost remain unknown), GPT same-agent
+  continuations carry no delivery hash (delivered instructions are inherited
+  from the producer run), and session transcripts intentionally omit full
+  tool results and encrypted reasoning.
+- Deferred/unresolved: the ~720 MB raw run tree under
+  `tmp/agent-evaluation/task-guidance/` is kept until the package format is
+  declared stable (user decision pending); the pre-existing cross-suite
+  pytest isolation quirk and the CWD-sensitive documentation_standard
+  dataset test remain known, unchanged issues outside this task's scope;
+  guidance promotion decisions remain in task 090.

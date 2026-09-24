@@ -286,9 +286,15 @@ the focused confirmation passes.
 
 ## Preserved evidence
 
-- [Frozen candidate records](../../../agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b1_results.json)
-- [Candidate machine status and cohort scores](../../../agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b1_results.md)
-- [Frozen baseline records](../../../agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b0_results.json)
+- [Candidate result package](results/20260919-task-mechanics-b1/index.md) —
+  the committed, self-contained records for this evaluation: every run,
+  generated task file, session transcript, semantic assessment, and cost row,
+  with [matrix](results/20260919-task-mechanics-b1/matrix.md) and
+  [cost](results/20260919-task-mechanics-b1/costs.md) views
+- [Baseline result package](results/20260919-current-guidance-b0/index.md)
+- [Scenario input definitions](scenarios/index.md) — the reviewed targets,
+  exact prompts, shared configs and system messages, and every file added to
+  the workspaces beyond the repository checkout
 - [Candidate source](../../../guidance/candidates/task-mechanics-b1/README.md)
 - [Reproduction and inspection guide](reproducing-and-inspecting-results.md)
 - [Execution task](../../../../tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md)

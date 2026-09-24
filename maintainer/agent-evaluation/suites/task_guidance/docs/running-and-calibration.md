@@ -118,6 +118,15 @@ Freeze the selected attempts:
     --semantic-attempt b0-metrics1)
 ```
 
+The consolidated dataset is written under
+`tmp/agent-evaluation/task-guidance/consolidated/<dataset-id>.json` by default;
+pass `--output` to place it elsewhere. Collect the durable result package
+from a consolidated dataset with
+`python -m suites.task_guidance.result_package collect --dataset <key>
+--frozen <consolidated.json>`; see
+[Reproducing and inspecting results](../../../../docs/evaluations/task-guidance/reproducing-and-inspecting-results.md)
+for the full package workflow.
+
 Record discovery reads only `profile/runs/run-id/records/` paths, so semantic
 workers may run in parallel without traversing workspaces being cleaned up by
 other processes. Use at most eight concurrent processes per provider.

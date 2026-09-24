@@ -562,7 +562,8 @@ guidance.
   `maintainer/docs/evaluations/task-guidance/20260919-current-guidance-baseline-results.md`.
   Candidate interpretation:
   `maintainer/docs/evaluations/task-guidance/20260919-task-mechanics-b1-results.md`.
-  Frozen records:
-  `maintainer/agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b0_results.json`.
-  Candidate records:
-  `maintainer/agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b1_results.json`.
+  Durable result packages (the frozen dataset copies under suite fixtures
+  were removed by task 095 after parity was proven):
+  `maintainer/docs/evaluations/task-guidance/results/20260919-current-guidance-b0/`
+  and
+  `maintainer/docs/evaluations/task-guidance/results/20260919-task-mechanics-b1/`.

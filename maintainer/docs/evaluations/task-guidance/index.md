@@ -18,7 +18,7 @@ Read these pages in order:
    practical-baseline direction.
 5. [Reproducing and inspecting results](reproducing-and-inspecting-results.md)
    — provides the commands, identities, raw-record paths, report-generation
-   flow, and cell-level inspection examples.
+   flow, and result-package navigation.
 
 ## Current status
 
@@ -39,9 +39,25 @@ the practical task-mechanics baseline.
 
 ## Machine evidence
 
-Frozen JSON, prompts, generated task files, plan responses, tool telemetry,
-and semantic assessments remain under
-`maintainer/agent-evaluation/suites/task_guidance/fixtures/results/`.
+Each completed evaluation is preserved as a self-contained result package
+under `results/`:
+
+- [Current-guidance baseline package](results/20260919-current-guidance-b0/index.md)
+- [Task-mechanics candidate package](results/20260919-task-mechanics-b1/index.md)
+
+A package holds the committed machine records (per-run `run.json`, session
+transcripts, generated task files, semantic assessments, aggregate matrix
+source, usage and cost inventory) plus regenerated human views
+([matrix](results/20260919-task-mechanics-b1/matrix.md),
+[costs](results/20260919-task-mechanics-b1/costs.md)). Start from its
+`index.md`; every judgment links the exact run or stage directory it is about.
+
+The [scenario input definitions](scenarios/index.md) export holds what the
+evaluations fed the models: reviewed targets, exact prompts, prompt
+templates, sanitized effective configs, compiled system messages, and every
+file added to the workspaces beyond the repository checkout, with one
+`input.md` per stage and assessment. Git tracks its evolution between
+evaluations; each result package freezes its own copies.
 
 The evaluator's detailed contracts remain under
 `maintainer/agent-evaluation/suites/task_guidance/scenarios/`. The

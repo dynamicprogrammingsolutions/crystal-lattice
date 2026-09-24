@@ -14,24 +14,31 @@ runs may consume hosted-model quota and can take several minutes per cell.
 | Human test plan | `maintainer/docs/evaluations/task-guidance/test-plan.md` |
 | Human test-case descriptions | `maintainer/docs/evaluations/task-guidance/test-cases.md` |
 | Dated human interpretations | `maintainer/docs/evaluations/task-guidance/*-results.md` |
+| Committed result packages | `maintainer/docs/evaluations/task-guidance/results/<evaluation>/` |
+| Scenario input definitions export | `maintainer/docs/evaluations/task-guidance/scenarios/` |
 | Machine-readable reviewed targets | `maintainer/agent-evaluation/suites/task_guidance/targets/` |
 | Project fixtures and canonical handoffs | `maintainer/agent-evaluation/suites/task_guidance/fixtures/` |
-| Frozen consolidated JSON and generated machine summaries | `maintainer/agent-evaluation/suites/task_guidance/fixtures/results/` |
 | Raw local run records | `tmp/agent-evaluation/task-guidance/<profile>/runs/<run-id>/` |
 | Current portable guidance | `maintainer/guidance/current/` |
 | Task-mechanics candidate v1 | `maintainer/guidance/candidates/task-mechanics-b1/` |
 
-The frozen JSON embeds generated task files, plan responses, semantic
-assessments, validity, provenance, and tool metrics. A reviewer normally starts
-there. Raw run directories are useful for the full model session, exact
-delivery observation, workspace diff, cache status, and retries.
+A result package is the durable, self-contained record of one completed
+evaluation: per-run `run.json`, full session transcripts, generated task
+files, semantic assessments, the aggregate matrix source, and the usage and
+cost inventory, plus regenerated human views. The scenario input definitions
+export holds what the evaluations fed the models: reviewed targets, exact
+prompts, shared configs and system messages, and every file added to the
+workspaces beyond the repository checkout. Raw run directories remain useful
+for the full provider session, exact delivery observation, workspace diff,
+cache status, and retries; they are local and may be absent on another
+machine.
 
 ## Completed result identities
 
-| Evaluation | Dataset | Producer and handoff attempt | Semantic attempt | Frozen JSON |
+| Evaluation | Dataset | Producer and handoff attempt | Semantic attempt | Result package |
 |---|---|---|---|---|
-| [Stage B0 — Current-guidance baseline](test-plan.md#stage-b0--current-guidance-baseline) | `task-guidance-b0-20260919` | `b0-v5-r1` | `b0-metrics1` | `task_guidance_b0_results.json` |
-| [Stage B1 — Task-mechanics candidate](test-plan.md#stage-b1--task-mechanics-candidate) v1 | `task-guidance-b1-20260919` | `b1-v1-r1` | `b1-metrics1` | `task_guidance_b1_results.json` |
+| [Stage B0 — Current-guidance baseline](test-plan.md#stage-b0--current-guidance-baseline) | `task-guidance-b0-20260919` | `b0-v5-r1` | `b0-metrics1` | [20260919-current-guidance-b0](results/20260919-current-guidance-b0/index.md) |
+| [Stage B1 — Task-mechanics candidate](test-plan.md#stage-b1--task-mechanics-candidate) v1 | `task-guidance-b1-20260919` | `b1-v1-r1` | `b1-metrics1` | [20260919-task-mechanics-b1](results/20260919-task-mechanics-b1/index.md) |
 
 The dataset identifies the intended result set. The run attempt selects
 producer, handoff, or continuation records. The semantic attempt selects the
@@ -231,10 +238,13 @@ Set `AGENT_EVAL_TASK_ALLOW_PARTIAL=1` only for explicitly labeled calibration
 or blocked-provider analysis. A partial semantic pass does not complete a
 stage.
 
-## Consolidate and generate the machine report
+## Consolidate and collect the result package
 
-The historical `freeze_b0` module is the general consolidation command for
-both completed stages. It writes formatted JSON and a Markdown status summary.
+The `freeze_b0` module is the consolidation command for both completed
+stages. It reads the raw run records under the artifact root and writes one
+consolidated dataset JSON plus a Markdown status summary. Its default output
+lives under `<artifact-root>/consolidated/<dataset-id>.json`; pass `--output`
+to place it elsewhere.
 
 For
 [Stage B1 — Task-mechanics candidate](test-plan.md#stage-b1--task-mechanics-candidate)
@@ -249,140 +259,98 @@ v1:
     --semantic-attempt "$AGENT_EVAL_TASK_GUIDANCE_SEMANTIC_ATTEMPT" \
     --dataset-id "$AGENT_EVAL_TASK_DATASET_ID" \
     --label "task-mechanics candidate" \
-    --output suites/task_guidance/fixtures/results/task_guidance_b1_results.json)
+    --output "$AGENT_EVAL_ARTIFACT_ROOT/consolidated/task_guidance_b1_results.json")
 ```
-
-For an independent reproduction, point `--output` into `tmp/` instead of
-overwriting the repository's frozen result.
 
 The command generates:
 
-- `<output>.json`: complete consolidated machine evidence;
-- `<output>.md`: generated stage status and cohort scores.
+- `<output>`: complete consolidated machine evidence;
+- `<output>` with a `.md` suffix: generated stage status and cohort scores.
+
+Collect the durable result package from a consolidated dataset without any
+model request:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  python -m suites.task_guidance.result_package collect \
+    --dataset b1 \
+    --artifact-root "$AGENT_EVAL_ARTIFACT_ROOT" \
+    --frozen "$AGENT_EVAL_ARTIFACT_ROOT/consolidated/task_guidance_b1_results.json" \
+    --output ../docs/evaluations/task-guidance/results/20260919-task-mechanics-b1)
+```
+
+`--dataset` selects the evaluation identity (attempts, guidance bundle,
+package name); `--frozen` selects the consolidated dataset JSON; `--cells`
+collects a partial package for selected `scenario:profile:effort` cells;
+`--no-reconstruction` skips GPT compiled-message reconstruction. Collection
+ends with the package check, so a collected package always passes `check`.
+
+Regenerate the human views of a committed package after changing the report
+configuration, and verify a package at any time:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  python -m suites.task_guidance.result_package render \
+    --package ../docs/evaluations/task-guidance/results/20260919-task-mechanics-b1)
+
+(cd maintainer/agent-evaluation && \
+  python -m suites.task_guidance.result_package check \
+    --package ../docs/evaluations/task-guidance/results/20260919-task-mechanics-b1)
+```
+
+The scenario input definitions export regenerates from the suite sources and
+one guidance bundle:
+
+```bash
+(cd maintainer/agent-evaluation && \
+  python -m suites.task_guidance.result_package extract-scenarios \
+    --bundle ../guidance/candidates/task-mechanics-b1)
+```
 
 The dated human reports are not generated mechanically. Their author reviews
-the frozen JSON, raw records, scenario targets, and model outputs; explains
-patterns and limitations; and records the resulting decision.
+the result package, scenario definitions, raw records, and model outputs;
+explains patterns and limitations; and records the resulting decision.
 
 ## Inspect a completed result
 
-Start with the generated machine summary:
+Start from the package index of the evaluation you are reviewing:
 
-```bash
-less maintainer/agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b1_results.md
+```text
+maintainer/docs/evaluations/task-guidance/results/20260919-task-mechanics-b1/index.md
 ```
 
-Then use the dated interpretation:
+The [matrix](results/20260919-task-mechanics-b1/matrix.md) view is the
+aggregate entry point. Every cohort row is the average of its detail rows,
+and every detail row links both the judgment rendering and the run or stage
+directory it is about. To answer "what did GPT-5.6-luna xhigh produce for the
+book-discovery decomposition case, and how was it judged":
 
-```bash
-less maintainer/docs/evaluations/task-guidance/20260919-task-mechanics-b1-results.md
-```
+1. Open [matrix](results/20260919-task-mechanics-b1/matrix.md) and find the
+   `GPT xhigh` cohort row, then its detail rows.
+2. Follow the detail row's run link to
+   [scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh](results/20260919-task-mechanics-b1/scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/index.md).
+3. Read the generated task files under `task-files/`, the full session
+   transcript in `session.md` (exact prompt, tool activity, verbatim
+   response, delivered instructions and config links), and the slim
+   `run.json` for lineage and validity.
+4. Follow the detail row's judgment link to
+   [assessment/task-creation/results.md](results/20260919-task-mechanics-b1/scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/results.md)
+   for the rubric, per-dimension statuses and scores, occurrence descriptions,
+   and the task paths involved in each finding.
 
-### Print the exact generated task files for one cell
+The same navigation answers handoff questions: the handoff detail rows link
+`plan-retain`, `plan-omit`, `control`, and `continuation` stage directories,
+and [costs.md](results/20260919-task-mechanics-b1/costs.md) holds one usage
+and cost row per run. The [scenario input definitions](scenarios/index.md)
+export shows exactly what each stage was given: models, tools, delivered
+instructions, config, workspace revision, fixture upstream, every file added
+to the workspace, and the exact prompt.
 
-Set a frozen result and cell identity:
-
-```bash
-RESULT=maintainer/agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b1_results.json
-SCENARIO=tg04-flask-vue-discovery-decomposition
-PROFILE=gpt
-EFFORT=xhigh
-```
-
-Print every generated task file:
-
-```bash
-jq -r \
-  --arg scenario "$SCENARIO" \
-  --arg profile "$PROFILE" \
-  --arg effort "$EFFORT" '
-    .producer_records[]
-    | select(
-        .scenario_id == $scenario
-        and .producer.profile == $profile
-        and .producer.reasoning_effort == $effort
-      )
-    | .task_files
-    | to_entries[]
-    | "\n===== \(.key) =====\n\(.value)"
-  ' "$RESULT" | less
-```
-
-This is the quickest reliable answer to questions such as: “What task files
-did GPT-5.6-luna xhigh create for the failed book-discovery decomposition
-case?”
-
-### Print that cell's semantic assessment
-
-```bash
-jq \
-  --arg scenario "$SCENARIO" \
-  --arg profile "$PROFILE" \
-  --arg effort "$EFFORT" '
-    .semantic_records[]
-    | select(.scenario_id == $scenario)
-    | .assessment.assessments[]
-    | select(
-        .producer.profile == $profile
-        and .producer.reasoning_effort == $effort
-      )
-  ' "$RESULT" | less
-```
-
-The assessment contains:
-
-- missing or added outcomes;
-- reviewed-deliverable mappings;
-- task paths involved in each problem;
-- separate quality dimensions and occurrence descriptions;
-- the overall semantic summary.
-
-Read the occurrence description first, then open the task paths listed in that
-occurrence using the previous command. This connects a report score to the
-exact text that produced it.
-
-### Find the raw run directory
-
-Frozen results intentionally do not depend on an absolute run path. To find
-the corresponding local producer record:
-
-```bash
-find tmp/agent-evaluation/task-guidance/gpt/runs \
-  -path '*/records/task-guidance-producer.json' -print0 |
-xargs -0 jq -r \
-  --arg scenario "$SCENARIO" \
-  --arg effort "$EFFORT" '
-    select(
-      .scenario_id == $scenario
-      and .producer.profile == "gpt"
-      and .producer.reasoning_effort == $effort
-      and .run_attempt == "b1-v1-r1"
-      and .valid == true
-    )
-    | input_filename
-  ' |
-sort |
-tail -n 1
-```
-
-The final `sort`/`tail` selects the newest timestamped valid run when a cell
-has retries. From the reported path, move two directories up to the run
-directory. Useful files are:
-
-- `result.md` — run identity, final response, captured value, and canonical
-  evidence;
-- `records/task-guidance-producer-summary.md` — concise model and task-file
-  summary;
-- `records/task-guidance-producer.json` — exact generated task files and
-  provenance;
-- `raw/workspace/git-diff.patch` — the task-file changes as a patch;
-- `raw/environment/crystal-lattice-session.json` — full saved conversation;
-- `raw/environment/crystal-lattice-observation.json` — observed execution
-  result.
-
-Raw local directories may be absent on another machine. The frozen JSON still
-contains the generated task text and the semantic judgment needed for normal
-review.
+Raw run directories are only needed for provider-level forensics — the full
+saved provider session, exact delivery observation, workspace diff, cache
+status, and retries. They live under
+`tmp/agent-evaluation/task-guidance/<profile>/runs/<run-id>/` and may be
+absent on another machine; the committed package remains self-contained.
 
 ## How results are assessed
 
@@ -412,22 +380,3 @@ regression:
    representative passing and failing task files.
 9. **Decision:** weigh severity and recurrence against the known cost of
    leaving current guidance unchanged. Record what remains unproven.
-
-## Current inspection limitation and recommended improvement
-
-The `jq` commands above are reliable but not ideal for frequent review. A
-small future read-only command should expose the same data without requiring
-query syntax, for example:
-
-```text
-python -m suites.task_guidance.inspect_result \
-  --results <frozen-json> \
-  --scenario <scenario-id> \
-  --profile gpt \
-  --effort xhigh \
-  --show task-files,assessment,raw-path
-```
-
-That command is not implemented yet. It should only format existing records;
-it must not rerun models, change result selection, or replace the frozen JSON
-as the source of truth.

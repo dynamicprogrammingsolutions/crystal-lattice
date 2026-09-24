@@ -137,8 +137,14 @@ The candidate has now been evaluated separately; see
 
 ## Preserved evidence
 
-- [Frozen baseline records](../../../agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b0_results.json)
-- [Machine status and cohort scores](../../../agent-evaluation/suites/task_guidance/fixtures/results/task_guidance_b0_results.md)
+- [Result package](results/20260919-current-guidance-b0/index.md) — the
+  committed, self-contained records for this evaluation: every run, generated
+  task file, session transcript, semantic assessment, and cost row, with
+  [matrix](results/20260919-current-guidance-b0/matrix.md) and
+  [cost](results/20260919-current-guidance-b0/costs.md) views
+- [Scenario input definitions](scenarios/index.md) — the reviewed targets,
+  exact prompts, shared configs and system messages, and every file added to
+  the workspaces beyond the repository checkout
 - [Evaluator contracts](../../../agent-evaluation/suites/task_guidance/scenarios/index.md)
 - [Suite specification](../../../agent-evaluation/suites/task_guidance/docs/development/specification.md)
 - [Execution task](../../../../tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md)

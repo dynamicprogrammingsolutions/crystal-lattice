@@ -228,7 +228,8 @@ results, and redacts authentication or secret configuration. Complete local
 diagnostics may remain in the run directory.
 
 The projection records whether important information was captured directly,
-reconstructed from saved inputs, or unavailable. Reconstructed content is
+reconstructed from saved inputs, inherited from a lineage parent such as the
+producer run of a continuation, or unavailable. Reconstructed content is
 verified only when it matches an independently recorded identity such as a
 hash.
 

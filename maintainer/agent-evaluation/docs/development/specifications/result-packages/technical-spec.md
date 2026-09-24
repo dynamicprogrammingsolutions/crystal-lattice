@@ -152,8 +152,9 @@ provenance to distinguish normalized content from an exact original.
 
 Historical data may be collected from saved runs without model calls.
 Directly captured values remain distinguished from deterministic
-reconstructions. A reconstruction is verified only when it matches an
-independently recorded hash or equivalent identity.
+reconstructions and from values inherited through run lineage. A
+reconstruction is verified only when it matches an independently recorded
+hash or equivalent identity.
 
 Migration must prove that selected runs, primary outputs, and assessment
 results agree with the previously maintained records before old copies are

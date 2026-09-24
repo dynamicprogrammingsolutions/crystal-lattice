@@ -274,11 +274,21 @@ Usage and estimated cost are supporting context for each run. They do not
 change task-quality judgments, compensate for missing outcomes, or turn tool
 efficiency into a primary acceptance measure.
 
-The current-guidance and task-mechanics evaluations are migrated from saved
-runs without new producer or assessor requests. Migration preserves selected
+The current-guidance and task-mechanics evaluations were migrated from saved
+runs without new producer or assessor requests. Migration preserved selected
 run identity, generated task content, semantic results, invalid upstream
-records, and known unavailable data before existing frozen copies are removed
-from test-fixture ownership.
+records, and known unavailable data before the frozen dataset copies were
+removed from test-fixture ownership. The completed datasets are regenerated
+through the consolidation command when needed; deterministic package behavior
+is covered by synthetic evaluation data in the suite tests.
+
+A separate scenario input-definitions export holds what evaluations feed the
+models: reviewed targets, exact prompts, prompt templates, sanitized effective
+configs, compiled system messages, every file added to the workspaces beyond
+the repository checkout, and one input page per stage and assessment. It is
+generated from one guidance bundle at a time; git tracks its evolution between
+evaluations while each result package freezes its own copies of the material
+it was produced with.
 
 ## Non-goals
 
