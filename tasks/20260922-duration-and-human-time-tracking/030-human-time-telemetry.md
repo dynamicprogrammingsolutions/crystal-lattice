@@ -29,7 +29,7 @@ Dropped by the 2026-09-24 simplification (superseding earlier approved requireme
 - [x] The frontend collects activity and turns it into actual durations: an activity burst opens a span, inactivity closes it (from = first activity, to = last activity); spans carry the session id of the screen the user was active on, or null for session-less surfaces (e.g. the session list).
 - [x] The frontend stores spans in its cache and they are not lost until successfully uploaded: spans persist across app restarts, and failed uploads retain every span for retry.
 - [x] Each upload batch carries a request id that stays stable across retries of that batch (server-side request-id dedup makes retries idempotent); a new batch gets a new id.
-- [x] Uploads are efficient and non-conflicting: spans upload in batches (not per span), defer while the connection is busy (including waiting for idle when a connection first opens), and flush after user inactivity and after collected spans age past a limit.
+- [x] Uploads are efficient and reliable on mobile: closed spans upload in debounced batches (not per span) without waiting for agent work, pending spans flush when the connection becomes usable and when the app foregrounds, and transient failures retry on a fixed timer (superseded by approved follow-up 035 on 2026-09-24).
 - [x] A frontend setting — in the global settings surface, alongside the font-size choices — opts the user in to time tracking, and a frontend-owned configuration right under it names the telemetry plugin id (defaulting to the plugin name), because users own the plugins they enable (user decision, 2026-09-24).
 - [x] If time tracking is enabled but the plugin is not enabled or not working (the upload action fails definitively), the app warns the user once through the standard notification display developed for plugin-emitted notifications (the top orange warning banner, not a popup); transient failures retry silently (user decision, 2026-09-24).
 - [x] The frontend uploads through the existing `executeAction` path.
@@ -54,7 +54,7 @@ Dropped by the 2026-09-24 simplification (superseding earlier approved requireme
 - Footer element: `Human time: {{data}}` reading `metadata.human_time_session_total_formatted`, config-gated like the other duration fields (show toggle defaulting on); the extension stamps the raw + formatted totals at finalize from the store.
 - Report: a human-time line in the session report (simple SUM); date-based reports are a follow-up.
 - Frontend collector scope: the mobile app's collector is in scope (user decision, 2026-09-24) — span tracking, durable caching, batched non-conflicting upload, opt-in setting, and collectors (chat screen and session-less surfaces); the desktop and terminal collectors remain follow-up work consuming the same contract.
-- Frontend collection outcomes (user, 2026-09-24): spans must be stored at the frontend and not lost until successfully uploaded; upload must be efficient (batched) and must not conflict with other work (e.g. wait for an idle connection when the connection is first opened); an opt-in setting in the global settings surface (where font sizes are set) gates tracking.
+- Frontend collection outcomes (user, revised 2026-09-24 in follow-up 035): spans must be stored at the frontend and not lost until successfully uploaded; upload is debounced and batched, does not wait for ordinary agent work, flushes on foreground/connection availability, and retries transient failures; an opt-in setting in the global settings surface gates tracking.
 
 ## Execution plan — Phase A: backend telemetry (store, ingestion, report)
 
@@ -348,7 +348,7 @@ New `e2e/humanTimeTelemetry.e2e.test.ts` + `detox:test:human-time:ios` / `detox:
 |---|---|
 | The frontend computes durations (spans close on inactivity; `{session_id\|null, from, to}`) | Tier 3 tracker tests + Tier 2 screen-level tests; e2e drives real activity on-platform |
 | Spans stored at the frontend, not lost until successfully uploaded | Tier 3 cache tests (restart survival, remove-only-after-confirm); uploader failure test retains spans |
-| Upload efficient (batched) and non-conflicting | Tier 3 uploader tests (batch cap, drain loop, busy deferral, idle-first-open); the e2e exercises the natural flush path |
+| Upload efficient and reliable (debounced batches, foreground/connection flush, fixed transient retry, no agent-work gate) | Follow-up 035 uploader/provider tests plus the existing real-backend integration |
 | Opt-in toggle + frontend-owned telemetry-plugin config next to font sizes | Tier 2 settings tests (render, persist, gate); e2e enables tracking through the real settings UI |
 | One-time orange-banner warning on definitive plugin failure | Tier 2 warning tests (once, not on transient failures, re-armed on setting change) + real-backend Jest definitive-failure classification/retention |
 | Uploads via `executeAction` with a request id stable across retries | Tier 3 uploader tests (action shape, `request_id`, `actionOwner`) + real-backend Jest retry dedup + focused Detox upload into the real plugin store |
@@ -364,3 +364,15 @@ New `e2e/humanTimeTelemetry.e2e.test.ts` + `detox:test:human-time:ios` / `detox:
 ## Task relations
 
 - Takes over `tasks/20260801-duration-and-stats-tracking/040-human-time-telemetry-plugin.md` and `050-human-time-tracking-plugin.md` (superseded; their JSONL buffer, read pointer, and two-plugin split are replaced by store rows and queries).
+
+## Post-completion follow-up
+
+Subtask
+`tasks/20260922-duration-and-human-time-tracking/035-human-time-upload-and-diagnostics.md`
+completed the user-approved upload simplification on 2026-09-24. Mobile
+uploads no longer wait for agent work or max-age polling: closed spans upload
+after a two-second debounce, pending spans flush on connection availability
+and app foregrounding, and transient failures retry after 30 seconds. The
+follow-up also added compact Global Settings diagnostics, user-facing
+human-time diagnostics to Show duration report, and all-or-none ingestion so
+positive skipped counts cannot silently drain the frontend cache.

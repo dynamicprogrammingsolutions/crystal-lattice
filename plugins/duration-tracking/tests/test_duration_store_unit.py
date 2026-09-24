@@ -935,6 +935,72 @@ def test_human_time_project_totals_include_session_less(tmp_path: Path) -> None:
     ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
 
 
+def test_human_time_report_aggregates_include_sessionless_time(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    batches = [
+        (
+            "/tmp/alpha",
+            "alpha-batch",
+            [
+                _span("alpha-1", "08:00", "08:10"),
+                _span(None, "08:20", "08:25"),
+                _span("alpha-2", "08:30", "08:32"),
+            ],
+        ),
+        (
+            "/tmp/beta",
+            "beta-batch",
+            [
+                _span("beta-1", "09:00", "09:08"),
+                _span(None, "09:10", "09:11"),
+            ],
+        ),
+        ("/tmp/gamma", "gamma-batch", [_span("gamma-1", "10:00", "10:03")]),
+        ("/tmp/delta", "delta-batch", [_span("delta-1", "11:00", "11:02")]),
+    ]
+    for working_directory, request_id, spans in batches:
+        result = _record_spans(
+            db_path,
+            spans,
+            request_id=request_id,
+            working_directory=working_directory,
+        )
+        assert result["skipped"] == 0
+
+    assert duration_store.human_time_overall_totals(db_path) == {
+        "span_count": 7,
+        "total_ms": 31 * 60 * 1000,
+        "sessionless_span_count": 2,
+        "sessionless_ms": 6 * 60 * 1000,
+    }
+
+    sessions = duration_store.top_human_time_sessions(db_path, limit=10)
+    assert [entry["session_id"] for entry in sessions] == [
+        "alpha-1",
+        "beta-1",
+        "gamma-1",
+        "alpha-2",
+        "delta-1",
+    ]
+    assert sessions[0]["total_ms"] == 10 * 60 * 1000
+
+    projects = duration_store.top_human_time_projects(db_path, limit=3)
+    assert [entry["working_directory"] for entry in projects] == [
+        "/tmp/alpha",
+        "/tmp/beta",
+        "/tmp/gamma",
+    ]
+    assert projects[0] == {
+        "working_directory": "/tmp/alpha",
+        "span_count": 3,
+        "total_ms": 17 * 60 * 1000,
+        "sessionless_span_count": 1,
+        "sessionless_ms": 5 * 60 * 1000,
+    }
+
+
 def test_human_time_spans_request_id_dedup(tmp_path: Path) -> None:
     db_path = tmp_path / "durations.sqlite3"
     _record_spans(db_path, [_span("s1", "08:00", "08:05")], request_id="r1")
@@ -1195,7 +1261,9 @@ def test_human_time_timestamp_forms_normalize(tmp_path: Path) -> None:
     assert rows[1]["duration_ms"] == 150500
 
 
-def test_human_time_skips_malformed_spans(tmp_path: Path) -> None:
+def test_human_time_rejects_malformed_batch_without_partial_recording(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "durations.sqlite3"
     result = _record_spans(
         db_path,
@@ -1211,15 +1279,21 @@ def test_human_time_skips_malformed_spans(tmp_path: Path) -> None:
         ],
     )
     assert result == {
-        "recorded": 1,
+        "recorded": 0,
         "merged": 0,
         "skipped": 7,
         "absorbed": 0,
         "duplicate": False,
     }
-    assert _human_time_rows(db_path) == [
-        _expected_span_row("s1", "08:00", "08:05", request_id="req-1")
-    ]
+    assert _human_time_rows(db_path) == []
+
+    retry = _record_spans(
+        db_path,
+        [_span("s1", "08:00", "08:05")],
+        request_id="req-1",
+    )
+    assert retry["duplicate"] is False
+    assert retry["recorded"] == 1
 
 
 def test_human_time_span_without_working_directory_skipped(tmp_path: Path) -> None:
@@ -1232,6 +1306,29 @@ def test_human_time_span_without_working_directory_skipped(tmp_path: Path) -> No
     assert result["skipped"] == 1
     assert result["recorded"] == 0
     assert _human_time_rows(db_path) == []
+
+
+def test_human_time_diagnostics_reports_latest_accepted_upload(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _record_spans(
+        db_path,
+        [_span("s1", "08:00", "08:05")],
+        request_id="req-diagnostics",
+    )
+
+    diagnostics = duration_store.human_time_diagnostics(
+        db_path,
+        working_directory="/tmp/ws",
+        session_id="s1",
+    )
+
+    assert diagnostics["span_count"] == 1
+    assert diagnostics["total_ms"] == 5 * 60 * 1000
+    assert diagnostics["last_span_to"] == "2026-09-25T08:05:00.000000+00:00"
+    assert diagnostics["last_request_id"] == "req-diagnostics"
+    assert isinstance(diagnostics["last_processed_at"], str)
 
 
 def test_human_time_batch_cap(tmp_path: Path) -> None:

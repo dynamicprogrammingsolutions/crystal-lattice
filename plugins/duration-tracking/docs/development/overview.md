@@ -125,9 +125,21 @@ The action returns span-level counts
 (`recorded`, `merged`, `skipped`, `absorbed`, `duplicate`) and never
 mutates sessions. Working-directory resolution: spans with a session id
 load that session's resolved config (the same keying as the LLM/tool
-rows; unknown sessions skip); session-less spans use the
-`application.duration_tracking.working_directory` config value — without
-it they cannot be keyed and skip.
+rows; an unknown session contributes a skipped count); session-less spans use the
+`application.duration_tracking.working_directory` config value when set,
+otherwise the application plugin defaults it from the runtime `WORKING_DIR`
+(the absolute server launch directory). Explicit configuration still wins.
+Without either value, session-less spans cannot be keyed and contribute a
+skipped count. This default affects only project attribution; database
+resolution remains shared with duration tracking and continues to use the
+Crystal data directory unless explicitly overridden.
+
+Validation and target resolution are all-or-none for one upload batch. If
+any span is malformed, references an unknown session, or cannot resolve a
+working directory, the action returns a positive `skipped` count without
+recording a request marker or any spans from that batch. Frontends therefore
+retain and diagnose the complete batch instead of silently deleting a
+partially accepted upload.
 
 ### Frontend collection (mobile)
 
@@ -147,12 +159,24 @@ The mobile app owns collection (see its
   until the backend confirms the batch, so restarts and failed uploads do
   not lose data. Uploads batch up to 100 spans per call with a
   content-derived `request_id` (stable across retries, fresh per batch),
-  debounce 2s after a span closes, force-flush spans older than 5 minutes,
-  and defer while a request is running on that connection.
+  debounce 2s after a span closes, and flush when a connection becomes
+  usable or the app returns to the foreground. Agent work does not defer
+  telemetry uploads.
 - **Failure handling.** Transient failures retain the spans for retry.
   Definitive failures (HTTP 404/400 — e.g. an unknown plugin id) retain the
   spans too, and the app shows a one-time dismissible warning banner until
-  the setting changes.
+  the setting changes. Transient failures retry on a fixed 30-second timer;
+  a positive server `skipped` count causes the frontend to isolate the batch,
+  upload and remove each accepted span, and retain only rejected entries.
+  Rejected span data does not imply that the plugin is unavailable and does
+  not trigger that warning banner.
+- **Diagnostics.** A compact section under the Global Settings telemetry
+  plugin field shows collection/connection state, the open and last collected
+  surfaces, pending span count, latest upload result, and a ten-row recent
+  entries table with upload status, session id, end time, and duration. It
+  provides Refresh and Upload now controls; Upload now closes and persists
+  the open span before flushing. Uploaded history is scoped to the current app
+  run, while pending entries are restored from the durable cache.
 
 ### Deduplication and overlap rules
 
@@ -192,8 +216,13 @@ anchor on start or end time, never both.
   `metadata.human_time_session_total_formatted`, gated by its own
   `show_human_time_status_total` config toggle (default on; independent
   of `show_duration_status_total`).
-- The report action includes a `- Human time: …` line for the current
-  session, shown when spans were recorded.
+- The report action includes the overall human-time total, the current
+  session's human time when available, the top 10 sessions by human time, and
+  the top 3 projects. Project totals include all spans and show the
+  session-less portion in its own column. User-facing diagnostics follow:
+  session and session-less target readiness, shared versus separate stores,
+  stored session/application totals, and the latest accepted upload. Absolute
+  database paths are not displayed.
 
 ## Status bar
 
@@ -223,11 +252,13 @@ in the SQLite store and the report.
 
 The **Show duration report** session action renders the overall recorded
 duration, request count, and per-request average, plus the overall tool
-duration, tool call count, and tool average, the current session's human
-time total, and the top sessions and top projects by duration with a
-separate `Tools` column (project names resolve from `projects.json` under
-the Crystal data directory). Tool duration is never merged into the LLM
-total. Totals cover all recorded requests; there are no reset windows.
+duration, tool call count, and tool average. Its human-time section shows the
+overall total, current-session total, top 10 sessions, top 3 projects,
+session-less project time, and diagnostics. The existing LLM tables continue
+to show top sessions and projects by provider-call duration with a separate
+`Tools` column (project names resolve from `projects.json` under the Crystal
+data directory). Tool duration is never merged into the LLM total. Totals
+cover all recorded requests; there are no reset windows.
 
 ## Tests
 

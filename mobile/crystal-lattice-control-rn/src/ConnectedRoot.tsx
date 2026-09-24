@@ -181,26 +181,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     onMissingSessionIds: handleMissingSessionIds,
   });
 
-  // Human time telemetry defers uploads while the active connection has
-  // in-flight request work (a running status or an active request id).
-  const isConnectionBusy = useMemo(() => {
-    if (!activeConnectionId) return false;
-    const statuses = statusesByConnection[activeConnectionId];
-    if (
-      statuses &&
-      Object.values(statuses).some((status) => status.state === 'running')
-    ) {
-      return true;
-    }
-    const bySession = messagesCache[activeConnectionId];
-    if (bySession) {
-      for (const entry of Object.values(bySession)) {
-        if (entry.activeRequestId) return true;
-      }
-    }
-    return false;
-  }, [activeConnectionId, messagesCache, statusesByConnection]);
-
   useEffect(() => {
     if (!homeWorkspaceHydrated || connectionsLoading) return;
     const savedConnectionIds = new Set(connections.map((connection) => connection.id));
@@ -283,7 +263,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         <HumanTimeTelemetryProvider
           backend={backend}
           connectionId={activeConnectionId}
-          isBusy={isConnectionBusy}
         >
         <View style={styles.contentArea} testID="connected-root-content">
         <View
@@ -540,14 +519,14 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           )}
         </View>
         </View>
+        <GlobalSettingsModal
+          visible={globalSettingsVisible}
+          onRequestClose={() => setGlobalSettingsVisible(false)}
+        />
         </HumanTimeTelemetryProvider>
         </GlobalDisplayLayer>
       </ApplicationPluginsProvider>
 
-      <GlobalSettingsModal
-        visible={globalSettingsVisible}
-        onRequestClose={() => setGlobalSettingsVisible(false)}
-      />
       <ServerSettingsModal
         backend={backend}
         cacheKey={activeConnectionId ?? 'default'}

@@ -48,7 +48,6 @@ function makeUploader(
     getConnectionId: () => CONNECTION_ID,
     getPluginId: () => pluginId,
     isEnabled: () => true,
-    isBusy: () => false,
     store,
   });
 }
@@ -150,6 +149,7 @@ describe('human time span upload with a real backend (transport → server → p
         application: {
           duration_tracking: {
             working_directory: '${env:TEST_WORKSPACE}',
+            db_path: '${env:TEST_WORKSPACE}/human_time.sqlite',
           },
         },
       },
@@ -205,9 +205,7 @@ describe('human time span upload with a real backend (transport → server → p
     const store = createMemoryStore();
 
     const now = Date.now();
-    const spans = [
-      { sessionId, fromMs: now - 240_000, toMs: now - 180_000 },
-    ];
+    const spans = [{ sessionId, fromMs: now - 240_000, toMs: now - 180_000 }];
     await seedSpans(store, spans);
 
     const uploader = makeUploader(backend, store, 'duration_tracking_app');
@@ -247,5 +245,65 @@ describe('human time span upload with a real backend (transport → server → p
     const retained = await loadSpans(CONNECTION_ID, store);
     expect(retained).toHaveLength(1);
     expect(retained[0].sessionId).toBeNull();
+  });
+
+  it('isolates a rejected span so valid spans upload and only the rejected entry remains pending', async () => {
+    const server = await startServer();
+    const backend = new RestAgentBackend({
+      transport: new FetchTransport({ baseUrl: server.baseUrl }),
+    });
+    const created = await backend.createSession({ agentId: 'default' });
+    const sessionId = created.session.session_id;
+    const store = createMemoryStore();
+
+    const now = Date.now();
+    await seedSpans(store, [
+      {
+        sessionId: 'missing-session',
+        fromMs: now - 360_000,
+        toMs: now - 330_000,
+      },
+      { sessionId, fromMs: now - 240_000, toMs: now - 180_000 },
+      { sessionId: null, fromMs: now - 120_000, toMs: now - 90_000 },
+    ]);
+
+    const unavailableWarning = jest.fn();
+    const uploader = new HumanTimeSpanUploader({
+      getBackend: () => backend,
+      getConnectionId: () => CONNECTION_ID,
+      getPluginId: () => 'duration_tracking_app',
+      isEnabled: () => true,
+      onDefinitiveFailure: unavailableWarning,
+      store,
+    });
+    await expect(uploader.flush()).resolves.toBe('partial-failure');
+
+    const retained = await loadSpans(CONNECTION_ID, store);
+    expect(retained).toHaveLength(1);
+    expect(retained[0].sessionId).toBe('missing-session');
+    expect(unavailableWarning).not.toHaveBeenCalled();
+
+    const assistant = await runChatRequest(
+      backend,
+      sessionId,
+      'hello partial upload',
+    );
+    const metadata = (assistant.message.metadata ?? {}) as Record<
+      string,
+      unknown
+    >;
+    expect(metadata.human_time_session_total).toBe(60_000);
+
+    const report = await backend.executeAction({
+      pluginId: 'duration_tracking_app',
+      actionId: 'show_duration_report',
+      actionOwner: 'application',
+      inputs: { session_id: sessionId },
+    });
+    expect(report.status).toBe('ok');
+    expect(
+      (report.result as { human_time_summary?: { total_ms?: number } })
+        .human_time_summary?.total_ms,
+    ).toBe(90_000);
   });
 });

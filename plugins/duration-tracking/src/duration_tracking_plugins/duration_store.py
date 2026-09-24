@@ -672,33 +672,52 @@ def _insert_span_row(
     )
 
 
-def _apply_human_time_span(
-    conn: sqlite3.Connection,
+def _validated_human_time_span(
     span: Any,
     batch_working_directory: Optional[str],
-    request_id: str,
-    counts: Dict[str, int],
-) -> None:
-    """Validate one span and resolve it into the overlap-free span table."""
-
+) -> Optional[Dict[str, Any]]:
     if not isinstance(span, dict) or "session_id" not in span:
-        counts["skipped"] += 1
-        return
+        return None
     session_id = span["session_id"]
     if session_id is not None and (not isinstance(session_id, str) or not session_id):
-        counts["skipped"] += 1
-        return
+        return None
     working_directory = span.get("working_directory", batch_working_directory)
     if not isinstance(working_directory, str) or not working_directory:
-        counts["skipped"] += 1
-        return
+        return None
     start = _parse_span_timestamp(span.get("from"))
     end = _parse_span_timestamp(span.get("to"))
     if start is None or end is None or start > end:
-        counts["skipped"] += 1
-        return
-    from_time = _normalize_span_timestamp(start)
-    to_time = _normalize_span_timestamp(end)
+        return None
+    return {
+        "session_id": session_id,
+        "working_directory": working_directory,
+        "from_time": _normalize_span_timestamp(start),
+        "to_time": _normalize_span_timestamp(end),
+    }
+
+
+def count_invalid_human_time_spans(
+    spans: List[Any], *, working_directory: Optional[str] = None
+) -> int:
+    """Count spans that cannot be recorded by an all-or-none batch."""
+
+    return sum(
+        _validated_human_time_span(span, working_directory) is None for span in spans
+    )
+
+
+def _apply_human_time_span(
+    conn: sqlite3.Connection,
+    span: Dict[str, Any],
+    request_id: str,
+    counts: Dict[str, int],
+) -> None:
+    """Resolve one validated span into the overlap-free span table."""
+
+    session_id = span["session_id"]
+    working_directory = span["working_directory"]
+    from_time = span["from_time"]
+    to_time = span["to_time"]
 
     # 1. Same-session rows that overlap or touch merge into one union
     #    entry (loop defensively in case a chain expands the range).
@@ -831,11 +850,13 @@ def record_human_time_spans(
 
     Span-level counts: ``recorded`` spans stored at least one row, ``merged``
     spans merged with same-session-key rows, ``skipped`` invalid spans, and
-    ``absorbed`` valid spans fully covered by winning existing entries.
+    ``absorbed`` valid spans fully covered by winning existing entries. Batch
+    validation is all-or-none: if any span is invalid, no request marker or
+    span is recorded.
 
     Raises ``ValueError`` for structurally invalid batches (missing request
     id, non-list spans, more than ``HUMAN_TIME_SPANS_BATCH_CAP`` spans);
-    individual malformed spans skip with counts instead.
+    malformed spans return a skipped count without recording the batch.
     """
 
     if not isinstance(request_id, str) or not request_id.strip():
@@ -853,6 +874,11 @@ def record_human_time_spans(
         "skipped": 0,
         "absorbed": 0,
     }
+    validated_spans = [
+        _validated_human_time_span(span, working_directory) for span in spans
+    ]
+    invalid_count = sum(span is None for span in validated_spans)
+
     with _write_lock:
         conn = _connect(db_path)
         try:
@@ -865,15 +891,21 @@ def record_human_time_spans(
                 if already:
                     conn.rollback()
                     return {**counts, "duplicate": True}
+                if invalid_count:
+                    conn.rollback()
+                    return {
+                        **counts,
+                        "skipped": invalid_count,
+                        "duplicate": False,
+                    }
                 conn.execute(
                     "INSERT INTO human_time_requests (request_id, processed_at)"
                     " VALUES (?, ?)",
                     (request_id, utcnow_iso()),
                 )
-                for span in spans:
-                    _apply_human_time_span(
-                        conn, span, working_directory, request_id, counts
-                    )
+                for span in validated_spans:
+                    assert span is not None
+                    _apply_human_time_span(conn, span, request_id, counts)
                 conn.commit()
                 return {**counts, "duplicate": False}
             except Exception:
@@ -935,12 +967,165 @@ def human_time_project_totals(
         conn.close()
 
 
+def human_time_overall_totals(db_path: Path) -> Dict[str, Any]:
+    """Return human-time totals across every project and session."""
+
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*),
+                COALESCE(SUM(duration_ms), 0),
+                COALESCE(SUM(CASE WHEN session_id IS NULL THEN 1 ELSE 0 END), 0),
+                COALESCE(
+                    SUM(CASE WHEN session_id IS NULL THEN duration_ms ELSE 0 END),
+                    0
+                )
+            FROM human_time_spans
+            """
+        ).fetchone()
+        return {
+            "span_count": int(row[0]) if row else 0,
+            "total_ms": int(row[1]) if row else 0,
+            "sessionless_span_count": int(row[2]) if row else 0,
+            "sessionless_ms": int(row[3]) if row else 0,
+        }
+    finally:
+        conn.close()
+
+
+def top_human_time_sessions(db_path: Path, *, limit: int = 10) -> List[Dict[str, Any]]:
+    """Return the top session-bearing groups by recorded human time."""
+
+    if not isinstance(limit, int) or limit <= 0:
+        limit = 10
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        rows = conn.execute(
+            """
+            SELECT working_directory, session_id, COUNT(*),
+                   COALESCE(SUM(duration_ms), 0)
+            FROM human_time_spans
+            WHERE session_id IS NOT NULL
+            GROUP BY working_directory, session_id
+            ORDER BY 4 DESC, 3 DESC, working_directory, session_id
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [
+            {
+                "working_directory": row[0],
+                "session_id": row[1],
+                "span_count": int(row[2]),
+                "total_ms": int(row[3]),
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
+def top_human_time_projects(db_path: Path, *, limit: int = 3) -> List[Dict[str, Any]]:
+    """Return top projects with session-less time included and identified."""
+
+    if not isinstance(limit, int) or limit <= 0:
+        limit = 3
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        rows = conn.execute(
+            """
+            SELECT
+                working_directory,
+                COUNT(*),
+                COALESCE(SUM(duration_ms), 0),
+                COALESCE(SUM(CASE WHEN session_id IS NULL THEN 1 ELSE 0 END), 0),
+                COALESCE(
+                    SUM(CASE WHEN session_id IS NULL THEN duration_ms ELSE 0 END),
+                    0
+                )
+            FROM human_time_spans
+            GROUP BY working_directory
+            ORDER BY 3 DESC, 2 DESC, working_directory
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [
+            {
+                "working_directory": row[0],
+                "span_count": int(row[1]),
+                "total_ms": int(row[2]),
+                "sessionless_span_count": int(row[3]),
+                "sessionless_ms": int(row[4]),
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
+def human_time_diagnostics(
+    db_path: Path,
+    *,
+    working_directory: str,
+    session_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Return compact user-facing diagnostics for one human-time target."""
+
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        if session_id is None:
+            span_row = conn.execute(
+                """
+                SELECT COUNT(*), COALESCE(SUM(duration_ms), 0), MAX(to_time)
+                FROM human_time_spans
+                WHERE working_directory = ?
+                """,
+                (working_directory,),
+            ).fetchone()
+        else:
+            span_row = conn.execute(
+                """
+                SELECT COUNT(*), COALESCE(SUM(duration_ms), 0), MAX(to_time)
+                FROM human_time_spans
+                WHERE working_directory = ? AND session_id = ?
+                """,
+                (working_directory, session_id),
+            ).fetchone()
+        request_row = conn.execute(
+            """
+            SELECT request_id, processed_at
+            FROM human_time_requests
+            ORDER BY processed_at DESC, rowid DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        return {
+            "span_count": int(span_row[0]) if span_row else 0,
+            "total_ms": int(span_row[1]) if span_row else 0,
+            "last_span_to": span_row[2] if span_row else None,
+            "last_request_id": request_row[0] if request_row else None,
+            "last_processed_at": request_row[1] if request_row else None,
+        }
+    finally:
+        conn.close()
+
+
 __all__ = [
     "DEFAULT_DURATION_DB_RELATIVE_PATH",
     "DEFAULT_DURATION_SUMMARY_CSV_FILENAME",
     "DURATION_SUMMARY_CSV_FIELDNAMES",
     "HUMAN_TIME_SPANS_BATCH_CAP",
     "append_request_summary_csv",
+    "count_invalid_human_time_spans",
+    "human_time_diagnostics",
+    "human_time_overall_totals",
     "human_time_project_totals",
     "human_time_session_totals",
     "overall_totals",
@@ -952,6 +1137,8 @@ __all__ = [
     "session_totals",
     "summary_csv_enabled",
     "tool_session_totals",
+    "top_human_time_projects",
+    "top_human_time_sessions",
     "top_projects",
     "top_sessions",
     "utcnow_iso",

@@ -3,7 +3,7 @@ import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
   appendSpan,
   loadSpans,
-  removeFirstSpans,
+  removeSpans,
   type SpanCacheStore,
 } from './spanCache';
 import type { HumanTimeSpan } from './spanTracker';
@@ -13,19 +13,46 @@ export const HUMAN_TIME_ACTION_OWNER = 'application';
 export const DEFAULT_HUMAN_TIME_PLUGIN_ID = 'duration_tracking_app';
 
 export const DEFAULT_UPLOAD_BATCH_LIMIT = 100;
-export const DEFAULT_MAX_SPAN_AGE_MS = 5 * 60 * 1000;
-export const DEFAULT_AGE_CHECK_INTERVAL_MS = 60 * 1000;
 export const DEFAULT_CLOSE_DEBOUNCE_MS = 2_000;
-export const DEFAULT_BUSY_RETRY_INTERVAL_MS = 15 * 1000;
+export const DEFAULT_TRANSIENT_RETRY_INTERVAL_MS = 30 * 1000;
 
 export type FlushOutcome =
   | 'disabled'
   | 'no-connection'
-  | 'busy'
+  | 'in-progress'
   | 'empty'
   | 'flushed'
+  | 'partial-failure'
   | 'transient-failure'
   | 'definitive-failure';
+
+export interface HumanTimeIngestionResult {
+  recorded: number;
+  merged: number;
+  skipped: number;
+  absorbed: number;
+  duplicate: boolean;
+}
+
+export interface HumanTimeUploadEvent {
+  outcome:
+    | 'uploading'
+    | 'flushed'
+    | 'partial-failure'
+    | 'transient-failure'
+    | 'definitive-failure';
+  attemptedAt: string;
+  requestId: string;
+  batchSize: number;
+  spans: HumanTimeSpan[];
+  result: HumanTimeIngestionResult | null;
+  error: string | null;
+}
+
+interface BatchAttempt {
+  outcome: 'flushed' | 'skipped' | 'transient-failure' | 'definitive-failure';
+  result: HumanTimeIngestionResult | null;
+}
 
 /**
  * Classify an upload failure: HTTP 404 (unknown plugin or action) and 400
@@ -56,7 +83,8 @@ const DEFINITIVE_ACTION_ERROR_TYPES = new Set([
 
 export function isDefinitiveActionErrorType(errorType: unknown): boolean {
   return (
-    typeof errorType === 'string' && DEFINITIVE_ACTION_ERROR_TYPES.has(errorType)
+    typeof errorType === 'string' &&
+    DEFINITIVE_ACTION_ERROR_TYPES.has(errorType)
   );
 }
 
@@ -78,52 +106,48 @@ function batchRequestId(spans: Array<{ session_id: string | null }>): string {
   return `human-time-${first.toString(16)}-${second.toString(16)}`;
 }
 
+function spanIdentity(span: HumanTimeSpan): string {
+  return `${span.sessionId ?? ''}\u0000${span.from}\u0000${span.to}`;
+}
+
 export interface HumanTimeUploaderOptions {
   getBackend: () => AgentBackend | null;
   getConnectionId: () => string | null;
   getPluginId: () => string;
   isEnabled: () => boolean;
-  isBusy: () => boolean;
   /** Called at most once per arm cycle on a definitive upload failure. */
   onDefinitiveFailure?: (error: unknown) => void;
+  onUploadEvent?: (event: HumanTimeUploadEvent) => void;
   batchLimit?: number;
-  maxSpanAgeMs?: number;
-  ageCheckIntervalMs?: number;
   closeDebounceMs?: number;
-  busyRetryIntervalMs?: number;
+  transientRetryIntervalMs?: number;
   store?: SpanCacheStore;
   now?: () => number;
 }
 
 /**
  * Drains the durable span cache in batches through the ingestion action.
- * Triggers: span closes (debounced), the periodic age check, and explicit
- * flush calls (connection open, app foreground). Busy connections defer;
- * failures retain every span for the next trigger.
+ * Triggers: span closes (debounced), connection open, app foreground, and
+ * explicit flush. Transient failures retry on one fixed timer; all failures
+ * retain every unconfirmed span.
  */
 export class HumanTimeSpanUploader {
   private readonly options: HumanTimeUploaderOptions;
   private readonly batchLimit: number;
-  private readonly maxSpanAgeMs: number;
-  private readonly ageCheckIntervalMs: number;
   private readonly closeDebounceMs: number;
-  private readonly busyRetryIntervalMs: number;
+  private readonly transientRetryIntervalMs: number;
   private readonly now: () => number;
   private flushing = false;
   private closeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private ageCheckTimer: ReturnType<typeof setInterval> | null = null;
-  private busyRetryTimer: ReturnType<typeof setInterval> | null = null;
+  private transientRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private definitiveFailureReported = false;
 
   constructor(options: HumanTimeUploaderOptions) {
     this.options = options;
     this.batchLimit = options.batchLimit ?? DEFAULT_UPLOAD_BATCH_LIMIT;
-    this.maxSpanAgeMs = options.maxSpanAgeMs ?? DEFAULT_MAX_SPAN_AGE_MS;
-    this.ageCheckIntervalMs =
-      options.ageCheckIntervalMs ?? DEFAULT_AGE_CHECK_INTERVAL_MS;
     this.closeDebounceMs = options.closeDebounceMs ?? DEFAULT_CLOSE_DEBOUNCE_MS;
-    this.busyRetryIntervalMs =
-      options.busyRetryIntervalMs ?? DEFAULT_BUSY_RETRY_INTERVAL_MS;
+    this.transientRetryIntervalMs =
+      options.transientRetryIntervalMs ?? DEFAULT_TRANSIENT_RETRY_INTERVAL_MS;
     this.now = options.now ?? (() => Date.now());
   }
 
@@ -138,41 +162,28 @@ export class HumanTimeSpanUploader {
     }, this.closeDebounceMs);
   }
 
-  /** Begin the periodic max-age check. */
-  start(): void {
-    if (this.ageCheckTimer !== null) return;
-    this.ageCheckTimer = setInterval(() => {
-      void this.checkAge();
-    }, this.ageCheckIntervalMs);
-  }
-
-  /**
-   * A connection became usable: flush now, and while the app reports busy
-   * keep retrying until in-flight work settles (first open defers).
-   */
+  /** A connection became usable; drain any durable pending spans now. */
   notifyConnectionUsable(): void {
-    void this.flush().then((outcome) => {
-      if (outcome === 'busy') {
-        this.scheduleBusyRetry();
-      }
-    });
+    void this.flush();
   }
 
-  private scheduleBusyRetry(): void {
-    if (this.busyRetryTimer !== null) return;
-    this.busyRetryTimer = setInterval(() => {
-      void this.flush().then((outcome) => {
-        if (outcome !== 'busy') {
-          this.clearBusyRetry();
-        }
-      });
-    }, this.busyRetryIntervalMs);
+  /** The app returned to the foreground; drain durable pending spans now. */
+  notifyAppForeground(): void {
+    void this.flush();
   }
 
-  private clearBusyRetry(): void {
-    if (this.busyRetryTimer !== null) {
-      clearInterval(this.busyRetryTimer);
-      this.busyRetryTimer = null;
+  private scheduleTransientRetry(): void {
+    if (this.transientRetryTimer !== null) return;
+    this.transientRetryTimer = setTimeout(() => {
+      this.transientRetryTimer = null;
+      void this.flush();
+    }, this.transientRetryIntervalMs);
+  }
+
+  private clearTransientRetry(): void {
+    if (this.transientRetryTimer !== null) {
+      clearTimeout(this.transientRetryTimer);
+      this.transientRetryTimer = null;
     }
   }
 
@@ -181,11 +192,7 @@ export class HumanTimeSpanUploader {
       clearTimeout(this.closeDebounceTimer);
       this.closeDebounceTimer = null;
     }
-    if (this.ageCheckTimer !== null) {
-      clearInterval(this.ageCheckTimer);
-      this.ageCheckTimer = null;
-    }
-    this.clearBusyRetry();
+    this.clearTransientRetry();
   }
 
   /** Re-arm the one-time definitive-failure warning (setting changed). */
@@ -204,81 +211,229 @@ export class HumanTimeSpanUploader {
     }
   }
 
-  private async checkAge(): Promise<void> {
-    const connectionId = this.options.getConnectionId();
-    if (!connectionId) return;
-    const pending = await loadSpans(connectionId, this.options.store);
-    const oldest = pending[0];
-    if (!oldest) return;
-    const oldestMs = Date.parse(oldest.from);
-    if (!Number.isFinite(oldestMs)) return;
-    if (this.now() - oldestMs >= this.maxSpanAgeMs) {
-      await this.flush();
+  private reportUploadEvent(event: HumanTimeUploadEvent): void {
+    try {
+      this.options.onUploadEvent?.(event);
+    } catch {
+      // Diagnostics must never break telemetry.
+    }
+  }
+
+  private async attemptBatch(
+    backend: AgentBackend,
+    connectionId: string,
+    batch: HumanTimeSpan[],
+  ): Promise<BatchAttempt> {
+    const wireSpans = batch.map((span) => ({
+      session_id: span.sessionId,
+      from: span.from,
+      to: span.to,
+    }));
+    const requestId = batchRequestId(wireSpans);
+    const attemptedAt = new Date(this.now()).toISOString();
+    this.reportUploadEvent({
+      outcome: 'uploading',
+      attemptedAt,
+      requestId,
+      batchSize: batch.length,
+      spans: batch,
+      result: null,
+      error: null,
+    });
+    try {
+      const response = await backend.executeAction({
+        pluginId: this.options.getPluginId(),
+        actionId: HUMAN_TIME_ACTION_ID,
+        actionOwner: HUMAN_TIME_ACTION_OWNER,
+        inputs: {
+          request_id: requestId,
+          spans: wireSpans,
+        },
+      });
+      if (!response || response.status !== 'ok') {
+        const errorType = (response as { error_type?: unknown } | null)
+          ?.error_type;
+        const message =
+          (response as { message?: unknown } | null)?.message ??
+          'action failed';
+        const error = new Error(
+          `${String(message)} (error_type: ${String(errorType ?? 'unknown')})`,
+        );
+        if (isDefinitiveActionErrorType(errorType)) {
+          this.reportDefinitiveFailure(error);
+          this.reportUploadEvent({
+            outcome: 'definitive-failure',
+            attemptedAt,
+            requestId,
+            batchSize: batch.length,
+            spans: batch,
+            result: null,
+            error: error.message,
+          });
+          return { outcome: 'definitive-failure', result: null };
+        }
+        this.reportUploadEvent({
+          outcome: 'transient-failure',
+          attemptedAt,
+          requestId,
+          batchSize: batch.length,
+          spans: batch,
+          result: null,
+          error: error.message,
+        });
+        this.scheduleTransientRetry();
+        return { outcome: 'transient-failure', result: null };
+      }
+      const rawResult =
+        response.result && typeof response.result === 'object'
+          ? response.result
+          : {};
+      const result: HumanTimeIngestionResult = {
+        recorded: Number(rawResult.recorded ?? 0),
+        merged: Number(rawResult.merged ?? 0),
+        skipped: Number(rawResult.skipped ?? 0),
+        absorbed: Number(rawResult.absorbed ?? 0),
+        duplicate: rawResult.duplicate === true,
+      };
+      if (result.skipped > 0) {
+        const error = `The telemetry plugin skipped ${result.skipped} span${
+          result.skipped === 1 ? '' : 's'
+        }.`;
+        this.reportUploadEvent({
+          outcome: 'partial-failure',
+          attemptedAt,
+          requestId,
+          batchSize: batch.length,
+          spans: batch,
+          result,
+          error,
+        });
+        return { outcome: 'skipped', result };
+      }
+      await removeSpans(connectionId, batch, this.options.store);
+      this.clearTransientRetry();
+      this.reportUploadEvent({
+        outcome: 'flushed',
+        attemptedAt,
+        requestId,
+        batchSize: batch.length,
+        spans: batch,
+        result,
+        error: null,
+      });
+      return { outcome: 'flushed', result };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error ?? 'Upload failed');
+      if (isDefinitiveActionFailure(error)) {
+        this.reportDefinitiveFailure(error);
+        this.reportUploadEvent({
+          outcome: 'definitive-failure',
+          attemptedAt,
+          requestId,
+          batchSize: batch.length,
+          spans: batch,
+          result: null,
+          error: message,
+        });
+        return { outcome: 'definitive-failure', result: null };
+      }
+      this.reportUploadEvent({
+        outcome: 'transient-failure',
+        attemptedAt,
+        requestId,
+        batchSize: batch.length,
+        spans: batch,
+        result: null,
+        error: message,
+      });
+      this.scheduleTransientRetry();
+      return { outcome: 'transient-failure', result: null };
     }
   }
 
   async flush(): Promise<FlushOutcome> {
-    if (this.flushing) return 'busy';
+    if (this.flushing) return 'in-progress';
     if (!this.options.isEnabled()) return 'disabled';
     const backend = this.options.getBackend();
     const connectionId = this.options.getConnectionId();
     if (!backend || !connectionId) return 'no-connection';
-    if (this.options.isBusy()) return 'busy';
 
     this.flushing = true;
     try {
       let flushedAny = false;
+      const rejected = new Map<string, HumanTimeSpan>();
       for (;;) {
         const pending = await loadSpans(connectionId, this.options.store);
-        if (pending.length === 0) {
-          return flushedAny ? 'flushed' : 'empty';
-        }
-        const batch = pending.slice(0, this.batchLimit);
-        // The ingestion contract is snake_case (`session_id`); the app's
-        // internal span type is camelCase. Convert at the boundary.
-        const wireSpans = batch.map((span) => ({
-          session_id: span.sessionId,
-          from: span.from,
-          to: span.to,
-        }));
-        try {
-          const response = await backend.executeAction({
-            pluginId: this.options.getPluginId(),
-            actionId: HUMAN_TIME_ACTION_ID,
-            actionOwner: HUMAN_TIME_ACTION_OWNER,
-            inputs: {
-              request_id: batchRequestId(wireSpans),
-              spans: wireSpans,
+        const eligible = pending.filter(
+          (span) => !rejected.has(spanIdentity(span)),
+        );
+        if (eligible.length === 0) {
+          if (rejected.size === 0) {
+            return flushedAny ? 'flushed' : 'empty';
+          }
+          const rejectedSpans = pending.filter((span) =>
+            rejected.has(spanIdentity(span)),
+          );
+          const rejectedCount = rejectedSpans.length;
+          this.reportUploadEvent({
+            outcome: 'partial-failure',
+            attemptedAt: new Date(this.now()).toISOString(),
+            requestId: 'human-time-partial',
+            batchSize: rejectedCount,
+            spans: rejectedSpans,
+            result: {
+              recorded: 0,
+              merged: 0,
+              skipped: rejectedCount,
+              absorbed: 0,
+              duplicate: false,
             },
+            error: flushedAny
+              ? `${rejectedCount} span${
+                  rejectedCount === 1 ? '' : 's'
+                } could not be accepted; other spans were uploaded.`
+              : `${rejectedCount} span${
+                  rejectedCount === 1 ? '' : 's'
+                } could not be accepted and remain pending.`,
           });
-          // The action protocol reports failures as a structured error
-          // response (HTTP 200, status "error"), not as an HTTP error.
-          if (!response || response.status !== 'ok') {
-            const errorType = (response as { error_type?: unknown } | null)
-              ?.error_type;
-            const message =
-              (response as { message?: unknown } | null)?.message ??
-              'action failed';
-            const error = new Error(
-              `${String(message)} (error_type: ${String(errorType ?? 'unknown')})`,
-            );
-            if (isDefinitiveActionErrorType(errorType)) {
-              this.reportDefinitiveFailure(error);
-              return 'definitive-failure';
-            }
-            return 'transient-failure';
-          }
-        } catch (error) {
-          if (isDefinitiveActionFailure(error)) {
-            this.reportDefinitiveFailure(error);
-            return 'definitive-failure';
-          }
+          return 'partial-failure';
+        }
+
+        const batch = eligible.slice(0, this.batchLimit);
+        const attempt = await this.attemptBatch(backend, connectionId, batch);
+        if (attempt.outcome === 'flushed') {
+          flushedAny = true;
+          continue;
+        }
+        if (attempt.outcome === 'transient-failure') {
           return 'transient-failure';
         }
-        // Confirmed: remove exactly the spans this batch uploaded. Appends
-        // only ever push to the end, so the first N are this batch.
-        await removeFirstSpans(connectionId, batch.length, this.options.store);
-        flushedAny = true;
+        if (attempt.outcome === 'definitive-failure') {
+          return 'definitive-failure';
+        }
+
+        if (batch.length === 1) {
+          rejected.set(spanIdentity(batch[0]), batch[0]);
+          continue;
+        }
+
+        for (const span of batch) {
+          const isolated = await this.attemptBatch(backend, connectionId, [
+            span,
+          ]);
+          if (isolated.outcome === 'flushed') {
+            flushedAny = true;
+            continue;
+          }
+          if (isolated.outcome === 'skipped') {
+            rejected.set(spanIdentity(span), span);
+            continue;
+          }
+          return isolated.outcome;
+        }
       }
     } finally {
       this.flushing = false;

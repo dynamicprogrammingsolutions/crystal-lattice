@@ -17,7 +17,11 @@ It also tracks **human time**: frontends report user-activity spans
 batches through the `record_human_time_spans` application action; the
 plugin dedups by request id, resolves range overlaps so no two stored rows
 ever overlap, and surfaces the per-session human time total in the status
-bar (`Human time: …`) and the report. The mobile app collects the spans
+bar (`Human time: …`) and the report. The report also includes compact
+human-time diagnostics, the overall human-time total, the top 10 sessions,
+and the top 3 projects with session-less time shown separately. Session-less
+collection defaults to the runtime `WORKING_DIR`, so it uses the same default
+database without additional configuration. The mobile app collects the spans
 behind an opt-in `Time tracking` toggle with a frontend-owned telemetry
 plugin id (default `duration_tracking_app`). See
 `docs/development/overview.md` for the store schema, recording seams,

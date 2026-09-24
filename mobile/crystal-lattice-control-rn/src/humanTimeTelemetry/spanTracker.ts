@@ -63,6 +63,16 @@ export class HumanTimeSpanTracker {
     return this.openSpan !== null;
   }
 
+  getOpenSpan(): HumanTimeSpan | null {
+    const open = this.openSpan;
+    if (!open) return null;
+    return {
+      sessionId: open.sessionId,
+      from: toIsoUtc(open.fromMs),
+      to: toIsoUtc(open.toMs),
+    };
+  }
+
   /** Stop tracking; drops the open span without emitting. */
   dispose(): void {
     this.disposed = true;

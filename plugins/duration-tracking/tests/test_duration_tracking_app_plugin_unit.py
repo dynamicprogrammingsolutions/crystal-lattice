@@ -88,6 +88,21 @@ def test_get_actions_declares_report_and_ingestion() -> None:
     assert ingestion["inputs"]["spans"] == {"type": "array", "required": True}
 
 
+def test_init_defaults_application_working_directory_from_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WORKING_DIR", "/tmp/runtime-workspace")
+    plugin = DurationTrackingAppPlugin()
+
+    defaulted = plugin.init({})
+    configured = plugin.init(
+        {"application": {"duration_tracking": {"working_directory": "/tmp/configured"}}}
+    )
+
+    assert defaulted["config"]["working_directory"] == "/tmp/runtime-workspace"
+    assert configured["config"]["working_directory"] == "/tmp/configured"
+
+
 def test_show_duration_report_renders_totals_and_tables(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -185,15 +200,65 @@ def test_show_duration_report_includes_human_time_line(tmp_path: Path) -> None:
             }
         ],
     )
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="human-req-2",
+        spans=[
+            {
+                "session_id": None,
+                "from": "2026-09-25T09:00:00Z",
+                "to": "2026-09-25T09:02:00Z",
+            }
+        ],
+    )
     plugin = DurationTrackingAppPlugin()
 
+    state = {
+        "config": {
+            "db_path": str(db_path),
+            "working_directory": "/tmp/ws",
+        }
+    }
     result = plugin.execute_action(
-        app, "show_duration_report", {"session_id": "session-1"}, None, _state()
+        app, "show_duration_report", {"session_id": "session-1"}, None, state
     )
 
     body = result["display"]["body"]
-    assert "- Human time: `5m`" in body
+    assert "- Total human time: `7m`" in body
+    assert "- Current session human time: `5m`" in body
+    assert "### Human time" in body
+    assert "| Project | Session | Human time | Spans |" in body
+    assert "| Project | Human time | Session-less | Spans |" in body
+    assert "| /tmp/ws | `7m` | `2m` | `2` |" in body
+    assert "### Human time diagnostics" in body
+    assert "- Session collection: `Ready`" in body
+    assert "- Session-less collection: `Ready`" in body
+    assert "- Storage targets: `Shared`" in body
+    assert "- Current session: `5m` across `1` stored span" in body
+    assert "- Last upload received:" in body
+    assert "`human-req-2`" in body
     assert result["human_time"] == {"span_count": 1, "total_ms": 5 * 60 * 1000}
+    diagnostics = result["human_time_diagnostics"]
+    assert diagnostics["session_collection_ready"] is True
+    assert diagnostics["sessionless_collection_ready"] is True
+    assert diagnostics["shared_store"] is True
+    assert diagnostics["last_request_id"] == "human-req-2"
+    assert result["human_time_summary"] == {
+        "span_count": 2,
+        "total_ms": 7 * 60 * 1000,
+        "sessionless_span_count": 1,
+        "sessionless_ms": 2 * 60 * 1000,
+    }
+    assert result["human_time_top_sessions"] == [
+        {
+            "working_directory": "/tmp/ws",
+            "session_id": "session-1",
+            "span_count": 1,
+            "total_ms": 5 * 60 * 1000,
+        }
+    ]
+    assert result["human_time_top_projects"][0]["sessionless_ms"] == 2 * 60 * 1000
 
 
 def test_show_duration_report_without_human_time_omits_line(tmp_path: Path) -> None:
@@ -208,7 +273,9 @@ def test_show_duration_report_without_human_time_omits_line(tmp_path: Path) -> N
         app, "show_duration_report", {"session_id": "session-1"}, None, _state()
     )
 
-    assert "Human time" not in result["display"]["body"]
+    assert "- Current session human time:" not in result["display"]["body"]
+    assert "- Total human time: `0ms`" in result["display"]["body"]
+    assert "### Human time diagnostics" in result["display"]["body"]
     assert result["human_time"] is None
 
 
@@ -451,8 +518,11 @@ def test_record_human_time_spans_unknown_session_skips_span(
             },
         ],
     )
-    assert result["recorded"] == 1
+    assert result["recorded"] == 0
     assert result["skipped"] == 1
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory=_wd("/tmp/ws"), session_id="session-1"
+    ) == {"span_count": 0, "total_ms": 0}
 
 
 def test_record_human_time_spans_session_less_without_config_skipped(
@@ -509,8 +579,11 @@ def test_record_human_time_spans_malformed_spans_skipped(tmp_path: Path) -> None
             },
         ],
     )
-    assert result["recorded"] == 1
+    assert result["recorded"] == 0
     assert result["skipped"] == 2
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory=_wd("/tmp/ws"), session_id="session-1"
+    ) == {"span_count": 0, "total_ms": 0}
 
 
 def test_record_human_time_spans_overlap_resolution_applies(

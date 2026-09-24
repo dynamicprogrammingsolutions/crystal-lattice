@@ -6,10 +6,15 @@ import {
   appendSpan,
   loadSpans,
   removeFirstSpans,
+  removeSpans,
 } from '../src/humanTimeTelemetry/spanCache';
 import type { HumanTimeSpan } from '../src/humanTimeTelemetry/spanTracker';
 
-function span(sessionId: string | null, from: string, to: string): HumanTimeSpan {
+function span(
+  sessionId: string | null,
+  from: string,
+  to: string,
+): HumanTimeSpan {
   return { sessionId, from, to };
 }
 
@@ -24,8 +29,16 @@ describe('human time span cache', () => {
   });
 
   it('appends spans and loads them back, keyed per connection', async () => {
-    const first = span('session-1', '2026-09-25T08:00:00.000Z', '2026-09-25T08:05:00.000Z');
-    const second = span(null, '2026-09-25T09:00:00.000Z', '2026-09-25T09:02:00.000Z');
+    const first = span(
+      'session-1',
+      '2026-09-25T08:00:00.000Z',
+      '2026-09-25T08:05:00.000Z',
+    );
+    const second = span(
+      null,
+      '2026-09-25T09:00:00.000Z',
+      '2026-09-25T09:02:00.000Z',
+    );
 
     expect(await appendSpan('connection-a', first)).toBe(true);
     expect(await appendSpan('connection-a', second)).toBe(true);
@@ -37,7 +50,11 @@ describe('human time span cache', () => {
   });
 
   it('survives a restart (state reloaded from storage)', async () => {
-    const recorded = span('session-1', '2026-09-25T08:00:00.000Z', '2026-09-25T08:05:00.000Z');
+    const recorded = span(
+      'session-1',
+      '2026-09-25T08:00:00.000Z',
+      '2026-09-25T08:05:00.000Z',
+    );
     await appendSpan('connection-a', recorded);
 
     // A fresh process reads the same backing store.
@@ -63,8 +80,16 @@ describe('human time span cache', () => {
   });
 
   it('keeps other connections untouched when one connection drains', async () => {
-    const aSpan = span('s1', '2026-09-25T08:00:00.000Z', '2026-09-25T08:01:00.000Z');
-    const bSpan = span('s2', '2026-09-25T09:00:00.000Z', '2026-09-25T09:01:00.000Z');
+    const aSpan = span(
+      's1',
+      '2026-09-25T08:00:00.000Z',
+      '2026-09-25T08:01:00.000Z',
+    );
+    const bSpan = span(
+      's2',
+      '2026-09-25T09:00:00.000Z',
+      '2026-09-25T09:01:00.000Z',
+    );
     await appendSpan('connection-a', aSpan);
     await appendSpan('connection-b', bSpan);
 
@@ -74,8 +99,32 @@ describe('human time span cache', () => {
     expect(await loadSpans('connection-b')).toEqual([bSpan]);
   });
 
+  it('removes confirmed spans without removing rejected neighbors', async () => {
+    const rejected = span(
+      'missing',
+      '2026-09-25T08:00:00.000Z',
+      '2026-09-25T08:01:00.000Z',
+    );
+    const confirmed = span(
+      's1',
+      '2026-09-25T08:02:00.000Z',
+      '2026-09-25T08:03:00.000Z',
+    );
+    await appendSpan('connection-a', rejected);
+    await appendSpan('connection-a', confirmed);
+    await appendSpan('connection-a', confirmed);
+
+    await removeSpans('connection-a', [confirmed]);
+
+    expect(await loadSpans('connection-a')).toEqual([rejected, confirmed]);
+  });
+
   it('drops a span on a storage failure instead of throwing', async () => {
-    const recorded = span('s1', '2026-09-25T08:00:00.000Z', '2026-09-25T08:01:00.000Z');
+    const recorded = span(
+      's1',
+      '2026-09-25T08:00:00.000Z',
+      '2026-09-25T08:01:00.000Z',
+    );
     await appendSpan('connection-a', recorded);
     await expect(loadSpans('connection-a')).resolves.toEqual([recorded]);
 
@@ -84,8 +133,14 @@ describe('human time span cache', () => {
       set: () => Promise.reject(new Error('storage unavailable')),
       delete: () => Promise.reject(new Error('storage unavailable')),
     };
-    const next = span('s1', '2026-09-25T08:02:00.000Z', '2026-09-25T08:03:00.000Z');
-    await expect(appendSpan('connection-a', next, failingStore)).resolves.toBe(false);
+    const next = span(
+      's1',
+      '2026-09-25T08:02:00.000Z',
+      '2026-09-25T08:03:00.000Z',
+    );
+    await expect(appendSpan('connection-a', next, failingStore)).resolves.toBe(
+      false,
+    );
 
     // The failed append dropped only that span; the cache is unchanged and
     // later appends work again.
@@ -98,13 +153,21 @@ describe('human time span cache', () => {
     await AsyncStorage.setItem(HUMAN_TIME_SPANS_STORAGE_KEY, 'not-json');
     await expect(loadSpans('connection-a')).resolves.toEqual([]);
 
-    const recorded = span('s1', '2026-09-25T08:00:00.000Z', '2026-09-25T08:01:00.000Z');
+    const recorded = span(
+      's1',
+      '2026-09-25T08:00:00.000Z',
+      '2026-09-25T08:01:00.000Z',
+    );
     await expect(appendSpan('connection-a', recorded)).resolves.toBe(true);
     await expect(loadSpans('connection-a')).resolves.toEqual([recorded]);
   });
 
   it('drops the oldest spans beyond the soft cap', async () => {
-    const first = span('s1', '2026-09-25T08:00:00.000Z', '2026-09-25T08:01:00.000Z');
+    const first = span(
+      's1',
+      '2026-09-25T08:00:00.000Z',
+      '2026-09-25T08:01:00.000Z',
+    );
     await appendSpan('connection-a', first);
     for (let index = 0; index < HUMAN_TIME_SPANS_SOFT_CAP; index += 1) {
       const entry = span(

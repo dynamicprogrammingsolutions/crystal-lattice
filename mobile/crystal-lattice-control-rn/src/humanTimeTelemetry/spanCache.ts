@@ -34,8 +34,13 @@ function chainFor(store: SpanCacheStore): Promise<unknown> {
   return chain;
 }
 
-function enqueue(store: SpanCacheStore, run: () => Promise<void>): Promise<void> {
-  const next = chainFor(store).then(run).catch(() => undefined);
+function enqueue(
+  store: SpanCacheStore,
+  run: () => Promise<void>,
+): Promise<void> {
+  const next = chainFor(store)
+    .then(run)
+    .catch(() => undefined);
   appendChains.set(store, next);
   return next;
 }
@@ -76,7 +81,10 @@ async function readState(store: SpanCacheStore): Promise<CacheState> {
   }
 }
 
-async function writeState(store: SpanCacheStore, state: CacheState): Promise<void> {
+async function writeState(
+  store: SpanCacheStore,
+  state: CacheState,
+): Promise<void> {
   await store.set(HUMAN_TIME_SPANS_STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -132,6 +140,44 @@ export async function removeFirstSpans(
       delete state[connectionId];
     } else {
       state[connectionId] = current.slice(count);
+    }
+    await writeState(store, state);
+  });
+}
+
+function spansEqual(left: HumanTimeSpan, right: HumanTimeSpan): boolean {
+  return (
+    left.sessionId === right.sessionId &&
+    left.from === right.from &&
+    left.to === right.to
+  );
+}
+
+/**
+ * Remove confirmed spans by value while retaining rejected neighbors. Each
+ * requested span removes at most one matching cache entry.
+ */
+export async function removeSpans(
+  connectionId: string,
+  confirmed: HumanTimeSpan[],
+  store: SpanCacheStore = asyncStorageStore,
+): Promise<void> {
+  if (confirmed.length === 0) return;
+  await enqueue(store, async () => {
+    const state = await readState(store);
+    const current = state[connectionId];
+    if (!current) return;
+    const remaining = [...current];
+    for (const span of confirmed) {
+      const index = remaining.findIndex((entry) => spansEqual(entry, span));
+      if (index >= 0) {
+        remaining.splice(index, 1);
+      }
+    }
+    if (remaining.length === 0) {
+      delete state[connectionId];
+    } else {
+      state[connectionId] = remaining;
     }
     await writeState(store, state);
   });

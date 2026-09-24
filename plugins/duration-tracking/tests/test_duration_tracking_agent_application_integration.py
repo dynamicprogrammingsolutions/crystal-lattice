@@ -54,6 +54,7 @@ def _make_config(
         provider_config.update(provider_overrides)
     cfg: Dict[str, Any] = {
         "providers": {"echo": provider_config},
+        "application": {"duration_tracking": {"db_path": str(db_path)}},
         "agents": {
             "default": {
                 "provider": "echo",
@@ -462,8 +463,8 @@ def test_human_time_spans_ingest_through_public_action_path(
     tmp_path: Path,
 ) -> None:
     """Spans flow through ``execute_application_action`` (the HTTP route's
-    entry): the session span resolves the session's config, the request id
-    dedups retries, overlaps merge, and ingestion never mutates sessions."""
+    entry): session-less spans use the runtime working-directory default,
+    retries dedup, overlaps merge, and ingestion never mutates sessions."""
 
     db_path = tmp_path / "durations.sqlite3"
     app = _make_app(tmp_path, db_path)
@@ -482,8 +483,8 @@ def test_human_time_spans_ingest_through_public_action_path(
                     "to": "2026-09-25T08:05:00Z",
                 },
                 {
-                    # Session-less span: no plugin-config working
-                    # directory, so it cannot be keyed and skips.
+                    # No plugin-config working directory: application
+                    # initialization defaults this target from WORKING_DIR.
                     "session_id": None,
                     "from": "2026-09-25T09:00:00Z",
                     "to": "2026-09-25T09:02:00Z",
@@ -492,9 +493,9 @@ def test_human_time_spans_ingest_through_public_action_path(
         },
     )
     assert result == {
-        "recorded": 1,
+        "recorded": 2,
         "merged": 0,
-        "skipped": 1,
+        "skipped": 0,
         "absorbed": 0,
         "duplicate": False,
     }
@@ -502,8 +503,11 @@ def test_human_time_spans_ingest_through_public_action_path(
         db_path, working_directory=str(tmp_path), session_id=session_id
     )
     assert totals == {"span_count": 1, "total_ms": 5 * 60 * 1000}
+    assert duration_store.human_time_project_totals(
+        db_path, working_directory=str(Path.cwd().resolve())
+    ) == {"span_count": 1, "total_ms": 2 * 60 * 1000}
 
-    # A retried batch (same request id) is recognized and skipped.
+    # A retry of the accepted batch is recognized and skipped.
     retry = app.execute_application_action(
         "duration_tracking_app",
         "record_human_time_spans",
@@ -585,11 +589,12 @@ def test_human_time_totals_reach_assistant_metadata_and_report(
     assert assistant_md.get("human_time_session_total") == 5 * 60 * 1000
     assert assistant_md.get("human_time_session_total_formatted") == "5m"
 
-    # And the report action includes the per-session human time line.
+    # And the report action includes overall and per-session human time.
     report = app.execute_application_action(
         "duration_tracking_app",
         "show_duration_report",
         {"session_id": session.session_id},
     )
-    assert "- Human time: `5m`" in report["display"]["body"]
+    assert "- Total human time: `5m`" in report["display"]["body"]
+    assert "- Current session human time: `5m`" in report["display"]["body"]
     assert report["human_time"] == {"span_count": 1, "total_ms": 5 * 60 * 1000}

@@ -46,22 +46,47 @@ Both settings live in the global settings modal and persist through
 - `uploader.ts` — batched drain over `executeAction`
   (`record_human_time_spans`, `actionOwner: "application"`, up to 100
   spans per call, content-derived `request_id` stable across retries).
-  Flushes debounce 2s after a span closes, force-flush spans older than
-  5 minutes, run when a connection becomes usable, and defer while a
-  request is running on that connection (re-checked every 15s).
+  Flushes debounce 2s after a span closes and run immediately when a
+  connection becomes usable or the app returns to the foreground.
+  Uploads do not wait for agent work on the connection.
 - `warning.ts` — the failure banner.
 - `HumanTimeTelemetryProvider.tsx` — context + collectors wiring, mounted
   in `ConnectedRoot`.
 
-Transient failures (network errors, HTTP 5xx) retain the spans for retry.
+Transient failures (network errors, HTTP 5xx) retain the spans and retry
+after 30 seconds while the app can run.
 Definitive failures (HTTP 404/400, e.g. an unknown plugin id) also retain
 the spans, and the app shows a one-time dismissible warning banner on the
 connection banner rail; changing either setting re-arms the warning.
+When a successful action response reports skipped spans, the uploader
+isolates that batch into individual span requests. Confirmed spans are removed
+by value and continue uploading even when a rejected span appeared before
+them; only the rejected entries remain pending and show `Failed` in
+diagnostics. A rejected span does not emit the unavailable-plugin banner.
+
+Backgrounding closes and durably queues the open span. Mobile runtimes may
+suspend the two-second debounce, so returning to the foreground waits for
+that cache write and then flushes pending spans immediately.
 
 The backend resolves overlaps and dedups by request id; the session total
 surfaces in the chat status bar (`Human time: …`) after the next request
 finalizes. See `plugins/duration-tracking/docs/development/overview.md`
 for the ingestion contract.
+
+## Diagnostics
+
+Global Settings has a compact **Show diagnostics** section under the
+telemetry plugin setting. It shows whether collection and the connection are
+active, the open and most recently collected surfaces, the durable pending
+count, the latest upload result and server counts, and the ten most recent
+collected entries. Each entry shows upload status, session id (or Sessions
+list), end time, and duration. A partially accepted drain is labeled
+**Some entries rejected**. Pending entries are restored from the durable cache;
+uploaded entry history covers the current app run.
+
+**Upload now** closes the current span, waits for its durable cache write, and
+flushes the connection. **Refresh** reloads the pending count. Diagnostics do
+not show message content or filesystem paths.
 
 ## End-to-end verification
 
@@ -87,7 +112,9 @@ flow, and enables tracking through the real settings UI. Composer typing
 and sending exercise session activity; a real Sessions-list drag and row
 tap exercise session-less activity. The host then queries the plugin's
 SQLite store and requires positive-duration rows for both the UI-created
-session and `session_id: null`.
+session and `session_id: null`. This existing single simulator scenario
+remains the native collection check; scheduling and diagnostics are covered
+deterministically by provider/uploader and real-backend integration tests.
 
 Build a current release app when production mobile sources have changed,
 then run the focused suite:
