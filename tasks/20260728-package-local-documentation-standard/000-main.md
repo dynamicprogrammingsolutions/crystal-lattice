@@ -792,6 +792,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [x] `tasks/20260728-package-local-documentation-standard/080-maintainer-documentation-ownership-migration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/095-evaluation-result-review-packages.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/100-task-guidance-suite-restructure.md`
 
 ## Execution plan
 
