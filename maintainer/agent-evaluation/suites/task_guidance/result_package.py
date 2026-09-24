@@ -118,7 +118,6 @@ from .semantic import (  # noqa: E402
 
 SUITE_ROOT = PACKAGE_ROOT / "suites" / "task_guidance"
 DEFAULT_ARTIFACT_ROOT = REPOSITORY_ROOT / "tmp" / "agent-evaluation" / "task-guidance"
-DEFAULT_RESULTS_ROOT = SUITE_ROOT / "fixtures" / "results"
 DEFAULT_PACKAGES_ROOT = (
     REPOSITORY_ROOT
     / "maintainer"
@@ -162,10 +161,6 @@ class DatasetSpec:
     handoff_attempt: str
     semantic_attempt: str
     bundle: Path
-
-    @property
-    def frozen_results(self) -> Path:
-        return DEFAULT_RESULTS_ROOT / f"task_guidance_{self.key}_results.json"
 
 
 DATASETS: dict[str, DatasetSpec] = {
@@ -871,7 +866,7 @@ def collect(
             ),
             provenance={
                 "source": "frozen consolidated dataset",
-                "path": str(frozen_path.relative_to(REPOSITORY_ROOT)),
+                "path": _provenance_path(frozen_path),
                 "sha256": sha256_text(frozen_path.read_text(encoding="utf-8")),
             },
         )
@@ -931,6 +926,15 @@ def collect(
             "collected package failed its own check:\n" + "\n".join(problems)
         )
     return package_dir
+
+
+def _provenance_path(path: Path) -> str:
+    """Record a repository-relative provenance path when one exists."""
+
+    try:
+        return str(path.resolve().relative_to(REPOSITORY_ROOT))
+    except ValueError:
+        return str(path)
 
 
 def _parse_cells(cells: Sequence[str] | None) -> list[tuple[str, str, str]] | None:
@@ -2746,7 +2750,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     collect_parser.add_argument(
         "--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT
     )
-    collect_parser.add_argument("--frozen", type=Path, default=None)
+    collect_parser.add_argument(
+        "--frozen",
+        type=Path,
+        required=True,
+        help=(
+            "consolidated dataset JSON produced by freeze_b0; the completed"
+            " evaluations no longer live in suite fixtures"
+        ),
+    )
     collect_parser.add_argument("--output", type=Path, default=None)
     collect_parser.add_argument(
         "--cells",
@@ -2777,13 +2789,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "collect":
         dataset = DATASETS[args.dataset]
-        frozen = args.frozen or dataset.frozen_results
         output = args.output or DEFAULT_PACKAGES_ROOT / dataset.package_name
         package = collect(
             dataset,
             package_dir=output,
             artifact_root=args.artifact_root.expanduser().resolve(),
-            frozen_path=frozen,
+            frozen_path=args.frozen.expanduser().resolve(),
             cells=args.cells,
             reconstruct=not args.no_reconstruction,
         )
