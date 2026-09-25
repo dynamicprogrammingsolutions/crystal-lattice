@@ -1,15 +1,30 @@
 from __future__ import annotations
 
+import subprocess
+import time
+
 from maintainer.guidance import compile_guidance
 
 from ..configuration import selected_bundle
 from ..fixtures import (
     GUIDANCE_TARGET_ROOT,
     REPOSITORY_ROOT,
+    _commit_fixture,
     fixture_files,
     fixture_sha256,
 )
 from ..scenarios import SCENARIOS
+
+
+def _git_head(workspace) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(workspace), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    return result.stdout.strip()
 
 
 def test_every_scenario_has_a_nontrivial_fixed_fixture() -> None:
@@ -62,3 +77,38 @@ def test_fixture_claims_have_corresponding_project_infrastructure() -> None:
     archive = fixture_files("tg01-eleventy-archive")
     assert "_includes/layouts/post.njk" in archive
     assert "layout" in archive["content/posts/posts.json"]
+
+
+def test_fixture_commit_is_deterministic(tmp_path) -> None:
+    """The prepared-workspace revision must not depend on the wall clock.
+
+    The fixture commit's SHA is the workspace revision, which enters the
+    workspace fingerprint and through it the execution cache key. A
+    timestamp-dependent commit makes every invocation prepare a
+    "different" workspace, so unchanged requests never replay across
+    invocations.
+    """
+
+    revisions = []
+    for index in range(2):
+        workspace = tmp_path / f"case-{index}" / "workspace"
+        workspace.mkdir(parents=True)
+        subprocess.run(
+            ["git", "-C", str(workspace), "init"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        (workspace / "AGENTS.md").write_text(
+            "# Evaluation workspace\n", encoding="utf-8"
+        )
+        _commit_fixture(workspace)
+        revisions.append(_git_head(workspace))
+        time.sleep(1.1)
+
+    assert revisions[0] == revisions[1], (
+        "fixture commit SHA depends on the commit timestamp; unchanged"
+        " workspaces would get different revisions and never replay from"
+        " the execution cache"
+    )

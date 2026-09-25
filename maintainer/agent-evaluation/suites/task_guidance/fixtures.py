@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -168,16 +169,25 @@ def _commit_fixture(workspace: Path) -> None:
         "commit",
         "-m",
         "Prepare task guidance fixture",
+        env={
+            # A fixed date keeps the commit SHA — and with it the prepared
+            # workspace revision — a function of the workspace content only,
+            # so the same fixture preparation replays from the execution
+            # cache instead of re-executing on every invocation.
+            "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+00:00",
+            "GIT_COMMITTER_DATE": "2000-01-01T00:00:00+00:00",
+        },
     )
 
 
-def _git(workspace: Path, *args: str) -> str:
+def _git(workspace: Path, *args: str, env: dict[str, str] | None = None) -> str:
     result = subprocess.run(
         ["git", "-C", str(workspace), *args],
         check=False,
         capture_output=True,
         text=True,
         timeout=120,
+        env={**os.environ, **env} if env is not None else None,
     )
     if result.returncode != 0:
         raise RuntimeError(
