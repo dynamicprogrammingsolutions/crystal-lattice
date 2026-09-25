@@ -21,27 +21,27 @@ multi-sample-capable.
 
 ## Requirements checklist
 
-- [ ] The frozen dataset embeds the exact run identity (run id) for every
+- [x] The frozen dataset embeds the exact run identity (run id) for every
   selected record, so a frozen record always names the raw run that
   produced it.
-- [ ] Collection maps frozen records to raw run directories by run
+- [x] Collection maps frozen records to raw run directories by run
   identity; the existing subject-key-and-latest-mtime mapping remains as
   a fallback for frozen files that carry no run ids.
-- [ ] A dataset with multiple genuine judgments of one subject cell
+- [x] A dataset with multiple genuine judgments of one subject cell
   (from repeated invocations under one label, `--samples N`, or
   `--fresh`) collects completely: every judgment contributes its own run,
   each renders at a unique page location, and the collected package
   passes `check`.
-- [ ] Multi-sample cells of the producer, handoff-plan, continuation,
+- [x] Multi-sample cells of the producer, handoff-plan, continuation,
   same-agent, and negative-control groups collect through the same
   run-exact mechanism.
-- [ ] Single-sample packages regenerate byte-identically: both committed
+- [x] Single-sample packages regenerate byte-identically: both committed
   packages still pass `check` with no content diff after the change.
-- [ ] Regression tests reproduce the failure shape before the fix: a
+- [x] Regression tests reproduce the failure shape before the fix: a
   synthetic frozen dataset with two judgments of one subject and a
   two-sample producer cell must collect and pass `check` with both runs
   present.
-- [ ] The suite documentation describes the multi-sample collection
+- [x] The suite documentation describes the multi-sample collection
   semantics (running-and-calibration and the reproducing guide).
 
 ## Open questions and decisions changing scope
@@ -104,7 +104,7 @@ multi-sample-capable.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 Approach, in dependency order:
 
@@ -159,15 +159,15 @@ Approach, in dependency order:
 
 ### Task checklist
 
-- [ ] Add the failing multi-sample collect tests (two-judgment subject,
+- [x] Add the failing multi-sample collect tests (two-judgment subject,
       two-sample producer cell).
-- [ ] Embed run ids in the frozen dataset entries.
-- [ ] Make `_discover_runs` run-exact with the subject-key fallback.
-- [ ] Render per-judgment pages with unique cell prefixes.
-- [ ] Apply the same mechanism to the producer/handoff groups.
-- [ ] Run the full deterministic suite plus lint/format.
-- [ ] Verify both committed packages regenerate byte-identically.
-- [ ] Update the two documentation pages.
+- [x] Embed run ids in the frozen dataset entries.
+- [x] Make `_discover_runs` run-exact with the subject-key fallback.
+- [x] Render per-judgment pages with unique cell prefixes.
+- [x] Apply the same mechanism to the producer/handoff groups.
+- [x] Run the full deterministic suite plus lint/format.
+- [x] Verify both committed packages regenerate byte-identically.
+- [x] Update the two documentation pages.
 
 ### Requirement verification
 
@@ -191,3 +191,57 @@ Approach, in dependency order:
 - A dry-run collect against the live b0 frozen dataset (single-sample
   after the September 24 cleanup) must produce a package identical to
   the committed one — the real-dataset counterpart of the parity gate.
+
+## Completion Notes
+
+Completed September 24, 2026, on top of the same-day interim hotfix (see
+Supporting details). All requirements are satisfied:
+
+- **Run ids embedded.** `consolidate_results` injects each sample's
+  `run_id` into every collected frozen group (producers, handoffs,
+  same-agent, semantics, handoff semantics, negative controls); both
+  live datasets re-froze with 100% run-id coverage.
+- **Run-exact discovery.** `_map_exact_runs` resolves every
+  run-id-carrying record by globbing `*/runs/<run_id>` and fails with
+  `FileNotFoundError` when the named run is absent; records without run
+  ids keep the identity-and-label fallback (verified by the unchanged
+  synthetic fixtures, which carry no run ids).
+- **Multi-judgment collection.** `_collect_per_subject_assessment`
+  numbers the judgments of one subject (`s0/j1`, `s0/j2`) in the frozen
+  dataset's `(sample_index, modified)` order; producer-side lookups and
+  the batched assessment path resolve through `_run_dir_for`
+  (run-id-first with the composite-key fallback).
+- **Regression tests** (red-verified against the pre-change collection
+  via `git stash`):
+  `test_collect_renders_each_judgment_of_one_subject` (two judgments of
+  one subject with run ids — failed with `duplicate run_id` before),
+  `test_collect_uses_the_named_run_of_each_producer_sample` (a two-sample
+  producer cell — the page showed the newest run's id before), plus the
+  two interim tests for variant and subject-cell collisions.
+- **Byte-identity gate.** Both committed packages re-collected from the
+  re-frozen datasets into throwaway directories: every evidence file is
+  byte-identical. The only manifest difference is the frozen-dataset
+  provenance sha256 — expected, because the frozen format gained the
+  run-id field; the package provenance correctly records which frozen
+  dataset produced it.
+- **Aggregate projection.** The run id is stripped from
+  `aggregate.json`'s invalid-record projections (`_without_run_id`): it
+  is freeze-to-collect mapping metadata, not reviewed evidence — without
+  this, the parity diff showed the injected field leaking into the
+  package.
+- **Documentation.** `running-and-calibration.md` and the reproducing
+  guide describe the multi-sample collection semantics, the judgment
+  numbering, the first-sample producer rendering, and the fallback.
+
+Verification: `pytest suites/task_guidance -q` — 155 passed, 74
+deselected; `ruff check` and `black --check` clean; documentation tests
+green.
+
+Deviations from the plan: producer-side multi-sample cells render their
+first sample's page (deterministic by the frozen order) instead of
+per-sample pages — per-sample producer pages would change the committed
+single-sample layout and break package parity; every sample stays in the
+frozen dataset and assessments judge all of them. The judgment-ordinal
+prefix uses the frozen record order (the plan's recommended
+`(sample_index, modified)` ordinal), applied only when a subject has
+multiple judgments so single-judgment layouts are unchanged.

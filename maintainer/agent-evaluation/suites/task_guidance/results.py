@@ -149,6 +149,7 @@ def consolidate_results(
     producer_values = [
         {
             **record.value,
+            "run_id": record.run_id,
             "task_tree": task_tree(record.value.get("task_files", {})),
         }
         for samples in producers.values()
@@ -350,7 +351,19 @@ def render_summary(value: dict[str, Any]) -> str:
 
 
 def _values(cells: Mapping[str, tuple[Any, ...]]) -> list[dict[str, Any]]:
-    return [record.value for samples in cells.values() for record in samples]
+    """Record values with the exact run id of each sample.
+
+    The run id lets the collector map every frozen record to the raw run
+    that produced it, so multiple samples of one cell — repeated
+    invocations under a label, ``--samples N``, or ``--fresh`` reruns —
+    can never collapse onto another sample's run.
+    """
+
+    return [
+        {**record.value, "run_id": record.run_id}
+        for samples in cells.values()
+        for record in samples
+    ]
 
 
 def _semantic_quality(

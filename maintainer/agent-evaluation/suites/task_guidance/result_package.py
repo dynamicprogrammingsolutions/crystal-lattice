@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 import os
 import shutil
 import sys
@@ -853,7 +854,12 @@ def collect(
                     "semantic_quality": frozen["semantic_quality"],
                     "assessment_details": _assessment_details(frozen),
                     "invalid_records": [
-                        {"group": group, "record": record}
+                        {
+                            "group": group,
+                            # The run id is freeze-to-collect mapping
+                            # metadata, not part of the reviewed evidence.
+                            "record": _without_run_id(record),
+                        }
                         for group in (
                             "producer_records",
                             "handoff_records",
@@ -968,15 +974,63 @@ def _record_label(path: Path, value: Mapping[str, Any]) -> Any:
     return value.get("run_attempt")
 
 
+def _without_run_id(record: Mapping[str, Any]) -> dict[str, Any]:
+    """The record as evidence, without the freeze-to-collect mapping field."""
+
+    return {key: value for key, value in record.items() if key != "run_id"}
+
+
+def _has_run_id(record: Mapping[str, Any]) -> bool:
+    run_id = record.get("run_id")
+    return isinstance(run_id, str) and bool(run_id)
+
+
+def _map_exact_runs(
+    artifact_root: Path,
+    mapping: dict[str, Path],
+    records: Iterable[Mapping[str, Any]],
+) -> None:
+    """Map every run-id-carrying record to its exact run directory.
+
+    The frozen dataset names the raw run of every current record, so the
+    collector never has to guess which run produced a record — multiple
+    samples of one cell each resolve to their own run.
+    """
+
+    for record in records:
+        run_id = record.get("run_id")
+        if not isinstance(run_id, str) or not run_id or run_id in mapping:
+            continue
+        matches = sorted(artifact_root.glob(f"*/runs/{run_id}"))
+        if not matches:
+            raise FileNotFoundError(f"no raw run found for run id {run_id!r}")
+        mapping[run_id] = matches[0]
+
+
+def _run_dir_for(
+    discovery: Mapping[str, Path],
+    record: Mapping[str, Any],
+    fallback_key: str,
+) -> Path:
+    """The record's named run when it carries one, else the fallback key."""
+
+    run_id = record.get("run_id")
+    if isinstance(run_id, str) and run_id:
+        return discovery[run_id]
+    return discovery[fallback_key]
+
+
 def _discover_runs(
     artifact_root: Path,
     frozen: Mapping[str, Any],
 ) -> dict[str, Path]:
-    """Map each frozen record identity to its raw run directory.
+    """Map each frozen record to its raw run directory.
 
-    A raw run matches when its resolved label — the run-model sibling's
-    label for current records, the legacy ``run_attempt`` field for
-    historical ones — is part of the frozen dataset's run selection.
+    A record that names a run id maps to that exact run. A record without
+    one — a historical frozen dataset — falls back to the newest raw run
+    whose resolved label (the run-model sibling's label for current
+    records, the legacy ``run_attempt`` field for historical ones) and
+    identity match the record.
     """
 
     labels = _run_labels(frozen)
@@ -988,11 +1042,11 @@ def _discover_runs(
         (NEGATIVE_CONTROL_RECORD, "negative_control_records", handoff_cell_identity),
     )
     for record_name, group, identity_of in groups:
-        wanted = {
-            identity_of(record)
-            for record in frozen.get(group, ())
-            if isinstance(record, Mapping)
-        }
+        records = [
+            record for record in frozen.get(group, ()) if isinstance(record, Mapping)
+        ]
+        _map_exact_runs(artifact_root, mapping, records)
+        wanted = {identity_of(record) for record in records if not _has_run_id(record)}
         if not wanted:
             continue
         selected: dict[str, tuple[float, Path]] = {}
@@ -1022,7 +1076,13 @@ def _discover_runs(
         ("semantic_records", SEMANTIC_RECORD),
         ("handoff_semantic_records", HANDOFF_SEMANTIC_RECORD),
     ):
-        for record in frozen.get(group, ()):
+        records = [
+            record for record in frozen.get(group, ()) if isinstance(record, Mapping)
+        ]
+        _map_exact_runs(artifact_root, mapping, records)
+        for record in records:
+            if _has_run_id(record):
+                continue
             scenario_id = record.get("scenario_id")
             subject = record.get("subject")
             if not isinstance(subject, Mapping):
@@ -1252,7 +1312,9 @@ def _collect_cell(
     cell_prefix = f"scenarios/{scenario_id}/{cell_key}"
 
     producer = _find(frozen["producer_records"], scenario_id, profile, effort)
-    producer_run_dir = discovery[f"producer_records:{scenario_id}:{profile}:{effort}"]
+    producer_run_dir = _run_dir_for(
+        discovery, producer, f"producer_records:{scenario_id}:{profile}:{effort}"
+    )
     _, producer_instructions = _collect_run(
         KIND_TASK_CREATION,
         producer,
@@ -1282,9 +1344,11 @@ def _collect_cell(
         )
         if handoff is None:
             continue
-        handoff_run_dir = discovery[
-            f"handoff_records:{scenario_id}:{variant}:{profile}:{effort}"
-        ]
+        handoff_run_dir = _run_dir_for(
+            discovery,
+            handoff,
+            f"handoff_records:{scenario_id}:{variant}:{profile}:{effort}",
+        )
         _collect_run(
             kind,
             handoff,
@@ -1311,9 +1375,11 @@ def _collect_cell(
 
     same_agent = _find(frozen["same_agent_records"], scenario_id, profile, effort)
     if same_agent is not None:
-        same_agent_run_dir = discovery[
-            f"same_agent_records:{scenario_id}:{profile}:{effort}"
-        ]
+        same_agent_run_dir = _run_dir_for(
+            discovery,
+            same_agent,
+            f"same_agent_records:{scenario_id}:{profile}:{effort}",
+        )
         _collect_run(
             KIND_CONTINUATION,
             same_agent,
@@ -1343,9 +1409,11 @@ def _collect_cell(
         frozen["negative_control_records"], scenario_id, "incomplete", profile, effort
     )
     if negative is not None:
-        negative_run_dir = discovery[
-            f"negative_control_records:{scenario_id}:incomplete:{profile}:{effort}"
-        ]
+        negative_run_dir = _run_dir_for(
+            discovery,
+            negative,
+            f"negative_control_records:{scenario_id}:incomplete:{profile}:{effort}",
+        )
         _collect_run(
             KIND_CONTROL,
             negative,
@@ -1973,7 +2041,7 @@ def _collect_assessment(
                 name=name,
                 title=title,
                 record=records[0],
-                run_dir=discovery[f"{group}:{scenario_id}"],
+                run_dir=_run_dir_for(discovery, records[0], f"{group}:{scenario_id}"),
                 scenario=scenario,
                 bundle=bundle,
                 artifact_root=artifact_root,
@@ -2006,6 +2074,23 @@ def _collect_per_subject_assessment(
     all judgments with their subject and sample.
     """
 
+    def subject_key(record: Mapping[str, Any]) -> tuple[Any, Any, Any, Any]:
+        subject = record.get("subject") or {}
+        assessment = record.get("assessment")
+        variant = assessment.get("variant") if isinstance(assessment, Mapping) else None
+        return (
+            variant,
+            subject.get("profile"),
+            subject.get("reasoning_effort"),
+            subject.get("sample_index"),
+        )
+
+    # Judgments of one subject keep the frozen dataset's
+    # (sample_index, modified) order; a subject judged more than once
+    # numbers its judgments so every run renders at its own location.
+    judgment_totals = Counter(subject_key(record) for record in records)
+    judgment_seen: Counter[tuple[Any, Any, Any, Any]] = Counter()
+
     scenario_id = scenario.scenario_id
     run_prefix = f"scenarios/{scenario_id}/assessment/{name}"
     assessor_name, effort = assessment_cell("handoff", f"{name}-assessment")
@@ -2015,17 +2100,27 @@ def _collect_per_subject_assessment(
         sample_index = subject.get("sample_index")
         assessment = record.get("assessment")
         variant = assessment.get("variant") if isinstance(assessment, Mapping) else None
-        run_dir = discovery[
-            f"{group}:{scenario_id}:{variant}:"
-            f"{subject.get('profile')}:"
-            f"{subject.get('reasoning_effort')}:s{sample_index}"
-        ]
+        run_dir = _run_dir_for(
+            discovery,
+            record,
+            (
+                f"{group}:{scenario_id}:{variant}:"
+                f"{subject.get('profile')}:"
+                f"{subject.get('reasoning_effort')}:s{sample_index}"
+            ),
+        )
+        judgment_seen[subject_key(record)] += 1
+        ordinal = judgment_seen[subject_key(record)]
+        numbered = judgment_totals[subject_key(record)] > 1
         variant_segment = f"{variant}/" if variant is not None else ""
         subject_cell = f"{subject.get('profile')}-{subject.get('reasoning_effort')}"
+        sample_segment = f"s{sample_index}"
+        if numbered:
+            sample_segment = f"{sample_segment}/j{ordinal}"
         run_record, _ = _collect_run(
             (
                 f"{name}-assessment-{subject_cell}-"
-                f"{variant + '-' if variant is not None else ''}s{sample_index}"
+                f"{variant + '-' if variant is not None else ''}{sample_segment}"
             ),
             record,
             subdir=None,
@@ -2041,7 +2136,7 @@ def _collect_per_subject_assessment(
             runs=runs,
             files=files,
             cell_prefix=(
-                f"{run_prefix}/{subject_cell}/{variant_segment}s{sample_index}"
+                f"{run_prefix}/{subject_cell}/{variant_segment}{sample_segment}"
             ),
             task_files={},
             reconstruct=False,

@@ -217,6 +217,12 @@ directory name. `--cells` collects a partial package for selected
 compiled-message reconstruction. Collection ends with the package check,
 so a collected package always passes `check`.
 
+The frozen dataset names the raw run of every record, so re-running an
+invocation under the same label or collecting `--samples N` assessments
+keeps every judgment: each maps to its own run and renders at its own
+location. Frozen datasets from before the run-id field still collect
+through the identity-and-label fallback.
+
 Regenerate the human views of a committed package after changing the report
 configuration, and verify a package at any time:
 

@@ -129,6 +129,16 @@ directory name. `--cells` collects a partial package for selected
 compiled-message reconstruction. Collection ends with the package check,
 so a collected package always passes `check`.
 
+Every frozen record names the raw run that produced it, so multiple
+samples of one cell collect exactly: repeated invocations under one
+label, `--samples N` runs, and `--fresh` reruns all contribute their own
+runs. Assessment judgments of one subject render per subject cell,
+variant, and sample, and a subject judged more than once numbers its
+judgments (`s0/j1`, `s0/j2`). Producer-side cells render their first
+sample's page; every sample stays in the consolidated dataset. Frozen
+datasets from before the run-id field keep collecting through the
+identity-and-label fallback.
+
 ## Record discovery and parallelism
 
 Record discovery reads only `profile/runs/run-id/records/` paths, so

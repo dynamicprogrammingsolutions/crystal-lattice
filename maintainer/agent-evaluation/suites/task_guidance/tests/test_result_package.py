@@ -863,6 +863,121 @@ def test_collect_renders_each_task_creation_subject_of_one_scenario(
         assert (package_dir / assessment_prefix / cell / "s0" / "run.json").is_file()
 
 
+def test_collect_renders_each_judgment_of_one_subject(
+    tmp_path: Path,
+) -> None:
+    """Two judgments of one subject collect as numbered judgments.
+
+    Repeated invocations under one label judge the same subject twice;
+    the frozen records name their runs, and the collection numbers the
+    judgments so every run renders at its own location instead of
+    collapsing onto the newest matching run.
+    """
+
+    paths = _build_synthetic_evaluation(tmp_path)
+    frozen = paths["frozen"]
+    records = []
+    for run_id, score in (
+        ("synthetic-tg02-handoff-retain-1", 90),
+        ("synthetic-tg02-handoff-retain-2", 70),
+    ):
+        record = _per_subject_handoff_record(
+            HANDOFF_SCENARIO_ID, variant="retain", stage="fresh-agent", score=score
+        )
+        record["run_id"] = run_id
+        records.append(record)
+        _write_run(
+            paths["artifact_root"],
+            run_id=run_id,
+            record_name="task-guidance-handoff-semantic.json",
+            record=record,
+            session=_session(
+                f"/tmp/synthetic-task-guidance/{run_id}/workspace",
+                prompt="Assess the synthetic tg02 retain handoff.",
+                response=json.dumps(record["assessment"], indent=2),
+                compiled="synthetic assessor guidance",
+                run_id=run_id,
+            ),
+        )
+    frozen["handoff_semantic_records"] = records
+    frozen["status"]["handoff_semantics"] = {
+        "expected": 2,
+        "present": 2,
+        "missing": [],
+    }
+    paths["frozen_path"].write_text(
+        json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    package_dir = tmp_path / "package"
+    collect(
+        package_dir=package_dir,
+        artifact_root=paths["artifact_root"],
+        frozen_path=paths["frozen_path"],
+        cells=list(SYNTHETIC_CELLS),
+        bundle=DEFAULT_BUNDLE,
+    )
+    prefix = f"scenarios/{HANDOFF_SCENARIO_ID}/assessment/handoff/glm-max/retain/s0"
+    for ordinal, run_id in (
+        ("j1", "synthetic-tg02-handoff-retain-1"),
+        ("j2", "synthetic-tg02-handoff-retain-2"),
+    ):
+        run = json.loads(
+            (package_dir / prefix / ordinal / "run.json").read_text(encoding="utf-8")
+        )
+        assert run["run_id"] == run_id
+
+
+def test_collect_uses_the_named_run_of_each_producer_sample(
+    tmp_path: Path,
+) -> None:
+    """The producer page shows the exact run of its frozen record.
+
+    A cell with two samples keeps both in the frozen dataset; the
+    collected page must render the first sample's own run, not the newest
+    raw run of the cell.
+    """
+
+    paths = _build_synthetic_evaluation(tmp_path)
+    frozen = paths["frozen"]
+    first = dict(frozen["producer_records"][0])
+    first["run_id"] = PRODUCER_RUN_ID
+    second = dict(first)
+    second["run_id"] = "synthetic-tg02-producer-second"
+    second["response"] = "Created the pagination task, second sample."
+    frozen["producer_records"][0] = first
+    frozen["producer_records"].insert(1, second)
+    _write_run(
+        paths["artifact_root"],
+        run_id="synthetic-tg02-producer-second",
+        record_name="task-guidance-producer.json",
+        record=second,
+        session=_session(
+            "/tmp/synthetic-task-guidance/synthetic-tg02-producer-second/workspace",
+            prompt=second["prompt"],
+            response=second["response"],
+            compiled="synthetic compiled guidance",
+            run_id="synthetic-tg02-producer-second",
+        ),
+    )
+    paths["frozen_path"].write_text(
+        json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    package_dir = tmp_path / "package"
+    collect(
+        package_dir=package_dir,
+        artifact_root=paths["artifact_root"],
+        frozen_path=paths["frozen_path"],
+        cells=list(SYNTHETIC_CELLS),
+        bundle=DEFAULT_BUNDLE,
+    )
+    run = json.loads(
+        (package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max/run.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert run["run_id"] == PRODUCER_RUN_ID
+
+
 def test_collect_renders_each_handoff_variant_of_one_subject(
     tmp_path: Path,
 ) -> None:
