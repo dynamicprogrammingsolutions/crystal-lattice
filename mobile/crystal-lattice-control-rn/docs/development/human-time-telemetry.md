@@ -1,25 +1,19 @@
 # Human time telemetry
 
-The mobile app measures how long a person is actually active on a surface
-and reports those durations to the duration-tracking plugin on the
-connected backend. Collection is opt-in and off by default.
+The mobile app measures foreground time while a session is open and reports
+those durations to the duration-tracking plugin on the connected backend.
+Collection is opt-in and off by default.
 
 ## What is collected
 
-An activity burst opens a **span**; 30 seconds of inactivity closes it.
-A span is `{sessionId: string|null, from: ISO-8601 UTC, to: ISO-8601 UTC}`
-where `from` is the first and `to` the last activity of the burst — idle
-gaps never enter a span, and switching surfaces closes the open span and
-lets the next activity open a fresh one.
+A span starts when the Messages surface has a selected session while the app
+is in the foreground and tracking is enabled. It closes when the app leaves
+the foreground, the user leaves Messages, selects another session or
+connection, disables tracking, or selects **Upload now**. Returning to the
+foreground with the session still open starts a new span.
 
-Activity sources:
-
-- **Session surfaces** (span carries the session id): composer typing,
-  transcript scrolling, and sending in a session chat.
-- **Session-less surfaces** (span carries `null`): scrolling and row taps
-  on the sessions list.
-
-Leaving the foreground (app background) closes the open span.
+Typing, scrolling, and sending are not individual collection signals. Mobile
+does not create session-less spans.
 
 ## Settings
 
@@ -36,22 +30,24 @@ Both settings live in the global settings modal and persist through
 
 ## Upload behavior
 
-`src/humanTimeTelemetry/` owns the pipeline:
+The headless pipeline is shared from
+`packages/frontend-rn-components/src/humanTimeTelemetry/`. The mobile
+`src/humanTimeTelemetry/` directory provides thin AsyncStorage adapters and
+the app-specific provider:
 
-- `spanTracker.ts` — burst detection and span closing.
-- `spanCache.ts` — durable per-connection AsyncStorage cache
+- mobile `spanCache.ts` — binds the shared durable cache to AsyncStorage
   (`clc_human_time_spans_v1`, 5000-span soft cap). Spans persist until
   the backend confirms their batch, so restarts and failed uploads do
   not lose data.
-- `uploader.ts` — batched drain over `executeAction`
+- shared `uploader.ts` — batched drain over `executeAction`
   (`record_human_time_spans`, `actionOwner: "application"`, up to 100
   spans per call, content-derived `request_id` stable across retries).
   Flushes debounce 2s after a span closes and run immediately when a
   connection becomes usable or the app returns to the foreground.
   Uploads do not wait for agent work on the connection.
-- `warning.ts` — the failure banner.
-- `HumanTimeTelemetryProvider.tsx` — context + collectors wiring, mounted
-  in `ConnectedRoot`.
+- shared `warning.ts` — the failure banner.
+- `HumanTimeTelemetryProvider.tsx` — foreground/session lifecycle tracking,
+  mounted in `ConnectedRoot`.
 
 Transient failures (network errors, HTTP 5xx) retain the spans and retry
 after 30 seconds while the app can run.
@@ -84,9 +80,10 @@ list), end time, and duration. A partially accepted drain is labeled
 **Some entries rejected**. Pending entries are restored from the durable cache;
 uploaded entry history covers the current app run.
 
-**Upload now** closes the current span, waits for its durable cache write, and
-flushes the connection. **Refresh** reloads the pending count. Diagnostics do
-not show message content or filesystem paths.
+**Upload now** closes the current span, waits for its durable cache write,
+flushes the connection, and starts a fresh span if the session remains open
+in the foreground. **Refresh** reloads the pending count. Diagnostics do not
+show message content or filesystem paths.
 
 ## End-to-end verification
 
@@ -105,15 +102,13 @@ npm run test:integration -- \
   --runTestsByPath __integration__/humanTimeSpanUpload.realBackend.integration.test.ts
 ```
 
-The focused Detox tier proves collection. It launches the real release
-app without harness arguments, spawns the same real backend in a
-hermetic workspace, connects through the production manual-address
-flow, and enables tracking through the real settings UI. Composer typing
-and sending exercise session activity; a real Sessions-list drag and row
-tap exercise session-less activity. The host then queries the plugin's
-SQLite store and requires positive-duration rows for both the UI-created
-session and `session_id: null`. This existing single simulator scenario
-remains the native collection check; scheduling and diagnostics are covered
+The focused Detox tier proves collection. It launches the real release app
+without harness arguments, spawns the same real backend in a hermetic
+workspace, connects through the production manual-address flow, and enables
+tracking through the real settings UI. It opens a real session, sends through
+the production composer, leaves Messages to close the foreground span, and
+requires a positive-duration row for that session. This remains the single
+native collection scenario; lifecycle scheduling and diagnostics are covered
 deterministically by provider/uploader and real-backend integration tests.
 
 Build a current release app when production mobile sources have changed,

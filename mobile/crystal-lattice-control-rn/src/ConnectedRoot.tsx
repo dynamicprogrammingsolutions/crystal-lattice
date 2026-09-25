@@ -263,6 +263,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         <HumanTimeTelemetryProvider
           backend={backend}
           connectionId={activeConnectionId}
+          activeSessionId={tab === 'messages' ? selectedSessionId : null}
         >
         <View style={styles.contentArea} testID="connected-root-content">
         <View

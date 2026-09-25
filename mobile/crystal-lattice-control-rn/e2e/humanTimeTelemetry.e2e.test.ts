@@ -15,9 +15,9 @@ import {
   type StartedServer,
 } from '../../../packages/frontend-sdk/src/integration/harness';
 
-// This suite proves the COLLECTION side of human time telemetry: real user
-// actions in the real app (composer typing, sending, session-list taps)
-// produce spans that reach the real duration-tracking plugin's store. The
+// This suite proves the COLLECTION side of human time telemetry: foreground
+// time with a real session open reaches the real duration-tracking plugin's
+// store. The
 // transport → server → plugin → surfacing chain from stored entries is
 // proven by the jest integration tier
 // (__integration__/humanTimeSpanUpload.realBackend.integration.test.ts);
@@ -47,9 +47,6 @@ async function settleAfterModalTransition(): Promise<void> {
 }
 
 async function openSessionFromList(rowId: string): Promise<void> {
-  // Scroll the real list far enough to emit multiple session-less activity
-  // callbacks, return to the UI-created session, then extend that span with
-  // the required row tap before navigation switches activity to the chat.
   await element(by.id('sessions-list')).swipe('up', 'slow', 0.4);
   await element(by.id('sessions-list')).scrollTo('top');
   await waitFor(element(by.id(rowId))).toBeVisible().withTimeout(10000);
@@ -236,7 +233,7 @@ describe('mobile human time collection (real app + real server)', () => {
     }
   });
 
-  it('stores spans for real typing, sending, and session-list taps', async () => {
+  it('stores foreground time for a real open session', async () => {
     await launchRealApp();
     await connectToServer(server!.port);
     await enableTimeTracking();
@@ -263,8 +260,8 @@ describe('mobile human time collection (real app + real server)', () => {
     jestExpect(sessionIds).toHaveLength(1);
     const rowId = `session-row-${sessionIds[0]}`;
 
-    // Composer typing and sending are session activity: they open (and
-    // extend) a span attributed to the open session.
+    // The span starts when the session becomes the foreground Messages
+    // surface; typing and sending do not drive collection.
     await element(by.id('message-composer-input')).typeText('hello human time');
 
     // The multiline iOS keyboard covers the side-mounted Send button.
@@ -282,26 +279,12 @@ describe('mobile human time collection (real app + real server)', () => {
       .withTimeout(30000);
     await element(by.id('composer-send')).tap();
 
-    // Session-list row taps are session-less activity and must land as
-    // null-session spans. Repeated navigation gives the span a positive
-    // duration.
+    // Leaving Messages closes the foreground-session span.
     await element(by.id('messages-back-to-sessions')).tap();
     await waitFor(element(by.id(rowId))).toBeVisible().withTimeout(30000);
-    await openSessionFromList(rowId);
-    await waitFor(element(by.id('message-composer-input')))
-      .toBeVisible()
-      .withTimeout(30000);
-    await element(by.id('messages-back-to-sessions')).tap();
-    await waitFor(element(by.id(rowId))).toBeVisible().withTimeout(30000);
-    await openSessionFromList(rowId);
-    await waitFor(element(by.id('message-composer-input')))
-      .toBeVisible()
-      .withTimeout(30000);
-    await element(by.id('messages-back-to-sessions')).tap();
 
-    // 30s of inactivity closes the open span; the close debounce uploads
-    // it. 45s covers the close, the debounce, and the upload round trip.
-    await new Promise((resolve) => setTimeout(resolve, 45_000));
+    // The close debounce and upload do not require an inactivity wait.
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
 
     // The stored rows are the touch point with the jest integration tier:
     // real UI activity reached the real plugin's store.
@@ -311,11 +294,7 @@ describe('mobile human time collection (real app + real server)', () => {
     const sessionRows = rows.filter(
       (row) => row.session_id !== null && row.duration_ms > 0,
     );
-    const sessionlessRows = rows.filter(
-      (row) => row.session_id === null && row.duration_ms > 0,
-    );
     jestExpect(sessionRows.length).toBeGreaterThan(0);
-    jestExpect(sessionlessRows.length).toBeGreaterThan(0);
     for (const row of sessionRows) {
       jestExpect(row.session_id).toBe(sessionIds[0]);
     }

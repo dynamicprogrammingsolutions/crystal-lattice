@@ -376,3 +376,11 @@ and app foregrounding, and transient failures retry after 30 seconds. The
 follow-up also added compact Global Settings diagnostics, user-facing
 human-time diagnostics to Show duration report, and all-or-none ingestion so
 positive skipped counts cannot silently drain the frontend cache.
+
+Subtask
+`tasks/20260922-duration-and-human-time-tracking/070-session-presence-and-inactivity-semantics.md`
+superseded the frontend collection details on 2026-09-25. Mobile now tracks
+foreground time while a session is open and creates no session-less spans;
+desktop uses activity bursts that include a configurable inactivity grace
+period and also creates no session-less spans. The ingestion contract remains
+unchanged and continues accepting null-session spans for compatibility.

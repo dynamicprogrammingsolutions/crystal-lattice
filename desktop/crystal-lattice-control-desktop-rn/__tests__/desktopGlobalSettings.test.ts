@@ -13,6 +13,9 @@ describe('desktop global session interaction settings', () => {
     expect(settings.sessionDoubleClickAction).toBe('preview');
     expect(settings.sessionsFollowActiveTabEnabled).toBe(true);
     expect(settings.switchConnectionWithActiveTabEnabled).toBe(false);
+    expect(settings.timeTrackingEnabled).toBe(false);
+    expect(settings.timeTrackingPluginId).toBe('duration_tracking_app');
+    expect(settings.timeTrackingInactivitySeconds).toBe(30);
     expect(
       complementarySessionOpenMode(settings.sessionDoubleClickAction),
     ).toBe('open');
@@ -77,5 +80,23 @@ describe('desktop global session interaction settings', () => {
         switchConnectionWithActiveTabEnabled: 'true',
       }).switchConnectionWithActiveTabEnabled,
     ).toBe(false);
+  });
+
+  it('normalizes the desktop inactivity setting', () => {
+    expect(
+      normalizeDesktopGlobalSettings({
+        timeTrackingInactivitySeconds: 60,
+      }).timeTrackingInactivitySeconds,
+    ).toBe(60);
+    expect(
+      normalizeDesktopGlobalSettings({
+        timeTrackingInactivitySeconds: 0,
+      }).timeTrackingInactivitySeconds,
+    ).toBe(30);
+    expect(
+      normalizeDesktopGlobalSettings({
+        timeTrackingInactivitySeconds: Number.NaN,
+      }).timeTrackingInactivitySeconds,
+    ).toBe(30);
   });
 });

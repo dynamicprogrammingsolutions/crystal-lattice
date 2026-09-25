@@ -312,6 +312,7 @@ export function SessionTabs({
     <View style={styles.root} testID="desktop-session-tab-strip">
       <Pressable
         testID="desktop-home-tab"
+        accessibilityRole="button"
         accessibilityLabel="Home"
         accessibilityState={{ selected: homeActive }}
         style={[

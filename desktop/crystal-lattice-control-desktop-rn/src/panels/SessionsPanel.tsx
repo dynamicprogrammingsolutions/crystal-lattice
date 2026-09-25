@@ -230,7 +230,6 @@ function SessionsPanelInner({
 }: SessionsPanelProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-
   const { controller: sessionsController, state: sessionsState } =
     useSessionsController({
       backend,
@@ -989,7 +988,11 @@ function SessionsPanelInner({
       lastClickRef.current = result.next;
       if (result.openMode) openSession(session, result.openMode);
     },
-    [onUserSelectSessionId, openSession, sessionDoubleClickAction],
+    [
+      onUserSelectSessionId,
+      openSession,
+      sessionDoubleClickAction,
+    ],
   );
 
   return (
@@ -1083,7 +1086,9 @@ function SessionsPanelInner({
           placeholder={mainSearch.label}
           placeholderTextColor={theme.textMuted}
           value={searchText}
-          onChangeText={setSearchText}
+          onChangeText={value => {
+            setSearchText(value);
+          }}
           autoCapitalize="none"
           autoCorrect={false}
         />
@@ -1165,6 +1170,8 @@ function SessionsPanelInner({
         </View>
       ) : (
         <ScrollView
+          testID="sessions-list"
+          accessibilityLabel="Sessions list"
           ref={scrollViewRef}
           style={styles.list}
           contentContainerStyle={styles.listContent}
@@ -1253,6 +1260,7 @@ function SessionsPanelInner({
               <Pressable
                 key={session.session_id}
                 testID={`session-row-${session.session_id}`}
+                accessibilityRole="button"
                 style={state => {
                   const pressedOrHovered =
                     ((state as any).hovered as boolean | undefined) ||
@@ -1368,6 +1376,10 @@ function SessionsPanelInner({
                 >
                   <Pressable
                     testID={`desktop-session-${explicitOpenMode}-${session.session_id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${sessionOpenModeLabel(
+                      explicitOpenMode,
+                    )} session ${session.session_id}`}
                     style={[styles.openButton, styles.openButtonVisible]}
                     pointerEvents="auto"
                     onPress={event => {

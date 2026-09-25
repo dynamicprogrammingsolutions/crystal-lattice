@@ -9,10 +9,17 @@ import React, {
 } from 'react';
 import { AppState } from 'react-native';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import {
+  humanTimeDiagnosticUploadStatus,
+  mergePendingHumanTimeDiagnosticEntries,
+  updateHumanTimeDiagnosticEntries,
+  type HumanTimeDiagnosticEntry,
+  type HumanTimeDiagnosticUploadStatus,
+} from '@crystal-lattice/frontend-rn-components';
 
 import { useHomeWorkspace } from '../HomeWorkspaceContext';
 import { appendSpan, loadSpans } from './spanCache';
-import { HumanTimeSpanTracker, type HumanTimeSpan } from './spanTracker';
+import type { HumanTimeSpan } from './spans';
 import {
   HumanTimeSpanUploader,
   type FlushOutcome,
@@ -20,17 +27,7 @@ import {
 } from './uploader';
 import { emitHumanTimeTelemetryWarning } from './warning';
 
-export type HumanTimeDiagnosticUploadStatus =
-  | 'pending'
-  | 'uploading'
-  | 'uploaded'
-  | 'retrying'
-  | 'failed';
-
-export interface HumanTimeDiagnosticEntry extends HumanTimeSpan {
-  uploadStatus: HumanTimeDiagnosticUploadStatus;
-  error: string | null;
-}
+export type { HumanTimeDiagnosticEntry, HumanTimeDiagnosticUploadStatus };
 
 export interface HumanTimeDiagnostics {
   enabled: boolean;
@@ -44,15 +41,12 @@ export interface HumanTimeDiagnostics {
 }
 
 interface HumanTimeTelemetryValue {
-  /** Report user activity on a surface; null for session-less surfaces. */
-  recordActivity: (sessionId: string | null) => void;
   diagnostics: HumanTimeDiagnostics;
   refreshDiagnostics: () => Promise<void>;
   uploadNow: () => Promise<FlushOutcome>;
 }
 
 const defaultValue: HumanTimeTelemetryValue = {
-  recordActivity: () => {},
   diagnostics: {
     enabled: false,
     connected: false,
@@ -70,68 +64,6 @@ const defaultValue: HumanTimeTelemetryValue = {
 const HumanTimeTelemetryContext =
   createContext<HumanTimeTelemetryValue>(defaultValue);
 
-const RECENT_DIAGNOSTIC_ENTRY_LIMIT = 10;
-
-function diagnosticSpanKey(span: HumanTimeSpan): string {
-  return `${span.sessionId ?? ''}\u0000${span.from}\u0000${span.to}`;
-}
-
-function newestDiagnosticEntries(
-  entries: HumanTimeDiagnosticEntry[],
-): HumanTimeDiagnosticEntry[] {
-  return [...entries]
-    .sort((left, right) => right.to.localeCompare(left.to))
-    .slice(0, RECENT_DIAGNOSTIC_ENTRY_LIMIT);
-}
-
-function mergePendingDiagnosticEntries(
-  current: HumanTimeDiagnosticEntry[],
-  pending: HumanTimeSpan[],
-): HumanTimeDiagnosticEntry[] {
-  const entries = new Map(
-    current.map((entry) => [diagnosticSpanKey(entry), entry]),
-  );
-  for (const span of pending) {
-    const key = diagnosticSpanKey(span);
-    if (!entries.has(key)) {
-      entries.set(key, { ...span, uploadStatus: 'pending', error: null });
-    }
-  }
-  return newestDiagnosticEntries([...entries.values()]);
-}
-
-function updateDiagnosticEntries(
-  current: HumanTimeDiagnosticEntry[],
-  spans: HumanTimeSpan[],
-  uploadStatus: HumanTimeDiagnosticUploadStatus,
-  error: string | null,
-): HumanTimeDiagnosticEntry[] {
-  const entries = new Map(
-    current.map((entry) => [diagnosticSpanKey(entry), entry]),
-  );
-  for (const span of spans) {
-    entries.set(diagnosticSpanKey(span), { ...span, uploadStatus, error });
-  }
-  return newestDiagnosticEntries([...entries.values()]);
-}
-
-function diagnosticUploadStatus(
-  outcome: HumanTimeUploadEvent['outcome'],
-): HumanTimeDiagnosticUploadStatus {
-  switch (outcome) {
-    case 'uploading':
-      return 'uploading';
-    case 'flushed':
-      return 'uploaded';
-    case 'partial-failure':
-      return 'failed';
-    case 'transient-failure':
-      return 'retrying';
-    case 'definitive-failure':
-      return 'failed';
-  }
-}
-
 export function useHumanTimeTelemetry(): HumanTimeTelemetryValue {
   return useContext(HumanTimeTelemetryContext);
 }
@@ -139,18 +71,24 @@ export function useHumanTimeTelemetry(): HumanTimeTelemetryValue {
 export interface HumanTimeTelemetryProviderProps {
   backend: AgentBackend | null;
   connectionId: string | null;
+  activeSessionId: string | null;
   children: React.ReactNode;
 }
 
+interface ActiveSessionSpan {
+  connectionId: string;
+  sessionId: string;
+  fromMs: number;
+}
+
 /**
- * Owns the human time telemetry pipeline: the span tracker (activity →
- * spans), the durable cache, and the batched uploader. Collection runs only
- * when the user opted in; uploads target the frontend-owned telemetry plugin
- * id.
+ * Owns the human time telemetry pipeline: foreground session presence,
+ * durable caching, and batched upload. Collection runs only when the user
+ * opted in; uploads target the frontend-owned telemetry plugin id.
  */
 export const HumanTimeTelemetryProvider: React.FC<
   HumanTimeTelemetryProviderProps
-> = ({ backend, connectionId, children }) => {
+> = ({ backend, connectionId, activeSessionId, children }) => {
   const { timeTrackingEnabled, timeTrackingPluginId } = useHomeWorkspace();
   const [openSpan, setOpenSpan] = useState<HumanTimeSpan | null>(null);
   const [lastCollectedSpan, setLastCollectedSpan] =
@@ -169,17 +107,20 @@ export const HumanTimeTelemetryProvider: React.FC<
   const latestRef = useRef({
     backend,
     connectionId,
+    activeSessionId,
     timeTrackingEnabled,
     timeTrackingPluginId,
   });
   latestRef.current = {
     backend,
     connectionId,
+    activeSessionId,
     timeTrackingEnabled,
     timeTrackingPluginId,
   };
 
-  const trackerRef = useRef<HumanTimeSpanTracker | null>(null);
+  const activeSessionSpanRef = useRef<ActiveSessionSpan | null>(null);
+  const appStateRef = useRef(AppState.currentState);
   const uploaderRef = useRef<HumanTimeSpanUploader | null>(null);
   const pendingWritesRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -194,43 +135,11 @@ export const HumanTimeTelemetryProvider: React.FC<
     if (latestRef.current.connectionId !== activeConnectionId) return;
     setPendingCount(pending.length);
     setRecentEntries((current) =>
-      mergePendingDiagnosticEntries(current, pending),
+      mergePendingHumanTimeDiagnosticEntries(current, pending),
     );
   }, []);
 
   useEffect(() => {
-    const tracker = new HumanTimeSpanTracker({
-      onSpanClosed: (span) => {
-        setOpenSpan(null);
-        setLastCollectedSpan(span);
-        const {
-          connectionId: activeConnectionId,
-          timeTrackingEnabled: enabled,
-        } = latestRef.current;
-        if (!activeConnectionId || !enabled) return;
-        pendingWritesRef.current = pendingWritesRef.current.then(async () => {
-          const appended = await appendSpan(activeConnectionId, span);
-          if (!appended) {
-            setCollectionError('The collected span could not be saved.');
-            setRecentEntries((current) =>
-              updateDiagnosticEntries(
-                current,
-                [span],
-                'failed',
-                'The collected span could not be saved.',
-              ),
-            );
-            return;
-          }
-          setCollectionError(null);
-          setRecentEntries((current) =>
-            updateDiagnosticEntries(current, [span], 'pending', null),
-          );
-          await refreshDiagnostics();
-          uploaderRef.current?.notifySpanClosed();
-        });
-      },
-    });
     const uploader = new HumanTimeSpanUploader({
       getBackend: () => latestRef.current.backend,
       getConnectionId: () => latestRef.current.connectionId,
@@ -245,51 +154,127 @@ export const HumanTimeTelemetryProvider: React.FC<
       onUploadEvent: (event) => {
         setLastUpload(event);
         setRecentEntries((current) =>
-          updateDiagnosticEntries(
+          updateHumanTimeDiagnosticEntries(
             current,
             event.spans,
-            diagnosticUploadStatus(event.outcome),
+            humanTimeDiagnosticUploadStatus(event.outcome),
             event.error,
           ),
         );
         void refreshDiagnostics();
       },
     });
-    trackerRef.current = tracker;
     uploaderRef.current = uploader;
     return () => {
-      tracker.dispose();
       uploader.dispose();
-      trackerRef.current = null;
       uploaderRef.current = null;
     };
   }, [refreshDiagnostics]);
 
-  // Close the open span when the app leaves the foreground; the user
-  // stopped being active. On return, wait for that durable write before
-  // flushing because mobile runtimes commonly suspend the close debounce.
+  const closeActiveSessionSpan = useCallback(
+    (atMs = Date.now()) => {
+      const active = activeSessionSpanRef.current;
+      if (!active) return;
+      activeSessionSpanRef.current = null;
+      const span: HumanTimeSpan = {
+        sessionId: active.sessionId,
+        from: new Date(active.fromMs).toISOString(),
+        to: new Date(Math.max(active.fromMs, atMs)).toISOString(),
+      };
+      setOpenSpan(null);
+      setLastCollectedSpan(span);
+      pendingWritesRef.current = pendingWritesRef.current.then(async () => {
+        const appended = await appendSpan(active.connectionId, span);
+        if (!appended) {
+          const error = 'The collected span could not be saved.';
+          setCollectionError(error);
+          setRecentEntries((current) =>
+            updateHumanTimeDiagnosticEntries(
+              current,
+              [span],
+              'failed',
+              error,
+            ),
+          );
+          return;
+        }
+        setCollectionError(null);
+        setRecentEntries((current) =>
+          updateHumanTimeDiagnosticEntries(current, [span], 'pending', null),
+        );
+        await refreshDiagnostics();
+        uploaderRef.current?.notifySpanClosed();
+      });
+    },
+    [refreshDiagnostics],
+  );
+
+  const reconcileActiveSessionSpan = useCallback(() => {
+    const {
+      activeSessionId: nextSessionId,
+      connectionId: nextConnectionId,
+      timeTrackingEnabled: enabled,
+    } = latestRef.current;
+    const shouldTrack =
+      enabled &&
+      appStateRef.current === 'active' &&
+      !!nextConnectionId &&
+      !!nextSessionId;
+    const active = activeSessionSpanRef.current;
+    if (
+      active &&
+      (!shouldTrack ||
+        active.connectionId !== nextConnectionId ||
+        active.sessionId !== nextSessionId)
+    ) {
+      closeActiveSessionSpan();
+    }
+    if (!shouldTrack || activeSessionSpanRef.current) return;
+    const fromMs = Date.now();
+    activeSessionSpanRef.current = {
+      connectionId: nextConnectionId,
+      sessionId: nextSessionId,
+      fromMs,
+    };
+    setOpenSpan({
+      sessionId: nextSessionId,
+      from: new Date(fromMs).toISOString(),
+      to: new Date(fromMs).toISOString(),
+    });
+  }, [closeActiveSessionSpan]);
+
+  useEffect(() => {
+    reconcileActiveSessionSpan();
+  }, [
+    activeSessionId,
+    connectionId,
+    reconcileActiveSessionSpan,
+    timeTrackingEnabled,
+  ]);
+
+  // Close when the app leaves the foreground. On return, start a new span
+  // for the still-open session and flush durable spans from the prior period.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
+      appStateRef.current = state;
       if (state === 'active') {
+        reconcileActiveSessionSpan();
         void pendingWritesRef.current.then(() => {
           uploaderRef.current?.notifyAppForeground();
           return refreshDiagnostics();
         });
         return;
       }
-      trackerRef.current?.close();
+      closeActiveSessionSpan();
     });
     return () => {
       subscription?.remove?.();
     };
-  }, [refreshDiagnostics]);
-
-  // Close the current span when collection is disabled.
-  useEffect(() => {
-    if (!timeTrackingEnabled) {
-      trackerRef.current?.close();
-    }
-  }, [timeTrackingEnabled]);
+  }, [
+    closeActiveSessionSpan,
+    reconcileActiveSessionSpan,
+    refreshDiagnostics,
+  ]);
 
   // A connection became usable: flush after any pending cache write.
   const connectionKey = backend && connectionId ? connectionId : null;
@@ -310,20 +295,18 @@ export const HumanTimeTelemetryProvider: React.FC<
     uploaderRef.current?.rearmWarning();
   }, [timeTrackingEnabled, timeTrackingPluginId]);
 
-  const recordActivity = useCallback((sessionId: string | null) => {
-    if (!latestRef.current.timeTrackingEnabled) return;
-    const tracker = trackerRef.current;
-    tracker?.recordActivity(sessionId);
-    setOpenSpan(tracker?.getOpenSpan() ?? null);
-  }, []);
-
   const uploadNow = useCallback(async (): Promise<FlushOutcome> => {
-    trackerRef.current?.close();
+    closeActiveSessionSpan();
     await pendingWritesRef.current;
     const outcome = await uploaderRef.current?.flush();
     await refreshDiagnostics();
+    reconcileActiveSessionSpan();
     return outcome ?? 'no-connection';
-  }, [refreshDiagnostics]);
+  }, [
+    closeActiveSessionSpan,
+    reconcileActiveSessionSpan,
+    refreshDiagnostics,
+  ]);
 
   const diagnostics = useMemo<HumanTimeDiagnostics>(
     () => ({
@@ -351,12 +334,11 @@ export const HumanTimeTelemetryProvider: React.FC<
 
   const value = useMemo<HumanTimeTelemetryValue>(
     () => ({
-      recordActivity,
       diagnostics,
       refreshDiagnostics,
       uploadNow,
     }),
-    [diagnostics, recordActivity, refreshDiagnostics, uploadNow],
+    [diagnostics, refreshDiagnostics, uploadNow],
   );
 
   return (

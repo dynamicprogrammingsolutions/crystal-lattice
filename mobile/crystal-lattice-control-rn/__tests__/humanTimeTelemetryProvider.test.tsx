@@ -1,17 +1,16 @@
 import React from 'react';
-import { AppState, Text, TouchableOpacity } from 'react-native';
+import { AppState } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import { subscribeDisplayPresentation } from '@crystal-lattice/frontend-sdk';
 
-import {
-  HumanTimeTelemetryProvider,
-  useHumanTimeTelemetry,
-} from '../src/humanTimeTelemetry/HumanTimeTelemetryProvider';
+import { HumanTimeTelemetryProvider } from '../src/humanTimeTelemetry/HumanTimeTelemetryProvider';
 import { appendSpan, loadSpans } from '../src/humanTimeTelemetry/spanCache';
 import { HomeWorkspaceProvider } from '../src/HomeWorkspaceContext';
 import { MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY } from '../src/homeWorkspaceState';
 import GlobalSettingsModal from '../src/components/GlobalSettingsModal';
+
+const originalAppState = AppState.currentState;
 
 function createMemoryStore(seed?: Record<string, unknown>) {
   const data = new Map<string, string>(
@@ -35,58 +34,26 @@ function createBackend(executeAction: jest.Mock): AgentBackend {
   return { executeAction } as unknown as AgentBackend;
 }
 
-function ActivityProbe({ sessionId }: { sessionId: string | null }) {
-  const { recordActivity } = useHumanTimeTelemetry();
-  return (
-    <TouchableOpacity
-      testID="telemetry-activity-button"
-      onPress={() => recordActivity(sessionId)}
-    >
-      <Text>activity</Text>
-    </TouchableOpacity>
-  );
-}
-
-function ActivityProbeList({ sessionIds }: { sessionIds: string[] }) {
-  const { recordActivity } = useHumanTimeTelemetry();
-  return (
-    <>
-      {sessionIds.map((sessionId, index) => (
-        <TouchableOpacity
-          key={sessionId}
-          testID={`telemetry-activity-button-${index}`}
-          onPress={() => recordActivity(sessionId)}
-        >
-          <Text>{sessionId}</Text>
-        </TouchableOpacity>
-      ))}
-    </>
-  );
-}
-
 function Host({
   backend,
   connectionId,
+  activeSessionId,
   store,
-  sessionId = 'session-1',
-  sessionIds,
   showSettings = false,
 }: {
   backend: AgentBackend;
   connectionId: string;
+  activeSessionId: string | null;
   store: ReturnType<typeof createMemoryStore>;
-  sessionId?: string | null;
-  sessionIds?: string[];
   showSettings?: boolean;
 }) {
   return (
     <HomeWorkspaceProvider store={store}>
-      <HumanTimeTelemetryProvider backend={backend} connectionId={connectionId}>
-        {sessionIds ? (
-          <ActivityProbeList sessionIds={sessionIds} />
-        ) : (
-          <ActivityProbe sessionId={sessionId} />
-        )}
+      <HumanTimeTelemetryProvider
+        backend={backend}
+        connectionId={connectionId}
+        activeSessionId={activeSessionId}
+      >
         {showSettings ? (
           <GlobalSettingsModal visible onRequestClose={() => {}} />
         ) : null}
@@ -101,191 +68,139 @@ async function drainMicrotasks() {
   }
 }
 
-/** Let the workspace hydrate and the provider re-render with the settings. */
 async function settleAfterRender() {
   await act(async () => {
     await drainMicrotasks();
   });
 }
 
+function enabledStore(pluginId = 'duration_tracking_app') {
+  return createMemoryStore({
+    [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
+      timeTrackingEnabled: true,
+      timeTrackingPluginId: pluginId,
+    },
+  });
+}
+
+function successfulActionResult(recorded = 1) {
+  return {
+    status: 'ok',
+    plugin: 'duration_tracking_app',
+    action_id: 'record_human_time_spans',
+    result: {
+      recorded,
+      merged: 0,
+      skipped: 0,
+      absorbed: 0,
+      duplicate: false,
+    },
+  };
+}
+
 describe('HumanTimeTelemetryProvider', () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-25T10:00:00.000Z'));
+    (AppState as any).currentState = 'active';
   });
 
   afterEach(() => {
     jest.useRealTimers();
+    jest.restoreAllMocks();
+    (AppState as any).currentState = originalAppState;
   });
 
   it('collects nothing while the opt-in toggle is off', async () => {
+    const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
     const store = createMemoryStore();
-    const executeAction = jest.fn().mockResolvedValue({
-      status: 'ok',
-      plugin: 'duration_tracking_app',
-      action_id: 'record_human_time_spans',
-      result: { status: 'ok' },
-    });
-    const { getByTestId } = render(
+    const backend = createBackend(executeAction);
+    const screen = render(
       <Host
-        backend={createBackend(executeAction)}
+        backend={backend}
         connectionId="connection-a"
+        activeSessionId="session-1"
         store={store}
       />,
     );
     await settleAfterRender();
-
-    fireEvent.press(getByTestId('telemetry-activity-button'));
-    await jest.advanceTimersByTimeAsync(60_000);
+    await jest.advanceTimersByTimeAsync(10_000);
+    screen.rerender(
+      <Host
+        backend={backend}
+        connectionId="connection-a"
+        activeSessionId={null}
+        store={store}
+      />,
+    );
     await drainMicrotasks();
 
     expect(await loadSpans('connection-a')).toEqual([]);
     expect(executeAction).not.toHaveBeenCalled();
   });
 
-  it('tracks activity, closes the span on inactivity, and uploads the batch', async () => {
-    const store = createMemoryStore({
-      [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
-        timeTrackingEnabled: true,
-        timeTrackingPluginId: 'duration_tracking_app',
-      },
-    });
-    const executeAction = jest.fn().mockResolvedValue({
-      status: 'ok',
-      plugin: 'duration_tracking_app',
-      action_id: 'record_human_time_spans',
-      result: { status: 'ok' },
-    });
-    const { getByTestId } = render(
+  it('tracks the complete foreground period while a session is open', async () => {
+    const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
+    const backend = createBackend(executeAction);
+    const store = enabledStore();
+    const screen = render(
       <Host
-        backend={createBackend(executeAction)}
+        backend={backend}
         connectionId="connection-a"
+        activeSessionId="session-1"
         store={store}
       />,
     );
     await settleAfterRender();
 
-    fireEvent.press(getByTestId('telemetry-activity-button'));
-    await jest.advanceTimersByTimeAsync(5_000);
-    fireEvent.press(getByTestId('telemetry-activity-button'));
-    // 30s of inactivity closes the span; the close debounce then flushes.
-    await jest.advanceTimersByTimeAsync(30_000);
-    await jest.advanceTimersByTimeAsync(2_000);
-    await drainMicrotasks();
+    await jest.advanceTimersByTimeAsync(15_000);
+    screen.rerender(
+      <Host
+        backend={backend}
+        connectionId="connection-a"
+        activeSessionId={null}
+        store={store}
+      />,
+    );
+    await act(async () => {
+      await drainMicrotasks();
+      await jest.advanceTimersByTimeAsync(2_000);
+    });
 
     expect(executeAction).toHaveBeenCalledTimes(1);
-    const call = executeAction.mock.calls[0][0];
-    expect(call.pluginId).toBe('duration_tracking_app');
-    expect(call.actionId).toBe('record_human_time_spans');
-    expect(call.actionOwner).toBe('application');
-    expect(call.inputs.spans).toHaveLength(1);
-    expect(call.inputs.spans[0].session_id).toBe('session-1');
-    expect(typeof call.inputs.request_id).toBe('string');
+    const span = executeAction.mock.calls[0][0].inputs.spans[0];
+    expect(span.session_id).toBe('session-1');
+    expect(Date.parse(span.to) - Date.parse(span.from)).toBe(15_000);
     await expect(loadSpans('connection-a')).resolves.toEqual([]);
   });
 
-  it('attributes session-less activity to a null session id', async () => {
-    const store = createMemoryStore({
-      [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
-        timeTrackingEnabled: true,
-      },
-    });
-    const executeAction = jest.fn().mockResolvedValue({
-      status: 'ok',
-      plugin: 'duration_tracking_app',
-      action_id: 'record_human_time_spans',
-      result: { status: 'ok' },
-    });
-    const { getByTestId } = render(
-      <Host
-        backend={createBackend(executeAction)}
-        connectionId="connection-a"
-        store={store}
-        sessionId={null}
-      />,
-    );
-    await settleAfterRender();
-
-    fireEvent.press(getByTestId('telemetry-activity-button'));
-    await jest.advanceTimersByTimeAsync(30_000);
-    await jest.advanceTimersByTimeAsync(2_000);
-    await drainMicrotasks();
-
-    const call = executeAction.mock.calls[0][0];
-    expect(call.inputs.spans[0].session_id).toBeNull();
-  });
-
-  it('flushes durable pending spans as soon as a connection is usable', async () => {
-    const store = createMemoryStore({
-      [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
-        timeTrackingEnabled: true,
-      },
-    });
-    const executeAction = jest.fn().mockResolvedValue({
-      status: 'ok',
-      plugin: 'duration_tracking_app',
-      action_id: 'record_human_time_spans',
-      result: { status: 'ok' },
-    });
+  it('closes on background, restarts on foreground, and flushes the prior span', async () => {
+    const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
     const backend = createBackend(executeAction);
-    await appendSpan('connection-a', {
-      sessionId: 'session-1',
-      from: new Date(Date.now() - 120_000).toISOString(),
-      to: new Date(Date.now() - 60_000).toISOString(),
-    });
-
-    const { getByTestId } = render(
-      <Host backend={backend} connectionId="connection-a" store={store} />,
-    );
-    await settleAfterRender();
-    expect(getByTestId('telemetry-activity-button')).toBeTruthy();
-
-    await waitFor(() => {
-      expect(executeAction).toHaveBeenCalledTimes(1);
-    });
-    await expect(loadSpans('connection-a')).resolves.toEqual([]);
-  });
-
-  it('closes on background and flushes the durable span on foreground', async () => {
-    const store = createMemoryStore({
-      [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
-        timeTrackingEnabled: true,
-      },
-    });
-    const executeAction = jest.fn().mockResolvedValue({
-      status: 'ok',
-      plugin: 'duration_tracking_app',
-      action_id: 'record_human_time_spans',
-      result: {
-        recorded: 1,
-        merged: 0,
-        skipped: 0,
-        absorbed: 0,
-        duplicate: false,
-      },
-    });
+    const store = enabledStore();
     let appStateListener: ((state: string) => void) | null = null;
-    const subscription = { remove: jest.fn() };
-    const appStateSpy = jest
+    jest
       .spyOn(AppState, 'addEventListener')
       .mockImplementation((_event, listener) => {
         appStateListener = listener as (state: string) => void;
-        return subscription;
+        return { remove: jest.fn() };
       });
-    const { getByTestId } = render(
+
+    render(
       <Host
-        backend={createBackend(executeAction)}
+        backend={backend}
         connectionId="connection-a"
+        activeSessionId="session-1"
         store={store}
       />,
     );
     await settleAfterRender();
+    await jest.advanceTimersByTimeAsync(10_000);
 
-    fireEvent.press(getByTestId('telemetry-activity-button'));
     await act(async () => {
       appStateListener?.('background');
       await drainMicrotasks();
     });
-    expect(executeAction).not.toHaveBeenCalled();
     await expect(loadSpans('connection-a')).resolves.toHaveLength(1);
 
     await act(async () => {
@@ -293,114 +208,157 @@ describe('HumanTimeTelemetryProvider', () => {
       await drainMicrotasks();
     });
     await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(1));
-    await expect(loadSpans('connection-a')).resolves.toEqual([]);
-    appStateSpy.mockRestore();
+    const firstSpan = executeAction.mock.calls[0][0].inputs.spans[0];
+    expect(Date.parse(firstSpan.to) - Date.parse(firstSpan.from)).toBe(10_000);
+
+    await jest.advanceTimersByTimeAsync(5_000);
+    await act(async () => {
+      appStateListener?.('background');
+      await drainMicrotasks();
+      await jest.advanceTimersByTimeAsync(2_000);
+    });
+    await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(2));
+    const secondSpan = executeAction.mock.calls[1][0].inputs.spans[0];
+    expect(Date.parse(secondSpan.to) - Date.parse(secondSpan.from)).toBe(5_000);
   });
 
-  it('shows compact diagnostics and uploads the open span on demand', async () => {
-    const store = createMemoryStore({
-      [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
-        timeTrackingEnabled: true,
-      },
-    });
-    const executeAction = jest.fn().mockResolvedValue({
-      status: 'ok',
-      plugin: 'duration_tracking_app',
-      action_id: 'record_human_time_spans',
-      result: {
-        recorded: 1,
-        merged: 0,
-        skipped: 0,
-        absorbed: 0,
-        duplicate: false,
-      },
-    });
-    const { getByTestId, getByText } = render(
+  it('closes and immediately starts a new span when the session changes', async () => {
+    const executeAction = jest
+      .fn()
+      .mockResolvedValue(successfulActionResult(2));
+    const backend = createBackend(executeAction);
+    const store = enabledStore();
+    const screen = render(
+      <Host
+        backend={backend}
+        connectionId="connection-a"
+        activeSessionId="session-1"
+        store={store}
+        showSettings
+      />,
+    );
+    await settleAfterRender();
+    await jest.advanceTimersByTimeAsync(4_000);
+
+    screen.rerender(
+      <Host
+        backend={backend}
+        connectionId="connection-a"
+        activeSessionId="session-2"
+        store={store}
+        showSettings
+      />,
+    );
+    await jest.advanceTimersByTimeAsync(1_000);
+    fireEvent.press(
+      screen.getByTestId('global-settings-time-tracking-diagnostics'),
+    );
+    fireEvent.press(screen.getByTestId('time-tracking-upload-now'));
+
+    await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(1));
+    const spans = executeAction.mock.calls[0][0].inputs.spans;
+    expect(spans.map((span: any) => span.session_id)).toEqual([
+      'session-1',
+      'session-2',
+    ]);
+    expect(Date.parse(spans[0].to) - Date.parse(spans[0].from)).toBe(4_000);
+    expect(Date.parse(spans[1].to) - Date.parse(spans[1].from)).toBe(1_000);
+  });
+
+  it('persists the open span when tracking is disabled', async () => {
+    const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
+    const store = enabledStore();
+    const screen = render(
       <Host
         backend={createBackend(executeAction)}
         connectionId="connection-a"
+        activeSessionId="session-1"
         store={store}
         showSettings
       />,
     );
     await settleAfterRender();
+    await jest.advanceTimersByTimeAsync(8_000);
 
-    fireEvent.press(getByTestId('global-settings-time-tracking-diagnostics'));
-    fireEvent.press(getByTestId('telemetry-activity-button'));
-    expect(getByText('Open span: Session session-')).toBeTruthy();
-
-    fireEvent.press(getByTestId('time-tracking-upload-now'));
-    await waitFor(() => {
-      expect(getByTestId('time-tracking-pending-count').props.children).toEqual(
-        ['Pending uploads: ', 0],
-      );
-      expect(getByTestId('time-tracking-last-upload').props.children).toEqual([
-        'Last upload: ',
-        'Successful',
-      ]);
+    fireEvent(
+      screen.getByTestId('global-settings-time-tracking-toggle'),
+      'valueChange',
+      false,
+    );
+    await act(async () => {
+      await drainMicrotasks();
     });
-    expect(executeAction).toHaveBeenCalledTimes(1);
-    expect(getByTestId('time-tracking-entry-0')).toBeTruthy();
-    expect(getByText('Uploaded')).toBeTruthy();
-    expect(getByText('session-1')).toBeTruthy();
-    expect(getByText('0ms')).toBeTruthy();
+
+    const pending = await loadSpans('connection-a');
+    expect(pending).toHaveLength(1);
+    expect(Date.parse(pending[0].to) - Date.parse(pending[0].from)).toBe(8_000);
+    expect(executeAction).not.toHaveBeenCalled();
   });
 
-  it('shows only the ten most recent collected entries', async () => {
-    const store = createMemoryStore({
-      [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
-        timeTrackingEnabled: true,
-      },
+  it('flushes durable pending spans as soon as a connection is usable', async () => {
+    const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
+    const backend = createBackend(executeAction);
+    const store = enabledStore();
+    await appendSpan('connection-a', {
+      sessionId: 'session-1',
+      from: '2026-09-25T09:58:00.000Z',
+      to: '2026-09-25T09:59:00.000Z',
     });
-    const executeAction = jest.fn().mockResolvedValue({
-      status: 'ok',
-      plugin: 'duration_tracking_app',
-      action_id: 'record_human_time_spans',
-      result: {
-        recorded: 11,
-        merged: 0,
-        skipped: 0,
-        absorbed: 0,
-        duplicate: false,
-      },
-    });
-    const sessionIds = Array.from(
-      { length: 11 },
-      (_, index) => `recent-session-${index}`,
-    );
-    const { getAllByText, getByTestId, queryByTestId } = render(
+
+    render(
       <Host
-        backend={createBackend(executeAction)}
-        connectionId="connection-recent-entries"
+        backend={backend}
+        connectionId="connection-a"
+        activeSessionId={null}
         store={store}
-        sessionIds={sessionIds}
-        showSettings
       />,
     );
     await settleAfterRender();
 
-    fireEvent.press(getByTestId('global-settings-time-tracking-diagnostics'));
-    for (let index = 0; index < sessionIds.length; index += 1) {
-      fireEvent.press(getByTestId(`telemetry-activity-button-${index}`));
-      await jest.advanceTimersByTimeAsync(1);
-    }
-    fireEvent.press(getByTestId('time-tracking-upload-now'));
+    await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(1));
+    await expect(loadSpans('connection-a')).resolves.toEqual([]);
+  });
+
+  it('shows diagnostics and upload now restarts the foreground session span', async () => {
+    const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
+    const backend = createBackend(executeAction);
+    const store = enabledStore();
+    const screen = render(
+      <Host
+        backend={backend}
+        connectionId="connection-a"
+        activeSessionId="session-1"
+        store={store}
+        showSettings
+      />,
+    );
+    await settleAfterRender();
+    await jest.advanceTimersByTimeAsync(5_000);
+
+    fireEvent.press(
+      screen.getByTestId('global-settings-time-tracking-diagnostics'),
+    );
+    expect(screen.getByText('Open span: Session session-')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('time-tracking-upload-now'));
 
     await waitFor(() => {
-      expect(executeAction).toHaveBeenCalledTimes(1);
-      expect(getAllByText('Uploaded')).toHaveLength(10);
+      expect(
+        screen.getByTestId('time-tracking-pending-count').props.children,
+      ).toEqual(['Pending uploads: ', 0]);
+      expect(
+        screen.getByTestId('time-tracking-last-upload').props.children,
+      ).toEqual(['Last upload: ', 'Successful']);
     });
-    expect(getByTestId('time-tracking-entry-9')).toBeTruthy();
-    expect(queryByTestId('time-tracking-entry-10')).toBeNull();
+    expect(executeAction).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('time-tracking-entry-0')).toBeTruthy();
+    expect(screen.getByText('Uploaded')).toBeTruthy();
+    expect(screen.getByText('session-1')).toBeTruthy();
+    expect(screen.getByText('5s')).toBeTruthy();
+    expect(screen.getByText('Open span: Session session-')).toBeTruthy();
   });
 
   it('emits the one-time warning banner on a definitive plugin failure', async () => {
-    const store = createMemoryStore({
-      [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
-        timeTrackingEnabled: true,
-        timeTrackingPluginId: 'missing_plugin',
-      },
-    });
+    const store = enabledStore('missing_plugin');
     const executeAction = jest
       .fn()
       .mockRejectedValue(
@@ -410,41 +368,37 @@ describe('HumanTimeTelemetryProvider', () => {
       );
     const backend = createBackend(executeAction);
     const received: unknown[] = [];
-    const unsubscribe = subscribeDisplayPresentation(backend, (envelope) => {
+    const unsubscribe = subscribeDisplayPresentation(backend, envelope => {
       received.push(envelope);
     });
     await appendSpan('connection-a', {
       sessionId: 'session-1',
-      from: new Date(Date.now() - 120_000).toISOString(),
-      to: new Date(Date.now() - 60_000).toISOString(),
+      from: '2026-09-25T09:58:00.000Z',
+      to: '2026-09-25T09:59:00.000Z',
     });
 
     render(
-      <Host backend={backend} connectionId="connection-a" store={store} />,
+      <Host
+        backend={backend}
+        connectionId="connection-a"
+        activeSessionId={null}
+        store={store}
+      />,
     );
     await settleAfterRender();
 
-    await waitFor(() => {
-      expect(received).toHaveLength(1);
-    });
+    await waitFor(() => expect(received).toHaveLength(1));
     const envelope = received[0] as any;
     expect(envelope.display.variant).toBe('warning');
     expect(envelope.display.presentation).toBe('banner');
-    // The spans are retained for a later retry.
     await expect(loadSpans('connection-a')).resolves.toHaveLength(1);
     unsubscribe();
   });
 
   it('does not show the unavailable-plugin banner for a rejected span', async () => {
-    const store = createMemoryStore({
-      [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
-        timeTrackingEnabled: true,
-      },
-    });
+    const store = enabledStore();
     const executeAction = jest.fn().mockResolvedValue({
-      status: 'ok',
-      plugin: 'duration_tracking_app',
-      action_id: 'record_human_time_spans',
+      ...successfulActionResult(),
       result: {
         recorded: 0,
         merged: 0,
@@ -455,19 +409,20 @@ describe('HumanTimeTelemetryProvider', () => {
     });
     const backend = createBackend(executeAction);
     const received: unknown[] = [];
-    const unsubscribe = subscribeDisplayPresentation(backend, (envelope) => {
+    const unsubscribe = subscribeDisplayPresentation(backend, envelope => {
       received.push(envelope);
     });
     await appendSpan('connection-rejected-span', {
       sessionId: 'missing-session',
-      from: new Date(Date.now() - 120_000).toISOString(),
-      to: new Date(Date.now() - 60_000).toISOString(),
+      from: '2026-09-25T09:58:00.000Z',
+      to: '2026-09-25T09:59:00.000Z',
     });
 
     render(
       <Host
         backend={backend}
         connectionId="connection-rejected-span"
+        activeSessionId={null}
         store={store}
       />,
     );
@@ -475,9 +430,9 @@ describe('HumanTimeTelemetryProvider', () => {
     await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(1));
 
     expect(received).toEqual([]);
-    await expect(loadSpans('connection-rejected-span')).resolves.toHaveLength(
-      1,
-    );
+    await expect(
+      loadSpans('connection-rejected-span'),
+    ).resolves.toHaveLength(1);
     unsubscribe();
   });
 });

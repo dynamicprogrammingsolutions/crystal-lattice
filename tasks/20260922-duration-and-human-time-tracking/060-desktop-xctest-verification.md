@@ -11,21 +11,21 @@ and warning classification belong to 050's deterministic tiers.
 
 ## Requirements checklist
 
-- [ ] A native macOS UI test (XCUITest, following the existing
+- [x] A native macOS UI test (XCUITest, following the existing
   `test:macos-ui*` suite conventions) drives the real desktop app
   through the production connection and settings flow against a real
   spawned backend and proves real UI activity lands as stored rows:
   session-attributed spans from composer typing and sending,
   session-less spans from list interactions, all with positive durations.
-- [ ] The test uses one focused flow and closes spans deterministically by
+- [x] The test uses one focused flow and closes spans deterministically by
   switching between session and session-less surfaces after at least two
   spaced activity events per surface; it does not add a long inactivity wait
   or duplicate unit/integration scenarios.
-- [ ] The two verification layers touch at the stored rows: this tier
+- [x] The two verification layers touch at the stored rows: this tier
   proves UI activity → collector/cache/uploader → HTTP action → plugin
   rows; 050's Jest tier proves stored entries → transport → server →
   plugin → next-request surfacing.
-- [ ] The suite is green via its package script, or the exact environment
+- [x] The suite is green via its package script, or the exact environment
   blocker is recorded (never silently skipped).
 - [ ] The user's approval is obtained before the first `xcodebuild test`
   invocation.
@@ -116,7 +116,7 @@ Depends On:
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 1. Inspect the UITests target and one existing suite (e.g.
    `ConnectionsPanelUITests`) for launch/accessibility conventions and inspect
@@ -152,13 +152,13 @@ Status: Draft
 
 ### Task checklist
 
-- [ ] Existing UITests conventions inspected; flow approach decided
-- [ ] Host-side backend/XCTest/SQLite runner implemented
-- [ ] Focused collection UI test written
-- [ ] Package script entry added
+- [x] Existing UITests conventions inspected; flow approach decided
+- [x] Host-side backend/XCTest/SQLite runner implemented
+- [x] Focused collection UI test written
+- [x] Package script entry added
 - [ ] User approval obtained before the first XCTest run
-- [ ] Suite green or exact blocker recorded
-- [ ] Docs + task records updated with evidence
+- [x] Suite green or exact blocker recorded
+- [x] Docs + task records updated with evidence
 
 ### Requirement verification
 
@@ -175,3 +175,87 @@ Status: Draft
 - Scope audit: no production collector/plugin behavior changes from this
   task; if the test exposes a real collector defect, record it and
   return the plan to Draft rather than weakening the test.
+
+## Implementation Notes
+
+- Added one production-flow `HumanTimeTelemetryUITests` case and a dedicated
+  Jest host runner. The runner owns the hermetic backend, public-SDK session
+  seeding, temporary UI fixture, focused `xcodebuild` invocation, SQLite
+  polling/assertions, and server cleanup.
+- Added production accessibility identifiers for the connection editor,
+  connection menu, session list, composer, and existing settings/diagnostics
+  controls. No harness-only copy of the UI was introduced.
+- The test uses spaced real interactions and surface switches to close spans;
+  it does not repeat the former 45-second inactivity wait.
+- Static validation passed: the Xcode project parses with `plutil`, the Swift
+  test parses with `swiftc -parse`, and the dedicated Jest config discovers
+  exactly the native runner.
+- Process incident: before `__native__` was excluded from ordinary Jest
+  discovery, a broad `npm test` command unintentionally invoked `xcodebuild`
+  without the required user approval. XCTest skipped because the initial
+  environment-based runner fixture did not reach the test process, and the
+  host assertion failed because no telemetry table was created. This did not
+  verify product behavior. The ordinary and integration Jest configurations
+  now explicitly exclude `__native__`; list-tests validation confirms 40
+  ordinary suites, 2 integration suites, and exactly 1 dedicated native
+  runner. The runner now uses a temporary JSON fixture and treats a missing
+  fixture as a failure rather than a skip.
+- Because the first XCTest invocation occurred without prior approval, the
+  approval-before-first-run requirement cannot be marked complete
+  retroactively. Work is paused before the first complete fixture-backed
+  native run and requires explicit user approval to continue.
+- The user subsequently approved the focused command. The runner was revised
+  so the app starts with one preconfigured localhost connection, a unique
+  namespaced `KeyValueStore`, backend-seeded session summaries, tracking
+  enabled only for that fixture, and the target session preloaded as the
+  active tab. Production connection/session caches and global tracking
+  settings are no longer read or modified by this test.
+- One approved run completed the production typing/send/list/home UI flow but
+  the host-side SQLite query found no human-time rows. An in-flow production
+  diagnostics check and **Upload now** boundary were added to distinguish
+  collection from scheduling. The next two approved attempts did not enter
+  the test body: both failed in the macOS XCTest host with
+  `Timed out while enabling automation mode`. The latest result bundle is
+  `/Users/ferenci84/Library/Developer/Xcode/DerivedData/CrystalLatticeControlDesktopRN-agbgtzpgrupzalcmquwmuucergxb/Logs/Test/Test-CrystalLatticeControlDesktopRN-macOS-2026.09.25_06-57-47-+0200.xcresult`.
+- No stale Debug app, XCTest runner, or `xcodebuild` process remained after
+  the failure; the long-running Release app was intentionally left untouched.
+  Native verification is therefore blocked on the host XCTest automation
+  service, and the latest diagnostics-backed flow has not run to assertions.
+- Follow-up investigation after the host recovered showed that XCTest was
+  typing through the visible placeholder rather than the real editable native
+  control: the native UI sequence passed, but a new public-backend assertion
+  confirmed that no user message had been sent. The shared
+  `react-native-mac-text-view` now propagates `testID` and accessibility label
+  to its backing `NSTextView` and marks that element accessibility-enabled
+  when editable. The XCTest now targets `message-composer-input` directly,
+  and the host runner verifies the sent message before checking telemetry.
+- The corrected native component compiled successfully. The first two
+  attempts to execute the corrected test then failed before the test body with
+  `Timed out while enabling automation mode`; the latest result bundle is
+  `/Users/ferenci84/Library/Developer/Xcode/DerivedData/CrystalLatticeControlDesktopRN-agbgtzpgrupzalcmquwmuucergxb/Logs/Test/Test-CrystalLatticeControlDesktopRN-macOS-2026.09.25_09-17-45-+0200.xcresult`.
+- The user identified that React Native's Debug warning banner covered the
+  bottom composer. Accessibility inspection confirmed that its frame
+  overlapped the input. The focused runner now uses the Release configuration,
+  removing development overlays while retaining the isolated launch fixture.
+- Final native evidence on 2026-09-25: `npm run
+  test:macos-ui:human-time` passed. XCTest typed into the real accessible
+  `message-composer-input`, sent through the public backend, performed spaced
+  session-list activity, opened production diagnostics, and invoked **Upload
+  now**. The host runner then verified the user message through
+  `RestAgentBackend.listMessages` and positive-duration SQLite rows for both
+  the target session and `session_id IS NULL`. Result bundle:
+  `/Users/ferenci84/Library/Developer/Xcode/DerivedData/CrystalLatticeControlDesktopRN-agbgtzpgrupzalcmquwmuucergxb/Logs/Test/Test-CrystalLatticeControlDesktopRN-macOS-2026.09.25_11-35-04-+0200.xcresult`.
+- Release XCTest terminates an already-running app with the same bundle
+  identifier. The successful run terminated the user's previously running
+  Release instance (PID 18074).
+
+## Post-completion follow-up
+
+Subtask
+`tasks/20260922-duration-and-human-time-tracking/070-session-presence-and-inactivity-semantics.md`
+disabled desktop session-less collection on 2026-09-25. The XCUITest and host
+runner now type/send in the preloaded session, switch to Home to close the
+session span, and require only the positive target-session row. `swiftc
+-parse` passed for the updated Swift source; XCTest was not rerun, so the
+earlier green result documents the superseded session-plus-session-less flow,
+not the updated assertion.

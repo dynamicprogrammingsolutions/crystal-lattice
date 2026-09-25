@@ -63,7 +63,6 @@ import {
   useSessionsController,
 } from "@crystal-lattice/frontend-sdk-react";
 import { useTheme, type Theme } from "./theme";
-import { useHumanTimeTelemetry } from "./humanTimeTelemetry/HumanTimeTelemetryProvider";
 import SessionSettingsModal from "./components/SessionSettingsModal";
 import ServerSettingsModal from "./components/ServerSettingsModal";
 import SessionPluginsModal from "./components/SessionPluginsModal";
@@ -177,10 +176,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const { recordActivity: recordHumanTimeActivity } = useHumanTimeTelemetry();
-  const recordSessionlessActivity = useCallback(() => {
-    recordHumanTimeActivity(null);
-  }, [recordHumanTimeActivity]);
   const maxHeaderPinnedActions = getMobileHeaderMaxPinnedActions(windowWidth);
   const actionDialogFieldRenderers =
     useMobileApplicationActionDialogFieldRenderers();
@@ -848,7 +843,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         style={styles.sessionItem}
         testID={`session-row-${s.session_id}`}
         onPress={() => {
-          recordSessionlessActivity();
           navigateToSession(s.session_id);
         }}
       >
@@ -1140,8 +1134,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         data={filteredSessions}
         keyExtractor={(item) => item.session_id}
         renderItem={({ item }) => renderSessionItem(item)}
-        onScroll={recordSessionlessActivity}
-        onScrollBeginDrag={recordSessionlessActivity}
       />
 
       <Modal

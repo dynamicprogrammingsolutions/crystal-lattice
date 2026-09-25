@@ -67,7 +67,10 @@ export interface SetDesktopGlobalSettingParams {
     | 'recentSessionsWindow'
     | 'sessionDoubleClickAction'
     | 'sessionsFollowActiveTabEnabled'
-    | 'switchConnectionWithActiveTabEnabled';
+    | 'switchConnectionWithActiveTabEnabled'
+    | 'timeTrackingEnabled'
+    | 'timeTrackingPluginId'
+    | 'timeTrackingInactivitySeconds';
   value: string | number | boolean;
 }
 

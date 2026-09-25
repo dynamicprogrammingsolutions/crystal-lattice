@@ -11,52 +11,52 @@ this task runs no XCTest.
 
 ## Requirements checklist
 
-- [ ] The desktop app collects user activity as human time spans with the
+- [x] The desktop app collects user activity as human time spans with the
   same contract as mobile: an activity burst opens a span, ~30s inactivity
   closes it (`from` = first, `to` = last activity), surface switches close
   and reopen, spans carry the open session's id or null on session-less
   surfaces (session list, connections, home).
-- [ ] Collectors attach to the real desktop surfaces: composer typing,
+- [x] Collectors attach to the real desktop surfaces: composer typing,
   transcript scrolling, send, and session-list/list interactions.
-- [ ] Every collected span has an owning connection for cache and upload
+- [x] Every collected span has an owning connection for cache and upload
   routing. Session activity uses the tab/session connection; session-list
   activity uses the list's focused connection; known list/card activity uses
   that item's connection; otherwise generic session-less activity uses the
   currently focused connection and is not collected when no target connection
   exists.
-- [ ] Spans persist locally (AsyncStorage) until confirmed by the server and
+- [x] Spans persist locally (AsyncStorage) until confirmed by the server and
   survive app restarts. Transient and definitive action failures retain all
   unconfirmed spans. When a successful action response reports skipped
   spans, the uploader isolates the batch, removes accepted spans by value,
   continues through later entries, and retains only rejected spans.
-- [ ] Uploads batch through the existing `executeAction` path with
+- [x] Uploads batch through the existing `executeAction` path with
   content-derived request ids stable across retries. Upload starts after a
   span closes (2-second debounce), when its connection becomes usable, when
   the app returns to the foreground, or on **Upload now**; it never waits for
   agent/network idleness. Only transient failures schedule the fixed
   30-second retry.
-- [ ] An opt-in time-tracking setting in the desktop global settings
+- [x] An opt-in time-tracking setting in the desktop global settings
   surface with the telemetry-plugin id configuration right under it
   (defaulting to the plugin name), mirroring the mobile settings model.
-- [ ] The desktop Global Settings window provides compact diagnostics:
+- [x] The desktop Global Settings window provides compact diagnostics:
   collection/connection readiness, open and last-collected span, pending
   count, last upload and error/counts, **Upload now**, **Refresh**, and the
   latest ten entries with status, connection context, session id, end time,
   and duration. The separate settings window receives a serializable
   snapshot from the main application root through an established desktop
   window/event boundary.
-- [ ] A one-time warning through the desktop's standard notification
+- [x] A one-time warning through the desktop's standard notification
   display on a genuinely definitive plugin/action failure; transient
   failures retry silently, and rejected span data never produces the
   misleading unavailable-plugin warning.
-- [ ] Unit tests plus a real-backend Jest integration tier prove the
+- [x] Unit tests plus a real-backend Jest integration tier prove the
   desktop pipeline end to end from deterministic seeded spans: real
   transport → real server → real plugin → stored rows, including the
   session total surfacing at the next request finalize, request-id retry
   dedup, definitive-failure retention, and rejected-span isolation where
   valid session/session-less neighbors upload while only the rejected span
   remains cached — the same stored-rows touch point as the mobile tiers.
-- [ ] No XCTest/native macOS test invocations in this task (delegated to
+- [x] No XCTest/native macOS test invocations in this task (delegated to
   060); verification stays within Jest and TypeScript checking.
 
 Parent Task: tasks/20260922-duration-and-human-time-tracking/000-main.md
@@ -213,16 +213,16 @@ Status: Approved
 
 - [x] Reuse mechanism decided by the user
 - [x] Multi-connection routing and diagnostics scope decided by the user
-- [ ] Shared core/app adapters established under the approved boundary
-- [ ] Pipeline implemented on the desktop
-- [ ] Collectors + settings + warning wired into the desktop surfaces
-- [ ] Compact cross-window diagnostics wired and covered
-- [ ] Unit tests green (mirrored mobile tiers)
-- [ ] Real-backend integration tier green (4-test port)
-- [ ] Desktop dev docs + README updated
+- [x] Shared core/app adapters established under the approved boundary
+- [x] Pipeline implemented on the desktop
+- [x] Collectors + settings + warning wired into the desktop surfaces
+- [x] Compact cross-window diagnostics wired and covered
+- [x] Unit tests green (mirrored mobile tiers)
+- [x] Real-backend integration tier green (4-test port)
+- [x] Desktop dev docs + README updated
 - [ ] Sweeps green (desktop jest, tsc, integration; mobile unaffected or
       re-verified)
-- [ ] Task records updated with evidence
+- [x] Task records updated with evidence
 
 ### Requirement verification
 
@@ -243,3 +243,67 @@ Status: Approved
 - `git status` scope check: no changes under `plugins/duration-tracking`
   or the mobile app unless the approved shared-package route requires
   the mobile import migration (then the mobile tiers re-run green).
+
+## Implementation Notes
+
+- The shared core moved to
+  `packages/frontend-rn-components/src/humanTimeTelemetry/`. Storage is
+  injected as approved. Mobile retains thin compatibility adapters and its
+  app-specific provider; the desktop owns a multi-connection provider.
+- The desktop settings window and main application root share one React Native
+  bridge, so a small module-level serializable diagnostics bridge carries
+  snapshots and manual refresh/upload commands without adding a native
+  telemetry store or a second pipeline owner.
+- Desktop settings remain native-authoritative through `NSUserDefaults` and
+  `DesktopWindowManager` change events. The telemetry coordinator hydrates and
+  follows those events.
+- Surface switches close an open span through `activeSurfaceKey`; explicit
+  collector calls open the next span. Known card/list activity uses its own
+  connection and generic list activity uses the focused connection.
+- No XCTest or `xcodebuild` command was invoked.
+
+## Completion Notes
+
+Implemented desktop human-time collection, durable per-connection queues,
+simplified upload triggers, partial-rejection isolation, global settings,
+standard warning behavior, aggregate diagnostics, and the four-case
+real-backend tier. Mobile now consumes the same shared tracker/cache/uploader
+implementation through thin adapters.
+
+Requirement evidence:
+
+- Shared package: `8` files / `74` tests passed, including exact
+  rejected-neighbor cache behavior.
+- Desktop Jest: `40` suites / `190` tests passed, including
+  multi-connection routing, background/foreground flush, one-time definitive
+  warning, skipped-data warning suppression, settings persistence calls,
+  collector routing, and the ten-row diagnostics surface.
+- Desktop real-backend integration: `4/4` passed for upload/surfacing,
+  request-id dedup, definitive-failure retention, and rejected-span
+  isolation.
+- Mobile regression: `52` suites / `252` tests, TypeScript, and the `4/4`
+  mobile real-backend integration passed after the shared-core migration.
+- `git diff --check` passed.
+
+Desktop `npx tsc --noEmit` was executed but remains blocked by `19`
+pre-existing errors already present in checkpoint `87aa6aa5`: React Native's
+ambient `URL` type lacks mutable URL fields used by
+`frontend-sdk/httpBridgeTransport.ts`; `ChatPane.tsx` has unrelated
+pre-declaration and optional-plugin-id errors; and
+`ActionResultInlineCard.tsx` references the existing undeclared
+`Theme.shadow`. None of the new telemetry files produced a TypeScript error.
+The approved “sweeps green” task item therefore remains unchecked rather than
+misreporting this baseline.
+
+Native macOS production-flow verification remains exclusively in
+`tasks/20260922-duration-and-human-time-tracking/060-desktop-xctest-verification.md`
+and still requires explicit user approval before its first XCTest invocation.
+
+## Post-completion follow-up
+
+On 2026-09-25 subtask
+`tasks/20260922-duration-and-human-time-tracking/070-session-presence-and-inactivity-semantics.md`
+changed desktop collection to session-only spans whose end includes a
+native-persisted configurable inactivity grace period. Session-list,
+connection-list, Home, and History collectors were removed. The shared cache,
+uploader, diagnostics, warning behavior, and plugin contract remain unchanged.

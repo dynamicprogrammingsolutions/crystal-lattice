@@ -407,3 +407,13 @@ production connection flow and spawned backend throughout.
   was changed.
 - Unresolved/deferred: rerun the Android script on a responsive Android
   emulator/Detox environment. No feature behavior is deferred.
+
+## Post-completion follow-up
+
+On 2026-09-25 subtask
+`tasks/20260922-duration-and-human-time-tracking/070-session-presence-and-inactivity-semantics.md`
+replaced mobile activity bursts with foreground-session presence and disabled
+session-less mobile collection. The focused Detox source now closes the span
+by leaving Messages and asserts only a positive session row; the former
+typing/list-activity and null-session expectations are historical. The
+updated Detox scenario was not rerun for this follow-up.

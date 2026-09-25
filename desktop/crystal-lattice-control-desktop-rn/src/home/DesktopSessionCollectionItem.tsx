@@ -74,8 +74,12 @@ export function DesktopSessionCollectionItem({
   const handlePress = useSessionItemPress({
     key: item.key,
     doubleClickAction,
-    onSelect,
-    onOpen,
+    onSelect: () => {
+      onSelect();
+    },
+    onOpen: mode => {
+      onOpen(mode);
+    },
   });
 
   const details = (
@@ -199,7 +203,9 @@ export function DesktopSessionCollectionItem({
           testID={`desktop-${fieldScope}-move-earlier-${item.connectionId}-${item.sessionId}`}
           icon="arrow-left"
           label="Move earlier"
-          onPress={onMoveEarlier}
+          onPress={() => {
+            onMoveEarlier();
+          }}
         />
       ) : null}
       {onMoveLater ? (
@@ -207,20 +213,26 @@ export function DesktopSessionCollectionItem({
           testID={`desktop-${fieldScope}-move-later-${item.connectionId}-${item.sessionId}`}
           icon="arrow-right"
           label="Move later"
-          onPress={onMoveLater}
+          onPress={() => {
+            onMoveLater();
+          }}
         />
       ) : null}
       <SmallIconButton
         testID={`desktop-${fieldScope}-note-action-${item.connectionId}-${item.sessionId}`}
         icon="edit-3"
         label="Edit local note"
-        onPress={onEditNote}
+        onPress={() => {
+          onEditNote();
+        }}
       />
       <SmallIconButton
         testID={`desktop-${fieldScope}-watch-action-${item.connectionId}-${item.sessionId}`}
         icon={watched ? 'x' : 'bookmark'}
         label={watched ? 'Remove from Watchlist' : 'Add to Watchlist'}
-        onPress={onToggleWatch}
+        onPress={() => {
+          onToggleWatch();
+        }}
       />
       <Pressable
         testID={`desktop-session-${explicitMode}-${item.connectionId}-${item.sessionId}`}

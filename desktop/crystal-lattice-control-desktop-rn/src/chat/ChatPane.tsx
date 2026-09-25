@@ -127,6 +127,7 @@ import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationA
 import { pickMacAttachment } from '../native/MacAttachmentPicker';
 import { SnapshotReadonlyBanner } from './SnapshotReadonlyBanner';
 import { sendComposerMessageAtomically } from './sendComposerMessage';
+import { useDesktopHumanTimeTelemetry } from '../humanTimeTelemetry/DesktopHumanTimeTelemetryProvider';
 import {
   AppendAsPopoverContent,
   type AppendAsRole,
@@ -552,6 +553,12 @@ export const ChatPane = React.memo(function ChatPane({
   styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
   const theme = useTheme();
+  const { recordActivity: recordHumanTimeActivity } =
+    useDesktopHumanTimeTelemetry();
+  const recordSessionActivity = useCallback(
+    () => recordHumanTimeActivity(connectionId, sessionId),
+    [connectionId, recordHumanTimeActivity, sessionId],
+  );
   const styles = useMemo(
     () => createStyles(theme, styleVariant),
     [theme, styleVariant],
@@ -2063,6 +2070,7 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
+      recordSessionActivity();
       const content = trimmed.length > 0 ? trimmed : '';
 
       onBeforeSessionMutation?.();
@@ -2097,6 +2105,7 @@ export const ChatPane = React.memo(function ChatPane({
       setComposeText,
       unresolvedAttachmentDraft,
       onBeforeSessionMutation,
+      recordSessionActivity,
     ],
   );
 
@@ -4191,7 +4200,10 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onScrollBeginDrag={event => {
+                  recordSessionActivity();
+                  transcriptScroll.onScrollBeginDrag(event);
+                }}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={
                   FLATLIST_FORWARD_SCROLL_END_DRAG
@@ -4233,7 +4245,10 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onScrollBeginDrag={event => {
+                  recordSessionActivity();
+                  transcriptScroll.onScrollBeginDrag(event);
+                }}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={
                   FLATLIST_FORWARD_SCROLL_END_DRAG
@@ -4282,7 +4297,10 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onScrollBeginDrag={event => {
+                  recordSessionActivity();
+                  transcriptScroll.onScrollBeginDrag(event);
+                }}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={transcriptScroll.onScrollEndDrag}
                 onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
@@ -4323,7 +4341,10 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onScrollBeginDrag={event => {
+                  recordSessionActivity();
+                  transcriptScroll.onScrollBeginDrag(event);
+                }}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={transcriptScroll.onScrollEndDrag}
                 onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
@@ -4512,6 +4533,8 @@ export const ChatPane = React.memo(function ChatPane({
               ]}
             >
               <MacTextView
+                testID="message-composer-input"
+                accessibilityLabel="Message composer"
                 ref={composerRef}
                 style={styles.composerInput}
                 initialText={initialComposeText}
@@ -4527,6 +4550,7 @@ export const ChatPane = React.memo(function ChatPane({
                 maxHeight={120}
                 onHeightChange={handleComposerHeightChange}
                 onChangeText={text => {
+                  recordSessionActivity();
                   handleComposerChangeText(text);
                 }}
                 onSubmit={text => {

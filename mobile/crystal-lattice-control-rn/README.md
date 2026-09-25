@@ -372,8 +372,8 @@ npm run detox:test:website-visual:android
 ```
 
 The focused human-time telemetry suite runs the real release app against a
-spawned backend and verifies that session and session-less UI activity reaches
-the duration-tracking SQLite store:
+spawned backend and verifies that foreground time with a real session open
+reaches the duration-tracking SQLite store:
 
 ```bash
 npm run detox:build:ios

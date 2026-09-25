@@ -69,6 +69,9 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const localSessionActions = jest.requireActual(
     '../../packages/frontend-rn-components/src/localSessionActions',
   );
+  const humanTimeTelemetry = jest.requireActual(
+    '../../packages/frontend-rn-components/src/humanTimeTelemetry',
+  );
   const theme = {
     typography:
       DISPLAY_TYPOGRAPHY_PRESETS[
@@ -327,6 +330,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     ...reorderGeometry,
     ...sessionRequestStatus,
     ...localSessionActions,
+    ...humanTimeTelemetry,
     ThemeProvider: ({
       theme: value,
       children,

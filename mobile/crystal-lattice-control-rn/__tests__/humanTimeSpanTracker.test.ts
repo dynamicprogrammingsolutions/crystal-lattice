@@ -23,7 +23,7 @@ describe('HumanTimeSpanTracker', () => {
     });
   }
 
-  it('opens a span on activity and closes it after inactivity with from/to = first/last activity', () => {
+  it('opens on activity and closes at the inactivity deadline', () => {
     const closed: HumanTimeSpan[] = [];
     let clockMs = 1_000_000;
     const tracker = createTracker((span) => closed.push(span), {
@@ -40,7 +40,7 @@ describe('HumanTimeSpanTracker', () => {
       {
         sessionId: 'session-1',
         from: new Date(1_000_000).toISOString(),
-        to: new Date(1_005_000).toISOString(),
+        to: new Date(1_035_000).toISOString(),
       },
     ]);
     tracker.dispose();
@@ -67,7 +67,7 @@ describe('HumanTimeSpanTracker', () => {
       {
         sessionId: 'session-1',
         from: new Date(2_000_000).toISOString(),
-        to: new Date(2_025_000).toISOString(),
+        to: new Date(2_055_000).toISOString(),
       },
     ]);
     tracker.dispose();
@@ -88,7 +88,7 @@ describe('HumanTimeSpanTracker', () => {
       {
         sessionId: 'session-1',
         from: new Date(3_000_000).toISOString(),
-        to: new Date(3_000_000).toISOString(),
+        to: new Date(3_004_000).toISOString(),
       },
     ]);
 
@@ -100,7 +100,7 @@ describe('HumanTimeSpanTracker', () => {
       {
         sessionId: 'session-2',
         from: new Date(3_004_000).toISOString(),
-        to: new Date(3_006_000).toISOString(),
+        to: new Date(3_036_000).toISOString(),
       },
     ]);
     tracker.dispose();
@@ -122,13 +122,13 @@ describe('HumanTimeSpanTracker', () => {
       {
         sessionId: null,
         from: new Date(4_000_000).toISOString(),
-        to: new Date(4_001_500).toISOString(),
+        to: new Date(4_031_500).toISOString(),
       },
     ]);
     tracker.dispose();
   });
 
-  it('emits a zero-duration span for a single activity burst', () => {
+  it('includes the inactivity interval after a single activity', () => {
     const closed: HumanTimeSpan[] = [];
     const tracker = createTracker((span) => closed.push(span));
 
@@ -137,7 +137,7 @@ describe('HumanTimeSpanTracker', () => {
 
     expect(closed).toHaveLength(1);
     expect(closed[0].sessionId).toBe('session-1');
-    expect(closed[0].from).toBe(closed[0].to);
+    expect(Date.parse(closed[0].to) - Date.parse(closed[0].from)).toBe(30_000);
     tracker.dispose();
   });
 
@@ -205,14 +205,43 @@ describe('HumanTimeSpanTracker', () => {
       {
         sessionId: 'session-1',
         from: new Date(6_000_000).toISOString(),
-        to: new Date(6_000_000).toISOString(),
+        to: new Date(6_030_000).toISOString(),
       },
       {
         sessionId: 'session-1',
         from: new Date(6_120_000).toISOString(),
-        to: new Date(6_123_000).toISOString(),
+        to: new Date(6_153_000).toISOString(),
       },
     ]);
+    tracker.dispose();
+  });
+
+  it('closes under the old interval before applying a new one', () => {
+    const closed: HumanTimeSpan[] = [];
+    let clockMs = 7_000_000;
+    const tracker = createTracker((span) => closed.push(span), {
+      now: () => clockMs,
+    });
+
+    tracker.recordActivity('session-1');
+    clockMs += 10_000;
+    tracker.setInactivityMs(60_000);
+
+    expect(closed).toEqual([
+      {
+        sessionId: 'session-1',
+        from: new Date(7_000_000).toISOString(),
+        to: new Date(7_010_000).toISOString(),
+      },
+    ]);
+
+    tracker.recordActivity('session-1');
+    jest.advanceTimersByTime(60_000);
+    expect(closed[1]).toEqual({
+      sessionId: 'session-1',
+      from: new Date(7_010_000).toISOString(),
+      to: new Date(7_070_000).toISOString(),
+    });
     tracker.dispose();
   });
 });

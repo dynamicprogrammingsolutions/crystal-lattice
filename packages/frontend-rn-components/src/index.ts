@@ -9,6 +9,46 @@ export type { Theme } from "./theme";
 export { ThemeProvider, useTheme } from "./theme";
 
 export type {
+  FlushOutcome,
+  HumanTimeDiagnosticEntry,
+  HumanTimeDiagnosticUploadStatus,
+  HumanTimeIngestionResult,
+  HumanTimeSpan,
+  HumanTimeSpanTrackerOptions,
+  HumanTimeUploadEvent,
+  HumanTimeUploaderOptions,
+  SpanCacheStore,
+} from "./humanTimeTelemetry";
+export {
+  DEFAULT_CLOSE_DEBOUNCE_MS,
+  DEFAULT_HUMAN_TIME_PLUGIN_ID,
+  DEFAULT_SPAN_INACTIVITY_MS,
+  DEFAULT_TRANSIENT_RETRY_INTERVAL_MS,
+  DEFAULT_UPLOAD_BATCH_LIMIT,
+  HUMAN_TIME_ACTION_ID,
+  HUMAN_TIME_ACTION_OWNER,
+  HUMAN_TIME_SPANS_SOFT_CAP,
+  HUMAN_TIME_SPANS_STORAGE_KEY,
+  HUMAN_TIME_TELEMETRY_WARNING_DISPLAY_ID,
+  HumanTimeSpanTracker,
+  HumanTimeSpanUploader,
+  RECENT_HUMAN_TIME_DIAGNOSTIC_ENTRY_LIMIT,
+  appendHumanTimeSpan,
+  emitHumanTimeTelemetryWarning,
+  humanTimeDiagnosticSpanKey,
+  humanTimeDiagnosticUploadStatus,
+  isDefinitiveActionErrorType,
+  isDefinitiveActionFailure,
+  loadHumanTimeSpans,
+  mergePendingHumanTimeDiagnosticEntries,
+  newestHumanTimeDiagnosticEntries,
+  removeFirstHumanTimeSpans,
+  removeHumanTimeSpans,
+  toIsoUtc,
+  updateHumanTimeDiagnosticEntries,
+} from "./humanTimeTelemetry";
+
+export type {
   HomeSessionCollections,
   HomeSessionItem,
   HomeSessionsCache,

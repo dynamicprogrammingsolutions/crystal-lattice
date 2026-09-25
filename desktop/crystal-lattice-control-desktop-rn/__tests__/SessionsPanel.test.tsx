@@ -6,7 +6,6 @@ let mockSessionListActions: any[] = [];
 let mockActionsById: Record<string, any> = {};
 let mockPinnedSessionListActions: string[] = [];
 let mockApplicationActions: any[] = [];
-
 jest.mock('@crystal-lattice/frontend-sdk-react', () => {
   const ReactModule = require('react');
   const actual = jest.requireActual('@crystal-lattice/frontend-sdk-react');

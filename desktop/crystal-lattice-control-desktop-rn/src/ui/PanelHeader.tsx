@@ -1,15 +1,31 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { ActionSheetIOS, Pressable, StyleSheet, Text, View, findNodeHandle, Platform } from 'react-native';
+import {
+  ActionSheetIOS,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  findNodeHandle,
+  Platform,
+} from 'react-native';
 
-import { DropdownMenuSurface, useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  DropdownMenuSurface,
+  useTheme,
+} from '@crystal-lattice/frontend-rn-components';
 
 export interface PanelHeaderProps {
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
   menuLabel?: string;
+  menuTestID?: string;
   onPressMenu?: () => void;
-  menuItems?: Array<{ label: string; onPress?: () => void; variant?: 'default' | 'danger' }>;
+  menuItems?: Array<{
+    label: string;
+    onPress?: () => void;
+    variant?: 'default' | 'danger';
+  }>;
 }
 
 export function PanelHeader({
@@ -17,6 +33,7 @@ export function PanelHeader({
   subtitle,
   right,
   menuLabel,
+  menuTestID,
   onPressMenu,
   menuItems,
 }: PanelHeaderProps): React.JSX.Element {
@@ -28,12 +45,15 @@ export function PanelHeader({
   const showMenu = !!menuLabel;
 
   const openNativeMenu = () => {
-    const items = menuItems && menuItems.length > 0 ? menuItems : [{ label: 'Menu placeholder' }];
-    const options = items.map((item) => item.label).concat(['Cancel']);
+    const items =
+      menuItems && menuItems.length > 0
+        ? menuItems
+        : [{ label: 'Menu placeholder' }];
+    const options = items.map(item => item.label).concat(['Cancel']);
     const cancelButtonIndex = options.length - 1;
     const destructiveButtonIndices = items
       .map((item, index) => (item.variant === 'danger' ? index : -1))
-      .filter((index) => index >= 0);
+      .filter(index => index >= 0);
     let anchor: number | null = null;
     if (anchorRef.current) {
       try {
@@ -48,10 +68,12 @@ export function PanelHeader({
         options,
         cancelButtonIndex,
         destructiveButtonIndex:
-          destructiveButtonIndices.length > 0 ? destructiveButtonIndices : undefined,
+          destructiveButtonIndices.length > 0
+            ? destructiveButtonIndices
+            : undefined,
         anchor: anchor ?? undefined,
       },
-      (buttonIndex) => {
+      buttonIndex => {
         if (buttonIndex === cancelButtonIndex) {
           return;
         }
@@ -77,7 +99,10 @@ export function PanelHeader({
       {showMenu ? (
         <View ref={anchorRef} collapsable={false}>
           <Pressable
-            style={(state) => {
+            testID={menuTestID}
+            accessibilityRole="button"
+            accessibilityLabel={menuTestID ? menuLabel : undefined}
+            style={state => {
               const hovered = (state as any).hovered as boolean | undefined;
               return [
                 styles.menuButton,
@@ -109,30 +134,34 @@ export function PanelHeader({
           offset={{ y: 6 }}
         >
           <View style={styles.menuContent}>
-            {(menuItems && menuItems.length > 0 ? menuItems : [{ label: 'Menu placeholder' }]).map(
-              (item) => (
-                <Pressable
-                  key={item.label}
-                  style={(state) => {
-                    const hovered = (state as any).hovered as boolean | undefined;
-                    return [styles.menuItem, (hovered || state.pressed) && styles.menuItemHovered];
-                  }}
-                  onPress={() => {
-                    setMenuVisible(false);
-                    item.onPress?.();
-                  }}
+            {(menuItems && menuItems.length > 0
+              ? menuItems
+              : [{ label: 'Menu placeholder' }]
+            ).map(item => (
+              <Pressable
+                key={item.label}
+                style={state => {
+                  const hovered = (state as any).hovered as boolean | undefined;
+                  return [
+                    styles.menuItem,
+                    (hovered || state.pressed) && styles.menuItemHovered,
+                  ];
+                }}
+                onPress={() => {
+                  setMenuVisible(false);
+                  item.onPress?.();
+                }}
+              >
+                <Text
+                  style={[
+                    styles.menuItemText,
+                    item.variant === 'danger' && { color: theme.danger },
+                  ]}
                 >
-                  <Text
-                    style={[
-                      styles.menuItemText,
-                      item.variant === 'danger' && { color: theme.danger },
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                </Pressable>
-              ),
-            )}
+                  {item.label}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         </DropdownMenuSurface>
       ) : null}
