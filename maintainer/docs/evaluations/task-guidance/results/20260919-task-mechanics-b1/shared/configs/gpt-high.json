@@ -1,7 +1,21 @@
 {
   "agent_id": "codex-openai",
   "model": "gpt-5.6-luna",
-  "projected_config": {
+  "reasoning_effort": "high",
+  "request_overrides": {
+    "allowed_paths": [
+      "<workspace>"
+    ],
+    "include_tasks": true,
+    "mcp_enabled": false,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "reasoning_summary": "detailed",
+    "skills_enabled": false,
+    "web_search_enabled": false,
+    "working_directory": "<workspace>"
+  },
+  "runtime_config": {
     "agents": {
       "codex-openai": {
         "auth_mode": "<redacted>",
@@ -10,7 +24,7 @@
           "codex_developer_message",
           "codex_mcp_defaults"
         ],
-        "model": "gpt-5.4-mini",
+        "model": "gpt-5.6-luna",
         "plugins": [
           "path:${env:BUILTIN_PLUGINS}/codex-tools"
         ],
@@ -882,21 +896,5 @@
         ]
       }
     }
-  },
-  "reasoning_effort": "high",
-  "request_overrides": {
-    "allowed_paths": [
-      "<workspace>"
-    ],
-    "auth_mode": "<redacted>",
-    "chatgpt_credentials_path": "<redacted>",
-    "include_tasks": true,
-    "mcp_enabled": false,
-    "model": "gpt-5.6-luna",
-    "reasoning_effort": "high",
-    "reasoning_summary": "detailed",
-    "skills_enabled": false,
-    "web_search_enabled": false,
-    "working_directory": "<workspace>"
   }
 }

@@ -1027,6 +1027,10 @@ def _discover_runs(
             subject = record.get("subject")
             if not isinstance(subject, Mapping):
                 subject = None
+            assessment = record.get("assessment")
+            variant = (
+                assessment.get("variant") if isinstance(assessment, Mapping) else None
+            )
             selected_path: Path | None = None
             latest = -1.0
             for path in record_paths(artifact_root, record_name):
@@ -1054,6 +1058,17 @@ def _discover_runs(
                         subject.get("sample_index"),
                     ):
                         continue
+                    # Handoff judgments of one producer cell share the
+                    # subject mapping; the assessment variant is the
+                    # dimension that tells them apart.
+                    raw_assessment = value.get("assessment")
+                    raw_variant = (
+                        raw_assessment.get("variant")
+                        if isinstance(raw_assessment, Mapping)
+                        else None
+                    )
+                    if raw_variant != variant:
+                        continue
                 modified = path.stat().st_mtime
                 if modified > latest:
                     latest = modified
@@ -1064,7 +1079,8 @@ def _discover_runs(
                 )
             if subject is not None:
                 mapping[
-                    f"{group}:{scenario_id}:{subject.get('profile')}:"
+                    f"{group}:{scenario_id}:{variant}:"
+                    f"{subject.get('profile')}:"
                     f"{subject.get('reasoning_effort')}:s{subject.get('sample_index')}"
                 ] = selected_path
             else:
@@ -1997,12 +2013,20 @@ def _collect_per_subject_assessment(
     for record in records:
         subject = record["subject"]
         sample_index = subject.get("sample_index")
+        assessment = record.get("assessment")
+        variant = assessment.get("variant") if isinstance(assessment, Mapping) else None
         run_dir = discovery[
-            f"{group}:{scenario_id}:{subject.get('profile')}:"
+            f"{group}:{scenario_id}:{variant}:"
+            f"{subject.get('profile')}:"
             f"{subject.get('reasoning_effort')}:s{sample_index}"
         ]
+        variant_segment = f"{variant}/" if variant is not None else ""
+        subject_cell = f"{subject.get('profile')}-{subject.get('reasoning_effort')}"
         run_record, _ = _collect_run(
-            f"{name}-assessment-s{sample_index}",
+            (
+                f"{name}-assessment-{subject_cell}-"
+                f"{variant + '-' if variant is not None else ''}s{sample_index}"
+            ),
             record,
             subdir=None,
             run_dir=run_dir,
@@ -2016,7 +2040,9 @@ def _collect_per_subject_assessment(
             configs=configs,
             runs=runs,
             files=files,
-            cell_prefix=f"{run_prefix}/s{sample_index}",
+            cell_prefix=(
+                f"{run_prefix}/{subject_cell}/{variant_segment}s{sample_index}"
+            ),
             task_files={},
             reconstruct=False,
             system_message_key=f"{assessor_name}-assessor",

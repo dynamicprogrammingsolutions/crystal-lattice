@@ -1,9 +1,7 @@
 # current-guidance baseline result package
 
 - Dataset: `task-guidance-b0-20260919`
-- Producer attempt: `b0-v5-r1`
-- Handoff attempt: `b0-v5-r1`
-- Semantic attempt: `b0-metrics1`
+- Run labels: `b0-v5-r1`
 
 This package preserves the completed evaluation's reviewed inputs, model outputs, execution context, semantic assessments, and usage evidence. Every navigation, matrix, and cost view regenerates deterministically from the committed records.
 

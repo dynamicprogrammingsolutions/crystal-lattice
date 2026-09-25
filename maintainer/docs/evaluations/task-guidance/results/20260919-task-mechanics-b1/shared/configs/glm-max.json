@@ -1,7 +1,22 @@
 {
   "agent_id": "glm-ollama",
   "model": "glm-5.3-flash:cloud",
-  "projected_config": {
+  "reasoning_effort": "max",
+  "request_overrides": {
+    "allowed_paths": [
+      "<workspace>"
+    ],
+    "include_tasks": true,
+    "mcp_enabled": false,
+    "model": "glm-5.3-flash:cloud",
+    "request_options": {
+      "reasoning_effort": "max"
+    },
+    "skills_enabled": false,
+    "web_search_enabled": false,
+    "working_directory": "<workspace>"
+  },
+  "runtime_config": {
     "agents": {
       "glm-ollama": {
         "mixin_refs": [
@@ -9,7 +24,7 @@
           "claude_bash_permissive",
           "claude_mcp_defaults"
         ],
-        "model": "glm-5.2:cloud",
+        "model": "glm-5.3-flash:cloud",
         "plugins": [
           "path:${env:BUILTIN_PLUGINS}/claude-tools"
         ],
@@ -892,20 +907,5 @@
         ]
       }
     }
-  },
-  "reasoning_effort": "max",
-  "request_overrides": {
-    "allowed_paths": [
-      "<workspace>"
-    ],
-    "include_tasks": true,
-    "mcp_enabled": false,
-    "model": "glm-5.3-flash:cloud",
-    "request_options": {
-      "reasoning_effort": "max"
-    },
-    "skills_enabled": false,
-    "web_search_enabled": false,
-    "working_directory": "<workspace>"
   }
 }

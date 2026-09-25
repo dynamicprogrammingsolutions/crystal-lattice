@@ -235,9 +235,12 @@ one guidance bundle:
 
 ```bash
 (cd maintainer/agent-evaluation && \
-  python -m suites.task_guidance.result_package extract-scenarios \
-    --bundle ../guidance/candidates/task-mechanics-b1)
+  python -m suites.task_guidance.result_package extract-scenarios)
 ```
+
+The committed export documents the current guidance bundle (the default);
+passing another `--bundle` regenerates the compiled shared inputs from that
+bundle instead.
 
 The dated human reports are not generated mechanically. Their author reviews
 the result package, scenario definitions, raw records, and model outputs;

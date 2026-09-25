@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "task-creation-assessment-gpt-xhigh-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260924T190924.416881Z-task-guidance-semantic-tg04-flask-vue-discovery-decomposition-gpt-xhigh-s0-27ccd9d2",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "3d0be6dc03e9399646a3940209a72874c526fe31cad0f9426f6e9b89a00f28a6",
+    "original_sha256": "f4466e7da52edb3846f5ea61725a8f1c66923dfbf15b51a5d41db9153371f22f",
+    "path": "shared/system-messages/glm-assessor-3d0be6dc03e9.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

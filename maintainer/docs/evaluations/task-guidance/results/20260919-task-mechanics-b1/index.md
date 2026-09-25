@@ -1,9 +1,7 @@
 # task-mechanics candidate result package
 
 - Dataset: `task-guidance-b1-20260919`
-- Producer attempt: `b1-v1-r1`
-- Handoff attempt: `b1-v1-r1`
-- Semantic attempt: `b1-metrics1`
+- Run labels: `b1-v1-r1`
 
 This package preserves the completed evaluation's reviewed inputs, model outputs, execution context, semantic assessments, and usage evidence. Every navigation, matrix, and cost view regenerates deterministically from the committed records.
 

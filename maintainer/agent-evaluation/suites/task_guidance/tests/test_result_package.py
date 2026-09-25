@@ -743,6 +743,192 @@ def _collect_twice(root: Path) -> tuple[Path, Path]:
     return packages[0], packages[1]
 
 
+def _per_subject_handoff_record(
+    scenario_id: str,
+    *,
+    variant: str,
+    stage: str,
+    score: int,
+) -> dict[str, Any]:
+    """One per-subject handoff judgment: variant distinguishes the runs."""
+
+    return {
+        "schema_version": 2,
+        "dataset_id": SYNTHETIC_DATASET_ID,
+        "scenario_id": scenario_id,
+        "subject": {"profile": "glm", "reasoning_effort": "max", "sample_index": 0},
+        "assessment": {
+            "variant": variant,
+            "stage": stage,
+            "handoff_quality_score": score,
+            "plan_coverage": "complete",
+            "documentation_boundary": "respected",
+            "testing_boundary": "respected",
+            "task_self_contained": True,
+            "broad_rediscovery": False,
+            "lost_facts_or_decisions": [],
+            "invented_scope_or_decisions": [],
+            "missing_outcomes": [],
+        },
+        "summary": f"Synthetic {variant} judgment.",
+    }
+
+
+def _per_subject_task_creation_record(
+    scenario_id: str,
+    *,
+    profile: str,
+    effort: str,
+    score: int,
+) -> dict[str, Any]:
+    """One per-subject task-creation judgment for one producer cell."""
+
+    judgment = _task_creation_judgment(scenario_id, score=score)
+    judgment.pop("producer")
+    return {
+        "schema_version": 2,
+        "dataset_id": SYNTHETIC_DATASET_ID,
+        "scenario_id": scenario_id,
+        "subject": {
+            "profile": profile,
+            "reasoning_effort": effort,
+            "sample_index": 0,
+        },
+        "assessment": judgment,
+        "summary": {"average_partition_quality": float(score)},
+    }
+
+
+def test_collect_renders_each_task_creation_subject_of_one_scenario(
+    tmp_path: Path,
+) -> None:
+    """Per-subject task-creation judgments of one scenario collect per cell.
+
+    One scenario's producer cells (for example glm-max and gpt-high) are
+    distinct subjects with the same sample index; each judgment must
+    render at its own location instead of colliding on ``s0``.
+    """
+
+    paths = _build_synthetic_evaluation(tmp_path)
+    frozen = paths["frozen"]
+    records = [
+        _per_subject_task_creation_record(
+            HANDOFF_SCENARIO_ID, profile="glm", effort="max", score=100
+        ),
+        _per_subject_task_creation_record(
+            HANDOFF_SCENARIO_ID, profile="gpt", effort="high", score=90
+        ),
+    ]
+    frozen["semantic_records"] = records
+    frozen["status"]["semantics"] = {
+        "expected": 2,
+        "present": 2,
+        "missing": [],
+    }
+    for record in records:
+        subject = record["subject"]
+        run_id = (
+            f"synthetic-tg02-semantic-{subject['profile']}-"
+            f"{subject['reasoning_effort']}"
+        )
+        _write_run(
+            paths["artifact_root"],
+            run_id=run_id,
+            record_name="task-guidance-semantic.json",
+            record=record,
+            session=_session(
+                f"/tmp/synthetic-task-guidance/{run_id}/workspace",
+                prompt=(
+                    "Assess the synthetic tg02 producer"
+                    f" {subject['profile']} {subject['reasoning_effort']}."
+                ),
+                response=json.dumps(record["assessment"], indent=2),
+                compiled="synthetic assessor guidance",
+                run_id=run_id,
+            ),
+        )
+    paths["frozen_path"].write_text(
+        json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    package_dir = tmp_path / "package"
+    collect(
+        package_dir=package_dir,
+        artifact_root=paths["artifact_root"],
+        frozen_path=paths["frozen_path"],
+        cells=list(SYNTHETIC_CELLS),
+        bundle=DEFAULT_BUNDLE,
+    )
+    assessment_prefix = f"scenarios/{HANDOFF_SCENARIO_ID}/assessment/task-creation"
+    for cell in ("glm-max", "gpt-high"):
+        assert (package_dir / assessment_prefix / cell / "s0" / "run.json").is_file()
+
+
+def test_collect_renders_each_handoff_variant_of_one_subject(
+    tmp_path: Path,
+) -> None:
+    """Per-subject handoff judgments of one subject collect per variant.
+
+    The retain, omit, generated-task, and incomplete judgments of one
+    producer cell share the subject mapping; only the assessment variant
+    distinguishes them. Collection must map each frozen record to its own
+    assessor run instead of collapsing them onto the newest match.
+    """
+
+    paths = _build_synthetic_evaluation(tmp_path)
+    frozen = paths["frozen"]
+    records = [
+        _per_subject_handoff_record(
+            HANDOFF_SCENARIO_ID, variant="retain", stage="fresh-agent", score=90
+        ),
+        _per_subject_handoff_record(
+            HANDOFF_SCENARIO_ID, variant="omit", stage="fresh-agent", score=80
+        ),
+    ]
+    frozen["handoff_semantic_records"] = records
+    frozen["status"]["handoff_semantics"] = {
+        "expected": 2,
+        "present": 2,
+        "missing": [],
+    }
+    for record in records:
+        variant = record["assessment"]["variant"]
+        run_id = f"synthetic-tg02-handoff-{variant}"
+        _write_run(
+            paths["artifact_root"],
+            run_id=run_id,
+            record_name="task-guidance-handoff-semantic.json",
+            record=record,
+            session=_session(
+                f"/tmp/synthetic-task-guidance/{run_id}/workspace",
+                prompt=f"Assess the synthetic tg02 {variant} handoff.",
+                response=json.dumps(record["assessment"], indent=2),
+                compiled="synthetic assessor guidance",
+                run_id=run_id,
+            ),
+        )
+    paths["frozen_path"].write_text(
+        json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    package_dir = tmp_path / "package"
+    collect(
+        package_dir=package_dir,
+        artifact_root=paths["artifact_root"],
+        frozen_path=paths["frozen_path"],
+        cells=list(SYNTHETIC_CELLS),
+        bundle=DEFAULT_BUNDLE,
+    )
+    assessment_prefix = f"scenarios/{HANDOFF_SCENARIO_ID}/assessment/handoff"
+    for variant in ("retain", "omit"):
+        assert (
+            package_dir / assessment_prefix / "glm-max" / variant / "s0" / "run.json"
+        ).is_file()
+    results = (package_dir / assessment_prefix / "results.md").read_text(
+        encoding="utf-8"
+    )
+    assert "(retain, fresh-agent)" in results
+    assert "(omit, fresh-agent)" in results
+
+
 def test_collect_builds_complete_synthetic_package(tmp_path: Path) -> None:
     package_dir = _collect_synthetic(tmp_path)
 

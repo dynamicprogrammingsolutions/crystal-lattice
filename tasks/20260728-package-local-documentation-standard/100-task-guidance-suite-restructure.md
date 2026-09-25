@@ -995,3 +995,13 @@ first; 3 needs 1 and 2; 4 needs 2 and 3; 5 needs 4; 6 needs 1, 3, and 5;
   written first. Cache entries written before the fix are keyed to the
   old nondeterministic revisions and do not replay; the first rerun
   after the fix executes once more, then replays.
+- September 24, 2026 (later still) — the duplicate judgments exposed a
+  real gap in the per-subject collection: multiple genuine judgments of
+  one subject (repeated invocations under one label, `--samples N`, or
+  `--fresh`) make `collect` fail with `duplicate run_id`, because the
+  frozen record names the subject but not the assessor run. Planned as
+  the follow-up task
+  `tasks/20260728-package-local-documentation-standard/110-run-exact-freeze-collect.md`
+  (run-exact freeze→collect contract). The immediate b0/b1 state was cleaned up one-off: 34
+  newer-duplicate run directories deleted, both datasets re-frozen to
+  single samples per subject cell.
