@@ -1,0 +1,33 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "continuation",
+  "lineage": {
+    "inherited_prefix": {
+      "availability": {
+        "detail": "bounded by the parent run's saved session",
+        "state": "captured"
+      },
+      "length": 31
+    },
+    "parent_run_id": "20260925T224430.254630Z-task-guidance-tg03-flask-vue-refresh-handoff-max-f71db6b4"
+  },
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260925T224432.383301Z-task-guidance-same-agent-tg03-flask-vue-refresh-handoff-167c6eb8",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "152f3d9b2d0c885828cc2e27e9436059171a407f5ae352e7539cc782d3ade103",
+    "original_sha256": "faeabd9c4e7cd72b7a7e4ede158c5235c1cffb7e0cb0470032e913ef3d322b74",
+    "path": "shared/system-messages/glm-152f3d9b2d0c.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260926-books-filter-crud-refresh.md"
+  ],
+  "valid": true
+}

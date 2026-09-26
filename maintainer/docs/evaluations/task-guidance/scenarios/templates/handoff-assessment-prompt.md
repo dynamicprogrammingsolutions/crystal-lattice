@@ -25,6 +25,10 @@ The `incomplete` variant is an intentional negative control. It should require
 more reconstruction or produce lower-quality planning than a complete handoff;
 assess the result rather than assuming failure from the label.
 
+The `generated-file` variant is a fresh-session plan made only from another
+agent's generated task files: judge whether those files alone let the planning
+agent produce a complete plan without broad rediscovery.
+
 Return JSON only:
 
 {
@@ -32,7 +36,7 @@ Return JSON only:
   "scenario_id": "$scenario_id",
   "assessment": {
     "stage": "fresh-agent|same-agent",
-    "variant": "retain|omit|incomplete|generated-task",
+    "variant": "retain|omit|incomplete|generated-task|generated-file",
     "plan_coverage": "complete|partial|poor",
     "missing_outcomes": ["OUTCOME-ID"],
     "lost_facts_or_decisions": ["description"],

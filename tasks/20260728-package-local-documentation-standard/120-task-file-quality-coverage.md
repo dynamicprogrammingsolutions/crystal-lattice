@@ -123,9 +123,18 @@ directories and connections; the matrix command set stays unchanged.
   handoff rubric through a new `generated-file` handoff subject variant.
   Matrix collection grows to 104 cases (6 generated-plan, 18 quality
   assessment); the deterministic suite is 173 tests, green.
-- Note: until the new scenarios land, the generated-plan stage runs for
-  the three handoff-category scenarios (6 cells); decomposition
-  scenarios can join by declaring the stage in their category.
+- Note: the generated-plan stage runs for the three handoff-category
+  scenarios (6 cells); decomposition and kind scenarios can join by
+  declaring the stage in their categories.
+- September 26, 2026 (kind baseline): the four scenarios' first v3 run
+  caught two flaky producer failures — the content task triggered a new
+  ask-and-stop about *whether to include an execution plan* (tg10 GPT,
+  1/3 samples) and the tracking task produced a filled plan despite an
+  explicit deferral (tg07 GLM, 1/3, rejected by the new assertion).
+  Both point at the same missing wording: the execution plan is
+  conditional. All valid subjects fit their kind (10/10) and judged
+  plans `justified` or `not_applicable`; assessments use valid samples
+  only, invalid samples stay as producer-side variance evidence.
 
 ## Execution plan
 
@@ -186,7 +195,11 @@ Approved by the user on September 26, 2026 together with the direction
 - [x] Calibration run over committed packages recorded
 - [x] Quality-assessment stage wired end-to-end
 - [x] Fresh-agent-from-generated-task stage wired end-to-end
-- [ ] Four new scenarios with reviewed targets
+- [x] Four new scenarios with reviewed targets (September 26, 2026:
+  tg07 tracking, tg08 documentation, tg09 operations, tg10 content — kind
+  category with task-creation and both assessments; tg07 carries the
+  deterministic absent-or-draft plan assertion; baseline run on v3 in
+  [task-kind baseline results](../../maintainer/docs/evaluations/task-guidance/20260926-task-kind-baseline-results.md))
 - [x] Deterministic suite tests for all of the above
 - [x] Live coverage results generated and packaged (September 26, 2026:
   18 quality subjects, 6 generated-file plans all valid, 6 generated-file

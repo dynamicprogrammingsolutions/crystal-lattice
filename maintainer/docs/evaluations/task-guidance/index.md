@@ -24,7 +24,10 @@ Read these pages in order:
 7. [Task-quality coverage results](20260926-task-quality-coverage-results.md)
    — the quality-assessment and generated-file planning stages on the v3
    outputs; two fabricated plans found, fresh-agent planning confirmed.
-8. [Reproducing and inspecting results](reproducing-and-inspecting-results.md)
+8. [Task-kind baseline results](20260926-task-kind-baseline-results.md)
+   — the four task-kind scenarios' first run on v3; conditional-plan
+   guidance gaps caught in 1-of-3 samples each.
+9. [Reproducing and inspecting results](reproducing-and-inspecting-results.md)
    — provides the commands, identities, raw-record paths, report-generation
    flow, and result-package navigation.
 

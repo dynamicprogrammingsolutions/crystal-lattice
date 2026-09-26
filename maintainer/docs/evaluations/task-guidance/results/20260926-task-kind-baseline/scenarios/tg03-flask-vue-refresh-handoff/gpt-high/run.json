@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260925T220738.533967Z-task-guidance-tg03-flask-vue-refresh-handoff-high-7b1fb3ad",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "b11b60a31b4ab8dc6a18e512d30c2fa851ec2ffda5e8d57444a0d954a0be7823",
+    "original_sha256": "4b1f87816f37b01819f512f97d5ce186a49006e762c60e25b8743fd2bbeff307",
+    "path": "shared/system-messages/gpt-b11b60a31b4a.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260926-preserve-books-filter-after-crud.md"
+  ],
+  "valid": true
+}
