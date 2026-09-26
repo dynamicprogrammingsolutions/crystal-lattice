@@ -417,15 +417,29 @@ guidance.
 - [x] Revise the candidate decision: preserve v1 as strong decomposition
   evidence, do not promote it verbatim, and use it as the basis of a practical
   baseline instead of leaving `develop` without decomposition guidance.
-- [ ] Draft the practical-baseline wording for plan preservation,
+- [x] Draft the practical-baseline wording for plan preservation,
   implementation-design visibility, parent/child information ownership,
   technical-layer independence, safe dependencies, and decisive crossings.
+  (Realized September 25–26, 2026 as candidates
+  `task-mechanics-b1v2` and `task-mechanics-b1v3`: the decisive-check rule
+  with the no-waiver clause and the design-visibility rule, plus the
+  structure-choice rewording that removed the ask-and-stop failure. The
+  layer-independence correction was rejected — the existing conditional rule
+  already supports consumer-backed splits; dependency and ownership wording
+  is deferred as small residual findings; plan-preservation wording is
+  folded into the focused confirmation below.)
 - [ ] Add the focused generated-task fresh-agent, plan-preservation,
-  implementation-design, and human-readability assessments.
+  implementation-design, and human-readability assessments. (Expanded
+  September 26, 2026 — six real-world task-file gaps need dedicated
+  tests/assertions; see the final Implementation Notes entry.)
 - [ ] Run the focused practical-baseline confirmation and inspect the actual
   generated task files and reconstructed plans.
 - [ ] Freeze and promote the practical task-mechanics baseline after explicit
-  approval.
+  approval. (September 26, 2026 status: candidate v3 is ready — a complete,
+  fully valid matrix with the strongest task-creation results and no
+  ask-and-stop failures; promotion may proceed once the focused
+  confirmation and explicit approval land. The remaining gaps are real and
+  are tracked as new tests/assertions, not as promotion blockers.)
 - [ ] Compile and inspect concise task reinforcement and centralized root
   guidance; compile routed extended explanation only if justified.
 - [ ] Run focused placement comparisons.
@@ -575,3 +589,85 @@ guidance.
   `maintainer/docs/evaluations/task-guidance/results/20260919-current-guidance-b0/`
   and
   `maintainer/docs/evaluations/task-guidance/results/20260919-task-mechanics-b1/`.
+- September 26, 2026: the per-subject reassessment and two new candidate
+  evaluations landed. The reassessed comparison (committed in both result
+  packages) showed neither B1 regression finding survives the corrected
+  assessor: production-connection evidence improved (+5.5) and the handoff
+  differences sit within two points; no cell regressed on any dimension.
+  Candidate `task-mechanics-b1v2` added the two selected corrections
+  (decisive check with no waiver; design before ordered steps): overall
+  90.0%, crossing 86.1%, but the inherited format-confirmation rule still
+  caused ask-and-stop producer failures. Candidate `task-mechanics-b1v3`
+  reworded structure determination (single task by default, children only
+  when justified, ask only when the preference is material and uninferrable):
+  a complete, fully valid 74-case matrix, 18/18 producers valid on first
+  execution, overall 93.2%, crossing 97.2%, layer split 97.2%, phase-only
+  100%; fragmentation rose in book discovery (task-count granularity is the
+  next calibration question). Packages:
+  `maintainer/docs/evaluations/task-guidance/results/20260925-task-mechanics-b1v2/`
+  and
+  `maintainer/docs/evaluations/task-guidance/results/20260926-task-mechanics-b1v3/`;
+  dated reports sit beside the earlier ones.
+- Decision state: candidate v3 is the practical task-mechanics baseline and
+  is ready for promotion pending the focused confirmation and explicit
+  approval. Human review identified six real task-file gaps that current
+  tests do not expose (they are visible in the baseline evidence):
+  1. `## Execution plan` is misinterpreted as work steps rather than a
+     decided design;
+  2. task files are written as prose without subheadings or illustration,
+     hurting human readability;
+  3. task files are much shorter than the conversation plan and may drop
+     material details, making fresh-agent continuation risky;
+  4. which detail belongs in requirements, supporting details, or the
+     execution plan is not obvious;
+  5. execution plans are included even when no planning happened or the
+     planning is clearly incomplete;
+  6. non-development tasks (documentation, deployment, copywriting, server
+     management) treat every section as mandatory even where clearly
+     inapplicable.
+  New deterministic assertions and assessment dimensions for these gaps are
+  follow-up work recorded here; they are not promotion blockers for v3.
+
+- September 26, 2026: the semantic assessments of the frozen evaluations
+  were rerun per subject (one subject per request, producer identity
+  blinded) on the unchanged producer and plan outputs; the committed
+  packages and the corrected
+  [candidate report](../../maintainer/docs/evaluations/task-guidance/20260919-task-mechanics-b1-results.md)
+  hold the reassessed evidence. Neither original promotion blocker survived:
+  production-connection evidence improved (+5.5) and the handoff losses
+  compressed to noise. Per cell, 37 dimension statuses improved and none
+  worsened.
+- September 25–26, 2026: two candidate revisions were built and evaluated
+  end-to-end on the restructured suite (see the
+  [candidate v2](../../maintainer/docs/evaluations/task-guidance/20260925-task-mechanics-b1v2-results.md)
+  and
+  [candidate v3](../../maintainer/docs/evaluations/task-guidance/20260926-task-mechanics-b1v3-results.md)
+  reports and their result packages). v2 keeps B1 plus the decisive-check
+  rule (no per-side checks, no waiving) and the design-visibility rule. v3
+  additionally rewords the structure-choice step so the agent determines
+  single-task-versus-subtasks from the request and the decomposition rules —
+  removing the ask-and-stop failure mode that repeatedly blocked cells in
+  every earlier matrix (four of six samples on one cell under v2; zero in
+  v3).
+- v3 status: complete and fully valid matrix (18/18 producers first-try,
+  12/12 fresh-agent plans, 6/6 same-agent continuations, 1/1 control,
+  18/18 task-creation subjects, 19/19 handoff subjects), overall 93.2%
+  (baseline 64.8%), production-connection evidence 97.2%, layer splits
+  97.2%, phase-only 100%. v3 is ready for promotion once the focused
+  confirmation and explicit approval land.
+- Remaining gaps are real but do not block promotion; they need new
+  tests/assertions (semantic dimensions first, few positive checks rather
+  than mechanical bans) and follow-up guidance wording. Six themes observed
+  in real task files, at least in the current-guidance baseline:
+  1. execution plans degenerate into ordered work steps instead of designs;
+  2. task files are hard to read for humans — dense prose, no subheadings,
+     long ordered-list items, no tables or structure where they would help;
+  3. task files are much shorter than the conversation plan and can drop
+     material details, making new-agent continuation risky;
+  4. detail placement is ambiguous — requirements vs supporting details vs
+     execution plan;
+  5. execution plans appear even when no planning happened or the planning
+     is clearly incomplete;
+  6. non-development tasks (documentation, deployment, copywriting, server
+     management) are forced through development-shaped sections although
+     sections are conditional.

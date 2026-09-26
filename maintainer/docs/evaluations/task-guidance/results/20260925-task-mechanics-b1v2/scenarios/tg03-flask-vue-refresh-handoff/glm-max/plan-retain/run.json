@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "plan-retain",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260925T202311.240711Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-retain-679d2c0e",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "57ab3a9a1ddea3b774298a3d6a80dc0901b55cb2441b5bee8e58b0f4f3a7e427",
+    "original_sha256": "a15cbc0d5d9fe0388f559e475e97f0ae6d838fe89629f3fbc8843d6b244f5309",
+    "path": "shared/system-messages/glm-57ab3a9a1dde.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md"
+  ],
+  "valid": true
+}

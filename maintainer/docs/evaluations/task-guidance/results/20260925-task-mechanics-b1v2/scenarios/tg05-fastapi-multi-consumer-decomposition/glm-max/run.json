@@ -1,0 +1,27 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260925T201932.092927Z-task-guidance-tg05-fastapi-multi-consumer-decomposition-max-0a3126fd",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "61009f3cd5421124d8f38788aa2c8090032aa1f5636ef00e5b92dfd0dbc197a9",
+    "original_sha256": "82f190c3da8c77f2ca681c35ec310bec0c081f3e795e4bac4f8b017702f3750d",
+    "path": "shared/system-messages/glm-61009f3cd542.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260925-notes-query-capability/000-main.md",
+    "task-files/tasks/20260925-notes-query-capability/010-public-query-contract.md",
+    "task-files/tasks/20260925-notes-query-capability/020-api-query-parameters.md",
+    "task-files/tasks/20260925-notes-query-capability/030-client-query-parameters.md",
+    "task-files/tasks/20260925-notes-query-capability/040-cli-query-end-to-end.md"
+  ],
+  "valid": true
+}

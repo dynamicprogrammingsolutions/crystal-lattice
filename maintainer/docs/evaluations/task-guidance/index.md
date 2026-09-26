@@ -16,7 +16,12 @@ Read these pages in order:
 4. [Task-mechanics candidate results](20260919-task-mechanics-b1-results.md)
    — compares the first candidate with the baseline and records the revised
    practical-baseline direction.
-5. [Reproducing and inspecting results](reproducing-and-inspecting-results.md)
+5. [Task-mechanics candidate v2 results](20260925-task-mechanics-b1v2-results.md)
+   — the decisive-check and design-visibility calibration on the per-subject
+   assessor.
+6. [Task-mechanics candidate v3 results](20260926-task-mechanics-b1v3-results.md)
+   — the structure-choice rewording; strongest task-creation results so far.
+7. [Reproducing and inspecting results](reproducing-and-inspecting-results.md)
    — provides the commands, identities, raw-record paths, report-generation
    flow, and result-package navigation.
 
@@ -32,6 +37,13 @@ was compiled and evaluated. Candidate v1 is not promoted verbatim, but its
 strong decomposition gains are the foundation of a practical baseline with
 focused plan-preservation, design-visibility, dependency, and connected-test
 clarifications.
+
+Candidates
+[v2](20260925-task-mechanics-b1v2-results.md) and
+[v3](20260926-task-mechanics-b1v3-results.md) ran on the restructured
+per-subject suite. V3 removes the ask-and-stop structure-choice failure and
+records the strongest task-creation results; its matrix is complete after
+a transient provider outage was rerun.
 
 [Stage B2 — Guidance-placement confirmation](test-plan.md#stage-b2--guidance-placement-confirmation)
 has not started and remains blocked on approval and focused confirmation of

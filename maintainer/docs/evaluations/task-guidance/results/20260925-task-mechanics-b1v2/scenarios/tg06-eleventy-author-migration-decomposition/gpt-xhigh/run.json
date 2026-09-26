@@ -1,0 +1,27 @@
+{
+  "config": "shared/configs/gpt-xhigh.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "xhigh",
+  "run_id": "20260925T201531.700707Z-task-guidance-tg06-eleventy-author-migration-decomposition-xhigh-706f7ec3",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "aa39c0203fd869c4771076f04e6aa587eb224aee248f6fd14a65aa2f42b6136b",
+    "original_sha256": "cc4d2d89675a53d00a0b3612e7969214ef4962b3c0e7ff4bc75adc92911b4d51",
+    "path": "shared/system-messages/gpt-aa39c0203fd8.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260925-author-metadata-migration/000-main.md",
+    "task-files/tasks/20260925-author-metadata-migration/010-metadata-content-tooling.md",
+    "task-files/tasks/20260925-author-metadata-migration/020-rendering-and-output.md",
+    "task-files/tasks/20260925-author-metadata-migration/030-cutover-and-rejection.md"
+  ],
+  "valid": true
+}
