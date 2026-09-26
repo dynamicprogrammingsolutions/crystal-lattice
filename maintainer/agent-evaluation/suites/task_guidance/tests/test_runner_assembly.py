@@ -498,7 +498,7 @@ def test_consolidation_selects_the_latest_label_per_cell_by_default(
     )
 
     value = consolidate_results(tmp_path)
-    assert value["labels"] is None
+    assert value["labels"] == ["l2"]
     assert [record["response"] for record in value["producer_records"]] == ["late"]
     assert "l2" in value["selection"]
     assert "l1" not in value["selection"]

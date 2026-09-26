@@ -176,11 +176,28 @@ def consolidate_results(
             for reason in record.value.get("invalid_reasons", ())
         )
     ]
+    resolved_labels = sorted(
+        {
+            record.label
+            for selected in (
+                producers,
+                handoffs,
+                continuations,
+                semantics,
+                handoff_semantics,
+                negative_controls,
+            )
+            for samples in selected.values()
+            for record in samples
+        }
+    )
     return {
         "schema_version": 2,
         "dataset_id": dataset_id,
         "label": label,
-        "labels": list(labels) if labels is not None else None,
+        # The resolved labels of the selected records: the explicit selection
+        # when one was given, otherwise the labels default selection picked.
+        "labels": resolved_labels,
         "bundle": dict(bundle) if bundle is not None else None,
         "selection": render_selection(producers),
         "producer_records": producer_values,

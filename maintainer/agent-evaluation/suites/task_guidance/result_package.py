@@ -1033,7 +1033,17 @@ def _discover_runs(
     identity match the record.
     """
 
-    labels = _run_labels(frozen)
+    # Labels are needed only by the fallback path. A dataset frozen with
+    # default latest-label selection records no label list, and every one
+    # of its records names its exact run — so label resolution stays lazy.
+    labels: set[str] | None = None
+
+    def _fallback_labels() -> set[str]:
+        nonlocal labels
+        if labels is None:
+            labels = _run_labels(frozen)
+        return labels
+
     mapping: dict[str, Path] = {}
     groups = (
         (PRODUCER_RECORD, "producer_records", producer_cell_identity),
@@ -1058,7 +1068,7 @@ def _discover_runs(
             if not isinstance(value, dict):
                 continue
             if (
-                _record_label(path, value) not in labels
+                _record_label(path, value) not in _fallback_labels()
                 or identity_of(value) not in wanted
             ):
                 continue
@@ -1101,7 +1111,7 @@ def _discover_runs(
                 if (
                     not isinstance(value, dict)
                     or value.get("scenario_id") != scenario_id
-                    or _record_label(path, value) not in labels
+                    or _record_label(path, value) not in _fallback_labels()
                 ):
                     continue
                 if subject is not None:
