@@ -4,6 +4,16 @@ Revised September 20, 2026, after direct review of the generated task files
 and the handoff-test boundaries. Frozen evidence and scores are unchanged; the
 promotion interpretation is revised below.
 
+Corrected September 25, 2026: the semantic assessments were rerun as
+per-subject judgments (one subject per request, producer identity, validity
+flags, and tool metrics withheld from the assessor) on the unchanged frozen
+producer and plan outputs. The reassessed judgments are committed in
+[results/20260919-task-mechanics-b1](results/20260919-task-mechanics-b1/) and
+[results/20260919-current-guidance-b0](results/20260919-current-guidance-b0/);
+the reassessed comparison below supersedes the assessment-derived findings in
+this report. Producer, plan, continuation, and control records were not
+rerun.
+
 This report compares
 [Stage B1 — Task-mechanics candidate](test-plan.md#stage-b1--task-mechanics-candidate)
 with
@@ -38,12 +48,14 @@ Current guidance was not modified or promoted.
 | Task creation | 18 | 18 | 18 | 0 | 0 |
 | Fresh-agent planning | 12 | 12 | 12 | 0 | 0 |
 | Same-agent planning | 6 | 6 | 5 | 1 | 0 |
-| Task semantic assessment | 6 batches | 6 | — | — | 0 |
-| Handoff semantic assessment | 3 batches | 3 | — | — | 0 |
+| Task semantic assessment | 18 subjects | 18 | — | — | 0 |
+| Handoff semantic assessment | 19 subjects | 18 | — | — | 1 |
 | Incomplete-handoff negative control | 1 | 1 | — | — | 0 |
 
-The same GPT-high selected-filter same-agent chain remained invalid because its
-parent turn created no task file. The candidate did not improve that behavior.
+The missing handoff subject is the invalid GPT-high selected-filter same-agent
+chain (its parent turn created no task file), which skips with a recorded
+reason instead of being judged. The same chain is the one invalid record above;
+the candidate did not improve that behavior.
 
 All 18 task-creation assessments covered the approved outcomes. One GLM
 multi-consumer task recommended package version bumps but kept them explicitly
@@ -78,6 +90,12 @@ pre-model setup attempts are not behavior evidence.
 
 ## Aggregate comparison
 
+The table below is the original batched-assessor comparison, kept as the
+frozen September 19–20 record. Its two regression findings —
+production-connection evidence (−5.6) and the handoff semantic losses — did
+**not** survive the per-subject reassessment and should not be cited as
+candidate defects; see the reassessed comparison that follows.
+
 | Dimension | Baseline | Candidate | Delta | Affected assessments | Occurrences |
 |---|---:|---:|---:|---:|---:|
 | Overall success | 67.4% | 87.0% | +19.6 | — | — |
@@ -88,12 +106,66 @@ pre-model setup attempts are not behavior evidence.
 | Dependency safety | 75.0% | 80.6% | +5.6 | 7 → 6 | 8 → 6 |
 | Production-connection evidence | 80.6% | 75.0% | **−5.6** | 5 → 5 | 5 → 5 |
 
-The candidate completely removed phase-only children and evidence
-re-ownership in this matrix. It also reduced fragmentation and dependency
-problems. It did not reduce the number of production-connection failures and
-made their severity worse overall.
+## Reassessed comparison (per-subject, September 25, 2026)
+
+Same frozen producer and plan outputs, same targets and score mapping;
+assessments rerun one subject per request with the producer blinded. No cell
+regressed: across all 18 cells × 6 dimensions, 37 dimension statuses improved
+and none worsened; 11 cells improved overall and 7 were unchanged (the
+unchanged cells were already clean, except the selected-filter refresh case,
+identical at 83.3 for both models in both evaluations).
+
+| Dimension | Baseline | Candidate | Delta | Affected assessments |
+|---|---:|---:|---:|---:|
+| Overall success | 64.8% | 88.1% | **+23.3** | — |
+| Fragmentation | 66.8% | 87.0% | +20.2 | 11 → 4 |
+| Phase-only children | 55.6% | 100.0% | +44.4 | 9 → 0 |
+| Layer split without independent value | 77.8% | 83.3% | +5.5 | 4 → 3 |
+| Evidence re-ownership | 61.1% | 94.4% | +33.3 | 8 → 2 |
+| Dependency safety | 63.9% | 94.4% | +30.5 | 10 → 2 |
+| Production-connection evidence | 63.9% | 69.4% | **+5.5** | 7 → 6 |
+
+By cohort (overall success, baseline → candidate): GLM max 88.4 → 95.8;
+GPT high 57.4 → 89.8; GPT xhigh 43.6 → 79.6; GPT max 53.7 → 77.8.
+
+What the reassessment changed:
+
+- The production-connection regression was a batched-assessor artifact. The
+  per-subject assessor scores the baseline's crossing evidence much lower
+  (63.9% vs 80.6%), so the candidate's stable crossing level reads as an
+  improvement (+5.5), not a regression.
+- The handoff semantic regressions did not reproduce: all 18 judged handoff
+  subjects sit within two points between the evaluations (complete handoffs
+  90–96, negative control 76 → 74).
+- [Scenario TG-03 — Flask/Vue selected-filter refresh regression](test-cases.md#scenario-tg-03--flaskvue-selected-filter-refresh-regression) crossing evidence did not become more severe for GLM: both models
+  score identically (83.3, crossing present) in both evaluations — the gap is
+  guidance-insensitive, not candidate-caused.
+- Evidence re-ownership is not fully eliminated: two partial findings remain
+  (GPT xhigh book discovery: the coordinating parent retains the
+  cross-boundary acceptance check; GPT max author migration: the final gate
+  child re-claims generated-output assertions the rendering child already
+  owns).
+
+Remaining candidate findings are persistent gaps, not regressions, and
+concentrate in two patterns:
+
+- [Scenario TG-04 — Flask/Vue book-discovery decomposition](test-cases.md#scenario-tg-04--flaskvue-book-discovery-decomposition) GPT (high/xhigh/max): two horizontal layer bundles — one task holds
+  the server halves of every capability, the other the client halves plus URL
+  state — so no capability lands or reviews independently, and the connection
+  is verified per side (Flask test client; mounted component with mocked
+  transport) instead of one named check through the real chain. One parent
+  file explicitly allows recording the boundary as unverified if the harness
+  cannot host both sides.
+- [Scenario TG-03 — Flask/Vue selected-filter refresh regression](test-cases.md#scenario-tg-03--flaskvue-selected-filter-refresh-regression) (both models, both evaluations): component tests mock the whole API
+  module while route tests hit Flask directly; no named check drives a CRUD
+  refresh through the real component → transport → route → rendering chain.
 
 ## Success by model and effort
+
+The sections from here through "Direct review of the generated task files"
+preserve the original batched-assessor reading of September 19–20; where they
+conflict with the reassessed comparison above, the reassessed one is
+authoritative.
 
 | Cohort | Baseline | Candidate | Delta |
 |---|---:|---:|---:|
@@ -163,7 +235,7 @@ Phase-only children and evidence re-ownership have zero candidate occurrences.
 |---|---:|---|
 | [Scenario TG-01 — Eleventy archive pagination as one task](test-cases.md#scenario-tg-01--eleventy-archive-pagination-as-one-task) | GLM 100.0 → 100.0; GPT 100.0 → 100.0 | Clean nonregression. |
 | [Scenario TG-02 — FastAPI notes pagination as one task](test-cases.md#scenario-tg-02--fastapi-notes-pagination-as-one-task) | GPT 55.5 → 100.0 | The implementation/test/docs phase split disappeared. |
-| [Scenario TG-03 — Flask/Vue selected-filter refresh regression](test-cases.md#scenario-tg-03--flaskvue-selected-filter-refresh-regression) | GLM 91.7 → 83.3; GPT 91.7 → 91.7 | Task shape stayed clean, but decisive crossing evidence did not improve and became more severe for GLM. |
+| [Scenario TG-03 — Flask/Vue selected-filter refresh regression](test-cases.md#scenario-tg-03--flaskvue-selected-filter-refresh-regression) | GLM 91.7 → 83.3; GPT 91.7 → 91.7 | Task shape stayed clean; decisive crossing evidence did not improve. (Reassessed: 83.3 → 83.3 for both models — identical, guidance-insensitive.) |
 | [Scenario TG-04 — Flask/Vue book-discovery decomposition](test-cases.md#scenario-tg-04--flaskvue-book-discovery-decomposition) | GLM 38.8 → 91.7; GPT high 38.8 → 47.2; GPT xhigh/max 30.5 → 47.2 | Phase tasks disappeared. GLM produced coherent capability slices; GPT converged on two horizontal layer workstreams and retained crossing gaps. |
 | [Scenario TG-05 — FastAPI service, client, and CLI query capability](test-cases.md#scenario-tg-05--fastapi-service-client-and-cli-query-capability) | GLM 100.0 → 100.0; GPT high/xhigh 52.8 → 100.0; GPT max 91.7 → 100.0 | Valid component boundaries remained while generic evidence children and unnecessary dependencies disappeared. |
 | [Scenario TG-06 — Eleventy author-metadata compatibility migration](test-cases.md#scenario-tg-06--eleventy-author-metadata-compatibility-migration) | GLM 77.8 → 100.0; GPT high 38.8 → 94.5; GPT xhigh 61.2 → 77.8; GPT max 61.2 → 86.2 | Strong improvement, with remaining GPT content/tool splits and intermediate-state risks. |
@@ -236,16 +308,25 @@ The earlier decision treated two findings as hard blockers:
 2. several handoff semantic scores regressed, and the invalid same-agent chain
    remained.
 
-That threshold was too conservative relative to the known defect on
-`develop`, which has no meaningful decomposition instructions. Candidate v1:
+**Reassessment correction (September 25, 2026): neither finding survived the
+per-subject reassessment.** The crossing change is an improvement (+5.5), and
+the reassessed handoff scores sit within two points across all judged
+subjects. The invalid same-agent chain is real but unchanged. The decision to
+build a practical baseline on candidate v1 therefore no longer rests on a
+regression argument; it rests on the persistent gaps the reassessment
+confirms ([Scenario TG-04 — Flask/Vue book-discovery decomposition](test-cases.md#scenario-tg-04--flaskvue-book-discovery-decomposition) GPT layer
+bundles with per-side evidence; [Scenario TG-03 — Flask/Vue selected-filter refresh regression](test-cases.md#scenario-tg-03--flaskvue-selected-filter-refresh-regression) guidance-insensitive
+crossing evidence in both evaluations).
+
+Candidate v1 (reassessed):
 
 - keeps approved-outcome coverage complete in all 18 task-creation
   assessments;
-- eliminates all observed phase-only children and evidence re-ownership;
-- reduces fragmentation occurrences from 19 to 6;
-- materially improves every reported model/effort cohort;
-- leaves production-connection affected-assessment and occurrence counts
-  unchanged at five, despite a lower severity score;
+- eliminates all observed phase-only children;
+- reduces fragmentation-affected assessments from 11 to 4 and dependency
+  findings from 10 to 2;
+- materially improves every reported model/effort cohort, with no cell worse
+  than the baseline on any dimension;
 - retains the same 12/12 valid fresh-agent plans and 5/6 valid same-agent
   chains.
 
@@ -257,21 +338,26 @@ worse because the fresh-agent inputs were unchanged canonical handoffs.
 The practical baseline should retain candidate v1 and add concise guidance
 that:
 
-- a technical layer's API testability is not independent value when every
-  approved user-facing capability still crosses another child;
 - separate component/adapter and route checks do not satisfy a required
   production connection—one named check must traverse the real connected
-  components;
-- every child completion state allowed by declared dependencies must remain
-  usable and compatible;
-- a retained plan preserves implementation design, rationale, component
-  responsibilities, interfaces or data flow, compatibility/dependency states,
-  material decisions, and verification strategy;
+  components, and the decisive check may not be waived or made conditional on
+  harness convenience;
 - a nontrivial Execution plan explains the design rather than consisting only
-  of ordered work steps;
-- the parent owns shared end-to-end design, requirement ownership,
-  cross-cutting decisions, dependency states, and decisive crossings, while
-  children keep local design and evidence without repeating the parent.
+  of ordered work steps.
+
+Corrections considered and not adopted at this stage (September 25, 2026
+review):
+
+- a technical layer's API testability is not independent value — the existing
+  conditional rule (independent users, ownership, compatibility, or
+  acceptance) already supports consumer-backed layer splits such as the
+  multi-consumer scenario, and the penalized book-discovery splits are ones
+  that rule already rejects;
+- intermediate-state compatibility and parent/child evidence ownership remain
+  live findings (two dependency partials, two evidence-re-ownership partials)
+  but are small and can ride along with a later wording pass;
+- retained-plan design preservation stands or falls with the focused
+  plan-to-task confirmation, which does not exist yet.
 
 Focused confirmation should add one plan-to-task preservation chain and one
 fresh-agent continuation from generated task files, then exercise
