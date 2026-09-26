@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "scenario_id": "tg08-eleventy-contributor-docs",
+  "category": "kind",
+  "project": {
+    "fixture_id": "tg01-eleventy-archive",
+    "title": "Write the contributor guide section"
+  },
+  "title": "Write the contributor guide section",
+  "task_summary": "Write the CONTRIBUTING.md guide for adding posts: front matter, drafts, and local preview, accepted by maintainer review.",
+  "approved_outcomes": [
+    {
+      "id": "DOC-1",
+      "outcome": "The guide covers creating a post with the front matter every post needs."
+    },
+    {
+      "id": "DOC-2",
+      "outcome": "The guide covers how drafts work."
+    },
+    {
+      "id": "DOC-3",
+      "outcome": "The guide covers previewing the site locally."
+    },
+    {
+      "id": "DOC-4",
+      "outcome": "A maintainer review against the task's checklist is the acceptance."
+    },
+    {
+      "id": "DOC-5",
+      "outcome": "No product behavior changes."
+    }
+  ],
+  "coherent_deliverables": [
+    {
+      "id": "DOC-GUIDE",
+      "title": "Deliver the contributor guide section",
+      "outcomes": [
+        "DOC-1",
+        "DOC-2",
+        "DOC-3",
+        "DOC-4",
+        "DOC-5"
+      ],
+      "independent_value": "One documentation deliverable reviewed as a whole; splitting it adds no independent value.",
+      "dependencies": []
+    }
+  ],
+  "acceptable_partition_sizes": [
+    1
+  ],
+  "acceptable_alternatives": [],
+  "fragmentation_examples": [],
+  "overpacking_examples": [],
+  "important_crossings": [],
+  "open_questions": [],
+  "task_kind": "documentation",
+  "applicable_sections": [
+    "Requirements checklist",
+    "Supporting details",
+    "Execution plan",
+    "Questions and decisions"
+  ],
+  "acceptance_evidence": "Maintainer review against the content checklist; testing-boundary sections do not apply."
+}

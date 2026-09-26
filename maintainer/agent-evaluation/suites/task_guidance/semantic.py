@@ -140,6 +140,10 @@ def load_producer_subjects(
     for agent, effort in expected:
         key = f"{scenario.scenario_id}:{agent}:{effort}"
         for record in sorted(selected.get(key, ()), key=lambda item: item.sample_index):
+            # Invalid samples stay in the producer records as variance
+            # evidence; they are not assessable subjects.
+            if record.value.get("valid") is not True:
+                continue
             subjects.append(
                 ProducerSubject(
                     scenario_id=scenario.scenario_id,

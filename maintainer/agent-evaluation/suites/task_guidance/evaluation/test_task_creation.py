@@ -16,6 +16,7 @@ from ..fixtures import FIXTURE_VERSION, fixture_sha256
 from ..runner import TaskRunValue
 from ..scenarios import TaskGuidanceScenario, scenario_by_id
 from ..stages import STAGES
+from ..structure import plan_is_absent_or_draft
 from ..topology import task_tree
 from .matrix import CellCase, task_creation_cases
 
@@ -90,6 +91,11 @@ def _record_task_creation_run(
         invalid_reasons.append("suite-specific guidance wrapper was injected")
 
     target = scenario.target
+    if (target.get("execution_plan") or {}).get("expected") == "absent-or-draft":
+        invalid_reasons.extend(
+            f"execution-plan expectation violated: {violation}"
+            for violation in plan_is_absent_or_draft(value.task_files)
+        )
     record = {
         "schema_version": 1,
         "scenario_id": scenario.scenario_id,

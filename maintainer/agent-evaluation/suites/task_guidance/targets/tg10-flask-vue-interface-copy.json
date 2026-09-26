@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "scenario_id": "tg10-flask-vue-interface-copy",
+  "category": "kind",
+  "project": {
+    "fixture_id": "tg03-flask-vue-refresh",
+    "title": "Write the user-facing copy"
+  },
+  "title": "Write the user-facing copy",
+  "task_summary": "Write the home introduction, empty states, and failure messages for the books app within its concise plain tone, accepted by brief and style review.",
+  "approved_outcomes": [
+    {
+      "id": "COPY-1",
+      "outcome": "The home page introduction is written."
+    },
+    {
+      "id": "COPY-2",
+      "outcome": "Empty states for the book list and for empty search results are written."
+    },
+    {
+      "id": "COPY-3",
+      "outcome": "Messages for failed load and save operations are written."
+    },
+    {
+      "id": "COPY-4",
+      "outcome": "The copy follows the app's concise, plain tone."
+    },
+    {
+      "id": "COPY-5",
+      "outcome": "A maintainer review against the brief and style checklist is the acceptance."
+    },
+    {
+      "id": "COPY-6",
+      "outcome": "No behavior changes."
+    }
+  ],
+  "coherent_deliverables": [
+    {
+      "id": "COPY-SET",
+      "title": "Deliver the interface copy set",
+      "outcomes": [
+        "COPY-1",
+        "COPY-2",
+        "COPY-3",
+        "COPY-4",
+        "COPY-5",
+        "COPY-6"
+      ],
+      "independent_value": "One voice across all surfaces; per-surface splits lose tone consistency.",
+      "dependencies": []
+    }
+  ],
+  "acceptable_partition_sizes": [
+    1
+  ],
+  "acceptable_alternatives": [],
+  "fragmentation_examples": [],
+  "overpacking_examples": [],
+  "important_crossings": [],
+  "open_questions": [],
+  "task_kind": "content",
+  "applicable_sections": [
+    "Requirements checklist",
+    "Supporting details",
+    "Execution plan",
+    "Questions and decisions"
+  ],
+  "acceptance_evidence": "Maintainer review against the brief and the style checklist; unit-test sections do not apply."
+}

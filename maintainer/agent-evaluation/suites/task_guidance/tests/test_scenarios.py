@@ -4,10 +4,11 @@ from ..scenarios import SCENARIOS, scenario_by_id
 
 
 def test_scenario_contracts_are_complete_and_unique() -> None:
-    assert len(SCENARIOS) == 6
-    assert len({scenario.scenario_id for scenario in SCENARIOS}) == 6
+    assert len(SCENARIOS) == 10
+    assert len({scenario.scenario_id for scenario in SCENARIOS}) == 10
     assert [scenario.category for scenario in SCENARIOS].count("handoff") == 3
     assert [scenario.category for scenario in SCENARIOS].count("decomposition") == 3
+    assert [scenario.category for scenario in SCENARIOS].count("kind") == 4
 
     for scenario in SCENARIOS:
         assert scenario.markdown_path.is_file()

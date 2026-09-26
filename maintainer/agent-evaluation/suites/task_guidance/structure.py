@@ -242,3 +242,49 @@ def profile_sequence(texts: Sequence[str]) -> dict[str, Any]:
 
     merged = "\n\n".join(texts)
     return profile_text("<merged>", merged)
+
+
+def plan_is_absent_or_draft(task_files: Mapping[str, str]) -> list[str]:
+    """Violations of an absent-or-draft execution-plan expectation.
+
+    A task file satisfies the expectation when it carries no execution
+    plan section at all, or when its plan section is an explicit draft:
+    a status line marking it as not yet made and no ordered work steps
+    presented as decided direction. Returns one violation string per
+    offending file.
+    """
+
+    violations: list[str] = []
+    for path, text in sorted(task_files.items()):
+        sections = _sections(text)
+        plan_titles = {
+            section["title"]
+            for section in sections
+            if section["depth"] == 2 and _is_plan_section(section)
+        }
+        if not plan_titles:
+            continue
+        in_h2_plan = False
+        draft_status = False
+        ordered_steps = 0
+        for line in text.splitlines():
+            heading = HEADING.match(line)
+            if heading:
+                if len(heading.group(1)) == 2:
+                    in_h2_plan = _is_plan_section({"title": heading.group(2).strip()})
+                continue
+            if not in_h2_plan:
+                continue
+            if STATUS_LINE.match(line.strip()):
+                if "draft" in line.lower():
+                    draft_status = True
+                continue
+            if ORDERED_ITEM.match(line):
+                ordered_steps += 1
+        if not draft_status:
+            violations.append(f"{path}: execution plan present without a draft status")
+        elif ordered_steps:
+            violations.append(
+                f"{path}: draft execution plan presents ordered work steps"
+            )
+    return violations

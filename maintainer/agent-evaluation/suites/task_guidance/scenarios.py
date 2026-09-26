@@ -89,6 +89,38 @@ SCENARIOS = (
         project_family="eleventy",
         category="decomposition",
     ),
+    TaskGuidanceScenario(
+        scenario_id="tg07-eleventy-decided-work-tracking",
+        markdown_file="07-eleventy-decided-work-tracking.md",
+        target_file="tg07-eleventy-decided-work-tracking.json",
+        fixture_id="tg01-eleventy-archive",
+        project_family="eleventy",
+        category="kind",
+    ),
+    TaskGuidanceScenario(
+        scenario_id="tg08-eleventy-contributor-docs",
+        markdown_file="08-eleventy-contributor-docs-task.md",
+        target_file="tg08-eleventy-contributor-docs.json",
+        fixture_id="tg01-eleventy-archive",
+        project_family="eleventy",
+        category="kind",
+    ),
+    TaskGuidanceScenario(
+        scenario_id="tg09-flask-vue-deployment-runbook",
+        markdown_file="09-flask-vue-deployment-runbook-task.md",
+        target_file="tg09-flask-vue-deployment-runbook.json",
+        fixture_id="tg03-flask-vue-refresh",
+        project_family="flask-vue",
+        category="kind",
+    ),
+    TaskGuidanceScenario(
+        scenario_id="tg10-flask-vue-interface-copy",
+        markdown_file="10-flask-vue-interface-copy-task.md",
+        target_file="tg10-flask-vue-interface-copy.json",
+        fixture_id="tg03-flask-vue-refresh",
+        project_family="flask-vue",
+        category="kind",
+    ),
 )
 
 
@@ -128,9 +160,7 @@ def validate_target(
     if value.get("schema_version") != 1:
         raise ValueError("target schema_version must be 1")
     if value.get("scenario_id") != expected.scenario_id:
-        raise ValueError(
-            f"target scenario_id must be {expected.scenario_id!r}"
-        )
+        raise ValueError(f"target scenario_id must be {expected.scenario_id!r}")
     if value.get("category") != expected.category:
         raise ValueError(f"target category must be {expected.category!r}")
     project = value.get("project")
@@ -182,7 +212,10 @@ def validate_target(
                 f"{deliverable_id} outcomes must reference approved outcomes"
             )
         for key in ("title", "independent_value"):
-            if not isinstance(deliverable.get(key), str) or not deliverable[key].strip():
+            if (
+                not isinstance(deliverable.get(key), str)
+                or not deliverable[key].strip()
+            ):
                 raise ValueError(f"{deliverable_id} {key} must be non-empty")
         dependencies = deliverable.get("dependencies")
         if not isinstance(dependencies, list) or any(
@@ -213,9 +246,10 @@ def validate_target(
         ):
             raise ValueError(f"target {key} must be a string list")
 
-    handoff = value.get("handoff")
-    if not isinstance(handoff, dict):
-        raise ValueError("target handoff must be an object")
-    for key in ("retain_plan", "omit_plan", "fresh_agent_plan"):
-        if not isinstance(handoff.get(key), str) or not handoff[key].strip():
-            raise ValueError(f"target handoff {key} must be non-empty")
+    if expected.category in ("handoff", "decomposition"):
+        handoff = value.get("handoff")
+        if not isinstance(handoff, dict):
+            raise ValueError("target handoff must be an object")
+        for key in ("retain_plan", "omit_plan", "fresh_agent_plan"):
+            if not isinstance(handoff.get(key), str) or not handoff[key].strip():
+                raise ValueError(f"target handoff {key} must be non-empty")

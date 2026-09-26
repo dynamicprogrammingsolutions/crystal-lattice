@@ -102,6 +102,35 @@
           "effort": "max"
         }
       }
+    },
+    "kind": {
+      "scenarios": [
+        "tg07-eleventy-decided-work-tracking",
+        "tg08-eleventy-contributor-docs",
+        "tg09-flask-vue-deployment-runbook",
+        "tg10-flask-vue-interface-copy"
+      ],
+      "producer_cells": [
+        {
+          "agent": "glm",
+          "effort": "max"
+        },
+        {
+          "agent": "gpt",
+          "effort": "high"
+        }
+      ],
+      "stages": {
+        "task-creation": {},
+        "task-creation-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
+        "task-quality-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        }
+      }
     }
   },
   "directories": {
