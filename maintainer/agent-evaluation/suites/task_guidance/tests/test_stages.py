@@ -26,11 +26,16 @@ def test_parent_linkages_reference_declared_stages() -> None:
             assert spec.parent != spec.name
 
 
-def test_continuation_is_the_only_stage_sharing_an_earlier_run() -> None:
+def test_exactly_two_stages_share_an_earlier_run() -> None:
     with_parent = {spec.name for spec in STAGES.values() if spec.parent}
-    assert with_parent == {"continuation"}
+    assert with_parent == {"continuation", "generated-plan"}
+    # The continuation shares the parent's workspace AND session prefix.
     assert STAGES["continuation"].parent == "task-creation"
     assert STAGES["continuation"].workspace == "parent"
+    # The generated-file plan shares only the parent's written task files:
+    # its workspace is rebuilt from them and its session stays fresh.
+    assert STAGES["generated-plan"].parent == "task-creation"
+    assert STAGES["generated-plan"].workspace == "generated-task"
 
 
 def test_record_files_are_unique_per_stage() -> None:

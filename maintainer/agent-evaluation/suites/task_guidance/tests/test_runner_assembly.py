@@ -31,7 +31,10 @@ from ..configuration import (
     selected_bundle,
 )
 from ..fixtures import AssessmentWorkspaceFactory, TaskGuidanceWorkspaceFactory
-from ..handoffs import CanonicalHandoffWorkspaceFactory
+from ..handoffs import (
+    CanonicalHandoffWorkspaceFactory,
+    GeneratedTaskWorkspaceFactory,
+)
 from ..results import consolidate_results, render_summary
 from ..runner import (
     RUNNER_VERSION,
@@ -320,6 +323,7 @@ def test_continuation_reads_the_parent_identity_from_provenance(
 WORKSPACE_ORIGINS = {
     "fixture-project": TaskGuidanceWorkspaceFactory,
     "canonical-handoff": CanonicalHandoffWorkspaceFactory,
+    "generated-task": GeneratedTaskWorkspaceFactory,
     "assessment-stub": AssessmentWorkspaceFactory,
 }
 
@@ -332,9 +336,10 @@ def test_stage_executor_matches_the_catalog_workspace_and_parentage(
 ) -> None:
     """Every stage run starts the way its catalog entry declares.
 
-    Only the continuation shares an earlier run (the parent's workspace
-    and session prefix); every other stage starts parentless from its
-    declared workspace origin.
+    Two stages share an earlier task-creation run: the continuation
+    (parent's workspace and session prefix) and the generated-file plan
+    (the parent's written files rebuilt into a fresh workspace); every
+    other stage starts parentless from its declared workspace origin.
     """
 
     spec = STAGES[stage]
@@ -352,7 +357,7 @@ def test_stage_executor_matches_the_catalog_workspace_and_parentage(
         monkeypatch.setattr(RunModel, "run", fake_run)
 
         parent = None
-        if stage == "continuation":
+        if stage in ("continuation", "generated-plan"):
             parent_dir = tmp_path / "glm" / "runs" / "parent-run"
             (parent_dir / "records").mkdir(parents=True)
             (parent_dir / "records" / "run-model.json").write_text(
@@ -395,6 +400,22 @@ def test_stage_executor_matches_the_catalog_workspace_and_parentage(
             )
         elif stage == "negative-control":
             harness.run_negative_control(category="handoff")
+        elif stage == "generated-plan":
+            assert parent is not None
+            parent_value = SimpleNamespace(task_files={"tasks/demo.md": "# Demo\n"})
+            monkeypatch.setattr(
+                "suites.task_guidance.runner.run_identity",
+                lambda run: "task-guidance:v1:parent-hash",
+            )
+            harness.run_plan_from_generated(
+                parent=SimpleNamespace(
+                    value=parent_value,
+                    workspace=None,
+                    run_id="parent-run",
+                ),
+                scenario=SCENARIO,
+                reasoning_effort="max",
+            )
         else:
             harness.run_assessment(
                 test_id=f"task-guidance-{stage}-demo",

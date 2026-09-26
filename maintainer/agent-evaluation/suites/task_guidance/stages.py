@@ -95,4 +95,26 @@ STAGES: dict[str, StageSpec] = {
         executor="run_assessment",
         record="task-guidance-handoff-semantic.json",
     ),
+    "generated-plan": StageSpec(
+        name="generated-plan",
+        # A repo checkout at the pinned revision plus one producer run's
+        # generated task files; fresh session — the files must stand alone.
+        workspace="generated-task",
+        parent="task-creation",
+        runs_per="scenario × producer cell",
+        config=(),
+        executor="run_plan_from_generated",
+        record="task-guidance-generated-plan.json",
+    ),
+    "task-quality-assessment": StageSpec(
+        name="task-quality-assessment",
+        # A minimal stub workspace; the judged material arrives in the user
+        # message; fresh session, run by the stage's declared agent.
+        workspace="assessment-stub",
+        parent=None,
+        runs_per="scenario (the stage's declared agent)",
+        config=("agent", "effort"),
+        executor="run_assessment",
+        record="task-guidance-quality.json",
+    ),
 }

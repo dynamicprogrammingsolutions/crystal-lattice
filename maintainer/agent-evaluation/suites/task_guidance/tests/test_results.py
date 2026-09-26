@@ -4,11 +4,21 @@ import json
 from pathlib import Path
 
 from ..results import consolidate_results, render_summary
+from ..stages import STAGES
 
 
-def _write_record(root: Path, name: str, value: dict[str, object]) -> None:
-    path = root / name / "records" / "task-guidance-producer.json"
-    path.parent.mkdir(parents=True)
+def _write_record(
+    root: Path,
+    name: str,
+    value: dict[str, object],
+    *,
+    record: str = "task-guidance-producer.json",
+    run_id: str | None = None,
+) -> None:
+    path = root / name / "records" / record
+    if run_id is not None:
+        path = root / name / "runs" / run_id / "records" / record
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
@@ -40,6 +50,29 @@ def test_consolidation_separates_invalid_and_missing_records(
         },
     )
 
+    for scenario_id, agent, effort in (
+        ("tg01-eleventy-archive-handoff", "glm", "max"),
+        ("tg01-eleventy-archive-handoff", "gpt", "high"),
+        ("tg02-fastapi-pagination-handoff", "glm", "max"),
+        ("tg02-fastapi-pagination-handoff", "gpt", "high"),
+        ("tg03-flask-vue-refresh-handoff", "glm", "max"),
+        ("tg03-flask-vue-refresh-handoff", "gpt", "high"),
+    ):
+        _write_record(
+            tmp_path,
+            agent,
+            {
+                "scenario_id": scenario_id,
+                "producer": {"profile": agent, "reasoning_effort": effort},
+                "run_attempt": "r1",
+                "valid": True,
+                "invalid_reasons": [],
+                "task_files": {"tasks/demo.md": "# Demo\n"},
+            },
+            record=STAGES["generated-plan"].record,
+            run_id=f"{scenario_id}-generated-{agent}-{effort}",
+        )
+
     value = consolidate_results(tmp_path, labels=["r1"])
 
     status = value["status"]["producers"]
@@ -52,7 +85,14 @@ def test_consolidation_separates_invalid_and_missing_records(
     }
     # Per-subject handoff assessments: fresh plans per variant and cell,
     # same-agent continuations per cell, plus the designated control.
-    assert value["status"]["handoff_semantics"]["expected"] == 19
+    assert value["status"]["handoff_semantics"]["expected"] == 25
+    assert value["status"]["generated_plans"] == {
+        "expected": 6,
+        "invalid": 0,
+        "missing": [],
+        "present": 6,
+        "valid": 6,
+    }
     assert value["status"]["negative_controls"]["expected"] == 1
     assert value["status"]["provider_blockers"]["present"] == 1
     assert "provider limit" in render_summary(value)

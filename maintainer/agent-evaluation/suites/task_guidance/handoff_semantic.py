@@ -96,6 +96,15 @@ def load_handoff_subjects(
         ),
         scenario.scenario_id,
     )
+    generated = _scenario_cells(
+        select_cell_records(
+            artifact_root,
+            record_name=STAGES["generated-plan"].record,
+            cell_identity=continuation_cell_identity,
+            labels=labels,
+        ),
+        scenario.scenario_id,
+    )
     cells = producer_cells(scenario.category)
     variants = plan_variants(scenario.category)
     has_continuation = "continuation" in CATEGORIES[scenario.category]["stages"]
@@ -156,6 +165,17 @@ def load_handoff_subjects(
                 effort,
                 same,
                 "same",
+                key=f"{scenario.scenario_id}:{profile}:{effort}",
+            )
+    if "generated-plan" in CATEGORIES[scenario.category]["stages"]:
+        for profile, effort in cells:
+            _add_subjects(
+                "fresh-agent",
+                "generated-file",
+                profile,
+                effort,
+                generated,
+                "generated",
                 key=f"{scenario.scenario_id}:{profile}:{effort}",
             )
     if has_control:

@@ -19,6 +19,7 @@ from .configuration import (
 )
 from .handoff_semantic import handoff_assessment_subject_identity
 from .scenarios import SCENARIOS
+from .quality import aggregate_quality_dimensions
 from .semantic import (
     QUALITY_DIMENSIONS,
     aggregate_quality_metrics,
@@ -95,6 +96,18 @@ def consolidate_results(
         cell_identity=scenario_cell_identity,
         labels=labels,
     )
+    quality = select_cell_records(
+        artifact_root,
+        record_name=STAGES["task-quality-assessment"].record,
+        cell_identity=assessment_subject_identity,
+        labels=labels,
+    )
+    generated_plans = select_cell_records(
+        artifact_root,
+        record_name=STAGES["generated-plan"].record,
+        cell_identity=continuation_cell_identity,
+        labels=labels,
+    )
     provider_cells = select_cell_records(
         artifact_root,
         record_name=STAGES["task-creation"].record,
@@ -137,6 +150,12 @@ def consolidate_results(
             for profile, effort in producer_cells(scenario.category)
         ),
         *(
+            f"{scenario.scenario_id}:generated-file:{profile}:{effort}"
+            for scenario in _scenarios_with_stage("handoff-assessment")
+            if "generated-plan" in CATEGORIES[scenario.category]["stages"]
+            for profile, effort in producer_cells(scenario.category)
+        ),
+        *(
             f"{control['scenario']}:{control['variant']}:"
             f"{control['agent']}:{control['effort']}"
             for control in negative_control_designations()
@@ -144,6 +163,16 @@ def consolidate_results(
     }
     expected_negative_controls = {
         control["scenario"] for control in negative_control_designations()
+    }
+    expected_quality = {
+        f"{scenario.scenario_id}:{profile}:{effort}"
+        for scenario in _scenarios_with_stage("task-quality-assessment")
+        for profile, effort in producer_cells(scenario.category)
+    }
+    expected_generated_plans = {
+        f"{scenario.scenario_id}:{profile}:{effort}"
+        for scenario in _scenarios_with_stage("generated-plan")
+        for profile, effort in producer_cells(scenario.category)
     }
 
     producer_values = [
@@ -160,6 +189,8 @@ def consolidate_results(
     semantic_values = _values(semantics)
     handoff_semantic_values = _values(handoff_semantics)
     negative_control_values = _values(negative_controls)
+    quality_values = _values(quality)
+    generated_plan_values = _values(generated_plans)
     valid_provider_identities = {
         cell
         for cell, samples in provider_cells.items()
@@ -186,6 +217,8 @@ def consolidate_results(
                 semantics,
                 handoff_semantics,
                 negative_controls,
+                quality,
+                generated_plans,
             )
             for samples in selected.values()
             for record in samples
@@ -207,6 +240,9 @@ def consolidate_results(
         "semantic_quality": _semantic_quality(semantic_values),
         "handoff_semantic_records": handoff_semantic_values,
         "negative_control_records": negative_control_values,
+        "quality_records": quality_values,
+        "generated_plan_records": generated_plan_values,
+        "quality_summary": aggregate_quality_dimensions(quality_values),
         "provider_blocker_records": provider_blocker_values,
         "status": {
             "producers": _status(
@@ -232,6 +268,12 @@ def consolidate_results(
             "negative_controls": completeness(
                 expected_negative_controls,
                 negative_controls,
+            ),
+            "quality": completeness(expected_quality, quality),
+            "generated_plans": _status(
+                expected_generated_plans,
+                generated_plans,
+                valid_key="valid",
             ),
             "provider_blockers": {
                 "present": len(provider_blocker_values),

@@ -116,9 +116,12 @@ from .runner import (  # noqa: E402
     request_overrides,
 )
 from .scenarios import SCENARIOS  # noqa: E402
+from .quality import QUALITY_DIMENSIONS as QUALITY_GRADES  # noqa: E402
+from .quality import TASK_QUALITY_ASSESSMENT_PROMPT_TEMPLATE  # noqa: E402
 from .semantic import (  # noqa: E402
     QUALITY_DIMENSIONS,
     TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE,
+    assessment_subject_identity,
     expected_producer_cells,
     handoff_cell_identity,
     producer_cell_identity,
@@ -135,6 +138,8 @@ SAME_AGENT_RECORD = STAGES["continuation"].record
 NEGATIVE_CONTROL_RECORD = STAGES["negative-control"].record
 SEMANTIC_RECORD = STAGES["task-creation-assessment"].record
 HANDOFF_SEMANTIC_RECORD = STAGES["handoff-assessment"].record
+QUALITY_RECORD = STAGES["task-quality-assessment"].record
+GENERATED_PLAN_RECORD = STAGES["generated-plan"].record
 
 KIND_TASK_CREATION = "task-creation"
 KIND_PLAN_RETAIN = "plan-retain"
@@ -256,6 +261,16 @@ def _template_export_files() -> list[tuple[str, str]]:
                 " $prompt, $subject_json."
             )
             + TASK_CREATION_ASSESSMENT_PROMPT_TEMPLATE.template,
+        ),
+        (
+            "templates/task-quality-assessment-prompt.md",
+            _generated_note(
+                "Fixed instruction part of the task-file quality assessment"
+                " prompt. Per-evaluation material is substituted into the"
+                " $placeholders: $scenario_id, $target_json, $prompt,"
+                " $subject_json."
+            )
+            + TASK_QUALITY_ASSESSMENT_PROMPT_TEMPLATE.template,
         ),
         (
             "templates/handoff-assessment-prompt.md",
@@ -1050,6 +1065,12 @@ def _discover_runs(
         (HANDOFF_RECORD, "handoff_records", handoff_cell_identity),
         (SAME_AGENT_RECORD, "same_agent_records", producer_cell_identity),
         (NEGATIVE_CONTROL_RECORD, "negative_control_records", handoff_cell_identity),
+        (QUALITY_RECORD, "quality_records", assessment_subject_identity),
+        (
+            GENERATED_PLAN_RECORD,
+            "generated_plan_records",
+            producer_cell_identity,
+        ),
     )
     for record_name, group, identity_of in groups:
         records = [
@@ -1085,6 +1106,7 @@ def _discover_runs(
     for group, record_name in (
         ("semantic_records", SEMANTIC_RECORD),
         ("handoff_semantic_records", HANDOFF_SEMANTIC_RECORD),
+        ("quality_records", QUALITY_RECORD),
     ):
         records = [
             record for record in frozen.get(group, ()) if isinstance(record, Mapping)
@@ -2023,6 +2045,11 @@ def _collect_assessment(
             "Task-creation semantic assessment",
         ),
         ("handoff", "handoff_semantic_records", "Handoff semantic assessment"),
+        (
+            "task-quality",
+            "quality_records",
+            "Task-file quality assessment",
+        ),
     ):
         records = [
             record
@@ -2103,7 +2130,9 @@ def _collect_per_subject_assessment(
 
     scenario_id = scenario.scenario_id
     run_prefix = f"scenarios/{scenario_id}/assessment/{name}"
-    assessor_name, effort = assessment_cell("handoff", f"{name}-assessment")
+    assessor_name, effort = assessment_cell(
+        _assessment_category(scenario, name), f"{name}-assessment"
+    )
     first_run_record: dict[str, Any] | None = None
     for record in records:
         subject = record["subject"]
@@ -2181,10 +2210,18 @@ def _collect_per_subject_assessment(
                     " assessment's overall success is the equal-weight"
                     " average of the six dimension scores."
                     if name == "task-creation"
-                    else "- Rubric: the assessor scores handoff quality 0-100"
-                    " from plan coverage, lost facts, invented scope,"
-                    " rediscovery breadth, documentation and testing"
-                    " boundaries, and whether the plan is self-contained."
+                    else (
+                        "- Rubric: the assessor scores handoff quality 0-100"
+                        " from plan coverage, lost facts, invented scope,"
+                        " rediscovery breadth, documentation and testing"
+                        " boundaries, and whether the plan is self-contained."
+                        if name == "handoff"
+                        else "- Rubric: every dimension is a positive"
+                        " completeness grade (complete/partial/poor;"
+                        " justified/not_applicable/fabricated; fits/forced/"
+                        "missing). Grades carry evidence occurrences; no"
+                        " numeric score is derived."
+                    )
                 ),
             ),
         )
@@ -2279,10 +2316,18 @@ def _collect_assessment_record(
                     " assessment's overall success is the equal-weight"
                     " average of the six dimension scores."
                     if name == "task-creation"
-                    else "- Rubric: the assessor scores handoff quality 0-100"
-                    " from plan coverage, lost facts, invented scope,"
-                    " rediscovery breadth, documentation and testing"
-                    " boundaries, and whether the plan is self-contained."
+                    else (
+                        "- Rubric: the assessor scores handoff quality 0-100"
+                        " from plan coverage, lost facts, invented scope,"
+                        " rediscovery breadth, documentation and testing"
+                        " boundaries, and whether the plan is self-contained."
+                        if name == "handoff"
+                        else "- Rubric: every dimension is a positive"
+                        " completeness grade (complete/partial/poor;"
+                        " justified/not_applicable/fabricated; fits/forced/"
+                        "missing). Grades carry evidence occurrences; no"
+                        " numeric score is derived."
+                    )
                 ),
             ),
         )
@@ -2339,6 +2384,15 @@ def _assessment_results_markdown(
             if kind == "handoff":
                 lines.extend(
                     _handoff_judgment_markdown(
+                        assessment,
+                        profile=profile,
+                        effort=effort,
+                        sample_index=sample_index,
+                    )
+                )
+            elif kind == "task-quality":
+                lines.extend(
+                    _quality_judgment_markdown(
                         assessment,
                         profile=profile,
                         effort=effort,
@@ -2421,6 +2475,38 @@ def _target_markdown(target: Mapping[str, Any]) -> list[str]:
         lines.extend(["", "**Handoff expectations**", ""])
         for key, value in handoff.items():
             lines.append(f"- {key.replace('_', ' ')}: {value}")
+    return lines
+
+
+def _assessment_category(scenario, name: str) -> str:
+    """The category whose configuration declares an assessment stage."""
+
+    return scenario.category
+
+
+def _quality_judgment_markdown(
+    assessment: Mapping[str, Any],
+    *,
+    profile: Any = None,
+    effort: Any = None,
+    sample_index: int | None = None,
+) -> list[str]:
+    heading = f"### {profile} · {effort} — task kind {assessment.get('task_kind')}"
+    if sample_index is not None:
+        heading += f" (sample {sample_index})"
+    lines = [heading, "", "| Dimension | Grade | Occurrences |", "|---|---|---:|"]
+    dimensions = assessment.get("dimensions") or {}
+    for dimension, grades in QUALITY_GRADES.items():
+        item = dimensions.get(dimension) or {}
+        occurrences = item.get("occurrences") or []
+        lines.append(f"| {dimension} | {item.get('grade')} | {len(occurrences)} |")
+    lines.extend(["", assessment.get("summary") or "", ""])
+    for dimension, grades in QUALITY_GRADES.items():
+        item = dimensions.get(dimension) or {}
+        for occurrence in item.get("occurrences") or []:
+            description = occurrence.get("description")
+            if description:
+                lines.append(f"- {dimension}: {description}")
     return lines
 
 
@@ -2632,6 +2718,30 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
                     ),
                 }
             )
+    task_quality: list[dict[str, Any]] = []
+    for record in frozen.get("quality_records", ()):
+        scenario_id = record.get("scenario_id")
+        for profile, effort, sample_index, assessment in _iter_judgments(record):
+            dimensions = assessment.get("dimensions") or {}
+            cell = f"{profile}-{effort}"
+            task_quality.append(
+                {
+                    "kind": "task-quality",
+                    "scenario_id": scenario_id,
+                    "profile": profile,
+                    "reasoning_effort": effort,
+                    "sample_index": sample_index,
+                    "task_kind": assessment.get("task_kind"),
+                    "dimensions": {
+                        name: (dimensions.get(name) or {}).get("grade")
+                        for name in QUALITY_GRADES
+                    },
+                    "run_path": f"scenarios/{scenario_id}/{cell}",
+                    "results_path": (
+                        f"scenarios/{scenario_id}" "/assessment/task-quality/results.md"
+                    ),
+                }
+            )
     handoff: list[dict[str, Any]] = []
     for record in frozen.get("handoff_semantic_records", ()):
         scenario_id = record.get("scenario_id")
@@ -2682,7 +2792,7 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
             row["reasoning_effort"] or "",
         )
     )
-    return task_creation + handoff
+    return task_creation + handoff + task_quality
 
 
 def _build_index_views(records: PackageRecords) -> list[GeneratedView]:

@@ -136,6 +136,55 @@ def task_creation_assessment_cases() -> tuple[CellCase, ...]:
     return tuple(cases)
 
 
+def generated_plan_cases() -> tuple[CellCase, ...]:
+    """One case per generated-file planning cell.
+
+    The subjects are the scenario's producer cells; each case re-produces
+    (or replays) the parent task-creation run and plans from its files
+    with a fresh session.
+    """
+
+    cases = []
+    for scenario in _scenarios_with("generated-plan"):
+        for agent, effort in producer_cells(scenario.category):
+            cases.append(
+                CellCase(
+                    id=f"{scenario.scenario_id}-{agent}-{effort}",
+                    scenario_id=scenario.scenario_id,
+                    agent=agent,
+                    effort=effort,
+                    category=scenario.category,
+                    stage="generated-plan",
+                )
+            )
+    return tuple(cases)
+
+
+def task_quality_assessment_cases() -> tuple[CellCase, ...]:
+    """One case per quality-assessed subject cell, judged by the declared
+    agent.
+
+    The subjects are the scenario's producer cells — the same subjects the
+    decomposition assessment judges — so both views of one subject stay
+    comparable.
+    """
+
+    cases = []
+    for scenario in _scenarios_with("task-quality-assessment"):
+        for subject_agent, subject_effort in producer_cells(scenario.category):
+            cases.append(
+                CellCase(
+                    id=f"{scenario.scenario_id}-{subject_agent}-{subject_effort}",
+                    scenario_id=scenario.scenario_id,
+                    agent=subject_agent,
+                    effort=subject_effort,
+                    category=scenario.category,
+                    stage="task-quality-assessment",
+                )
+            )
+    return tuple(cases)
+
+
 def handoff_assessment_cases() -> tuple[CellCase, ...]:
     """One case per assessed handoff subject, judged by the declared agent.
 
@@ -175,6 +224,23 @@ def handoff_assessment_cases() -> tuple[CellCase, ...]:
                         agent=subject_agent,
                         effort=subject_effort,
                         variant="generated-task",
+                        category=scenario.category,
+                        stage="handoff-assessment",
+                    )
+                )
+        has_generated = "generated-plan" in CATEGORIES[scenario.category]["stages"]
+        if has_generated:
+            for subject_agent, subject_effort in cells:
+                cases.append(
+                    CellCase(
+                        id=(
+                            f"{scenario.scenario_id}-generated-file-"
+                            f"{subject_agent}-{subject_effort}"
+                        ),
+                        scenario_id=scenario.scenario_id,
+                        agent=subject_agent,
+                        effort=subject_effort,
+                        variant="generated-file",
                         category=scenario.category,
                         stage="handoff-assessment",
                     )

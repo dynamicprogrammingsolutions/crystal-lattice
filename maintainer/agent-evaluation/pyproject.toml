@@ -50,9 +50,11 @@ markers = [
   "task_creation: live task-creation producer stage",
   "handoff_plan: live fresh-agent planning stage",
   "continuation: live same-agent continuation stage",
+  "generated_plan: live fresh-agent generated-file planning stage",
   "negative_control: live incomplete-handoff negative control",
   "task_creation_assessment: live task-creation assessment stage",
   "handoff_assessment: live handoff assessment stage",
+  "task_quality_assessment: live task-file quality assessment stage",
   "requirements(*ids): requirement identifiers covered by an acceptance test",
 ]
 

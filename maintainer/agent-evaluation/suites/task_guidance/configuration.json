@@ -4,13 +4,19 @@
     "glm": {
       "agent_id": "glm-ollama",
       "model": "glm-5.3-flash:cloud",
-      "efforts": ["max"],
+      "efforts": [
+        "max"
+      ],
       "config": "fixtures/runtime/glm.json"
     },
     "gpt": {
       "agent_id": "codex-openai",
       "model": "gpt-5.6-luna",
-      "efforts": ["high", "xhigh", "max"],
+      "efforts": [
+        "high",
+        "xhigh",
+        "max"
+      ],
       "config": "fixtures/runtime/gpt.json"
     }
   },
@@ -22,12 +28,23 @@
         "tg03-flask-vue-refresh-handoff"
       ],
       "producer_cells": [
-        {"agent": "glm", "effort": "max"},
-        {"agent": "gpt", "effort": "high"}
+        {
+          "agent": "glm",
+          "effort": "max"
+        },
+        {
+          "agent": "gpt",
+          "effort": "high"
+        }
       ],
       "stages": {
         "task-creation": {},
-        "handoff-plan": {"variants": ["retain", "omit"]},
+        "handoff-plan": {
+          "variants": [
+            "retain",
+            "omit"
+          ]
+        },
         "continuation": {},
         "negative-control": {
           "scenario": "tg02-fastapi-pagination-handoff",
@@ -35,8 +52,19 @@
           "effort": "max",
           "variant": "incomplete"
         },
-        "task-creation-assessment": {"agent": "glm", "effort": "max"},
-        "handoff-assessment": {"agent": "glm", "effort": "max"}
+        "task-creation-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
+        "handoff-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
+        "task-quality-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
+        "generated-plan": {}
       }
     },
     "decomposition": {
@@ -46,14 +74,33 @@
         "tg06-eleventy-author-migration-decomposition"
       ],
       "producer_cells": [
-        {"agent": "glm", "effort": "max"},
-        {"agent": "gpt", "effort": "high"},
-        {"agent": "gpt", "effort": "xhigh"},
-        {"agent": "gpt", "effort": "max"}
+        {
+          "agent": "glm",
+          "effort": "max"
+        },
+        {
+          "agent": "gpt",
+          "effort": "high"
+        },
+        {
+          "agent": "gpt",
+          "effort": "xhigh"
+        },
+        {
+          "agent": "gpt",
+          "effort": "max"
+        }
       ],
       "stages": {
         "task-creation": {},
-        "task-creation-assessment": {"agent": "glm", "effort": "max"}
+        "task-creation-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
+        "task-quality-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        }
       }
     }
   },

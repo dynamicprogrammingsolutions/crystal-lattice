@@ -32,7 +32,11 @@ from .fixtures import (
     TaskGuidanceWorkspaceFactory,
 )
 from .harness import collect_tool_calls
-from .handoffs import CanonicalHandoffWorkspaceFactory, PLAN_PROMPT
+from .handoffs import (
+    CanonicalHandoffWorkspaceFactory,
+    GeneratedTaskWorkspaceFactory,
+    PLAN_PROMPT,
+)
 from .scenarios import TaskGuidanceScenario, scenario_by_id
 
 
@@ -114,6 +118,34 @@ def continuation_identity(
         version=RUNNER_VERSION,
         components={
             "stage": "continuation",
+            "agent": agent_name,
+            "model": AGENTS[agent_name]["model"],
+            "scenario": scenario.scenario_id,
+            "effort": reasoning_effort,
+            "parent_identity": parent_identity,
+        },
+    )
+
+
+def generated_plan_identity(
+    *,
+    agent_name: str,
+    scenario: TaskGuidanceScenario,
+    reasoning_effort: str,
+    parent_identity: str,
+) -> str:
+    """The cache identity of one fresh-agent generated-file planning request.
+
+    The producing run's identity is a component, so a re-produced task
+    set invalidates the plan cache even though the planning request
+    material itself is unchanged.
+    """
+
+    return request_identity(
+        namespace=IDENTITY_NAMESPACE,
+        version=RUNNER_VERSION,
+        components={
+            "stage": "generated-plan",
             "agent": agent_name,
             "model": AGENTS[agent_name]["model"],
             "scenario": scenario.scenario_id,
@@ -370,6 +402,41 @@ class TaskGuidanceHarness:
         )
         return self._execute(
             f"task-guidance-handoff-{scenario.scenario_id}-{variant}",
+            lambda context: self._plan_turn(
+                context,
+                reasoning_effort=reasoning_effort,
+            ),
+            identity=identity,
+            workspace=workspace,
+            fresh=fresh,
+            samples=samples,
+        )
+
+    def run_plan_from_generated(
+        self,
+        *,
+        parent: Run[TaskRunValue],
+        scenario: TaskGuidanceScenario,
+        reasoning_effort: str,
+        fresh: bool = False,
+        samples: int = 1,
+    ) -> tuple[Run[PlanRunValue], ...]:
+        parent_value = parent.value
+        if parent_value is None:
+            raise ValueError("task-creation parent produced no value")
+        workspace = GeneratedTaskWorkspaceFactory(
+            scenario=scenario,
+            bundle=self.bundle,
+            task_files=parent_value.task_files,
+        )
+        identity = generated_plan_identity(
+            agent_name=self.agent_name,
+            scenario=scenario,
+            reasoning_effort=reasoning_effort,
+            parent_identity=run_identity(parent),
+        )
+        return self._execute(
+            f"task-guidance-generated-{scenario.scenario_id}-{reasoning_effort}",
             lambda context: self._plan_turn(
                 context,
                 reasoning_effort=reasoning_effort,

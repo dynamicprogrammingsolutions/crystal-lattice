@@ -20,8 +20,10 @@ from ..evaluation.matrix import (
     handoff_plan_cases,
     negative_control_cases,
     continuation_cases,
+    generated_plan_cases,
     task_creation_assessment_cases,
     task_creation_cases,
+    task_quality_assessment_cases,
 )
 
 
@@ -34,6 +36,7 @@ def _expected_ids() -> set[str]:
     return {
         *(f"test_task_creation[{case.id}]" for case in task_creation_cases()),
         *(f"test_handoff_plan[{case.id}]" for case in handoff_plan_cases()),
+        *(f"test_generated_plan[{case.id}]" for case in generated_plan_cases()),
         *(f"test_continuation[{case.id}]" for case in continuation_cases()),
         *(f"test_negative_control[{case.id}]" for case in negative_control_cases()),
         *(
@@ -41,6 +44,10 @@ def _expected_ids() -> set[str]:
             for case in task_creation_assessment_cases()
         ),
         *(f"test_handoff_assessment[{case.id}]" for case in handoff_assessment_cases()),
+        *(
+            f"test_task_quality_assessment[{case.id}]"
+            for case in task_quality_assessment_cases()
+        ),
     }
 
 

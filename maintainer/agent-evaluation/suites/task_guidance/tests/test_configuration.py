@@ -412,6 +412,19 @@ def test_handoff_semantic_expected_records_match_the_configuration(
                     attempt="p1",
                 ),
             )
+        for agent, effort in cells:
+            _write_record(
+                tmp_path,
+                agent,
+                STAGES["generated-plan"].record,
+                f"{scenario.scenario_id}-generated-{effort}",
+                _producer_record(
+                    scenario.scenario_id,
+                    agent,
+                    effort,
+                    attempt="g1",
+                ),
+            )
     designation = negative_control(control.category)
     assert designation is not None
     _write_record(
@@ -439,7 +452,8 @@ def test_handoff_semantic_expected_records_match_the_configuration(
         cells = producer_cells(scenario.category)
         variants = plan_variants(scenario.category)
         assert (
-            len(subjects) == len(variants) * len(cells) + len(cells) + expected_negative
+            len(subjects)
+            == len(variants) * len(cells) + len(cells) + len(cells) + expected_negative
         )
         negative_subjects = [
             subject for subject in subjects if subject.variant == designation_variant

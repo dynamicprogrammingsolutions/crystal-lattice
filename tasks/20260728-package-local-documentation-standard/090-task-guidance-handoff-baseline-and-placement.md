@@ -431,7 +431,8 @@ guidance.
 - [ ] Add the focused generated-task fresh-agent, plan-preservation,
   implementation-design, and human-readability assessments. (Expanded
   September 26, 2026 — six real-world task-file gaps need dedicated
-  tests/assertions; see the final Implementation Notes entry.)
+  tests/assertions; owned by
+  `120-task-file-quality-coverage.md`.)
 - [ ] Run the focused practical-baseline confirmation and inspect the actual
   generated task files and reconstructed plans.
 - [ ] Freeze and promote the practical task-mechanics baseline after explicit
@@ -591,7 +592,7 @@ guidance.
   `maintainer/docs/evaluations/task-guidance/results/20260919-task-mechanics-b1/`.
 - September 26, 2026: the per-subject reassessment and two new candidate
   evaluations landed. The reassessed comparison (committed in both result
-  packages) showed neither B1 regression finding survives the corrected
+  packages) showed neither first-candidate regression finding survives the corrected
   assessor: production-connection evidence improved (+5.5) and the handoff
   differences sit within two points; no cell regressed on any dimension.
   Candidate `task-mechanics-b1v2` added the two selected corrections
@@ -642,7 +643,7 @@ guidance.
   [candidate v2](../../maintainer/docs/evaluations/task-guidance/20260925-task-mechanics-b1v2-results.md)
   and
   [candidate v3](../../maintainer/docs/evaluations/task-guidance/20260926-task-mechanics-b1v3-results.md)
-  reports and their result packages). v2 keeps B1 plus the decisive-check
+  reports and their result packages). v2 keeps the first candidate plus the decisive-check
   rule (no per-side checks, no waiving) and the design-visibility rule. v3
   additionally rewords the structure-choice step so the agent determines
   single-task-versus-subtasks from the request and the decomposition rules —
