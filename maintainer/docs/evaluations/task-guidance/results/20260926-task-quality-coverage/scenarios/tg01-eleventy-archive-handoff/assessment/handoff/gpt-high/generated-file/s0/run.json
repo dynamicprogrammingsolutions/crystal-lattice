@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "handoff-assessment-gpt-high-generated-file-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260926T124341.464407Z-task-guidance-handoff-semantic-tg01-eleventy-archive-handoff-generated-file-gpt-high-s0-5ccfac1e",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "e01243e14702820ab8a7b30e99c36e4bf1d362ff653c85c9f7625ac3a9098661",
+    "original_sha256": "9cfddde4acd5944346281b27b2bf3844e5872c01c1b0371b05d7cd56031a6e76",
+    "path": "shared/system-messages/glm-assessor-e01243e14702.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

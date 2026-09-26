@@ -21,7 +21,10 @@ Read these pages in order:
    assessor.
 6. [Task-mechanics candidate v3 results](20260926-task-mechanics-b1v3-results.md)
    — the structure-choice rewording; strongest task-creation results so far.
-7. [Reproducing and inspecting results](reproducing-and-inspecting-results.md)
+7. [Task-quality coverage results](20260926-task-quality-coverage-results.md)
+   — the quality-assessment and generated-file planning stages on the v3
+   outputs; two fabricated plans found, fresh-agent planning confirmed.
+8. [Reproducing and inspecting results](reproducing-and-inspecting-results.md)
    — provides the commands, identities, raw-record paths, report-generation
    flow, and result-package navigation.
 

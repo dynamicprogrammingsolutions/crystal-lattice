@@ -188,6 +188,12 @@ Approved by the user on September 26, 2026 together with the direction
 - [x] Fresh-agent-from-generated-task stage wired end-to-end
 - [ ] Four new scenarios with reviewed targets
 - [x] Deterministic suite tests for all of the above
+- [x] Live coverage results generated and packaged (September 26, 2026:
+  18 quality subjects, 6 generated-file plans all valid, 6 generated-file
+  handoff subjects — see the
+  [coverage results](../../maintainer/docs/evaluations/task-guidance/20260926-task-quality-coverage-results.md);
+  two fabricated plans and two missing-acceptance flags, both in
+  book-discovery GPT cells)
 - [ ] Guidance candidate drafted and compile-checked
 - [ ] Suite documentation updated
 

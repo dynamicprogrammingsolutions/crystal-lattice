@@ -1,0 +1,33 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "continuation",
+  "lineage": {
+    "inherited_prefix": {
+      "availability": {
+        "detail": "bounded by the parent run's saved session",
+        "state": "captured"
+      },
+      "length": 34
+    },
+    "parent_run_id": "20260925T224351.675581Z-task-guidance-tg02-fastapi-pagination-handoff-max-4d3198d5"
+  },
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260925T224353.903833Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-155fdb48",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "9b50abd054ce2b1bb789da74aa3600967b652e9de9912a1c46b68d744a9a4add",
+    "original_sha256": "283aca5c3bb7572f968a68f765d66141fa1aebd954cff7b81ad175217534c39a",
+    "path": "shared/system-messages/glm-9b50abd054ce.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260925-notes-list-pagination.md"
+  ],
+  "valid": true
+}
