@@ -140,24 +140,6 @@ function claimRefreshUiEffect(
   return false;
 }
 
-function releaseRefreshUiEffect(
-  state: BackendInvalidationState,
-  effect: RefreshUiInvalidation,
-): void {
-  if (
-    effect.type === 'reloadSession' &&
-    state.claimedSessionRevisions.get(effect.sessionId) ===
-      effect.invalidationRevision
-  ) {
-    state.claimedSessionRevisions.delete(effect.sessionId);
-  } else if (
-    effect.type === 'reloadSessionsList' &&
-    state.claimedSessionsListRevision === effect.invalidationRevision
-  ) {
-    state.claimedSessionsListRevision = null;
-  }
-}
-
 function subscribeMatchingRefreshInvalidations(
   backend: AgentBackend,
   matches: (effect: RefreshUiInvalidation) => boolean,
@@ -170,16 +152,21 @@ function subscribeMatchingRefreshInvalidations(
     void reload()
       .then((reloaded) => {
         if (reloaded) {
-          acknowledgeRefreshUiEffect(backend, effect);
           acknowledged = true;
         }
       })
       .catch(() => {
-        // Keep the invalidation pending for a later consumer or retry.
+        // The reloading consumer surfaces the failure through its own
+        // error state; nothing to do here.
       })
       .finally(() => {
+        // Consume the invalidation after a single attempt regardless of
+        // outcome. Leaving a failed invalidation pending replays it to
+        // every new subscriber, which turns any persistent reload
+        // failure into an infinite retry + error-alert loop when
+        // consumers resubscribe on re-render.
         if (!acknowledged) {
-          releaseRefreshUiEffect(state, effect);
+          acknowledgeRefreshUiEffect(backend, effect);
         }
       });
   });

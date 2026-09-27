@@ -16,6 +16,13 @@ export interface UseChatControllerOptions {
   onEvents?: ((events: Event[]) => void) | null;
   eventsEnabled?: boolean;
   initialSinceId?: string | null;
+  /**
+   * Notified when a message load falls back to the SDK default range
+   * (`-50:`) because the requested range no longer selects any messages.
+   * Keep the callback stable or ref-based; it is forwarded to the
+   * controller whenever it changes.
+   */
+  onRangeFallback?: ((range: { start?: number; end?: number }) => void) | null;
 }
 
 export interface UseChatControllerResult {
@@ -33,6 +40,7 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
     onEvents,
     eventsEnabled = false,
     initialSinceId,
+    onRangeFallback,
   } = options;
 
   const controller = useMemo(() => {
@@ -47,6 +55,13 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
       initialActiveRequestId,
     });
   }, [backend, sessionId]);
+
+  useEffect(() => {
+    controller?.setRangeFallbackListener(onRangeFallback ?? null);
+    return () => {
+      controller?.setRangeFallbackListener(null);
+    };
+  }, [controller, onRangeFallback]);
 
   useEffect(() => {
     return () => {

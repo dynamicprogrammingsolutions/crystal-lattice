@@ -253,6 +253,37 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     setTab('messages');
   };
 
+  // Stable cache-update callbacks: SessionChatScreen derives reload
+  // callbacks from these props, so inline arrows here would change the
+  // identity of its session-refresh subscriptions on every render.
+  const handleUpdateMessagesCache = useCallback(
+    (
+      list: IndexedMessage[],
+      eventsCursorId: string | null,
+      activeRequestId: string | null,
+    ) => {
+      if (activeConnectionId && selectedSessionId) {
+        onUpdateMessagesCache(
+          activeConnectionId,
+          selectedSessionId,
+          list,
+          eventsCursorId,
+          activeRequestId,
+        );
+      }
+    },
+    [activeConnectionId, onUpdateMessagesCache, selectedSessionId],
+  );
+
+  const handleUpdateSessionSummaries = useCallback(
+    (sessions: SessionSummary[]) => {
+      if (activeConnectionId) {
+        onUpdateSessionsCache(activeConnectionId, sessions);
+      }
+    },
+    [activeConnectionId, onUpdateSessionsCache],
+  );
+
   return (
     <View style={styles.container}>
       <ApplicationPluginsProvider backend={backend} connectionId={activeConnectionId}>
@@ -377,11 +408,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                 cachedSessions={cacheEntry?.sessions ?? null}
                 lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
                 isActive={tab === 'sessions'}
-                onUpdateCache={(list: SessionSummary[]) => {
-                  if (connectionId) {
-                    onUpdateSessionsCache(connectionId, list);
-                  }
-                }}
+                onUpdateCache={handleUpdateSessionSummaries}
                 onSelectSession={handleSelectSession}
                 requestStatuses={
                   connectionId
@@ -456,21 +483,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                     cacheEntry?.rangeEndText ??
                     DEFAULT_MOBILE_TRANSCRIPT_RANGE.endText
                   }
-                  onUpdateCache={(
-                    list: IndexedMessage[],
-                    eventsCursorId: string | null,
-                    activeRequestId: string | null,
-                  ) => {
-                    if (connectionId) {
-                      onUpdateMessagesCache(
-                        connectionId,
-                        selectedSessionId,
-                        list,
-                        eventsCursorId,
-                        activeRequestId,
-                      );
-                    }
-                  }}
+                  onUpdateCache={handleUpdateMessagesCache}
                   onUpdateSessionSummaries={(sessions) => {
                     if (connectionId) {
                       onUpdateSessionsCache(connectionId, sessions);
