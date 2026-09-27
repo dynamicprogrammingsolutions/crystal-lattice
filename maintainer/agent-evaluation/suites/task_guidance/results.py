@@ -285,6 +285,16 @@ def consolidate_results(
     }
 
 
+def _provider_failure(record: Mapping[str, Any]) -> bool:
+    """A run-level provider error, not a guidance-behavior finding."""
+
+    reasons = record.get("invalid_reasons") or []
+    return any(
+        isinstance(reason, str) and reason.startswith("run failure:")
+        for reason in reasons
+    )
+
+
 def render_summary(value: dict[str, Any]) -> str:
     status = value["status"]
     labels = value.get("labels")
@@ -355,9 +365,32 @@ def render_summary(value: dict[str, Any]) -> str:
         for record in group
         if record.get("valid") is False
     ]
-    if invalid:
-        lines.extend(["", "## Invalid records", ""])
-        for record in invalid:
+    validity_failures = [record for record in invalid if not _provider_failure(record)]
+    provider_failures = [record for record in invalid if _provider_failure(record)]
+    if validity_failures:
+        lines.extend(["", "## Invalid records — validity failures", ""])
+        for record in validity_failures:
+            identity = (
+                producer_cell_identity(record)
+                if "variant" not in record
+                else handoff_cell_identity(record)
+            )
+            lines.append(
+                f"- `{identity}`: "
+                + "; ".join(str(item) for item in record["invalid_reasons"])
+            )
+    if provider_failures:
+        lines.extend(
+            [
+                "",
+                "## Invalid records — provider failures",
+                "",
+                "Run-level provider errors (outages, authentication), not"
+                " guidance-behavior findings.",
+                "",
+            ]
+        )
+        for record in provider_failures:
             identity = (
                 producer_cell_identity(record)
                 if "variant" not in record

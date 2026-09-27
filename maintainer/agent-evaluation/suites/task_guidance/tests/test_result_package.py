@@ -114,6 +114,7 @@ def _write_run(
     record: dict[str, Any],
     session: dict[str, Any],
     parent_run_id: str | None = None,
+    sample_index: int = 0,
 ) -> Path:
     run_dir = root / "glm" / "runs" / run_id
     (run_dir / "records").mkdir(parents=True)
@@ -139,7 +140,7 @@ def _write_run(
                 "label": SYNTHETIC_RUN_LABEL,
                 "identity": f"identity-{run_id}",
                 "cache_hit": False,
-                "sample_index": 0,
+                "sample_index": sample_index,
                 "run_id": run_id,
             },
             indent=2,
@@ -858,9 +859,11 @@ def test_collect_renders_each_task_creation_subject_of_one_scenario(
         cells=list(SYNTHETIC_CELLS),
         bundle=DEFAULT_BUNDLE,
     )
-    assessment_prefix = f"scenarios/{HANDOFF_SCENARIO_ID}/assessment/task-creation"
     for cell in ("glm-max", "gpt-high"):
-        assert (package_dir / assessment_prefix / cell / "s0" / "run.json").is_file()
+        assessment_prefix = (
+            f"scenarios/{HANDOFF_SCENARIO_ID}/{cell}/assessment/task-creation"
+        )
+        assert (package_dir / assessment_prefix / "s0" / "run.json").is_file()
 
 
 def test_collect_renders_each_judgment_of_one_subject(
@@ -916,7 +919,7 @@ def test_collect_renders_each_judgment_of_one_subject(
         cells=list(SYNTHETIC_CELLS),
         bundle=DEFAULT_BUNDLE,
     )
-    prefix = f"scenarios/{HANDOFF_SCENARIO_ID}/assessment/handoff/glm-max/retain/s0"
+    prefix = f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max/assessment/handoff/retain/s0"
     for ordinal, run_id in (
         ("j1", "synthetic-tg02-handoff-retain-1"),
         ("j2", "synthetic-tg02-handoff-retain-2"),
@@ -971,9 +974,9 @@ def test_collect_uses_the_named_run_of_each_producer_sample(
         bundle=DEFAULT_BUNDLE,
     )
     run = json.loads(
-        (package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max/run.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max/s0/run.json"
+        ).read_text(encoding="utf-8")
     )
     assert run["run_id"] == PRODUCER_RUN_ID
 
@@ -1032,14 +1035,12 @@ def test_collect_renders_each_handoff_variant_of_one_subject(
         cells=list(SYNTHETIC_CELLS),
         bundle=DEFAULT_BUNDLE,
     )
-    assessment_prefix = f"scenarios/{HANDOFF_SCENARIO_ID}/assessment/handoff"
+    assessment_prefix = f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max/assessment/handoff"
     for variant in ("retain", "omit"):
-        assert (
-            package_dir / assessment_prefix / "glm-max" / variant / "s0" / "run.json"
-        ).is_file()
-    results = (package_dir / assessment_prefix / "results.md").read_text(
-        encoding="utf-8"
-    )
+        assert (package_dir / assessment_prefix / variant / "s0" / "run.json").is_file()
+    results = (
+        package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/assessment/handoff/results.md"
+    ).read_text(encoding="utf-8")
     assert "(retain, fresh-agent)" in results
     assert "(omit, fresh-agent)" in results
 
@@ -1063,25 +1064,27 @@ def test_collect_builds_complete_synthetic_package(tmp_path: Path) -> None:
     cell_prefix = f"{handoff_prefix}/glm-max"
     expected_files = {
         f"{handoff_prefix}/target.md",
-        f"{cell_prefix}/run.json",
-        f"{cell_prefix}/session.md",
-        f"{cell_prefix}/task-files/tasks/synthetic-{HANDOFF_SCENARIO_ID}.md",
-        f"{cell_prefix}/plan-retain/run.json",
-        f"{cell_prefix}/plan-retain/session.md",
-        f"{cell_prefix}/plan-omit/run.json",
-        f"{cell_prefix}/plan-omit/session.md",
-        f"{cell_prefix}/continuation/run.json",
-        f"{cell_prefix}/continuation/session.md",
-        f"{cell_prefix}/control/run.json",
-        f"{cell_prefix}/control/session.md",
+        f"{cell_prefix}/s0/run.json",
+        f"{cell_prefix}/s0/session.md",
+        f"{cell_prefix}/s0/task-files/tasks/synthetic-{HANDOFF_SCENARIO_ID}.md",
+        f"{cell_prefix}/plan-retain/s0/run.json",
+        f"{cell_prefix}/plan-retain/s0/session.md",
+        f"{cell_prefix}/plan-omit/s0/run.json",
+        f"{cell_prefix}/plan-omit/s0/session.md",
+        f"{cell_prefix}/continuation/s0/run.json",
+        f"{cell_prefix}/continuation/s0/session.md",
+        f"{cell_prefix}/control/s0/run.json",
+        f"{cell_prefix}/control/s0/session.md",
         f"{handoff_prefix}/assessment/task-creation/run.json",
         f"{handoff_prefix}/assessment/task-creation/session.md",
         f"{handoff_prefix}/assessment/task-creation/results.md",
         f"{handoff_prefix}/assessment/handoff/run.json",
         f"{handoff_prefix}/assessment/handoff/session.md",
         f"{handoff_prefix}/assessment/handoff/results.md",
+        f"{handoff_prefix}/results.md",
         f"scenarios/{DECOMPOSITION_SCENARIO_ID}/target.md",
-        f"scenarios/{DECOMPOSITION_SCENARIO_ID}/glm-max/run.json",
+        f"scenarios/{DECOMPOSITION_SCENARIO_ID}/glm-max/s0/run.json",
+        f"scenarios/{DECOMPOSITION_SCENARIO_ID}/results.md",
         f"scenarios/{DECOMPOSITION_SCENARIO_ID}/assessment/task-creation/results.md",
         "shared/configs/glm-max.json",
         "shared/configs/glm-assessor-max.json",
@@ -1096,7 +1099,7 @@ def test_collect_builds_complete_synthetic_package(tmp_path: Path) -> None:
     # The continuation inherits the producer's compiled system message and
     # bounds its inherited prefix with the parent session.
     continuation_run = json.loads(
-        (package_dir / f"{cell_prefix}/continuation/run.json").read_text(
+        (package_dir / f"{cell_prefix}/continuation/s0/run.json").read_text(
             encoding="utf-8"
         )
     )
@@ -1118,7 +1121,7 @@ def test_collect_builds_complete_synthetic_package(tmp_path: Path) -> None:
     )
     assert continuation_run["system_message"]["availability"]["state"] == "inherited"
     producer_run = json.loads(
-        (package_dir / f"{cell_prefix}/run.json").read_text(encoding="utf-8")
+        (package_dir / f"{cell_prefix}/s0/run.json").read_text(encoding="utf-8")
     )
     assert (
         continuation_run["system_message"]["path"]
@@ -1142,21 +1145,21 @@ def test_collect_builds_complete_synthetic_package(tmp_path: Path) -> None:
     aggregate = json.loads((package_dir / "aggregate.json").read_text(encoding="utf-8"))
     details = aggregate["assessment_details"]
     assert [row["kind"] for row in details] == ["task-creation"] * 2 + ["handoff"] * 4
-    assert details[0]["run_path"] == f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max"
-    assert details[2]["run_path"] == f"{cell_prefix}/continuation"
-    assert details[3]["run_path"] == f"{cell_prefix}/control"
-    assert details[4]["run_path"] == f"{cell_prefix}/plan-omit"
-    assert details[5]["run_path"] == f"{cell_prefix}/plan-retain"
+    assert details[0]["run_path"] == f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max/s0"
+    assert details[2]["run_path"] == f"{cell_prefix}/continuation/s0"
+    assert details[3]["run_path"] == f"{cell_prefix}/control/s0"
+    assert details[4]["run_path"] == f"{cell_prefix}/plan-omit/s0"
+    assert details[5]["run_path"] == f"{cell_prefix}/plan-retain/s0"
     assert aggregate["invalid_records"] == []
 
     # The matrix links run directories and judgment renderings.
     matrix = (package_dir / "matrix.md").read_text(encoding="utf-8")
-    assert f"]({cell_prefix}/plan-omit)" in matrix
+    assert f"]({cell_prefix}/plan-omit/s0)" in matrix
     assert f"]({handoff_prefix}/assessment/task-creation/results.md)" in matrix
     assert "| GLM max |" in matrix
 
     # Session transcripts keep the model response verbatim.
-    producer_session_md = (package_dir / f"{cell_prefix}/session.md").read_text(
+    producer_session_md = (package_dir / f"{cell_prefix}/s0/session.md").read_text(
         encoding="utf-8"
     )
     assert "Created the pagination task." in producer_session_md
@@ -1238,3 +1241,161 @@ def test_collect_reports_missing_raw_run(tmp_path: Path) -> None:
         assert "incomplete" in str(error)
     else:
         raise AssertionError("collect accepted a missing raw control run")
+
+
+def test_collect_exports_invalid_samples_beside_valid_evidence(
+    tmp_path: Path,
+) -> None:
+    """A failed sample of one cell exports beside the valid one.
+
+    The valid sample claims the sample index its run model recorded;
+    the provider-failed re-run under another label fills the next free
+    index and carries an ``invalid.md`` note recording why it failed.
+    """
+
+    paths = _build_synthetic_evaluation(tmp_path)
+    frozen = paths["frozen"]
+    invalid = _producer_record(
+        HANDOFF_SCENARIO_ID,
+        response="The provider failed before any task file was written.",
+        task_file="",
+    )
+    invalid["task_files"] = {}
+    invalid["changed_paths"] = []
+    invalid["valid"] = False
+    invalid["invalid_reasons"] = ['run failure: None, ("provider outage",)']
+    invalid["run_id"] = "synthetic-tg02-producer-failed"
+    _write_run(
+        paths["artifact_root"],
+        run_id="synthetic-tg02-producer-failed",
+        record_name="task-guidance-producer.json",
+        record=invalid,
+        session=_session(
+            "/tmp/synthetic-task-guidance/synthetic-tg02-producer-failed/workspace",
+            prompt="Create the synthetic pagination task.",
+            response="The provider failed before any task file was written.",
+            compiled="synthetic compiled guidance",
+            run_id="synthetic-tg02-producer-failed",
+        ),
+    )
+    frozen["producer_records"][0]["run_id"] = PRODUCER_RUN_ID
+    frozen["producer_records"].append(invalid)
+    paths["frozen_path"].write_text(
+        json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    package_dir = tmp_path / "package"
+    collect(
+        package_dir=package_dir,
+        artifact_root=paths["artifact_root"],
+        frozen_path=paths["frozen_path"],
+        cells=list(SYNTHETIC_CELLS),
+        bundle=DEFAULT_BUNDLE,
+    )
+    cell = package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max"
+    assert (cell / "s0" / "run.json").is_file()
+    note = (cell / "s1" / "invalid.md").read_text(encoding="utf-8")
+    assert "**provider failure**" in note
+    assert "run failure: None" in note
+    assert f"`{SYNTHETIC_RUN_LABEL}`" in note
+
+    matrix = (package_dir / "matrix.md").read_text(encoding="utf-8")
+    assert "## Invalid records — provider failures" in matrix
+    assert "## Invalid records — validity failures" not in matrix
+    assert "provider outage" in matrix
+
+    results = (package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/results.md").read_text(
+        encoding="utf-8"
+    )
+    assert "| valid |" in results
+    assert "| invalid |" in results
+    assert f"({cell.name}/s1/invalid.md)" in results
+
+
+def test_collect_renders_quality_judgment_beside_its_subject(
+    tmp_path: Path,
+) -> None:
+    """A task-quality judgment lives inside the judged cell's subtree.
+
+    The assessor run sits under ``<cell>/assessment/task-quality/``, the
+    grades render as ``assessment.md`` beside the judged sample, the
+    scenario ``results.md`` row carries them, and the matrix gains the
+    quality cohort and detail tables.
+    """
+
+    paths = _build_synthetic_evaluation(tmp_path)
+    frozen = paths["frozen"]
+    record = {
+        "schema_version": 2,
+        "dataset_id": SYNTHETIC_DATASET_ID,
+        "scenario_id": HANDOFF_SCENARIO_ID,
+        "subject": {"profile": "glm", "reasoning_effort": "max", "sample_index": 0},
+        "assessment": {
+            "task_kind": "development",
+            "dimensions": {
+                "plan_design_completeness": {
+                    "grade": "complete",
+                    "occurrences": [],
+                },
+                "durable_context_preservation": {
+                    "grade": "partial",
+                    "occurrences": [
+                        {
+                            "description": "dropped the verification approach",
+                            "evidence": "plan section",
+                        }
+                    ],
+                },
+                "findability": {"grade": "complete", "occurrences": []},
+                "section_appropriateness": {"grade": "complete", "occurrences": []},
+                "plan_justification": {"grade": "justified", "occurrences": []},
+                "task_kind_fit": {"grade": "fits", "occurrences": []},
+            },
+            "summary": "Synthetic quality judgment.",
+        },
+        "summary": "Synthetic quality judgment.",
+    }
+    record["run_id"] = "synthetic-tg02-quality"
+    _write_run(
+        paths["artifact_root"],
+        run_id="synthetic-tg02-quality",
+        record_name="task-guidance-quality.json",
+        record=record,
+        session=_session(
+            "/tmp/synthetic-task-guidance/synthetic-tg02-quality/workspace",
+            prompt="Assess the synthetic tg02 task files.",
+            response=json.dumps(record["assessment"], indent=2),
+            compiled="synthetic assessor guidance",
+            run_id="synthetic-tg02-quality",
+        ),
+    )
+    frozen["quality_records"] = [record]
+    frozen["status"]["quality"] = {"expected": 1, "present": 1, "missing": []}
+    paths["frozen_path"].write_text(
+        json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    package_dir = tmp_path / "package"
+    collect(
+        package_dir=package_dir,
+        artifact_root=paths["artifact_root"],
+        frozen_path=paths["frozen_path"],
+        cells=list(SYNTHETIC_CELLS),
+        bundle=DEFAULT_BUNDLE,
+    )
+    cell = package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max"
+    assessor_run = cell / "assessment" / "task-quality" / "s0" / "run.json"
+    assert assessor_run.is_file()
+    subject_note = (cell / "s0" / "assessment.md").read_text(encoding="utf-8")
+    assert "## task-quality assessment" in subject_note
+    assert "durable_context_preservation: **partial**" in subject_note
+    assert "](../assessment/task-quality/s0/session.md)" in subject_note
+
+    results = (package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/results.md").read_text(
+        encoding="utf-8"
+    )
+    assert "context partial" in results
+
+    matrix = (package_dir / "matrix.md").read_text(encoding="utf-8")
+    assert "## Task-file quality" in matrix
+    assert "| All | 1 | 83% |" in matrix
+    assert "## Task-file quality detail" in matrix
+    assert f"](scenarios/{HANDOFF_SCENARIO_ID}/{cell.name}/s0/assessment.md)" in matrix

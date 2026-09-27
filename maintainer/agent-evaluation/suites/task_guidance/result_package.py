@@ -106,6 +106,7 @@ from .handoff_semantic import HANDOFF_ASSESSMENT_PROMPT_TEMPLATE  # noqa: E402
 from .handoffs import (  # noqa: E402
     PLAN_PROMPT,
     CanonicalHandoffWorkspaceFactory,
+    GeneratedTaskWorkspaceFactory,
 )
 from .results import render_summary  # noqa: E402
 from .runner import (  # noqa: E402
@@ -146,6 +147,7 @@ KIND_PLAN_RETAIN = "plan-retain"
 KIND_PLAN_OMIT = "plan-omit"
 KIND_CONTINUATION = "continuation"
 KIND_CONTROL = "control"
+KIND_GENERATED_PLAN = "generated-plan"
 
 
 def _dirname(path: str) -> str:
@@ -1267,6 +1269,24 @@ def _collect_scenario(
     files: list[CollectedFile],
 ) -> None:
     scenario_id = scenario.scenario_id
+    # A frozen dataset predating later scenarios collects only what it
+    # holds; absent scenarios export nothing rather than failing.
+    present = any(
+        isinstance(record, Mapping) and record.get("scenario_id") == scenario_id
+        for group in (
+            "producer_records",
+            "handoff_records",
+            "same_agent_records",
+            "negative_control_records",
+            "generated_plan_records",
+            "semantic_records",
+            "handoff_semantic_records",
+            "quality_records",
+        )
+        for record in frozen.get(group, ())
+    )
+    if not present:
+        return
     target = _record_for(frozen["producer_records"], scenario_id)["target"]
     files.append(
         CollectedFile(
@@ -1340,135 +1360,175 @@ def _collect_cell(
     runs: list[dict[str, Any]],
     files: list[CollectedFile],
 ) -> None:
+    """Collect one producer cell subtree: every sample of every stage.
+
+    Layout: ``scenarios/<id>/<cell>/s<N>/`` holds one producer sample
+    (run, session, task files, ``invalid.md`` when invalid); stage runs
+    (``plan-retain``, ``plan-omit``, ``continuation``, ``control``,
+    ``generated-plan``) hold their own samples the same way, so every
+    judgment's subject stays inspectable beside the evidence.
+    """
+
     scenario_id = scenario.scenario_id
     cell_prefix = f"scenarios/{scenario_id}/{cell_key}"
 
-    producer = _find(frozen["producer_records"], scenario_id, profile, effort)
-    producer_run_dir = _run_dir_for(
-        discovery, producer, f"producer_records:{scenario_id}:{profile}:{effort}"
-    )
-    _, producer_instructions = _collect_run(
+    def _stage_entries(
+        records: Sequence[Mapping[str, Any]], fallback_key: str
+    ) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        for record in records:
+            run_dir = _run_dir_for(discovery, record, fallback_key)
+            entries.append(
+                {
+                    "record": record,
+                    "run_dir": run_dir,
+                    "sample": _run_model_sample(run_dir),
+                    "label": _run_label(run_dir),
+                }
+            )
+        return entries
+
+    def _collect_group(
+        kind: str,
+        entries: Sequence[Mapping[str, Any]],
+        *,
+        stage_dir: str | None,
+        factory_of,
+        lineage: bool = False,
+        reconstruct_stage: bool = True,
+        inherited_instructions: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any] | None:
+        """Collect one stage group's samples; return the first instructions."""
+
+        first_instructions: Mapping[str, Any] | None = None
+        for entry, sample_dir in zip(entries, _assign_sample_dirs(entries)):
+            sample_prefix = (
+                f"{cell_prefix}/{sample_dir}"
+                if stage_dir is None
+                else f"{cell_prefix}/{stage_dir}/{sample_dir}"
+            )
+            stage_label = stage_dir or "producer"
+            _, instructions = _collect_run(
+                kind,
+                entry["record"],
+                subdir=None,
+                run_dir=entry["run_dir"],
+                scenario=scenario,
+                bundle=bundle,
+                profile=profile,
+                effort=effort,
+                factory=factory_of(entry["record"]),
+                artifact_root=artifact_root,
+                system_messages=system_messages,
+                configs=configs,
+                runs=runs,
+                files=files,
+                cell_prefix=sample_prefix,
+                task_files=entry["record"].get("task_files") or {},
+                lineage=lineage,
+                reconstruct=reconstruct_stage,
+                inherited_instructions=inherited_instructions,
+            )
+            _write_invalid_note(
+                entry["record"],
+                sample_prefix,
+                files=files,
+                title=f"{scenario_id} {cell_key} {stage_label} {sample_dir}",
+                label=entry["label"],
+            )
+            if first_instructions is None:
+                first_instructions = instructions
+        return first_instructions
+
+    producer_instructions = _collect_group(
         KIND_TASK_CREATION,
-        producer,
-        subdir=None,
-        run_dir=producer_run_dir,
-        scenario=scenario,
-        bundle=bundle,
-        profile=profile,
-        effort=effort,
-        factory=TaskGuidanceWorkspaceFactory(scenario=scenario, bundle=bundle),
-        artifact_root=artifact_root,
-        system_messages=system_messages,
-        configs=configs,
-        runs=runs,
-        files=files,
-        cell_prefix=cell_prefix,
-        task_files=producer.get("task_files") or {},
-        reconstruct=reconstruct,
+        _stage_entries(
+            _find_all(frozen["producer_records"], scenario_id, profile, effort),
+            f"producer_records:{scenario_id}:{profile}:{effort}",
+        ),
+        stage_dir=None,
+        factory_of=lambda record: TaskGuidanceWorkspaceFactory(
+            scenario=scenario, bundle=bundle
+        ),
+        reconstruct_stage=reconstruct,
     )
 
     for variant, kind, subdir in (
         ("retain", KIND_PLAN_RETAIN, "plan-retain"),
         ("omit", KIND_PLAN_OMIT, "plan-omit"),
     ):
-        handoff = _find_variant(
-            frozen["handoff_records"], scenario_id, variant, profile, effort
-        )
-        if handoff is None:
-            continue
-        handoff_run_dir = _run_dir_for(
-            discovery,
-            handoff,
-            f"handoff_records:{scenario_id}:{variant}:{profile}:{effort}",
-        )
-        _collect_run(
+        _collect_group(
             kind,
-            handoff,
-            subdir=subdir,
-            run_dir=handoff_run_dir,
-            scenario=scenario,
-            bundle=bundle,
-            profile=profile,
-            effort=effort,
-            factory=CanonicalHandoffWorkspaceFactory(
+            _stage_entries(
+                _find_all_variant(
+                    frozen["handoff_records"], scenario_id, variant, profile, effort
+                ),
+                f"handoff_records:{scenario_id}:{variant}:{profile}:{effort}",
+            ),
+            stage_dir=subdir,
+            factory_of=lambda record, variant=variant: CanonicalHandoffWorkspaceFactory(
                 scenario=scenario,
                 variant=variant,
                 bundle=bundle,
             ),
-            artifact_root=artifact_root,
-            system_messages=system_messages,
-            configs=configs,
-            runs=runs,
-            files=files,
-            cell_prefix=cell_prefix,
-            task_files=handoff.get("task_files") or {},
-            reconstruct=reconstruct,
+            reconstruct_stage=reconstruct,
         )
 
-    same_agent = _find(frozen["same_agent_records"], scenario_id, profile, effort)
-    if same_agent is not None:
-        same_agent_run_dir = _run_dir_for(
-            discovery,
-            same_agent,
+    _collect_group(
+        KIND_CONTINUATION,
+        _stage_entries(
+            _find_all(frozen["same_agent_records"], scenario_id, profile, effort),
             f"same_agent_records:{scenario_id}:{profile}:{effort}",
-        )
-        _collect_run(
-            KIND_CONTINUATION,
-            same_agent,
-            subdir="continuation",
-            run_dir=same_agent_run_dir,
-            scenario=scenario,
-            bundle=bundle,
-            profile=profile,
-            effort=effort,
-            factory=TaskGuidanceWorkspaceFactory(
-                scenario=scenario,
-                bundle=bundle,
-            ),
-            artifact_root=artifact_root,
-            system_messages=system_messages,
-            configs=configs,
-            runs=runs,
-            files=files,
-            cell_prefix=cell_prefix,
-            task_files=same_agent.get("task_files") or {},
-            lineage=True,
-            reconstruct=False,
-            inherited_instructions=producer_instructions,
-        )
-
-    negative = _find_variant(
-        frozen["negative_control_records"], scenario_id, "incomplete", profile, effort
+        ),
+        stage_dir="continuation",
+        factory_of=lambda record: TaskGuidanceWorkspaceFactory(
+            scenario=scenario, bundle=bundle
+        ),
+        lineage=True,
+        reconstruct_stage=False,
+        inherited_instructions=producer_instructions,
     )
-    if negative is not None:
-        negative_run_dir = _run_dir_for(
-            discovery,
-            negative,
+
+    _collect_group(
+        KIND_CONTROL,
+        _stage_entries(
+            _find_all_variant(
+                frozen["negative_control_records"],
+                scenario_id,
+                "incomplete",
+                profile,
+                effort,
+            ),
             f"negative_control_records:{scenario_id}:incomplete:{profile}:{effort}",
-        )
-        _collect_run(
-            KIND_CONTROL,
-            negative,
-            subdir="control",
-            run_dir=negative_run_dir,
+        ),
+        stage_dir="control",
+        factory_of=lambda record: CanonicalHandoffWorkspaceFactory(
+            scenario=scenario,
+            variant="incomplete",
+            bundle=bundle,
+        ),
+        reconstruct_stage=False,
+    )
+
+    _collect_group(
+        KIND_GENERATED_PLAN,
+        _stage_entries(
+            _find_all(
+                frozen.get("generated_plan_records", ()),
+                scenario_id,
+                profile,
+                effort,
+            ),
+            f"generated_plan_records:{scenario_id}:{profile}:{effort}",
+        ),
+        stage_dir="generated-plan",
+        factory_of=lambda record: GeneratedTaskWorkspaceFactory(
             scenario=scenario,
             bundle=bundle,
-            profile=profile,
-            effort=effort,
-            factory=CanonicalHandoffWorkspaceFactory(
-                scenario=scenario,
-                variant="incomplete",
-                bundle=bundle,
-            ),
-            artifact_root=artifact_root,
-            system_messages=system_messages,
-            configs=configs,
-            runs=runs,
-            files=files,
-            cell_prefix=cell_prefix,
-            task_files=negative.get("task_files") or {},
-            reconstruct=False,
-        )
+            task_files=record.get("task_files") or {},
+        ),
+        reconstruct_stage=reconstruct,
+    )
 
 
 def _find(
@@ -1488,23 +1548,174 @@ def _find(
     return None
 
 
-def _find_variant(
+def _find_all(
+    records: Iterable[Mapping[str, Any]],
+    scenario_id: str,
+    profile: str,
+    effort: str,
+) -> list[Mapping[str, Any]]:
+    """Return every sample of one cell, ordered by sample index."""
+
+    matches = [
+        record
+        for record in records
+        if isinstance(record, Mapping)
+        and record.get("scenario_id") == scenario_id
+        and (record.get("producer") or {}).get("profile") == profile
+        and (record.get("producer") or {}).get("reasoning_effort") == effort
+    ]
+    return sorted(matches, key=_sample_index)
+
+
+def _find_all_variant(
     records: Iterable[Mapping[str, Any]],
     scenario_id: str,
     variant: str,
     profile: str,
     effort: str,
-) -> Mapping[str, Any] | None:
-    for record in records:
-        producer = record.get("producer") or {}
-        if (
-            record.get("scenario_id") == scenario_id
-            and record.get("variant") == variant
-            and producer.get("profile") == profile
-            and producer.get("reasoning_effort") == effort
-        ):
-            return record
-    return None
+) -> list[Mapping[str, Any]]:
+    """Return every sample of one variant cell, ordered by sample index."""
+
+    matches = [
+        record
+        for record in records
+        if isinstance(record, Mapping)
+        and record.get("scenario_id") == scenario_id
+        and record.get("variant") == variant
+        and (record.get("producer") or {}).get("profile") == profile
+        and (record.get("producer") or {}).get("reasoning_effort") == effort
+    ]
+    return sorted(matches, key=_sample_index)
+
+
+def _sample_index(record: Mapping[str, Any]) -> int:
+    """Sample directory index; records without one share ``s0``."""
+
+    value = record.get("sample_index")
+    return 0 if value is None else int(value)
+
+
+def _run_model_sample(run_dir: Path) -> int:
+    """The run's own sample index, as the consolidation core numbers it."""
+
+    path = run_dir / "records" / "run-model.json"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    sample = value.get("sample_index") if isinstance(value, dict) else None
+    return sample if isinstance(sample, int) and sample >= 0 else 0
+
+
+def _run_label(run_dir: Path) -> str | None:
+    """The run's recorded label, when its run model kept one."""
+
+    path = run_dir / "records" / "run-model.json"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    label = value.get("label") if isinstance(value, dict) else None
+    return label if isinstance(label, str) and label else None
+
+
+def _assign_sample_dirs(
+    entries: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """One sample directory per record of one cell-stage group.
+
+    Valid records claim the sample index their run model recorded (the
+    same numbering assessment subjects use), so judgments land beside
+    the evidence they judge. Invalid records fill the remaining free
+    indexes — a re-run of a failed sample under a new label then reads
+    as the next sample instead of colliding with the valid one.
+    """
+
+    def claim_order(index: int) -> tuple[int, str]:
+        return (entries[index]["sample"], entries[index]["run_dir"].name)
+
+    valid_indexes = [
+        index
+        for index, entry in enumerate(entries)
+        if entry["record"].get("valid") is not False
+    ]
+    invalid_indexes = [
+        index
+        for index, entry in enumerate(entries)
+        if entry["record"].get("valid") is False
+    ]
+    assigned: dict[int, str] = {}
+    used: set[int] = set()
+    leftover: list[int] = []
+    for index in sorted(valid_indexes, key=claim_order):
+        sample = entries[index]["sample"]
+        if sample in used:
+            leftover.append(index)
+            continue
+        assigned[index] = f"s{sample}"
+        used.add(sample)
+    next_free = 0
+    for index in leftover + sorted(invalid_indexes, key=claim_order):
+        while next_free in used:
+            next_free += 1
+        assigned[index] = f"s{next_free}"
+        used.add(next_free)
+    return [assigned[index] for index in range(len(entries))]
+
+
+def _is_provider_failure(record: Mapping[str, Any]) -> bool:
+    reasons = record.get("invalid_reasons") or []
+    return any(
+        isinstance(reason, str) and reason.startswith("run failure:")
+        for reason in reasons
+    )
+
+
+def _write_invalid_note(
+    record: Mapping[str, Any],
+    sample_prefix: str,
+    *,
+    files: list[CollectedFile],
+    title: str,
+    label: str | None = None,
+) -> None:
+    """Export one invalid sample's recorded reasons beside its evidence."""
+
+    if record.get("valid") is not False and not record.get("invalid_reasons"):
+        return
+    reasons = [str(reason) for reason in record.get("invalid_reasons") or []]
+    category = (
+        "provider failure" if _is_provider_failure(record) else "validity failure"
+    )
+    lines = [
+        f"# Invalid sample — {title}",
+        "",
+        f"- Category: **{category}**",
+    ]
+    if label:
+        lines.append(f"- Run label: `{label}`")
+    if reasons:
+        lines.append("- Recorded reasons:")
+        lines.extend(f"  - {reason}" for reason in reasons)
+    response = record.get("response")
+    if isinstance(response, str) and response.strip():
+        excerpt = " ".join(response.split())
+        if len(excerpt) > 400:
+            excerpt = excerpt[:400] + "…"
+        lines.extend(
+            [
+                "- Response excerpt:",
+                "",
+                "> " + excerpt,
+            ]
+        )
+    lines.append("- Session (if exported): [session.md](session.md)")
+    files.append(
+        CollectedFile(
+            relative_path=f"{sample_prefix}/invalid.md",
+            content="\n".join(lines) + "\n",
+        )
+    )
 
 
 def _collect_run(
@@ -2038,6 +2249,9 @@ def _collect_assessment(
     files: list[CollectedFile],
 ) -> None:
     scenario_id = scenario.scenario_id
+    # One assessment.md per judged subject accumulates every stage's
+    # judgment of that subject, written after all stages collected.
+    subject_notes: dict[str, list[str]] = {}
     for name, group, title in (
         (
             "task-creation",
@@ -2072,6 +2286,7 @@ def _collect_assessment(
                 configs=configs,
                 runs=runs,
                 files=files,
+                subject_notes=subject_notes,
             )
         else:
             _collect_assessment_record(
@@ -2087,6 +2302,42 @@ def _collect_assessment(
                 runs=runs,
                 files=files,
             )
+    for subject_dir, notes in sorted(subject_notes.items()):
+        page = f"{subject_dir}/assessment.md"
+        evidence_links = (
+            f"[session.md]({_link(f'{subject_dir}/session.md', page)})"
+            f" · [run.json]({_link(f'{subject_dir}/run.json', page)})"
+        )
+        files.append(
+            CollectedFile(
+                relative_path=page,
+                content=(
+                    f"# Assessment — "
+                    f"{subject_dir.split('/', 1)[1].replace('/', ' · ')}\n\n"
+                    + "\n".join(notes).rstrip()
+                    + f"\n\n- Evidence: {evidence_links}\n"
+                ),
+            )
+        )
+
+
+def _subject_directory(
+    name: str, scenario_id: str, subject: Mapping[str, Any], variant: Any, stage: Any
+) -> str | None:
+    """The evidence directory of the subject one assessment judges.
+
+    Producer-sample assessments point at the producer sample; handoff
+    assessments point at the plan-stage sample the judgment is about.
+    """
+
+    subject_cell = f"{subject.get('profile')}-{subject.get('reasoning_effort')}"
+    sample = _sample_index(subject)
+    if name == "handoff":
+        stage_dir = _handoff_stage_dir(variant=variant, stage=stage)
+        if stage_dir is None:
+            return None
+        return f"scenarios/{scenario_id}/{subject_cell}/{stage_dir}/s{sample}"
+    return f"scenarios/{scenario_id}/{subject_cell}/s{sample}"
 
 
 def _collect_per_subject_assessment(
@@ -2103,12 +2354,15 @@ def _collect_per_subject_assessment(
     configs: _ConfigStore,
     runs: list[dict[str, Any]],
     files: list[CollectedFile],
+    subject_notes: dict[str, list[str]],
 ) -> None:
     """Collect one assessor run per subject, one shared results page.
 
     Every sample of every subject cell is its own assessment request, so
-    each record collects its own run directory; the results page lists
-    all judgments with their subject and sample.
+    each record collects its own run directory. Assessor runs live under
+    the subject's cell subtree (``<cell>/assessment/<stage>/…``) and each
+    judged subject accumulates an ``assessment.md`` grade summary one
+    level beside its evidence.
     """
 
     def subject_key(record: Mapping[str, Any]) -> tuple[Any, Any, Any, Any]:
@@ -2129,16 +2383,17 @@ def _collect_per_subject_assessment(
     judgment_seen: Counter[tuple[Any, Any, Any, Any]] = Counter()
 
     scenario_id = scenario.scenario_id
-    run_prefix = f"scenarios/{scenario_id}/assessment/{name}"
     assessor_name, effort = assessment_cell(
         _assessment_category(scenario, name), f"{name}-assessment"
     )
     first_run_record: dict[str, Any] | None = None
+    first_session_link: str | None = None
     for record in records:
         subject = record["subject"]
         sample_index = subject.get("sample_index")
         assessment = record.get("assessment")
         variant = assessment.get("variant") if isinstance(assessment, Mapping) else None
+        stage = assessment.get("stage") if isinstance(assessment, Mapping) else None
         run_dir = _run_dir_for(
             discovery,
             record,
@@ -2156,6 +2411,13 @@ def _collect_per_subject_assessment(
         sample_segment = f"s{sample_index}"
         if numbered:
             sample_segment = f"{sample_segment}/j{ordinal}"
+        # Assessor runs sit inside the subject's cell subtree so the
+        # judgment and its evidence stay one hop apart in both
+        # directions.
+        run_prefix = (
+            f"scenarios/{scenario_id}/{subject_cell}/assessment/{name}"
+            f"/{variant_segment}{sample_segment}".rstrip("/")
+        )
         run_record, _ = _collect_run(
             (
                 f"{name}-assessment-{subject_cell}-"
@@ -2174,9 +2436,7 @@ def _collect_per_subject_assessment(
             configs=configs,
             runs=runs,
             files=files,
-            cell_prefix=(
-                f"{run_prefix}/{subject_cell}/{variant_segment}{sample_segment}"
-            ),
+            cell_prefix=run_prefix,
             task_files={},
             reconstruct=False,
             system_message_key=f"{assessor_name}-assessor",
@@ -2185,7 +2445,20 @@ def _collect_per_subject_assessment(
         )
         if first_run_record is None:
             first_run_record = run_record
+            first_session_link = run_prefix
+        subject_dir = _subject_directory(name, scenario_id, subject, variant, stage)
+        if subject_dir is not None:
+            subject_notes.setdefault(subject_dir, []).extend(
+                _subject_assessment_note(
+                    name=name,
+                    assessment=assessment,
+                    assessor_session=run_prefix,
+                    results_page=f"scenarios/{scenario_id}/assessment/{name}/results.md",
+                    page=f"{subject_dir}/assessment.md",
+                )
+            )
     assert first_run_record is not None
+    run_prefix = f"scenarios/{scenario_id}/assessment/{name}"
     results_page = f"{run_prefix}/results.md"
     files.append(
         CollectedFile(
@@ -2203,6 +2476,7 @@ def _collect_per_subject_assessment(
                     "system_message": first_run_record["system_message"],
                 },
                 page=results_page,
+                first_session_link=first_session_link,
                 rubric_note=(
                     "- Rubric: fragmentation uses none/low/medium/high mapped"
                     " to 100/67/33/0; every other dimension uses"
@@ -2226,6 +2500,58 @@ def _collect_per_subject_assessment(
             ),
         )
     )
+
+
+def _subject_assessment_note(
+    *,
+    name: str,
+    assessment: Mapping[str, Any] | None,
+    assessor_session: str,
+    results_page: str,
+    page: str,
+) -> list[str]:
+    """One judgment's summary rows for its subject's ``assessment.md``."""
+
+    if not isinstance(assessment, Mapping):
+        return []
+    lines = [f"## {name} assessment"]
+    variant = assessment.get("variant")
+    stage = assessment.get("stage")
+    scope = " · ".join(str(item) for item in (variant, stage) if item is not None)
+    if scope:
+        lines.append(f"- Scope: {scope}")
+    if name == "task-quality":
+        dimensions = assessment.get("dimensions") or {}
+        for dim_name, dim in sorted(dimensions.items()):
+            grade = dim.get("grade") if isinstance(dim, Mapping) else None
+            lines.append(f"- {dim_name}: **{grade}**")
+        task_kind = assessment.get("task_kind")
+        if task_kind:
+            lines.append(f"- Assessed task kind: {task_kind}")
+    elif name == "handoff":
+        score = assessment.get("handoff_quality_score")
+        lines.append(f"- Handoff quality score: **{score}**")
+        for field in ("plan_coverage", "broad_rediscovery", "task_self_contained"):
+            value = assessment.get(field)
+            if value is not None:
+                lines.append(f"- {field}: {value}")
+    else:
+        overall = assessment.get("overall_success_percentage")
+        metrics = assessment.get("quality_metrics") or {}
+        if overall is not None:
+            lines.append(f"- Overall success: **{overall:g}%**")
+        for dim_name, metric in sorted(metrics.items()):
+            status = metric.get("status") if isinstance(metric, Mapping) else None
+            lines.append(f"- {dim_name}: {status}")
+    summary = assessment.get("summary")
+    if isinstance(summary, str) and summary.strip():
+        lines.append(f"- Summary: {summary}")
+    lines.append(
+        "- Assessor session:"
+        f" [`session.md`]({_link(f'{assessor_session}/session.md', page)})"
+    )
+    lines.append(f"- Full results: [`results.md`]({_link(results_page, page)})")
+    return lines
 
 
 def _record_for(
@@ -2343,9 +2669,15 @@ def _assessment_results_markdown(
     assessor: Mapping[str, Any],
     page: str,
     rubric_note: str,
+    first_session_link: str | None = None,
 ) -> str:
     system_message = assessor.get("system_message") or {}
     config_link = _link(assessor["config_path"], page)
+    transcript_link = (
+        f"[session.md]({_link(f'{first_session_link}/session.md', page)})"
+        if first_session_link
+        else "[session.md](session.md)"
+    )
     lines = [
         f"# {title}",
         "",
@@ -2365,8 +2697,10 @@ def _assessment_results_markdown(
         lines.append(f"- Assessor system message: **{state}**")
     lines.extend(
         [
-            "- Full transcript: [session.md](session.md) — includes the exact"
-            " prompt and the raw response",
+            f"- First judgment's full transcript: {transcript_link} — includes"
+            " the exact prompt and the raw response; every judgment's"
+            " transcript lives beside its subject"
+            f" (`<cell>/assessment/{kind}/…`)",
             f"- Reviewed target: [{target_path.split('/')[-2]}]"
             f"({_link(target_path, page)})",
             rubric_note,
@@ -2642,6 +2976,8 @@ def _handoff_stage_dir(*, variant: Any, stage: Any) -> str | None:
         "retain": "plan-retain",
         "omit": "plan-omit",
         "incomplete": "control",
+        "generated-task": "generated-plan",
+        "generated-file": "generated-plan",
     }.get(variant)
 
 
@@ -2711,7 +3047,10 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
                         }
                         for name in QUALITY_DIMENSIONS
                     },
-                    "run_path": f"scenarios/{scenario_id}/{cell}",
+                    "run_path": (
+                        f"scenarios/{scenario_id}/{cell}"
+                        f"/s{0 if sample_index is None else sample_index}"
+                    ),
                     "results_path": (
                         f"scenarios/{scenario_id}"
                         "/assessment/task-creation/results.md"
@@ -2736,7 +3075,10 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
                         name: (dimensions.get(name) or {}).get("grade")
                         for name in QUALITY_GRADES
                     },
-                    "run_path": f"scenarios/{scenario_id}/{cell}",
+                    "run_path": (
+                        f"scenarios/{scenario_id}/{cell}"
+                        f"/s{0 if sample_index is None else sample_index}"
+                    ),
                     "results_path": (
                         f"scenarios/{scenario_id}" "/assessment/task-quality/results.md"
                     ),
@@ -2750,10 +3092,11 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
             stage_dir = _handoff_stage_dir(
                 variant=assessment.get("variant"), stage=assessment.get("stage")
             )
+            sample_dir = f"s{0 if sample_index is None else sample_index}"
             run_path = (
-                f"scenarios/{scenario_id}/{cell}/{stage_dir}"
+                f"scenarios/{scenario_id}/{cell}/{stage_dir}/{sample_dir}"
                 if stage_dir
-                else f"scenarios/{scenario_id}/{cell}"
+                else f"scenarios/{scenario_id}/{cell}/{sample_dir}"
             )
             handoff.append(
                 {
@@ -2842,7 +3185,14 @@ def _build_index_views(records: PackageRecords) -> list[GeneratedView]:
         }
     )
     for scenario_id in scenario_ids:
-        lines.append(f"- [`{scenario_id}`](scenarios/{scenario_id}/index.md)")
+        results = (
+            " · [results](scenarios/{scenario_id}/results.md)".format(
+                scenario_id=scenario_id
+            )
+            if f"scenarios/{scenario_id}/results.md" in records.collected_paths
+            else ""
+        )
+        lines.append(f"- [`{scenario_id}`](scenarios/{scenario_id}/index.md){results}")
     lines.extend(
         [
             "",
@@ -2981,7 +3331,129 @@ def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
                 f" [results]({_link(row['results_path'], 'matrix.md')}) |" + sample_cell
             )
         sections.append("\n".join(lines))
+    quality_rows = [row for row in details if row.get("kind") == "task-quality"]
+    if quality_rows:
+        sections.append(_quality_cohort_section(quality_rows))
+        sections.append(_quality_detail_section(quality_rows))
     return sections
+
+
+def _quality_top_grades(dimensions: Mapping[str, Any]) -> int:
+    top = {"complete", "justified", "fits"}
+    return sum(1 for value in dimensions.values() if value in top)
+
+
+def _quality_cohort_section(rows: Sequence[Mapping[str, Any]]) -> str:
+    """Cohort shares of top grades per quality dimension."""
+
+    def cohort_key(row: Mapping[str, Any]) -> str:
+        return f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip()
+
+    cohorts: dict[str, list[Mapping[str, Any]]] = {"All": list(rows)}
+    for row in rows:
+        model = str(row.get("profile") or "").upper()
+        if model:
+            cohorts.setdefault(model, []).append(row)
+    for row in rows:
+        cohorts.setdefault(cohort_key(row), []).append(row)
+    model_names = sorted(name for name in cohorts if name in {"GLM", "GPT"})
+    ordered = (
+        ["All"]
+        + model_names
+        + sorted(key for key in cohorts if key != "All" and key not in {"GLM", "GPT"})
+    )
+    seen: set[str] = set()
+    lines = [
+        "## Task-file quality",
+        "",
+        "Share of top grades (complete / justified / fits) per dimension;"
+        " `n` is the judged subjects in the cohort.",
+        "",
+        "| Cohort | n | Top grades overall |"
+        + "".join(f" {label} |" for label in _QUALITY_DIMENSION_LABELS.values()),
+        "|---|---:|---:|" + "---:|" * len(_QUALITY_DIMENSION_LABELS),
+    ]
+    for name in ordered:
+        if name not in cohorts or name in seen:
+            continue
+        seen.add(name)
+        cohort_rows = cohorts[name]
+        count = len(cohort_rows)
+        per_dimension = {}
+        for dim_name in _QUALITY_DIMENSION_LABELS:
+            values = [
+                (row.get("dimensions") or {}).get(dim_name) for row in cohort_rows
+            ]
+            graded = [value for value in values if value is not None]
+            per_dimension[dim_name] = (
+                f"{100 * sum(1 for value in graded if value in {'complete', 'justified', 'fits'}) / len(graded):.0f}%"
+                if graded
+                else "—"
+            )
+        overall = sum(
+            _quality_top_grades(row.get("dimensions") or {}) for row in cohort_rows
+        )
+        total = sum(
+            len(
+                [
+                    value
+                    for value in (row.get("dimensions") or {}).values()
+                    if value is not None
+                ]
+            )
+            for row in cohort_rows
+        )
+        overall_text = f"{100 * overall / total:.0f}%" if total else "—"
+        lines.append(
+            f"| {name} | {count} | {overall_text} |"
+            + "".join(
+                f" {per_dimension[dim_name]} |"
+                for dim_name in _QUALITY_DIMENSION_LABELS
+            )
+        )
+    return "\n".join(lines)
+
+
+def _quality_detail_section(rows: Sequence[Mapping[str, Any]]) -> str:
+    """One row per quality judgment, linked to its subject's grades."""
+
+    has_samples = any(row.get("sample_index") is not None for row in rows)
+    sample_header = " Sample |" if has_samples else ""
+    sample_rule = "---|" if has_samples else ""
+    lines = [
+        "## Task-file quality detail",
+        "",
+        "One row per judgment; non-top grades are the findings to read.",
+        "",
+        "| Scenario | Producer | Kind |"
+        + "".join(f" {label} |" for label in _QUALITY_DIMENSION_LABELS.values())
+        + " Subject |"
+        + sample_header,
+        "|---|---|---|"
+        + "---|" * len(_QUALITY_DIMENSION_LABELS)
+        + "---|"
+        + sample_rule,
+    ]
+    for row in rows:
+        producer = f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip()
+        dimensions = row.get("dimensions") or {}
+        run_path = row.get("run_path") or ""
+        subject_link = (
+            f"[assessment]({_link(f'{run_path}/assessment.md', 'matrix.md')})"
+            if run_path
+            else "—"
+        )
+        sample_cell = f" s{row.get('sample_index')} |" if has_samples else ""
+        lines.append(
+            f"| `{row.get('scenario_id')}` | {producer} | {row.get('task_kind') or '—'} |"
+            + "".join(
+                f" {dimensions.get(dim_name) or '—'} |"
+                for dim_name in _QUALITY_DIMENSION_LABELS
+            )
+            + f" {subject_link} |"
+            + sample_cell
+        )
+    return "\n".join(lines)
 
 
 def _dimension_cell(metric: Mapping[str, Any] | None) -> str:
@@ -2995,15 +3467,20 @@ def _dimension_cell(metric: Mapping[str, Any] | None) -> str:
 
 
 def _per_scenario_section(records: PackageRecords) -> list[str]:
-    """Link every scenario's cells and assessment renderings."""
+    """Link every scenario's results page, cells, and judgments."""
 
     cells: dict[str, set[str]] = {}
     assessments: dict[str, set[str]] = {}
     for path in records.collected_paths:
         parts = path.split("/")
-        if len(parts) == 4 and parts[0] == "scenarios" and parts[3] == "run.json":
-            if parts[2] != "assessment":
-                cells.setdefault(parts[1], set()).add(parts[2])
+        if (
+            len(parts) == 5
+            and parts[0] == "scenarios"
+            and parts[3].startswith("s")
+            and parts[4] == "run.json"
+            and parts[2] != "assessment"
+        ):
+            cells.setdefault(parts[1], set()).add(parts[2])
         elif (
             len(parts) == 5
             and parts[0] == "scenarios"
@@ -3016,8 +3493,8 @@ def _per_scenario_section(records: PackageRecords) -> list[str]:
     lines = [
         "## Per-scenario results",
         "",
-        "| Scenario | Cells | Task-creation judgment | Handoff judgment |",
-        "|---|---|---|---|",
+        "| Scenario | Numbers | Cells | Task-creation | Handoff | Quality |",
+        "|---|---|---|---|---|---|",
     ]
     for scenario_id in sorted(set(cells) | set(assessments)):
         cell_links = " · ".join(
@@ -3028,10 +3505,16 @@ def _per_scenario_section(records: PackageRecords) -> list[str]:
             name: f"[results](scenarios/{scenario_id}/assessment/{name}/results.md)"
             for name in sorted(assessments.get(scenario_id, ()))
         }
+        numbers_link = (
+            f"[results](scenarios/{scenario_id}/results.md)"
+            if f"scenarios/{scenario_id}/results.md" in records.collected_paths
+            else "—"
+        )
         lines.append(
-            f"| `{scenario_id}` | {cell_links or '—'}"
+            f"| `{scenario_id}` | {numbers_link} | {cell_links or '—'}"
             f" | {assessment_links.get('task-creation', '—')}"
-            f" | {assessment_links.get('handoff', '—')} |"
+            f" | {assessment_links.get('handoff', '—')}"
+            f" | {assessment_links.get('task-quality', '—')} |"
         )
     return ["\n".join(lines)]
 
@@ -3050,41 +3533,54 @@ def _build_case_views(records: PackageRecords) -> list[GeneratedView]:
     return views
 
 
+_STAGE_ORDER = {
+    KIND_TASK_CREATION: 0,
+    KIND_PLAN_RETAIN: 1,
+    KIND_PLAN_OMIT: 2,
+    KIND_CONTINUATION: 3,
+    KIND_CONTROL: 4,
+    KIND_GENERATED_PLAN: 5,
+}
+
+_QUALITY_DIMENSION_LABELS = {
+    "plan_design_completeness": "design",
+    "durable_context_preservation": "context",
+    "findability": "findability",
+    "section_appropriateness": "placement",
+    "plan_justification": "justification",
+    "task_kind_fit": "kind-fit",
+}
+
+
 def _scenario_views(records: PackageRecords, scenario_id: str) -> list[GeneratedView]:
     prefix = f"scenarios/{scenario_id}"
     lines = [
         f"# Scenario `{scenario_id}`",
         "",
         "- [Reviewed target](target.md)",
+        "- [All numbers for this scenario](results.md)",
         "",
         "## Cells",
         "",
         "| Cell | Runs |",
         "|---|---|",
     ]
-    cell_keys = sorted(
-        {
-            path.split("/")[2]
-            for path in records.collected_paths
-            if path.startswith(f"{prefix}/")
-            and path.split("/")[2] != "assessment"
-            and path.endswith("/run.json")
-        }
-    )
+    cell_keys = _scenario_cell_keys(records, scenario_id)
     for cell_key in cell_keys:
         runs = _cell_runs(records, scenario_id, cell_key)
-        kinds = ", ".join(f"`{run['kind']}`" for run in runs)
+        kinds = ", ".join(f"`{run['run']['kind']}`" for run in runs)
         lines.append(f"| [`{cell_key}`]({cell_key}/index.md) | {kinds} |")
-    lines.extend(["", "## Assessment", ""])
+    lines.extend(["", "## Assessment summaries", ""])
     for name, title in (
         ("task-creation", "Task-creation semantic assessment"),
         ("handoff", "Handoff semantic assessment"),
+        ("task-quality", "Task-file quality assessment"),
     ):
         if f"{prefix}/assessment/{name}/results.md" in records.collected_paths:
-            lines.append(f"- [{title}](assessment/{name}/results.md)")
             lines.append(
-                f"  - [Assessor session](assessment/{name}/session.md) —"
-                " exact prompt and raw response"
+                f"- [{title}](assessment/{name}/results.md) — every judgment;"
+                " each judgment's assessor session lives beside its subject"
+                f" (`<cell>/assessment/{name}/…`)"
             )
     views = [
         GeneratedView(
@@ -3092,33 +3588,173 @@ def _scenario_views(records: PackageRecords, scenario_id: str) -> list[Generated
             content="\n".join(lines) + "\n",
         )
     ]
+    results_view = _scenario_results_view(records, scenario_id, cell_keys)
+    if results_view is not None:
+        views.append(results_view)
     for cell_key in cell_keys:
         views.extend(_cell_views(records, scenario_id, cell_key))
     return views
 
 
+def _scenario_cell_keys(records: PackageRecords, scenario_id: str) -> list[str]:
+    """Producer-cell directory names, derived from sample run locations."""
+
+    prefix = f"scenarios/{scenario_id}"
+    return sorted(
+        {
+            path.split("/")[2]
+            for path in records.collected_paths
+            if path.startswith(f"{prefix}/")
+            and len(path.split("/")) >= 5
+            and path.split("/")[2] != "assessment"
+            and path.split("/")[3].startswith("s")
+            and path.endswith("/run.json")
+        }
+    )
+
+
 def _cell_runs(
     records: PackageRecords, scenario_id: str, cell_key: str
 ) -> list[dict[str, Any]]:
+    """Every evidence run of one cell: producers and stage samples.
+
+    Each entry carries the run record and the package directory it was
+    collected to; assessment runs stay out (they are judgments, not
+    evidence).
+    """
+
     prefix = f"scenarios/{scenario_id}/{cell_key}"
     run_paths = [
         path
         for path in records.collected_paths
-        if path == f"{prefix}/run.json"
-        or (
-            path.startswith(f"{prefix}/")
-            and path.endswith("/run.json")
-            and path.count("/") == prefix.count("/") + 2
-        )
+        if path.startswith(f"{prefix}/")
+        and path.endswith("/run.json")
+        and "/assessment/" not in path
+        and len(path.split("/")) in (5, 6)
     ]
-    runs = [records.collected_json(path) for path in sorted(run_paths)]
-    runs.sort(
-        key=lambda run: (
-            0 if run.get("kind") == KIND_TASK_CREATION else 1,
-            run.get("kind") or "",
+    entries = [
+        {"path": path.rsplit("/", 1)[0], "run": records.collected_json(path)}
+        for path in sorted(run_paths)
+    ]
+    entries.sort(
+        key=lambda entry: (
+            _STAGE_ORDER.get(entry["run"].get("kind"), 99),
+            entry["path"],
         )
     )
-    return runs
+    return entries
+
+
+def _scenario_results_view(
+    records: PackageRecords, scenario_id: str, cell_keys: Sequence[str]
+) -> GeneratedView | None:
+    """One page holding every number for one scenario, linking to evidence."""
+
+    aggregate = records.collected_json("aggregate.json")
+    details = [
+        row
+        for row in aggregate.get("assessment_details", ())
+        if row.get("scenario_id") == scenario_id
+    ]
+    page = f"scenarios/{scenario_id}/results.md"
+    runs = [
+        entry
+        for cell_key in cell_keys
+        for entry in _cell_runs(records, scenario_id, cell_key)
+    ]
+    if not runs:
+        return None
+    by_run_path = {
+        (row.get("kind"), row.get("run_path")): row
+        for row in details
+        if isinstance(row.get("run_path"), str)
+    }
+    lines = [
+        f"# Results — `{scenario_id}`",
+        "",
+        "- [Scenario index](index.md) · [Reviewed target](target.md) ·"
+        " [Quality matrix](../../matrix.md)",
+        "",
+        "Every number for this scenario, one hop from the evidence it"
+        " was computed from.",
+        "",
+        "## Producer samples",
+        "",
+        "| Cell | Sample | Status | Task-creation overall | Task-file quality grades |",
+        "|---|---|---|---|---|",
+    ]
+    for entry in runs:
+        run = entry["run"]
+        if run.get("kind") != KIND_TASK_CREATION:
+            continue
+        status = "valid" if run.get("valid") else "invalid"
+        task_row = by_run_path.get(("task-creation", entry["path"]))
+        overall = task_row and task_row.get("overall_success_percentage")
+        overall_text = "—" if overall is None else f"{overall:g}%"
+        quality_rows = [
+            row
+            for row in details
+            if row.get("kind") == "task-quality"
+            and row.get("run_path") == entry["path"]
+        ]
+        if quality_rows:
+            grades = quality_rows[0].get("dimensions") or {}
+            quality_text = " · ".join(
+                f"{_QUALITY_DIMENSION_LABELS.get(name, name)}"
+                f" {grades.get(name) or '—'}"
+                for name in _QUALITY_DIMENSION_LABELS
+                if name in grades
+            )
+        else:
+            quality_text = "—"
+        sample = entry["path"].rsplit("/", 1)[-1]
+        cell = entry["path"].split("/")[2]
+        link = f"[`{sample}`]({_link(entry['path'] + '/session.md', page)})"
+        if f"{entry['path']}/assessment.md" in records.collected_paths:
+            link += f" ([assessment]({_link(entry['path'] + '/assessment.md', page)}))"
+        if f"{entry['path']}/invalid.md" in records.collected_paths:
+            link += f" ([invalid]({_link(entry['path'] + '/invalid.md', page)}))"
+        lines.append(
+            f"| [`{cell}`]({cell}/index.md) | {link} | {status}"
+            f" | {overall_text} | {quality_text} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Plan stages",
+            "",
+            "| Cell | Stage | Sample | Status | Handoff score | Coverage |"
+            " Broad rediscovery |",
+            "|---|---|---|---|---:|---|---|",
+        ]
+    )
+    for entry in runs:
+        run = entry["run"]
+        if run.get("kind") == KIND_TASK_CREATION:
+            continue
+        status = "valid" if run.get("valid") else "invalid"
+        row = by_run_path.get(("handoff", entry["path"]))
+        score = row and row.get("handoff_quality_score")
+        score_text = "—" if score is None else f"{score}"
+        coverage = (row and row.get("plan_coverage")) or "—"
+        rediscovery = row and row.get("broad_rediscovery")
+        rediscovery_text = "—" if rediscovery is None else str(rediscovery)
+        sample = entry["path"].rsplit("/", 1)[-1]
+        stage = entry["path"].split("/")[3]
+        cell = entry["path"].split("/")[2]
+        link = f"[`{sample}`]({_link(entry['path'] + '/session.md', page)})"
+        if f"{entry['path']}/assessment.md" in records.collected_paths:
+            link += f" ([assessment]({_link(entry['path'] + '/assessment.md', page)}))"
+        invalid_note = (
+            f" ([invalid]({_link(entry['path'] + '/invalid.md', page)}))"
+            if f"{entry['path']}/invalid.md" in records.collected_paths
+            else ""
+        )
+        lines.append(
+            f"| [`{cell}`]({cell}/index.md) | `{stage}` | {link}{invalid_note}"
+            f" | {status} | {score_text} | {coverage} | {rediscovery_text} |"
+        )
+    return GeneratedView(relative_path=page, content="\n".join(lines) + "\n")
 
 
 def _cell_views(
@@ -3127,29 +3763,36 @@ def _cell_views(
     page = f"scenarios/{scenario_id}/{cell_key}/index.md"
     prefix = f"scenarios/{scenario_id}/{cell_key}"
     runs = _cell_runs(records, scenario_id, cell_key)
-    producer = runs[0] if runs else {}
+    producer = runs[0]["run"] if runs else {}
     lines = [
         f"# Cell `{scenario_id}` — `{cell_key}`",
         "",
         f"- Model: `{producer.get('model')}` (profile `{producer.get('provider')}`,"
         f" effort `{producer.get('reasoning_effort')}`)",
+        "- [Scenario results](../results.md) — every number for the scenario",
         "",
         "## Runs",
         "",
     ]
-    for run in runs:
+    for entry in runs:
+        run = entry["run"]
+        run_dir = entry["path"]
         status = "valid" if run.get("valid") else "invalid"
-        run_dir = (
-            prefix
-            if run["kind"] == KIND_TASK_CREATION
-            else f"{prefix}/{_subdir_for(run['kind'])}"
-        )
-        lines.append(f"### `{run['kind']}` ({status})")
+        lines.append(f"### `{run['kind']}` — {run_dir.rsplit('/', 1)[-1]} ({status})")
         lines.append("")
         lines.append(
             f"- [Session]({_link(f'{run_dir}/session.md', page)})"
             " — includes the prompt and response"
         )
+        if f"{run_dir}/assessment.md" in records.collected_paths:
+            lines.append(
+                f"- [Assessment]({_link(f'{run_dir}/assessment.md', page)})"
+                " — the grades judging this run"
+            )
+        if f"{run_dir}/invalid.md" in records.collected_paths:
+            lines.append(
+                f"- [Invalid sample note]({_link(f'{run_dir}/invalid.md', page)})"
+            )
         for task_file in run.get("task_files", ()):
             name = PurePosixPath(task_file).name
             lines.append(
@@ -3178,24 +3821,33 @@ def _cell_views(
                 + "; ".join(str(item) for item in run["invalid_reasons"])
             )
         lines.append("")
-    lines.extend(["## Assessment", ""])
+    assessment_dirs = sorted(
+        {
+            path[: -len("/session.md")]
+            for path in records.collected_paths
+            if path.startswith(f"{prefix}/assessment/") and path.endswith("/session.md")
+        }
+    )
+    if assessment_dirs:
+        lines.extend(["## Assessor runs", ""])
+        lines.append(
+            "Judgments of this cell's evidence; grades sit beside the"
+            " judged sample as `assessment.md`."
+        )
+        lines.append("")
+        for run_dir in assessment_dirs:
+            label = "/".join(run_dir.split("/")[3:])
+            lines.append(f"- [`{label}`]({_link(f'{run_dir}/session.md', page)})")
+    lines.extend(["", "Assessment summaries:", ""])
     for name, title in (
         ("task-creation", "Task-creation semantic results"),
         ("handoff", "Handoff semantic results"),
+        ("task-quality", "Task-file quality results"),
     ):
         path = f"scenarios/{scenario_id}/assessment/{name}/results.md"
         if path in records.collected_paths:
             lines.append(f"- [{title}]({_link(path, page)})")
     return [GeneratedView(relative_path=page, content="\n".join(lines) + "\n")]
-
-
-def _subdir_for(kind: str) -> str:
-    return {
-        KIND_PLAN_RETAIN: "plan-retain",
-        KIND_PLAN_OMIT: "plan-omit",
-        KIND_CONTINUATION: "continuation",
-        KIND_CONTROL: "control",
-    }[kind]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
