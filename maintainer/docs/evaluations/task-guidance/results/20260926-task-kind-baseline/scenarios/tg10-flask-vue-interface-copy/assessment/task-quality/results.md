@@ -3,7 +3,7 @@
 - Assessor: `glm-5.3-flash:cloud` (effort max) · run `20260926T160525.649255Z-task-guidance-quality-tg10-flask-vue-interface-copy-glm-max-s0-10a98f1c`
 - Assessor config: [glm-assessor-max.json](../../../../shared/configs/glm-assessor-max.json)
 - Assessor system message: [glm-assessor-3d0be6dc03e9.md](../../../../shared/system-messages/glm-assessor-3d0be6dc03e9.md) (original SHA-256 `5b360758ca96affb…`)
-- Full transcript: [session.md](session.md) — includes the exact prompt and the raw response
+- First judgment's full transcript: [session.md](../../glm-max/assessment/task-quality/s0/session.md) — includes the exact prompt and the raw response; every judgment's transcript lives beside its subject (`<cell>/assessment/task-quality/…`)
 - Reviewed target: [tg10-flask-vue-interface-copy](../../target.md)
 - Rubric: every dimension is a positive completeness grade (complete/partial/poor; justified/not_applicable/fabricated; fits/forced/missing). Grades carry evidence occurrences; no numeric score is derived.
 

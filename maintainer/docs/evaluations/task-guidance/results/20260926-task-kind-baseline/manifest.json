@@ -2,265 +2,365 @@
   "files": {
     "collected": {
       "aggregate.json": {
-        "bytes": 136872,
+        "bytes": 137205,
         "provenance": {
           "path": "tmp/agent-evaluation/task-guidance/consolidated/task-guidance-b1v3-kind-baseline-20260926.json",
           "sha256": "d6793ad46fefd662bfc3f4292e67f2b4836c677faa009b2e8ad58126d91b2350",
           "source": "frozen consolidated dataset"
         },
-        "sha256": "9b7bce4ae739fa4534f946f171440b413f2890d1aaa40cb16e5cce63592d2e46"
+        "sha256": "8b83cece6679ac947806a9dfe544ec942004e4f346b803fc7e195fd867dd55bd"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/generated-file/s0/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md": {
+        "bytes": 18529,
+        "provenance": null,
+        "sha256": "1ee28589b61130c37217a2817213c4e2b2dea7aaea709c3cb41854de578c327b"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/results.md": {
+        "bytes": 5677,
+        "provenance": null,
+        "sha256": "f7fcd7adc4e9d2dfa666624355871b03594c549d3950337592d6d16bfb9fbbb3"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/task-quality/results.md": {
+        "bytes": 10462,
+        "provenance": null,
+        "sha256": "8f67d4093983c2fc29008deff0a2cc659cd038b148cf5e0fd5b1b8dd36c45d2c"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/handoff/generated-file/s0/run.json": {
         "bytes": 775,
         "provenance": null,
         "sha256": "4c5bb2e3e990d96e02fb77fe5e88d2707fc54ff1d9f0053a82df830f931b914a"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/generated-file/s0/session.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/handoff/generated-file/s0/session.md": {
         "bytes": 24998,
         "provenance": null,
         "sha256": "95456986f17ae32fcbd516bb4f5ff2e74541ffdda3113b4bc4afa763073da210"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/generated-task/s0/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/handoff/generated-task/s0/run.json": {
         "bytes": 775,
         "provenance": null,
         "sha256": "cc6d33d3493fad6be89f56e48bb95312aea1989a136c08360c86f725a9034264"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/generated-task/s0/session.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/handoff/generated-task/s0/session.md": {
         "bytes": 26613,
         "provenance": null,
         "sha256": "3d9e5746dd4910f07744d475bb57099372c06b77fcb881d54de67f9a6f0d1ad5"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/omit/s0/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/handoff/omit/s0/run.json": {
         "bytes": 755,
         "provenance": null,
         "sha256": "5ec993d4ea2e19168eb3a4bfd6a23a99f44ae63aa721361bea0507fb1c7b173f"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/omit/s0/session.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/handoff/omit/s0/session.md": {
         "bytes": 18140,
         "provenance": null,
         "sha256": "0d7557c799918911f79bf1780867f126cdc7daf3c2e3fd1ffac2a1c41bb6ffb7"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/retain/s0/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/handoff/retain/s0/run.json": {
         "bytes": 759,
         "provenance": null,
         "sha256": "3c2b7d7aa7addd90d9d129ad9c851dd77f6deda3f9254eda057d441d54896eb8"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/retain/s0/session.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/handoff/retain/s0/session.md": {
         "bytes": 15235,
         "provenance": null,
         "sha256": "8751d45be332ed5d2c71f131bccdb89f76c66fcadb2d248e0313de9564d3c74c"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/generated-file/s0/run.json": {
-        "bytes": 777,
-        "provenance": null,
-        "sha256": "c186b8f36b89373e86a656e5cdfd8f580b046ffbf62ae4e40345ddc393e0b4cc"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/generated-file/s0/session.md": {
-        "bytes": 22211,
-        "provenance": null,
-        "sha256": "a113bb53dca5fddde5b94630db5aa148d694b55ec5a216157ede43a12889b7f2"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/generated-task/s0/run.json": {
-        "bytes": 777,
-        "provenance": null,
-        "sha256": "a0093b0f8edd1fd7bb3f2c7f2f802dca39f5739b2f6f116e7e6af071cdda3201"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/generated-task/s0/session.md": {
-        "bytes": 22780,
-        "provenance": null,
-        "sha256": "29e1ae0314aa36fdac334b1c2a70f0d541cc706add0aefb238f35aa9b03e8049"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/omit/s0/run.json": {
-        "bytes": 757,
-        "provenance": null,
-        "sha256": "2c1378a8895d08dd573b5811f2500d0c181f0f4bbf8689f2da8f80c24b9284c8"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/omit/s0/session.md": {
-        "bytes": 16351,
-        "provenance": null,
-        "sha256": "72189d332dbbd6740dc208b61333ec53235bde81befa5f8151d13ad218138bef"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/retain/s0/run.json": {
-        "bytes": 761,
-        "provenance": null,
-        "sha256": "50447dc463d31fbd9e3dd142c41414b63f804963f38009b21cee74d86050e9a8"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/retain/s0/session.md": {
-        "bytes": 17173,
-        "provenance": null,
-        "sha256": "242450b6429867c03543aa9fe72a240058453b9cab92bdea51670ca441a34af1"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md": {
-        "bytes": 18381,
-        "provenance": null,
-        "sha256": "5e2e98e9e78a050bc0abd8d456ca3cd9f2ff4452cd1e31f6aa18badc9875da35"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 743,
         "provenance": null,
         "sha256": "84894fb1bbefd8361f92a482747bd4a4eb2a3b9eaa52bbd05edc42b0c5235e19"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 28471,
         "provenance": null,
         "sha256": "a926afd1cf41bc2e7059a1451525fad4ba58cb72f821f5010a9d299a15c9ff8f"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 745,
-        "provenance": null,
-        "sha256": "b8c123706b85e45db7f73dee7ed61378748258ce62d4030d6b7bc70e8635c6c4"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 24443,
-        "provenance": null,
-        "sha256": "d6f219fa4566393cd838da6469b0336bba03e1cbbec3d9775bbea64aaa11065f"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/results.md": {
-        "bytes": 5524,
-        "provenance": null,
-        "sha256": "38d450293446e3d498c7e67fa4c32d7691a95d67303d033567b11c9e95ee8d67"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 741,
         "provenance": null,
         "sha256": "1303ad82a52bdfa1f21f74438f23fcbe8886164ae941ce6b998b160a0e0635b7"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 33633,
         "provenance": null,
         "sha256": "f2579baba315022504376c0e537965a5d2f4df292064d340c67ea33be8f919a2"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 743,
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/s0/assessment.md": {
+        "bytes": 1842,
         "provenance": null,
-        "sha256": "fa63311872e5448b3454a655f6cc9abc5a012fe892bbe52c0d32c2dc8f892e2e"
+        "sha256": "875f0591cfc316606ea9fb9e6631d70967fbad80e266fc8c72db5bc933de2437"
       },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 26152,
-        "provenance": null,
-        "sha256": "57d8fb1d0278e68e5619f24bde5cb607d5b6da373ea580847fc78d599dec1723"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/assessment/task-quality/results.md": {
-        "bytes": 10311,
-        "provenance": null,
-        "sha256": "c1ebb8f4ea1f9dbbdc8710419da6033b6bafaa6e96ad7ade203f63a2534b5a9c"
-      },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/s0/run.json": {
         "bytes": 1097,
         "provenance": null,
         "sha256": "fbbf0d0a959ec5d8cad6c3f2f5cedbe308c7389f171c5a6c848236c831901dfe"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/session.md": {
-        "bytes": 8339,
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/s0/session.md": {
+        "bytes": 8345,
         "provenance": null,
-        "sha256": "acca8bc3e6ecd54f2c77cfcc318add0843ce7a1d044dd614db9f0783e6f1a4a2"
+        "sha256": "3c13ab063c7a7913d7c15a9efce3857e95f1fe934997bea457122deda8bdc7bd"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/task-files/tasks/20260925-blog-archive-pagination.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/s0/task-files/tasks/20260925-blog-archive-pagination.md": {
         "bytes": 11817,
         "provenance": null,
         "sha256": "73879c2e6945d89eb275502fc607c967eee7d9129520f24efaeda830c4eb75a4"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/generated-plan/s0/assessment.md": {
+        "bytes": 1533,
+        "provenance": null,
+        "sha256": "9fe794ac3049167917d130583cb36eae75bacd1bd6b26dd6aec23594a03e4d87"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/generated-plan/s0/run.json": {
+        "bytes": 802,
+        "provenance": null,
+        "sha256": "37cf1ca1d90fd42b229e8d538329abad1724eb683737cf88e0712efea1c6a8be"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/generated-plan/s0/session.md": {
+        "bytes": 7750,
+        "provenance": null,
+        "sha256": "2b2b28978b52537d973e20f1eb28429a815480f31c0c7ecaaf19544eb2eedf4b"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/generated-plan/s0/task-files/tasks/20260926-blog-archive-pagination.md": {
+        "bytes": 12279,
+        "provenance": null,
+        "sha256": "4265629cf5998b09a66e7a505088eeca210ec568e6ce1c39cf2af64f358ea223"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/s0/assessment.md": {
+        "bytes": 2432,
+        "provenance": null,
+        "sha256": "e94a308e12ad0bc9c65f405f6f71747cf2d3aa2b72ef069dd1bcf3a7f0c30353"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/s0/run.json": {
         "bytes": 802,
         "provenance": null,
         "sha256": "20bc43dc63bc0a7e698cb6bbf927dd96cd6bde135a33491a12129754bb9162b3"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/session.md": {
-        "bytes": 11302,
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/s0/session.md": {
+        "bytes": 11308,
         "provenance": null,
-        "sha256": "c749c15faa230fdadc210e0f1608816a815022aff9b961eacdec69145f144b1c"
+        "sha256": "0a863869c6c119373f6e15aa26225b9fdcc838f08cd4359f97fde961be1bd004"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/s0/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
         "bytes": 1092,
         "provenance": null,
         "sha256": "892c6576b49ad050ab70395a262ef6b7b3baa84a10e0f2424a5145d0e4391a02"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/s0/assessment.md": {
+        "bytes": 2092,
+        "provenance": null,
+        "sha256": "7fa2faabce3acad1b73735dfe259d2ce5d5eb2edce850d9b3966598b6d2440b1"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/s0/run.json": {
         "bytes": 806,
         "provenance": null,
         "sha256": "9d96b9959c84fd220fe36386ffd271ddeb033ba4561571f2acdb40430d0f7093"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/session.md": {
-        "bytes": 7628,
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/s0/session.md": {
+        "bytes": 7634,
         "provenance": null,
-        "sha256": "724c76b9431ca5a73fc782f62f22e3a5b2ac3e6cf425c0424d29b50d69ea5270"
+        "sha256": "31861e22d0ddcf1ae0e0f8f4c64cbd093a377ca9285b69d7c48c9be47b8612d5"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/s0/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
         "bytes": 2363,
         "provenance": null,
         "sha256": "5af32c2a07194942163904dc9947ba8e78eb06a44e3012828cd1132d7a018fe9"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/s0/assessment.md": {
+        "bytes": 3701,
+        "provenance": null,
+        "sha256": "71df5e38da1a1be0ccbbe7c78cdcf0ef319f8894e5b953eac23e40b8289e57bf"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/s0/run.json": {
         "bytes": 791,
         "provenance": null,
         "sha256": "e9eb1d7877a973983f8056a68350a303776e1eb0d4d355481c4e471bf9fdf375"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/session.md": {
-        "bytes": 7822,
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/s0/session.md": {
+        "bytes": 7828,
         "provenance": null,
-        "sha256": "2f6f5e605a7bfd113f0b2d160ed3eccb90d4b81c943fc581b3a511b28a25c394"
+        "sha256": "e12d87123bd1e0dde3b52bbf8a5dae7febe32ba811cad68c68d765b99f9ed63d"
       },
-      "scenarios/tg01-eleventy-archive-handoff/glm-max/task-files/tasks/20260925-blog-archive-pagination.md": {
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/s0/task-files/tasks/20260925-blog-archive-pagination.md": {
         "bytes": 11817,
         "provenance": null,
         "sha256": "73879c2e6945d89eb275502fc607c967eee7d9129520f24efaeda830c4eb75a4"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/run.json": {
-        "bytes": 1613,
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/handoff/generated-file/s0/run.json": {
+        "bytes": 777,
         "provenance": null,
-        "sha256": "7ea198fbc7c0d53a95b3888af40c201e096354c120187b2086d5b4b5f32bdfca"
+        "sha256": "c186b8f36b89373e86a656e5cdfd8f580b046ffbf62ae4e40345ddc393e0b4cc"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/session.md": {
-        "bytes": 1595,
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/handoff/generated-file/s0/session.md": {
+        "bytes": 22211,
         "provenance": null,
-        "sha256": "cb1bd843dc89e62311f4f2501f5546f805df83dad0fc78f01c3e79f2d4d0cb70"
+        "sha256": "a113bb53dca5fddde5b94630db5aa148d694b55ec5a216157ede43a12889b7f2"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/task-files/tasks/20260926-blog-archive-pagination.md": {
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/handoff/generated-task/s0/run.json": {
+        "bytes": 777,
+        "provenance": null,
+        "sha256": "a0093b0f8edd1fd7bb3f2c7f2f802dca39f5739b2f6f116e7e6af071cdda3201"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/handoff/generated-task/s0/session.md": {
+        "bytes": 22780,
+        "provenance": null,
+        "sha256": "29e1ae0314aa36fdac334b1c2a70f0d541cc706add0aefb238f35aa9b03e8049"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/handoff/omit/s0/run.json": {
+        "bytes": 757,
+        "provenance": null,
+        "sha256": "2c1378a8895d08dd573b5811f2500d0c181f0f4bbf8689f2da8f80c24b9284c8"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/handoff/omit/s0/session.md": {
+        "bytes": 16351,
+        "provenance": null,
+        "sha256": "72189d332dbbd6740dc208b61333ec53235bde81befa5f8151d13ad218138bef"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/handoff/retain/s0/run.json": {
+        "bytes": 761,
+        "provenance": null,
+        "sha256": "50447dc463d31fbd9e3dd142c41414b63f804963f38009b21cee74d86050e9a8"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/handoff/retain/s0/session.md": {
+        "bytes": 17173,
+        "provenance": null,
+        "sha256": "242450b6429867c03543aa9fe72a240058453b9cab92bdea51670ca441a34af1"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 745,
+        "provenance": null,
+        "sha256": "b8c123706b85e45db7f73dee7ed61378748258ce62d4030d6b7bc70e8635c6c4"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 24443,
+        "provenance": null,
+        "sha256": "d6f219fa4566393cd838da6469b0336bba03e1cbbec3d9775bbea64aaa11065f"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 743,
+        "provenance": null,
+        "sha256": "fa63311872e5448b3454a655f6cc9abc5a012fe892bbe52c0d32c2dc8f892e2e"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 26152,
+        "provenance": null,
+        "sha256": "57d8fb1d0278e68e5619f24bde5cb607d5b6da373ea580847fc78d599dec1723"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/s0/assessment.md": {
+        "bytes": 2048,
+        "provenance": null,
+        "sha256": "d2fce0c401ce12c7b41d638c23f57ad05660d96cb2f2684244c7c86f4d8124e4"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/s0/run.json": {
+        "bytes": 1154,
+        "provenance": null,
+        "sha256": "92c2bbc4ef3a37150e0ca63f36cc208efa319ac607d4b66ce37c0db04376f217"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/s0/session.md": {
+        "bytes": 5802,
+        "provenance": null,
+        "sha256": "a976aba0ca6e4bbde0cf8c570f406492f59a0e17f0f5a54f174e74e307259f21"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/s0/task-files/tasks/20260926-blog-archive-pagination.md": {
         "bytes": 10183,
         "provenance": null,
         "sha256": "ec1c000cc4d05883096aafedb15b42f5b69922e1ff7aa6d785a94dbd0dbb1807"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/s1/invalid.md": {
+        "bytes": 1081,
+        "provenance": null,
+        "sha256": "ba86d02669f46cc8b0b42d2cca74920ab21534358e739663e3ced986aadae910"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/s1/run.json": {
+        "bytes": 1613,
+        "provenance": null,
+        "sha256": "7ea198fbc7c0d53a95b3888af40c201e096354c120187b2086d5b4b5f32bdfca"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/s1/session.md": {
+        "bytes": 1601,
+        "provenance": null,
+        "sha256": "6000fc370222826a5646c5ab7f320f0700f827716e0d249ff6018a2608b7a600"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/s1/task-files/tasks/20260926-blog-archive-pagination.md": {
+        "bytes": 10183,
+        "provenance": null,
+        "sha256": "ec1c000cc4d05883096aafedb15b42f5b69922e1ff7aa6d785a94dbd0dbb1807"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/generated-plan/s0/assessment.md": {
+        "bytes": 1666,
+        "provenance": null,
+        "sha256": "c698fd2acdf2d0279c5d2641f266f091fefe359bc8cc2e80946e877b1aa079ce"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/generated-plan/s0/run.json": {
+        "bytes": 581,
+        "provenance": null,
+        "sha256": "639db47a5ff79297bb6e811c5e3c4050af743f231305eee72d029f076ac379db"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/generated-plan/s0/session.md": {
+        "bytes": 8747,
+        "provenance": null,
+        "sha256": "6c0ced9644e337969fdec8c61a4364ce870cd531ddfd01223f58a4c68c084a1b"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/generated-plan/s0/task-files/tasks/20260926-blog-archive-pagination.md": {
+        "bytes": 7139,
+        "provenance": null,
+        "sha256": "9439cf7f85f7aacc0bb668cda89e6ee4b4019c2ffaabcd760a7f5792a2774859"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/s0/assessment.md": {
+        "bytes": 1901,
+        "provenance": null,
+        "sha256": "4a2ca7c5e2277c7913182691d1062a04069af4c0235667dd8cae448adafa65ee"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/s0/run.json": {
         "bytes": 902,
         "provenance": null,
         "sha256": "47e427f03bbefe941dd64bdcf64afbcd53c1e86194379b3c9114b7392c4c4290"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/session.md": {
-        "bytes": 12916,
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/s0/session.md": {
+        "bytes": 12922,
         "provenance": null,
-        "sha256": "d5def2c8f8988defb8e31f802c76395da924d9b89b34564a1df4fc4f274b97a4"
+        "sha256": "3030c8ec6174d1cacd3631f9f2d2fc333682917541d44c93ffd6b8fd89d6c962"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/s0/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
         "bytes": 1092,
         "provenance": null,
         "sha256": "892c6576b49ad050ab70395a262ef6b7b3baa84a10e0f2424a5145d0e4391a02"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/s0/assessment.md": {
+        "bytes": 1716,
+        "provenance": null,
+        "sha256": "17247bb973351c1028aa04b7a7b7415585447d76baff704de8af55c6618d64db"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/s0/run.json": {
         "bytes": 906,
         "provenance": null,
         "sha256": "52853e86900cb6da53c575ca1edc31e1d9e8c565eb389517a3c5ed8931780d2f"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/session.md": {
-        "bytes": 12644,
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/s0/session.md": {
+        "bytes": 12650,
         "provenance": null,
-        "sha256": "bfadffccfc40a88eb5db08d11b0dc2674626d092d2f722cb8a15e598c42b885b"
+        "sha256": "8635c5a3be40c2df2d0507c9dde552041b9c3291fe0095ace8f4b9572cae5cc4"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/s0/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
         "bytes": 2363,
         "provenance": null,
         "sha256": "5af32c2a07194942163904dc9947ba8e78eb06a44e3012828cd1132d7a018fe9"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/run.json": {
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/s0/assessment.md": {
+        "bytes": 3180,
+        "provenance": null,
+        "sha256": "f39e55e62cea5f95d6f62067a8e9768830d542e5bec16e98ce5003921fa654d9"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/s0/run.json": {
         "bytes": 892,
         "provenance": null,
         "sha256": "b2e834263da41540784fd68db709866a0a8dde499fb899c5a58aedc0144d059b"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/session.md": {
-        "bytes": 6343,
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/s0/session.md": {
+        "bytes": 6349,
         "provenance": null,
-        "sha256": "f96070ab35d3a6c489a7a2528f773a862ca52ac6827e8d72e00e7759a67725e5"
+        "sha256": "dd8fd82479bf92c871a58c8bc4d8c153a64abb74887c3ba3f8185d1e29640f10"
       },
-      "scenarios/tg01-eleventy-archive-handoff/gpt-high/task-files/tasks/20260926-blog-archive-pagination.md": {
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/s0/task-files/tasks/20260926-blog-archive-pagination.md": {
         "bytes": 10183,
         "provenance": null,
         "sha256": "ec1c000cc4d05883096aafedb15b42f5b69922e1ff7aa6d785a94dbd0dbb1807"
@@ -270,282 +370,387 @@
         "provenance": null,
         "sha256": "b9aa27ecfa3f9ddaf43f61ed6860f28930bab63e6321009822d54a1ab2af7ac2"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/generated-file/s0/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md": {
+        "bytes": 22356,
+        "provenance": null,
+        "sha256": "f3e1a5de63ec3186dff97ad1b7e61eb1da1a3de5f4c96f59fe2cabf5a6e65f38"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/results.md": {
+        "bytes": 6377,
+        "provenance": null,
+        "sha256": "2555882d92f814d4b2eb504057ce9a374f7084808b1e1d44a14b3ec855bd8b76"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-quality/results.md": {
+        "bytes": 11338,
+        "provenance": null,
+        "sha256": "710aa7d39597e10409369b2f2d75511a6ff26e65988adff681fb324a422e80a3"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/generated-file/s0/run.json": {
         "bytes": 777,
         "provenance": null,
         "sha256": "1d8785e496ab23726c7ef3f76bb66e392be71162a3e42d44fd6253808cc01854"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/generated-file/s0/session.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/generated-file/s0/session.md": {
         "bytes": 26844,
         "provenance": null,
         "sha256": "01dc869b82106bb9414618457beba734b8610d588deac10aa5a0a8f2ac2626c8"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/generated-task/s0/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/generated-task/s0/run.json": {
         "bytes": 777,
         "provenance": null,
         "sha256": "5249593b416efe78d22f9463557efb8f8862a2a9d9e5bab926672e678fe5c4d7"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/generated-task/s0/session.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/generated-task/s0/session.md": {
         "bytes": 25676,
         "provenance": null,
         "sha256": "f736b4bcebd3ad4eaa559da945879d0eed45508c12771b80deea37e5dfe4751c"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/incomplete/s0/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/incomplete/s0/run.json": {
         "bytes": 769,
         "provenance": null,
         "sha256": "5a2a09d9bd4235f41db6d5be02c149b2f68124ea5bb232f12ef7528f52d79a6b"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/incomplete/s0/session.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/incomplete/s0/session.md": {
         "bytes": 19239,
         "provenance": null,
         "sha256": "903b35d848b8c0691beab50bfa87f6d60692b58c13625929371864dd49450090"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/omit/s0/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/omit/s0/run.json": {
         "bytes": 757,
         "provenance": null,
         "sha256": "553c3a8f3094aca445073d0e44197f503382824623553ae842e920f498e7b6bd"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/omit/s0/session.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/omit/s0/session.md": {
         "bytes": 16958,
         "provenance": null,
         "sha256": "45e3617ce69299839704dea86044ce52f084c6e9c5d6a76d9c0174d305e007e8"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/retain/s0/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/retain/s0/run.json": {
         "bytes": 761,
         "provenance": null,
         "sha256": "28520be77e9dc5f2d729bf4165656fffe75d021a2865ddfe2c73560cde27e2ec"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/retain/s0/session.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/handoff/retain/s0/session.md": {
         "bytes": 14802,
         "provenance": null,
         "sha256": "67eb72195515483b13f71126262ba3d2f41493ca03471d25658e629c82b27121"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/generated-file/s0/run.json": {
-        "bytes": 779,
-        "provenance": null,
-        "sha256": "a0407f743697fc45cb6df36fa732d0eee4f7d9065caecf4a9df951aa253aa335"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/generated-file/s0/session.md": {
-        "bytes": 23317,
-        "provenance": null,
-        "sha256": "ef51fe528930e5b0563efaa460b1f346f093ff50e0d2d23cb870dd62d6ce5cc8"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/generated-task/s0/run.json": {
-        "bytes": 779,
-        "provenance": null,
-        "sha256": "f3e85295f2530fcf53b82683a9187be77ea779fe7146d9bcc1ba50b1a30a4c27"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/generated-task/s0/session.md": {
-        "bytes": 18380,
-        "provenance": null,
-        "sha256": "0c12256eb7e72daaea8d91a81612ffa32a25a540d09dcae44e4ff9641234cf8f"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/omit/s0/run.json": {
-        "bytes": 759,
-        "provenance": null,
-        "sha256": "aec4db97475fef3c018d919994b984d13fe77541327c3353bfba1c2e3f1035f3"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/omit/s0/session.md": {
-        "bytes": 15133,
-        "provenance": null,
-        "sha256": "3437673c376c2f35fb649c5c3cb2bc494dd58a6c763e24634a5e1882a7349b80"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/retain/s0/run.json": {
-        "bytes": 763,
-        "provenance": null,
-        "sha256": "8263a884a4646ca5ef315c6672eda42c32fbec6f4a3fb42a48d1ace541cc6b25"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/retain/s0/session.md": {
-        "bytes": 16771,
-        "provenance": null,
-        "sha256": "111d3222e36195cd8f78f1bea850c7609067ee52d0b56b61cfe8872f0f728957"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md": {
-        "bytes": 22208,
-        "provenance": null,
-        "sha256": "df4c8141bdf0837e6260198e984ac31e12efee5efe4fcc280d466e906b839c4e"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 745,
         "provenance": null,
         "sha256": "c76661f2363b75edcd07eac53117937da96c4a5ca5ccceb8a3d8d83497a4ac48"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 28190,
         "provenance": null,
         "sha256": "05589d5be5badc9278e7ac160b65988d5bde135f5f220fbe8a13b02e8b17a709"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 747,
-        "provenance": null,
-        "sha256": "802674a1e43644eb739ee2425956150f218709f7b807575ec2e4e0279087e1d2"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 21399,
-        "provenance": null,
-        "sha256": "83076b61492bdcbcd3a079b14489a7c5abf276bf64d57f6516412014ddf592e1"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/results.md": {
-        "bytes": 6224,
-        "provenance": null,
-        "sha256": "4a391ce6e887677708005f564c0c42ec76e5fd09149c270c2fb8b3930cf58da1"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 743,
         "provenance": null,
         "sha256": "ad5ff124df02125b2dd031711e3ce61308066fb27804b04c059fa5e0232e2bf8"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 32278,
         "provenance": null,
         "sha256": "2b5ea4ed385890aaae801df84239fa85a6af8ce92c7f31da9144c9edc3b7cf01"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 745,
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/s0/assessment.md": {
+        "bytes": 2149,
         "provenance": null,
-        "sha256": "ccf1bca120a229514ecdbcd842b365b2877236423b0346bd63bd453602cab748"
+        "sha256": "b3a402283880285b2694fbee9e42876bf8847ea800e940616e214b50d8aa8b6c"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 23824,
-        "provenance": null,
-        "sha256": "ceab4552b6b6cafe5edb757233fc75401935cb099209c5b561859473d71a7f9b"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-quality/results.md": {
-        "bytes": 11187,
-        "provenance": null,
-        "sha256": "61f03737792604ad71118214ff61e12a73295e8760f5ac8b5e24714e8de74147"
-      },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/s0/run.json": {
         "bytes": 1099,
         "provenance": null,
         "sha256": "7a06d8898076657d4c3b8f29d2cacff61292aa0e8a6a618caa2e71f64adc9fa0"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/session.md": {
-        "bytes": 7140,
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/s0/session.md": {
+        "bytes": 7146,
         "provenance": null,
-        "sha256": "c7761aa3bdb0ae3f8b9cc8ff0592002e4b68039a1300cfb278db3e140ffe48f4"
+        "sha256": "ef9cfeb3add21c281f32d1582a0e3c56957c1c6ea11061d2c2772bc2a3b77f53"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/task-files/tasks/20260925-notes-list-pagination.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/s0/task-files/tasks/20260925-notes-list-pagination.md": {
         "bytes": 12283,
         "provenance": null,
         "sha256": "6167cbb8156a4e23aae9ad4170f45a57c068a960ec9c1cca85d26bb3914c1764"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/s0/assessment.md": {
+        "bytes": 1879,
+        "provenance": null,
+        "sha256": "69bf01b9f364567447645b40eaef29ef6f1543862f53b73032dbcdeba5ca0e6e"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/s0/run.json": {
         "bytes": 810,
         "provenance": null,
         "sha256": "a70dcf2d96c55caf665dc6b9353d7f19c0bb932c5acf1184af127dcf20de7b06"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/session.md": {
-        "bytes": 13029,
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/s0/session.md": {
+        "bytes": 13035,
         "provenance": null,
-        "sha256": "1205ae539920ff98956c2f49f9732c0af339d626ae4699947f07a687e5ec0faa"
+        "sha256": "f01514f0ae38d97aa1f20df849ccc2ffe7ed7c407f0178a823118861f78724a0"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/s0/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
         "bytes": 695,
         "provenance": null,
         "sha256": "326edf9b43d750bbf23de6e5c2be782dd7ef0781173a2df85e923e04b1317f4c"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/generated-plan/s0/assessment.md": {
+        "bytes": 1620,
+        "provenance": null,
+        "sha256": "ea26ea04d420332ae8b31df43a7d9d654e760214d2bd467efe046f37c7c04f03"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/generated-plan/s0/run.json": {
+        "bytes": 802,
+        "provenance": null,
+        "sha256": "1b2e9fd67536eab6e1c52d362c34a2ff7c3116ddf3d186735557e4c35020da1f"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/generated-plan/s0/session.md": {
+        "bytes": 5801,
+        "provenance": null,
+        "sha256": "9f30de162544277df8ff4a97db13fc7456c416b5d976bb162244964939462a5f"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/generated-plan/s0/task-files/tasks/20260926-notes-list-pagination.md": {
+        "bytes": 13453,
+        "provenance": null,
+        "sha256": "4afb9fe3c3cae2db36f0c53cca02e123f76c8f559063d2fa7ff7308b4b3bb2d2"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/s0/assessment.md": {
+        "bytes": 1730,
+        "provenance": null,
+        "sha256": "f01a52924d1a6294105645a40d90999c4211cd0dcd904ff45ed3dba0fcc3649c"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/s0/run.json": {
         "bytes": 806,
         "provenance": null,
         "sha256": "f392950d930a41f504b78d554918cfda94d9a0033611e4213125a9d0c84b17db"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/session.md": {
-        "bytes": 12329,
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/s0/session.md": {
+        "bytes": 12335,
         "provenance": null,
-        "sha256": "3f7d65e01e6ac25caf9785971136a385f32207bad4a43b0af136e0cd70324e04"
+        "sha256": "43a56647556c7e77a5f318ef390ad6782b5ddb8276add0457b758a35d67bb2b2"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/s0/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
         "bytes": 985,
         "provenance": null,
         "sha256": "22918f7b6ddf71f04c674d8b6835f212b7f8d284c67367dcb6ee556db0bf53bc"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/s0/assessment.md": {
+        "bytes": 1711,
+        "provenance": null,
+        "sha256": "349b58e39002bd28392b0590ba2612732f01b239c046d151c22d7fce590f01cf"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/s0/run.json": {
         "bytes": 810,
         "provenance": null,
         "sha256": "7ffe44dbe812f467b21f4bb8d8414672b633dc74c5af7bb9a935e666ab000037"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/session.md": {
-        "bytes": 9036,
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/s0/session.md": {
+        "bytes": 9042,
         "provenance": null,
-        "sha256": "287d99d2e5966c5faef199598c5860bd02eb8b5c8d825ad7b186f1893099eea8"
+        "sha256": "7b14d8f80e41dc8939f3548955a1e7ac15591daa82c03964229a3a04ea70d459"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/s0/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
         "bytes": 2124,
         "provenance": null,
         "sha256": "4e25b7d3c18357766443009301dbda8a4efa40e600ff4de594045e51cdcc3f58"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/s0/assessment.md": {
+        "bytes": 3569,
+        "provenance": null,
+        "sha256": "be103b59cb1e303396a39b0a08241f938e351dc89f2eef03520585b289b23041"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/s0/run.json": {
         "bytes": 791,
         "provenance": null,
         "sha256": "f0e0b72d9c7ffc66269e1481ca7e5c9205894c403fea41f29e490f07af22d301"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/session.md": {
-        "bytes": 7946,
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/s0/session.md": {
+        "bytes": 7952,
         "provenance": null,
-        "sha256": "89cedf763e19fccede080c59cbc3bb466b12c4cb7554756b2a91ac38c56a9d09"
+        "sha256": "83b17c15cff3c67a6c0783df11c79460529b52e48449a402412369c46b6a1eb6"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/glm-max/task-files/tasks/20260925-notes-list-pagination.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/s0/task-files/tasks/20260925-notes-list-pagination.md": {
         "bytes": 12283,
         "provenance": null,
         "sha256": "6167cbb8156a4e23aae9ad4170f45a57c068a960ec9c1cca85d26bb3914c1764"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/run.json": {
-        "bytes": 1610,
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/handoff/generated-file/s0/run.json": {
+        "bytes": 779,
         "provenance": null,
-        "sha256": "fe24982f4719730ace5fab38a8dfe36379d9e85028b58ebd57fc540e3386592b"
+        "sha256": "a0407f743697fc45cb6df36fa732d0eee4f7d9065caecf4a9df951aa253aa335"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/session.md": {
-        "bytes": 1731,
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/handoff/generated-file/s0/session.md": {
+        "bytes": 23317,
         "provenance": null,
-        "sha256": "de2d35d44d017c97fe80e98a94e250c318268c057d1b01c85cee3415798ee666"
+        "sha256": "ef51fe528930e5b0563efaa460b1f346f093ff50e0d2d23cb870dd62d6ce5cc8"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/task-files/tasks/20260926-notes-pagination.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/handoff/generated-task/s0/run.json": {
+        "bytes": 779,
+        "provenance": null,
+        "sha256": "f3e85295f2530fcf53b82683a9187be77ea779fe7146d9bcc1ba50b1a30a4c27"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/handoff/generated-task/s0/session.md": {
+        "bytes": 18380,
+        "provenance": null,
+        "sha256": "0c12256eb7e72daaea8d91a81612ffa32a25a540d09dcae44e4ff9641234cf8f"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/handoff/omit/s0/run.json": {
+        "bytes": 759,
+        "provenance": null,
+        "sha256": "aec4db97475fef3c018d919994b984d13fe77541327c3353bfba1c2e3f1035f3"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/handoff/omit/s0/session.md": {
+        "bytes": 15133,
+        "provenance": null,
+        "sha256": "3437673c376c2f35fb649c5c3cb2bc494dd58a6c763e24634a5e1882a7349b80"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/handoff/retain/s0/run.json": {
+        "bytes": 763,
+        "provenance": null,
+        "sha256": "8263a884a4646ca5ef315c6672eda42c32fbec6f4a3fb42a48d1ace541cc6b25"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/handoff/retain/s0/session.md": {
+        "bytes": 16771,
+        "provenance": null,
+        "sha256": "111d3222e36195cd8f78f1bea850c7609067ee52d0b56b61cfe8872f0f728957"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 747,
+        "provenance": null,
+        "sha256": "802674a1e43644eb739ee2425956150f218709f7b807575ec2e4e0279087e1d2"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 21399,
+        "provenance": null,
+        "sha256": "83076b61492bdcbcd3a079b14489a7c5abf276bf64d57f6516412014ddf592e1"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 745,
+        "provenance": null,
+        "sha256": "ccf1bca120a229514ecdbcd842b365b2877236423b0346bd63bd453602cab748"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 23824,
+        "provenance": null,
+        "sha256": "ceab4552b6b6cafe5edb757233fc75401935cb099209c5b561859473d71a7f9b"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/s0/assessment.md": {
+        "bytes": 2235,
+        "provenance": null,
+        "sha256": "cae08d5efa303e47efd5e9ba7302f67ec8aa7b58e818591392340f6a8dbf90bd"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/s0/run.json": {
+        "bytes": 1151,
+        "provenance": null,
+        "sha256": "21489525f34f65dc33e8d650eea0b71a6045c2ab975c29e71e15072b28307627"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/s0/session.md": {
+        "bytes": 4663,
+        "provenance": null,
+        "sha256": "d44cea4d8a638d0d72d75b609e94823d3c097e5fbca4c7f98e6c1508a7fd5844"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/s0/task-files/tasks/20260926-notes-pagination.md": {
         "bytes": 6785,
         "provenance": null,
         "sha256": "d3c117d30f0c0bfcd34b4d88e1422f62ab192bfd2a69058224f7b574c0c71263"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/s1/invalid.md": {
+        "bytes": 1083,
+        "provenance": null,
+        "sha256": "b693985328b9197fe72da4394d0303c9dd8e75c8b8149aa41ae1417c72316da5"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/s1/run.json": {
+        "bytes": 1610,
+        "provenance": null,
+        "sha256": "fe24982f4719730ace5fab38a8dfe36379d9e85028b58ebd57fc540e3386592b"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/s1/session.md": {
+        "bytes": 1737,
+        "provenance": null,
+        "sha256": "75efed7b29f6afde8cdffd727daaf937fdb78447b49f0ec055bea60e44ec9f6a"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/s1/task-files/tasks/20260926-notes-pagination.md": {
+        "bytes": 6785,
+        "provenance": null,
+        "sha256": "d3c117d30f0c0bfcd34b4d88e1422f62ab192bfd2a69058224f7b574c0c71263"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/generated-plan/s0/assessment.md": {
+        "bytes": 1643,
+        "provenance": null,
+        "sha256": "c55536d46572e40e6dff000bd2309b8aab6a613b0ddd9c3e6d9d7044e8df0506"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/generated-plan/s0/run.json": {
+        "bytes": 576,
+        "provenance": null,
+        "sha256": "7882a73dda82eb5a8e42b3b2c0b928ed134ad9cacbadc31d7ed49cc22ebd0f2b"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/generated-plan/s0/session.md": {
+        "bytes": 10656,
+        "provenance": null,
+        "sha256": "e8057eb98a3177ed55246a18bd8b800da9972e89352a23e7b4e9963498b9eb42"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/generated-plan/s0/task-files/tasks/20260926-notes-pagination.md": {
+        "bytes": 6621,
+        "provenance": null,
+        "sha256": "faa103b36f360af20e2c1fa94e688a0358b55deb9d98e97046f68f103838b0e8"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/s0/assessment.md": {
+        "bytes": 1757,
+        "provenance": null,
+        "sha256": "784397d0724d023e279f884c08b410b3ed0bc14c66d314ab5dcbe0652c7e9845"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/s0/run.json": {
         "bytes": 906,
         "provenance": null,
         "sha256": "a298173a58f28373fc9775710b8cf8361b55ebee8c742d45798e584c461b5d09"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/session.md": {
-        "bytes": 13593,
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/s0/session.md": {
+        "bytes": 13599,
         "provenance": null,
-        "sha256": "29606a913e21e766efbbf3c8c2a2304d417d211bde2fefafd98046267723f3e5"
+        "sha256": "1ed23e7af25b8d787fb3c55674cb441d0475a6d48b37aa9f56b2ec4df25a7a9f"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/s0/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
         "bytes": 985,
         "provenance": null,
         "sha256": "22918f7b6ddf71f04c674d8b6835f212b7f8d284c67367dcb6ee556db0bf53bc"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/s0/assessment.md": {
+        "bytes": 1732,
+        "provenance": null,
+        "sha256": "50cec3933b33cd34557436eb8070bde12f11b46951395d3ef7b92f0f1bc24669"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/s0/run.json": {
         "bytes": 910,
         "provenance": null,
         "sha256": "7406eb17172463f7e38fa8129b74d6a3e79e0feacbc3c4af72be797571b222e3"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/session.md": {
-        "bytes": 10162,
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/s0/session.md": {
+        "bytes": 10168,
         "provenance": null,
-        "sha256": "e0652681b1439261d323c4e4586adbd0b6d9a8f49d5edf071a201d13988d879a"
+        "sha256": "d2af4d1b7790e1cb6a3905382a164a28f688a9eb541ea285036d51bfd9a36fa0"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/s0/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
         "bytes": 2124,
         "provenance": null,
         "sha256": "4e25b7d3c18357766443009301dbda8a4efa40e600ff4de594045e51cdcc3f58"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/run.json": {
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/s0/assessment.md": {
+        "bytes": 3843,
+        "provenance": null,
+        "sha256": "2d55b7ba188198fc344ed46f57e3a3ce96c326f1e31e3e8d09a9c1c86296c74c"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/s0/run.json": {
         "bytes": 887,
         "provenance": null,
         "sha256": "d641d3bba298ec9ac697ae6e04da2f3089b02b5ec813d6a393f39976bede799d"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/session.md": {
-        "bytes": 5759,
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/s0/session.md": {
+        "bytes": 5765,
         "provenance": null,
-        "sha256": "ade8a5f9810ef0ac515ee44592486c9ae3a61d83552024b2994cc05354db9669"
+        "sha256": "fcafde67f7214324ec5f27dda37a0b44e7ecadf781ad2a874fca490c4f72fe14"
       },
-      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/task-files/tasks/20260926-notes-pagination.md": {
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/s0/task-files/tasks/20260926-notes-pagination.md": {
         "bytes": 6785,
         "provenance": null,
         "sha256": "d3c117d30f0c0bfcd34b4d88e1422f62ab192bfd2a69058224f7b574c0c71263"
@@ -555,257 +760,357 @@
         "provenance": null,
         "sha256": "42185a6042a983b62d1f8c580ca873a78ef0754895b4c8b038dbe207ab22199a"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/generated-file/s0/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/results.md": {
+        "bytes": 20525,
+        "provenance": null,
+        "sha256": "283fb619ea51ce7d91738bedd8fe34010a576ac869a309964d115434bf31f363"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/results.md": {
+        "bytes": 5794,
+        "provenance": null,
+        "sha256": "b52abe940fc0485b4355068b40b92dc8a39204348b8f114d28c6560c3aaaf7c7"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-quality/results.md": {
+        "bytes": 10721,
+        "provenance": null,
+        "sha256": "bbab0b98430b3dc8d65404ef076f20cd2250783f15d9830f48aecb894cc285b6"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/handoff/generated-file/s0/run.json": {
         "bytes": 776,
         "provenance": null,
         "sha256": "375230f55f359277444a643a62a1a76823e60e43cdeb2207b446de9f9153e6a4"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/generated-file/s0/session.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/handoff/generated-file/s0/session.md": {
         "bytes": 21020,
         "provenance": null,
         "sha256": "65cde768715b73dfe4c9455087c50fa871b6b86bf85fda87f426a3b9f3fd8b10"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/generated-task/s0/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/handoff/generated-task/s0/run.json": {
         "bytes": 776,
         "provenance": null,
         "sha256": "9d49465a5b9c2911341416e77aa40543fa735374c587cfce92caed65da8b64c8"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/generated-task/s0/session.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/handoff/generated-task/s0/session.md": {
         "bytes": 21813,
         "provenance": null,
         "sha256": "4eff7f72a7b92c80c75f7a41e313a78bf04bc26a9bd4ac718bf249df7cf01644"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/omit/s0/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/handoff/omit/s0/run.json": {
         "bytes": 756,
         "provenance": null,
         "sha256": "b24677fc697cd1a97955ffe62c7f07f868e4eb1cb10cb33996f5c8d886e05bd1"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/omit/s0/session.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/handoff/omit/s0/session.md": {
         "bytes": 14679,
         "provenance": null,
         "sha256": "3e5502af03713caa7982643ff593d15cdc18f4f1d30fdb9d71a2a4e17eb45c7b"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/retain/s0/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/handoff/retain/s0/run.json": {
         "bytes": 760,
         "provenance": null,
         "sha256": "1548c5242396967509d5aac6be2703965e08892e3d428d7d6f217297998e4817"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/retain/s0/session.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/handoff/retain/s0/session.md": {
         "bytes": 15365,
         "provenance": null,
         "sha256": "37f9841a1b05fcef96536c4509bf5991bfb581a5d2bd920b3cf0e5f741e3f3ae"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/generated-file/s0/run.json": {
-        "bytes": 778,
-        "provenance": null,
-        "sha256": "134f0cb91500b635a259dc8f73ea6284755485fc038f2802a7586412cd406075"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/generated-file/s0/session.md": {
-        "bytes": 19303,
-        "provenance": null,
-        "sha256": "b6377f1a521efa21317d0908bd7f8f5cbd99defda4528a4e5bc83b41ec03d0d0"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/generated-task/s0/run.json": {
-        "bytes": 778,
-        "provenance": null,
-        "sha256": "e882c89ba8b96e567955b92c9095383d26fa6f9ba7a5adb9b3c1b5036488b334"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/generated-task/s0/session.md": {
-        "bytes": 20821,
-        "provenance": null,
-        "sha256": "d111eae0ff89326360e0965f8c2e40810a640e0c0efab7a5e59ec07990b5fb15"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/omit/s0/run.json": {
-        "bytes": 758,
-        "provenance": null,
-        "sha256": "2283ac1877367355bf6ef9a68d3a8b445ea81ffc1c4a0f57d99c7c1d069c8b95"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/omit/s0/session.md": {
-        "bytes": 16958,
-        "provenance": null,
-        "sha256": "fb66c1632e1f581714e87a978c30e082a2ada1ccde8501f594da73cbf1330148"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/retain/s0/run.json": {
-        "bytes": 762,
-        "provenance": null,
-        "sha256": "49b64fda65ee3e104b45dee8d875587fbfe03f6e7d53b3b84c04bbf06dc3d220"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/retain/s0/session.md": {
-        "bytes": 15429,
-        "provenance": null,
-        "sha256": "675182eea4e54dfc8f823a2ab7294d13ca3aae57205445c3f9d7eb315577c356"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/results.md": {
-        "bytes": 20377,
-        "provenance": null,
-        "sha256": "c0d06cdc2f0f3e44a4afdeea2ce8377e385771aafcf012ed127838e8ae5f3a92"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 744,
         "provenance": null,
         "sha256": "feaed6dc5f79e29e5a94ac4cec8e79f06391cef7d90ebef6c52ba8535ab9bef8"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 25110,
         "provenance": null,
         "sha256": "7dc1799a390e1d2d87b408e8be8fe1a802bfb6e95c1e589a4202842341ddcdac"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 746,
-        "provenance": null,
-        "sha256": "379f422843a08ea7bdc4985c41cdff1b6635134dab1b48ad65e11e93e40f42fc"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 22583,
-        "provenance": null,
-        "sha256": "d0d88e85372076c06e67b79fbb6188487a72d035155c4b578345a278eea73c96"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/results.md": {
-        "bytes": 5641,
-        "provenance": null,
-        "sha256": "2509d76b089f58db08d628543975d1924dc7414c2dae2c3347795f0d89aa7f64"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 742,
         "provenance": null,
         "sha256": "484d92446148d431639148e9eb1433a64fd7019fe2e0440d2f535b9bcb08bf0f"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 29795,
         "provenance": null,
         "sha256": "43eaaaf6deac0637d45f33eb452994d4f8c390d0fadeb4665ffdc2cc87431771"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 744,
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/s0/assessment.md": {
+        "bytes": 2232,
         "provenance": null,
-        "sha256": "79a395dfd5678061dce409cab796419fb128b94a53c5717e14d960f0a07cd962"
+        "sha256": "18a3f7370c47b71061ef7a1d5c2529617f49147b9f7bbd220424c1ee8df93773"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 26566,
-        "provenance": null,
-        "sha256": "918ce3384dfef6c1a10574d6d81a3b39e3d155514fe7b64b56e37114b150a4d5"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-quality/results.md": {
-        "bytes": 10570,
-        "provenance": null,
-        "sha256": "ddba85f3ab71134b25b99987c8ad752d726497414e77d0b208ace7f8af677eba"
-      },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/s0/run.json": {
         "bytes": 1101,
         "provenance": null,
         "sha256": "1aa838c74d1c28b3038f7c7c071e6439373b15ba91f720301db7ee4018027524"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/session.md": {
-        "bytes": 6359,
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/s0/session.md": {
+        "bytes": 6365,
         "provenance": null,
-        "sha256": "d9050a45c0da23c9a00dea4885db738ff7cd11f8540fb28659572f08f25ab40d"
+        "sha256": "93f68291753d11eca896cf53aa0e2720f25d07dacaf045b30868671d2506bb08"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/task-files/tasks/20260926-books-filter-crud-refresh.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/s0/task-files/tasks/20260926-books-filter-crud-refresh.md": {
         "bytes": 8895,
         "provenance": null,
         "sha256": "c80735bf00516e6df5c1ca09794245b0fbc3acba13db0976192e4f8d6a154014"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/generated-plan/s0/assessment.md": {
+        "bytes": 2136,
+        "provenance": null,
+        "sha256": "85db55245b1e7408a341c9dea69577cdd9793c03e1d6d1b0229399a4dbcab5b5"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/generated-plan/s0/run.json": {
+        "bytes": 800,
+        "provenance": null,
+        "sha256": "3d20f46bdbe4f1c97d1aede182364c923c60d6247c1fa29ce091f35396be6507"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/generated-plan/s0/session.md": {
+        "bytes": 7813,
+        "provenance": null,
+        "sha256": "5106654c61e246e97ac0efcde5bb47d1b64cd9332d42f7d104d174b70a91927f"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/generated-plan/s0/task-files/tasks/20260926-books-filter-refresh.md": {
+        "bytes": 8377,
+        "provenance": null,
+        "sha256": "bbc4a50ae9459ddaf6c766264f3a41301ac425db6848ef9b3b23a61a9efc1570"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/s0/assessment.md": {
+        "bytes": 2239,
+        "provenance": null,
+        "sha256": "e98eedcdebfbb3dcbf1fe6d517cbb4bd50daec96348073128952c26c6816208c"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/s0/run.json": {
         "bytes": 804,
         "provenance": null,
         "sha256": "c2e24d0e6078c1516938caf11d60b88faa01c03190842618dbaf9f9a520c53f8"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/session.md": {
-        "bytes": 8365,
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/s0/session.md": {
+        "bytes": 8371,
         "provenance": null,
-        "sha256": "652a99d9591b116d301f33cb13e6ee8f78c8335338df98188be3512784d80ec0"
+        "sha256": "a84eb59b39beadc4de6b1ba6ec79515ce1591bafc1e669fc85256a82205ec32e"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/s0/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
         "bytes": 944,
         "provenance": null,
         "sha256": "5ca27b0ab9354d3e9c43e2e434a543401a0cd5b2f289be587742820a42fd1e97"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/s0/assessment.md": {
+        "bytes": 1859,
+        "provenance": null,
+        "sha256": "349afc0a6902e4a2fc2e7221308c9023b226035b2f7ac3e13cf46a671fba0eb2"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/s0/run.json": {
         "bytes": 808,
         "provenance": null,
         "sha256": "3edf8db6d2ca4da5d0d89f1f338ae34a50e2108b68897ac94e775a022eadc0df"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/session.md": {
-        "bytes": 8970,
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/s0/session.md": {
+        "bytes": 8976,
         "provenance": null,
-        "sha256": "a876666a211bcf6e101c71c8a7d6518c04d4106a7776a9616f4dc247b676fc49"
+        "sha256": "411c8d991bd52603c513e5b343bf104039133e7d85d5176a6c8a9ac87d9a59e4"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/s0/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
         "bytes": 1907,
         "provenance": null,
         "sha256": "ac5034c5ffedaaf816bf918ec5819cc64ba8e896675f4ddb7b6e707e4df3c872"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/s0/assessment.md": {
+        "bytes": 2963,
+        "provenance": null,
+        "sha256": "76d8bcac3920ca3e65273760bdb42cdc48fdbdebca2bd548906dcc77bd270404"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/s0/run.json": {
         "bytes": 794,
         "provenance": null,
         "sha256": "8f8d6fe9f6549e64f0edc793fd586c7721bd233ed114ef6f7dea7c4a4cc8e7e4"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/session.md": {
-        "bytes": 7165,
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/s0/session.md": {
+        "bytes": 7171,
         "provenance": null,
-        "sha256": "4fb880945edbd1d919dd938ced213dfb61f3aedaf3d738bc3e0efe621a996b81"
+        "sha256": "c6c2d84960e0238bcde34bc00a925917b43dbc0d8f9981749bb2d6f455ae5eeb"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/task-files/tasks/20260926-books-filter-crud-refresh.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/s0/task-files/tasks/20260926-books-filter-crud-refresh.md": {
         "bytes": 8895,
         "provenance": null,
         "sha256": "c80735bf00516e6df5c1ca09794245b0fbc3acba13db0976192e4f8d6a154014"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/run.json": {
-        "bytes": 1624,
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/handoff/generated-file/s0/run.json": {
+        "bytes": 778,
         "provenance": null,
-        "sha256": "6f11b70ebaa9e0bbf1aab54250d224aae3b9176b481b915d80a42ac20c4200f8"
+        "sha256": "134f0cb91500b635a259dc8f73ea6284755485fc038f2802a7586412cd406075"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/session.md": {
-        "bytes": 1602,
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/handoff/generated-file/s0/session.md": {
+        "bytes": 19303,
         "provenance": null,
-        "sha256": "41b7d3d2b51561a9bc2304eb893f61a7c91d2f45e9f52dc7dc86c3a4e7d14d9d"
+        "sha256": "b6377f1a521efa21317d0908bd7f8f5cbd99defda4528a4e5bc83b41ec03d0d0"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/task-files/tasks/20260926-preserve-books-filter-after-crud.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/handoff/generated-task/s0/run.json": {
+        "bytes": 778,
+        "provenance": null,
+        "sha256": "e882c89ba8b96e567955b92c9095383d26fa6f9ba7a5adb9b3c1b5036488b334"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/handoff/generated-task/s0/session.md": {
+        "bytes": 20821,
+        "provenance": null,
+        "sha256": "d111eae0ff89326360e0965f8c2e40810a640e0c0efab7a5e59ec07990b5fb15"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/handoff/omit/s0/run.json": {
+        "bytes": 758,
+        "provenance": null,
+        "sha256": "2283ac1877367355bf6ef9a68d3a8b445ea81ffc1c4a0f57d99c7c1d069c8b95"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/handoff/omit/s0/session.md": {
+        "bytes": 16958,
+        "provenance": null,
+        "sha256": "fb66c1632e1f581714e87a978c30e082a2ada1ccde8501f594da73cbf1330148"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/handoff/retain/s0/run.json": {
+        "bytes": 762,
+        "provenance": null,
+        "sha256": "49b64fda65ee3e104b45dee8d875587fbfe03f6e7d53b3b84c04bbf06dc3d220"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/handoff/retain/s0/session.md": {
+        "bytes": 15429,
+        "provenance": null,
+        "sha256": "675182eea4e54dfc8f823a2ab7294d13ca3aae57205445c3f9d7eb315577c356"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 746,
+        "provenance": null,
+        "sha256": "379f422843a08ea7bdc4985c41cdff1b6635134dab1b48ad65e11e93e40f42fc"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 22583,
+        "provenance": null,
+        "sha256": "d0d88e85372076c06e67b79fbb6188487a72d035155c4b578345a278eea73c96"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 744,
+        "provenance": null,
+        "sha256": "79a395dfd5678061dce409cab796419fb128b94a53c5717e14d960f0a07cd962"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 26566,
+        "provenance": null,
+        "sha256": "918ce3384dfef6c1a10574d6d81a3b39e3d155514fe7b64b56e37114b150a4d5"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/s0/assessment.md": {
+        "bytes": 1891,
+        "provenance": null,
+        "sha256": "35d25a78ab8cb772ef769097b47590762b381fff54426ce144dbca765a3a5403"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/s0/run.json": {
+        "bytes": 1165,
+        "provenance": null,
+        "sha256": "76dff8552be25686afeece6d2eef2cfab1480d7a2d57a748d522d6d48baef93f"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/s0/session.md": {
+        "bytes": 4918,
+        "provenance": null,
+        "sha256": "73444ab816d715afcfba5a866537a6a60c94ce10c0e849a4e2a3a20a95151b8e"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/s0/task-files/tasks/20260926-preserve-books-filter-after-crud.md": {
         "bytes": 8879,
         "provenance": null,
         "sha256": "919bc9929c97c7750044b705a3c7b361907ed581dce979961fbe279a02636c22"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/s1/invalid.md": {
+        "bytes": 1082,
+        "provenance": null,
+        "sha256": "ab33f973344d4eeb397013dd80c1d8976c89cc472012420574de14b52ba8a627"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/s1/run.json": {
+        "bytes": 1624,
+        "provenance": null,
+        "sha256": "6f11b70ebaa9e0bbf1aab54250d224aae3b9176b481b915d80a42ac20c4200f8"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/s1/session.md": {
+        "bytes": 1608,
+        "provenance": null,
+        "sha256": "19db58ba9e97d76ac0c642e4fc1480ef04b53ab4fc3f6f12a908f7d0536c50f1"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/s1/task-files/tasks/20260926-preserve-books-filter-after-crud.md": {
+        "bytes": 8879,
+        "provenance": null,
+        "sha256": "919bc9929c97c7750044b705a3c7b361907ed581dce979961fbe279a02636c22"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/generated-plan/s0/assessment.md": {
+        "bytes": 1584,
+        "provenance": null,
+        "sha256": "736e08788a71f7c52531f7c5628cfc5cd05b26c858abaf8f0400f16584127177"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/generated-plan/s0/run.json": {
+        "bytes": 591,
+        "provenance": null,
+        "sha256": "b2494c44d8cd7715e2bf27281685038707d79edf527c8953b6611f654d651e9f"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/generated-plan/s0/session.md": {
+        "bytes": 5897,
+        "provenance": null,
+        "sha256": "c9c99e3b6dcb138db3bad276afc4c3105ff3b63a9a811f7f2277640bad2f133e"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/generated-plan/s0/task-files/tasks/20260926-preserve-books-filter-after-crud.md": {
+        "bytes": 6480,
+        "provenance": null,
+        "sha256": "5b63a20324022904dc125025071630f1f13727c8c56c81aa3948511f679b4431"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/s0/assessment.md": {
+        "bytes": 1880,
+        "provenance": null,
+        "sha256": "10b47c8078bdf11e5214fd4e2125e4e35676e22f1c9ca3832731988979e20062"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/s0/run.json": {
         "bytes": 904,
         "provenance": null,
         "sha256": "8affccae647ec9cc13b68ae910c1a6eff12f22c5f8a952ded0669984fb562c3e"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/session.md": {
-        "bytes": 11903,
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/s0/session.md": {
+        "bytes": 11909,
         "provenance": null,
-        "sha256": "a1bf72cfeb2222153dc52f165656cbe3c08071291b6e6b124ebf95c16cf9f641"
+        "sha256": "958cb7eae447eb1e3647526f49a5bcd92be5a0cb742caacde4e2114df85e5c83"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/s0/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
         "bytes": 944,
         "provenance": null,
         "sha256": "5ca27b0ab9354d3e9c43e2e434a543401a0cd5b2f289be587742820a42fd1e97"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/s0/assessment.md": {
+        "bytes": 1851,
+        "provenance": null,
+        "sha256": "225b5ae5b5d582fe080b73eb1cdbb51d57854ffbe029ad67b83d5f0d7ca3be2b"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/s0/run.json": {
         "bytes": 908,
         "provenance": null,
         "sha256": "cdc48597711888301f76c8a7e4742d91db8ffedb2897c4346f4a14c11f12d221"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/session.md": {
-        "bytes": 13773,
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/s0/session.md": {
+        "bytes": 13779,
         "provenance": null,
-        "sha256": "1d4410f2864ec373c27e22efda16226a7664c68069c0af61af034f254d5d80a7"
+        "sha256": "96f8f32c7d06856eeb9353b177aad45860ff7eba15fcc8901c86129ae9b4780c"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/s0/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
         "bytes": 1907,
         "provenance": null,
         "sha256": "ac5034c5ffedaaf816bf918ec5819cc64ba8e896675f4ddb7b6e707e4df3c872"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/run.json": {
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/s0/assessment.md": {
+        "bytes": 3749,
+        "provenance": null,
+        "sha256": "0d2c9d29e31e73f6c66df8b5fb1009122e08cb8c4d3492722c9fc12ddedfc3b7"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/s0/run.json": {
         "bytes": 902,
         "provenance": null,
         "sha256": "82af401cb015e074d312ed9583277efcfe6ec64ee05952c5af983bb58055e47c"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/session.md": {
-        "bytes": 5708,
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/s0/session.md": {
+        "bytes": 5714,
         "provenance": null,
-        "sha256": "b91b393790b231a66f3801ff90185f3aafe370a80eeb4e3ad1dff3b668e2c27c"
+        "sha256": "a5ca27d724094050c9001cdd6f5f2c17e842c3f4931822a32dea0618cc9fc8b7"
       },
-      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/task-files/tasks/20260926-preserve-books-filter-after-crud.md": {
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/s0/task-files/tasks/20260926-preserve-books-filter-after-crud.md": {
         "bytes": 8879,
         "provenance": null,
         "sha256": "919bc9929c97c7750044b705a3c7b361907ed581dce979961fbe279a02636c22"
@@ -815,177 +1120,197 @@
         "provenance": null,
         "sha256": "eef31367c0a55fe66baaea6e504100cb3e9a9b9de512b13df86d28ce8fd7c62b"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/results.md": {
+        "bytes": 17779,
+        "provenance": null,
+        "sha256": "aec0d5c3ec457d6b0ca9aeb856a4464ab7d6b97a6eba9cd47b7627044283fe3e"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/results.md": {
+        "bytes": 22145,
+        "provenance": null,
+        "sha256": "5c6fa171f0d41d3e2245d71c66c8762cc2c17e1cb208e35947352d301120870b"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 752,
         "provenance": null,
         "sha256": "fa2fb9a2ad34bff2fdfc8086f91d6009b9ed2113e3e5d927a58d9320ae549a9c"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 54162,
         "provenance": null,
         "sha256": "7a3f7347d725469868342e7467e55c9eda92be56ea30b5759bb0f4845551fd58"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 754,
-        "provenance": null,
-        "sha256": "30caee224b3f998019f1d487ee49cf0bf2895902321355e0c1acfee40071d487"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 29965,
-        "provenance": null,
-        "sha256": "4988b85970035499acf1a473a6ec1af3de412453c3839fd8d879c98db8336edb"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-max/s0/run.json": {
-        "bytes": 752,
-        "provenance": null,
-        "sha256": "c495d20cb6464cf2961719fc41eb4b736c263dabf1eaab2d44408b591ad07d08"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-max/s0/session.md": {
-        "bytes": 29735,
-        "provenance": null,
-        "sha256": "63181240e3d452f4a7d1e34cee7dbea720c975e14247d563e9aab71787a8ed04"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-xhigh/s0/run.json": {
-        "bytes": 756,
-        "provenance": null,
-        "sha256": "04711113b3b53dce2c6c67c174623ed05fae256d8a24472c6f0f3a4b8ba71119"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-xhigh/s0/session.md": {
-        "bytes": 43049,
-        "provenance": null,
-        "sha256": "6fbf477f2c61549a88ba6cd243676120a7d4724bf20990293588c89b57d9458f"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/results.md": {
-        "bytes": 17626,
-        "provenance": null,
-        "sha256": "beaf139011b3ea8d68e445d7970461b5747a89ff0428a61c67200c8686115449"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 750,
         "provenance": null,
         "sha256": "9dbca0b2dca7b6d5c00a1c016175bc16f974a0cac05d826b019d4cac38ea75a5"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 54530,
         "provenance": null,
         "sha256": "2a633014a1176d9020566c64d865c209d5d05e3671114007e46c1701a2f0148c"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 752,
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/s0/assessment.md": {
+        "bytes": 3587,
         "provenance": null,
-        "sha256": "72f2298fccb53003498c839fc6d62099eb79bf6f9c81635b2ce9374c12a4f752"
+        "sha256": "7ec2a7890bf509d26321658ae9635367a8daf096978079804712fa8cb79f0e3a"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 30870,
-        "provenance": null,
-        "sha256": "e04796373e3c16962b68446daae9cf73624c155a28f0f55aabef1d0c97675494"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/gpt-max/s0/run.json": {
-        "bytes": 750,
-        "provenance": null,
-        "sha256": "d546da87a9d908bb4779e4546851b4693ef05c4084df76916684bc5dc4255431"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/gpt-max/s0/session.md": {
-        "bytes": 33716,
-        "provenance": null,
-        "sha256": "3666da01ab2b5917c6986c834909b88643e1c3dca1505b4bcc3b203ebe5dca9a"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/gpt-xhigh/s0/run.json": {
-        "bytes": 754,
-        "provenance": null,
-        "sha256": "79f07b20216f03778d5db8010531933f5064350126b0ef9af2730c807ad8a06f"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/gpt-xhigh/s0/session.md": {
-        "bytes": 43335,
-        "provenance": null,
-        "sha256": "23988647353e4336fe2e9d8845c3dc245229b5a559149270175c2a3ed19034b0"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-quality/results.md": {
-        "bytes": 21994,
-        "provenance": null,
-        "sha256": "17aa503d6a7efa737d8b23c2b03eb214235ffe9b5e6e05e3cd587d845db6ad2e"
-      },
-      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/run.json": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/s0/run.json": {
         "bytes": 1050,
         "provenance": null,
         "sha256": "ac7397783c55d29ac66bd4386b0a9a6b85a9de8e4dac722d0be26a41cae74470"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/session.md": {
-        "bytes": 11231,
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/s0/session.md": {
+        "bytes": 11237,
         "provenance": null,
-        "sha256": "b6c2255fe111a4bda86e4b445163996601503192374859bd732af92486d61122"
+        "sha256": "7bd345606705097785ee2b24ea98022a0f629514fff1ab3739de147e80c563b1"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/task-files/tasks/20260926-books-page-discovery/000-main.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/s0/task-files/tasks/20260926-books-page-discovery/000-main.md": {
         "bytes": 13050,
         "provenance": null,
         "sha256": "91f04c569bbbe757a453483727576ab27af38a91e4b26d204d5575ec790cbf01"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/task-files/tasks/20260926-books-page-discovery/010-server-discovery-api.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/s0/task-files/tasks/20260926-books-page-discovery/010-server-discovery-api.md": {
         "bytes": 5003,
         "provenance": null,
         "sha256": "6f80f75872e72a077b6be88c680b4f5862a6a4e28fd32e9558d020b18e72e44a"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/task-files/tasks/20260926-books-page-discovery/020-client-discovery-view.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/s0/task-files/tasks/20260926-books-page-discovery/020-client-discovery-view.md": {
         "bytes": 6070,
         "provenance": null,
         "sha256": "0f155cee0698c0e3a84ffe3c45b489bcaa1e210f3be6285e6900e3c4c06db5f4"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/task-files/tasks/20260926-books-page-discovery/030-url-share-restore.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/s0/task-files/tasks/20260926-books-page-discovery/030-url-share-restore.md": {
         "bytes": 5276,
         "provenance": null,
         "sha256": "0d3e109a30a2f8e2ebfbcd006991239e7de338072ecf254641bb70bb7d8df343"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/run.json": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 754,
+        "provenance": null,
+        "sha256": "30caee224b3f998019f1d487ee49cf0bf2895902321355e0c1acfee40071d487"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 29965,
+        "provenance": null,
+        "sha256": "4988b85970035499acf1a473a6ec1af3de412453c3839fd8d879c98db8336edb"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 752,
+        "provenance": null,
+        "sha256": "72f2298fccb53003498c839fc6d62099eb79bf6f9c81635b2ce9374c12a4f752"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 30870,
+        "provenance": null,
+        "sha256": "e04796373e3c16962b68446daae9cf73624c155a28f0f55aabef1d0c97675494"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/s0/assessment.md": {
+        "bytes": 3547,
+        "provenance": null,
+        "sha256": "ceb9b88fc258097f2bbc7bdd766e440f52add73c47b828ea44d90997e463c7c7"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/s0/run.json": {
         "bytes": 893,
         "provenance": null,
         "sha256": "9d65cc927f02d413b059a526536de3091cf479c5a3ac924aa9e60341a1d03787"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/session.md": {
-        "bytes": 6668,
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/s0/session.md": {
+        "bytes": 6674,
         "provenance": null,
-        "sha256": "141321293d356a9185714db03706fd90ed5b74ac9334b7d36358397478fe4b19"
+        "sha256": "a1f861c829ebb964248925ca36386b694f0090cd4cb26738f3c91cc9eaf11bca"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/task-files/tasks/20260926-books-discovery.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/s0/task-files/tasks/20260926-books-discovery.md": {
         "bytes": 12199,
         "provenance": null,
         "sha256": "cbbf4e696813818bdfe02ea677179a78aea7cb7ec14e46b97f8b9794853ba4c8"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/run.json": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/assessment/task-creation/s0/run.json": {
+        "bytes": 752,
+        "provenance": null,
+        "sha256": "c495d20cb6464cf2961719fc41eb4b736c263dabf1eaab2d44408b591ad07d08"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/assessment/task-creation/s0/session.md": {
+        "bytes": 29735,
+        "provenance": null,
+        "sha256": "63181240e3d452f4a7d1e34cee7dbea720c975e14247d563e9aab71787a8ed04"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/assessment/task-quality/s0/run.json": {
+        "bytes": 750,
+        "provenance": null,
+        "sha256": "d546da87a9d908bb4779e4546851b4693ef05c4084df76916684bc5dc4255431"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/assessment/task-quality/s0/session.md": {
+        "bytes": 33716,
+        "provenance": null,
+        "sha256": "3666da01ab2b5917c6986c834909b88643e1c3dca1505b4bcc3b203ebe5dca9a"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/s0/assessment.md": {
+        "bytes": 3270,
+        "provenance": null,
+        "sha256": "c4c805f7d248493db9752f480f54b87cbe1938f150455f272d3007f50564e9d3"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/s0/run.json": {
         "bytes": 896,
         "provenance": null,
         "sha256": "e521a052d9b1bc777e4765f87e89e445ae242a3beb4a9b478c3606a1dd3375d7"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/session.md": {
-        "bytes": 8491,
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/s0/session.md": {
+        "bytes": 8497,
         "provenance": null,
-        "sha256": "237740d08f1378717d7b5f6705e5d6b77e19fc5fd60ffb40c7ff4eca063b6af6"
+        "sha256": "545cdfb35ab01595e6fc4348d973370804b458456b91582ee697874efa7bd76c"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/task-files/tasks/20260926-books-discovery-state.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/s0/task-files/tasks/20260926-books-discovery-state.md": {
         "bytes": 11551,
         "provenance": null,
         "sha256": "45d0bc6d4617ba18676e192b50f5bddd10c25b6ea468bb4a006100f89f937f9e"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/run.json": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/assessment/task-creation/s0/run.json": {
+        "bytes": 756,
+        "provenance": null,
+        "sha256": "04711113b3b53dce2c6c67c174623ed05fae256d8a24472c6f0f3a4b8ba71119"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/assessment/task-creation/s0/session.md": {
+        "bytes": 43049,
+        "provenance": null,
+        "sha256": "6fbf477f2c61549a88ba6cd243676120a7d4724bf20990293588c89b57d9458f"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/assessment/task-quality/s0/run.json": {
+        "bytes": 754,
+        "provenance": null,
+        "sha256": "79f07b20216f03778d5db8010531933f5064350126b0ef9af2730c807ad8a06f"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/assessment/task-quality/s0/session.md": {
+        "bytes": 43335,
+        "provenance": null,
+        "sha256": "23988647353e4336fe2e9d8845c3dc245229b5a559149270175c2a3ed19034b0"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/s0/assessment.md": {
+        "bytes": 3481,
+        "provenance": null,
+        "sha256": "38e3631a2c784da13077ce4eadf1aa16272428c3d665705bd46f7078c413d791"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/s0/run.json": {
         "bytes": 1070,
         "provenance": null,
         "sha256": "d83e77a70b29331127973d1bdb9fd3e554ea745352038402a349655feee2cc5b"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/session.md": {
-        "bytes": 7758,
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/s0/session.md": {
+        "bytes": 7764,
         "provenance": null,
-        "sha256": "5ea60722930bd7afa86cea99215a881f8b54ebc992c955f041fbf238db72340b"
+        "sha256": "44813caf90ee78f731bcfb56b089207522902cdbd4c5b5c96273965b34182747"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/task-files/tasks/20260926-books-discovery/000-main.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-books-discovery/000-main.md": {
         "bytes": 10003,
         "provenance": null,
         "sha256": "9c2d16e57cd03234dd469af26a5855257266ccc633a97732c10318a0fc86dfce"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/task-files/tasks/20260926-books-discovery/010-server-discovery-contract.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-books-discovery/010-server-discovery-contract.md": {
         "bytes": 4471,
         "provenance": null,
         "sha256": "c1555744483a19b260ea5ac5e52271aeaeb35a2a4dfb0873d14cbf4c0cdf9be1"
       },
-      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/task-files/tasks/20260926-books-discovery/020-books-page-discovery-state.md": {
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-books-discovery/020-books-page-discovery-state.md": {
         "bytes": 5712,
         "provenance": null,
         "sha256": "727a84688c47fd387a20868807986eda7096078141723598f17aa377271604f6"
@@ -995,217 +1320,237 @@
         "provenance": null,
         "sha256": "3b1b3c7cdf1d1fb1a13e291e7fe75eb823588090f5e8a70410a4b58c5ebd3895"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/results.md": {
+        "bytes": 16262,
+        "provenance": null,
+        "sha256": "1a49caca5b5e90784c97d3df65eb8130a04e713d29f9ae1ee4b904e319b10528"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/results.md": {
+        "bytes": 19720,
+        "provenance": null,
+        "sha256": "e096da8f5d0598f5cedd304772def1a958eb9913e5108f500e0fa57fb7f3319f"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 755,
         "provenance": null,
         "sha256": "c410f99a83ce2180df507dc6b7db2d0b70b7a4c9441423516d4573a0c95dc171"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 52967,
         "provenance": null,
         "sha256": "e5ab26528713dbc19607feba84f63c6f0cc763df9d4ad2e411fc71d0e92febde"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 757,
-        "provenance": null,
-        "sha256": "69fbbb8ad64f0f0bf32c957b28a8ef0f96a1ab03022ab22ae2e5ecdf519403b9"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 45197,
-        "provenance": null,
-        "sha256": "a1cfbde6f6c84212bb0191a29ec902faa5971e040da515d8143c1eaa8174848a"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-max/s0/run.json": {
-        "bytes": 755,
-        "provenance": null,
-        "sha256": "60bbd3a62721d86448d857dc6b387e2ce2f7acdb4f74e97fcb0be6bce2869578"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-max/s0/session.md": {
-        "bytes": 52504,
-        "provenance": null,
-        "sha256": "58fc62a61fcdea7e090f148ee76050af8057ffff2fc6154af557f2eaa41164fd"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-xhigh/s0/run.json": {
-        "bytes": 759,
-        "provenance": null,
-        "sha256": "a986732fffc3cca8bcd30a4e0fa45b8f176d8d155a529560033a9438a542b63c"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-xhigh/s0/session.md": {
-        "bytes": 44521,
-        "provenance": null,
-        "sha256": "055c69be580606c01246ab5f1045f895ef7c286dc86e714811f1f335a01d1bed"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/results.md": {
-        "bytes": 16109,
-        "provenance": null,
-        "sha256": "7e5b1ceb5e8c0659aab60e09a545b73c8d805ca4a7239283bb4f7c831f2955c3"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 753,
         "provenance": null,
         "sha256": "1050e3818b7f2815fb15f4efffae781fbe3a4c4e3cd35d48fb79fde8e460819f"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 52337,
         "provenance": null,
         "sha256": "f5b6ae0d61822d97eca1bc0dc70b2f3a7811a7645754e636c9a5368bbd4b375c"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 755,
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/s0/assessment.md": {
+        "bytes": 3638,
         "provenance": null,
-        "sha256": "3dfb7c2ce7b77257aac30b40ac6f01d9adc9dbb91b4e3cfd21d7f5039987399d"
+        "sha256": "62c152ae0a75b87387481276c2dd4b27d6af51b99993639a04cb73b0fd8ac26d"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 47497,
-        "provenance": null,
-        "sha256": "6002ea25f7e30265b88c684d4e3226a707fd7025d7317d596c166c136dcf59bf"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/gpt-max/s0/run.json": {
-        "bytes": 753,
-        "provenance": null,
-        "sha256": "ac2c4152c3f43d6f02246d10184dcd9356d69f7d6782b700c75e402c68cf5893"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/gpt-max/s0/session.md": {
-        "bytes": 52585,
-        "provenance": null,
-        "sha256": "e74d80a11f208c4904c2e1c26c51a662a11a7c3928a4e92ed56dc07cf946620e"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/gpt-xhigh/s0/run.json": {
-        "bytes": 757,
-        "provenance": null,
-        "sha256": "e2bb038bfaf7fc7abc13561c6da040c5de4c3e0594c4e389cf6753dc179ee948"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/gpt-xhigh/s0/session.md": {
-        "bytes": 47010,
-        "provenance": null,
-        "sha256": "6d7696eb90c640315357ad5ac40f5f6ef2ea97b2ff6805c28917804d8e48fdbd"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-quality/results.md": {
-        "bytes": 19568,
-        "provenance": null,
-        "sha256": "1fcff5239b60847baecffa61e6ff3e1399280841fd155998cec82e1f4673dc90"
-      },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/run.json": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/s0/run.json": {
         "bytes": 1081,
         "provenance": null,
         "sha256": "9ed4995ac72dfdd50daf6d3ce5278969444d2de11ba7f3fd3ad808efa4d96f35"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/session.md": {
-        "bytes": 10916,
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/s0/session.md": {
+        "bytes": 10922,
         "provenance": null,
-        "sha256": "c6d42fa655e3559b2f9b32688649355b3930742ed647042c4c41cf0cd7e7b523"
+        "sha256": "53b6a13e09ee23b2cffd952b5c550e78c6ced7ade148bf40a209bce4e6d32b26"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/task-files/tasks/20260926-notes-query-capability/000-main.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/s0/task-files/tasks/20260926-notes-query-capability/000-main.md": {
         "bytes": 15812,
         "provenance": null,
         "sha256": "8ff0c6f2973bde481e46f3d26ce59c9d310a68cff2e5c6aa71a9e9722a75fc7f"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/task-files/tasks/20260926-notes-query-capability/010-api-collection-query.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/s0/task-files/tasks/20260926-notes-query-capability/010-api-collection-query.md": {
         "bytes": 5284,
         "provenance": null,
         "sha256": "3691a6aca372b0ad3214a1723cbdff04c7e219b83dd44c0bfa756c37fef2ebb1"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/task-files/tasks/20260926-notes-query-capability/020-client-query-parameters.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/s0/task-files/tasks/20260926-notes-query-capability/020-client-query-parameters.md": {
         "bytes": 3153,
         "provenance": null,
         "sha256": "cabbec86b9dcdef834a8327fe234af3c0ec5f2e4843facec613704119856a1a8"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/task-files/tasks/20260926-notes-query-capability/030-cli-query-flags-and-production-path.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/s0/task-files/tasks/20260926-notes-query-capability/030-cli-query-flags-and-production-path.md": {
         "bytes": 4648,
         "provenance": null,
         "sha256": "d2a2b9e10023be56f70fba7b6d3cc2cacadab3336214c9ed5123e4a2a5a58bc0"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/run.json": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 757,
+        "provenance": null,
+        "sha256": "69fbbb8ad64f0f0bf32c957b28a8ef0f96a1ab03022ab22ae2e5ecdf519403b9"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 45197,
+        "provenance": null,
+        "sha256": "a1cfbde6f6c84212bb0191a29ec902faa5971e040da515d8143c1eaa8174848a"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 755,
+        "provenance": null,
+        "sha256": "3dfb7c2ce7b77257aac30b40ac6f01d9adc9dbb91b4e3cfd21d7f5039987399d"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 47497,
+        "provenance": null,
+        "sha256": "6002ea25f7e30265b88c684d4e3226a707fd7025d7317d596c166c136dcf59bf"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/s0/assessment.md": {
+        "bytes": 3349,
+        "provenance": null,
+        "sha256": "7d67003f0a5ca1faf73c2d1ec1dce32054e82dcec9f22906f976635bdf9af3fb"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/s0/run.json": {
         "bytes": 1116,
         "provenance": null,
         "sha256": "4d009a6741c2d8ee79c9d55f3fe8b350d661c7e023df2c701237b5b2f627abbe"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/session.md": {
-        "bytes": 9751,
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/s0/session.md": {
+        "bytes": 9757,
         "provenance": null,
-        "sha256": "8c16759154d4353108d593ec9fc75551d94f2da29da91677e26532db8da312f9"
+        "sha256": "0d94499852f77be34849c34fcd8c4521b2202eecc8e8a287527c6ab6540fc866"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/task-files/tasks/20260926-notes-query/000-main.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/s0/task-files/tasks/20260926-notes-query/000-main.md": {
         "bytes": 10006,
         "provenance": null,
         "sha256": "5c356a7a5d82ea8cac2abf28d221dd339923a8d75cdf3e9f48c9c336289bcfe5"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/task-files/tasks/20260926-notes-query/010-api-contract-and-service.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/s0/task-files/tasks/20260926-notes-query/010-api-contract-and-service.md": {
         "bytes": 5120,
         "provenance": null,
         "sha256": "094892f5499dc53280995f1e999d5e2e1101c322b24634bb7c6c8eca9dc2900f"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/task-files/tasks/20260926-notes-query/020-python-client.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/s0/task-files/tasks/20260926-notes-query/020-python-client.md": {
         "bytes": 4474,
         "provenance": null,
         "sha256": "399969b9407612ec6e141ea27739ebe0ca700e55d4c96dd7c70d0b9300830d4d"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/task-files/tasks/20260926-notes-query/030-cli-production-path.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/s0/task-files/tasks/20260926-notes-query/030-cli-production-path.md": {
         "bytes": 4982,
         "provenance": null,
         "sha256": "ab8b3cb263c29f816944186199f5958c2cd5cbf7a730793303b01c8199c08684"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/run.json": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/assessment/task-creation/s0/run.json": {
+        "bytes": 755,
+        "provenance": null,
+        "sha256": "60bbd3a62721d86448d857dc6b387e2ce2f7acdb4f74e97fcb0be6bce2869578"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/assessment/task-creation/s0/session.md": {
+        "bytes": 52504,
+        "provenance": null,
+        "sha256": "58fc62a61fcdea7e090f148ee76050af8057ffff2fc6154af557f2eaa41164fd"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/assessment/task-quality/s0/run.json": {
+        "bytes": 753,
+        "provenance": null,
+        "sha256": "ac2c4152c3f43d6f02246d10184dcd9356d69f7d6782b700c75e402c68cf5893"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/assessment/task-quality/s0/session.md": {
+        "bytes": 52585,
+        "provenance": null,
+        "sha256": "e74d80a11f208c4904c2e1c26c51a662a11a7c3928a4e92ed56dc07cf946620e"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/s0/assessment.md": {
+        "bytes": 3353,
+        "provenance": null,
+        "sha256": "0b571f2991555fb9ac721878f0ec1409d8f23c247d2c9c3d6bba19a4bf1cc5b1"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/s0/run.json": {
         "bytes": 1137,
         "provenance": null,
         "sha256": "50f19805e9d45d0c2ae229e6e4eb709b060819adae8698ac625295d946f4e151"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/session.md": {
-        "bytes": 9662,
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/s0/session.md": {
+        "bytes": 9668,
         "provenance": null,
-        "sha256": "a5bad808f480c7a89e47336a46f7b6109ccc1feaedb2fc1aa95935242be8a872"
+        "sha256": "f3bb3ae433fd94fed794d9dd744098e19cfb1f9a58ee91ea4e91455e868de40d"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/task-files/tasks/20260926-notes-query/000-main.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/s0/task-files/tasks/20260926-notes-query/000-main.md": {
         "bytes": 11358,
         "provenance": null,
         "sha256": "f40168681bf4ccbda9536e74fd106c5f2ca353af6c75ba3609e21a81718f1730"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/task-files/tasks/20260926-notes-query/010-contract.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/s0/task-files/tasks/20260926-notes-query/010-contract.md": {
         "bytes": 3993,
         "provenance": null,
         "sha256": "798737c944565d8d52fe50ca674ea2e9ea554e304223ae85802efcd131ee3272"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/task-files/tasks/20260926-notes-query/020-api.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/s0/task-files/tasks/20260926-notes-query/020-api.md": {
         "bytes": 4531,
         "provenance": null,
         "sha256": "5b92139421a9aa7e9ee3fbece371fe8c43d75127a83d2169da53366ddb292d5d"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/task-files/tasks/20260926-notes-query/030-python-client.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/s0/task-files/tasks/20260926-notes-query/030-python-client.md": {
         "bytes": 4008,
         "provenance": null,
         "sha256": "19a8b27a91fed5f314e186241b2c3f058cc01fd0b6e655e8a877128dd06d13fc"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/task-files/tasks/20260926-notes-query/040-cli.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/s0/task-files/tasks/20260926-notes-query/040-cli.md": {
         "bytes": 4996,
         "provenance": null,
         "sha256": "ec77695444c0a87370e49e813ea74b4cb3874778c7683f030d9f360e295319e5"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/run.json": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/assessment/task-creation/s0/run.json": {
+        "bytes": 759,
+        "provenance": null,
+        "sha256": "a986732fffc3cca8bcd30a4e0fa45b8f176d8d155a529560033a9438a542b63c"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/assessment/task-creation/s0/session.md": {
+        "bytes": 44521,
+        "provenance": null,
+        "sha256": "055c69be580606c01246ab5f1045f895ef7c286dc86e714811f1f335a01d1bed"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/assessment/task-quality/s0/run.json": {
+        "bytes": 757,
+        "provenance": null,
+        "sha256": "e2bb038bfaf7fc7abc13561c6da040c5de4c3e0594c4e389cf6753dc179ee948"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/assessment/task-quality/s0/session.md": {
+        "bytes": 47010,
+        "provenance": null,
+        "sha256": "6d7696eb90c640315357ad5ac40f5f6ef2ea97b2ff6805c28917804d8e48fdbd"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/s0/assessment.md": {
+        "bytes": 3246,
+        "provenance": null,
+        "sha256": "f20263fe84149f49727f106a71921809b6001341501d6593edaf79068fa46764"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/s0/run.json": {
         "bytes": 1132,
         "provenance": null,
         "sha256": "d4b46918384532b19b0a6b3e0319178ee9a822b87246b733d90590cfbb598041"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/session.md": {
-        "bytes": 8179,
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/s0/session.md": {
+        "bytes": 8185,
         "provenance": null,
-        "sha256": "312b368baf2bb36da12a1a1028d43149a0790ae55682e199755a621b86313bb5"
+        "sha256": "bd594fb4e62585879fe833b5dfd610f3dcc1c79c07d6eb452c13548fb614efd7"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/task-files/tasks/20260926-notes-query/000-main.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-notes-query/000-main.md": {
         "bytes": 8979,
         "provenance": null,
         "sha256": "8b42647242d0a31ff9f27d35a1b16726175af025849ec1bdf29c326b08369543"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/task-files/tasks/20260926-notes-query/010-public-api-contract-and-service.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-notes-query/010-public-api-contract-and-service.md": {
         "bytes": 4709,
         "provenance": null,
         "sha256": "8c9bad378144d39368903ba76f031815526508d53b9bb3e35db8567b6d4d8a36"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/task-files/tasks/20260926-notes-query/020-reusable-client.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-notes-query/020-reusable-client.md": {
         "bytes": 4077,
         "provenance": null,
         "sha256": "b99c269fbc48f4d51fef964b2885ca9dab6e70f107afe4c4db7f575f8b25d885"
       },
-      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/task-files/tasks/20260926-notes-query/030-cli-and-production-path.md": {
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-notes-query/030-cli-and-production-path.md": {
         "bytes": 4808,
         "provenance": null,
         "sha256": "8776d593775c23f94fb6ae0e1eeca8c3e7d9f7b539aa392814e29c2624adf41d"
@@ -1215,222 +1560,242 @@
         "provenance": null,
         "sha256": "8649ddc660e51010b47f0f268ea9745c4502afefcd6f1886b04203023abf6812"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/results.md": {
+        "bytes": 17676,
+        "provenance": null,
+        "sha256": "da80c77845a9106d5a6702796b944370a84c0de0ae603cfa5505790688fb61b2"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/results.md": {
+        "bytes": 19735,
+        "provenance": null,
+        "sha256": "036aa84bd6fe7f413f06275103088fe672e6ab916b3eace08b5e000f7c38d381"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 758,
         "provenance": null,
         "sha256": "260f840404cebf172d953fd75abe139644a175d8f3acf8f0b48fddfd504f378b"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 50191,
         "provenance": null,
         "sha256": "a54ca9099f8387a7c2716b0e2c9c9f71bf31c3f75c64526fc19ab09192b892cc"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 760,
-        "provenance": null,
-        "sha256": "2d64a6d16d241240ed705f5552b868ccbad8ae312c3d30d12af5ca287217e803"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 46197,
-        "provenance": null,
-        "sha256": "9a77acdb520dc72e1c5c3dcbd3c5cd18c6c43795916252c9323ea44a73e61af6"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-max/s0/run.json": {
-        "bytes": 758,
-        "provenance": null,
-        "sha256": "8e82d5a439a326ac07ef1fb95f6219236b7e94af33de4c81f9a152531c461301"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-max/s0/session.md": {
-        "bytes": 55623,
-        "provenance": null,
-        "sha256": "90635adb2cdd495cf067a5f0db42ff89034c16b36b2b6f8855ec6f0c4a010d34"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-xhigh/s0/run.json": {
-        "bytes": 762,
-        "provenance": null,
-        "sha256": "0dc37037cc98d029f3293c3bb5c887e3703ea57473ec407980ce06e8e80b2f65"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-xhigh/s0/session.md": {
-        "bytes": 46578,
-        "provenance": null,
-        "sha256": "9515061a20d1fd34fd968622df0de6be8873f70c50c0a72b139b326140ef900b"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/results.md": {
-        "bytes": 17523,
-        "provenance": null,
-        "sha256": "648a9512c6ab3e99019f971666263aabdefca338d62190783ddf9c88a151b53a"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 756,
         "provenance": null,
         "sha256": "efe6c9a3a4e1500aa0d0092f9b37904803b40c93c106cc15c7d5b6ab2b3ee04a"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 51523,
         "provenance": null,
         "sha256": "0a082f2567ccc3c9e852b5e92ed5f4d618e012b7edebf082b37bb10557665d7d"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 758,
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/s0/assessment.md": {
+        "bytes": 4307,
         "provenance": null,
-        "sha256": "ca0bf56d4e51a26915a163084775db0e25034b312941111e17c8c3be1bfe6d7b"
+        "sha256": "ac1386d70e9b387bc82c94d840093665a455d1df10a52b8fdc995779c682cd5a"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 47295,
-        "provenance": null,
-        "sha256": "5c16bdae9ef57ef0022625661d91a16ea730d4ca6db730fa69faeafd7f468cc5"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/gpt-max/s0/run.json": {
-        "bytes": 756,
-        "provenance": null,
-        "sha256": "7700eab054a6f1a692cb33f8dc70fad1d55c1f6a732c6cc46bccb5600edba348"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/gpt-max/s0/session.md": {
-        "bytes": 57718,
-        "provenance": null,
-        "sha256": "338fd337d3db89d1c5bcb155cc3530425d275eb59759bdc7ae851bb8d6679fae"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/gpt-xhigh/s0/run.json": {
-        "bytes": 760,
-        "provenance": null,
-        "sha256": "d561943725061305e04c819148f4310ade43e196b86c5e4bc5f3856ce5aacfc4"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/gpt-xhigh/s0/session.md": {
-        "bytes": 46579,
-        "provenance": null,
-        "sha256": "d9bd355873c754920a46a2142ac425eb52e3e94846187e66ba00a98e1c49e7b7"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-quality/results.md": {
-        "bytes": 19584,
-        "provenance": null,
-        "sha256": "67967a2ffe4368fbdb4baffa16098c48940e5b6d44489f6b7d3f98a6f060992f"
-      },
-      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/run.json": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/s0/run.json": {
         "bytes": 1078,
         "provenance": null,
         "sha256": "7b27d6dc418d2a2ebe7b55b924406cc3f89f56a73fb0c28d1efd5b8777dfb647"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/session.md": {
-        "bytes": 9157,
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/s0/session.md": {
+        "bytes": 9163,
         "provenance": null,
-        "sha256": "47988942fe6aee70af9321a9f6164058b5e4ce88d911b79c6f29061bbf5a6d90"
+        "sha256": "eb6ebb1e8c780f6c5e9ae3215ffbd282ed0444a58a979d5640815df859c8e837"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/task-files/tasks/20260926-author-metadata-migration/000-main.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/s0/task-files/tasks/20260926-author-metadata-migration/000-main.md": {
         "bytes": 10307,
         "provenance": null,
         "sha256": "edce19052ccfa85c125fc0b218029bf17c74d33f3a50e5513174267d876d43e5"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/task-files/tasks/20260926-author-metadata-migration/010-structured-authors-adoption.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/s0/task-files/tasks/20260926-author-metadata-migration/010-structured-authors-adoption.md": {
         "bytes": 7543,
         "provenance": null,
         "sha256": "8981ffdfb9071ecd855c5783ce39d7348d81b5495c316035ab6a351ff67f4d88"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/task-files/tasks/20260926-author-metadata-migration/020-content-migration.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/s0/task-files/tasks/20260926-author-metadata-migration/020-content-migration.md": {
         "bytes": 4242,
         "provenance": null,
         "sha256": "ddbfdd49699e4388d67661a5866f8e898a1104da81d624ba0ac915f2777db046"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/task-files/tasks/20260926-author-metadata-migration/030-legacy-rejection.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/s0/task-files/tasks/20260926-author-metadata-migration/030-legacy-rejection.md": {
         "bytes": 6314,
         "provenance": null,
         "sha256": "f21d02212af1d0a50e72f5f0cf69279699f4d693108bfa8a12cd8ff6561024ec"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/run.json": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 760,
+        "provenance": null,
+        "sha256": "2d64a6d16d241240ed705f5552b868ccbad8ae312c3d30d12af5ca287217e803"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 46197,
+        "provenance": null,
+        "sha256": "9a77acdb520dc72e1c5c3dcbd3c5cd18c6c43795916252c9323ea44a73e61af6"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 758,
+        "provenance": null,
+        "sha256": "ca0bf56d4e51a26915a163084775db0e25034b312941111e17c8c3be1bfe6d7b"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 47295,
+        "provenance": null,
+        "sha256": "5c16bdae9ef57ef0022625661d91a16ea730d4ca6db730fa69faeafd7f468cc5"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/s0/assessment.md": {
+        "bytes": 3692,
+        "provenance": null,
+        "sha256": "d9907e1034b6b31e4bb2ccf3649ab14d5566cf374f482444657361d42c7a9646"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/s0/run.json": {
         "bytes": 1274,
         "provenance": null,
         "sha256": "ef3fa7f3bc15a2335d28788e42e5c2468cf6d342ac85b76b200818b81d018b0c"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/session.md": {
-        "bytes": 8745,
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/s0/session.md": {
+        "bytes": 8751,
         "provenance": null,
-        "sha256": "8d582ab39611b7c3d87b86c9dd79a61d75d5f2f241226745c5e6ae6481c152da"
+        "sha256": "8c372921922fde66ed484d2cb3f858a7da6cb2ecdfbdc05f41cf787be3ebc8c4"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260925-author-metadata-migration/000-main.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/s0/task-files/tasks/20260925-author-metadata-migration/000-main.md": {
         "bytes": 7861,
         "provenance": null,
         "sha256": "ed1f363278c51c31be9b9d088bafb19b119ef9586dbbea959ade272ac4e2b793"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260925-author-metadata-migration/010-author-contract-and-content.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/s0/task-files/tasks/20260925-author-metadata-migration/010-author-contract-and-content.md": {
         "bytes": 3382,
         "provenance": null,
         "sha256": "585a342c19d8110911bb5a68baa70aa311f07af0ea03b0cbebac8d9f96dc157b"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260925-author-metadata-migration/020-rendering-and-generated-output.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/s0/task-files/tasks/20260925-author-metadata-migration/020-rendering-and-generated-output.md": {
         "bytes": 3945,
         "provenance": null,
         "sha256": "3a2127356ee135392dc8ba7d512ddef079d21f23c069a2834b689a45b859e9aa"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260925-author-metadata-migration/030-authoring-tool.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/s0/task-files/tasks/20260925-author-metadata-migration/030-authoring-tool.md": {
         "bytes": 2971,
         "provenance": null,
         "sha256": "24800b1e22cabece06d518fb94ed53265d59d2641efe21e3073dc0505670a574"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260925-author-metadata-migration/040-legacy-retirement.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/s0/task-files/tasks/20260925-author-metadata-migration/040-legacy-retirement.md": {
         "bytes": 3971,
         "provenance": null,
         "sha256": "ee1e2db55cb275e00c1c7daa59a8253c356c8155dc271dc5f71c1514e9072b0b"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/run.json": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/assessment/task-creation/s0/run.json": {
+        "bytes": 758,
+        "provenance": null,
+        "sha256": "8e82d5a439a326ac07ef1fb95f6219236b7e94af33de4c81f9a152531c461301"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/assessment/task-creation/s0/session.md": {
+        "bytes": 55623,
+        "provenance": null,
+        "sha256": "90635adb2cdd495cf067a5f0db42ff89034c16b36b2b6f8855ec6f0c4a010d34"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/assessment/task-quality/s0/run.json": {
+        "bytes": 756,
+        "provenance": null,
+        "sha256": "7700eab054a6f1a692cb33f8dc70fad1d55c1f6a732c6cc46bccb5600edba348"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/assessment/task-quality/s0/session.md": {
+        "bytes": 57718,
+        "provenance": null,
+        "sha256": "338fd337d3db89d1c5bcb155cc3530425d275eb59759bdc7ae851bb8d6679fae"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/s0/assessment.md": {
+        "bytes": 3433,
+        "provenance": null,
+        "sha256": "90d70f006d7b7599b8dd520c0f4840ea9ca37a1a1ae072e591ac5f304aec3d78"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/s0/run.json": {
         "bytes": 1253,
         "provenance": null,
         "sha256": "114e7bc37246ed8dcacd4a39cb1eb3187abb701152b47833f3af43ddb054ec9a"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/session.md": {
-        "bytes": 9351,
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/s0/session.md": {
+        "bytes": 9357,
         "provenance": null,
-        "sha256": "58a2fe67697d9aaaaf97f22d147ec2b9474e3dffd556832cc158c379544902f1"
+        "sha256": "c7139b1f7fbf43144f69db26a780e5252bd804d9d1fd2a18f4e8ed3dd8d320ce"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260926-author-metadata-migration/000-main.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/s0/task-files/tasks/20260926-author-metadata-migration/000-main.md": {
         "bytes": 12127,
         "provenance": null,
         "sha256": "33931b10b05dad922f911596abb80e9e1a234ee5574eaf01406fad43bed8657e"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260926-author-metadata-migration/010-schema-compatibility.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/s0/task-files/tasks/20260926-author-metadata-migration/010-schema-compatibility.md": {
         "bytes": 4853,
         "provenance": null,
         "sha256": "93a665e6edf3a8cb8703a241958c157b46fed289015c39046e1837324cde037b"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260926-author-metadata-migration/020-rendering-output.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/s0/task-files/tasks/20260926-author-metadata-migration/020-rendering-output.md": {
         "bytes": 5407,
         "provenance": null,
         "sha256": "afec723bc865f0b6d1dac5f50e745de6713c9fbfa9ca5894e658be57f0cc9fd4"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260926-author-metadata-migration/030-content-authoring.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/s0/task-files/tasks/20260926-author-metadata-migration/030-content-authoring.md": {
         "bytes": 5178,
         "provenance": null,
         "sha256": "97abeff2cc186367abc3a55f11b6c59706dc491404b6deec70acb5e906ea1094"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260926-author-metadata-migration/040-legacy-retirement.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/s0/task-files/tasks/20260926-author-metadata-migration/040-legacy-retirement.md": {
         "bytes": 6089,
         "provenance": null,
         "sha256": "7d277f886015777b8755d5f8a4140bb4060421c2d535b05310e295786048ebfa"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/run.json": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/assessment/task-creation/s0/run.json": {
+        "bytes": 762,
+        "provenance": null,
+        "sha256": "0dc37037cc98d029f3293c3bb5c887e3703ea57473ec407980ce06e8e80b2f65"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/assessment/task-creation/s0/session.md": {
+        "bytes": 46578,
+        "provenance": null,
+        "sha256": "9515061a20d1fd34fd968622df0de6be8873f70c50c0a72b139b326140ef900b"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/assessment/task-quality/s0/run.json": {
+        "bytes": 760,
+        "provenance": null,
+        "sha256": "d561943725061305e04c819148f4310ade43e196b86c5e4bc5f3856ce5aacfc4"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/assessment/task-quality/s0/session.md": {
+        "bytes": 46579,
+        "provenance": null,
+        "sha256": "d9bd355873c754920a46a2142ac425eb52e3e94846187e66ba00a98e1c49e7b7"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/s0/assessment.md": {
+        "bytes": 3498,
+        "provenance": null,
+        "sha256": "2761042560c1620825d7531722ee12a0e840c8ebdfe666d88b434cfb98787fd0"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/s0/run.json": {
         "bytes": 1172,
         "provenance": null,
         "sha256": "51ada8082d2485714590d477b41b2815479f7edcd600e5b238603e02f46755a0"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/session.md": {
-        "bytes": 9176,
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/s0/session.md": {
+        "bytes": 9182,
         "provenance": null,
-        "sha256": "a856bb5b07542331d430396c21218df0b8423827d0f9f3d15c17489703721861"
+        "sha256": "0693678cde8bbbdaa4bce3dc4606995bbff84cf25caa4e9a3aa3657c76731a51"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/task-files/tasks/20260926-author-metadata-migration/000-main.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-author-metadata-migration/000-main.md": {
         "bytes": 8120,
         "provenance": null,
         "sha256": "ad41d77502dc30480c8897eb9a20fc65d5cff35385c7221e6011aa628a9ac757"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/task-files/tasks/20260926-author-metadata-migration/010-source-and-authoring.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-author-metadata-migration/010-source-and-authoring.md": {
         "bytes": 4267,
         "provenance": null,
         "sha256": "34522ed3fe25cebf265f84f9f103f2f3b1df62fc9b125218e43c510738f5a8c6"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/task-files/tasks/20260926-author-metadata-migration/020-public-rendering.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-author-metadata-migration/020-public-rendering.md": {
         "bytes": 4774,
         "provenance": null,
         "sha256": "8432bee174316e7132de0d8416c8f5598b0cdb3693bfbea0658145f500f0708a"
       },
-      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/task-files/tasks/20260926-author-metadata-migration/030-legacy-cutover.md": {
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/s0/task-files/tasks/20260926-author-metadata-migration/030-legacy-cutover.md": {
         "bytes": 4976,
         "provenance": null,
         "sha256": "caeade443683b55bc5ba8d71bb0cc0813d399a37e6cbbbc88a65b857d0a45696"
@@ -1440,102 +1805,152 @@
         "provenance": null,
         "sha256": "2cd448c6c996fdd069ec20c498031a99808eee4ece2472ac31d993481e24b4db"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-creation/results.md": {
+        "bytes": 6763,
+        "provenance": null,
+        "sha256": "3d0d4b34d4660fcc4dc79247662846e86121cb2bc233bb72215c147f8382f7b1"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-quality/results.md": {
+        "bytes": 12852,
+        "provenance": null,
+        "sha256": "a93df7e295adfe3a5bba41d143a257bd6b73f71fd19f6f130c9e00c5bd4b28bf"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 749,
         "provenance": null,
         "sha256": "ddda80e5c37638d3918585d4e9abf4f2bcc66a0d2ff7e612241f7df56388e0e4"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 16128,
         "provenance": null,
         "sha256": "aed55650686acdb7eb79082a24b72d0e73102356e370f570c6fb119b4e8dacc8"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-creation/glm-max/s1/run.json": {
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/assessment/task-creation/s1/run.json": {
         "bytes": 749,
         "provenance": null,
         "sha256": "06b8292086641f75707bb74821af4d4c669b4ccce254d57fdafdd55d90f731a8"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-creation/glm-max/s1/session.md": {
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/assessment/task-creation/s1/session.md": {
         "bytes": 15659,
         "provenance": null,
         "sha256": "372b20b56b90d91d994d6f242177485878a60b5acf1857d7aedf908f877b2eea"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 751,
-        "provenance": null,
-        "sha256": "da296c7f23a5734a58a36b92f0a9e59e8830b8f5ab6e4a8b8790e8de15684c05"
-      },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 12777,
-        "provenance": null,
-        "sha256": "b5ba9d8f9431c2fb69960b25d038865766adf4d712e4972a220c03632f522841"
-      },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-creation/results.md": {
-        "bytes": 6609,
-        "provenance": null,
-        "sha256": "f2bf96b3a9fe13a9a758271033988e3800476bd50d640f621c986272b5b66c65"
-      },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 747,
         "provenance": null,
         "sha256": "b48d7da2981634dd31e6843b78a933e59eba2bad734f202d8017d103217eb8d4"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 18046,
         "provenance": null,
         "sha256": "54b5ffb700c6bebdf4fbcb00b4f60bf030816911d5667320e9b1e13d29fcfe43"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-quality/glm-max/s1/run.json": {
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/assessment/task-quality/s1/run.json": {
         "bytes": 747,
         "provenance": null,
         "sha256": "86c8e2b336ccd93ec15642cef7a9ddd8f575bd51359e996f99d5d099f5c4aad8"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-quality/glm-max/s1/session.md": {
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/assessment/task-quality/s1/session.md": {
         "bytes": 19193,
         "provenance": null,
         "sha256": "59b1c34ec3ca2d61d2de4b0d9aa883068ad84e29117bc9bb3ad3e4d3b399e82d"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 749,
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s0/assessment.md": {
+        "bytes": 3136,
         "provenance": null,
-        "sha256": "210c53c5d75aa23f342713dbfe8b6493be00b626f70dfe6ab69e4c6e8703c208"
+        "sha256": "27293aab182f44d05243e5c11f939485db8d637f96928b933660f9de63280184"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 13817,
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s0/run.json": {
+        "bytes": 803,
         "provenance": null,
-        "sha256": "9480da82f11bbfce42f3bf7b06dbaa7e30b11402fce4d40804761471bb21e00a"
+        "sha256": "387a126a2d773cab1745445bcf3e82f5261db1d170e8b75c498dc8019f9b1fa9"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/assessment/task-quality/results.md": {
-        "bytes": 12700,
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s0/session.md": {
+        "bytes": 4910,
         "provenance": null,
-        "sha256": "e2f6e3bf227d0db552f0dddabe83866df3c8ebd61da4221bb3f3130c999d36aa"
+        "sha256": "3cbdd72b8a128423f4e1f6d79f7ac6ac98b1054ea7e60a2b7101f0043113b737"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/run.json": {
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s0/task-files/tasks/20260926-blog-archive-fifteen-per-page.md": {
+        "bytes": 2377,
+        "provenance": null,
+        "sha256": "98b41f12aa435a87a0e0480d8035a8b320a04fb1406bf96e9f1d52efeb414dc9"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s1/assessment.md": {
+        "bytes": 3225,
+        "provenance": null,
+        "sha256": "f2d6889158283eb3cb29947619f22618741653a48cf62c5ad167e5205bd216e5"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s1/run.json": {
+        "bytes": 803,
+        "provenance": null,
+        "sha256": "64c8d42614131b0d492640d2cc3e7f22a66be8940e627ff26fdd7cee59b67c73"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s1/session.md": {
+        "bytes": 5235,
+        "provenance": null,
+        "sha256": "f04592bbf79912742d211019d331695583b7463565bcd678366e95dfdee650c1"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s1/task-files/tasks/20260926-blog-archive-fifteen-per-page.md": {
+        "bytes": 2469,
+        "provenance": null,
+        "sha256": "a47ca9cf6ab7a5a7ab3dba08812e2705e50204a9efe1b2c926cfe8c0197bd9d7"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s2/invalid.md": {
+        "bytes": 764,
+        "provenance": null,
+        "sha256": "1856c128b973b2529f24269c58ebd6cfb659457b5967a7488a23feea15415b17"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s2/run.json": {
         "bytes": 931,
         "provenance": null,
         "sha256": "8eed5fa883f9262a6ec5607e2b5b10b8e80930438e5c54581d49ac95206c0137"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/session.md": {
-        "bytes": 5137,
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s2/session.md": {
+        "bytes": 5143,
         "provenance": null,
-        "sha256": "85e387ed3dffd95b7446f73d8c8d81cc50c02d8ea3a24c7fb6e2324e3f8cb669"
+        "sha256": "aba977c65a32c9646ed9770e1f72e9d9c06f824690e83e67b7ba4c1762a82604"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/task-files/tasks/20260926-blog-archive-page-size.md": {
+      "scenarios/tg07-eleventy-decided-work-tracking/glm-max/s2/task-files/tasks/20260926-blog-archive-page-size.md": {
         "bytes": 2627,
         "provenance": null,
         "sha256": "e71c7044eaa6b105600e4525630c48cddf0a14406523ec0002b834f8102e51a8"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/run.json": {
+      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 751,
+        "provenance": null,
+        "sha256": "da296c7f23a5734a58a36b92f0a9e59e8830b8f5ab6e4a8b8790e8de15684c05"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 12777,
+        "provenance": null,
+        "sha256": "b5ba9d8f9431c2fb69960b25d038865766adf4d712e4972a220c03632f522841"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 749,
+        "provenance": null,
+        "sha256": "210c53c5d75aa23f342713dbfe8b6493be00b626f70dfe6ab69e4c6e8703c208"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 13817,
+        "provenance": null,
+        "sha256": "9480da82f11bbfce42f3bf7b06dbaa7e30b11402fce4d40804761471bb21e00a"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/s0/assessment.md": {
+        "bytes": 2590,
+        "provenance": null,
+        "sha256": "d9ff87a4af7a54f45a547da0f19000803b9630b3c148e876d62dbacedec404b9"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/s0/run.json": {
         "bytes": 898,
         "provenance": null,
         "sha256": "148770ee89a9ff4dfa254b3235b7e327097361b958e6df5e6659b3d6655b9961"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/session.md": {
-        "bytes": 4121,
+      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/s0/session.md": {
+        "bytes": 4127,
         "provenance": null,
-        "sha256": "f7b5854fef8daced98b5b290b9e4f98708ceabc1a91d660453b1c571a167b4de"
+        "sha256": "219541983ce538bfcf4746661b18787537e3bb39405ad9d46a413f53930ba63c"
       },
-      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/task-files/tasks/20260926-blog-archive-pagination.md": {
+      "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/s0/task-files/tasks/20260926-blog-archive-pagination.md": {
         "bytes": 717,
         "provenance": null,
         "sha256": "76b7e95ee6ee5b5df668e3543d8da8dd6a96b767ed84ece36f102fe757f0ec5e"
@@ -1545,82 +1960,92 @@
         "provenance": null,
         "sha256": "ffb63d36271e7b2743260be9a6334bb5a374bb4dccb023c9b110503e99cfe87f"
       },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg08-eleventy-contributor-docs/assessment/task-creation/results.md": {
+        "bytes": 4789,
+        "provenance": null,
+        "sha256": "8e49c14ce4dd571f061ad29a455448038132e34035db2c72ed1d55cbb30a615c"
+      },
+      "scenarios/tg08-eleventy-contributor-docs/assessment/task-quality/results.md": {
+        "bytes": 9560,
+        "provenance": null,
+        "sha256": "0008e9cafd92a81cc93f6068871c2a9bb99915a48cdca2f014042a83efe8b3cb"
+      },
+      "scenarios/tg08-eleventy-contributor-docs/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 744,
         "provenance": null,
         "sha256": "efec01e069f11a7db933f44c11178c61b19bbb8fc9cec1a9514fece19a160b94"
       },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg08-eleventy-contributor-docs/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 25562,
         "provenance": null,
         "sha256": "6c8cb5a3e417a4da69fe4902c51a5a4adf5520b44ef43b64113b55da7eda8c88"
       },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 746,
-        "provenance": null,
-        "sha256": "23a4b7a25a84b9aa94ff51478bec5ab6254e01c785c0059141e7df4f3c923750"
-      },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 17878,
-        "provenance": null,
-        "sha256": "de00815ee0b8525cd0db177992f79bace43a6f07d4d21a8398127210041717e0"
-      },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-creation/results.md": {
-        "bytes": 4636,
-        "provenance": null,
-        "sha256": "910298dc46d11a00d3870b096fe626c10f7635179bf4f15939d61e5aeaf69938"
-      },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg08-eleventy-contributor-docs/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 742,
         "provenance": null,
         "sha256": "eba317ac251206ce97d94e14a2d15466a934e4f81bc3d8d2b337a4851beba37e"
       },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg08-eleventy-contributor-docs/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 30766,
         "provenance": null,
         "sha256": "0b122780c57d9378fd05daac7b67e8dcfa2bbc2d12430175f21ad49bde6e1cd0"
       },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 744,
+      "scenarios/tg08-eleventy-contributor-docs/glm-max/s0/assessment.md": {
+        "bytes": 3126,
         "provenance": null,
-        "sha256": "94e4962c4e2894705c84fb6dd62f3960220acd63f53483c4073c265f1761a516"
+        "sha256": "fa9982157149bdec94e078bdccf7c7f12b20e644d382fc1345ce03ae860f18fa"
       },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 20192,
-        "provenance": null,
-        "sha256": "032b6f757ed506a3ed50439ce399c3df9e90165b71c6c1d2d5054b5edcf038d7"
-      },
-      "scenarios/tg08-eleventy-contributor-docs/assessment/task-quality/results.md": {
-        "bytes": 9409,
-        "provenance": null,
-        "sha256": "c4331400b265fbc05de923c40eee2305c4f74e0a6238f622831281b1745c0f34"
-      },
-      "scenarios/tg08-eleventy-contributor-docs/glm-max/run.json": {
+      "scenarios/tg08-eleventy-contributor-docs/glm-max/s0/run.json": {
         "bytes": 796,
         "provenance": null,
         "sha256": "38f81742299ca68dd2cb020fad3b3214a830572b65f063f3b277c0195551ce65"
       },
-      "scenarios/tg08-eleventy-contributor-docs/glm-max/session.md": {
-        "bytes": 12076,
+      "scenarios/tg08-eleventy-contributor-docs/glm-max/s0/session.md": {
+        "bytes": 12082,
         "provenance": null,
-        "sha256": "604d8e0ad89714743d3bd5d333706a65413075579ff7257f88349cbed07822e0"
+        "sha256": "971ed547477359b9edc341aa4a20651e2578a3c0fc9ff95a36cc348dc8137685"
       },
-      "scenarios/tg08-eleventy-contributor-docs/glm-max/task-files/tasks/20260926-contributing-guide-add-post.md": {
+      "scenarios/tg08-eleventy-contributor-docs/glm-max/s0/task-files/tasks/20260926-contributing-guide-add-post.md": {
         "bytes": 11137,
         "provenance": null,
         "sha256": "1d853b18659cabc2ba726b8fc62ee85f4a36797230b8fcc73db937344f32fc1d"
       },
-      "scenarios/tg08-eleventy-contributor-docs/gpt-high/run.json": {
+      "scenarios/tg08-eleventy-contributor-docs/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 746,
+        "provenance": null,
+        "sha256": "23a4b7a25a84b9aa94ff51478bec5ab6254e01c785c0059141e7df4f3c923750"
+      },
+      "scenarios/tg08-eleventy-contributor-docs/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 17878,
+        "provenance": null,
+        "sha256": "de00815ee0b8525cd0db177992f79bace43a6f07d4d21a8398127210041717e0"
+      },
+      "scenarios/tg08-eleventy-contributor-docs/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 744,
+        "provenance": null,
+        "sha256": "94e4962c4e2894705c84fb6dd62f3960220acd63f53483c4073c265f1761a516"
+      },
+      "scenarios/tg08-eleventy-contributor-docs/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 20192,
+        "provenance": null,
+        "sha256": "032b6f757ed506a3ed50439ce399c3df9e90165b71c6c1d2d5054b5edcf038d7"
+      },
+      "scenarios/tg08-eleventy-contributor-docs/gpt-high/s0/assessment.md": {
+        "bytes": 3032,
+        "provenance": null,
+        "sha256": "64a02e8a5e2c5de219c79329085ebd29d6027c2a1334721ec6c44bc4666f1a64"
+      },
+      "scenarios/tg08-eleventy-contributor-docs/gpt-high/s0/run.json": {
         "bytes": 893,
         "provenance": null,
         "sha256": "d63ba22dfcbe7b773264a0cbf8db7192cdb7baa506885e7976a5657aec3f44bd"
       },
-      "scenarios/tg08-eleventy-contributor-docs/gpt-high/session.md": {
-        "bytes": 6986,
+      "scenarios/tg08-eleventy-contributor-docs/gpt-high/s0/session.md": {
+        "bytes": 6992,
         "provenance": null,
-        "sha256": "ef9c85ce4a1c2076025fff96b654d3007d533e495566e8333192f82ec2a3a22b"
+        "sha256": "f5f0f6d56a63518ae61072c7c4af0cf73192c55f4c8f1087d0d4e7ebb1a9453c"
       },
-      "scenarios/tg08-eleventy-contributor-docs/gpt-high/task-files/tasks/20260926-contributor-guide-posts.md": {
+      "scenarios/tg08-eleventy-contributor-docs/gpt-high/s0/task-files/tasks/20260926-contributor-guide-posts.md": {
         "bytes": 5508,
         "provenance": null,
         "sha256": "da73ff9d18f3a746e0224e1126d2300e4d3f5b10d3f127ee674bdad8d8351796"
@@ -1630,82 +2055,92 @@
         "provenance": null,
         "sha256": "068a1308a6e38da5f4c448fa01402228dd1a2bc91a2d303368d7f59ee7637853"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-creation/results.md": {
+        "bytes": 5411,
+        "provenance": null,
+        "sha256": "310dd5dfc8d084b25dafdbed04d1a1950e6a3473344562f9475c5b637c4cf003"
+      },
+      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-quality/results.md": {
+        "bytes": 10528,
+        "provenance": null,
+        "sha256": "0c8fb29ad69270fd20801358dabd125834f8004d0f3586497b2ea34a28999c0d"
+      },
+      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 747,
         "provenance": null,
         "sha256": "d1e731817a4bd30f4f73f44de19c0f7fe5450d015a21cf4f2c4fd0c7792cbc2b"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 19680,
         "provenance": null,
         "sha256": "0360dc5d4d129135674457dc27520d3bd0c118eb8b9f487f915ebf9f705da342"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 749,
-        "provenance": null,
-        "sha256": "50c7d6ee624786aa35710386ac848406c7eb294fadce6250e42c7c593ab58134"
-      },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 22241,
-        "provenance": null,
-        "sha256": "a325beef97927aceddf0c6a3432945676eae48313ecb797fe76daa80c7512739"
-      },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-creation/results.md": {
-        "bytes": 5258,
-        "provenance": null,
-        "sha256": "fa26c398bbcc10c9b3d9303f219dd2442938a3ce179fc48a44a1c3b6ce233e0e"
-      },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 745,
         "provenance": null,
         "sha256": "ceca94ad4aa720a089640066370bc2d69d106041c30e67910859e21b67a2ace0"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 22407,
         "provenance": null,
         "sha256": "672364d8e98b4676ab41c66dd61e81bdba6921ac33ca41cdb5ef811c8b215c9b"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 747,
+      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/s0/assessment.md": {
+        "bytes": 3232,
         "provenance": null,
-        "sha256": "6019ad1332d91299e3754d2f616934f533d9fbb5dcb2240ffe75bd6d390b1048"
+        "sha256": "a9a7481885a90e49979e0a60ca566c6f1268e27328b925d6dcd8f2848fbad574"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 26051,
-        "provenance": null,
-        "sha256": "17d6be2e6aca25b196f9006b851c42135feeda5ae4f7d4093d51699ceac39ab0"
-      },
-      "scenarios/tg09-flask-vue-deployment-runbook/assessment/task-quality/results.md": {
-        "bytes": 10377,
-        "provenance": null,
-        "sha256": "eeb2215440f951ecc69906f76acb4ed4e4f5be704eec44d7c21942792c8857bf"
-      },
-      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/run.json": {
+      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/s0/run.json": {
         "bytes": 796,
         "provenance": null,
         "sha256": "c5fe3576fa46d35c19bb88ddc034b7efb13f9ab69ab9a7148e69d1e3b363e0b3"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/session.md": {
-        "bytes": 6100,
+      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/s0/session.md": {
+        "bytes": 6106,
         "provenance": null,
-        "sha256": "923cc53935df3824e54ffbff29bb26f7c2ca6c27557a661ab52ac913a82671a9"
+        "sha256": "af29f3d7a78782badf0e1bcdb33b4fd442c0c85a9b2214f372c2b9be457b4960"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/task-files/tasks/20260926-books-deployment-runbook.md": {
+      "scenarios/tg09-flask-vue-deployment-runbook/glm-max/s0/task-files/tasks/20260926-books-deployment-runbook.md": {
         "bytes": 5323,
         "provenance": null,
         "sha256": "786bd8521b9bb1046d8f2ab5b76561e6ff3764cfc59afb5eb807c2cebd8dab04"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/run.json": {
+      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 749,
+        "provenance": null,
+        "sha256": "50c7d6ee624786aa35710386ac848406c7eb294fadce6250e42c7c593ab58134"
+      },
+      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 22241,
+        "provenance": null,
+        "sha256": "a325beef97927aceddf0c6a3432945676eae48313ecb797fe76daa80c7512739"
+      },
+      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 747,
+        "provenance": null,
+        "sha256": "6019ad1332d91299e3754d2f616934f533d9fbb5dcb2240ffe75bd6d390b1048"
+      },
+      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 26051,
+        "provenance": null,
+        "sha256": "17d6be2e6aca25b196f9006b851c42135feeda5ae4f7d4093d51699ceac39ab0"
+      },
+      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/s0/assessment.md": {
+        "bytes": 3275,
+        "provenance": null,
+        "sha256": "ad36701e5f2ec17f7402c14f4ed7e5b700baad956ef77930df7c5e6023da0189"
+      },
+      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/s0/run.json": {
         "bytes": 891,
         "provenance": null,
         "sha256": "a4f063999e36aea8c44d97be9ca56c8eed41968b8cb315b6e22f86aefbfb782e"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/session.md": {
-        "bytes": 5923,
+      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/s0/session.md": {
+        "bytes": 5929,
         "provenance": null,
-        "sha256": "35ea5bf5f392cd95d80ca9e77a25b2424967407ecabd3cb59818fcf214178e3d"
+        "sha256": "1edde25b8d510a88fba434bd4ab0f0b4ca8437453ad9f39144df21a1d2c79084"
       },
-      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/task-files/tasks/20260926-deployment-runbook.md": {
+      "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/s0/task-files/tasks/20260926-deployment-runbook.md": {
         "bytes": 8880,
         "provenance": null,
         "sha256": "39a002e5d056505adf100a33d023be768a62a8c86adf63f4d831257272e21633"
@@ -1715,100 +2150,150 @@
         "provenance": null,
         "sha256": "ef2bd3e4880e53bbf851ac5db0dbefa0dfbbb5339296017c42f3fe36e1187602"
       },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-creation/glm-max/s0/run.json": {
+      "scenarios/tg10-flask-vue-interface-copy/assessment/task-creation/results.md": {
+        "bytes": 6772,
+        "provenance": null,
+        "sha256": "9109dcdfe5aa7ebf263cc2d71bca9dfcf87f86d0ef275ff7b0dfef70e404b6b1"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/assessment/task-quality/results.md": {
+        "bytes": 15288,
+        "provenance": null,
+        "sha256": "1e224a64accacaa32ab7f48481ceeb36006d22e4d29ad63d69449629267db162"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/glm-max/assessment/task-creation/s0/run.json": {
         "bytes": 743,
         "provenance": null,
         "sha256": "b9a384207e91744fa7418d953fad44a01d881bdbd7a248c41f20352cced9aa2f"
       },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-creation/glm-max/s0/session.md": {
+      "scenarios/tg10-flask-vue-interface-copy/glm-max/assessment/task-creation/s0/session.md": {
         "bytes": 19596,
         "provenance": null,
         "sha256": "31ec805ad615429667f86453671d9e45084bcf43aa222fda04bf160efbf56304"
       },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-creation/gpt-high/s0/run.json": {
-        "bytes": 745,
-        "provenance": null,
-        "sha256": "fafb672e811902b4887b2905cd6537edb1d36baf1c1cc3afc596967995da47f9"
-      },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-creation/gpt-high/s0/session.md": {
-        "bytes": 20561,
-        "provenance": null,
-        "sha256": "3ef597b8d9a15ca5c7bf55170aa65a93a3b256b08cc1037ca03117c2e414fed0"
-      },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-creation/gpt-high/s1/run.json": {
-        "bytes": 745,
-        "provenance": null,
-        "sha256": "a30c19088fb9e52f78308fa9ea5de7f1f2b90fc14b8eb49bede50594406aea8e"
-      },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-creation/gpt-high/s1/session.md": {
-        "bytes": 19043,
-        "provenance": null,
-        "sha256": "891843ce0a4a53808ac4ceca9a083e7e5d5712ba7f9e578e17fe38e10cfd36dd"
-      },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-creation/results.md": {
-        "bytes": 6619,
-        "provenance": null,
-        "sha256": "23fd1330bb18e89b6ec7a0bdf6664c6122ee69bc5dba34f597c706c06727f3b2"
-      },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-quality/glm-max/s0/run.json": {
+      "scenarios/tg10-flask-vue-interface-copy/glm-max/assessment/task-quality/s0/run.json": {
         "bytes": 741,
         "provenance": null,
         "sha256": "14063dd959bc31b2ecb323f39241259398ff8cc38f62542e08faaf180538d851"
       },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-quality/glm-max/s0/session.md": {
+      "scenarios/tg10-flask-vue-interface-copy/glm-max/assessment/task-quality/s0/session.md": {
         "bytes": 21516,
         "provenance": null,
         "sha256": "6d429f9c4a04d48c0fe47285d3406806058b18b58bec3cefe0e79c6b0f05bff8"
       },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-quality/gpt-high/s0/run.json": {
-        "bytes": 743,
+      "scenarios/tg10-flask-vue-interface-copy/glm-max/s0/assessment.md": {
+        "bytes": 3133,
         "provenance": null,
-        "sha256": "fa2279c63b2c1c118a5d3fee5d37964e6987eac60331624a459d107da1118e31"
+        "sha256": "897be48d96419dec32455c166425be7489595fc9f230e2b62b8ea029c8b78dc5"
       },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-quality/gpt-high/s0/session.md": {
-        "bytes": 24541,
-        "provenance": null,
-        "sha256": "b61f9940cb8698674e911e34afa87b4caf77e4558195173f6f3f1afa23bdc72b"
-      },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-quality/gpt-high/s1/run.json": {
-        "bytes": 743,
-        "provenance": null,
-        "sha256": "7298f197e246a96147bb0d4396192fc9a41428cf28ac712efb4c44575f69fc83"
-      },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-quality/gpt-high/s1/session.md": {
-        "bytes": 22048,
-        "provenance": null,
-        "sha256": "a777675579661567984c6293c087ff59fdd5d6bba46fe7b88622895256edb08a"
-      },
-      "scenarios/tg10-flask-vue-interface-copy/assessment/task-quality/results.md": {
-        "bytes": 15137,
-        "provenance": null,
-        "sha256": "f613c6186d378f114630a93661a15071b50176bc33c00b1d0f66a4e1d65656f7"
-      },
-      "scenarios/tg10-flask-vue-interface-copy/glm-max/run.json": {
+      "scenarios/tg10-flask-vue-interface-copy/glm-max/s0/run.json": {
         "bytes": 788,
         "provenance": null,
         "sha256": "fba7ee2ac6ccdec1d470853558b200b5b7e6295685cccaffe4e161b0a13b7e30"
       },
-      "scenarios/tg10-flask-vue-interface-copy/glm-max/session.md": {
-        "bytes": 7371,
+      "scenarios/tg10-flask-vue-interface-copy/glm-max/s0/session.md": {
+        "bytes": 7377,
         "provenance": null,
-        "sha256": "669aa3741a861cfb1bbeaa0f0589d6228def1c3276ab84d34d7ce133f409ba3d"
+        "sha256": "3baecf8db1865012533ba05635af5d6f89ce38875d9d530c0ffb361a985c8f66"
       },
-      "scenarios/tg10-flask-vue-interface-copy/glm-max/task-files/tasks/20260926-books-interface-copy.md": {
+      "scenarios/tg10-flask-vue-interface-copy/glm-max/s0/task-files/tasks/20260926-books-interface-copy.md": {
         "bytes": 5647,
         "provenance": null,
         "sha256": "bf694c815372e9de18580c5340a3b32d4d5f3c24f8133906f092898d8b2cb757"
       },
-      "scenarios/tg10-flask-vue-interface-copy/gpt-high/run.json": {
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/assessment/task-creation/s0/run.json": {
+        "bytes": 745,
+        "provenance": null,
+        "sha256": "fafb672e811902b4887b2905cd6537edb1d36baf1c1cc3afc596967995da47f9"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/assessment/task-creation/s0/session.md": {
+        "bytes": 20561,
+        "provenance": null,
+        "sha256": "3ef597b8d9a15ca5c7bf55170aa65a93a3b256b08cc1037ca03117c2e414fed0"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/assessment/task-creation/s1/run.json": {
+        "bytes": 745,
+        "provenance": null,
+        "sha256": "a30c19088fb9e52f78308fa9ea5de7f1f2b90fc14b8eb49bede50594406aea8e"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/assessment/task-creation/s1/session.md": {
+        "bytes": 19043,
+        "provenance": null,
+        "sha256": "891843ce0a4a53808ac4ceca9a083e7e5d5712ba7f9e578e17fe38e10cfd36dd"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/assessment/task-quality/s0/run.json": {
+        "bytes": 743,
+        "provenance": null,
+        "sha256": "fa2279c63b2c1c118a5d3fee5d37964e6987eac60331624a459d107da1118e31"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/assessment/task-quality/s0/session.md": {
+        "bytes": 24541,
+        "provenance": null,
+        "sha256": "b61f9940cb8698674e911e34afa87b4caf77e4558195173f6f3f1afa23bdc72b"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/assessment/task-quality/s1/run.json": {
+        "bytes": 743,
+        "provenance": null,
+        "sha256": "7298f197e246a96147bb0d4396192fc9a41428cf28ac712efb4c44575f69fc83"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/assessment/task-quality/s1/session.md": {
+        "bytes": 22048,
+        "provenance": null,
+        "sha256": "a777675579661567984c6293c087ff59fdd5d6bba46fe7b88622895256edb08a"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s0/assessment.md": {
+        "bytes": 3247,
+        "provenance": null,
+        "sha256": "1c8ec41a59e0c861cf18382a07aca259efa3c17b11af442a9dd4c4edcf1bdc21"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s0/run.json": {
+        "bytes": 889,
+        "provenance": null,
+        "sha256": "622d3bff6591e42e5b13ebabe33518d5a611507dc5445c4cc695566735dda984"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s0/session.md": {
+        "bytes": 7071,
+        "provenance": null,
+        "sha256": "999f3ce2139d5ad2723962b322b2fd1e5e4fa7ff4044f350490b41fcc5da8b3a"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s0/task-files/tasks/20260926-books-interface-copy.md": {
+        "bytes": 7612,
+        "provenance": null,
+        "sha256": "68630158a9636a08aa50ed6b3276ece6a05e2bd3bccccbc800d287aba8657f01"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s1/assessment.md": {
+        "bytes": 3095,
+        "provenance": null,
+        "sha256": "3b64d740003f55c83d32f200ca9d90765348a477f6c5134e14cee306b61d0514"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s1/run.json": {
+        "bytes": 891,
+        "provenance": null,
+        "sha256": "3677ca045975c305a0f4082873b67954e455c139c03b589c3cd2f1b7136bda27"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s1/session.md": {
+        "bytes": 5166,
+        "provenance": null,
+        "sha256": "4f6d59382dc31c4d1a081cd760ae12c039cab1f49566fbd5bbdeba054d38f75c"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s1/task-files/tasks/20260926-user-facing-books-copy.md": {
+        "bytes": 6620,
+        "provenance": null,
+        "sha256": "cb0c056c39693971d51429dcc48cc0bd77c5eea35df379e029e3167283ae4324"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s2/invalid.md": {
+        "bytes": 644,
+        "provenance": null,
+        "sha256": "35d251b7523a251b91813d0daf985da7f3079795d5273d25799dbfd85d1d76f6"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s2/run.json": {
         "bytes": 868,
         "provenance": null,
         "sha256": "8dcf66b2068c6129ce50edc89f00021a6f11dede0c0222798047daa5c96b1cfb"
       },
-      "scenarios/tg10-flask-vue-interface-copy/gpt-high/session.md": {
-        "bytes": 3578,
+      "scenarios/tg10-flask-vue-interface-copy/gpt-high/s2/session.md": {
+        "bytes": 3584,
         "provenance": null,
-        "sha256": "f6a13ea3ee66fca8d2bdff311a029a82df0ecad4eece3966d2cce5064b36b026"
+        "sha256": "1c696c1998ff6929cbb672f20bbfa02e138860c295a7d8e3879fc7b7aa57f931"
       },
       "scenarios/tg10-flask-vue-interface-copy/target.md": {
         "bytes": 915,
@@ -1908,164 +2393,204 @@
     },
     "generated": {
       "costs.csv": {
-        "bytes": 41063,
-        "sha256": "523a70017ec21fa77ad2f96ac5b393290a6e97d5273c8e93338e0be4b7c5ac5e"
+        "bytes": 44843,
+        "sha256": "da2ead31ccfd3c0ca22a5b9efdfa74a057e3b721785b7cd475656cff436bee59"
       },
       "costs.md": {
-        "bytes": 42324,
-        "sha256": "8b0b7193c865890e185feaadb6b8e5eb3d33d8e85d0a1cc104f8a866013d66df"
+        "bytes": 45376,
+        "sha256": "1435d1b1cb56348636155a6888eeefe544f5ad4f2fc9a697134060da017c2fb5"
       },
       "index.md": {
         "bytes": 2016,
         "sha256": "9a8f2985a795838630bfd20227afb342ff0e5f8b30e1ba08b455be633f22bdcc"
       },
       "matrix.md": {
-        "bytes": 23311,
-        "sha256": "c0492c858981ea2c67d61973e2e25c721ef8a9f57964d627c5688ff1cf95c229"
+        "bytes": 31562,
+        "sha256": "192a3010277f7482381ba5dcb43ea486822f8fa53c5269ddde2e918756999ef7"
       },
       "scenarios/tg01-eleventy-archive-handoff/glm-max/index.md": {
-        "bytes": 2035,
-        "sha256": "e81d8fcaefaa5e6e1749687ab5942691eb453859716c8415eb09912ac5b68f5d"
+        "bytes": 3632,
+        "sha256": "6846c304ffe213d88bedc30b253e5758b66a67f906e7606ad1960b56e829a6ee"
       },
       "scenarios/tg01-eleventy-archive-handoff/gpt-high/index.md": {
-        "bytes": 2519,
-        "sha256": "5b68801ec904c7eba95ba1e1722eefdddf772eb217a3dee4f95ad96caef1808a"
+        "bytes": 4618,
+        "sha256": "c91b960ce0c00789c13ca8a35e3a5b1b49ec75e02efd1ef2e9fc6c1ee3844a8d"
       },
       "scenarios/tg01-eleventy-archive-handoff/index.md": {
-        "bytes": 642,
-        "sha256": "ebcea309ef2fbb82ef29810de39368cf7dc979c2884b97f7f0214dafea3cf75e"
+        "bytes": 984,
+        "sha256": "46312a98b1527b57a28ea582fde9ed49cd5149e7d188e8b5f4168748ce2297b0"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/results.md": {
+        "bytes": 2618,
+        "sha256": "1dc77cd5fd2459da9b47e7f091caae74a99b7b1cd6c5aa0a1e2b399aaa9b97f7"
       },
       "scenarios/tg02-fastapi-pagination-handoff/glm-max/index.md": {
-        "bytes": 2455,
-        "sha256": "f3834c9799589333decc725e245f66df31962c1979200f9dfc254b66e787f2df"
+        "bytes": 4218,
+        "sha256": "a770f706d60f6395f02a55d9467b9069992aa470778dabc7a85a7e38e725d328"
       },
       "scenarios/tg02-fastapi-pagination-handoff/gpt-high/index.md": {
-        "bytes": 2503,
-        "sha256": "832ebce3d0e5d74b40af4f22ee41f9ec06a0037da293bcffa80da878c2502541"
+        "bytes": 4576,
+        "sha256": "95363022f3ca2f4f57577bfab9bf5ebfd121e0c72a4720e3d5ffbe0ac60e890e"
       },
       "scenarios/tg02-fastapi-pagination-handoff/index.md": {
-        "bytes": 655,
-        "sha256": "9871af4639212258963fd5a2cf4d2b69e4028412254b8a6b18fbc7d00356228f"
+        "bytes": 997,
+        "sha256": "b731cc2b73bf1e2fc0c6365ec50b798e3470c2fb2f2b5de790651b0e6ee5c6b0"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/results.md": {
+        "bytes": 2785,
+        "sha256": "10e8a7c38ee2c391315bb7d92b53eecb444e48d241001f3d1e7e5e07087e3667"
       },
       "scenarios/tg03-flask-vue-refresh-handoff/glm-max/index.md": {
-        "bytes": 2049,
-        "sha256": "00db55d802bc8ebd6601a98be54cd7b049db841a0299036d47454f78192d7596"
+        "bytes": 3640,
+        "sha256": "21ec570328c35b27bcdef4b58c642ba550277c185db2775e7659af0d3b8f2e00"
       },
       "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/index.md": {
-        "bytes": 2561,
-        "sha256": "b162fd58243470d0802474b3f6791030fb889dfbb44eed20e61d17053d3d842a"
+        "bytes": 4697,
+        "sha256": "220b6efbf34de5f1a014964d5b6dbd37d51b5c22db4dac92a4df8a32b45c59e8"
       },
       "scenarios/tg03-flask-vue-refresh-handoff/index.md": {
-        "bytes": 643,
-        "sha256": "18dfc121660fd4143e3eecc8a8937a0f7d5f7f12e9cf48d30de79793d3f4cbb2"
+        "bytes": 985,
+        "sha256": "ca0a7a659b00e660542f5402e49a1595248905fbf9882f98990133b83026401b"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/results.md": {
+        "bytes": 2620,
+        "sha256": "f532f211d523eec2a26c526463b01f4ccd79967023778c915dbe1c82c33a99e8"
       },
       "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/index.md": {
-        "bytes": 952,
-        "sha256": "3fe7e725aefcc6b1cc49e87584955e6a6a08062135c16e3a8e213b912dd8446a"
+        "bytes": 1443,
+        "sha256": "dcae24f5a983ced32647362e90e3910ab69f07a443e2fdd86e7dada8bb1c3f1f"
       },
       "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/index.md": {
-        "bytes": 599,
-        "sha256": "181b002842a6bd83116149dc2f53f0f124197baeba7dbab51172a9fd30409e53"
+        "bytes": 1081,
+        "sha256": "30be02afc130b8530f3e6b0725d505463e964a1b66fb031db02ec34d532711ec"
       },
       "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/index.md": {
-        "bytes": 608,
-        "sha256": "8a78162aefb9c06aa2e3cc858f34d2efd8077b7e2fe6f87cce76600a73fb833b"
+        "bytes": 1090,
+        "sha256": "9c21a94c3898dd7988103d692e866db5391a5bb4a881ff6ae34c4d340e698279"
       },
       "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/index.md": {
-        "bytes": 847,
-        "sha256": "79c0ef31bde0b0bbb15e6f64e92ec8573406b4c7d04958a8f1c95bf4ccf51704"
+        "bytes": 1335,
+        "sha256": "363763fb3207ace9c1aba114d157dcd1e39ecec3fbaeb1fe0457736745c21866"
       },
       "scenarios/tg04-flask-vue-discovery-decomposition/index.md": {
-        "bytes": 520,
-        "sha256": "f99b6474fc8cce236d9ed8b7c75e60d49093652d31b561ff6326d35cf1f22ed6"
+        "bytes": 786,
+        "sha256": "869e56874414f76fb7737af14a63b9aa1ba223f55b525c1414c67b5c81a26a1b"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/results.md": {
+        "bytes": 1505,
+        "sha256": "65b9a42a2fce44a5cf64af452fb00ebd6cfa64307ae71b9cfb55f89339248b68"
       },
       "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/index.md": {
-        "bytes": 1003,
-        "sha256": "8510542826ae5945ad88f777c94f8d47dc4376536abc1925827e1c16b868ee7d"
+        "bytes": 1494,
+        "sha256": "dbb379c721eab414b1ad6c3bee2f6e5b3997c4f024f64f4cb87f392ed7beb996"
       },
       "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/index.md": {
-        "bytes": 916,
-        "sha256": "da5e3d53d1e93d1b8a8bb241566cf824275a68578f1dae554b1d276a31286da8"
+        "bytes": 1407,
+        "sha256": "c7a4676b6babd8dd134e03756db0a7be76178839563c5c1bcc20918f30a81db2"
       },
       "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/index.md": {
-        "bytes": 926,
-        "sha256": "472844a5d28247be4d3afbe3b29b40154f83aa6cf59e49b110e3d94b4c702fdd"
+        "bytes": 1420,
+        "sha256": "42c157136ccdc4fcb99e9103fea94486f89a13b028b8c83b857d10f92e2bbf13"
       },
       "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/index.md": {
-        "bytes": 945,
-        "sha256": "947e49f3cbafbb24ad120fc44a51e0b473aad0ca04ee9fba744f3928301d7361"
+        "bytes": 1436,
+        "sha256": "b882559571d105c90114f34e89adeb51356ac9d573788792998172a149c403fa"
       },
       "scenarios/tg05-fastapi-multi-consumer-decomposition/index.md": {
-        "bytes": 523,
-        "sha256": "bb9f3d5c00f93b520495f786851f2a6d33674e1176b7cdb3f727f37ca1d5d51e"
+        "bytes": 789,
+        "sha256": "75007b8f6a5e4453c1a7c9b49a44a0dc2446ae9fd482cb68a880bd8485d14986"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/results.md": {
+        "bytes": 1505,
+        "sha256": "f1800b56935b8eec741a3124e288498bf240fe5bc5626e19299770fc6bbb95b1"
       },
       "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/index.md": {
-        "bytes": 982,
-        "sha256": "4ed4022ebb82d1be6d7db63e5793c9815571ea2e2f19cf0b94c855705c276b72"
+        "bytes": 1473,
+        "sha256": "990e044b4d5794de6300218b006d1c797284de087a794dcba2beafa62284b923"
       },
       "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/index.md": {
-        "bytes": 1124,
-        "sha256": "922b6aada5b68f67a3a59746249ceeaf00d275bab694f5ac7c9640f12aa0b48c"
+        "bytes": 1618,
+        "sha256": "9763ebdfa72b9a3e18641cda8468b6a10efd24f567ab9d56d7832e03606d0846"
       },
       "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/index.md": {
-        "bytes": 1085,
-        "sha256": "d77ef9bfa085a4c9eddab4efba2e4516213ee25edefdecbf24d472a71846e293"
+        "bytes": 1579,
+        "sha256": "719caf24823e1765f4655755023b0ef42256bbde410269d3f30cb2b395686731"
       },
       "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/index.md": {
-        "bytes": 966,
-        "sha256": "2e935546b44774ef7ee19a6b8e49377857f0ed4c9faef7f25ee2e911c247e82a"
+        "bytes": 1457,
+        "sha256": "5f6f94e5b208da2c228f9bfc081cb0e07d4d1fbc505a58c6638c9045d45b1b27"
       },
       "scenarios/tg06-eleventy-author-migration-decomposition/index.md": {
-        "bytes": 526,
-        "sha256": "ec7b57483df8d58df8a5825730c096e9efea6c1b2c13fd45da09f7728e2e511f"
+        "bytes": 792,
+        "sha256": "5f85795e0e3c11fae7a59f657afe94a41253fc71c9f5c0b0745cdac743ef6028"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/results.md": {
+        "bytes": 1505,
+        "sha256": "679a09dd30628bbf9cda6a28c2fffce6fd7236761f177a0ae9e77419fd4870c5"
       },
       "scenarios/tg07-eleventy-decided-work-tracking/glm-max/index.md": {
-        "bytes": 755,
-        "sha256": "74aa15308dddaa4674a0ecb37fce62294c4d5573fc5be7563eacffa77e912482"
+        "bytes": 2317,
+        "sha256": "87a600b1423c2cc014187545ea3b79805d16ccad04044d43a0431e99161733c0"
       },
       "scenarios/tg07-eleventy-decided-work-tracking/gpt-high/index.md": {
-        "bytes": 612,
-        "sha256": "8f9a924eec32a786669fed35396671a54db9417a9a65466fbd72db07b2415f46"
+        "bytes": 1094,
+        "sha256": "b275c2330300a059d6aac6ae553a55547daa1954ba4b4ba22fee9c7da58ecfe5"
       },
       "scenarios/tg07-eleventy-decided-work-tracking/index.md": {
-        "bytes": 409,
-        "sha256": "5cd1e441b2d9495f8bc13636dfdaaea46a66b95ba1b1bffbca1b4a73d5124511"
+        "bytes": 709,
+        "sha256": "9b57a2088789ec14fb4906b1754c83bdb3f0d02cf58c242fb420df0d6f4770a5"
+      },
+      "scenarios/tg07-eleventy-decided-work-tracking/results.md": {
+        "bytes": 1376,
+        "sha256": "a0833b56b1c347c8f9ffa3e49f9910f0e84509475b7a10c8034ce52896fa58ea"
       },
       "scenarios/tg08-eleventy-contributor-docs/glm-max/index.md": {
-        "bytes": 614,
-        "sha256": "43813499e8e76da55e237d937f9646042929136fe1b2d947ce34ee765d17b579"
+        "bytes": 1096,
+        "sha256": "f9715baf9fd215a0b8b5f62e6d7ab5e8f9506e684d58ee7a170170e6edfa7c7d"
       },
       "scenarios/tg08-eleventy-contributor-docs/gpt-high/index.md": {
-        "bytes": 607,
-        "sha256": "cdf93c89ab0ebe29c1c5822b99aca5eeb9aeda7c6b51fcb606dd733ba8499f38"
+        "bytes": 1089,
+        "sha256": "133f77123ee2087bf67293c72d27317f89eecd1f57c6d75d913da23b8b8256a9"
       },
       "scenarios/tg08-eleventy-contributor-docs/index.md": {
-        "bytes": 404,
-        "sha256": "05abb912571996c761efc98ce7716a56b4f2cb4cd215a08ddf252708eb48374f"
+        "bytes": 670,
+        "sha256": "d3502db3c69761735b785a3e46c8f1f84b0995a9fb7bcb676022a1fa877f3251"
+      },
+      "scenarios/tg08-eleventy-contributor-docs/results.md": {
+        "bytes": 983,
+        "sha256": "da71589f08064cae13bca92c59ff601d19ce05dc65e67400c758617a5c466ab9"
       },
       "scenarios/tg09-flask-vue-deployment-runbook/glm-max/index.md": {
-        "bytes": 611,
-        "sha256": "908260be1479b88106955419f1f215cb039d980b3a6a6a9e3b0447ae7ab89b90"
+        "bytes": 1093,
+        "sha256": "24aede116139639936f6f3a99f8fa935e9da454752609f7979e5dd948324508a"
       },
       "scenarios/tg09-flask-vue-deployment-runbook/gpt-high/index.md": {
-        "bytes": 600,
-        "sha256": "20f921ed6f73d2092f96fc5cf1e15e1c69bd75b62f3e075eb07ab3023df9a80a"
+        "bytes": 1082,
+        "sha256": "b48f57cee77afa87f2fea12f8fa7a014be7899b52cd122daa545bc41b21cabc0"
       },
       "scenarios/tg09-flask-vue-deployment-runbook/index.md": {
-        "bytes": 407,
-        "sha256": "61203d987799515dfd4573565db72f9572195e6e201b960d929664d404669e12"
+        "bytes": 673,
+        "sha256": "6a34ed46faaa7367f0e3a5eb01ce34da69f0d2e73d225dcf9078cc7182db59c3"
+      },
+      "scenarios/tg09-flask-vue-deployment-runbook/results.md": {
+        "bytes": 990,
+        "sha256": "c54494c6587040fd1ac79ed79a3163833b0fed911005aa68096ac3066cd157f3"
       },
       "scenarios/tg10-flask-vue-interface-copy/glm-max/index.md": {
-        "bytes": 599,
-        "sha256": "cf49cc2dcb32fd4159148074caeed7437e0cc49fdb6cbb6bb8fd74d0b79e6099"
+        "bytes": 1081,
+        "sha256": "b5d4a0f20c8ec91a16724578c14c3cce9d7ae4dda3fdf725cecd558151660e52"
       },
       "scenarios/tg10-flask-vue-interface-copy/gpt-high/index.md": {
-        "bytes": 549,
-        "sha256": "b5290f2557c1015cce1a6f8abdb08f1ee9c255a801374b3be4dc11fe5e859980"
+        "bytes": 2088,
+        "sha256": "608fa4184a8badd07ca999843d7db2d26c6a6146097205ce6679e8b3ea0285ef"
       },
       "scenarios/tg10-flask-vue-interface-copy/index.md": {
-        "bytes": 403,
-        "sha256": "b39934ed962af92aa68240298db564b48c2f41a2cbdad6f3f246205b2615f134"
+        "bytes": 703,
+        "sha256": "9a681e2b43fe1284e718372f6b31083cca2a6ada304cbd5a3d65e144a39b738b"
+      },
+      "scenarios/tg10-flask-vue-interface-copy/results.md": {
+        "bytes": 1364,
+        "sha256": "034cb39c66242c9921b599f2026fcf1a7a8f5fe348bb9892691276acfc985400"
       }
     }
   },
@@ -2181,6 +2706,29 @@
       }
     },
     {
+      "kind": "generated-plan",
+      "label": "tg01-eleventy-archive-handoff generated-plan glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260926T094145.923213Z-task-guidance-generated-tg01-eleventy-archive-handoff-max-9171a293",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
       "kind": "task-creation",
       "label": "tg01-eleventy-archive-handoff task-creation gpt high",
       "model": "gpt-5.6-luna",
@@ -2270,6 +2818,52 @@
         "provider_reported_cost": null,
         "provider_reported_cost_cumulative": null,
         "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "continuation",
+      "label": "tg01-eleventy-archive-handoff continuation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260926T053405.643957Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-deea4f98",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 22647,
+        "input_tokens": 33817,
+        "output_tokens": 1130,
+        "provider_reported_cost": 0.020214700000000002,
+        "provider_reported_cost_cumulative": 0.2117439,
+        "reasoning_tokens": 230
+      }
+    },
+    {
+      "kind": "generated-plan",
+      "label": "tg01-eleventy-archive-handoff generated-plan gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260926T094535.471046Z-task-guidance-generated-tg01-eleventy-archive-handoff-high-9e0c2655",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 34809,
+        "input_tokens": 45648,
+        "output_tokens": 3247,
+        "provider_reported_cost": 0.033801899999999996,
+        "provider_reported_cost_cumulative": 0.033801899999999996,
+        "reasoning_tokens": 1120
       }
     },
     {
@@ -2664,6 +3258,29 @@
       }
     },
     {
+      "kind": "generated-plan",
+      "label": "tg02-fastapi-pagination-handoff generated-plan glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260926T095809.509383Z-task-guidance-generated-tg02-fastapi-pagination-handoff-max-1d0f0972",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
       "kind": "task-creation",
       "label": "tg02-fastapi-pagination-handoff task-creation gpt high",
       "model": "gpt-5.6-luna",
@@ -2753,6 +3370,52 @@
         "provider_reported_cost": null,
         "provider_reported_cost_cumulative": null,
         "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "continuation",
+      "label": "tg02-fastapi-pagination-handoff continuation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260926T053442.856561Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-3a051644",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 20965,
+        "input_tokens": 29765,
+        "output_tokens": 832,
+        "provider_reported_cost": 0.0158885,
+        "provider_reported_cost_cumulative": 0.16731049999999997,
+        "reasoning_tokens": 156
+      }
+    },
+    {
+      "kind": "generated-plan",
+      "label": "tg02-fastapi-pagination-handoff generated-plan gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260926T100052.656332Z-task-guidance-generated-tg02-fastapi-pagination-handoff-high-c97c20cc",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 24259,
+        "input_tokens": 35653,
+        "output_tokens": 3507,
+        "provider_reported_cost": 0.0348619,
+        "provider_reported_cost_cumulative": 0.0348619,
+        "reasoning_tokens": 672
       }
     },
     {
@@ -3147,6 +3810,29 @@
       }
     },
     {
+      "kind": "generated-plan",
+      "label": "tg03-flask-vue-refresh-handoff generated-plan glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260926T122324.231857Z-task-guidance-generated-tg03-flask-vue-refresh-handoff-max-02c87095",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
       "kind": "task-creation",
       "label": "tg03-flask-vue-refresh-handoff task-creation gpt high",
       "model": "gpt-5.6-luna",
@@ -3236,6 +3922,52 @@
         "provider_reported_cost": null,
         "provider_reported_cost_cumulative": null,
         "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "continuation",
+      "label": "tg03-flask-vue-refresh-handoff continuation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260926T053513.162130Z-task-guidance-same-agent-tg03-flask-vue-refresh-handoff-4a1cfc49",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 21917,
+        "input_tokens": 32117,
+        "output_tokens": 879,
+        "provider_reported_cost": 0.0176657,
+        "provider_reported_cost_cumulative": 0.12762379999999998,
+        "reasoning_tokens": 138
+      }
+    },
+    {
+      "kind": "generated-plan",
+      "label": "tg03-flask-vue-refresh-handoff generated-plan gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260926T120245.779620Z-task-guidance-generated-tg03-flask-vue-refresh-handoff-high-1ce2e400",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 13972,
+        "input_tokens": 23896,
+        "output_tokens": 2060,
+        "provider_reported_cost": 0.0236812,
+        "provider_reported_cost_cumulative": 0.0236812,
+        "reasoning_tokens": 587
       }
     },
     {
@@ -4367,6 +5099,52 @@
     },
     {
       "kind": "task-creation",
+      "label": "tg07-eleventy-decided-work-tracking task-creation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260926T155118.888844Z-task-guidance-tg07-eleventy-decided-work-tracking-max-bfc760f4",
+      "scenario_id": "tg07-eleventy-decided-work-tracking",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg07-eleventy-decided-work-tracking task-creation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260926T155228.193512Z-task-guidance-tg07-eleventy-decided-work-tracking-max-293d6688",
+      "scenario_id": "tg07-eleventy-decided-work-tracking",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
       "label": "tg07-eleventy-decided-work-tracking task-creation gpt high",
       "model": "gpt-5.6-luna",
       "provider": "gpt",
@@ -4846,6 +5624,52 @@
         "provider_reported_cost": 0.0231733,
         "provider_reported_cost_cumulative": 0.0231733,
         "reasoning_tokens": 309
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg10-flask-vue-interface-copy task-creation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260926T155317.788806Z-task-guidance-tg10-flask-vue-interface-copy-high-b7aad4f5",
+      "scenario_id": "tg10-flask-vue-interface-copy",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 104593,
+        "input_tokens": 124464,
+        "output_tokens": 9227,
+        "provider_reported_cost": 0.0856923,
+        "provider_reported_cost_cumulative": 0.0856923,
+        "reasoning_tokens": 3012
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg10-flask-vue-interface-copy task-creation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260926T155656.600341Z-task-guidance-tg10-flask-vue-interface-copy-high-045337f7",
+      "scenario_id": "tg10-flask-vue-interface-copy",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 36984,
+        "input_tokens": 51773,
+        "output_tokens": 5016,
+        "provider_reported_cost": 0.048583400000000006,
+        "provider_reported_cost_cumulative": 0.048583400000000006,
+        "reasoning_tokens": 2068
       }
     },
     {

@@ -3,7 +3,7 @@
 - Assessor: `glm-5.3-flash:cloud` (effort max) · run `20260926T155911.583573Z-task-guidance-semantic-tg07-eleventy-decided-work-tracking-gpt-high-s0-2468864f`
 - Assessor config: [glm-assessor-max.json](../../../../shared/configs/glm-assessor-max.json)
 - Assessor system message: [glm-assessor-3d0be6dc03e9.md](../../../../shared/system-messages/glm-assessor-3d0be6dc03e9.md) (original SHA-256 `99081e35de181821…`)
-- Full transcript: [session.md](session.md) — includes the exact prompt and the raw response
+- First judgment's full transcript: [session.md](../../gpt-high/assessment/task-creation/s0/session.md) — includes the exact prompt and the raw response; every judgment's transcript lives beside its subject (`<cell>/assessment/task-creation/…`)
 - Reviewed target: [tg07-eleventy-decided-work-tracking](../../target.md)
 - Rubric: fragmentation uses none/low/medium/high mapped to 100/67/33/0; every other dimension uses none/partial/present mapped to 100/50/0. An assessment's overall success is the equal-weight average of the six dimension scores.
 

@@ -3,7 +3,7 @@
 - Assessor: `glm-5.3-flash:cloud` (effort max) · run `20260925T224940.108515Z-task-guidance-handoff-semantic-tg03-flask-vue-refresh-handoff-retain-glm-max-s0-04df0736`
 - Assessor config: [glm-assessor-max.json](../../../../shared/configs/glm-assessor-max.json)
 - Assessor system message: [glm-assessor-3d0be6dc03e9.md](../../../../shared/system-messages/glm-assessor-3d0be6dc03e9.md) (original SHA-256 `309edcf5c338a194…`)
-- Full transcript: [session.md](session.md) — includes the exact prompt and the raw response
+- First judgment's full transcript: [session.md](../../glm-max/assessment/handoff/retain/s0/session.md) — includes the exact prompt and the raw response; every judgment's transcript lives beside its subject (`<cell>/assessment/handoff/…`)
 - Reviewed target: [tg03-flask-vue-refresh-handoff](../../target.md)
 - Rubric: the assessor scores handoff quality 0-100 from plan coverage, lost facts, invented scope, rediscovery breadth, documentation and testing boundaries, and whether the plan is self-contained.
 

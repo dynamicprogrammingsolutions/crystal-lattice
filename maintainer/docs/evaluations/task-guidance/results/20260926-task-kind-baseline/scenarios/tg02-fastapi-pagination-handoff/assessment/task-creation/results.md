@@ -3,7 +3,7 @@
 - Assessor: `glm-5.3-flash:cloud` (effort max) · run `20260925T224524.618585Z-task-guidance-semantic-tg02-fastapi-pagination-handoff-glm-max-s0-d6e4aacf`
 - Assessor config: [glm-assessor-max.json](../../../../shared/configs/glm-assessor-max.json)
 - Assessor system message: [glm-assessor-3d0be6dc03e9.md](../../../../shared/system-messages/glm-assessor-3d0be6dc03e9.md) (original SHA-256 `ae0edd9e9e6125c3…`)
-- Full transcript: [session.md](session.md) — includes the exact prompt and the raw response
+- First judgment's full transcript: [session.md](../../glm-max/assessment/task-creation/s0/session.md) — includes the exact prompt and the raw response; every judgment's transcript lives beside its subject (`<cell>/assessment/task-creation/…`)
 - Reviewed target: [tg02-fastapi-pagination-handoff](../../target.md)
 - Rubric: fragmentation uses none/low/medium/high mapped to 100/67/33/0; every other dimension uses none/partial/present mapped to 100/50/0. An assessment's overall success is the equal-weight average of the six dimension scores.
 

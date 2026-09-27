@@ -68,7 +68,8 @@ agent — the focused confirmation task 090 required.
 
 - [Result package](results/20260926-task-quality-coverage/index.md) with
   [matrix](results/20260926-task-quality-coverage/matrix.md),
-  [costs](results/20260926-task-quality-coverage/costs.md), and per-subject
+  [costs](results/20260926-task-quality-coverage/costs.md), per-subject
   quality results pages under each scenario's
-  `assessment/task-quality/results.md`
+  `assessment/task-quality/results.md`, and each judgment's grades beside
+  its evidence (`<cell>/s<N>/assessment.md`)
 - [Scenario input definitions](scenarios/index.md)

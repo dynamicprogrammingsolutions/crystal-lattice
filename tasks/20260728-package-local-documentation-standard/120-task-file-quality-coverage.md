@@ -126,6 +126,30 @@ directories and connections; the matrix command set stays unchanged.
 - Note: the generated-plan stage runs for the three handoff-category
   scenarios (6 cells); decomposition and kind scenarios can join by
   declaring the stage in their categories.
+- September 26, 2026 (follow-up A+B executed): the result-package
+  export was reorganized around producer cells and every number moved
+  next to its evidence. Producer and stage runs export one directory
+  per sample (`<cell>/s<N>/`, `<cell>/<stage>/s<N>/`); sample
+  directories come from the run model's own sample index, with valid
+  records claiming their index first and invalid re-runs filling free
+  indexes so judgments stay beside the evidence they judge. Invalid
+  samples export `invalid.md` (category — validity vs provider
+  failure, run label, recorded reasons, response excerpt); the
+  generated-plan stage finally exports its sessions and task files in
+  the cell subtree. Per-subject assessments moved under the judged
+  cell (`<cell>/assessment/<stage>/…`), each judged sample gained
+  `assessment.md` (all stages' grades for that subject, linked both
+  ways), each scenario gained `results.md` (producer samples with
+  task-creation overall + quality grades; plan stages with handoff
+  scores; invalid links), and `matrix.md` gained the task-file-quality
+  cohort and per-judgment detail tables plus a split of invalid
+  records into validity failures vs provider failures. Frozen datasets
+  predating later scenarios now collect only the scenarios they hold.
+  Both current evidence packages were re-collected with the new
+  layout and pass the package check; the older historical packages
+  (b0, b1, b1v2, b1v3) keep their committed layout as historical
+  record. Deterministic suite: 175 tests green (two new tests cover
+  the invalid-sample export and the quality-judgment co-location).
 - September 26, 2026 (kind baseline): the four scenarios' first v3 run
   caught two flaky producer failures — the content task triggered a new
   ask-and-stop about *whether to include an execution plan* (tg10 GPT,
@@ -240,9 +264,10 @@ REQUIRED EXECUTION ORDER (approved September 26, 2026):
 1. DONE — promote the current guidance and commit first, so the branch
    can be merged into develop at any time (executed: commit `4fb5f6a6`,
    see task 090's promotion note).
-2. A + B refinements (package layout and matrix export), with new
-   tests and test adjustments AFTER the refinements — the refinements
-   land first so everything is easier to review in one pass.
+2. DONE — A + B refinements (package layout and matrix export), with
+   new tests and test adjustments after the refinements; both current
+   packages re-collected under the new layout (see Implementation
+   Notes).
 3. Layer 1 — presented-plan element-expectation calibration (targets +
    structure profiling over committed packages).
 4. C — assessment semantics rework (re-judge only).

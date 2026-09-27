@@ -10,10 +10,13 @@ pricing stays visibly incomplete and is never treated as zero.
 | `20260925T220512.526567Z-task-guidance-handoff-tg01-eleventy-archive-handoff-retain-aacaa29d` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T220913.987516Z-task-guidance-handoff-tg01-eleventy-archive-handoff-omit-a37cb4a0` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T224317.278813Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-2d77b4b8` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
+| `20260926T094145.923213Z-task-guidance-generated-tg01-eleventy-archive-handoff-max-9171a293` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T220021.621261Z-task-guidance-tg01-eleventy-archive-handoff-high-0fd5df8e` | gpt | gpt-5.6-luna | high | 83704 | 63329 | 0 | 9505 | 5168 | 0.0837379 USD |
 | `20260925T220612.199204Z-task-guidance-handoff-tg01-eleventy-archive-handoff-retain-f494a95e` | gpt | gpt-5.6-luna | high | 71081 | 57314 | 0 | 8013 | 4420 | 0.0675764 USD |
 | `20260925T221121.427040Z-task-guidance-handoff-tg01-eleventy-archive-handoff-omit-faf217fb` | gpt | gpt-5.6-luna | high | 74438 | 63520 | 0 | 5991 | 3023 | 0.0532160 USD |
 | `20260925T224339.971889Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-5bae8b14` | gpt | gpt-5.6-luna | high | unknown | unknown | unknown | unknown | unknown | unknown |
+| `20260926T053405.643957Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-deea4f98` | gpt | gpt-5.6-luna | high | 33817 | 22647 | 0 | 1130 | 230 | 0.0202147 USD |
+| `20260926T094535.471046Z-task-guidance-generated-tg01-eleventy-archive-handoff-high-9e0c2655` | gpt | gpt-5.6-luna | high | 45648 | 34809 | 0 | 3247 | 1120 | 0.0338019 USD |
 | `20260925T224313.457756Z-task-guidance-semantic-tg01-eleventy-archive-handoff-glm-max-s0-bcc3c298` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T224433.357981Z-task-guidance-semantic-tg01-eleventy-archive-handoff-gpt-high-s0-7cf39717` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T224458.684881Z-task-guidance-handoff-semantic-tg01-eleventy-archive-handoff-retain-glm-max-s0-cd92197f` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
@@ -31,10 +34,13 @@ pricing stays visibly incomplete and is never treated as zero.
 | `20260925T221819.821069Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-omit-4d36d96c` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T224353.903833Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-155fdb48` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T223303.072161Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-incomplete-71147485` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
+| `20260926T095809.509383Z-task-guidance-generated-tg02-fastapi-pagination-handoff-max-1d0f0972` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T220515.264516Z-task-guidance-tg02-fastapi-pagination-handoff-high-4a6f3d1a` | gpt | gpt-5.6-luna | high | 75411 | 59662 | 0 | 5951 | 2265 | 0.0574212 USD |
 | `20260925T221557.790224Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-retain-6db2b88d` | gpt | gpt-5.6-luna | high | 72842 | 61029 | 0 | 5808 | 2623 | 0.0527639 USD |
 | `20260925T222010.432598Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-omit-352a577b` | gpt | gpt-5.6-luna | high | 92685 | 77607 | 0 | 7297 | 3338 | 0.0666207 USD |
 | `20260925T224420.178125Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-0c8ddc56` | gpt | gpt-5.6-luna | high | unknown | unknown | unknown | unknown | unknown | unknown |
+| `20260926T053442.856561Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-3a051644` | gpt | gpt-5.6-luna | high | 29765 | 20965 | 0 | 832 | 156 | 0.0158885 USD |
+| `20260926T100052.656332Z-task-guidance-generated-tg02-fastapi-pagination-handoff-high-c97c20cc` | gpt | gpt-5.6-luna | high | 35653 | 24259 | 0 | 3507 | 672 | 0.0348619 USD |
 | `20260925T224524.618585Z-task-guidance-semantic-tg02-fastapi-pagination-handoff-glm-max-s0-d6e4aacf` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T224633.749703Z-task-guidance-semantic-tg02-fastapi-pagination-handoff-gpt-high-s0-056335b7` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T225424.186000Z-task-guidance-handoff-semantic-tg02-fastapi-pagination-handoff-retain-glm-max-s0-57ca006c` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
@@ -52,10 +58,13 @@ pricing stays visibly incomplete and is never treated as zero.
 | `20260925T222307.070068Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-retain-154c0ef7` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T222807.209319Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-omit-c7c0c231` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T224432.383301Z-task-guidance-same-agent-tg03-flask-vue-refresh-handoff-167c6eb8` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
+| `20260926T122324.231857Z-task-guidance-generated-tg03-flask-vue-refresh-handoff-max-02c87095` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T220738.533967Z-task-guidance-tg03-flask-vue-refresh-handoff-high-7b1fb3ad` | gpt | gpt-5.6-luna | high | 84145 | 68140 | 0 | 5193 | 1300 | 0.0539770 USD |
 | `20260925T222430.785955Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-retain-4d0d5c3d` | gpt | gpt-5.6-luna | high | 151052 | 136168 | 0 | 8735 | 4995 | 0.0809108 USD |
 | `20260925T223015.895838Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-omit-d4ecf305` | gpt | gpt-5.6-luna | high | 58449 | 43930 | 0 | 7429 | 3947 | 0.0634860 USD |
 | `20260925T224447.720552Z-task-guidance-same-agent-tg03-flask-vue-refresh-handoff-c3405694` | gpt | gpt-5.6-luna | high | unknown | unknown | unknown | unknown | unknown | unknown |
+| `20260926T053513.162130Z-task-guidance-same-agent-tg03-flask-vue-refresh-handoff-4a1cfc49` | gpt | gpt-5.6-luna | high | 32117 | 21917 | 0 | 879 | 138 | 0.0176657 USD |
+| `20260926T120245.779620Z-task-guidance-generated-tg03-flask-vue-refresh-handoff-high-1ce2e400` | gpt | gpt-5.6-luna | high | 23896 | 13972 | 0 | 2060 | 587 | 0.0236812 USD |
 | `20260925T224715.069875Z-task-guidance-semantic-tg03-flask-vue-refresh-handoff-glm-max-s0-fe1dc76c` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T225054.807123Z-task-guidance-semantic-tg03-flask-vue-refresh-handoff-gpt-high-s0-e7005e9d` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260925T224940.108515Z-task-guidance-handoff-semantic-tg03-flask-vue-refresh-handoff-retain-glm-max-s0-04df0736` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
@@ -105,6 +114,8 @@ pricing stays visibly incomplete and is never treated as zero.
 | `20260926T121011.606870Z-task-guidance-quality-tg06-eleventy-author-migration-decomposition-gpt-xhigh-s0-56344392` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260926T121412.218589Z-task-guidance-quality-tg06-eleventy-author-migration-decomposition-gpt-max-s0-da53d7a5` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260926T154126.295681Z-task-guidance-tg07-eleventy-decided-work-tracking-max-0eb2985d` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
+| `20260926T155118.888844Z-task-guidance-tg07-eleventy-decided-work-tracking-max-bfc760f4` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
+| `20260926T155228.193512Z-task-guidance-tg07-eleventy-decided-work-tracking-max-293d6688` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260926T154125.716397Z-task-guidance-tg07-eleventy-decided-work-tracking-high-e51484ac` | gpt | gpt-5.6-luna | high | 42704 | 32693 | 0 | 2093 | 653 | 0.0258383 USD |
 | `20260926T155911.583573Z-task-guidance-semantic-tg07-eleventy-decided-work-tracking-gpt-high-s0-2468864f` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260926T160739.546012Z-task-guidance-semantic-tg07-eleventy-decided-work-tracking-glm-max-s0-89e9a997` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
@@ -126,6 +137,8 @@ pricing stays visibly incomplete and is never treated as zero.
 | `20260926T160457.641858Z-task-guidance-quality-tg09-flask-vue-deployment-runbook-gpt-high-s0-f8ee6ceb` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260926T154553.199686Z-task-guidance-tg10-flask-vue-interface-copy-max-070ece19` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260926T154809.648688Z-task-guidance-tg10-flask-vue-interface-copy-high-efa2eeaf` | gpt | gpt-5.6-luna | high | 35473 | 24413 | 0 | 1612 | 309 | 0.0231733 USD |
+| `20260926T155317.788806Z-task-guidance-tg10-flask-vue-interface-copy-high-b7aad4f5` | gpt | gpt-5.6-luna | high | 124464 | 104593 | 0 | 9227 | 3012 | 0.0856923 USD |
+| `20260926T155656.600341Z-task-guidance-tg10-flask-vue-interface-copy-high-045337f7` | gpt | gpt-5.6-luna | high | 51773 | 36984 | 0 | 5016 | 2068 | 0.0485834 USD |
 | `20260926T160111.620406Z-task-guidance-semantic-tg10-flask-vue-interface-copy-glm-max-s0-c98cbdd7` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260926T160823.669796Z-task-guidance-semantic-tg10-flask-vue-interface-copy-gpt-high-s0-4ea6d69e` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260926T160848.660143Z-task-guidance-semantic-tg10-flask-vue-interface-copy-gpt-high-s1-13226342` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
@@ -133,8 +146,8 @@ pricing stays visibly incomplete and is never treated as zero.
 | `20260926T160947.310025Z-task-guidance-quality-tg10-flask-vue-interface-copy-gpt-high-s0-564f3ec3` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 | `20260926T161038.485990Z-task-guidance-quality-tg10-flask-vue-interface-copy-gpt-high-s1-f1a1eb06` | glm | glm-5.3-flash:cloud | max | unknown | unknown | unknown | unknown | unknown | unknown |
 
-Estimated cost is available for 22 of 126 runs.
-The total across priced runs is 1.8731896 USD and covers only those runs.
+Estimated cost is available for 30 of 139 runs.
+The total across priced runs is 2.1535792 USD and covers only those runs.
 
 ## Incomplete rows
 
@@ -142,6 +155,7 @@ The total across priced runs is 1.8731896 USD and covers only those runs.
 - `20260925T220512.526567Z-task-guidance-handoff-tg01-eleventy-archive-handoff-retain-aacaa29d`: saved session contains no provider usage metadata
 - `20260925T220913.987516Z-task-guidance-handoff-tg01-eleventy-archive-handoff-omit-a37cb4a0`: saved session contains no provider usage metadata
 - `20260925T224317.278813Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-2d77b4b8`: saved session contains no provider usage metadata
+- `20260926T094145.923213Z-task-guidance-generated-tg01-eleventy-archive-handoff-max-9171a293`: saved session contains no provider usage metadata
 - `20260925T224339.971889Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-5bae8b14`: saved session contains no provider usage metadata
 - `20260925T224313.457756Z-task-guidance-semantic-tg01-eleventy-archive-handoff-glm-max-s0-bcc3c298`: saved session contains no provider usage metadata
 - `20260925T224433.357981Z-task-guidance-semantic-tg01-eleventy-archive-handoff-gpt-high-s0-7cf39717`: saved session contains no provider usage metadata
@@ -160,6 +174,7 @@ The total across priced runs is 1.8731896 USD and covers only those runs.
 - `20260925T221819.821069Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-omit-4d36d96c`: saved session contains no provider usage metadata
 - `20260925T224353.903833Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-155fdb48`: saved session contains no provider usage metadata
 - `20260925T223303.072161Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-incomplete-71147485`: saved session contains no provider usage metadata
+- `20260926T095809.509383Z-task-guidance-generated-tg02-fastapi-pagination-handoff-max-1d0f0972`: saved session contains no provider usage metadata
 - `20260925T224420.178125Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-0c8ddc56`: saved session contains no provider usage metadata
 - `20260925T224524.618585Z-task-guidance-semantic-tg02-fastapi-pagination-handoff-glm-max-s0-d6e4aacf`: saved session contains no provider usage metadata
 - `20260925T224633.749703Z-task-guidance-semantic-tg02-fastapi-pagination-handoff-gpt-high-s0-056335b7`: saved session contains no provider usage metadata
@@ -178,6 +193,7 @@ The total across priced runs is 1.8731896 USD and covers only those runs.
 - `20260925T222307.070068Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-retain-154c0ef7`: saved session contains no provider usage metadata
 - `20260925T222807.209319Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-omit-c7c0c231`: saved session contains no provider usage metadata
 - `20260925T224432.383301Z-task-guidance-same-agent-tg03-flask-vue-refresh-handoff-167c6eb8`: saved session contains no provider usage metadata
+- `20260926T122324.231857Z-task-guidance-generated-tg03-flask-vue-refresh-handoff-max-02c87095`: saved session contains no provider usage metadata
 - `20260925T224447.720552Z-task-guidance-same-agent-tg03-flask-vue-refresh-handoff-c3405694`: saved session contains no provider usage metadata
 - `20260925T224715.069875Z-task-guidance-semantic-tg03-flask-vue-refresh-handoff-glm-max-s0-fe1dc76c`: saved session contains no provider usage metadata
 - `20260925T225054.807123Z-task-guidance-semantic-tg03-flask-vue-refresh-handoff-gpt-high-s0-e7005e9d`: saved session contains no provider usage metadata
@@ -219,6 +235,8 @@ The total across priced runs is 1.8731896 USD and covers only those runs.
 - `20260926T121011.606870Z-task-guidance-quality-tg06-eleventy-author-migration-decomposition-gpt-xhigh-s0-56344392`: saved session contains no provider usage metadata
 - `20260926T121412.218589Z-task-guidance-quality-tg06-eleventy-author-migration-decomposition-gpt-max-s0-da53d7a5`: saved session contains no provider usage metadata
 - `20260926T154126.295681Z-task-guidance-tg07-eleventy-decided-work-tracking-max-0eb2985d`: saved session contains no provider usage metadata
+- `20260926T155118.888844Z-task-guidance-tg07-eleventy-decided-work-tracking-max-bfc760f4`: saved session contains no provider usage metadata
+- `20260926T155228.193512Z-task-guidance-tg07-eleventy-decided-work-tracking-max-293d6688`: saved session contains no provider usage metadata
 - `20260926T155911.583573Z-task-guidance-semantic-tg07-eleventy-decided-work-tracking-gpt-high-s0-2468864f`: saved session contains no provider usage metadata
 - `20260926T160739.546012Z-task-guidance-semantic-tg07-eleventy-decided-work-tracking-glm-max-s0-89e9a997`: saved session contains no provider usage metadata
 - `20260926T160805.327546Z-task-guidance-semantic-tg07-eleventy-decided-work-tracking-glm-max-s1-f0c93c92`: saved session contains no provider usage metadata
