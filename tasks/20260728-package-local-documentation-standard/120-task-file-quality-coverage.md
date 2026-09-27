@@ -226,3 +226,394 @@ Approved by the user on September 26, 2026 together with the direction
 ### Additional implementation verification
 
 - Full deterministic suite tests pass; ruff/black clean on touched files.
+
+## Follow-up plan
+
+Status: Draft (direction discussed and approved as direction on
+September 26, 2026; execution not yet started; open decisions listed
+below). When execution starts, this section should be promoted into its
+own subtask file with its own requirements checklist unless the user
+prefers executing it here.
+
+Observed while inspecting
+[the kind-baseline package](../../maintainer/docs/evaluations/task-guidance/results/20260926-task-kind-baseline/matrix.md)
+(2026-09-26 review session); every item below was verified in the
+package or the suite code before being recorded here.
+
+### A. Package layout and navigation (export-only, no new runs)
+
+- Per-subject assessments move under the producer cell they judge:
+  `scenarios/<id>/<profile>/assessment/<stage>/sN/…` instead of
+  `scenarios/<id>/assessment/<stage>/<profile>/sN/…`; judgments of a
+  cell's plans (handoff assessments) sit in the same cell subtree.
+- Every sample becomes a directory: producer cells gain
+  `s0/`,`s1/,…` (run, session, task files) like assessments already
+  have; invalid samples export `invalid.md` (recorded invalid reasons +
+  response excerpt) so failures such as tg07/tg10's 1-of-3 producer
+  failures are inspectable in place instead of only in the matrix list.
+- Numbers live next to evidence: each judged subject directory gains
+  `assessment.md` (the grades for that subject); each scenario root
+  gains `results.md` (every cell × stage: grades, scores, statuses,
+  links down); `index.md` and `matrix.md` link into `results.md`, and
+  evidence pages link back — both directions must be one hop.
+- Freeze/provider-failure records (for example the September 401
+  outage entries frozen from `b1v3-r4` into the kind baseline) are
+  marked distinctly or excluded at freeze with a note, so provider
+  history does not read as candidate defects.
+
+### B. Matrix export for the quality dimensions (export-only)
+
+- `matrix.md` gains a task-file-quality cohort table (All/GLM/GPT and
+  effort cohorts; top-grade share per dimension) and a per-judgment
+  detail table with links to the subject's `assessment.md`, mirroring
+  the existing task-creation semantic tables.
+
+### C. Assessment semantics rework (re-judge only; producers untouched)
+
+- Replace the ambiguous `occurrences` field (a term inherited from the
+  mistake-oriented decomposition rubric, defined for one dimension and
+  then reused for all) with `findings`: concrete `{where, quote, why}`
+  items backing every grade; a non-top grade with empty findings is an
+  invalid judgment (enforceable in validation).
+- Add a mistake-harvesting response block so the judge's search is
+  defect-oriented while grades stay completeness-oriented:
+  `"mistakes": [{where, quote, why}]` — dropped facts, invented
+  decisions, dense unreadable stretches, misplaced content, missing
+  acceptance evidence. Rationale recorded from the review session:
+  asked "how good is this", judges explain how good it is; asked to
+  find specific mistakes, they find them.
+- Split whole-file `findability` into per-section readability
+  (`section_readability`, graded per key section — requirements,
+  supporting details, execution plan) because the whole-file grade
+  ceilings at complete whenever the governed file format is followed;
+  the real problem is prose walls inside sections, especially the
+  execution plan.
+- Feed the deterministic structure metrics into the prompt as measured
+  facts (longest paragraph, longest list item, table rows, plan prose
+  share) so the judge anchors on numbers; deterministic floor +
+  semantic judgment, no mechanical bans.
+- Build a quality-assessment-specific target excerpt (approved
+  outcomes, open questions, task summary, task kind, applicable
+  sections, acceptance evidence, acceptable alternatives) instead of
+  injecting the decomposition target wholesale (partition sizes,
+  coherent deliverables, crossings, handoff plans are noise here).
+- Open decision (see Assessment organization below): whether some
+  dimensions move into the task-creation assessment and readability
+  becomes its own assessment.
+
+### D. Two-stage creation pipeline (material change; direction approved
+### September 26, 2026 — replaces the one-shot producer)
+
+- New stage pair modeling the real-world sequence: a `planning-session`
+  (fresh workspace WITHOUT the tasks guidance — planning happens under
+  normal repo guidance only) followed by a `task-creation-from-plan`
+  turn continuing that session, with the tasks guidance delivered
+  between the turns (committed into the workspace before the writing
+  turn; the delivery check verifies presence for the writing turn).
+- Approved direction: the one-shot producer is generally REMOVED —
+  planning first is always better. Expect trial-and-error during
+  rollout.
+- Approved design sketch: plan ONCE per scenario at the top reasoning
+  effort (for example gpt-max), verify the plan is good, then reuse
+  that single planning conversation as the continuation prefix for the
+  task-creation cells across the producer matrix (other models and
+  effort levels create the files from the same plan).
+- DECIDED plan verification (September 26, 2026): define a reviewed
+  PLAN TARGET per scenario (what a good plan must contain, analogous to
+  the decomposition target) and verify the generated plan with an
+  assessment against it. The plan itself stays dynamic and
+  model-dependent — regenerated per candidate cycle, cached while
+  working on that candidate, NOT committed to the repo. Only if this
+  proves too brittle or shows too much variance do we later decide to
+  pin a committed plan.
+- Remaining open implementation points: whether the planning transcript
+  stays identity-blind for judges (planner model must not leak into
+  subject material); whether retain/omit variants apply at the creation
+  turn; migration order (trial on one scenario first, then
+  matrix-wide).
+- DECIDED committed-vs-generated boundary (September 26, 2026):
+  committed sessions and task files are REPLACED with generated ones at
+  the first possible opportunity — no maintenance rule for refreshing
+  committed fixtures. Only what is unlikely to change stays committed:
+  the reviewed targets, which pin a specific repo revision and a fixed
+  task and may fix task-specific generic elements the plan and task
+  file must contain (approved outcomes, plan target, element
+  expectations, acceptance evidence form). Targets are the committed
+  authority used to review dynamically generated plans and task files;
+  generated artifacts (planning conversations, task files, presented
+  plans, implementation states) are model-made, assessment-gated
+  against the committed target, and cached per candidate — never
+  committed. Concretely: the committed canonical handoff fixtures
+  (`fixtures/handoffs/`) and their retain/omit stages are replaced by
+  generated setups gated this way as soon as the gates exist; until
+  then they remain a temporary bridge, not a maintained layer.
+- Why: `plan_justification` and `plan_design_completeness` need a real
+  planning antecedent to judge against; today planning and file-writing
+  are fused in one guided session, and the guidance is present during
+  planning, which real use does not do. The single-plan design also
+  removes planner variance from the producer matrix: differences
+  between cells measure file creation, not planning luck.
+- Cost estimate: one planning session per scenario (top effort) plus
+  ~26 creation turns (≈$0.30–0.50 GPT) plus GLM judging; comparability
+  with b0/B1 baselines breaks for producer cells — the kind baseline
+  and quality-coverage packages remain the one-shot-era reference.
+
+### Assessment organization study (decided September 26, 2026)
+
+Cost premise from the review session: two 5K-in/5K-out assessments cost
+the same as one 10K-in/10K-out assessment, so splitting is not expensive.
+Approved three-way split by question:
+
+1. Task-creation assessment (existing): is this the right decomposition
+   of the request — structure choice, crossings, deliverable mapping,
+   requirement placement relative to deliverables. Unchanged.
+2. Durable-context and plan-fidelity assessment: plan design
+   completeness, durable-context preservation, section appropriateness,
+   plan justification, task-kind fit (gaps 1, 3, 4, 5, 6).
+3. Human-readability assessment (new, split out): per-section
+   readability anchored on deterministic structure facts, mistake
+   harvesting for presentation defects (gap 2) — a focused judge with a
+   narrow rubric instead of one dimension among six.
+- `section_appropriateness` stays with the file-artifact assessment
+  (2): it judges placement within the file, not the work decomposition.
+  Nothing folds into the decomposition assessor.
+
+### Judge input format (decided September 26, 2026)
+
+- No tool calls for judges for now.
+- Task files and the conversation are embedded in the prompt in their
+  natural rendered format (fenced markdown with path headers), not as a
+  JSON map — escaped newlines distort the reading experience the
+  readability judge is supposed to evaluate.
+- JSON is kept only for genuinely structured data: the reviewed target
+  and the assessment response shape.
+- The workspace-reading judge (read-only workspace + tools, navigating
+  like a reviewer) stays a recorded future option, not planned work.
+
+### Readability elements (decided September 26, 2026)
+
+- The guidance must not prescribe which formatting elements to use
+  (tables, bold text, ordered lists, code snippets, directory-tree
+  visualizations are all tools among many).
+- Instead, assessment requests carry TASK-SPECIFIC element
+  expectations, derived like the decomposition target: for example, a
+  plan introducing a new interface should describe it in a code snippet
+  (a protocol shown as Python); planned sequences should appear as
+  ordered lists; enumerable fact sets as tables. The readability
+  assessment then measures whether those expected elements are present
+  and well used — fitting the check to the task instead of a universal
+  shape rule.
+- Where the expectations live: the reviewed target gains a
+  per-scenario element-expectation declaration (analogous to
+  `acceptable_alternatives`), derived from the pinned repo revision and
+  the fixed task itself — the task determines which elements a good
+  plan and task file must contain (a new interface implies a code
+  snippet, a planned sequence implies ordered lists). Expectations are
+  part of the committed target, not of any generated artifact.
+
+### Next calibration (details for continuing without this session)
+
+Baseline numbers on B1v3 (28 subjects: 18 development + 10 kind; GLM
+identity-blind judge; packages `20260926-task-quality-coverage` and
+`20260926-task-kind-baseline`):
+
+| Gap | Dimension | B1v3 result | Other evidence |
+|---|---|---|---|
+| 1 steps-not-design | plan_design_completeness | 22 complete / 5 partial / 1 poor | `plan_prose_share` floor 0 persists; tables nearly absent (48/50 dev files, 7/7 kind files) |
+| 2 readability | findability | 28/28 complete (ceiling; zero variance) | longest paragraph 210 w dev / 120 w kind; every dev file has subsections; b0 contrast: 296 w paragraphs, 8/72 files no subsections |
+| 3 dropped detail | durable_context_preservation | 23 complete / 5 partial | fresh-agent generated-file plans 6/6 complete coverage, 0/6 broad rediscovery, quality 91–96 |
+| 4 placement | section_appropriateness | 28/28 complete (ceiling; zero variance) | not measured on b0 |
+| 5 invented plans | plan_justification | 21 justified / 5 not_applicable / 2 fabricated | explicit-deferral violated 1/3 samples (tg07 GLM); plan-inclusion ask-and-stop 1/3 (tg10 GPT); both fabricated = tg04 GPT high+max |
+| 6 forced dev shape | task_kind_fit | 26 fits / 2 missing | kind scenarios 10/10 fits; both missing = tg04 GPT high+max |
+
+- Calibration targets: the tg04 pair (owns the `poor`, both
+  `fabricated`, both `missing`, 2 of 5 context drops); the conditional
+  execution-plan wording (drives both 1/3 producer failures); the two
+  ceiling dimensions (leniency check below).
+- Judge-leniency check (no producer runs needed): run the same quality
+  assessment over the committed b0 outputs; if the judge also gives b0
+  complete on the ceiling dimensions, the dimensions — not the files —
+  are the problem, and C's rework is the fix.
+- Candidate wording directions for the next guidance candidate (extends
+  the promoted practical baseline): the execution plan is conditional
+  (include one when planning happened or was requested; a
+  requirements-only task file is valid; never invent plan detail);
+  plan-design completeness restated as decided design, not steps
+  (v3's design-visibility rule already moved this); readability
+  guidance naming per-section structure and blessing tables for
+  enumerable facts; kind-appropriate acceptance evidence.
+- DECIDED wording direction (September 26, 2026) — section rename:
+  stop prescribing the name `## Execution plan`; use `## Implementation
+  plan` as the default, conditionally allowing `## Execution plan` for
+  clearly process-based tasks (for example deployment runbooks).
+  Rationale: models read "execution plan" as steps to execute and
+  "implementation plan" as the design behind the work — the rename
+  moves gap 1 without adding explanation text. What must move with it:
+  the guidance prescribes the name verbatim today; the deterministic
+  plan detection is already name-agnostic (`PLAN_SECTION_HINTS` matches
+  any title containing "plan"), so metrics and the absent-or-draft
+  assertion keep working; the committed canonical handoff fixtures and
+  assessment prompt wording use the current name and update with the
+  candidate — or the fixtures are already replaced by Theme D's
+  generated setups by then, whichever lands first.
+- Re-measurement after wording: kind scenarios + tg04 cells first
+  (multi-sample, 3 per flaky cell), full matrix if the wording touches
+  anything broader.
+
+### E. Workflow step coverage (recorded September 26, 2026; future work)
+
+The final test suite should cover most steps of the common task-file
+workflow, each step tested IN ISOLATION (not one big multi-stage test):
+
+1. Planning (conversation only).
+2. Creating the task file.
+3. A NEW agent revises and accepts the plan.
+4. Implementation (appending implementation notes, discovered facts).
+5. Follow-up paths: minor changes (affecting implementation notes); a
+   follow-up plan and implementation, possibly with requirement
+   changes.
+
+Design: each step's test has a FIXED SETUP that may consist of a
+session prefix (for example, step 5 starts from a conversation that
+already contains the implementation, plus a new prompt carrying the
+follow-up change), a file structure containing the implementation, and
+the task file with implementation notes.
+
+- Setups are DYNAMIC, not committed: committed canonical fixtures go
+  stale quickly as task-file guidance and formats evolve, and per the
+  committed-vs-generated boundary in Theme D they are REPLACED, not
+  maintained. A committed canonical set exists today — the handoff
+  fixtures under the suite's `fixtures/handoffs/` (tg01–tg03
+  retain/omit/incomplete), consumed by the canonical handoff stage —
+  and serves as a temporary bridge until generated, gated replacements
+  exist (first possible opportunity), not as a maintained layer.
+- New setups follow the same verification pattern as the two-stage
+  plan: generated by a model that can do the step well, verified by an
+  assessment with a QUALITY GATE (at least 80% quality) before the
+  setup is used, and CACHED per candidate (fixed while working on a
+  specific candidate, not saved in the repo).
+- Existing suite stages already cover steps 1 (partially, fused with
+  2), 2, and fresh-agent planning (adjacent to step 3); steps 3 as
+  revision-acceptance, 4, and 5 are new coverage.
+- ADJUSTMENT (approved September 26, 2026) — present the plan at
+  implementation start: when implementation begins, the agent first
+  SHOWS the plan for final approval — with a new agent AND with the
+  same agent, and EVEN IF the task file's plan is already `Approved`
+  (showing is always required; re-approval is the formality when the
+  plan was already approved). The presented plan is then ASSERTED: it
+  must include the specific elements most useful for humans (the
+  element expectations direction above — design before steps,
+  interfaces as code snippets, sequences as ordered lists, enumerable
+  facts as tables), which the guidance currently details only lightly.
+  Guidance verification (September 26, 2026): the present-again rule
+  exists for Draft plans ("If one exists from an earlier session,
+  reassess it and present it again") and the presentation format is
+  defined ("### Presenting an execution plan": summarize outcome,
+  scope, approach, material decisions or questions, acceptance
+  evidence, documentation audience, risks, exclusions; conceptual
+  boundaries over file inventories) — but presenting is not required
+  when the plan is already `Approved`, and the tracking carve-out
+  ("Steps 2–4 do not require duplicate approval…") lumps presentation
+  with approval. The next candidate separates them: presentation
+  always; duplicate approval not required when already approved.
+  Assessment note: among the missing workflow tests, this is one of
+  the most important.
+- FITS THE PLANNED WORK NOW (September 26, 2026): the suite already
+  captures presented plans — the handoff plan stages
+  (`plan-retain`, `plan-omit`, `generated-plan`) and continuations are
+  "present the Draft implementation plan" turns with committed
+  sessions. Sources: `plan-retain`/`plan-omit` present plans FROM THE
+  COMMITTED CANONICAL task files (temporary bridge per Theme D);
+  `generated-plan` and `continuation` present plans from
+  MODEL-GENERATED files (dynamic arm, cached in the packages). Layer 1
+  needs no new task files and calibrates both arms — including whether
+  the element-expectation set discriminates between them. It is a
+  one-time measurement of already-captured evidence and adds nothing to
+  the committed-fixture layer, which Theme D replaces with generated,
+  target-gated setups at the first opportunity. So the
+  element-expectation assertion can be calibrated IMMEDIATELY on the
+  existing packages without new producer runs: declare per-scenario
+  element expectations in the reviewed targets (Theme C direction),
+  measure presence in the already-captured presented plans
+  (deterministically where possible via the structure profile — code
+  spans, ordered lists, tables; semantically via the readability
+  judge), and record the baseline. The full
+  present-at-implementation-start stage (an executor-side turn with
+  its fixed setup) lands with Theme D/E.
+
+### Guidance gaps found by applying the task guidance to this file
+
+Self-application findings from the review session (candidates for the
+next guidance candidate or new tests), with decisions from the
+September 26, 2026 review:
+
+- No defined place for a follow-up plan — DECIDED: multiple follow-up
+  plans are allowed and common; they are append-only additions to the
+  open task file (this file's `## Follow-up plan` section after the
+  execution plan is the blessed placement); only MAJOR new pieces of
+  work become new subtasks; requirements themselves may occasionally
+  change during follow-up. The guidance must also define implementation
+  notes and their placement (execution-time discoveries and deviations,
+  distinct from completion notes).
+- What the guidance says about follow-ups TODAY (verified September 26,
+  2026, current and b1v3 candidate `tasks-v7`): one sentence — "Put
+  later corrections under `## Post-completion follow-up`. Ask before
+  reopening or materially extending the task, or creating another
+  task." — plus executor rules "Record discoveries and plan changes in
+  `## Implementation Notes`" and "Add `## Implementation Notes` only
+  after execution starts and immutable `## Completion Notes` only after
+  completion." Nothing defines follow-up plans while a task is open,
+  their append-only placement, requirement changes during follow-up, or
+  recorded future options. Agents mostly do this right by convention;
+  the next candidate makes it explicit.
+- No durable-context rule for task files themselves: task files must
+  preserve anything from the working conversation that later work
+  depends on, because sessions are lost or compacted; the guidance does
+  not state this explicitly for task files written during long
+  collaborations.
+- Numbers presentation — SUPERSEDED by the readability-elements
+  decision (see above): elements are never prescribed; task-specific
+  element expectations live in the reviewed targets.
+- Candidate new scenario APPROVED: a request to extend or amend an
+  existing task file (for example recording a follow-up plan) — tests
+  whether the model knows where additions belong; would have caught the
+  follow-up placement gap behaviorally.
+
+### Data-type placement taxonomy (draft for the guidance candidate)
+
+Draft answer to "which kinds of data appear during planning and task
+completion, and is it obvious where each goes at each stage?" — to be
+refined into guidance wording and, where placement is checkable, into
+assessment dimensions:
+
+| Data kind | Appears | Where it belongs |
+|---|---|---|
+| Approved outcome / constraint | planning | Requirements checklist (follow-up may amend it, noting the change) |
+| Rejected alternative + why | planning | Questions and decisions (decision with rationale) |
+| Open question / unresolved choice | planning, execution | Questions and decisions |
+| Verified fact + source | planning, execution | Supporting details (durable) — NOT implementation notes |
+| Material design decision | planning | Questions and decisions; design itself in the execution plan |
+| Task-structure decision (single vs subtasks, boundaries) | planning | Questions and decisions; reflected in the file/directory layout |
+| Approach, steps, verification plan | planning | Execution plan |
+| Status of plan steps | execution | Execution plan checklist updates |
+| Deviation from plan, discovery during execution | execution | Implementation notes (chronology of this execution) |
+| Durable fact discovered during execution | execution | Graduates into supporting details (not left in implementation notes) |
+| Verification evidence (what proved it) | completion | Completion notes via requirement verification |
+| Deferred / out-of-scope item | completion, follow-up | Completion notes (unresolved scope), then follow-up plan |
+| New requirement or requirement change | follow-up | Requirements checklist amendment + note |
+| Correction to an earlier recorded fact | follow-up | Post-completion follow-up / follow-up plan, amending the source |
+| Follow-up work item (approved direction, not yet started) | follow-up | Follow-up plan (append-only) |
+| Recorded future option (worth storing, explicitly not planned now) | any stage | Follow-up plan, as a distinct kind from approved follow-ups — marked "future option", never presented as planned work (this file's workspace-reading-judge note is the live example) |
+
+The four placement traps are DECIDED (approved September 26, 2026):
+durable facts discovered during execution graduate into supporting
+details (implementation notes keep the deviation story); decision
+rationale lives with the decision in questions and decisions while
+supporting details hold factual background; requirement changes during
+follow-up amend the requirements checklist (with a note) so the
+checklist alone shows current truth, and the follow-up plan records why
+it changed; verified facts discovered after completion amend the source
+section through post-completion follow-up rather than the immutable
+completion notes. These become guidance wording plus checkable
+placement assertions in the fidelity assessment (a dropped-or-misplaced
+fact is a `findings` item).
