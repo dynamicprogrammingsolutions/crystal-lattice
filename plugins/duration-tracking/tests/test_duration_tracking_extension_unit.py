@@ -881,6 +881,41 @@ def test_from_native_messages_projects_human_time_totals(tmp_path: Path) -> None
     assert "duration_ms" not in metadata
 
 
+def test_from_native_messages_omits_human_time_from_tool_call_assistant() -> None:
+    native = [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "call-1"}],
+            "_metadata": {
+                "duration_session_total": 1200,
+                "human_time_session_total": 300000,
+                "human_time_session_total_formatted": "5m",
+                "human_time_turn_delta": 120000,
+                "human_time_turn_delta_formatted": "2m",
+            },
+        },
+    ]
+    messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "metadata": {
+                "native_indices": [0],
+                "tool_calls": [{"id": "call-1"}],
+                "human_time_session_total": 1,
+                "human_time_turn_delta": 1,
+            },
+        }
+    ]
+
+    projected = DurationTrackingExtension().from_native_messages(native, messages)
+
+    metadata = projected[0]["metadata"]
+    assert metadata["duration_session_total"] == 1200
+    assert not any(key.startswith("human_time_") for key in metadata)
+
+
 def test_finalize_stamps_human_time_delta_from_previous_completed_turn(
     tmp_path: Path,
 ) -> None:
@@ -969,7 +1004,8 @@ def test_finalize_omits_human_delta_on_intermediate_tool_call_message(
     )
 
     internal = _internal(new_finals[0])
-    assert internal["human_time_session_total"] == 60 * 1000
+    assert "human_time_session_total" not in internal
+    assert "human_time_session_total_formatted" not in internal
     assert "human_time_turn_delta" not in internal
 
 

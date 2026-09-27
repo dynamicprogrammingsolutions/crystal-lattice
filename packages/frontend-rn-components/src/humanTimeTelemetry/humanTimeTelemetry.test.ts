@@ -6,6 +6,7 @@ import type {
 } from "@crystal-lattice/frontend-sdk";
 
 import { appendSpan, loadSpans } from "./spanCache";
+import { runComposedMessageSubmission } from "./composedMessageSubmission";
 import { HumanTimeSpanUploader } from "./uploader";
 
 function memoryStore(): KeyValueStore {
@@ -22,6 +23,35 @@ function memoryStore(): KeyValueStore {
 }
 
 describe("shared human-time telemetry", () => {
+  it("records a composed-message boundary without delaying submission", () => {
+    const calls: string[] = [];
+    const submission = Promise.resolve("sent");
+
+    const result = runComposedMessageSubmission(
+      () => {
+        calls.push("boundary");
+      },
+      () => {
+        calls.push("submit");
+        return submission;
+      },
+    );
+
+    expect(calls).toEqual(["boundary", "submit"]);
+    expect(result).toBe(submission);
+  });
+
+  it("continues submission when boundary collection throws", () => {
+    const submit = vi.fn(() => "sent");
+
+    expect(
+      runComposedMessageSubmission(() => {
+        throw new Error("telemetry failed");
+      }, submit),
+    ).toBe("sent");
+    expect(submit).toHaveBeenCalledOnce();
+  });
+
   it("isolates rejected spans and removes only confirmed neighbors", async () => {
     const store = memoryStore();
     const rejected = {

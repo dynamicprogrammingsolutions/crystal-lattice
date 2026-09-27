@@ -76,6 +76,16 @@ def test_ui_elements_default_modes_are_clear_and_preserve_current_content() -> N
         if element.get("data") == "metadata.human_time_turn_delta_formatted"
     )
     assert footer["template"] == "human time: {{data}}"
+    assert footer["condition"] == {
+        "all": [
+            {
+                "path": "metadata.human_time_turn_delta_formatted",
+                "exists": True,
+            },
+            {"path": "role", "eq": "assistant"},
+            {"path": "metadata.tool_calls", "empty": True},
+        ]
+    }
 
 
 def test_ui_elements_all_options_render_independent_fields_and_statistics() -> None:

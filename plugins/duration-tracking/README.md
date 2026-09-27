@@ -29,8 +29,9 @@ plugin id (default `duration_tracking_app`). See
 `docs/development/overview.md` for the store schema, recording seams,
 the human-time span contract (including the frontend collection notes),
 configuration, and the completed-turn human-time delta. The delta is stored
-on the final assistant message and compares the cumulative uploaded human
-time with the previous completed turn.
+on the final assistant message without tool calls and compares the cumulative
+uploaded human time with the previous completed turn. Intermediate tool-call
+assistant messages carry machine-duration totals but no human-time metadata.
 
 ## Development
 

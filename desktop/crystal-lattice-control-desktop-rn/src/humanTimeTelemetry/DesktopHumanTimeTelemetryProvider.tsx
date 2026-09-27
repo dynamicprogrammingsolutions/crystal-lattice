@@ -39,11 +39,16 @@ interface DesktopHumanTimeTelemetryValue {
     connectionId: string | null,
     sessionId: string | null,
   ) => void;
+  splitForComposedMessage: (
+    connectionId: string | null,
+    sessionId: string | null,
+  ) => void;
 }
 
 const DesktopHumanTimeTelemetryContext =
   createContext<DesktopHumanTimeTelemetryValue>({
     recordActivity: () => {},
+    splitForComposedMessage: () => {},
   });
 
 export function useDesktopHumanTimeTelemetry(): DesktopHumanTimeTelemetryValue {
@@ -339,6 +344,19 @@ export function DesktopHumanTimeTelemetryProvider({
     [],
   );
 
+  const splitForComposedMessage = useCallback(
+    (connectionId: string | null, sessionId: string | null) => {
+      if (!connectionId || !sessionId || !latestRef.current.enabled) return;
+      const atMs = Date.now();
+      trackerRef.current?.close(atMs);
+      activeConnectionIdRef.current = connectionId;
+      trackerRef.current?.recordActivity(sessionId, atMs);
+      const span = trackerRef.current?.getOpenSpan() ?? null;
+      setOpenSpan(span ? { connectionId, span } : null);
+    },
+    [],
+  );
+
   const uploadNow = useCallback(async () => {
     trackerRef.current?.close();
     await pendingWritesRef.current;
@@ -383,7 +401,10 @@ export function DesktopHumanTimeTelemetryProvider({
     desktopHumanTimeDiagnosticsBridge.publish(diagnostics);
   }, [diagnostics]);
 
-  const value = useMemo(() => ({ recordActivity }), [recordActivity]);
+  const value = useMemo(
+    () => ({ recordActivity, splitForComposedMessage }),
+    [recordActivity, splitForComposedMessage],
+  );
   return (
     <DesktopHumanTimeTelemetryContext.Provider value={value}>
       {children}

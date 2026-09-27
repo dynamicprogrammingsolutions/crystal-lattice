@@ -171,7 +171,13 @@ class DurationTrackingExtension(FeaturePlugin):
             "ui_type": "message_footer",
             "data": data_path,
             "template": template,
-            "condition": {"path": data_path, "exists": True},
+            "condition": {
+                "all": [
+                    {"path": data_path, "exists": True},
+                    {"path": "role", "eq": "assistant"},
+                    {"path": "metadata.tool_calls", "empty": True},
+                ]
+            },
         }
 
     @staticmethod
@@ -384,14 +390,19 @@ class DurationTrackingExtension(FeaturePlugin):
         if not isinstance(source, dict):
             return final_messages, native_messages, state
 
-        totals_md = self._record_and_build_metadata(source, state)
-        if not totals_md:
+        machine_totals_md = self._record_and_build_metadata(source, state)
+        if not machine_totals_md:
             return final_messages, native_messages, state
+        human_totals_md = (
+            self._build_human_time_metadata(state)
+            if owner.get("role") == "assistant" and not self._has_tool_calls(owner)
+            else {}
+        )
         turn_md = self._human_time_turn_metadata(
             owner,
             final_messages=final_messages,
             native_messages=native_messages,
-            totals_md=totals_md,
+            totals_md=human_totals_md,
         )
 
         new_finals: List[Dict[str, Any]] = []
@@ -399,7 +410,11 @@ class DurationTrackingExtension(FeaturePlugin):
             if not isinstance(item, dict):
                 new_finals.append(item)
                 continue
-            extra = totals_md if idx != owner_idx else {**totals_md, **turn_md}
+            extra = (
+                machine_totals_md
+                if idx != owner_idx
+                else {**machine_totals_md, **human_totals_md, **turn_md}
+            )
             new_finals.append(self._attach_internal_md(item, extra))
 
         new_native = list(native_messages)
@@ -409,7 +424,9 @@ class DurationTrackingExtension(FeaturePlugin):
                 native_item = new_native[start + rel_idx]
                 if isinstance(native_item, dict):
                     extra = (
-                        totals_md if rel_idx != owner_idx else {**totals_md, **turn_md}
+                        machine_totals_md
+                        if rel_idx != owner_idx
+                        else {**machine_totals_md, **human_totals_md, **turn_md}
                     )
                     new_native[start + rel_idx] = self._attach_internal_md(
                         native_item, extra
@@ -441,9 +458,26 @@ class DurationTrackingExtension(FeaturePlugin):
 
             metadata_raw = message.get("metadata")
             metadata = dict(metadata_raw) if isinstance(metadata_raw, dict) else {}
+            has_tool_calls = self._has_tool_calls(message)
+            removed_human_metadata = False
+            if has_tool_calls:
+                filtered_metadata = {
+                    key: value
+                    for key, value in metadata.items()
+                    if not (
+                        isinstance(key, str) and key.startswith("human_time_")
+                    )
+                }
+                removed_human_metadata = filtered_metadata != metadata
+                metadata = filtered_metadata
+            projected_message = (
+                {**message, "metadata": metadata}
+                if removed_human_metadata
+                else message
+            )
             native_indices = metadata.get("native_indices")
             if not isinstance(native_indices, list):
-                out.append(message)
+                out.append(projected_message)
                 continue
 
             extra_md: Dict[str, Any] = {}
@@ -463,12 +497,13 @@ class DurationTrackingExtension(FeaturePlugin):
                     for key, value in internal.items()
                     if isinstance(key, str)
                     and key.startswith(_SESSION_METADATA_PREFIXES)
+                    and not (has_tool_calls and key.startswith("human_time_"))
                 }
                 if candidate:
                     extra_md = candidate
 
             if not extra_md:
-                out.append(message)
+                out.append(projected_message)
                 continue
 
             merged = dict(metadata)
@@ -591,8 +626,10 @@ class DurationTrackingExtension(FeaturePlugin):
         tool_calls = message.get("tool_calls")
         if isinstance(tool_calls, list) and tool_calls:
             return True
-        internal = message.get("_metadata")
-        if isinstance(internal, dict):
+        for metadata_key in ("_metadata", "metadata"):
+            internal = message.get(metadata_key)
+            if not isinstance(internal, dict):
+                continue
             tool_calls = internal.get("tool_calls")
             if isinstance(tool_calls, list) and tool_calls:
                 return True
@@ -766,21 +803,34 @@ class DurationTrackingExtension(FeaturePlugin):
             combined_total_ms
         )
 
-        # Human time totals read the same store (subtask 030). Best-effort
-        # in its own boundary: a failure skips only these fields.
+        return metadata
+
+    def _build_human_time_metadata(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Return store-backed human totals for a completed assistant turn."""
+
+        config = state.get("config") if isinstance(state, dict) else None
+        if isinstance(config, dict) and config.get("track_durations") is False:
+            return {}
+        working_directory = self._working_directory(config)
+        session_id = self._session_id_from_state(state)
+        if working_directory is None or session_id is None:
+            return {}
+        db_path = duration_store.resolve_duration_db_path(
+            config if isinstance(config, dict) else None
+        )
         try:
             human_totals = duration_store.human_time_session_totals(
                 db_path, working_directory=working_directory, session_id=session_id
             )
         except Exception:
-            human_totals = None
-        if human_totals is not None:
-            human_total_ms = int(human_totals.get("total_ms") or 0)
-            metadata["human_time_session_total"] = human_total_ms
-            metadata["human_time_session_total_formatted"] = _format_duration_ms(
+            return {}
+        human_total_ms = int(human_totals.get("total_ms") or 0)
+        return {
+            "human_time_session_total": human_total_ms,
+            "human_time_session_total_formatted": _format_duration_ms(
                 human_total_ms
-            )
-        return metadata
+            ),
+        }
 
     @staticmethod
     def _attach_internal_md(

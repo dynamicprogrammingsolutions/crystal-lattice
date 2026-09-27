@@ -356,7 +356,8 @@ def test_tool_loop_records_every_llm_round(tmp_path: Path) -> None:
         "turn_duration_ms", 0
     )
     assert assistant_md.get("tool_duration_session_calls") == 1
-    assert "human_time_turn_delta" not in (assistants[0].metadata or {})
+    intermediate_md = assistants[0].metadata or {}
+    assert not any(key.startswith("human_time_") for key in intermediate_md)
     assert assistant_md.get("human_time_turn_delta") == 0
     assert assistant_md.get("human_time_turn_delta_formatted") == "0ms"
 

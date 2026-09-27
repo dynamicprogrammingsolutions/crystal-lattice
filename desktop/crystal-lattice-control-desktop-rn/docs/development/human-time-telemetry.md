@@ -12,10 +12,14 @@ activity plus the configured maximum inactivity interval. Switching away from
 the session, changing connection, backgrounding the app, disabling tracking,
 or selecting **Upload now** closes it earlier at that transition time.
 
-Selecting a tab does not open a span by itself. The next composer edit, send,
-or user-initiated transcript scroll opens the span. Desktop currently creates
-session-attributed spans only; session-list, connection-list, Home, and
-History interactions do not create session-less spans.
+Selecting a tab does not open a span by itself. The next composer edit, message
+submission, or user-initiated transcript scroll opens the span. **Send**,
+**Append**, and **Append As** also split an existing span at submission time
+and immediately start its replacement at the same timestamp. The replacement
+uses the normal inactivity deadline, so submission alone contributes up to one
+configured maximum-inactivity interval. Desktop currently creates
+session-attributed spans only; session-list, connection-list, Home, and History
+interactions do not create session-less spans.
 
 ## Settings and persistence
 
@@ -51,6 +55,11 @@ Upload starts:
 Uploads do not wait for agent work or network idleness. Transient failures
 retain spans and retry after 30 seconds. A definitive plugin/action failure
 retains spans and emits one warning per connection/settings arm cycle.
+
+Message submission does not wait for the split span to be persisted or
+uploaded. The closed portion follows the same two-second debounce, so the
+boundary is best-effort and can miss a sufficiently fast assistant finalize;
+the chat operation is never postponed for telemetry.
 
 If the server reports skipped span data, the uploader isolates the batch into
 single-span requests. Valid neighbors continue uploading and are removed by

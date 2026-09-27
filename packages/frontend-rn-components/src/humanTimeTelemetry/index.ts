@@ -45,3 +45,4 @@ export {
   newestHumanTimeDiagnosticEntries,
   updateHumanTimeDiagnosticEntries,
 } from "./diagnostics";
+export { runComposedMessageSubmission } from "./composedMessageSubmission";

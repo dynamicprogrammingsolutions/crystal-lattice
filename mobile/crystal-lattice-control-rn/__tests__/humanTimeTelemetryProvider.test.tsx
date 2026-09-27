@@ -1,10 +1,13 @@
 import React from 'react';
-import { AppState } from 'react-native';
+import { AppState, Pressable, Text } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import { subscribeDisplayPresentation } from '@crystal-lattice/frontend-sdk';
 
-import { HumanTimeTelemetryProvider } from '../src/humanTimeTelemetry/HumanTimeTelemetryProvider';
+import {
+  HumanTimeTelemetryProvider,
+  useHumanTimeTelemetry,
+} from '../src/humanTimeTelemetry/HumanTimeTelemetryProvider';
 import { appendSpan, loadSpans } from '../src/humanTimeTelemetry/spanCache';
 import { HomeWorkspaceProvider } from '../src/HomeWorkspaceContext';
 import { MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY } from '../src/homeWorkspaceState';
@@ -40,12 +43,14 @@ function Host({
   activeSessionId,
   store,
   showSettings = false,
+  children,
 }: {
-  backend: AgentBackend;
+  backend: AgentBackend | null;
   connectionId: string;
   activeSessionId: string | null;
   store: ReturnType<typeof createMemoryStore>;
   showSettings?: boolean;
+  children?: React.ReactNode;
 }) {
   return (
     <HomeWorkspaceProvider store={store}>
@@ -57,8 +62,21 @@ function Host({
         {showSettings ? (
           <GlobalSettingsModal visible onRequestClose={() => {}} />
         ) : null}
+        {children}
       </HumanTimeTelemetryProvider>
     </HomeWorkspaceProvider>
+  );
+}
+
+function BoundaryProbe({ sessionId }: { sessionId: string }) {
+  const { splitForComposedMessage } = useHumanTimeTelemetry();
+  return (
+    <Pressable
+      testID="split-composed-message"
+      onPress={() => splitForComposedMessage(sessionId)}
+    >
+      <Text>split</Text>
+    </Pressable>
   );
 }
 
@@ -263,6 +281,54 @@ describe('HumanTimeTelemetryProvider', () => {
     ]);
     expect(Date.parse(spans[0].to) - Date.parse(spans[0].from)).toBe(4_000);
     expect(Date.parse(spans[1].to) - Date.parse(spans[1].from)).toBe(1_000);
+  });
+
+  it('splits at composed-message submission and continues foreground tracking', async () => {
+    const store = enabledStore();
+    const screen = render(
+      <Host
+        backend={null}
+        connectionId="connection-split"
+        activeSessionId="session-1"
+        store={store}
+      >
+        <BoundaryProbe sessionId="session-1" />
+      </Host>,
+    );
+    await settleAfterRender();
+    await jest.advanceTimersByTimeAsync(10_000);
+
+    fireEvent.press(screen.getByTestId('split-composed-message'));
+    await act(async () => {
+      await drainMicrotasks();
+    });
+
+    const firstPending = await loadSpans('connection-split');
+    expect(firstPending).toHaveLength(1);
+    expect(
+      Date.parse(firstPending[0].to) - Date.parse(firstPending[0].from),
+    ).toBe(10_000);
+
+    await jest.advanceTimersByTimeAsync(5_000);
+    screen.rerender(
+      <Host
+        backend={null}
+        connectionId="connection-split"
+        activeSessionId={null}
+        store={store}
+      >
+        <BoundaryProbe sessionId="session-1" />
+      </Host>,
+    );
+    await act(async () => {
+      await drainMicrotasks();
+    });
+
+    const allPending = await loadSpans('connection-split');
+    expect(allPending).toHaveLength(2);
+    expect(
+      Date.parse(allPending[1].to) - Date.parse(allPending[1].from),
+    ).toBe(5_000);
   });
 
   it('persists the open span when tracking is disabled', async () => {

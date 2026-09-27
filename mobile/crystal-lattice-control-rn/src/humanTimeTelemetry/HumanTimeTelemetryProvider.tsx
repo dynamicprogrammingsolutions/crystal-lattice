@@ -44,6 +44,7 @@ interface HumanTimeTelemetryValue {
   diagnostics: HumanTimeDiagnostics;
   refreshDiagnostics: () => Promise<void>;
   uploadNow: () => Promise<FlushOutcome>;
+  splitForComposedMessage: (sessionId: string | null) => void;
 }
 
 const defaultValue: HumanTimeTelemetryValue = {
@@ -59,6 +60,7 @@ const defaultValue: HumanTimeTelemetryValue = {
   },
   refreshDiagnostics: async () => {},
   uploadNow: async () => 'disabled',
+  splitForComposedMessage: () => {},
 };
 
 const HumanTimeTelemetryContext =
@@ -308,6 +310,39 @@ export const HumanTimeTelemetryProvider: React.FC<
     refreshDiagnostics,
   ]);
 
+  const splitForComposedMessage = useCallback(
+    (sessionId: string | null) => {
+      const {
+        activeSessionId,
+        connectionId: activeConnectionId,
+        timeTrackingEnabled: enabled,
+      } = latestRef.current;
+      if (
+        !enabled ||
+        appStateRef.current !== 'active' ||
+        !activeConnectionId ||
+        !sessionId ||
+        activeSessionId !== sessionId
+      ) {
+        return;
+      }
+
+      const atMs = Date.now();
+      closeActiveSessionSpan(atMs);
+      activeSessionSpanRef.current = {
+        connectionId: activeConnectionId,
+        sessionId,
+        fromMs: atMs,
+      };
+      setOpenSpan({
+        sessionId,
+        from: new Date(atMs).toISOString(),
+        to: new Date(atMs).toISOString(),
+      });
+    },
+    [closeActiveSessionSpan],
+  );
+
   const diagnostics = useMemo<HumanTimeDiagnostics>(
     () => ({
       enabled: timeTrackingEnabled,
@@ -337,8 +372,14 @@ export const HumanTimeTelemetryProvider: React.FC<
       diagnostics,
       refreshDiagnostics,
       uploadNow,
+      splitForComposedMessage,
     }),
-    [diagnostics, refreshDiagnostics, uploadNow],
+    [
+      diagnostics,
+      refreshDiagnostics,
+      splitForComposedMessage,
+      uploadNow,
+    ],
   );
 
   return (

@@ -33,8 +33,9 @@ in place.
   `tool_duration_session_average`,
   `tool_duration_session_average_formatted`), the combined LLM + tool total
   (`duration_session_combined_total`,
-  `duration_session_combined_total_formatted`), the human time total
-  (`human_time_session_total`, `human_time_session_total_formatted`), and the
+  `duration_session_combined_total_formatted`). Completed assistant messages
+  without tool calls additionally receive the human time total
+  (`human_time_session_total`, `human_time_session_total_formatted`) and the
   completed-turn human-time delta (`human_time_turn_delta`,
   `human_time_turn_delta_formatted`).
 - `DurationTrackingAppPlugin` (application plugin): the session action
@@ -211,21 +212,22 @@ anchor on start or end time, never both.
 ### Surfacing
 
 - The extension's `finalize` stamps `human_time_session_total` +
-  `human_time_session_total_formatted` onto the assistant message
-  metadata (in its own best-effort boundary — a store failure skips only
-  these fields), reading `human_time_session_totals` from the same store.
+  `human_time_session_total_formatted` only onto a completed assistant message
+  without tool calls (in its own best-effort boundary — a store failure skips
+  only these fields), reading `human_time_session_totals` from the same store.
   Like the other duration fields, the total updates at request finalize:
   spans arriving between requests appear after the next request.
 - The `Human time: …` status-bar element renders
   `metadata.human_time_session_total_formatted`, gated by its own
   additional-field choice.
-- A final assistant message without tool calls also receives
+- The same completed assistant message receives
   `human_time_turn_delta` + `human_time_turn_delta_formatted`: the difference
   between its cumulative human-time total and the previous completed
-  assistant turn. Intermediate tool-call assistant messages do not receive
-  the fields. The first turn uses zero as its baseline. If a prior completed
-  turn exists without a usable total, or the cumulative total regresses, the
-  delta is omitted rather than guessed.
+  assistant turn. Intermediate tool-call assistant messages receive no
+  human-time metadata; their machine-duration metadata remains unchanged. The
+  first turn uses zero as its baseline. If a prior completed turn exists
+  without a usable total, or the cumulative total regresses, the delta is
+  omitted rather than guessed.
 - The delta is an uploaded snapshot. Human spans that remain open or have not
   reached the plugin when the assistant message finalizes are reflected only
   by a later request; finalized messages are not rewritten.

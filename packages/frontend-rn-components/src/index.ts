@@ -44,6 +44,7 @@ export {
   newestHumanTimeDiagnosticEntries,
   removeFirstHumanTimeSpans,
   removeHumanTimeSpans,
+  runComposedMessageSubmission,
   toIsoUtc,
   updateHumanTimeDiagnosticEntries,
 } from "./humanTimeTelemetry";

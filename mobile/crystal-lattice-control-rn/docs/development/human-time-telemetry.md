@@ -12,8 +12,11 @@ the foreground, the user leaves Messages, selects another session or
 connection, disables tracking, or selects **Upload now**. Returning to the
 foreground with the session still open starts a new span.
 
-Typing, scrolling, and sending are not individual collection signals. Mobile
-does not create session-less spans.
+Typing and scrolling are not individual collection signals. Submitting a
+composed message through **Send**, **Append**, or **Append As** splits the
+foreground-session span at that moment and immediately starts its replacement.
+The submission does not wait for persistence or upload. Mobile does not create
+session-less spans.
 
 ## Settings
 
@@ -63,6 +66,11 @@ diagnostics. A rejected span does not emit the unavailable-plugin banner.
 Backgrounding closes and durably queues the open span. Mobile runtimes may
 suspend the two-second debounce, so returning to the foreground waits for
 that cache write and then flushes pending spans immediately.
+
+A composed-message split uses the same normal debounced upload path. It is a
+best-effort turn boundary: a sufficiently fast assistant response can still
+finalize before the closed span reaches the plugin, and sending is never
+delayed to prevent that race.
 
 The backend resolves overlaps and dedups by request id; the session total
 surfaces in the chat status bar (`Human time: …`) after the next request

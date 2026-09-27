@@ -25,19 +25,32 @@ function Probe({
   connectionId,
   sessionId,
   testID,
+  splitTestID,
 }: {
   connectionId: string;
   sessionId: string | null;
   testID: string;
+  splitTestID?: string;
 }) {
-  const { recordActivity } = useDesktopHumanTimeTelemetry();
+  const { recordActivity, splitForComposedMessage } =
+    useDesktopHumanTimeTelemetry();
   return (
-    <Pressable
-      testID={testID}
-      onPress={() => recordActivity(connectionId, sessionId)}
-    >
-      <Text>activity</Text>
-    </Pressable>
+    <>
+      <Pressable
+        testID={testID}
+        onPress={() => recordActivity(connectionId, sessionId)}
+      >
+        <Text>activity</Text>
+      </Pressable>
+      {splitTestID ? (
+        <Pressable
+          testID={splitTestID}
+          onPress={() => splitForComposedMessage(connectionId, sessionId)}
+        >
+          <Text>split</Text>
+        </Pressable>
+      ) : null}
+    </>
   );
 }
 
@@ -152,6 +165,63 @@ describe('DesktopHumanTimeTelemetryProvider', () => {
     });
     await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(1));
     appStateSpy.mockRestore();
+  });
+
+  it('splits at composed-message submission and starts a fresh inactivity span', async () => {
+    const screen = render(
+      <DesktopHumanTimeTelemetryProvider
+        enabled
+        pluginId="duration_tracking_app"
+        inactivityMs={30_000}
+        connectionIds={['a']}
+        connectedConnectionIds={[]}
+        activeSurfaceKey="session:a:s1"
+        getBackend={() => null}
+        store={asyncStorageKeyValueStore}
+      >
+        <Probe
+          connectionId="a"
+          sessionId="s1"
+          testID="activity-a"
+          splitTestID="split-a"
+        />
+      </DesktopHumanTimeTelemetryProvider>,
+    );
+
+    fireEvent.press(screen.getByTestId('activity-a'));
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(10_000);
+    });
+    fireEvent.press(screen.getByTestId('split-a'));
+    await act(async () => {
+      await drainMicrotasks();
+    });
+
+    const firstPending = await loadHumanTimeSpans(
+      'a',
+      asyncStorageKeyValueStore,
+    );
+    expect(firstPending).toHaveLength(1);
+    expect(
+      Date.parse(firstPending[0].to) - Date.parse(firstPending[0].from),
+    ).toBe(10_000);
+    expect(
+      desktopHumanTimeDiagnosticsBridge.getSnapshot().openSpan?.span.from,
+    ).toBe('2026-09-25T10:00:10.000Z');
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(30_000);
+      await drainMicrotasks();
+    });
+
+    const allPending = await loadHumanTimeSpans(
+      'a',
+      asyncStorageKeyValueStore,
+    );
+    expect(allPending).toHaveLength(2);
+    expect(
+      Date.parse(allPending[1].to) - Date.parse(allPending[1].from),
+    ).toBe(30_000);
   });
 
   it('uploads valid neighbors, retains only rejected spans, and shows no unavailable warning', async () => {
