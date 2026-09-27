@@ -42,6 +42,7 @@ from .config import (
     build_runtime_overlay_env,
     build_agent_config,
     load_raw_config,
+    resolve_config_includes,
     resolve_config_mixins,
     resolve_placeholders,
     resolve_request_config,
@@ -402,11 +403,16 @@ class AgentApplication:
         resolved_config, placeholder_errors = resolve_placeholders(
             raw_config, env=resolution_env
         )
-        mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
+        include_resolved_config, include_errors = resolve_config_includes(
+            resolved_config, config_dir=config_path_resolved.parent
+        )
+        mixin_resolved_config, mixin_errors = resolve_config_mixins(
+            include_resolved_config
+        )
         variant_errors = validate_resolved_config_variants(mixin_resolved_config)
         self._config: Dict[str, Any] = mixin_resolved_config
         self._config_errors: List[Dict[str, Any]] = (
-            placeholder_errors + mixin_errors + variant_errors
+            placeholder_errors + include_errors + mixin_errors + variant_errors
         )
         self._resolved_env: Dict[str, str] = dict(resolution_env)
         self._runtime_env_overlay = RuntimeEnvOverlay(

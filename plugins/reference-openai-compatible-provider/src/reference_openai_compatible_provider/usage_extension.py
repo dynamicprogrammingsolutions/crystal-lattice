@@ -125,6 +125,58 @@ def _clamp_cached_tokens(cached_tokens: int, prompt_tokens: int) -> int:
     return min(max(0, cached_tokens), max(0, prompt_tokens))
 
 
+def _is_rate_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _matching_model_entry(
+    token_rates: dict[str, Any], model: Any
+) -> dict[str, Any] | None:
+    """Return the per-model rate entry in ``token_rates["models"]`` matching
+    ``model``, if any.
+
+    Matching tries the exact model id, then the id with a trailing ollama-style
+    ``:tag`` stripped (``glm-5.2:cloud`` → ``glm-5.2``), then both candidates
+    case-insensitively. Unknown keys in ``token_rates`` (for example metadata
+    like ``_source``) never match.
+    """
+    models = token_rates.get("models")
+    if not isinstance(models, dict) or not isinstance(model, str) or not model:
+        return None
+    stripped = model.rsplit(":", 1)[0] if ":" in model else model
+    for candidate in (model, stripped):
+        entry = models.get(candidate)
+        if isinstance(entry, dict):
+            return entry
+    lowered = {
+        str(key).lower(): value for key, value in models.items() if isinstance(key, str)
+    }
+    for candidate in (model.lower(), stripped.lower()):
+        entry = lowered.get(candidate)
+        if isinstance(entry, dict):
+            return entry
+    return None
+
+
+def _effective_token_rates(token_rates: Any, model: Any) -> Any:
+    """Resolve per-model overrides inside ``token_rates`` for ``model``.
+
+    A matching ``models`` entry replaces the flat rates as a complete set
+    (it must define at least ``input`` and ``completion``; otherwise the base
+    flat rates apply). Non-dict ``token_rates`` passes through unchanged.
+    """
+    if not isinstance(token_rates, dict):
+        return token_rates
+    entry = _matching_model_entry(token_rates, model)
+    if entry is None:
+        return token_rates
+    if not _is_rate_number(entry.get("input")) or not _is_rate_number(
+        entry.get("completion")
+    ):
+        return token_rates
+    return entry
+
+
 def _rate_token_split(
     usage: dict[str, Any],
     token_rates: dict[str, Any],
@@ -767,6 +819,48 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                         "type": "number",
                         "description": "Rate per million completion/output tokens (USD)",
                     },
+                    "models": {
+                        "type": "object",
+                        "required": False,
+                        "description": (
+                            "Optional per-model rate overrides keyed by model id. "
+                            "A matching entry replaces the flat rates as a complete "
+                            "set (it must define at least input and completion); "
+                            "matching tries the exact id, then the id with a "
+                            "trailing ':tag' stripped, then case-insensitively"
+                        ),
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "number",
+                                    "description": (
+                                        "Rate per million input/prompt tokens (USD)"
+                                    ),
+                                },
+                                "cached": {
+                                    "type": "number",
+                                    "description": (
+                                        "Rate per million cached tokens (USD)"
+                                    ),
+                                },
+                                "cache_write": {
+                                    "type": "number",
+                                    "description": (
+                                        "Optional rate per million cache-write "
+                                        "tokens (USD)"
+                                    ),
+                                },
+                                "completion": {
+                                    "type": "number",
+                                    "description": (
+                                        "Rate per million completion/output tokens "
+                                        "(USD)"
+                                    ),
+                                },
+                            },
+                        },
+                    },
                 },
             },
         }
@@ -897,6 +991,16 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
 
         config = state.get("config") or {}
         token_rates = config.get("token_rates")
+        if isinstance(token_rates, dict):
+            request = state.get("request")
+            request_model = (
+                request.get("payload", {}).get("model")
+                if isinstance(request, dict)
+                else None
+            )
+            if request_model is None:
+                request_model = config.get("model")
+            token_rates = _effective_token_rates(token_rates, request_model)
         estimate_cached_tokens = config.get("estimate_cached_tokens") is True
         usage_bucket = resolve_cost_bucket(config)
 

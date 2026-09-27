@@ -259,7 +259,10 @@ The usage extension also accepts these flat provider-config keys:
 - `token_rates` (object, optional): local rates in USD per million tokens
   - `input`: ordinary prompt/input-token rate
   - `cached`: cached prompt-token rate
+  - `cache_write`: optional cache-write token rate; cache-write cost is
+    skipped when not configured
   - `completion`: completion/output-token rate
+  - `models`: optional per-model rate overrides (see below)
 - `estimate_cached_tokens` (boolean, default `false`): opt into the
   turn-aware cached-token fallback described below
 - `show_estimated_cached_tokens` (boolean, default `false`): show an
@@ -284,6 +287,33 @@ current prompt-token total before local cost calculation, preventing an
 inconsistent provider payload from producing a negative ordinary-input
 component. If no distinct cached rate is configured, cached tokens use the
 ordinary input rate.
+
+#### Per-model token rates
+
+`token_rates.models` maps model ids to complete rate sets:
+
+```json
+"token_rates": {
+  "input": 1.0,
+  "cached": 0.2,
+  "completion": 3.2,
+  "models": {
+    "glm-5.2": {"input": 1.4, "cached": 0.26, "completion": 4.4},
+    "glm-5.3-flash": {"input": 0.15, "cached": 0.03, "completion": 0.5}
+  }
+}
+```
+
+When the active model matches an entry, that entry replaces the flat rates as
+a complete set (it must define at least `input` and `completion`; incomplete
+entries are skipped in favor of the flat rates). Matching tries the exact
+model id, then the id with a trailing `:tag` stripped (so `glm-5.2:cloud`
+matches the `glm-5.2` entry), then both candidates case-insensitively. Models
+with no matching entry use the flat rates. Unknown sibling keys (for example
+`_source` or `_generated_at` metadata in an included pricing file) are
+ignored, so a rates file can be referenced directly with
+`{"$include": "path/to/pricing.json"}` (see the application's configuration
+includes guide).
 
 #### Estimated cached-token fallback
 

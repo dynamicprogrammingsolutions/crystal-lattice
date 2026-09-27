@@ -27,6 +27,8 @@ _MIXIN_MERGE_KEY = "mixin_merge"
 _MIXIN_POLICY_KEY = "mixin_policy"
 _MIXINS_KEY = "mixins"
 _DEFAULT_MIXIN_DEPTH = 16
+INCLUDE_KEY = "$include"
+_DEFAULT_INCLUDE_DEPTH = 16
 
 
 def _default_builtin_plugins_dir() -> Path:
@@ -144,11 +146,15 @@ def load_resolved_config(
     resolved_config, placeholder_errors = resolve_placeholders(
         raw_config, env=resolution_env
     )
-    mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
+    include_resolved_config, include_errors = resolve_config_includes(
+        resolved_config,
+        config_dir=Path(config_path).expanduser().resolve().parent,
+    )
+    mixin_resolved_config, mixin_errors = resolve_config_mixins(include_resolved_config)
     variant_errors = validate_resolved_config_variants(mixin_resolved_config)
     return (
         mixin_resolved_config,
-        placeholder_errors + mixin_errors + variant_errors,
+        placeholder_errors + include_errors + mixin_errors + variant_errors,
         resolution_env,
     )
 
@@ -390,6 +396,270 @@ def resolve_placeholders(
 
     errors: List[Dict[str, Any]] = []
     resolved = _walk_and_resolve(dict(raw), "", env or os.environ, errors)
+    return resolved, errors
+
+
+def _resolve_include_tree(
+    node: Any,
+    base_dir: Path,
+    chain: Tuple[Path, ...],
+    depth: int,
+    default_mode: str,
+    max_depth: int,
+    errors: List[Dict[str, Any]],
+    path: str = "",
+) -> Any:
+    """Recursively resolve ``$include`` keys within ``node``'s subtree.
+
+    Mappings are traversed; arrays and scalars are opaque. A mapping carrying
+    ``$include`` has the referenced JSON file's object merged underneath its
+    local keys (local keys win) and the control key consumed.
+    """
+
+    if not isinstance(node, Mapping):
+        return copy_config_value(node)
+
+    if INCLUDE_KEY in node:
+        return _resolve_include_node(
+            node,
+            base_dir=base_dir,
+            chain=chain,
+            depth=depth,
+            default_mode=default_mode,
+            max_depth=max_depth,
+            errors=errors,
+            path=path,
+        )
+
+    resolved: Dict[str, Any] = {}
+    for key, value in node.items():
+        child_path = f"{path}.{key}" if path else str(key)
+        if isinstance(value, Mapping):
+            resolved[key] = _resolve_include_tree(
+                value,
+                base_dir,
+                chain,
+                depth,
+                default_mode,
+                max_depth,
+                errors,
+                child_path,
+            )
+        else:
+            resolved[key] = copy_config_value(value)
+    return resolved
+
+
+def _load_include_file(
+    include_value: Any,
+    base_dir: Path,
+    chain: Tuple[Path, ...],
+    depth: int,
+    default_mode: str,
+    max_depth: int,
+    errors: List[Dict[str, Any]],
+    path: str,
+) -> Dict[str, Any] | None:
+    """Load and include-resolve the JSON file referenced by ``$include``.
+
+    Relative paths resolve against ``base_dir`` (the directory of the file
+    that carries the ``$include`` key); ``~`` expands to the user's home.
+    Returns the resolved object, or None when the file cannot be loaded
+    (the error is recorded in ``errors``).
+    """
+
+    if depth >= max_depth:
+        errors.append(
+            {
+                "type": "include_depth_exceeded",
+                "path": f"{path}.{INCLUDE_KEY}",
+                "detail": f"$include expansion exceeded max_depth={max_depth}",
+            }
+        )
+        return None
+
+    raw_path = str(include_value).strip()
+    include_path = Path(raw_path).expanduser()
+    if not include_path.is_absolute():
+        include_path = base_dir / include_path
+    resolved_path = include_path.resolve()
+
+    if resolved_path in chain:
+        errors.append(
+            {
+                "type": "include_cycle",
+                "path": f"{path}.{INCLUDE_KEY}",
+                "detail": f"Circular $include reference to {str(resolved_path)}",
+            }
+        )
+        return None
+
+    try:
+        content = json.loads(resolved_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        errors.append(
+            {
+                "type": "include_missing",
+                "path": f"{path}.{INCLUDE_KEY}",
+                "detail": f"$include file not found: {str(resolved_path)}",
+            }
+        )
+        return None
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(
+            {
+                "type": "include_invalid",
+                "path": f"{path}.{INCLUDE_KEY}",
+                "detail": f"Could not load $include file {str(resolved_path)}: {exc}",
+            }
+        )
+        return None
+
+    if not isinstance(content, dict):
+        errors.append(
+            {
+                "type": "include_invalid",
+                "path": f"{path}.{INCLUDE_KEY}",
+                "detail": f"$include file must contain a JSON object: {str(resolved_path)}",
+            }
+        )
+        return None
+
+    return _resolve_include_tree(
+        content,
+        resolved_path.parent,
+        (*chain, resolved_path),
+        depth + 1,
+        default_mode,
+        max_depth,
+        errors,
+        path,
+    )
+
+
+def _resolve_include_node(
+    node: Mapping[str, Any],
+    *,
+    base_dir: Path,
+    chain: Tuple[Path, ...],
+    depth: int,
+    default_mode: str,
+    max_depth: int,
+    errors: List[Dict[str, Any]],
+    path: str,
+) -> Dict[str, Any]:
+    """Merge the ``$include`` target underneath a node's local keys.
+
+    The included object is the base and the node's local keys (minus the
+    control key) are the overlay, so local keys override included content.
+    A ``$merge`` directive on the included file's root governs the merge;
+    otherwise the node's own ``$merge`` applies. The node's ``$merge`` is
+    preserved in the result so later mixin resolution still sees it.
+    """
+
+    include_value = node.get(INCLUDE_KEY)
+    local = {key: value for key, value in node.items() if key != INCLUDE_KEY}
+
+    included: Dict[str, Any] = {}
+    if not isinstance(include_value, str) or not str(include_value).strip():
+        errors.append(
+            {
+                "type": "include_invalid",
+                "path": f"{path}.{INCLUDE_KEY}",
+                "detail": "'$include' must be a non-empty string path to a JSON file",
+            }
+        )
+    else:
+        loaded = _load_include_file(
+            include_value,
+            base_dir,
+            chain,
+            depth,
+            default_mode,
+            max_depth,
+            errors,
+            path,
+        )
+        if loaded is not None:
+            included = loaded
+
+    local_resolved: Dict[str, Any] = {}
+    for key, value in local.items():
+        child_path = f"{path}.{key}" if path else str(key)
+        if isinstance(value, Mapping):
+            local_resolved[key] = _resolve_include_tree(
+                value,
+                base_dir,
+                chain,
+                depth,
+                default_mode,
+                max_depth,
+                errors,
+                child_path,
+            )
+        else:
+            local_resolved[key] = copy_config_value(value)
+
+    included_directive = included.get(MERGE_KEY)
+    overlay = dict(local_resolved)
+    if included_directive is not None:
+        overlay[MERGE_KEY] = copy_config_value(included_directive)
+
+    merged = merge_config(
+        included,
+        overlay,
+        default_mode=default_mode,  # type: ignore[arg-type]
+        path=path,
+        errors=errors,
+        max_depth=max_depth,
+    )
+
+    local_had_merge = MERGE_KEY in local_resolved
+    if local_had_merge and MERGE_KEY not in merged:
+        merged[MERGE_KEY] = copy_config_value(local_resolved[MERGE_KEY])
+    return merged
+
+
+def resolve_config_includes(
+    config: Mapping[str, Any],
+    *,
+    config_dir: str | Path | None = None,
+    max_depth: int = _DEFAULT_INCLUDE_DEPTH,
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """Resolve ``"$include": "path/to.json"`` keys in a config mapping.
+
+    Any config object may carry a ``$include`` key referencing a JSON file.
+    The file's object is merged into that object with the same merge
+    machinery config mixins use: the included content is the base, the
+    object's local keys are the overlay (local keys win), a ``$merge``
+    directive on the included file's root governs the merge (else the
+    object's own ``$merge``, else ``mixin_policy.default_merge`` or
+    ``shallow``), and the ``$include`` key is consumed so downstream config
+    sees only the merged result. Relative paths resolve against the
+    directory of the file carrying the key; ``~`` expands to the user's
+    home; ``${env:...}`` placeholders are expected to be resolved already
+    (run :func:`resolve_placeholders` first). Guards mirror mixins: cycles
+    are reported as structured errors, expansion depth is bounded, and
+    missing or unparsable files leave the object's local keys intact.
+
+    Returns a tuple of ``(resolved_config, errors)``.
+    """
+
+    errors: List[Dict[str, Any]] = []
+    policy_in = config.get(_MIXIN_POLICY_KEY)
+    raw_default = (
+        policy_in.get("default_merge") if isinstance(policy_in, Mapping) else None
+    )
+    default_mode = raw_default if raw_default in {"shallow", "deep"} else "shallow"
+
+    base_dir = (
+        Path(config_dir).expanduser().resolve()
+        if config_dir is not None
+        else Path.cwd().resolve()
+    )
+    resolved = _resolve_include_tree(
+        config, base_dir, (), 0, default_mode, max_depth, errors
+    )
     return resolved, errors
 
 

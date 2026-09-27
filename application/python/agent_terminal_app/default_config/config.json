@@ -602,7 +602,10 @@
       "provider": "reference_openai_compatible",
       "base_url": "http://localhost:11434/v1",
       "model": "qwen3:0.6b",
-      "reasoning_field": "reasoning"
+      "reasoning_field": "reasoning",
+      "token_rates": {
+        "$include": "${env:CONFIG_DIR}/pricing/ollama.json"
+      }
     },
     "fireworks": {
       "mixin_refs": ["provider_defaults"],
@@ -612,7 +615,10 @@
       "model": "fireworks/gpt-oss-20b",
       "min_request_interval_seconds": 1,
       "rate_limit_retry_delays_seconds": [1, 2, 4],
-      "reasoning_field": "reasoning_content"
+      "reasoning_field": "reasoning_content",
+      "token_rates": {
+        "$include": "${env:CONFIG_DIR}/pricing/fireworks.json"
+      }
     },
     "zai": {
       "mixin_refs": ["provider_defaults"],
@@ -627,6 +633,9 @@
       "retry_on_timeout": [0, 5, 30],
       "retry_on_status": {
         "500": [0, 5, 30]
+      },
+      "token_rates": {
+        "$include": "${env:CONFIG_DIR}/pricing/zai.json"
       }
     }
   },
@@ -1100,11 +1109,6 @@
         "thinking": {
           "clear_thinking": "boolean"
         }
-      },
-      "token_rates": {
-        "input": 1.4,
-        "cached": 0.26,
-        "completion": 4.4
       }
     },
     "openrouter-image": {
